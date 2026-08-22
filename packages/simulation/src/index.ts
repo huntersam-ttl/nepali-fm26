@@ -18,4 +18,5 @@ export * from "./standings.js";
 export * from "./strength.js";
 export * from "./team-selection.js";
 export * from "./tactics.js";
+export * from "./transfer-market.js";
 export * from "./world.js";

@@ -1310,6 +1310,238 @@ export type ClubShortlistItem = {
   scoutingStatus: ScoutingAssignmentStatus | "NONE";
 };
 
+export type PlayerContractType =
+  | "PERMANENT"
+  | "SHORT_TERM"
+  | "YOUTH"
+  | "AMATEUR"
+  | "SEMI_PRO"
+  | "PROFESSIONAL"
+  | "SIMULATION_ONLY";
+export type PlayerContractStatus =
+  "ACTIVE" | "EXPIRED" | "TERMINATED" | "AGREED_FUTURE" | "UNKNOWN";
+export type PlayerSquadRole =
+  "KEY_PLAYER" | "IMPORTANT_PLAYER" | "FIRST_TEAM" | "ROTATION" | "BACKUP" | "PROSPECT" | "YOUTH";
+
+export type PlayerContractRecord = {
+  id: EntityId;
+  playerId: EntityId;
+  clubId: EntityId;
+  startDate: ISODate;
+  endDate: ISODate;
+  contractType: PlayerContractType;
+  salary: number;
+  appearanceFee: number;
+  goalBonus: number;
+  cleanSheetBonus: number;
+  signingBonus: number;
+  loyaltyBonus: number;
+  currency: string;
+  squadRole: PlayerSquadRole;
+  releaseClause?: number;
+  status: PlayerContractStatus;
+  provenance: DataProvenance;
+};
+
+export type TransferWindowType = "PRIMARY" | "SECONDARY" | "SPECIAL" | "DOMESTIC_ONLY";
+export type TransferWindowStatus = "SCHEDULED" | "OPEN" | "CLOSED";
+
+export type TransferWindow = {
+  id: EntityId;
+  countryId: EntityId;
+  competitionId?: EntityId;
+  windowType: TransferWindowType;
+  openDate: ISODate;
+  closeDate: ISODate;
+  registrationDeadline: ISODate;
+  status: TransferWindowStatus;
+  provenance: DataProvenance;
+  rules: {
+    freeAgentsAllowedOutsideWindow: boolean;
+    loansAllowed: boolean;
+    youthRegistrationAllowed: boolean;
+    emergencyGoalkeeperAllowed: boolean;
+    domesticOnly: boolean;
+  };
+};
+
+export type TransferStatus =
+  | "NOT_FOR_SALE"
+  | "AVAILABLE"
+  | "TRANSFER_LISTED"
+  | "LOAN_LISTED"
+  | "FREE_AGENT"
+  | "CONTRACT_EXPIRING"
+  | "INTERESTED_IN_MOVE"
+  | "UNSETTLED";
+
+export type PlayerTransferStatusRecord = {
+  id: EntityId;
+  playerId: EntityId;
+  clubId?: EntityId;
+  status: TransferStatus;
+  reason: string;
+  setBy: "CLUB" | "PLAYER" | "SYSTEM";
+  updatedAt: ISODate;
+};
+
+export type ClubFinancialProfile = {
+  id: EntityId;
+  clubId: EntityId;
+  wageBudget: number;
+  transferBudget: number;
+  currentWageSpend: number;
+  financialHealth: "POOR" | "STABLE" | "GOOD";
+  currency: string;
+  status: "SIMULATION_ONLY";
+};
+
+export type ClubEmploymentModel =
+  "STANDARD" | "DEPARTMENTAL" | "AMATEUR" | "SEMI_PRO" | "FRANCHISE_TEMPORARY";
+
+export type ClubEmploymentProfile = {
+  id: EntityId;
+  clubId: EntityId;
+  employmentModel: ClubEmploymentModel;
+  contractProfile: "SEASONAL" | "SHORT_TERM" | "SEMI_PRO" | "PROFESSIONAL";
+  status: "SIMULATION_ONLY";
+};
+
+export type AgentNegotiationStyle = "BALANCED" | "AGGRESSIVE" | "LOYAL" | "CAREER_FIRST";
+
+export type AgentProfile = {
+  id: EntityId;
+  personId: EntityId;
+  agencyName?: string;
+  reputation: number;
+  negotiationStyle: AgentNegotiationStyle;
+  aggressiveness: number;
+  loyaltyPreference: number;
+  feeExpectation: number;
+  careerAmbition: number;
+  status: "SIMULATION_ONLY";
+};
+
+export type AgentClient = {
+  id: EntityId;
+  agentId: EntityId;
+  playerId: EntityId;
+  startedAt: ISODate;
+  status: "ACTIVE" | "ENDED";
+};
+
+export type TransferOfferType =
+  "PERMANENT" | "LOAN" | "LOAN_WITH_OPTION" | "LOAN_WITH_OBLIGATION" | "FREE_TRANSFER";
+export type TransferOfferStatus =
+  | "DRAFT"
+  | "SUBMITTED"
+  | "NEGOTIATING"
+  | "ACCEPTED"
+  | "REJECTED"
+  | "WITHDRAWN"
+  | "EXPIRED"
+  | "COMPLETED";
+
+export type TransferOffer = {
+  id: EntityId;
+  buyingClubId: EntityId;
+  sellingClubId?: EntityId;
+  playerId: EntityId;
+  offerType: TransferOfferType;
+  transferFee: number;
+  installments: number;
+  addOns: number;
+  sellOnPercentage: number;
+  submittedAt: ISODate;
+  expiresAt: ISODate;
+  status: TransferOfferStatus;
+  currency: string;
+  askingRange?: KnowledgeRange;
+  agentFee: number;
+  signingFee: number;
+};
+
+export type NegotiationRound = {
+  id: EntityId;
+  offerId: EntityId;
+  roundNumber: number;
+  actor: "BUYING_CLUB" | "SELLING_CLUB" | "PLAYER_AGENT" | "SYSTEM";
+  action: "OFFER" | "DEMAND" | "COUNTER" | "ACCEPT" | "REJECT";
+  salary?: number;
+  squadRole?: PlayerSquadRole;
+  contractLengthMonths?: number;
+  agentFee?: number;
+  signingFee?: number;
+  message: string;
+  createdAt: ISODate;
+};
+
+export type LoanStatus = "ACTIVE" | "ENDED" | "CANCELLED";
+
+export type PlayerLoanRecord = {
+  id: EntityId;
+  parentClubId: EntityId;
+  loanClubId: EntityId;
+  playerId: EntityId;
+  startDate: ISODate;
+  endDate: ISODate;
+  wageContributionPercent: number;
+  loanFee?: number;
+  playingTimeExpectation: PlayerSquadRole;
+  recallAllowed: boolean;
+  purchaseOption?: number;
+  status: LoanStatus;
+};
+
+export type CompetitionRegistrationType =
+  "CONTRACTED" | "LOAN" | "TEMPORARY_NSL" | "CUP" | "YOUTH" | "SPECIAL";
+export type CompetitionRegistrationStatus = "ACTIVE" | "EXPIRED" | "CANCELLED";
+
+export type CompetitionRegistration = {
+  id: EntityId;
+  playerId: EntityId;
+  clubId: EntityId;
+  competitionSeasonId: EntityId;
+  registrationType: CompetitionRegistrationType;
+  registeredFrom: ISODate;
+  registeredUntil?: ISODate;
+  status: CompetitionRegistrationStatus;
+};
+
+export type TransferHistoryEventType =
+  | "TRANSFER_COMPLETED"
+  | "FREE_AGENT_SIGNED"
+  | "LOAN_STARTED"
+  | "LOAN_ENDED"
+  | "CONTRACT_RENEWED"
+  | "CONTRACT_EXPIRED"
+  | "PLAYER_RELEASED"
+  | "TRANSFER_REQUESTED";
+
+export type TransferHistoryEvent = {
+  id: EntityId;
+  playerId: EntityId;
+  clubId?: EntityId;
+  relatedClubId?: EntityId;
+  eventType: TransferHistoryEventType;
+  occurredOn: ISODate;
+  data?: Record<string, unknown>;
+};
+
+export type SquadNeed = {
+  positionGroup: string;
+  severity: "LOW" | "MEDIUM" | "HIGH";
+  reason: string;
+};
+
+export type SquadNeedReport = {
+  id: EntityId;
+  clubId: EntityId;
+  generatedAt: ISODate;
+  needs: SquadNeed[];
+  expectedDepartures: number;
+};
+
 export type PlayerAvailability = {
   personId: EntityId;
   fitness: number;

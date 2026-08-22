@@ -1,7 +1,11 @@
 import type {
   CareerCharacter,
   Academy,
+  AgentClient,
+  AgentProfile,
   ClubAlias,
+  ClubEmploymentProfile,
+  ClubFinancialProfile,
   ClubRecruitmentProfile,
   ClubShortlistItem,
   ClubMembership,
@@ -25,6 +29,7 @@ import type {
   ScoutReport,
   ScoutingAssignment,
   ScoutingStaffSimulationProfile,
+  CompetitionRegistration,
   StaffAppointment,
   StaffHistoryEvent,
   StaffLicence,
@@ -48,9 +53,11 @@ import type {
   Match,
   MatchEvent,
   PlayerAttributeSet,
+  PlayerContractRecord,
   PlayerDevelopmentState,
   PlayerFactualProfile,
   PlayerKnowledge,
+  PlayerLoanRecord,
   RefereeProfile,
   PlayerPotential,
   PlayerPlayingTimeSnapshot,
@@ -58,6 +65,12 @@ import type {
   SuspensionRecord,
   TacticalSetup,
   TeamSeasonStat,
+  TransferHistoryEvent,
+  TransferOffer,
+  TransferWindow,
+  NegotiationRound,
+  PlayerTransferStatusRecord,
+  SquadNeedReport,
   TrainingFacilityProfile,
   TrainingHistoryEvent,
   TrainingPlan,
@@ -821,6 +834,19 @@ export class WorldRepository {
       scoutingAssignments: scalar("scouting_assignments"),
       scoutReports: scalar("scout_reports"),
       clubShortlist: scalar("club_shortlist"),
+      playerContracts: scalar("player_contracts"),
+      transferWindows: scalar("transfer_windows"),
+      clubFinancialProfiles: scalar("club_financial_profiles"),
+      clubEmploymentProfiles: scalar("club_employment_profiles"),
+      playerTransferStatuses: scalar("player_transfer_statuses"),
+      agents: scalar("agents"),
+      agentClients: scalar("agent_clients"),
+      transferOffers: scalar("transfer_offers"),
+      negotiationRounds: scalar("negotiation_rounds"),
+      playerLoans: scalar("player_loans"),
+      competitionRegistrations: scalar("competition_registrations"),
+      transferHistoryEvents: scalar("transfer_history_events"),
+      squadNeedReports: scalar("squad_need_reports"),
       trainingPlans: scalar("training_plans"),
       individualDevelopmentPlans: scalar("individual_development_plans"),
       playerDevelopmentStates: scalar("player_development_states"),
@@ -1205,6 +1231,10 @@ export class CompetitionRepository {
   }
 
   insertMatchEvent(event: MatchEvent): void {
+    const personId = event.personId ?? event.primaryPersonId ?? undefined;
+    const primaryPersonId = event.primaryPersonId ?? undefined;
+    const secondaryPersonId = event.secondaryPersonId ?? undefined;
+    const teamId = event.teamId ?? undefined;
     this.db
       .prepare(
         `INSERT INTO match_events
@@ -1217,12 +1247,20 @@ export class CompetitionRepository {
         event.minute ?? null,
         event.stoppageTime ?? null,
         event.type,
-        event.personId ?? event.primaryPersonId ?? null,
-        event.teamId ?? null,
-        event.primaryPersonId ?? null,
-        event.secondaryPersonId ?? null,
+        personId && this.personExists(personId) ? personId : null,
+        teamId && this.teamExists(teamId) ? teamId : null,
+        primaryPersonId && this.personExists(primaryPersonId) ? primaryPersonId : null,
+        secondaryPersonId && this.personExists(secondaryPersonId) ? secondaryPersonId : null,
         event.data ? json.stringify(event.data) : null,
       );
+  }
+
+  private personExists(personId: EntityId): boolean {
+    return Boolean(this.db.prepare("SELECT 1 FROM persons WHERE id = ?").get(personId));
+  }
+
+  private teamExists(teamId: EntityId): boolean {
+    return Boolean(this.db.prepare("SELECT 1 FROM teams WHERE id = ?").get(teamId));
   }
 
   upsertStanding(standing: LeagueStanding): void {
@@ -1592,6 +1630,512 @@ export class RecruitmentRepository {
   }
 }
 
+export class TransferMarketRepository {
+  constructor(private readonly db: GameDatabase) {}
+
+  upsertPlayerContract(contract: PlayerContractRecord): void {
+    this.db
+      .prepare(
+        `INSERT INTO player_contracts
+        (id, player_id, club_id, start_date, end_date, contract_type, salary,
+          appearance_fee, goal_bonus, clean_sheet_bonus, signing_bonus, loyalty_bonus,
+          currency, squad_role, release_clause, status, provenance_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          club_id = excluded.club_id,
+          start_date = excluded.start_date,
+          end_date = excluded.end_date,
+          contract_type = excluded.contract_type,
+          salary = excluded.salary,
+          appearance_fee = excluded.appearance_fee,
+          goal_bonus = excluded.goal_bonus,
+          clean_sheet_bonus = excluded.clean_sheet_bonus,
+          signing_bonus = excluded.signing_bonus,
+          loyalty_bonus = excluded.loyalty_bonus,
+          currency = excluded.currency,
+          squad_role = excluded.squad_role,
+          release_clause = excluded.release_clause,
+          status = excluded.status,
+          provenance_json = excluded.provenance_json`,
+      )
+      .run(
+        contract.id,
+        contract.playerId,
+        contract.clubId,
+        contract.startDate,
+        contract.endDate,
+        contract.contractType,
+        contract.salary,
+        contract.appearanceFee,
+        contract.goalBonus,
+        contract.cleanSheetBonus,
+        contract.signingBonus,
+        contract.loyaltyBonus,
+        contract.currency,
+        contract.squadRole,
+        contract.releaseClause ?? null,
+        contract.status,
+        json.stringify(contract.provenance),
+      );
+  }
+
+  activeContract(playerId: EntityId, date: string): PlayerContractRecord | undefined {
+    const row = this.db
+      .prepare(
+        `SELECT * FROM player_contracts
+        WHERE player_id = ? AND status = 'ACTIVE' AND start_date <= ? AND end_date >= ?
+        ORDER BY end_date DESC LIMIT 1`,
+      )
+      .get(playerId, date, date) as any;
+    return row ? mapPlayerContract(row) : undefined;
+  }
+
+  activeContractsForClub(clubId: EntityId, date: string): PlayerContractRecord[] {
+    return this.db
+      .prepare(
+        `SELECT * FROM player_contracts
+        WHERE club_id = ? AND status = 'ACTIVE' AND start_date <= ? AND end_date >= ?
+        ORDER BY player_id`,
+      )
+      .all(clubId, date, date)
+      .map(mapPlayerContract);
+  }
+
+  allPlayerContracts(): PlayerContractRecord[] {
+    return this.db
+      .prepare("SELECT * FROM player_contracts ORDER BY player_id, start_date")
+      .all()
+      .map(mapPlayerContract);
+  }
+
+  expiringContracts(date: string): PlayerContractRecord[] {
+    return this.db
+      .prepare("SELECT * FROM player_contracts WHERE status = 'ACTIVE' AND end_date <= ?")
+      .all(date)
+      .map(mapPlayerContract);
+  }
+
+  contractsExpiringBetween(from: string, to: string): PlayerContractRecord[] {
+    return this.db
+      .prepare(
+        "SELECT * FROM player_contracts WHERE status = 'ACTIVE' AND end_date >= ? AND end_date <= ?",
+      )
+      .all(from, to)
+      .map(mapPlayerContract);
+  }
+
+  markContractStatus(id: EntityId, status: PlayerContractRecord["status"]): void {
+    this.db.prepare("UPDATE player_contracts SET status = ? WHERE id = ?").run(status, id);
+  }
+
+  upsertTransferWindow(window: TransferWindow): void {
+    this.db
+      .prepare(
+        `INSERT INTO transfer_windows
+        (id, country_id, competition_id, window_type, open_date, close_date,
+          registration_deadline, status, provenance_json, rules_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          status = excluded.status,
+          rules_json = excluded.rules_json`,
+      )
+      .run(
+        window.id,
+        window.countryId,
+        window.competitionId ?? null,
+        window.windowType,
+        window.openDate,
+        window.closeDate,
+        window.registrationDeadline,
+        window.status,
+        json.stringify(window.provenance),
+        json.stringify(window.rules),
+      );
+  }
+
+  transferWindows(): TransferWindow[] {
+    return this.db
+      .prepare("SELECT * FROM transfer_windows ORDER BY open_date, id")
+      .all()
+      .map(mapTransferWindow);
+  }
+
+  openTransferWindows(date: string): TransferWindow[] {
+    return this.db
+      .prepare("SELECT * FROM transfer_windows WHERE open_date <= ? AND close_date >= ?")
+      .all(date, date)
+      .map(mapTransferWindow);
+  }
+
+  upsertClubFinancialProfile(profile: ClubFinancialProfile): void {
+    this.db
+      .prepare(
+        `INSERT INTO club_financial_profiles
+        (id, club_id, wage_budget, transfer_budget, current_wage_spend,
+          financial_health, currency, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(club_id) DO UPDATE SET
+          wage_budget = excluded.wage_budget,
+          transfer_budget = excluded.transfer_budget,
+          current_wage_spend = excluded.current_wage_spend,
+          financial_health = excluded.financial_health`,
+      )
+      .run(
+        profile.id,
+        profile.clubId,
+        profile.wageBudget,
+        profile.transferBudget,
+        profile.currentWageSpend,
+        profile.financialHealth,
+        profile.currency,
+        profile.status,
+      );
+  }
+
+  clubFinancialProfile(clubId: EntityId): ClubFinancialProfile | undefined {
+    const row = this.db
+      .prepare("SELECT * FROM club_financial_profiles WHERE club_id = ?")
+      .get(clubId) as any;
+    return row ? mapClubFinancialProfile(row) : undefined;
+  }
+
+  upsertClubEmploymentProfile(profile: ClubEmploymentProfile): void {
+    this.db
+      .prepare(
+        `INSERT INTO club_employment_profiles
+        (id, club_id, employment_model, contract_profile, status)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(club_id) DO UPDATE SET
+          employment_model = excluded.employment_model,
+          contract_profile = excluded.contract_profile`,
+      )
+      .run(
+        profile.id,
+        profile.clubId,
+        profile.employmentModel,
+        profile.contractProfile,
+        profile.status,
+      );
+  }
+
+  clubEmploymentProfile(clubId: EntityId): ClubEmploymentProfile | undefined {
+    const row = this.db
+      .prepare("SELECT * FROM club_employment_profiles WHERE club_id = ?")
+      .get(clubId) as any;
+    return row ? mapClubEmploymentProfile(row) : undefined;
+  }
+
+  upsertTransferStatus(status: PlayerTransferStatusRecord): void {
+    this.db
+      .prepare(
+        `INSERT INTO player_transfer_statuses
+        (id, player_id, club_id, status, reason, set_by, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(player_id) DO UPDATE SET
+          club_id = excluded.club_id,
+          status = excluded.status,
+          reason = excluded.reason,
+          set_by = excluded.set_by,
+          updated_at = excluded.updated_at`,
+      )
+      .run(
+        status.id,
+        status.playerId,
+        status.clubId ?? null,
+        status.status,
+        status.reason,
+        status.setBy,
+        status.updatedAt,
+      );
+  }
+
+  transferStatus(playerId: EntityId): PlayerTransferStatusRecord | undefined {
+    const row = this.db
+      .prepare("SELECT * FROM player_transfer_statuses WHERE player_id = ?")
+      .get(playerId) as any;
+    return row ? mapPlayerTransferStatus(row) : undefined;
+  }
+
+  upsertAgent(agent: AgentProfile): void {
+    this.db
+      .prepare(
+        `INSERT INTO agents
+        (id, person_id, agency_name, reputation, negotiation_style, aggressiveness,
+          loyalty_preference, fee_expectation, career_ambition, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(person_id) DO UPDATE SET
+          reputation = excluded.reputation,
+          negotiation_style = excluded.negotiation_style,
+          aggressiveness = excluded.aggressiveness,
+          loyalty_preference = excluded.loyalty_preference,
+          fee_expectation = excluded.fee_expectation,
+          career_ambition = excluded.career_ambition`,
+      )
+      .run(
+        agent.id,
+        agent.personId,
+        agent.agencyName ?? null,
+        agent.reputation,
+        agent.negotiationStyle,
+        agent.aggressiveness,
+        agent.loyaltyPreference,
+        agent.feeExpectation,
+        agent.careerAmbition,
+        agent.status,
+      );
+  }
+
+  agents(): AgentProfile[] {
+    return this.db.prepare("SELECT * FROM agents ORDER BY id").all().map(mapAgentProfile);
+  }
+
+  upsertAgentClient(client: AgentClient): void {
+    this.db
+      .prepare(
+        `INSERT INTO agent_clients
+        (id, agent_id, player_id, started_at, status)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(player_id, status) DO UPDATE SET agent_id = excluded.agent_id`,
+      )
+      .run(client.id, client.agentId, client.playerId, client.startedAt, client.status);
+  }
+
+  agentForPlayer(playerId: EntityId): AgentProfile | undefined {
+    const row = this.db
+      .prepare(
+        `SELECT a.*
+        FROM agents a
+        JOIN agent_clients ac ON ac.agent_id = a.id
+        WHERE ac.player_id = ? AND ac.status = 'ACTIVE'`,
+      )
+      .get(playerId) as any;
+    return row ? mapAgentProfile(row) : undefined;
+  }
+
+  insertTransferOffer(offer: TransferOffer): void {
+    this.db
+      .prepare(
+        `INSERT INTO transfer_offers
+        (id, buying_club_id, selling_club_id, player_id, offer_type, transfer_fee,
+          installments, addons, sell_on_percentage, submitted_at, expires_at, status,
+          currency, asking_range_json, agent_fee, signing_fee)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET status = excluded.status`,
+      )
+      .run(
+        offer.id,
+        offer.buyingClubId,
+        offer.sellingClubId ?? null,
+        offer.playerId,
+        offer.offerType,
+        offer.transferFee,
+        offer.installments,
+        offer.addOns,
+        offer.sellOnPercentage,
+        offer.submittedAt,
+        offer.expiresAt,
+        offer.status,
+        offer.currency,
+        offer.askingRange ? json.stringify(offer.askingRange) : null,
+        offer.agentFee,
+        offer.signingFee,
+      );
+  }
+
+  updateOfferStatus(id: EntityId, status: TransferOffer["status"]): void {
+    this.db.prepare("UPDATE transfer_offers SET status = ? WHERE id = ?").run(status, id);
+  }
+
+  transferOffers(): TransferOffer[] {
+    return this.db
+      .prepare("SELECT * FROM transfer_offers ORDER BY submitted_at, id")
+      .all()
+      .map(mapTransferOffer);
+  }
+
+  insertNegotiationRound(round: NegotiationRound): void {
+    this.db
+      .prepare(
+        `INSERT INTO negotiation_rounds
+        (id, offer_id, round_number, actor, action, salary, squad_role,
+          contract_length_months, agent_fee, signing_fee, message, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        round.id,
+        round.offerId,
+        round.roundNumber,
+        round.actor,
+        round.action,
+        round.salary ?? null,
+        round.squadRole ?? null,
+        round.contractLengthMonths ?? null,
+        round.agentFee ?? null,
+        round.signingFee ?? null,
+        round.message,
+        round.createdAt,
+      );
+  }
+
+  negotiationRounds(offerId: EntityId): NegotiationRound[] {
+    return this.db
+      .prepare("SELECT * FROM negotiation_rounds WHERE offer_id = ? ORDER BY round_number, id")
+      .all(offerId)
+      .map(mapNegotiationRound);
+  }
+
+  upsertLoan(loan: PlayerLoanRecord): void {
+    this.db
+      .prepare(
+        `INSERT INTO player_loans
+        (id, parent_club_id, loan_club_id, player_id, start_date, end_date,
+          wage_contribution_percent, loan_fee, playing_time_expectation, recall_allowed,
+          purchase_option, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET status = excluded.status`,
+      )
+      .run(
+        loan.id,
+        loan.parentClubId,
+        loan.loanClubId,
+        loan.playerId,
+        loan.startDate,
+        loan.endDate,
+        loan.wageContributionPercent,
+        loan.loanFee ?? null,
+        loan.playingTimeExpectation,
+        Number(loan.recallAllowed),
+        loan.purchaseOption ?? null,
+        loan.status,
+      );
+  }
+
+  activeLoans(date: string): PlayerLoanRecord[] {
+    return this.db
+      .prepare(
+        "SELECT * FROM player_loans WHERE status = 'ACTIVE' AND start_date <= ? AND end_date >= ?",
+      )
+      .all(date, date)
+      .map(mapPlayerLoan);
+  }
+
+  endingLoans(date: string): PlayerLoanRecord[] {
+    return this.db
+      .prepare("SELECT * FROM player_loans WHERE status = 'ACTIVE' AND end_date <= ?")
+      .all(date)
+      .map(mapPlayerLoan);
+  }
+
+  upsertCompetitionRegistration(registration: CompetitionRegistration): void {
+    this.db
+      .prepare(
+        `INSERT INTO competition_registrations
+        (id, player_id, club_id, competition_season_id, registration_type,
+          registered_from, registered_until, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(player_id, competition_season_id, registration_type) DO UPDATE SET
+          club_id = excluded.club_id,
+          registered_until = excluded.registered_until,
+          status = excluded.status`,
+      )
+      .run(
+        registration.id,
+        registration.playerId,
+        registration.clubId,
+        registration.competitionSeasonId,
+        registration.registrationType,
+        registration.registeredFrom,
+        registration.registeredUntil ?? null,
+        registration.status,
+      );
+  }
+
+  competitionRegistrations(): CompetitionRegistration[] {
+    return this.db
+      .prepare("SELECT * FROM competition_registrations ORDER BY id")
+      .all()
+      .map(mapCompetitionRegistration);
+  }
+
+  insertTransferHistoryEvent(event: TransferHistoryEvent): void {
+    this.db
+      .prepare(
+        `INSERT INTO transfer_history_events
+        (id, player_id, club_id, related_club_id, event_type, occurred_on, data_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO NOTHING`,
+      )
+      .run(
+        event.id,
+        event.playerId,
+        event.clubId ?? null,
+        event.relatedClubId ?? null,
+        event.eventType,
+        event.occurredOn,
+        event.data ? json.stringify(event.data) : null,
+      );
+  }
+
+  transferHistory(): TransferHistoryEvent[] {
+    return this.db
+      .prepare("SELECT * FROM transfer_history_events ORDER BY occurred_on, id")
+      .all()
+      .map(mapTransferHistoryEvent);
+  }
+
+  upsertSquadNeedReport(report: SquadNeedReport): void {
+    this.db
+      .prepare(
+        `INSERT INTO squad_need_reports
+        (id, club_id, generated_at, needs_json, expected_departures)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(club_id, generated_at) DO UPDATE SET
+          needs_json = excluded.needs_json,
+          expected_departures = excluded.expected_departures`,
+      )
+      .run(
+        report.id,
+        report.clubId,
+        report.generatedAt,
+        json.stringify(report.needs),
+        report.expectedDepartures,
+      );
+  }
+
+  updatePlayerClub(playerId: EntityId, clubId: EntityId | undefined): void {
+    this.db
+      .prepare("UPDATE player_factual_profiles SET current_club_id = ? WHERE player_id = ?")
+      .run(clubId ?? null, playerId);
+  }
+
+  endActiveTeamAssignments(playerId: EntityId, endedOn: string): void {
+    this.db
+      .prepare(
+        `UPDATE team_person_assignments SET ended_on = ?
+        WHERE person_id = ? AND role = 'PLAYER' AND ended_on IS NULL`,
+      )
+      .run(endedOn, playerId);
+  }
+
+  insertTeamAssignment(assignment: TeamPersonAssignment): void {
+    this.db
+      .prepare(
+        `INSERT INTO team_person_assignments
+        (id, person_id, team_id, role, started_on, ended_on)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO NOTHING`,
+      )
+      .run(
+        assignment.id,
+        assignment.personId,
+        assignment.teamId,
+        assignment.role,
+        assignment.startedOn ?? null,
+        assignment.endedOn ?? null,
+      );
+  }
+}
+
 export class PlayerRepository {
   constructor(private readonly db: GameDatabase) {}
 
@@ -1638,7 +2182,7 @@ export class PlayerRepository {
         `SELECT pa.*
         FROM player_attributes pa
         JOIN team_person_assignments tpa ON tpa.person_id = pa.person_id
-        WHERE tpa.team_id = ? AND tpa.role = 'PLAYER'
+        WHERE tpa.team_id = ? AND tpa.role = 'PLAYER' AND tpa.ended_on IS NULL
         ORDER BY pa.person_id`,
       )
       .all(teamId)
@@ -2123,6 +2667,165 @@ const mapClubShortlistItem = (row: any): ClubShortlistItem => ({
   scoutingStatus: row.scouting_status,
 });
 
+const mapPlayerContract = (row: any): PlayerContractRecord => ({
+  id: row.id,
+  playerId: row.player_id,
+  clubId: row.club_id,
+  startDate: row.start_date,
+  endDate: row.end_date,
+  contractType: row.contract_type,
+  salary: row.salary,
+  appearanceFee: row.appearance_fee,
+  goalBonus: row.goal_bonus,
+  cleanSheetBonus: row.clean_sheet_bonus,
+  signingBonus: row.signing_bonus,
+  loyaltyBonus: row.loyalty_bonus,
+  currency: row.currency,
+  squadRole: row.squad_role,
+  releaseClause: row.release_clause ?? undefined,
+  status: row.status,
+  provenance: json.parse(row.provenance_json, {
+    sourceName: "Nepal football simulation",
+    confidence: 0,
+    status: "SIMULATION_ONLY",
+  }),
+});
+
+const mapTransferWindow = (row: any): TransferWindow => ({
+  id: row.id,
+  countryId: row.country_id,
+  competitionId: row.competition_id ?? undefined,
+  windowType: row.window_type,
+  openDate: row.open_date,
+  closeDate: row.close_date,
+  registrationDeadline: row.registration_deadline,
+  status: row.status,
+  provenance: json.parse(row.provenance_json, {
+    sourceName: "Nepal football simulation",
+    confidence: 0,
+    status: "SIMULATION_ONLY",
+  }),
+  rules: json.parse(row.rules_json, {
+    freeAgentsAllowedOutsideWindow: true,
+    loansAllowed: true,
+    youthRegistrationAllowed: true,
+    emergencyGoalkeeperAllowed: true,
+    domesticOnly: false,
+  }),
+});
+
+const mapClubFinancialProfile = (row: any): ClubFinancialProfile => ({
+  id: row.id,
+  clubId: row.club_id,
+  wageBudget: row.wage_budget,
+  transferBudget: row.transfer_budget,
+  currentWageSpend: row.current_wage_spend,
+  financialHealth: row.financial_health,
+  currency: row.currency,
+  status: row.status,
+});
+
+const mapClubEmploymentProfile = (row: any): ClubEmploymentProfile => ({
+  id: row.id,
+  clubId: row.club_id,
+  employmentModel: row.employment_model,
+  contractProfile: row.contract_profile,
+  status: row.status,
+});
+
+const mapPlayerTransferStatus = (row: any): PlayerTransferStatusRecord => ({
+  id: row.id,
+  playerId: row.player_id,
+  clubId: row.club_id ?? undefined,
+  status: row.status,
+  reason: row.reason,
+  setBy: row.set_by,
+  updatedAt: row.updated_at,
+});
+
+const mapAgentProfile = (row: any): AgentProfile => ({
+  id: row.id,
+  personId: row.person_id,
+  agencyName: row.agency_name ?? undefined,
+  reputation: row.reputation,
+  negotiationStyle: row.negotiation_style,
+  aggressiveness: row.aggressiveness,
+  loyaltyPreference: row.loyalty_preference,
+  feeExpectation: row.fee_expectation,
+  careerAmbition: row.career_ambition,
+  status: row.status,
+});
+
+const mapTransferOffer = (row: any): TransferOffer => ({
+  id: row.id,
+  buyingClubId: row.buying_club_id,
+  sellingClubId: row.selling_club_id ?? undefined,
+  playerId: row.player_id,
+  offerType: row.offer_type,
+  transferFee: row.transfer_fee,
+  installments: row.installments,
+  addOns: row.addons,
+  sellOnPercentage: row.sell_on_percentage,
+  submittedAt: row.submitted_at,
+  expiresAt: row.expires_at,
+  status: row.status,
+  currency: row.currency,
+  askingRange: row.asking_range_json ? json.parse(row.asking_range_json, undefined) : undefined,
+  agentFee: row.agent_fee,
+  signingFee: row.signing_fee,
+});
+
+const mapNegotiationRound = (row: any): NegotiationRound => ({
+  id: row.id,
+  offerId: row.offer_id,
+  roundNumber: row.round_number,
+  actor: row.actor,
+  action: row.action,
+  salary: row.salary ?? undefined,
+  squadRole: row.squad_role ?? undefined,
+  contractLengthMonths: row.contract_length_months ?? undefined,
+  agentFee: row.agent_fee ?? undefined,
+  signingFee: row.signing_fee ?? undefined,
+  message: row.message,
+  createdAt: row.created_at,
+});
+
+const mapPlayerLoan = (row: any): PlayerLoanRecord => ({
+  id: row.id,
+  parentClubId: row.parent_club_id,
+  loanClubId: row.loan_club_id,
+  playerId: row.player_id,
+  startDate: row.start_date,
+  endDate: row.end_date,
+  wageContributionPercent: row.wage_contribution_percent,
+  loanFee: row.loan_fee ?? undefined,
+  playingTimeExpectation: row.playing_time_expectation,
+  recallAllowed: Boolean(row.recall_allowed),
+  purchaseOption: row.purchase_option ?? undefined,
+  status: row.status,
+});
+
+const mapCompetitionRegistration = (row: any): CompetitionRegistration => ({
+  id: row.id,
+  playerId: row.player_id,
+  clubId: row.club_id,
+  competitionSeasonId: row.competition_season_id,
+  registrationType: row.registration_type,
+  registeredFrom: row.registered_from,
+  registeredUntil: row.registered_until ?? undefined,
+  status: row.status,
+});
+
+const mapTransferHistoryEvent = (row: any): TransferHistoryEvent => ({
+  id: row.id,
+  playerId: row.player_id,
+  clubId: row.club_id ?? undefined,
+  relatedClubId: row.related_club_id ?? undefined,
+  eventType: row.event_type,
+  occurredOn: row.occurred_on,
+  data: json.parse(row.data_json, undefined),
+});
+
 export type WorldInspection = {
   countries: number;
   locations: number;
@@ -2167,6 +2870,19 @@ export type WorldInspection = {
   scoutingAssignments: number;
   scoutReports: number;
   clubShortlist: number;
+  playerContracts: number;
+  transferWindows: number;
+  clubFinancialProfiles: number;
+  clubEmploymentProfiles: number;
+  playerTransferStatuses: number;
+  agents: number;
+  agentClients: number;
+  transferOffers: number;
+  negotiationRounds: number;
+  playerLoans: number;
+  competitionRegistrations: number;
+  transferHistoryEvents: number;
+  squadNeedReports: number;
   trainingPlans: number;
   individualDevelopmentPlans: number;
   playerDevelopmentStates: number;

@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 12;
+export const CURRENT_DATABASE_VERSION = 13;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -1023,6 +1023,189 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
         notes TEXT,
         scouting_status TEXT NOT NULL,
         UNIQUE(club_id, player_id)
+      );
+    `,
+  },
+  {
+    version: 13,
+    sql: `
+      CREATE TABLE IF NOT EXISTS player_contracts (
+        id TEXT PRIMARY KEY,
+        player_id TEXT NOT NULL REFERENCES persons(id),
+        club_id TEXT NOT NULL REFERENCES clubs(id),
+        start_date TEXT NOT NULL,
+        end_date TEXT NOT NULL,
+        contract_type TEXT NOT NULL,
+        salary INTEGER NOT NULL,
+        appearance_fee INTEGER NOT NULL,
+        goal_bonus INTEGER NOT NULL,
+        clean_sheet_bonus INTEGER NOT NULL,
+        signing_bonus INTEGER NOT NULL,
+        loyalty_bonus INTEGER NOT NULL,
+        currency TEXT NOT NULL,
+        squad_role TEXT NOT NULL,
+        release_clause INTEGER,
+        status TEXT NOT NULL,
+        provenance_json TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_player_contracts_player_status
+        ON player_contracts(player_id, status);
+      CREATE INDEX IF NOT EXISTS idx_player_contracts_club_status
+        ON player_contracts(club_id, status);
+
+      CREATE TABLE IF NOT EXISTS transfer_windows (
+        id TEXT PRIMARY KEY,
+        country_id TEXT NOT NULL REFERENCES countries(id),
+        competition_id TEXT REFERENCES competitions(id),
+        window_type TEXT NOT NULL,
+        open_date TEXT NOT NULL,
+        close_date TEXT NOT NULL,
+        registration_deadline TEXT NOT NULL,
+        status TEXT NOT NULL,
+        provenance_json TEXT NOT NULL,
+        rules_json TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS club_financial_profiles (
+        id TEXT PRIMARY KEY,
+        club_id TEXT NOT NULL UNIQUE REFERENCES clubs(id),
+        wage_budget INTEGER NOT NULL,
+        transfer_budget INTEGER NOT NULL,
+        current_wage_spend INTEGER NOT NULL,
+        financial_health TEXT NOT NULL,
+        currency TEXT NOT NULL,
+        status TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS club_employment_profiles (
+        id TEXT PRIMARY KEY,
+        club_id TEXT NOT NULL UNIQUE REFERENCES clubs(id),
+        employment_model TEXT NOT NULL,
+        contract_profile TEXT NOT NULL,
+        status TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS player_transfer_statuses (
+        id TEXT PRIMARY KEY,
+        player_id TEXT NOT NULL REFERENCES persons(id),
+        club_id TEXT REFERENCES clubs(id),
+        status TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        set_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE(player_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS agents (
+        id TEXT PRIMARY KEY,
+        person_id TEXT NOT NULL UNIQUE REFERENCES persons(id),
+        agency_name TEXT,
+        reputation INTEGER NOT NULL,
+        negotiation_style TEXT NOT NULL,
+        aggressiveness INTEGER NOT NULL,
+        loyalty_preference INTEGER NOT NULL,
+        fee_expectation INTEGER NOT NULL,
+        career_ambition INTEGER NOT NULL,
+        status TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS agent_clients (
+        id TEXT PRIMARY KEY,
+        agent_id TEXT NOT NULL REFERENCES agents(id),
+        player_id TEXT NOT NULL REFERENCES persons(id),
+        started_at TEXT NOT NULL,
+        status TEXT NOT NULL,
+        UNIQUE(player_id, status)
+      );
+
+      CREATE TABLE IF NOT EXISTS transfer_offers (
+        id TEXT PRIMARY KEY,
+        buying_club_id TEXT NOT NULL REFERENCES clubs(id),
+        selling_club_id TEXT REFERENCES clubs(id),
+        player_id TEXT NOT NULL REFERENCES persons(id),
+        offer_type TEXT NOT NULL,
+        transfer_fee INTEGER NOT NULL,
+        installments INTEGER NOT NULL,
+        addons INTEGER NOT NULL,
+        sell_on_percentage REAL NOT NULL,
+        submitted_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        status TEXT NOT NULL,
+        currency TEXT NOT NULL,
+        asking_range_json TEXT,
+        agent_fee INTEGER NOT NULL,
+        signing_fee INTEGER NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_transfer_offers_player
+        ON transfer_offers(player_id, status);
+
+      CREATE TABLE IF NOT EXISTS negotiation_rounds (
+        id TEXT PRIMARY KEY,
+        offer_id TEXT NOT NULL REFERENCES transfer_offers(id),
+        round_number INTEGER NOT NULL,
+        actor TEXT NOT NULL,
+        action TEXT NOT NULL,
+        salary INTEGER,
+        squad_role TEXT,
+        contract_length_months INTEGER,
+        agent_fee INTEGER,
+        signing_fee INTEGER,
+        message TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS player_loans (
+        id TEXT PRIMARY KEY,
+        parent_club_id TEXT NOT NULL REFERENCES clubs(id),
+        loan_club_id TEXT NOT NULL REFERENCES clubs(id),
+        player_id TEXT NOT NULL REFERENCES persons(id),
+        start_date TEXT NOT NULL,
+        end_date TEXT NOT NULL,
+        wage_contribution_percent REAL NOT NULL,
+        loan_fee INTEGER,
+        playing_time_expectation TEXT NOT NULL,
+        recall_allowed INTEGER NOT NULL,
+        purchase_option INTEGER,
+        status TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_player_loans_player_status
+        ON player_loans(player_id, status);
+
+      CREATE TABLE IF NOT EXISTS competition_registrations (
+        id TEXT PRIMARY KEY,
+        player_id TEXT NOT NULL REFERENCES persons(id),
+        club_id TEXT NOT NULL REFERENCES clubs(id),
+        competition_season_id TEXT NOT NULL REFERENCES competition_seasons(id),
+        registration_type TEXT NOT NULL,
+        registered_from TEXT NOT NULL,
+        registered_until TEXT,
+        status TEXT NOT NULL,
+        UNIQUE(player_id, competition_season_id, registration_type)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_competition_registrations_club
+        ON competition_registrations(club_id, competition_season_id, status);
+
+      CREATE TABLE IF NOT EXISTS transfer_history_events (
+        id TEXT PRIMARY KEY,
+        player_id TEXT NOT NULL REFERENCES persons(id),
+        club_id TEXT REFERENCES clubs(id),
+        related_club_id TEXT REFERENCES clubs(id),
+        event_type TEXT NOT NULL,
+        occurred_on TEXT NOT NULL,
+        data_json TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS squad_need_reports (
+        id TEXT PRIMARY KEY,
+        club_id TEXT NOT NULL REFERENCES clubs(id),
+        generated_at TEXT NOT NULL,
+        needs_json TEXT NOT NULL,
+        expected_departures INTEGER NOT NULL,
+        UNIQUE(club_id, generated_at)
       );
     `,
   },

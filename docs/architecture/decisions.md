@@ -183,3 +183,26 @@ Recruitment profiles, scout simulation profiles, assignments, reports, and short
 persistent domain records behind `packages/database`. They are marked `SIMULATION_ONLY` where they
 model Nepal-calibrated game capability rather than researched fact. Transfers are deliberately out of
 scope for this decision; AI clubs should later consume the same knowledge layer instead of bypassing it.
+
+## ADR-027: Transfers consume knowledge and contracts, not hidden player truth
+
+The first transfer market layer adds save-backed player contracts, club financial profiles,
+employment models, transfer windows, agents, offers, negotiation rounds, loans, registrations, and
+movement history. Real contract facts can be imported later, but generated starting contracts,
+salaries, budgets, agent traits, and transfer-window dates are stored with `SIMULATION_ONLY`
+provenance when researched data is unavailable.
+
+AI clubs must use squad-need reports and `PlayerKnowledge` estimates when searching and offering.
+Transfer search continues through the scouting API, so estimated ability ranges, public position
+groups, confidence, and source labels are visible, while exact hidden ability, potential, and traits
+remain internal simulation state.
+
+Permanent transfers end active team assignments, terminate or expire old contracts, create new
+contracts, update current club state, and preserve the same `Person` identity and career history.
+Loans keep the parent contract and create temporary movement history separately. Competition
+registrations are distinct from contracts so Nepal Super League temporary participation can coexist
+with ANFA pyramid club belonging without a permanent club identity transfer.
+
+This stage deliberately uses conservative AI frequency and Nepal-calibrated short/seasonal contract
+lengths. Youth intake and a full economy remain separate future systems; long stress saves may expose
+depth pressure once contracts, injuries, and movement all interact.

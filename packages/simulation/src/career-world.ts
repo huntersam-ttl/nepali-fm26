@@ -28,6 +28,7 @@ import {
   simulateScoutingDay,
 } from "./scouting.js";
 import { calculateStandings, sortStandings, summarizePlayerStats } from "./standings.js";
+import { initializeTransferMarketForSave, simulateTransferWindow } from "./transfer-market.js";
 
 export type CompetitionSeasonLifecycleStatus =
   "NOT_STARTED" | "SCHEDULED" | "IN_PROGRESS" | "COMPLETED" | "ROLLED_OVER";
@@ -93,6 +94,8 @@ type RunnableSeason = {
   teamIds: EntityId[];
 };
 
+const entityCache = new WeakMap<GameDatabase, { persons: Set<EntityId>; teams: Set<EntityId> }>();
+
 export const simulateNepalCareer = (input: {
   db: GameDatabase;
   seasons: number;
@@ -100,12 +103,16 @@ export const simulateNepalCareer = (input: {
   competitionSeasonId?: EntityId;
   savePath?: string;
   maxFixturesPerSeason?: number;
+  transfersEnabled?: boolean;
 }): CareerSimulationReport => {
   const save = loadSave(input.db);
   const reports: CareerSeasonReport[] = [];
   const skippedCompetitions: CareerSimulationReport["skippedCompetitions"] = [];
 
   ensureRecruitmentFoundation(input.db, save.worldDate, input.seed);
+  if (input.transfersEnabled) {
+    initializeTransferMarketForSave({ db: input.db, worldDate: save.worldDate, seed: input.seed });
+  }
 
   let activeSeasons = runnableSeasons(input.db, input.competitionSeasonId, skippedCompetitions);
   const runnableCompetitions = [...new Set(activeSeasons.map((season) => season.competitionName))];
@@ -151,6 +158,14 @@ export const simulateNepalCareer = (input: {
         rolledOverAt: season.ruleSet.seasonEndDate,
       });
     }
+    if (input.transfersEnabled) {
+      simulateTransferWindow({
+        db: input.db,
+        worldDate: addDays(latestSeasonEnd(activeSeasons), 1),
+        seed: `${input.seed}:transfers:${index}`,
+        maxClubActions: 10,
+      });
+    }
     activeSeasons = runnableSeasons(
       input.db,
       input.competitionSeasonId,
@@ -177,6 +192,12 @@ export const simulateNepalCareer = (input: {
     skippedCompetitions,
   };
 };
+
+const latestSeasonEnd = (seasons: readonly RunnableSeason[]): string =>
+  seasons
+    .map((season) => season.ruleSet.seasonEndDate)
+    .sort()
+    .at(-1) ?? "2026-08-01";
 
 const simulateCompetitionSeason = (
   db: GameDatabase,
@@ -705,6 +726,9 @@ function blankSquadHealth(): SquadHealthReport {
 }
 
 function addPlayerSeasonStat(db: GameDatabase, stat: PlayerSeasonStat): void {
+  if (!personExists(db, stat.personId) || !teamExists(db, stat.teamId)) {
+    return;
+  }
   const row = db
     .prepare(
       `SELECT * FROM player_season_stats
@@ -733,6 +757,9 @@ function addPlayerSeasonStat(db: GameDatabase, stat: PlayerSeasonStat): void {
 }
 
 function addPlayerCareerStat(db: GameDatabase, stat: PlayerSeasonStat): void {
+  if (!personExists(db, stat.personId) || !teamExists(db, stat.teamId)) {
+    return;
+  }
   db.prepare(
     `INSERT INTO player_career_stats
     (person_id, team_id, appearances, starts, minutes, goals, assists, yellow_cards, red_cards, clean_sheets)
@@ -758,6 +785,31 @@ function addPlayerCareerStat(db: GameDatabase, stat: PlayerSeasonStat): void {
     stat.redCards,
     stat.cleanSheets,
   );
+}
+
+function personExists(db: GameDatabase, personId: EntityId): boolean {
+  return persistedEntities(db).persons.has(personId);
+}
+
+function teamExists(db: GameDatabase, teamId: EntityId): boolean {
+  return persistedEntities(db).teams.has(teamId);
+}
+
+function persistedEntities(db: GameDatabase): { persons: Set<EntityId>; teams: Set<EntityId> } {
+  const cached = entityCache.get(db);
+  if (cached) {
+    return cached;
+  }
+  const entities = {
+    persons: new Set(
+      (db.prepare("SELECT id FROM persons").all() as Array<{ id: EntityId }>).map((row) => row.id),
+    ),
+    teams: new Set(
+      (db.prepare("SELECT id FROM teams").all() as Array<{ id: EntityId }>).map((row) => row.id),
+    ),
+  };
+  entityCache.set(db, entities);
+  return entities;
 }
 
 function playerSeasonStats(db: GameDatabase, competitionSeasonId: EntityId): PlayerSeasonStat[] {
@@ -959,6 +1011,12 @@ function nextSeasonName(name: string): string {
 function addYears(date: string, years: number): string {
   const parsed = new Date(`${date}T00:00:00.000Z`);
   parsed.setUTCFullYear(parsed.getUTCFullYear() + years);
+  return parsed.toISOString().slice(0, 10);
+}
+
+function addDays(date: string, days: number): string {
+  const parsed = new Date(`${date}T00:00:00.000Z`);
+  parsed.setUTCDate(parsed.getUTCDate() + days);
   return parsed.toISOString().slice(0, 10);
 }
 

@@ -90,6 +90,25 @@
 - `PlayerContract` and `StaffContract`: typed contract specializations.
 - `Transfer`: permanent movement between clubs.
 - `Loan`: temporary movement between clubs.
+- `PlayerContractRecord`: save-backed player contract terms with start/end dates, role, salary,
+  bonuses, release clause, status, and provenance. Generated Nepal starting contracts use
+  `SIMULATION_ONLY` provenance when real terms are unavailable.
+- `TransferWindow`: country or competition window with rule flags for free agents, loans, youth
+  registration, emergency goalkeepers, and domestic-only windows. Nepal starter dates are
+  simulation-only until researched.
+- `TransferOffer` and `NegotiationRound`: structured club-to-club and player/agent negotiation state.
+  Offers carry fees, add-ons, sell-on percentage, agent/signing fees, status, and bounded asking
+  ranges rather than hidden minimum prices.
+- `AgentProfile` and `AgentClient`: person-linked agent representation with simulation-only
+  negotiation traits and client relationships.
+- `PlayerLoanRecord`: loan terms that keep the parent club contract separate from temporary squad
+  assignment and registration.
+- `CompetitionRegistration`: competition-season registration independent of permanent contracts,
+  including `TEMPORARY_NSL` for future Nepal Super League participation architecture.
+- `ClubFinancialProfile` and `ClubEmploymentProfile`: simulation-only transfer/wage budgets and
+  employment models such as departmental, semi-pro, standard, and franchise-temporary.
+- `TransferHistoryEvent`: persisted movement history for transfers, free-agent signings, loans,
+  renewals, expiries, releases, and transfer requests.
 
 ## Money
 

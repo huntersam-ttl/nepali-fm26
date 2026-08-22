@@ -27,6 +27,7 @@
     "years:simulate": "pnpm build && node dist/season-cli.js",
     "match:balance": "pnpm build && node dist/balance-cli.js",
     "tactics:balance": "pnpm build && node dist/tactical-balance-cli.js",
+    "transfers:simulate": "pnpm build && node dist/transfers-cli.js",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
