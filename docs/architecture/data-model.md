@@ -119,9 +119,18 @@ The August 2026 Nepal club registry import preserves canonical IDs such as `NEP-
 `NEP-DIVA-*`, `NEP-DIVB-*`, `NEP-DIVC-*`, `NEP-WOM-*`, and `NEP-ACA-*` as external IDs while
 continuing to use internal stable entity IDs for save records.
 
+The August 2026 Nepal player import adds `PlayerFactualProfile` records for real workbook players.
+These records preserve canonical workbook IDs, name variants, club links, broad or exact factual
+position evidence, source summaries, confidence, record status, factual DOB/height/foot coverage, and
+deterministic simulation-only gameplay fields. The source register from the workbook is stored as
+dataset metadata so source coverage can be audited without becoming simulation logic.
+
 ## Football Simulation
 
 - `PlayerAttributeSet`: our own 1-20 game ratings across technical, mental, physical, and goalkeeping groups. Imported real-player ratings are game assessments and must be `SIMULATION_ONLY`.
+- `PlayerFactualProfile`: source-backed player identity and evidence wrapper for imported real
+  players. It must not promote generated exact positions, DOBs, heights, feet, reputations, hidden
+  traits, abilities, or potentials to factual status.
 - `TrainingPlan`: weekly plan for a team, made of sessions such as recovery, physical, technical,
   tactical, set-piece, goalkeeping, video, bonding, match preparation, rest, or future expanded
   categories.

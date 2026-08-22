@@ -72,15 +72,21 @@ Research/import data is validated through Zod schemas with provenance:
 - confidence
 - status
 
-Allowed statuses are `VERIFIED`, `REPORTED`, `ESTIMATED`, `UNKNOWN`, and `SIMULATION_ONLY`. Stage 1 intentionally includes no real Nepal dataset.
+Allowed statuses are `VERIFIED`, `REPORTED`, `ESTIMATED`, `UNKNOWN`, and `SIMULATION_ONLY`.
 
 Stage 2 dataset records use explicit fact wrappers for fields that may be unavailable or uncertain. `UNKNOWN` facts cannot carry a value. `VERIFIED`, `REPORTED`, and `ESTIMATED` facts must carry a value and remain distinguishable after import through entity provenance records. Real Nepal data belongs under `data/nepal/`, while automated tests use `data/fixtures/`.
 
-The August 2026 Nepal club registry import is the first real-data staging dataset. It adds clubs,
-teams, aliases, club/team hierarchy, women's branches, academy links, competition memberships,
-locations, venues, venue relationships, and basic travel context without importing players.
-Competition membership is stored outside club identity so NSL franchises, ANFA pyramid clubs, and
-future divisional changes remain separate concepts.
+The August 2026 Nepal registry is the first real-data staging dataset. It adds clubs, teams,
+aliases, club/team hierarchy, women's branches, academy links, competition memberships, locations,
+venues, venue relationships, basic travel context, and the researched 2026 National League player
+workbook. Competition membership is stored outside club identity so NSL franchises, ANFA pyramid
+clubs, National League entrants, and future divisional changes remain separate concepts.
+
+Player import records reuse `Person` identity. `PlayerFactualProfile` keeps workbook identity,
+position precision, source evidence, status, confidence, and factual coverage separate from generated
+gameplay fields. Missing gameplay-critical fields such as exact position, height, foot, attributes,
+potential, reputation, and hidden traits can be generated deterministically, but those generated
+values must be stored as `SIMULATION_ONLY`.
 
 The Nepal physical-world layer models province, district, city/municipality, neighbourhood, venue,
 and airport records as import data. Venues carry field-level facts for type, capacity, surface,
@@ -102,10 +108,9 @@ logic until the research process supplies source-backed records.
 The training and player-development layer is also dataset-backed. Training plans, individual
 development plans, player development state, internal potential, playing-time snapshots, competition
 development multipliers, staff simulation profiles, facility profiles, and sparse training history
-events can be imported and persisted without hard-coding August 2026 claims. Real players are not
-imported by this foundation; testing players remain `SIMULATION_ONLY`. Internal potential and staff
-training attributes are explicitly `SIMULATION_ONLY` game data, while unavailable facility or
-competition values can remain `UNKNOWN`.
+events can be imported and persisted without hard-coding August 2026 claims. Internal potential,
+player ratings, and staff training attributes are explicitly `SIMULATION_ONLY` game data, while
+unavailable facility or competition values can remain `UNKNOWN`.
 
 ## Competition and Match Simulation
 

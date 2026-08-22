@@ -705,6 +705,76 @@ const playerPotentialRecordSchema = z.object({
   }),
 });
 
+const playerFactualProfileRecordSchema = z.object({
+  key: keySchema,
+  playerKey: keySchema,
+  canonicalExternalId: z.string().min(1),
+  currentClubKey: nullableKeyFactSchema.optional(),
+  nameVariants: z.array(z.string().min(1)).default([]),
+  nepaliName: nullableStringFactSchema.optional(),
+  factualPrimaryPosition: playerPositionSchema.optional(),
+  factualSecondaryPositions: z.array(playerPositionSchema).default([]),
+  factualPositionGroup: z
+    .enum(["GOALKEEPER", "DEFENDER", "MIDFIELDER", "FORWARD", "UNKNOWN"])
+    .optional(),
+  positionPrecision: z.enum(["EXACT", "GENERAL", "UNKNOWN"]),
+  sourcePosition: nullableStringFactSchema.optional(),
+  squadStatus: z.enum(["STARTER", "REGULAR", "SQUAD", "RESERVE", "YOUTH", "UNKNOWN"]).optional(),
+  shirtNumber: nullableNumberFactSchema.optional(),
+  goalkeeperFlag: nullableBooleanFactSchema.optional(),
+  latestKnownAppearanceDate: nullableDateFactSchema.optional(),
+  dateOfBirth: nullableDateFactSchema.optional(),
+  heightCm: nullableNumberFactSchema.optional(),
+  preferredFoot: factSchema(z.enum(["RIGHT", "LEFT", "BOTH", "UNKNOWN"])).optional(),
+  nationality: nullableStringFactSchema.optional(),
+  placeOfBirth: nullableStringFactSchema.optional(),
+  previousClubs: z.array(z.string().min(1)).default([]),
+  factualContractStatus: z.enum(["UNKNOWN", "REPORTED", "VERIFIED"]),
+  recordStatus: z.enum(["VERIFIED", "REPORTED", "UNKNOWN"]),
+  confidenceLevel: z.enum(["HIGH", "MEDIUM", "LOW"]),
+  lastVerified: isoDateSchema.optional(),
+  simulationPrimaryPosition: playerPositionSchema,
+  simulationPrimaryPositionStatus: z.literal("SIMULATION_ONLY"),
+  simulationAgeProfile: z.enum([
+    "YOUNG",
+    "EARLY_CAREER",
+    "PRIME",
+    "EXPERIENCED",
+    "VETERAN",
+    "UNKNOWN",
+  ]),
+  simulationDateOfBirth: isoDateSchema.optional(),
+  simulationDateOfBirthStatus: z.literal("SIMULATION_ONLY").optional(),
+  simulationHeightCm: z.number().int().min(120).max(230).optional(),
+  simulationHeightStatus: z.literal("SIMULATION_ONLY").optional(),
+  simulationPreferredFoot: z.enum(["RIGHT", "LEFT", "BOTH"]).optional(),
+  simulationPreferredFootStatus: z.literal("SIMULATION_ONLY").optional(),
+  currentAbility: z.number().min(1).max(20),
+  potentialAbility: z.number().min(1).max(20),
+  reputation: z.number().min(0).max(100),
+  hiddenTraits: z.object({
+    professionalism: z.number().min(1).max(20),
+    consistency: z.number().min(1).max(20),
+    ambition: z.number().min(1).max(20),
+    adaptability: z.number().min(1).max(20),
+    pressureHandling: z.number().min(1).max(20),
+    injuryProneness: z.number().min(1).max(20),
+    developmentRate: z.number().min(0).max(2),
+    status: z.literal("SIMULATION_ONLY"),
+  }),
+  evidence: z.array(
+    z.object({
+      summary: z.string().min(1).optional(),
+      date: isoDateSchema.optional(),
+      sourceUrls: z.array(z.string().min(1)).default([]),
+      whatItConfirms: z.string().min(1).optional(),
+      status: z.enum(["VERIFIED", "REPORTED", "UNKNOWN"]),
+      confidenceLevel: z.enum(["HIGH", "MEDIUM", "LOW"]),
+    }),
+  ),
+  provenance: provenanceSchema,
+});
+
 const playerPlayingTimeSnapshotRecordSchema = z.object({
   key: keySchema,
   playerKey: keySchema,
@@ -869,6 +939,29 @@ const playerAttributeRecordSchema = z.object({
   }),
 });
 
+const playerImportSummarySchema = z.object({
+  sourceRows: z.number().int().nonnegative(),
+  uniquePlayersImported: z.number().int().nonnegative(),
+  recordsExcluded: z.number().int().nonnegative().default(0),
+  duplicateRecommendationRows: z.number().int().nonnegative().default(0),
+  duplicateMergesApplied: z.number().int().nonnegative(),
+  duplicateUnresolvedCases: z.number().int().nonnegative(),
+  clubMappingFailures: z.array(z.string()).default([]),
+  generatedAt: isoDateSchema,
+});
+
+const playerSourceRegisterRecordSchema = z.object({
+  sourceId: z.string().min(1),
+  clubName: z.string().min(1),
+  publisher: z.string().min(1),
+  title: z.string().min(1),
+  url: z.string().url(),
+  sourceDate: z.string().min(1),
+  sourceType: z.string().min(1),
+  reliability: z.enum(["HIGH", "MEDIUM", "LOW"]),
+  playersExtracted: z.number().int().nonnegative(),
+});
+
 export const nepalWorldDatasetSchema = z.object({
   meta: z.object({
     datasetId: z.string().min(1),
@@ -902,6 +995,9 @@ export const nepalWorldDatasetSchema = z.object({
   personRoles: z.array(personRoleRecordSchema),
   teamPersonAssignments: z.array(teamPersonAssignmentRecordSchema),
   playerAttributes: z.array(playerAttributeRecordSchema).default([]),
+  playerFactualProfiles: z.array(playerFactualProfileRecordSchema).default([]),
+  playerImportSummary: playerImportSummarySchema.optional(),
+  playerSourceRegister: z.array(playerSourceRegisterRecordSchema).default([]),
   trainingPlans: z.array(trainingPlanRecordSchema).default([]),
   individualDevelopmentPlans: z.array(individualDevelopmentPlanRecordSchema).default([]),
   playerDevelopmentStates: z.array(playerDevelopmentStateRecordSchema).default([]),
@@ -963,6 +1059,7 @@ export const validateNepalWorldReferences = (
   requireUniqueKeys(issues, "individualDevelopmentPlans", dataset.individualDevelopmentPlans);
   requireUniqueKeys(issues, "playerDevelopmentStates", dataset.playerDevelopmentStates);
   requireUniqueKeys(issues, "playerPotentials", dataset.playerPotentials);
+  requireUniqueKeys(issues, "playerFactualProfiles", dataset.playerFactualProfiles);
   requireUniqueKeys(issues, "playerPlayingTimeSnapshots", dataset.playerPlayingTimeSnapshots);
   requireUniqueKeys(
     issues,
@@ -1366,6 +1463,15 @@ export const validateNepalWorldReferences = (
   }
   for (const [index, attributes] of dataset.playerAttributes.entries()) {
     requireRef(issues, `playerAttributes.${index}.personKey`, attributes.personKey, persons);
+  }
+  for (const [index, profile] of dataset.playerFactualProfiles.entries()) {
+    requireRef(issues, `playerFactualProfiles.${index}.playerKey`, profile.playerKey, persons);
+    requireOptionalFactRef(
+      issues,
+      `playerFactualProfiles.${index}.currentClubKey`,
+      profile.currentClubKey,
+      clubs,
+    );
   }
   for (const [index, plan] of dataset.trainingPlans.entries()) {
     requireRef(issues, `trainingPlans.${index}.teamKey`, plan.teamKey, teams);

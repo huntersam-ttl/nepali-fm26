@@ -65,6 +65,7 @@ type EntityMaps = {
   refereeProfiles: Map<string, EntityId>;
   staffHistoryEvents: Map<string, EntityId>;
   playerAttributes: Map<string, EntityId>;
+  playerFactualProfiles: Map<string, EntityId>;
   trainingPlans: Map<string, EntityId>;
   individualDevelopmentPlans: Map<string, EntityId>;
   playerDevelopmentStates: Map<string, EntityId>;
@@ -584,6 +585,52 @@ const importNepalWorld = (db: GameDatabase, dataset: NepalWorldDataset): void =>
     persistImport(imports, "playerAttribute", id, attributes, attributes.provenance, importedAt);
   }
 
+  for (const profile of dataset.playerFactualProfiles) {
+    const id = maps.playerFactualProfiles.get(profile.key)!;
+    players.insertFactualProfile({
+      id,
+      playerId: maps.persons.get(profile.playerKey)!,
+      canonicalExternalId: profile.canonicalExternalId,
+      currentClubId: mapFact(profile.currentClubKey, maps.clubs),
+      nameVariants: profile.nameVariants,
+      nepaliName: valueOf(profile.nepaliName),
+      factualPrimaryPosition: profile.factualPrimaryPosition,
+      factualSecondaryPositions: profile.factualSecondaryPositions,
+      factualPositionGroup: profile.factualPositionGroup,
+      positionPrecision: profile.positionPrecision,
+      sourcePosition: valueOf(profile.sourcePosition),
+      squadStatus: profile.squadStatus,
+      shirtNumber: valueOf(profile.shirtNumber),
+      goalkeeperFlag: valueOf(profile.goalkeeperFlag),
+      latestKnownAppearanceDate: valueOf(profile.latestKnownAppearanceDate),
+      dateOfBirth: valueOf(profile.dateOfBirth),
+      heightCm: valueOf(profile.heightCm),
+      preferredFoot: valueOf(profile.preferredFoot),
+      nationality: valueOf(profile.nationality),
+      placeOfBirth: valueOf(profile.placeOfBirth),
+      previousClubs: profile.previousClubs,
+      factualContractStatus: profile.factualContractStatus,
+      recordStatus: profile.recordStatus,
+      confidenceLevel: profile.confidenceLevel,
+      lastVerified: profile.lastVerified,
+      simulationPrimaryPosition: profile.simulationPrimaryPosition,
+      simulationPrimaryPositionStatus: profile.simulationPrimaryPositionStatus,
+      simulationAgeProfile: profile.simulationAgeProfile,
+      simulationDateOfBirth: profile.simulationDateOfBirth,
+      simulationDateOfBirthStatus: profile.simulationDateOfBirthStatus,
+      simulationHeightCm: profile.simulationHeightCm,
+      simulationHeightStatus: profile.simulationHeightStatus,
+      simulationPreferredFoot: profile.simulationPreferredFoot,
+      simulationPreferredFootStatus: profile.simulationPreferredFootStatus,
+      currentAbility: profile.currentAbility,
+      potentialAbility: profile.potentialAbility,
+      reputation: profile.reputation,
+      hiddenTraits: profile.hiddenTraits,
+      evidence: profile.evidence,
+    });
+    persistImport(imports, "playerFactualProfile", id, profile, profile.provenance, importedAt);
+  }
+
   for (const plan of dataset.trainingPlans) {
     const id = maps.trainingPlans.get(plan.key)!;
     world.insertTrainingPlan({
@@ -769,6 +816,7 @@ const buildEntityMaps = (dataset: NepalWorldDataset): EntityMaps => ({
   refereeProfiles: mapKeys("referee-profile", dataset.refereeProfiles),
   staffHistoryEvents: mapKeys("staff-history-event", dataset.staffHistoryEvents),
   playerAttributes: mapKeys("player-attribute", dataset.playerAttributes),
+  playerFactualProfiles: mapKeys("player-factual-profile", dataset.playerFactualProfiles),
   trainingPlans: mapKeys("training-plan", dataset.trainingPlans),
   individualDevelopmentPlans: mapKeys(
     "individual-development-plan",

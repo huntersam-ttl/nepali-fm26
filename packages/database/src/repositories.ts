@@ -44,6 +44,7 @@ import type {
   MatchEvent,
   PlayerAttributeSet,
   PlayerDevelopmentState,
+  PlayerFactualProfile,
   RefereeProfile,
   PlayerPotential,
   PlayerPlayingTimeSnapshot,
@@ -797,6 +798,7 @@ export class WorldRepository {
       refereeProfiles: scalar("referee_profiles"),
       staffHistoryEvents: scalar("staff_history_events"),
       playerAttributes: scalar("player_attributes"),
+      playerFactualProfiles: scalar("player_factual_profiles"),
       trainingPlans: scalar("training_plans"),
       individualDevelopmentPlans: scalar("individual_development_plans"),
       playerDevelopmentStates: scalar("player_development_states"),
@@ -1375,6 +1377,70 @@ export class PlayerRepository {
       .map(mapAttributes);
   }
 
+  insertFactualProfile(profile: PlayerFactualProfile): void {
+    this.db
+      .prepare(
+        `INSERT INTO player_factual_profiles
+        (id, player_id, canonical_external_id, current_club_id, factual_json,
+          simulation_json, evidence_json, record_status, confidence_level, last_verified)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(canonical_external_id) DO UPDATE SET
+          player_id = excluded.player_id,
+          current_club_id = excluded.current_club_id,
+          factual_json = excluded.factual_json,
+          simulation_json = excluded.simulation_json,
+          evidence_json = excluded.evidence_json,
+          record_status = excluded.record_status,
+          confidence_level = excluded.confidence_level,
+          last_verified = excluded.last_verified`,
+      )
+      .run(
+        profile.id,
+        profile.playerId,
+        profile.canonicalExternalId,
+        profile.currentClubId ?? null,
+        json.stringify({
+          nameVariants: profile.nameVariants,
+          nepaliName: profile.nepaliName,
+          factualPrimaryPosition: profile.factualPrimaryPosition,
+          factualSecondaryPositions: profile.factualSecondaryPositions,
+          factualPositionGroup: profile.factualPositionGroup,
+          positionPrecision: profile.positionPrecision,
+          sourcePosition: profile.sourcePosition,
+          squadStatus: profile.squadStatus,
+          shirtNumber: profile.shirtNumber,
+          goalkeeperFlag: profile.goalkeeperFlag,
+          latestKnownAppearanceDate: profile.latestKnownAppearanceDate,
+          dateOfBirth: profile.dateOfBirth,
+          heightCm: profile.heightCm,
+          preferredFoot: profile.preferredFoot,
+          nationality: profile.nationality,
+          placeOfBirth: profile.placeOfBirth,
+          previousClubs: profile.previousClubs,
+          factualContractStatus: profile.factualContractStatus,
+        }),
+        json.stringify({
+          simulationPrimaryPosition: profile.simulationPrimaryPosition,
+          simulationPrimaryPositionStatus: profile.simulationPrimaryPositionStatus,
+          simulationAgeProfile: profile.simulationAgeProfile,
+          simulationDateOfBirth: profile.simulationDateOfBirth,
+          simulationDateOfBirthStatus: profile.simulationDateOfBirthStatus,
+          simulationHeightCm: profile.simulationHeightCm,
+          simulationHeightStatus: profile.simulationHeightStatus,
+          simulationPreferredFoot: profile.simulationPreferredFoot,
+          simulationPreferredFootStatus: profile.simulationPreferredFootStatus,
+          currentAbility: profile.currentAbility,
+          potentialAbility: profile.potentialAbility,
+          reputation: profile.reputation,
+          hiddenTraits: profile.hiddenTraits,
+        }),
+        json.stringify(profile.evidence),
+        profile.recordStatus,
+        profile.confidenceLevel,
+        profile.lastVerified ?? null,
+      );
+  }
+
   upsertDevelopmentState(state: PlayerDevelopmentState): void {
     this.db
       .prepare(
@@ -1756,6 +1822,7 @@ export type WorldInspection = {
   refereeProfiles: number;
   staffHistoryEvents: number;
   playerAttributes: number;
+  playerFactualProfiles: number;
   trainingPlans: number;
   individualDevelopmentPlans: number;
   playerDevelopmentStates: number;

@@ -13,6 +13,7 @@
     "development:simulate": "pnpm --filter @nepal-football-sim/simulation development:simulate",
     "match:simulate": "pnpm --filter @nepal-football-sim/simulation match:simulate",
     "nepal:create-save": "pnpm --filter @nepal-football-sim/simulation nepal:create-save",
+    "players:balance": "pnpm --filter @nepal-football-sim/simulation players:balance",
     "season:simulate": "pnpm --filter @nepal-football-sim/simulation season:simulate",
     "years:simulate": "pnpm --filter @nepal-football-sim/simulation years:simulate",
     "match:balance": "pnpm --filter @nepal-football-sim/simulation match:balance",

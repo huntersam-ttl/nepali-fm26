@@ -8,6 +8,7 @@ export * from "./match-environment.js";
 export * from "./match-engine.js";
 export * from "./nepal-save.js";
 export * from "./player-development.js";
+export * from "./player-profile-generation.js";
 export * from "./pyramid-progression.js";
 export * from "./rng.js";
 export * from "./season-engine.js";

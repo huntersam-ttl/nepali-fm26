@@ -20,6 +20,7 @@
     "development:simulate": "pnpm build && node dist/development-cli.js",
     "match:simulate": "pnpm build && node dist/match-cli.js",
     "nepal:create-save": "pnpm build && node dist/nepal-cli.js",
+    "players:balance": "pnpm build && node dist/player-balance-cli.js",
     "season:simulate": "pnpm build && node dist/season-cli.js --seasons 1",
     "years:simulate": "pnpm build && node dist/season-cli.js",
     "match:balance": "pnpm build && node dist/balance-cli.js",

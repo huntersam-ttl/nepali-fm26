@@ -36,6 +36,7 @@ export type EntityRef = {
     | "individualDevelopmentPlan"
     | "playerDevelopmentState"
     | "playerPotential"
+    | "playerFactualProfile"
     | "trainingHistoryEvent";
 };
 
@@ -1052,6 +1053,64 @@ export type PlayerPotential = {
   volatility: number;
   professionalism: number;
   status: "SIMULATION_ONLY";
+};
+
+export type PlayerFactualProfile = {
+  id: EntityId;
+  playerId: EntityId;
+  canonicalExternalId: string;
+  currentClubId?: EntityId;
+  nameVariants: string[];
+  nepaliName?: string;
+  factualPrimaryPosition?: PlayerPosition;
+  factualSecondaryPositions: PlayerPosition[];
+  factualPositionGroup?: "GOALKEEPER" | "DEFENDER" | "MIDFIELDER" | "FORWARD" | "UNKNOWN";
+  positionPrecision: "EXACT" | "GENERAL" | "UNKNOWN";
+  sourcePosition?: string;
+  squadStatus?: "STARTER" | "REGULAR" | "SQUAD" | "RESERVE" | "YOUTH" | "UNKNOWN";
+  shirtNumber?: number;
+  goalkeeperFlag?: boolean;
+  latestKnownAppearanceDate?: ISODate;
+  dateOfBirth?: ISODate;
+  heightCm?: number;
+  preferredFoot?: "RIGHT" | "LEFT" | "BOTH" | "UNKNOWN";
+  nationality?: string;
+  placeOfBirth?: string;
+  previousClubs: string[];
+  factualContractStatus: "UNKNOWN" | "REPORTED" | "VERIFIED";
+  recordStatus: "VERIFIED" | "REPORTED" | "UNKNOWN";
+  confidenceLevel: "HIGH" | "MEDIUM" | "LOW";
+  lastVerified?: ISODate;
+  simulationPrimaryPosition: PlayerPosition;
+  simulationPrimaryPositionStatus: "SIMULATION_ONLY";
+  simulationAgeProfile: "YOUNG" | "EARLY_CAREER" | "PRIME" | "EXPERIENCED" | "VETERAN" | "UNKNOWN";
+  simulationDateOfBirth?: ISODate;
+  simulationDateOfBirthStatus?: "SIMULATION_ONLY";
+  simulationHeightCm?: number;
+  simulationHeightStatus?: "SIMULATION_ONLY";
+  simulationPreferredFoot?: "RIGHT" | "LEFT" | "BOTH";
+  simulationPreferredFootStatus?: "SIMULATION_ONLY";
+  currentAbility: number;
+  potentialAbility: number;
+  reputation: number;
+  hiddenTraits: {
+    professionalism: number;
+    consistency: number;
+    ambition: number;
+    adaptability: number;
+    pressureHandling: number;
+    injuryProneness: number;
+    developmentRate: number;
+    status: "SIMULATION_ONLY";
+  };
+  evidence: Array<{
+    summary?: string;
+    date?: ISODate;
+    sourceUrls: string[];
+    whatItConfirms?: string;
+    status: "VERIFIED" | "REPORTED" | "UNKNOWN";
+    confidenceLevel: "HIGH" | "MEDIUM" | "LOW";
+  }>;
 };
 
 export type PlayerDevelopmentCurve = {

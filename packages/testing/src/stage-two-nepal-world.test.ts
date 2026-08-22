@@ -15,6 +15,7 @@ import {
   buildMatchEnvironmentFromVenue,
   createNepalSave,
   inspectNepalSave,
+  simulateMatch,
 } from "@nepal-football-sim/simulation";
 
 const tempDirs: string[] = [];
@@ -50,7 +51,7 @@ describe("stage two Nepal world data pipeline", () => {
             'location_travel_contexts', 'staff_profiles', 'staff_appointments',
             'staff_vacancies', 'staff_licences', 'referee_profiles', 'staff_history_events',
             'training_plans', 'individual_development_plans', 'player_development_states',
-            'player_potentials', 'player_playing_time_snapshots',
+            'player_factual_profiles', 'player_potentials', 'player_playing_time_snapshots',
             'competition_development_multipliers', 'staff_simulation_profiles',
             'training_facility_profiles', 'training_history_events')
         ORDER BY name`,
@@ -70,6 +71,7 @@ describe("stage two Nepal world data pipeline", () => {
       "individual_development_plans",
       "location_travel_contexts",
       "player_development_states",
+      "player_factual_profiles",
       "player_playing_time_snapshots",
       "player_potentials",
       "referee_profiles",
@@ -288,29 +290,144 @@ describe("stage two Nepal world data pipeline", () => {
     db.close();
   });
 
-  it("validates the canonical Nepal club registry without players", () => {
+  it("validates the canonical Nepal club registry with the 2026 player import", () => {
     const dataset = validateNepalWorldDataset(loadClubRegistry());
 
     expect(validateNepalWorldReferences(dataset)).toEqual([]);
-    expect(dataset.clubs).toHaveLength(53);
+    expect(dataset.clubs).toHaveLength(57);
     expect(dataset.clubs.filter((club) => club.key.startsWith("NEP-NSL-"))).toHaveLength(9);
     expect(dataset.clubs.filter((club) => club.key.startsWith("NEP-DEP-"))).toHaveLength(3);
     expect(dataset.competitions).toHaveLength(5);
     expect(dataset.competitionRules).toHaveLength(5);
     expect(dataset.competitionRelationships).toHaveLength(5);
-    expect(dataset.clubMemberships).toHaveLength(51);
+    expect(dataset.clubMemberships).toHaveLength(69);
     expect(dataset.locations).toHaveLength(87);
     expect(dataset.venues).toHaveLength(45);
     expect(dataset.venueRelationships).toHaveLength(13);
     expect(dataset.teams.filter((team) => team.gender === "women")).toHaveLength(10);
     expect(dataset.academies).toHaveLength(8);
-    expect(dataset.persons).toEqual([]);
-    expect(dataset.playerAttributes).toEqual([]);
+    expect(dataset.persons).toHaveLength(573);
+    expect(dataset.personRoles).toHaveLength(573);
+    expect(dataset.teamPersonAssignments).toHaveLength(573);
+    expect(dataset.playerAttributes).toHaveLength(573);
+    expect(dataset.playerPotentials).toHaveLength(573);
+    expect(dataset.playerDevelopmentStates).toHaveLength(573);
+    expect(dataset.playerFactualProfiles).toHaveLength(573);
 
     const nslJhapa = dataset.clubs.find((club) => club.key === "NEP-NSL-JHA");
     const pyramidJhapa = dataset.clubs.find((club) => club.key === "NEP-DIVB-JHA");
     expect(nslJhapa?.name).toBe("Jhapa FC (NSL)");
     expect(pyramidJhapa?.name).toBe("Jhapa Football Club (ANFA pyramid)");
+
+    expect(dataset.clubs.find((club) => club.key === "NEP-NL-CHT")?.name).toBe("Chitlang FC");
+    expect(
+      dataset.clubMemberships.filter(
+        (membership) => membership.competitionSeasonKey?.value === "anfa-national-league-2026",
+      ),
+    ).toHaveLength(18);
+  });
+
+  it("keeps 2026 player facts separate from simulation-only gameplay data", () => {
+    const dataset = validateNepalWorldDataset(loadClubRegistry());
+    const profiles = dataset.playerFactualProfiles;
+
+    expect(profiles).toHaveLength(573);
+    expect(profiles.filter((profile) => profile.positionPrecision === "EXACT")).toHaveLength(44);
+    expect(profiles.filter((profile) => profile.positionPrecision === "GENERAL")).toHaveLength(353);
+    expect(profiles.filter((profile) => profile.positionPrecision === "UNKNOWN")).toHaveLength(176);
+    expect(profiles.filter((profile) => profile.dateOfBirth?.value)).toHaveLength(82);
+    expect(profiles.filter((profile) => profile.heightCm?.value)).toHaveLength(0);
+    expect(profiles.filter((profile) => profile.preferredFoot?.value)).toHaveLength(0);
+    expect(profiles.filter((profile) => profile.goalkeeperFlag?.value)).toHaveLength(44);
+
+    expect(
+      profiles.filter((profile) => profile.simulationPrimaryPositionStatus === "SIMULATION_ONLY"),
+    ).toHaveLength(573);
+    expect(
+      profiles.filter((profile) => profile.simulationHeightStatus === "SIMULATION_ONLY"),
+    ).toHaveLength(573);
+    expect(
+      profiles.filter((profile) => profile.simulationPreferredFootStatus === "SIMULATION_ONLY"),
+    ).toHaveLength(573);
+    expect(
+      profiles.filter((profile) => profile.simulationDateOfBirthStatus === "SIMULATION_ONLY"),
+    ).toHaveLength(491);
+
+    const currentAbilities = profiles.map((profile) => profile.currentAbility);
+    const potentials = profiles.map((profile) => profile.potentialAbility);
+    expect(Math.min(...currentAbilities)).toBeGreaterThanOrEqual(4);
+    expect(Math.max(...currentAbilities)).toBeLessThanOrEqual(14);
+    expect(Math.min(...potentials)).toBeGreaterThanOrEqual(7);
+    expect(Math.max(...potentials)).toBeLessThanOrEqual(16);
+
+    const sameNameSankataPlayers = profiles.filter(
+      (profile) =>
+        profile.currentClubKey?.value === "NEP-DIVA-SBO" &&
+        profile.nameVariants.some((variant) => variant.startsWith("Bishal Tamang")),
+    );
+    expect(sameNameSankataPlayers.map((profile) => profile.canonicalExternalId).sort()).toEqual([
+      "NEP-SNK-005",
+      "NEP-SNK-006",
+      "NEP-SNK-007",
+    ]);
+  });
+
+  it("balances imported 2026 club squads and runs a real-squad match smoke test", () => {
+    const dataset = validateNepalWorldDataset(loadClubRegistry());
+    const assignmentsByTeam = new Map<string, string[]>();
+    for (const assignment of dataset.teamPersonAssignments) {
+      const players = assignmentsByTeam.get(assignment.teamKey) ?? [];
+      players.push(assignment.personKey);
+      assignmentsByTeam.set(assignment.teamKey, players);
+    }
+
+    const nationalLeagueTeamKeys = dataset.clubMemberships
+      .filter(
+        (membership) => membership.competitionSeasonKey?.value === "anfa-national-league-2026",
+      )
+      .flatMap((membership) => (membership.teamKey?.value ? [membership.teamKey.value] : []));
+    expect(nationalLeagueTeamKeys).toHaveLength(18);
+    for (const teamKey of nationalLeagueTeamKeys) {
+      expect(assignmentsByTeam.get(teamKey)?.length ?? 0).toBeGreaterThanOrEqual(18);
+    }
+
+    const attributesByPerson = new Map(
+      dataset.playerAttributes.map((attributes) => [attributes.personKey, attributes]),
+    );
+    const playersForTeam = (teamKey: string) =>
+      (assignmentsByTeam.get(teamKey) ?? []).map((personKey) => {
+        const attributes = attributesByPerson.get(personKey)!;
+        return {
+          id: attributes.key,
+          personId: attributes.personKey,
+          primaryPosition: attributes.primaryPosition,
+          secondaryPositions: attributes.secondaryPositions,
+          technical: attributes.technical,
+          mental: attributes.mental,
+          physical: attributes.physical,
+          goalkeeping: attributes.goalkeeping,
+        };
+      });
+
+    const result = simulateMatch({
+      fixture: {
+        id: "fixture-imported-nepal-squads",
+        competitionSeasonId: "anfa-national-league-2026",
+        homeTeamId: "NEP-DIVA-MAC-MEN",
+        awayTeamId: "NEP-DEP-ARM-MEN",
+        scheduledDate: "2026-08-15",
+        status: "scheduled",
+        round: 1,
+      } as any,
+      homePlayers: playersForTeam("NEP-DIVA-MAC-MEN") as any,
+      awayPlayers: playersForTeam("NEP-DEP-ARM-MEN") as any,
+      seed: "stage-two-imported-real-squad-smoke",
+    });
+
+    expect(result.playerStates.length).toBeGreaterThanOrEqual(22);
+    expect(result.match.homeGoals).toBeGreaterThanOrEqual(0);
+    expect(result.match.awayGoals).toBeGreaterThanOrEqual(0);
+    expect(result.events.map((event) => event.type)).toContain("FULL_TIME");
   });
 
   it("persists the Nepal club registry into a reloadable save", () => {
@@ -332,16 +449,21 @@ describe("stage two Nepal world data pipeline", () => {
       competitionSeasons: 5,
       competitionRelationships: 5,
       competitionMovements: 0,
-      clubs: 53,
+      clubs: 57,
       clubAliases: 18,
-      clubMemberships: 51,
-      teams: 61,
+      clubMemberships: 69,
+      teams: 65,
       academies: 8,
       venueRelationships: 13,
       locationTravelContexts: 3,
-      persons: 0,
-      playerAttributes: 0,
-      entityProvenance: 421,
+      persons: 573,
+      personRoles: 573,
+      teamPersonAssignments: 573,
+      playerAttributes: 573,
+      playerFactualProfiles: 573,
+      playerPotentials: 573,
+      playerDevelopmentStates: 573,
+      entityProvenance: 4458,
     });
     expect(inspectNepalSave(databasePath)).toEqual(created);
 
