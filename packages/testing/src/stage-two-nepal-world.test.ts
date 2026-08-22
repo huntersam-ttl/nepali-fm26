@@ -299,6 +299,9 @@ describe("stage two Nepal world data pipeline", () => {
     expect(dataset.competitionRules).toHaveLength(5);
     expect(dataset.competitionRelationships).toHaveLength(5);
     expect(dataset.clubMemberships).toHaveLength(51);
+    expect(dataset.locations).toHaveLength(87);
+    expect(dataset.venues).toHaveLength(45);
+    expect(dataset.venueRelationships).toHaveLength(13);
     expect(dataset.teams.filter((team) => team.gender === "women")).toHaveLength(10);
     expect(dataset.academies).toHaveLength(8);
     expect(dataset.persons).toEqual([]);
@@ -322,8 +325,8 @@ describe("stage two Nepal world data pipeline", () => {
 
     expect(created.inspection).toMatchObject({
       countries: 1,
-      locations: 43,
-      venues: 8,
+      locations: 87,
+      venues: 45,
       federations: 1,
       competitions: 5,
       competitionSeasons: 5,
@@ -334,11 +337,11 @@ describe("stage two Nepal world data pipeline", () => {
       clubMemberships: 51,
       teams: 61,
       academies: 8,
-      venueRelationships: 8,
+      venueRelationships: 13,
       locationTravelContexts: 3,
       persons: 0,
       playerAttributes: 0,
-      entityProvenance: 335,
+      entityProvenance: 421,
     });
     expect(inspectNepalSave(databasePath)).toEqual(created);
 
@@ -370,6 +373,124 @@ describe("stage two Nepal world data pipeline", () => {
       .prepare("SELECT COUNT(*) AS count FROM club_aliases WHERE alias IN ('NRT', 'MMC', 'APF FC')")
       .get() as { count: number };
     expect(aliasCount.count).toBe(3);
+    db.close();
+  });
+
+  it("expands the Nepal venue registry without duplicate venue identities", () => {
+    const dataset = validateNepalWorldDataset(loadClubRegistry());
+    const venueNames = new Set(dataset.venues.map((venue) => venue.name.toLowerCase()));
+    const canonicalIds = new Set(dataset.venues.map((venue) => venue.canonicalExternalId));
+
+    expect(venueNames.size).toBe(dataset.venues.length);
+    expect(canonicalIds.size).toBe(dataset.venues.length);
+
+    const chyasal = dataset.venues.find((venue) => venue.key === "chyasal-stadium");
+    expect(chyasal?.aliases).toContain("Chyasal Football Stadium");
+    expect(dataset.venues.filter((venue) => venue.name.includes("Chyasal"))).toHaveLength(1);
+
+    const halchowk = dataset.venues.find((venue) => venue.key === "halchowk-stadium");
+    expect(halchowk?.aliases).toContain("APF Ground");
+    expect(dataset.venues.filter((venue) => venue.name.includes("Halchowk"))).toHaveLength(1);
+
+    const dharan = dataset.venues.find((venue) => venue.key === "dharan-stadium");
+    expect(dharan?.aliases).not.toContain("Bhanu Rangasala");
+    expect(dharan?.provenance.notes).toContain("UNRESOLVED");
+  });
+
+  it("preserves unknown capacity and coordinates for candidate-only venues", () => {
+    const dataset = validateNepalWorldDataset(loadClubRegistry());
+    const barhabise = dataset.venues.find((venue) => venue.key === "barhabise-football-ground");
+
+    expect(barhabise?.capacity.status).toBe("UNKNOWN");
+    expect(barhabise?.latitude?.status).toBe("UNKNOWN");
+    expect(barhabise?.longitude?.status).toBe("UNKNOWN");
+    expect(barhabise?.locationKey.status).toBe("UNKNOWN");
+    expect(barhabise?.districtKey).toBeUndefined();
+    expect(barhabise?.provinceKey).toBeUndefined();
+  });
+
+  it("classifies local grounds without forcing stadium labels", () => {
+    const dataset = validateNepalWorldDataset(loadClubRegistry());
+    const tundikhel = dataset.venues.find((venue) => venue.key === "tundikhel-ground");
+    const tansen = dataset.venues.find((venue) => venue.key === "tansen-tundikhel-ground");
+
+    expect(tundikhel?.venueType?.value).toBe("FOOTBALL_GROUND");
+    expect(tansen?.venueType?.value).toBe("FOOTBALL_GROUND");
+  });
+
+  it("links academy and departmental grounds without inventing ownership", () => {
+    const dataset = validateNepalWorldDataset(loadClubRegistry());
+
+    expect(dataset.venueRelationships).toContainEqual(
+      expect.objectContaining({
+        venueKey: "anfa-technical-centre-dharan",
+        academyKey: expect.objectContaining({ value: "NEP-ACA-ANF2" }),
+        relationshipType: "ACADEMY_USER",
+      }),
+    );
+    expect(dataset.venueRelationships).toContainEqual(
+      expect.objectContaining({
+        venueKey: "army-physical-training-sports-centre-ground",
+        clubKey: expect.objectContaining({ value: "NEP-DEP-ARM" }),
+        relationshipType: "UNKNOWN",
+      }),
+    );
+    expect(dataset.venueRelationships).toContainEqual(
+      expect.objectContaining({
+        venueKey: "nepal-police-club-ground",
+        clubKey: expect.objectContaining({ value: "NEP-DEP-POL" }),
+        relationshipType: "UNKNOWN",
+      }),
+    );
+
+    const armyGround = dataset.venues.find(
+      (venue) => venue.key === "army-physical-training-sports-centre-ground",
+    );
+    expect(armyGround?.ownerEntity?.status).toBe("UNKNOWN");
+    expect(armyGround?.operatorEntity?.status).toBe("UNKNOWN");
+  });
+
+  it("maintains district and province hierarchy for added venue locations", () => {
+    const databasePath = tempDbPath();
+    createNepalSave({
+      databasePath,
+      dataset: loadClubRegistry(),
+      saveName: "Nepal Expanded Venue Hierarchy",
+      gameVersion: "0.2.0",
+      randomSeed: "expanded-venue-hierarchy-seed",
+    });
+
+    const db = openGameDatabase(databasePath);
+    migrateDatabase(db);
+    const tansen = db
+      .prepare(
+        `SELECT city.name AS city, district.name AS district, province.name AS province
+        FROM locations city
+        JOIN locations district ON district.id = city.parent_location_id
+        JOIN locations province ON province.id = district.parent_location_id
+        WHERE city.canonical_external_id = 'NP-CITY-TANSEN'`,
+      )
+      .get();
+    expect(tansen).toEqual({
+      city: "Tansen",
+      district: "Palpa",
+      province: "Lumbini",
+    });
+
+    const bhimdatta = db
+      .prepare(
+        `SELECT city.name AS city, district.name AS district, province.name AS province
+        FROM locations city
+        JOIN locations district ON district.id = city.parent_location_id
+        JOIN locations province ON province.id = district.parent_location_id
+        WHERE city.canonical_external_id = 'NP-CITY-BHIMDATTA'`,
+      )
+      .get();
+    expect(bhimdatta).toEqual({
+      city: "Bhimdatta",
+      district: "Kanchanpur",
+      province: "Sudurpashchim",
+    });
     db.close();
   });
 
