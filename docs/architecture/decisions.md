@@ -71,3 +71,11 @@ Stage 4.1 introduces a desktop bridge contract between React and save-backed app
 ## ADR-018: Native desktop SQLite must sit behind the command/service boundary
 
 Headless tooling may continue using the `node:sqlite` adapter in `packages/database`. Production Tauri should use a Tauri-compatible SQLite mechanism behind the same command contracts and schema semantics so desktop does not require a Node runtime. Stage 4.1 isolates that adapter decision and verifies the real persisted path through the Node application service while keeping UI free of database access.
+
+## ADR-019: Club registry identity is separate from competition state
+
+The Nepal club registry stores club identity, aliases, branches, academies, venue relationships, and
+competition memberships as separate import records. Canonical external IDs from the staging registry
+are preserved, but league/division membership is season-specific data rather than a permanent property
+of the club. This keeps NSL franchises distinct from ANFA pyramid clubs and prevents future promotion,
+relegation, or restructuring work from changing stable club identities.

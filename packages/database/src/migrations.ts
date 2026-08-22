@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 4;
+export const CURRENT_DATABASE_VERSION = 5;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -443,6 +443,77 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
         availability TEXT NOT NULL,
         updated_on TEXT NOT NULL
       );
+    `,
+  },
+  {
+    version: 5,
+    sql: `
+      ALTER TABLE venues ADD COLUMN pitch_type TEXT;
+
+      ALTER TABLE clubs ADD COLUMN official_name TEXT;
+      ALTER TABLE clubs ADD COLUMN short_name TEXT;
+      ALTER TABLE clubs ADD COLUMN nepali_name TEXT;
+      ALTER TABLE clubs ADD COLUMN canonical_external_id TEXT;
+      ALTER TABLE clubs ADD COLUMN organisation_type TEXT;
+      ALTER TABLE clubs ADD COLUMN parent_organisation TEXT;
+
+      ALTER TABLE teams ADD COLUMN canonical_external_id TEXT;
+
+      CREATE TABLE IF NOT EXISTS club_aliases (
+        id TEXT PRIMARY KEY,
+        club_id TEXT NOT NULL REFERENCES clubs(id),
+        alias TEXT NOT NULL,
+        alias_type TEXT NOT NULL,
+        UNIQUE (club_id, alias)
+      );
+
+      CREATE TABLE IF NOT EXISTS club_relationships (
+        id TEXT PRIMARY KEY,
+        parent_club_id TEXT NOT NULL REFERENCES clubs(id),
+        child_club_id TEXT REFERENCES clubs(id),
+        child_team_id TEXT REFERENCES teams(id),
+        relationship_type TEXT NOT NULL,
+        CHECK (child_club_id IS NOT NULL OR child_team_id IS NOT NULL)
+      );
+
+      CREATE TABLE IF NOT EXISTS club_memberships (
+        id TEXT PRIMARY KEY,
+        club_id TEXT NOT NULL REFERENCES clubs(id),
+        team_id TEXT REFERENCES teams(id),
+        competition_id TEXT NOT NULL REFERENCES competitions(id),
+        competition_season_id TEXT REFERENCES competition_seasons(id),
+        membership_type TEXT NOT NULL,
+        status TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS academies (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        canonical_external_id TEXT,
+        country_id TEXT NOT NULL REFERENCES countries(id),
+        location_id TEXT REFERENCES locations(id),
+        parent_club_id TEXT REFERENCES clubs(id),
+        linked_club_id TEXT REFERENCES clubs(id),
+        federation_id TEXT REFERENCES federations(id),
+        academy_type TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS venue_relationships (
+        id TEXT PRIMARY KEY,
+        venue_id TEXT NOT NULL REFERENCES venues(id),
+        club_id TEXT REFERENCES clubs(id),
+        team_id TEXT REFERENCES teams(id),
+        relationship_type TEXT NOT NULL,
+        CHECK (club_id IS NOT NULL OR team_id IS NOT NULL)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_club_aliases_alias ON club_aliases(alias);
+      CREATE INDEX IF NOT EXISTS idx_club_memberships_season
+        ON club_memberships(competition_season_id, club_id);
+      CREATE INDEX IF NOT EXISTS idx_club_relationships_parent
+        ON club_relationships(parent_club_id);
+      CREATE INDEX IF NOT EXISTS idx_venue_relationships_venue
+        ON venue_relationships(venue_id);
     `,
   },
 ];

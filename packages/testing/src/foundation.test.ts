@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { validateImportRecord } from "@nepal-football-sim/data-import";
 import {
+  CURRENT_DATABASE_VERSION,
   createNewSave,
   EventRepository,
   FinanceRepository,
@@ -45,7 +46,7 @@ describe("stage one foundation", () => {
     expect(loadSave(db, save.id)).toMatchObject({
       name: "Unit Save",
       worldDate: "2026-01-01",
-      databaseVersion: 4,
+      databaseVersion: CURRENT_DATABASE_VERSION,
       randomSeed: "seed",
     });
     db.close();
@@ -53,10 +54,10 @@ describe("stage one foundation", () => {
 
   it("applies database migrations once", () => {
     const db = openGameDatabase(":memory:");
-    expect(migrateDatabase(db)).toBe(4);
-    expect(migrateDatabase(db)).toBe(4);
+    expect(migrateDatabase(db)).toBe(CURRENT_DATABASE_VERSION);
+    expect(migrateDatabase(db)).toBe(CURRENT_DATABASE_VERSION);
     const rows = db.prepare("SELECT version FROM schema_migrations").all();
-    expect(rows).toHaveLength(4);
+    expect(rows).toHaveLength(CURRENT_DATABASE_VERSION);
     db.close();
   });
 

@@ -2,7 +2,11 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { migrateDatabase, openGameDatabase } from "@nepal-football-sim/database";
+import {
+  CURRENT_DATABASE_VERSION,
+  migrateDatabase,
+  openGameDatabase,
+} from "@nepal-football-sim/database";
 import { DesktopApplicationService } from "@nepal-football-sim/simulation";
 import type { EntityId } from "@nepal-football-sim/shared-types";
 
@@ -156,7 +160,7 @@ describe("stage four one desktop save integration", () => {
     db.close();
 
     const migrated = openGameDatabase(path);
-    expect(migrateDatabase(migrated)).toBe(4);
+    expect(migrateDatabase(migrated)).toBe(CURRENT_DATABASE_VERSION);
     migrated.close();
   });
 });

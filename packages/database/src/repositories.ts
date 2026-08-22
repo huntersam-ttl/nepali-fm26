@@ -1,5 +1,9 @@
 import type {
   CareerCharacter,
+  Academy,
+  ClubAlias,
+  ClubMembership,
+  ClubRelationship,
   Club,
   Country,
   Federation,
@@ -32,6 +36,7 @@ import type {
   SuspensionRecord,
   TacticalSetup,
   TeamSeasonStat,
+  VenueRelationship,
 } from "@nepal-football-sim/shared-types";
 import type { EntityId } from "@nepal-football-sim/shared-types";
 import type { GameDatabase } from "./connection.js";
@@ -122,9 +127,16 @@ export class WorldRepository {
   insertVenue(venue: Venue): void {
     this.db
       .prepare(
-        "INSERT INTO venues (id, country_id, location_id, name, capacity) VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO venues (id, country_id, location_id, name, capacity, pitch_type) VALUES (?, ?, ?, ?, ?, ?)",
       )
-      .run(venue.id, venue.countryId, venue.locationId ?? null, venue.name, venue.capacity ?? null);
+      .run(
+        venue.id,
+        venue.countryId,
+        venue.locationId ?? null,
+        venue.name,
+        venue.capacity ?? null,
+        venue.pitchType ?? null,
+      );
   }
 
   insertFederation(federation: Federation): void {
@@ -136,28 +148,117 @@ export class WorldRepository {
   insertClub(club: Club): void {
     this.db
       .prepare(
-        "INSERT INTO clubs (id, name, country_id, location_id, ownership_type, founded_year) VALUES (?, ?, ?, ?, ?, ?)",
+        `INSERT INTO clubs
+        (id, name, official_name, short_name, nepali_name, canonical_external_id, country_id, location_id,
+          ownership_type, organisation_type, parent_organisation, founded_year)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         club.id,
         club.name,
+        club.officialName ?? null,
+        club.shortName ?? null,
+        club.nepaliName ?? null,
+        club.canonicalExternalId ?? null,
         club.countryId,
         club.locationId ?? null,
         club.ownershipType,
+        club.organisationType ?? null,
+        club.parentOrganisation ?? null,
         club.foundedYear ?? null,
+      );
+  }
+
+  insertClubAlias(alias: ClubAlias): void {
+    this.db
+      .prepare(
+        "INSERT INTO club_aliases (id, club_id, alias, alias_type) VALUES (?, ?, ?, ?) ON CONFLICT(club_id, alias) DO NOTHING",
+      )
+      .run(alias.id, alias.clubId, alias.alias, alias.aliasType);
+  }
+
+  insertClubRelationship(relationship: ClubRelationship): void {
+    this.db
+      .prepare(
+        `INSERT INTO club_relationships
+        (id, parent_club_id, child_club_id, child_team_id, relationship_type)
+        VALUES (?, ?, ?, ?, ?)`,
+      )
+      .run(
+        relationship.id,
+        relationship.parentClubId,
+        relationship.childClubId ?? null,
+        relationship.childTeamId ?? null,
+        relationship.relationshipType,
+      );
+  }
+
+  insertClubMembership(membership: ClubMembership): void {
+    this.db
+      .prepare(
+        `INSERT INTO club_memberships
+        (id, club_id, team_id, competition_id, competition_season_id, membership_type, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        membership.id,
+        membership.clubId,
+        membership.teamId ?? null,
+        membership.competitionId,
+        membership.competitionSeasonId ?? null,
+        membership.membershipType,
+        membership.status,
+      );
+  }
+
+  insertAcademy(academy: Academy): void {
+    this.db
+      .prepare(
+        `INSERT INTO academies
+        (id, name, canonical_external_id, country_id, location_id, parent_club_id, linked_club_id,
+          federation_id, academy_type)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        academy.id,
+        academy.name,
+        academy.canonicalExternalId ?? null,
+        academy.countryId,
+        academy.locationId ?? null,
+        academy.parentClubId ?? null,
+        academy.linkedClubId ?? null,
+        academy.federationId ?? null,
+        academy.academyType,
+      );
+  }
+
+  insertVenueRelationship(relationship: VenueRelationship): void {
+    this.db
+      .prepare(
+        `INSERT INTO venue_relationships
+        (id, venue_id, club_id, team_id, relationship_type)
+        VALUES (?, ?, ?, ?, ?)`,
+      )
+      .run(
+        relationship.id,
+        relationship.venueId,
+        relationship.clubId ?? null,
+        relationship.teamId ?? null,
+        relationship.relationshipType,
       );
   }
 
   insertTeam(team: Team): void {
     this.db
       .prepare(
-        "INSERT INTO teams (id, club_id, federation_id, name, level, gender) VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO teams (id, club_id, federation_id, name, canonical_external_id, level, gender) VALUES (?, ?, ?, ?, ?, ?, ?)",
       )
       .run(
         team.id,
         team.clubId ?? null,
         team.federationId ?? null,
         team.name,
+        team.canonicalExternalId ?? null,
         team.level,
         team.gender,
       );
@@ -194,11 +295,9 @@ export class WorldRepository {
     return this.db
       .prepare(
         `SELECT DISTINCT t.*
-        FROM teams t
-        JOIN clubs c ON c.id = t.club_id
-        JOIN competitions comp ON comp.federation_id IS NULL OR comp.federation_id = t.federation_id OR comp.federation_id IS NOT NULL
-        JOIN competition_seasons cs ON cs.competition_id = comp.id
-        WHERE cs.id = ? AND t.level = 'senior'
+        FROM club_memberships cm
+        JOIN teams t ON t.id = cm.team_id OR (cm.team_id IS NULL AND t.club_id = cm.club_id)
+        WHERE cm.competition_season_id = ? AND t.level = 'senior'
         ORDER BY t.name`,
       )
       .all(competitionSeasonId)
@@ -207,6 +306,7 @@ export class WorldRepository {
         clubId: row.club_id ?? undefined,
         federationId: row.federation_id ?? undefined,
         name: row.name,
+        canonicalExternalId: row.canonical_external_id ?? undefined,
         level: row.level,
         gender: row.gender,
       }));
@@ -356,10 +456,16 @@ export class WorldRepository {
       competitions: scalar("competitions"),
       competitionSeasons: scalar("competition_seasons"),
       clubs: scalar("clubs"),
+      clubAliases: scalar("club_aliases"),
+      clubRelationships: scalar("club_relationships"),
+      clubMemberships: scalar("club_memberships"),
       teams: scalar("teams"),
+      academies: scalar("academies"),
+      venueRelationships: scalar("venue_relationships"),
       persons: scalar("persons"),
       personRoles: scalar("person_roles"),
       teamPersonAssignments: scalar("team_person_assignments"),
+      playerAttributes: scalar("player_attributes"),
       entityProvenance: scalar("entity_provenance"),
     };
   }
@@ -1013,10 +1119,16 @@ export type WorldInspection = {
   competitions: number;
   competitionSeasons: number;
   clubs: number;
+  clubAliases: number;
+  clubRelationships: number;
+  clubMemberships: number;
   teams: number;
+  academies: number;
+  venueRelationships: number;
   persons: number;
   personRoles: number;
   teamPersonAssignments: number;
+  playerAttributes: number;
   entityProvenance: number;
 };
 

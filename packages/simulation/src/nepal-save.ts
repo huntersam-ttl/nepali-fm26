@@ -47,7 +47,12 @@ type EntityMaps = {
   competitionSeasons: Map<string, EntityId>;
   competitionRules: Map<string, EntityId>;
   clubs: Map<string, EntityId>;
+  clubAliases: Map<string, EntityId>;
   teams: Map<string, EntityId>;
+  clubRelationships: Map<string, EntityId>;
+  clubMemberships: Map<string, EntityId>;
+  academies: Map<string, EntityId>;
+  venueRelationships: Map<string, EntityId>;
   persons: Map<string, EntityId>;
   personRoles: Map<string, EntityId>;
   teamPersonAssignments: Map<string, EntityId>;
@@ -145,6 +150,7 @@ const importNepalWorld = (db: GameDatabase, dataset: NepalWorldDataset): void =>
       locationId: mapFact(venue.locationKey, maps.locations),
       name: venue.name,
       capacity: valueOf(venue.capacity),
+      pitchType: valueOf(venue.pitchType),
     });
     persistImport(imports, "venue", id, venue, venue.provenance, importedAt);
   }
@@ -211,12 +217,29 @@ const importNepalWorld = (db: GameDatabase, dataset: NepalWorldDataset): void =>
     world.insertClub({
       id,
       name: club.name,
+      officialName: valueOf(club.officialName),
+      shortName: valueOf(club.shortName),
+      nepaliName: valueOf(club.nepaliName),
+      canonicalExternalId: club.canonicalExternalId,
       countryId: maps.countries.get(club.countryKey)!,
       locationId: mapFact(club.locationKey, maps.locations),
       ownershipType: valueOf(club.ownershipType) ?? "UNKNOWN",
+      organisationType: valueOf(club.organisationType),
+      parentOrganisation: valueOf(club.parentOrganisation),
       foundedYear: valueOf(club.foundedYear),
     });
     persistImport(imports, "club", id, club, club.provenance, importedAt);
+  }
+
+  for (const alias of dataset.clubAliases) {
+    const id = maps.clubAliases.get(alias.key)!;
+    world.insertClubAlias({
+      id,
+      clubId: maps.clubs.get(alias.clubKey)!,
+      alias: alias.alias,
+      aliasType: alias.aliasType,
+    });
+    persistImport(imports, "clubAlias", id, alias, alias.provenance, importedAt);
   }
 
   for (const team of dataset.teams) {
@@ -226,10 +249,79 @@ const importNepalWorld = (db: GameDatabase, dataset: NepalWorldDataset): void =>
       clubId: mapFact(team.clubKey, maps.clubs),
       federationId: mapFact(team.federationKey, maps.federations),
       name: team.name,
+      canonicalExternalId: team.canonicalExternalId,
       level: team.level,
       gender: team.gender,
     });
     persistImport(imports, "team", id, team, team.provenance, importedAt);
+  }
+
+  for (const relationship of dataset.clubRelationships) {
+    const id = maps.clubRelationships.get(relationship.key)!;
+    world.insertClubRelationship({
+      id,
+      parentClubId: maps.clubs.get(relationship.parentClubKey)!,
+      childClubId: mapFact(relationship.childClubKey, maps.clubs),
+      childTeamId: mapFact(relationship.childTeamKey, maps.teams),
+      relationshipType: relationship.relationshipType,
+    });
+    persistImport(
+      imports,
+      "clubRelationship",
+      id,
+      relationship,
+      relationship.provenance,
+      importedAt,
+    );
+  }
+
+  for (const membership of dataset.clubMemberships) {
+    const id = maps.clubMemberships.get(membership.key)!;
+    world.insertClubMembership({
+      id,
+      clubId: maps.clubs.get(membership.clubKey)!,
+      teamId: mapFact(membership.teamKey, maps.teams),
+      competitionId: maps.competitions.get(membership.competitionKey)!,
+      competitionSeasonId: mapFact(membership.competitionSeasonKey, maps.competitionSeasons),
+      membershipType: membership.membershipType,
+      status: membership.status,
+    });
+    persistImport(imports, "clubMembership", id, membership, membership.provenance, importedAt);
+  }
+
+  for (const academy of dataset.academies) {
+    const id = maps.academies.get(academy.key)!;
+    world.insertAcademy({
+      id,
+      name: academy.name,
+      canonicalExternalId: academy.canonicalExternalId,
+      countryId: maps.countries.get(academy.countryKey)!,
+      locationId: mapFact(academy.locationKey, maps.locations),
+      parentClubId: mapFact(academy.parentClubKey, maps.clubs),
+      linkedClubId: mapFact(academy.linkedClubKey, maps.clubs),
+      federationId: mapFact(academy.federationKey, maps.federations),
+      academyType: academy.academyType,
+    });
+    persistImport(imports, "academy", id, academy, academy.provenance, importedAt);
+  }
+
+  for (const relationship of dataset.venueRelationships) {
+    const id = maps.venueRelationships.get(relationship.key)!;
+    world.insertVenueRelationship({
+      id,
+      venueId: maps.venues.get(relationship.venueKey)!,
+      clubId: mapFact(relationship.clubKey, maps.clubs),
+      teamId: mapFact(relationship.teamKey, maps.teams),
+      relationshipType: relationship.relationshipType,
+    });
+    persistImport(
+      imports,
+      "venueRelationship",
+      id,
+      relationship,
+      relationship.provenance,
+      importedAt,
+    );
   }
 
   for (const person of dataset.persons) {
@@ -306,7 +398,12 @@ const buildEntityMaps = (dataset: NepalWorldDataset): EntityMaps => ({
   competitionSeasons: mapKeys("competition-season", dataset.competitionSeasons),
   competitionRules: mapKeys("competition-rule", dataset.competitionRules),
   clubs: mapKeys("club", dataset.clubs),
+  clubAliases: mapKeys("club-alias", dataset.clubAliases),
   teams: mapKeys("team", dataset.teams),
+  clubRelationships: mapKeys("club-relationship", dataset.clubRelationships),
+  clubMemberships: mapKeys("club-membership", dataset.clubMemberships),
+  academies: mapKeys("academy", dataset.academies),
+  venueRelationships: mapKeys("venue-relationship", dataset.venueRelationships),
   persons: mapKeys("person", dataset.persons),
   personRoles: mapKeys("person-role", dataset.personRoles),
   teamPersonAssignments: mapKeys("team-person-assignment", dataset.teamPersonAssignments),

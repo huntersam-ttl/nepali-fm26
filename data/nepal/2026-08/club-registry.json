@@ -1,0 +1,5970 @@
+{
+  "meta": {
+    "datasetId": "nepal-club-registry-2026-08",
+    "targetDatabaseDate": "2026-08",
+    "description": "Nepal club master registry import for August 2026. Players are intentionally excluded.",
+    "provenance": {
+      "sourceId": "supplied-nepal-club-master-registry",
+      "sourceName": "Supplied Nepal club master registry",
+      "retrievedAt": "2026-08-22T00:00:00.000Z",
+      "confidence": 0.65,
+      "confidenceLevel": "MEDIUM",
+      "status": "REPORTED",
+      "notes": "Staging registry supplied for import; direct field-level URLs are not present in this file."
+    }
+  },
+  "countries": [
+    {
+      "key": "np",
+      "name": "Nepal",
+      "isoCode": "NP",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    }
+  ],
+  "locations": [
+    {
+      "key": "kathmandu",
+      "countryKey": "np",
+      "name": "Kathmandu",
+      "kind": "city",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "lalitpur",
+      "countryKey": "np",
+      "name": "Lalitpur",
+      "kind": "city",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "bhaktapur",
+      "countryKey": "np",
+      "name": "Bhaktapur",
+      "kind": "city",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "pokhara",
+      "countryKey": "np",
+      "name": "Pokhara",
+      "kind": "city",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "dhangadhi",
+      "countryKey": "np",
+      "name": "Dhangadhi",
+      "kind": "city",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "butwal",
+      "countryKey": "np",
+      "name": "Butwal",
+      "kind": "city",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "bharatpur",
+      "countryKey": "np",
+      "name": "Bharatpur",
+      "kind": "city",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "ilam",
+      "countryKey": "np",
+      "name": "Ilam",
+      "kind": "city",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "biratnagar",
+      "countryKey": "np",
+      "name": "Biratnagar",
+      "kind": "city",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "jhapa",
+      "countryKey": "np",
+      "name": "Jhapa",
+      "kind": "district",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "damak",
+      "countryKey": "np",
+      "name": "Damak",
+      "kind": "city",
+      "parentLocationKey": {
+        "value": "jhapa",
+        "status": "REPORTED"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "birtamod",
+      "countryKey": "np",
+      "name": "Birtamod",
+      "kind": "city",
+      "parentLocationKey": {
+        "value": "jhapa",
+        "status": "REPORTED"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "surkhet",
+      "countryKey": "np",
+      "name": "Surkhet",
+      "kind": "district",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "sarlahi",
+      "countryKey": "np",
+      "name": "Sarlahi",
+      "kind": "district",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "siraha",
+      "countryKey": "np",
+      "name": "Siraha",
+      "kind": "district",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "bajura",
+      "countryKey": "np",
+      "name": "Bajura",
+      "kind": "district",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "kavre",
+      "countryKey": "np",
+      "name": "Kavre",
+      "kind": "district",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "new-road",
+      "countryKey": "np",
+      "name": "New Road",
+      "kind": "city",
+      "parentLocationKey": {
+        "value": "kathmandu",
+        "status": "REPORTED"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "keltole",
+      "countryKey": "np",
+      "name": "Keltole",
+      "kind": "city",
+      "parentLocationKey": {
+        "value": "kathmandu",
+        "status": "REPORTED"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "satdobato",
+      "countryKey": "np",
+      "name": "Satdobato",
+      "kind": "city",
+      "parentLocationKey": {
+        "value": "lalitpur",
+        "status": "REPORTED"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    }
+  ],
+  "venues": [
+    {
+      "key": "dasharath-rangasala",
+      "countryKey": "np",
+      "name": "Dasharath Rangasala",
+      "locationKey": {
+        "value": "kathmandu",
+        "status": "REPORTED"
+      },
+      "capacity": {
+        "status": "UNKNOWN"
+      },
+      "pitchType": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "anfa-complex-ground",
+      "countryKey": "np",
+      "name": "ANFA Complex Ground",
+      "locationKey": {
+        "value": "satdobato",
+        "status": "REPORTED"
+      },
+      "capacity": {
+        "status": "UNKNOWN"
+      },
+      "pitchType": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "chyasal-stadium",
+      "countryKey": "np",
+      "name": "Chyasal Stadium",
+      "locationKey": {
+        "value": "lalitpur",
+        "status": "REPORTED"
+      },
+      "capacity": {
+        "status": "UNKNOWN"
+      },
+      "pitchType": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "halchowk-stadium",
+      "countryKey": "np",
+      "name": "Halchowk Stadium",
+      "locationKey": {
+        "value": "kathmandu",
+        "status": "REPORTED"
+      },
+      "capacity": {
+        "status": "UNKNOWN"
+      },
+      "pitchType": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "pokhara-rangasala",
+      "countryKey": "np",
+      "name": "Pokhara Rangasala",
+      "locationKey": {
+        "value": "pokhara",
+        "status": "REPORTED"
+      },
+      "capacity": {
+        "status": "UNKNOWN"
+      },
+      "pitchType": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "sahid-rangasala",
+      "countryKey": "np",
+      "name": "Sahid Rangasala",
+      "locationKey": {
+        "value": "biratnagar",
+        "status": "REPORTED"
+      },
+      "capacity": {
+        "status": "UNKNOWN"
+      },
+      "pitchType": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "domalal-rajbanshi-stadium",
+      "countryKey": "np",
+      "name": "Domalal Rajbanshi Stadium",
+      "locationKey": {
+        "value": "birtamod",
+        "status": "REPORTED"
+      },
+      "capacity": {
+        "status": "UNKNOWN"
+      },
+      "pitchType": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    }
+  ],
+  "federations": [
+    {
+      "key": "anfa",
+      "countryKey": "np",
+      "name": "All Nepal Football Association",
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    }
+  ],
+  "competitions": [
+    {
+      "key": "nepal-super-league",
+      "federationKey": {
+        "status": "UNKNOWN"
+      },
+      "name": "Nepal Super League",
+      "scope": "domestic",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "martyrs-memorial-a-division-league",
+      "federationKey": {
+        "value": "anfa",
+        "status": "REPORTED"
+      },
+      "name": "Martyr's Memorial A-Division League",
+      "scope": "domestic",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "martyrs-memorial-b-division-league",
+      "federationKey": {
+        "value": "anfa",
+        "status": "REPORTED"
+      },
+      "name": "Martyr's Memorial B-Division League",
+      "scope": "domestic",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "martyrs-memorial-c-division-league",
+      "federationKey": {
+        "value": "anfa",
+        "status": "REPORTED"
+      },
+      "name": "Martyr's Memorial C-Division League",
+      "scope": "domestic",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    }
+  ],
+  "competitionSeasons": [
+    {
+      "key": "nepal-super-league-2026",
+      "competitionKey": "nepal-super-league",
+      "name": "Nepal Super League 2026",
+      "startDate": "2026-08-01",
+      "endDate": "2027-07-31",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "martyrs-memorial-a-division-2026",
+      "competitionKey": "martyrs-memorial-a-division-league",
+      "name": "Martyr's Memorial A-Division League 2026",
+      "startDate": "2026-08-01",
+      "endDate": "2027-07-31",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "martyrs-memorial-b-division-2026",
+      "competitionKey": "martyrs-memorial-b-division-league",
+      "name": "Martyr's Memorial B-Division League 2026",
+      "startDate": "2026-08-01",
+      "endDate": "2027-07-31",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "martyrs-memorial-c-division-2026",
+      "competitionKey": "martyrs-memorial-c-division-league",
+      "name": "Martyr's Memorial C-Division League 2026",
+      "startDate": "2026-08-01",
+      "endDate": "2027-07-31",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    }
+  ],
+  "competitionRules": [],
+  "clubs": [
+    {
+      "key": "NEP-NSL-KTM",
+      "canonicalExternalId": "NEP-NSL-KTM",
+      "countryKey": "np",
+      "name": "Kathmandu RayZRs FC",
+      "officialName": {
+        "value": "Kathmandu RayZRs FC",
+        "status": "REPORTED"
+      },
+      "shortName": {
+        "value": "Kathmandu RayZRs",
+        "status": "REPORTED"
+      },
+      "locationKey": {
+        "value": "kathmandu",
+        "status": "REPORTED"
+      },
+      "ownershipType": {
+        "value": "CORPORATE",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "FRANCHISE",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-NSL-LIT",
+      "canonicalExternalId": "NEP-NSL-LIT",
+      "countryKey": "np",
+      "name": "Lalitpur City FC",
+      "officialName": {
+        "value": "Lalitpur City FC",
+        "status": "REPORTED"
+      },
+      "shortName": {
+        "value": "Lalitpur City",
+        "status": "REPORTED"
+      },
+      "locationKey": {
+        "value": "lalitpur",
+        "status": "REPORTED"
+      },
+      "ownershipType": {
+        "value": "CORPORATE",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "FRANCHISE",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-NSL-DHG",
+      "canonicalExternalId": "NEP-NSL-DHG",
+      "countryKey": "np",
+      "name": "Dhangadhi FC",
+      "locationKey": {
+        "value": "dhangadhi",
+        "status": "REPORTED"
+      },
+      "ownershipType": {
+        "value": "CORPORATE",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "FRANCHISE",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-NSL-POK",
+      "canonicalExternalId": "NEP-NSL-POK",
+      "countryKey": "np",
+      "name": "Pokhara Thunders",
+      "locationKey": {
+        "value": "pokhara",
+        "status": "REPORTED"
+      },
+      "ownershipType": {
+        "value": "CORPORATE",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "FRANCHISE",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-NSL-JHA",
+      "canonicalExternalId": "NEP-NSL-JHA",
+      "countryKey": "np",
+      "name": "Jhapa FC (NSL)",
+      "locationKey": {
+        "value": "jhapa",
+        "status": "REPORTED"
+      },
+      "ownershipType": {
+        "value": "CORPORATE",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "FRANCHISE",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED",
+        "notes": "Kept distinct from NEP-DIVB-JHA."
+      }
+    },
+    {
+      "key": "NEP-NSL-BUT",
+      "canonicalExternalId": "NEP-NSL-BUT",
+      "countryKey": "np",
+      "name": "Butwal Lumbini FC",
+      "locationKey": {
+        "value": "butwal",
+        "status": "REPORTED"
+      },
+      "ownershipType": {
+        "value": "CORPORATE",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "FRANCHISE",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-NSL-CHI",
+      "canonicalExternalId": "NEP-NSL-CHI",
+      "countryKey": "np",
+      "name": "FC Chitwan",
+      "locationKey": {
+        "value": "bharatpur",
+        "status": "REPORTED"
+      },
+      "ownershipType": {
+        "value": "CORPORATE",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "FRANCHISE",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-NSL-ILA",
+      "canonicalExternalId": "NEP-NSL-ILA",
+      "countryKey": "np",
+      "name": "Sporting Ilam De Mechi",
+      "locationKey": {
+        "value": "ilam",
+        "status": "REPORTED"
+      },
+      "ownershipType": {
+        "value": "CORPORATE",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "FRANCHISE",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-NSL-BIR",
+      "canonicalExternalId": "NEP-NSL-BIR",
+      "countryKey": "np",
+      "name": "Biratnagar City FC",
+      "locationKey": {
+        "value": "biratnagar",
+        "status": "REPORTED"
+      },
+      "ownershipType": {
+        "value": "CORPORATE",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "FRANCHISE",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DEP-APF",
+      "canonicalExternalId": "NEP-DEP-APF",
+      "countryKey": "np",
+      "name": "Nepal APF FC",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "ownershipType": {
+        "value": "DEPARTMENTAL",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "DEPARTMENTAL",
+        "status": "REPORTED"
+      },
+      "parentOrganisation": {
+        "value": "Armed Police Force, Nepal",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DEP-POL",
+      "canonicalExternalId": "NEP-DEP-POL",
+      "countryKey": "np",
+      "name": "Nepal Police Club",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "ownershipType": {
+        "value": "DEPARTMENTAL",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "DEPARTMENTAL",
+        "status": "REPORTED"
+      },
+      "parentOrganisation": {
+        "value": "Nepal Police",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DEP-ARM",
+      "canonicalExternalId": "NEP-DEP-ARM",
+      "countryKey": "np",
+      "name": "Tribhuvan Army Club",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "ownershipType": {
+        "value": "DEPARTMENTAL",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "DEPARTMENTAL",
+        "status": "REPORTED"
+      },
+      "parentOrganisation": {
+        "value": "Nepal Army",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVA-CBU",
+      "canonicalExternalId": "NEP-DIVA-CBU",
+      "countryKey": "np",
+      "name": "Church Boys United",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "ownershipType": {
+        "value": "UNKNOWN",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "CLUB",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVA-MAC",
+      "canonicalExternalId": "NEP-DIVA-MAC",
+      "countryKey": "np",
+      "name": "Machhindra FC",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "ownershipType": {
+        "value": "UNKNOWN",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "CLUB",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVA-MMC",
+      "canonicalExternalId": "NEP-DIVA-MMC",
+      "countryKey": "np",
+      "name": "Manang Marshyangdi Club",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "ownershipType": {
+        "value": "UNKNOWN",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "CLUB",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVA-TSC",
+      "canonicalExternalId": "NEP-DIVA-TSC",
+      "countryKey": "np",
+      "name": "Three Star Club",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "ownershipType": {
+        "value": "UNKNOWN",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "CLUB",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVA-JYC",
+      "canonicalExternalId": "NEP-DIVA-JYC",
+      "countryKey": "np",
+      "name": "Jawalakhel Youth Club",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "ownershipType": {
+        "value": "UNKNOWN",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "CLUB",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVA-SYC",
+      "canonicalExternalId": "NEP-DIVA-SYC",
+      "countryKey": "np",
+      "name": "Satdobato Youth Club",
+      "locationKey": {
+        "value": "satdobato",
+        "status": "REPORTED"
+      },
+      "ownershipType": {
+        "value": "UNKNOWN",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "CLUB",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVA-NRT",
+      "canonicalExternalId": "NEP-DIVA-NRT",
+      "countryKey": "np",
+      "name": "New Road Team",
+      "locationKey": {
+        "value": "new-road",
+        "status": "REPORTED"
+      },
+      "ownershipType": {
+        "value": "UNKNOWN",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "CLUB",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVA-SBO",
+      "canonicalExternalId": "NEP-DIVA-SBO",
+      "countryKey": "np",
+      "name": "Sankata Club",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "ownershipType": {
+        "value": "UNKNOWN",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "CLUB",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVA-HSC",
+      "canonicalExternalId": "NEP-DIVA-HSC",
+      "countryKey": "np",
+      "name": "Himalayan Sherpa Club",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "ownershipType": {
+        "value": "UNKNOWN",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "CLUB",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVA-FRN",
+      "canonicalExternalId": "NEP-DIVA-FRN",
+      "countryKey": "np",
+      "name": "Friends Club",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "ownershipType": {
+        "value": "UNKNOWN",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "CLUB",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVA-KYC",
+      "canonicalExternalId": "NEP-DIVA-KYC",
+      "countryKey": "np",
+      "name": "Khumaltar Youth Club",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "ownershipType": {
+        "value": "UNKNOWN",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "CLUB",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVB-PBU",
+      "canonicalExternalId": "NEP-DIVB-PBU",
+      "countryKey": "np",
+      "name": "Planning Boyz United",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "ownershipType": {
+        "value": "UNKNOWN",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "CLUB",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVB-SBC",
+      "canonicalExternalId": "NEP-DIVB-SBC",
+      "countryKey": "np",
+      "name": "Shree Bhagwati Club",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "ownershipType": {
+        "value": "UNKNOWN",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "CLUB",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVB-BUC",
+      "canonicalExternalId": "NEP-DIVB-BUC",
+      "countryKey": "np",
+      "name": "Boys Union Club",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "ownershipType": {
+        "value": "UNKNOWN",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "CLUB",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVB-RCT",
+      "canonicalExternalId": "NEP-DIVB-RCT",
+      "countryKey": "np",
+      "name": "Ranipokhari Corner Team",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "ownershipType": {
+        "value": "UNKNOWN",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "CLUB",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVB-CYC",
+      "canonicalExternalId": "NEP-DIVB-CYC",
+      "countryKey": "np",
+      "name": "Chyasal Youth Club",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "ownershipType": {
+        "value": "UNKNOWN",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "CLUB",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVB-BBC",
+      "canonicalExternalId": "NEP-DIVB-BBC",
+      "countryKey": "np",
+      "name": "Brigade Boys Club",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "ownershipType": {
+        "value": "UNKNOWN",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "CLUB",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVB-MYA",
+      "canonicalExternalId": "NEP-DIVB-MYA",
+      "countryKey": "np",
+      "name": "Madhyapur Youth Association",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "ownershipType": {
+        "value": "UNKNOWN",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "CLUB",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVB-SYC",
+      "canonicalExternalId": "NEP-DIVB-SYC",
+      "countryKey": "np",
+      "name": "Saraswati Youth Club",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "ownershipType": {
+        "value": "UNKNOWN",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "CLUB",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVB-SKC",
+      "canonicalExternalId": "NEP-DIVB-SKC",
+      "countryKey": "np",
+      "name": "Shree Kumari Club",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "ownershipType": {
+        "value": "UNKNOWN",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "CLUB",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVB-BAN",
+      "canonicalExternalId": "NEP-DIVB-BAN",
+      "countryKey": "np",
+      "name": "Bansbari Club",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "ownershipType": {
+        "value": "UNKNOWN",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "CLUB",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVB-TYC",
+      "canonicalExternalId": "NEP-DIVB-TYC",
+      "countryKey": "np",
+      "name": "Tushal Youth Club",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "ownershipType": {
+        "value": "UNKNOWN",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "CLUB",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVB-NYC",
+      "canonicalExternalId": "NEP-DIVB-NYC",
+      "countryKey": "np",
+      "name": "Nayabasti Youth Club",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "ownershipType": {
+        "value": "UNKNOWN",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "CLUB",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVB-BJU",
+      "canonicalExternalId": "NEP-DIVB-BJU",
+      "countryKey": "np",
+      "name": "Birgunj United FC",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "ownershipType": {
+        "value": "UNKNOWN",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "CLUB",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVB-JHA",
+      "canonicalExternalId": "NEP-DIVB-JHA",
+      "countryKey": "np",
+      "name": "Jhapa Football Club (ANFA pyramid)",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "ownershipType": {
+        "value": "UNKNOWN",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "CLUB",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED",
+        "notes": "Kept distinct from NEP-NSL-JHA."
+      }
+    },
+    {
+      "key": "NEP-DIVC-BYC",
+      "canonicalExternalId": "NEP-DIVC-BYC",
+      "countryKey": "np",
+      "name": "Bagmati Youth Club",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "ownershipType": {
+        "value": "UNKNOWN",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "CLUB",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVC-RC3",
+      "canonicalExternalId": "NEP-DIVC-RC3",
+      "countryKey": "np",
+      "name": "RC32 Football Academy",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "ownershipType": {
+        "value": "UNKNOWN",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "ACADEMY",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVC-PSC",
+      "canonicalExternalId": "NEP-DIVC-PSC",
+      "countryKey": "np",
+      "name": "Pulchowk Sports Club",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "ownershipType": {
+        "value": "UNKNOWN",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "CLUB",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVC-SMC",
+      "canonicalExternalId": "NEP-DIVC-SMC",
+      "countryKey": "np",
+      "name": "Samajik Youth Club",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "ownershipType": {
+        "value": "UNKNOWN",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "CLUB",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVC-KFC",
+      "canonicalExternalId": "NEP-DIVC-KFC",
+      "countryKey": "np",
+      "name": "Khalibari Yuba FC",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "ownershipType": {
+        "value": "UNKNOWN",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "CLUB",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVC-SWS",
+      "canonicalExternalId": "NEP-DIVC-SWS",
+      "countryKey": "np",
+      "name": "Social Welfare Sports Center",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "ownershipType": {
+        "value": "UNKNOWN",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "CLUB",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVC-SFC",
+      "canonicalExternalId": "NEP-DIVC-SFC",
+      "countryKey": "np",
+      "name": "Sanepa Football Club",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "ownershipType": {
+        "value": "UNKNOWN",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "CLUB",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVC-JYC",
+      "canonicalExternalId": "NEP-DIVC-JYC",
+      "countryKey": "np",
+      "name": "Jhamsikhel Youth Club",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "ownershipType": {
+        "value": "UNKNOWN",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "CLUB",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVC-SAS",
+      "canonicalExternalId": "NEP-DIVC-SAS",
+      "countryKey": "np",
+      "name": "Sports Academy Sanga",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "ownershipType": {
+        "value": "UNKNOWN",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "ACADEMY",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVC-MAB",
+      "canonicalExternalId": "NEP-DIVC-MAB",
+      "countryKey": "np",
+      "name": "Mahabir Club",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "ownershipType": {
+        "value": "UNKNOWN",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "CLUB",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVC-MUY",
+      "canonicalExternalId": "NEP-DIVC-MUY",
+      "countryKey": "np",
+      "name": "Manohara United Youth Club",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "ownershipType": {
+        "value": "UNKNOWN",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "CLUB",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVC-SWO",
+      "canonicalExternalId": "NEP-DIVC-SWO",
+      "countryKey": "np",
+      "name": "Swoyambhu Club",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "ownershipType": {
+        "value": "UNKNOWN",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "CLUB",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVC-RSC",
+      "canonicalExternalId": "NEP-DIVC-RSC",
+      "countryKey": "np",
+      "name": "Raniban Sports Club",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "ownershipType": {
+        "value": "UNKNOWN",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "CLUB",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVC-GSC",
+      "canonicalExternalId": "NEP-DIVC-GSC",
+      "countryKey": "np",
+      "name": "Golbazar Sports Club",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "ownershipType": {
+        "value": "UNKNOWN",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "CLUB",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-WOM-RSB",
+      "canonicalExternalId": "NEP-WOM-RSB",
+      "countryKey": "np",
+      "name": "RS Resort & Beach Football Club",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "ownershipType": {
+        "value": "UNKNOWN",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "CLUB",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-WOM-CHA",
+      "canonicalExternalId": "NEP-WOM-CHA",
+      "countryKey": "np",
+      "name": "Chautara Youth Club Women",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "ownershipType": {
+        "value": "UNKNOWN",
+        "status": "REPORTED"
+      },
+      "organisationType": {
+        "value": "CLUB",
+        "status": "REPORTED"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED",
+        "notes": "Standalone women's entity; no men's parent club assumed."
+      }
+    }
+  ],
+  "clubAliases": [
+    {
+      "key": "alias-ktm-1",
+      "clubKey": "NEP-NSL-KTM",
+      "alias": "Kathmandu RayZRs",
+      "aliasType": "COMMON_NAME",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "alias-ktm-2",
+      "clubKey": "NEP-NSL-KTM",
+      "alias": "RayZRs",
+      "aliasType": "SEARCH_ALIAS",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "alias-lit-1",
+      "clubKey": "NEP-NSL-LIT",
+      "alias": "Lalitpur City",
+      "aliasType": "COMMON_NAME",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "alias-lit-2",
+      "clubKey": "NEP-NSL-LIT",
+      "alias": "LCFC",
+      "aliasType": "SHORT_NAME",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "alias-nrt-1",
+      "clubKey": "NEP-DIVA-NRT",
+      "alias": "NRT",
+      "aliasType": "SHORT_NAME",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "alias-mmc-1",
+      "clubKey": "NEP-DIVA-MMC",
+      "alias": "MMC",
+      "aliasType": "SHORT_NAME",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "alias-mmc-2",
+      "clubKey": "NEP-DIVA-MMC",
+      "alias": "Laxmi Bank MMC",
+      "aliasType": "SPONSOR_NAME",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "alias-rct-1",
+      "clubKey": "NEP-DIVB-RCT",
+      "alias": "RCT",
+      "aliasType": "SHORT_NAME",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "alias-rct-2",
+      "clubKey": "NEP-DIVB-RCT",
+      "alias": "Annapurna RCT",
+      "aliasType": "SPONSOR_NAME",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "alias-pol-1",
+      "clubKey": "NEP-DEP-POL",
+      "alias": "Police Club",
+      "aliasType": "COMMON_NAME",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "alias-pol-2",
+      "clubKey": "NEP-DEP-POL",
+      "alias": "Mahendra Police Club",
+      "aliasType": "FORMER_NAME",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "alias-arm-1",
+      "clubKey": "NEP-DEP-ARM",
+      "alias": "Nepal Army Club",
+      "aliasType": "COMMON_NAME",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "alias-arm-2",
+      "clubKey": "NEP-DEP-ARM",
+      "alias": "TAC",
+      "aliasType": "SHORT_NAME",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "alias-arm-3",
+      "clubKey": "NEP-DEP-ARM",
+      "alias": "TAFC",
+      "aliasType": "SHORT_NAME",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "alias-arm-4",
+      "clubKey": "NEP-DEP-ARM",
+      "alias": "Tribhuwan Army FC",
+      "aliasType": "COMMON_NAME",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "alias-apf-1",
+      "clubKey": "NEP-DEP-APF",
+      "alias": "APF FC",
+      "aliasType": "COMMON_NAME",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "alias-apf-2",
+      "clubKey": "NEP-DEP-APF",
+      "alias": "APF Club",
+      "aliasType": "COMMON_NAME",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "alias-apf-3",
+      "clubKey": "NEP-DEP-APF",
+      "alias": "Armed Police Force Club",
+      "aliasType": "COMMON_NAME",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    }
+  ],
+  "teams": [
+    {
+      "key": "NEP-NSL-KTM-MEN",
+      "canonicalExternalId": "NEP-NSL-KTM-MEN",
+      "name": "Kathmandu RayZRs FC Men's First Team",
+      "clubKey": {
+        "value": "NEP-NSL-KTM",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-NSL-LIT-MEN",
+      "canonicalExternalId": "NEP-NSL-LIT-MEN",
+      "name": "Lalitpur City FC Men's First Team",
+      "clubKey": {
+        "value": "NEP-NSL-LIT",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-NSL-DHG-MEN",
+      "canonicalExternalId": "NEP-NSL-DHG-MEN",
+      "name": "Dhangadhi FC Men's First Team",
+      "clubKey": {
+        "value": "NEP-NSL-DHG",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-NSL-POK-MEN",
+      "canonicalExternalId": "NEP-NSL-POK-MEN",
+      "name": "Pokhara Thunders Men's First Team",
+      "clubKey": {
+        "value": "NEP-NSL-POK",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-NSL-JHA-MEN",
+      "canonicalExternalId": "NEP-NSL-JHA-MEN",
+      "name": "Jhapa FC (NSL) Men's First Team",
+      "clubKey": {
+        "value": "NEP-NSL-JHA",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-NSL-BUT-MEN",
+      "canonicalExternalId": "NEP-NSL-BUT-MEN",
+      "name": "Butwal Lumbini FC Men's First Team",
+      "clubKey": {
+        "value": "NEP-NSL-BUT",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-NSL-CHI-MEN",
+      "canonicalExternalId": "NEP-NSL-CHI-MEN",
+      "name": "FC Chitwan Men's First Team",
+      "clubKey": {
+        "value": "NEP-NSL-CHI",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-NSL-ILA-MEN",
+      "canonicalExternalId": "NEP-NSL-ILA-MEN",
+      "name": "Sporting Ilam De Mechi Men's First Team",
+      "clubKey": {
+        "value": "NEP-NSL-ILA",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-NSL-BIR-MEN",
+      "canonicalExternalId": "NEP-NSL-BIR-MEN",
+      "name": "Biratnagar City FC Men's First Team",
+      "clubKey": {
+        "value": "NEP-NSL-BIR",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DEP-APF-MEN",
+      "canonicalExternalId": "NEP-DEP-APF-MEN",
+      "name": "Nepal APF FC Men's First Team",
+      "clubKey": {
+        "value": "NEP-DEP-APF",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DEP-POL-MEN",
+      "canonicalExternalId": "NEP-DEP-POL-MEN",
+      "name": "Nepal Police Club Men's First Team",
+      "clubKey": {
+        "value": "NEP-DEP-POL",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DEP-ARM-MEN",
+      "canonicalExternalId": "NEP-DEP-ARM-MEN",
+      "name": "Tribhuvan Army Club Men's First Team",
+      "clubKey": {
+        "value": "NEP-DEP-ARM",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVA-CBU-MEN",
+      "canonicalExternalId": "NEP-DIVA-CBU-MEN",
+      "name": "Church Boys United Men's First Team",
+      "clubKey": {
+        "value": "NEP-DIVA-CBU",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVA-MAC-MEN",
+      "canonicalExternalId": "NEP-DIVA-MAC-MEN",
+      "name": "Machhindra FC Men's First Team",
+      "clubKey": {
+        "value": "NEP-DIVA-MAC",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVA-MMC-MEN",
+      "canonicalExternalId": "NEP-DIVA-MMC-MEN",
+      "name": "Manang Marshyangdi Club Men's First Team",
+      "clubKey": {
+        "value": "NEP-DIVA-MMC",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVA-TSC-MEN",
+      "canonicalExternalId": "NEP-DIVA-TSC-MEN",
+      "name": "Three Star Club Men's First Team",
+      "clubKey": {
+        "value": "NEP-DIVA-TSC",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVA-JYC-MEN",
+      "canonicalExternalId": "NEP-DIVA-JYC-MEN",
+      "name": "Jawalakhel Youth Club Men's First Team",
+      "clubKey": {
+        "value": "NEP-DIVA-JYC",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVA-SYC-MEN",
+      "canonicalExternalId": "NEP-DIVA-SYC-MEN",
+      "name": "Satdobato Youth Club Men's First Team",
+      "clubKey": {
+        "value": "NEP-DIVA-SYC",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVA-NRT-MEN",
+      "canonicalExternalId": "NEP-DIVA-NRT-MEN",
+      "name": "New Road Team Men's First Team",
+      "clubKey": {
+        "value": "NEP-DIVA-NRT",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVA-SBO-MEN",
+      "canonicalExternalId": "NEP-DIVA-SBO-MEN",
+      "name": "Sankata Club Men's First Team",
+      "clubKey": {
+        "value": "NEP-DIVA-SBO",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVA-HSC-MEN",
+      "canonicalExternalId": "NEP-DIVA-HSC-MEN",
+      "name": "Himalayan Sherpa Club Men's First Team",
+      "clubKey": {
+        "value": "NEP-DIVA-HSC",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVA-FRN-MEN",
+      "canonicalExternalId": "NEP-DIVA-FRN-MEN",
+      "name": "Friends Club Men's First Team",
+      "clubKey": {
+        "value": "NEP-DIVA-FRN",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVA-KYC-MEN",
+      "canonicalExternalId": "NEP-DIVA-KYC-MEN",
+      "name": "Khumaltar Youth Club Men's First Team",
+      "clubKey": {
+        "value": "NEP-DIVA-KYC",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVB-PBU-MEN",
+      "canonicalExternalId": "NEP-DIVB-PBU-MEN",
+      "name": "Planning Boyz United Men's First Team",
+      "clubKey": {
+        "value": "NEP-DIVB-PBU",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVB-SBC-MEN",
+      "canonicalExternalId": "NEP-DIVB-SBC-MEN",
+      "name": "Shree Bhagwati Club Men's First Team",
+      "clubKey": {
+        "value": "NEP-DIVB-SBC",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVB-BUC-MEN",
+      "canonicalExternalId": "NEP-DIVB-BUC-MEN",
+      "name": "Boys Union Club Men's First Team",
+      "clubKey": {
+        "value": "NEP-DIVB-BUC",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVB-RCT-MEN",
+      "canonicalExternalId": "NEP-DIVB-RCT-MEN",
+      "name": "Ranipokhari Corner Team Men's First Team",
+      "clubKey": {
+        "value": "NEP-DIVB-RCT",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVB-CYC-MEN",
+      "canonicalExternalId": "NEP-DIVB-CYC-MEN",
+      "name": "Chyasal Youth Club Men's First Team",
+      "clubKey": {
+        "value": "NEP-DIVB-CYC",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVB-BBC-MEN",
+      "canonicalExternalId": "NEP-DIVB-BBC-MEN",
+      "name": "Brigade Boys Club Men's First Team",
+      "clubKey": {
+        "value": "NEP-DIVB-BBC",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVB-MYA-MEN",
+      "canonicalExternalId": "NEP-DIVB-MYA-MEN",
+      "name": "Madhyapur Youth Association Men's First Team",
+      "clubKey": {
+        "value": "NEP-DIVB-MYA",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVB-SYC-MEN",
+      "canonicalExternalId": "NEP-DIVB-SYC-MEN",
+      "name": "Saraswati Youth Club Men's First Team",
+      "clubKey": {
+        "value": "NEP-DIVB-SYC",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVB-SKC-MEN",
+      "canonicalExternalId": "NEP-DIVB-SKC-MEN",
+      "name": "Shree Kumari Club Men's First Team",
+      "clubKey": {
+        "value": "NEP-DIVB-SKC",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVB-BAN-MEN",
+      "canonicalExternalId": "NEP-DIVB-BAN-MEN",
+      "name": "Bansbari Club Men's First Team",
+      "clubKey": {
+        "value": "NEP-DIVB-BAN",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVB-TYC-MEN",
+      "canonicalExternalId": "NEP-DIVB-TYC-MEN",
+      "name": "Tushal Youth Club Men's First Team",
+      "clubKey": {
+        "value": "NEP-DIVB-TYC",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVB-NYC-MEN",
+      "canonicalExternalId": "NEP-DIVB-NYC-MEN",
+      "name": "Nayabasti Youth Club Men's First Team",
+      "clubKey": {
+        "value": "NEP-DIVB-NYC",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVB-BJU-MEN",
+      "canonicalExternalId": "NEP-DIVB-BJU-MEN",
+      "name": "Birgunj United FC Men's First Team",
+      "clubKey": {
+        "value": "NEP-DIVB-BJU",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVB-JHA-MEN",
+      "canonicalExternalId": "NEP-DIVB-JHA-MEN",
+      "name": "Jhapa Football Club (ANFA pyramid) Men's First Team",
+      "clubKey": {
+        "value": "NEP-DIVB-JHA",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVC-BYC-MEN",
+      "canonicalExternalId": "NEP-DIVC-BYC-MEN",
+      "name": "Bagmati Youth Club Men's First Team",
+      "clubKey": {
+        "value": "NEP-DIVC-BYC",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVC-RC3-MEN",
+      "canonicalExternalId": "NEP-DIVC-RC3-MEN",
+      "name": "RC32 Football Academy Men's First Team",
+      "clubKey": {
+        "value": "NEP-DIVC-RC3",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVC-PSC-MEN",
+      "canonicalExternalId": "NEP-DIVC-PSC-MEN",
+      "name": "Pulchowk Sports Club Men's First Team",
+      "clubKey": {
+        "value": "NEP-DIVC-PSC",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVC-SMC-MEN",
+      "canonicalExternalId": "NEP-DIVC-SMC-MEN",
+      "name": "Samajik Youth Club Men's First Team",
+      "clubKey": {
+        "value": "NEP-DIVC-SMC",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVC-KFC-MEN",
+      "canonicalExternalId": "NEP-DIVC-KFC-MEN",
+      "name": "Khalibari Yuba FC Men's First Team",
+      "clubKey": {
+        "value": "NEP-DIVC-KFC",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVC-SWS-MEN",
+      "canonicalExternalId": "NEP-DIVC-SWS-MEN",
+      "name": "Social Welfare Sports Center Men's First Team",
+      "clubKey": {
+        "value": "NEP-DIVC-SWS",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVC-SFC-MEN",
+      "canonicalExternalId": "NEP-DIVC-SFC-MEN",
+      "name": "Sanepa Football Club Men's First Team",
+      "clubKey": {
+        "value": "NEP-DIVC-SFC",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVC-JYC-MEN",
+      "canonicalExternalId": "NEP-DIVC-JYC-MEN",
+      "name": "Jhamsikhel Youth Club Men's First Team",
+      "clubKey": {
+        "value": "NEP-DIVC-JYC",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVC-SAS-MEN",
+      "canonicalExternalId": "NEP-DIVC-SAS-MEN",
+      "name": "Sports Academy Sanga Men's First Team",
+      "clubKey": {
+        "value": "NEP-DIVC-SAS",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVC-MAB-MEN",
+      "canonicalExternalId": "NEP-DIVC-MAB-MEN",
+      "name": "Mahabir Club Men's First Team",
+      "clubKey": {
+        "value": "NEP-DIVC-MAB",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVC-MUY-MEN",
+      "canonicalExternalId": "NEP-DIVC-MUY-MEN",
+      "name": "Manohara United Youth Club Men's First Team",
+      "clubKey": {
+        "value": "NEP-DIVC-MUY",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVC-SWO-MEN",
+      "canonicalExternalId": "NEP-DIVC-SWO-MEN",
+      "name": "Swoyambhu Club Men's First Team",
+      "clubKey": {
+        "value": "NEP-DIVC-SWO",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVC-RSC-MEN",
+      "canonicalExternalId": "NEP-DIVC-RSC-MEN",
+      "name": "Raniban Sports Club Men's First Team",
+      "clubKey": {
+        "value": "NEP-DIVC-RSC",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-DIVC-GSC-MEN",
+      "canonicalExternalId": "NEP-DIVC-GSC-MEN",
+      "name": "Golbazar Sports Club Men's First Team",
+      "clubKey": {
+        "value": "NEP-DIVC-GSC",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-WOM-APF",
+      "canonicalExternalId": "NEP-WOM-APF",
+      "name": "Nepal APF Women's FC",
+      "clubKey": {
+        "value": "NEP-DEP-APF",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "women",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-WOM-POL",
+      "canonicalExternalId": "NEP-WOM-POL",
+      "name": "Nepal Police Women's FC",
+      "clubKey": {
+        "value": "NEP-DEP-POL",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "women",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-WOM-ARM",
+      "canonicalExternalId": "NEP-WOM-ARM",
+      "name": "Tribhuvan Army Women's FC",
+      "clubKey": {
+        "value": "NEP-DEP-ARM",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "women",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-WOM-CBU",
+      "canonicalExternalId": "NEP-WOM-CBU",
+      "name": "Church Boys United Women",
+      "clubKey": {
+        "value": "NEP-DIVA-CBU",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "women",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-WOM-SBO",
+      "canonicalExternalId": "NEP-WOM-SBO",
+      "name": "Sankata Club Women",
+      "clubKey": {
+        "value": "NEP-DIVA-SBO",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "women",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-WOM-NRT",
+      "canonicalExternalId": "NEP-WOM-NRT",
+      "name": "New Road Team Women",
+      "clubKey": {
+        "value": "NEP-DIVA-NRT",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "women",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-WOM-BYC",
+      "canonicalExternalId": "NEP-WOM-BYC",
+      "name": "Bagmati Youth Club Women",
+      "clubKey": {
+        "value": "NEP-DIVC-BYC",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "women",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-WOM-JHA",
+      "canonicalExternalId": "NEP-WOM-JHA",
+      "name": "Jhapa FC Women",
+      "clubKey": {
+        "value": "NEP-DIVB-JHA",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "women",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-WOM-RSB-TEAM",
+      "canonicalExternalId": "NEP-WOM-RSB-TEAM",
+      "name": "RS Resort & Beach Football Club Women",
+      "clubKey": {
+        "value": "NEP-WOM-RSB",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "women",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-WOM-CHA-TEAM",
+      "canonicalExternalId": "NEP-WOM-CHA-TEAM",
+      "name": "Chautara Youth Club Women",
+      "clubKey": {
+        "value": "NEP-WOM-CHA",
+        "status": "REPORTED"
+      },
+      "level": "senior",
+      "gender": "women",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    }
+  ],
+  "clubRelationships": [
+    {
+      "key": "rel-NEP-NSL-KTM-men",
+      "parentClubKey": "NEP-NSL-KTM",
+      "childTeamKey": {
+        "value": "NEP-NSL-KTM-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-NSL-LIT-men",
+      "parentClubKey": "NEP-NSL-LIT",
+      "childTeamKey": {
+        "value": "NEP-NSL-LIT-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-NSL-DHG-men",
+      "parentClubKey": "NEP-NSL-DHG",
+      "childTeamKey": {
+        "value": "NEP-NSL-DHG-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-NSL-POK-men",
+      "parentClubKey": "NEP-NSL-POK",
+      "childTeamKey": {
+        "value": "NEP-NSL-POK-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-NSL-JHA-men",
+      "parentClubKey": "NEP-NSL-JHA",
+      "childTeamKey": {
+        "value": "NEP-NSL-JHA-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-NSL-BUT-men",
+      "parentClubKey": "NEP-NSL-BUT",
+      "childTeamKey": {
+        "value": "NEP-NSL-BUT-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-NSL-CHI-men",
+      "parentClubKey": "NEP-NSL-CHI",
+      "childTeamKey": {
+        "value": "NEP-NSL-CHI-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-NSL-ILA-men",
+      "parentClubKey": "NEP-NSL-ILA",
+      "childTeamKey": {
+        "value": "NEP-NSL-ILA-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-NSL-BIR-men",
+      "parentClubKey": "NEP-NSL-BIR",
+      "childTeamKey": {
+        "value": "NEP-NSL-BIR-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-DEP-APF-men",
+      "parentClubKey": "NEP-DEP-APF",
+      "childTeamKey": {
+        "value": "NEP-DEP-APF-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-DEP-POL-men",
+      "parentClubKey": "NEP-DEP-POL",
+      "childTeamKey": {
+        "value": "NEP-DEP-POL-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-DEP-ARM-men",
+      "parentClubKey": "NEP-DEP-ARM",
+      "childTeamKey": {
+        "value": "NEP-DEP-ARM-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-DIVA-CBU-men",
+      "parentClubKey": "NEP-DIVA-CBU",
+      "childTeamKey": {
+        "value": "NEP-DIVA-CBU-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-DIVA-MAC-men",
+      "parentClubKey": "NEP-DIVA-MAC",
+      "childTeamKey": {
+        "value": "NEP-DIVA-MAC-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-DIVA-MMC-men",
+      "parentClubKey": "NEP-DIVA-MMC",
+      "childTeamKey": {
+        "value": "NEP-DIVA-MMC-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-DIVA-TSC-men",
+      "parentClubKey": "NEP-DIVA-TSC",
+      "childTeamKey": {
+        "value": "NEP-DIVA-TSC-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-DIVA-JYC-men",
+      "parentClubKey": "NEP-DIVA-JYC",
+      "childTeamKey": {
+        "value": "NEP-DIVA-JYC-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-DIVA-SYC-men",
+      "parentClubKey": "NEP-DIVA-SYC",
+      "childTeamKey": {
+        "value": "NEP-DIVA-SYC-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-DIVA-NRT-men",
+      "parentClubKey": "NEP-DIVA-NRT",
+      "childTeamKey": {
+        "value": "NEP-DIVA-NRT-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-DIVA-SBO-men",
+      "parentClubKey": "NEP-DIVA-SBO",
+      "childTeamKey": {
+        "value": "NEP-DIVA-SBO-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-DIVA-HSC-men",
+      "parentClubKey": "NEP-DIVA-HSC",
+      "childTeamKey": {
+        "value": "NEP-DIVA-HSC-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-DIVA-FRN-men",
+      "parentClubKey": "NEP-DIVA-FRN",
+      "childTeamKey": {
+        "value": "NEP-DIVA-FRN-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-DIVA-KYC-men",
+      "parentClubKey": "NEP-DIVA-KYC",
+      "childTeamKey": {
+        "value": "NEP-DIVA-KYC-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-DIVB-PBU-men",
+      "parentClubKey": "NEP-DIVB-PBU",
+      "childTeamKey": {
+        "value": "NEP-DIVB-PBU-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-DIVB-SBC-men",
+      "parentClubKey": "NEP-DIVB-SBC",
+      "childTeamKey": {
+        "value": "NEP-DIVB-SBC-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-DIVB-BUC-men",
+      "parentClubKey": "NEP-DIVB-BUC",
+      "childTeamKey": {
+        "value": "NEP-DIVB-BUC-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-DIVB-RCT-men",
+      "parentClubKey": "NEP-DIVB-RCT",
+      "childTeamKey": {
+        "value": "NEP-DIVB-RCT-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-DIVB-CYC-men",
+      "parentClubKey": "NEP-DIVB-CYC",
+      "childTeamKey": {
+        "value": "NEP-DIVB-CYC-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-DIVB-BBC-men",
+      "parentClubKey": "NEP-DIVB-BBC",
+      "childTeamKey": {
+        "value": "NEP-DIVB-BBC-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-DIVB-MYA-men",
+      "parentClubKey": "NEP-DIVB-MYA",
+      "childTeamKey": {
+        "value": "NEP-DIVB-MYA-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-DIVB-SYC-men",
+      "parentClubKey": "NEP-DIVB-SYC",
+      "childTeamKey": {
+        "value": "NEP-DIVB-SYC-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-DIVB-SKC-men",
+      "parentClubKey": "NEP-DIVB-SKC",
+      "childTeamKey": {
+        "value": "NEP-DIVB-SKC-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-DIVB-BAN-men",
+      "parentClubKey": "NEP-DIVB-BAN",
+      "childTeamKey": {
+        "value": "NEP-DIVB-BAN-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-DIVB-TYC-men",
+      "parentClubKey": "NEP-DIVB-TYC",
+      "childTeamKey": {
+        "value": "NEP-DIVB-TYC-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-DIVB-NYC-men",
+      "parentClubKey": "NEP-DIVB-NYC",
+      "childTeamKey": {
+        "value": "NEP-DIVB-NYC-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-DIVB-BJU-men",
+      "parentClubKey": "NEP-DIVB-BJU",
+      "childTeamKey": {
+        "value": "NEP-DIVB-BJU-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-DIVB-JHA-men",
+      "parentClubKey": "NEP-DIVB-JHA",
+      "childTeamKey": {
+        "value": "NEP-DIVB-JHA-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-DIVC-BYC-men",
+      "parentClubKey": "NEP-DIVC-BYC",
+      "childTeamKey": {
+        "value": "NEP-DIVC-BYC-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-DIVC-RC3-men",
+      "parentClubKey": "NEP-DIVC-RC3",
+      "childTeamKey": {
+        "value": "NEP-DIVC-RC3-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-DIVC-PSC-men",
+      "parentClubKey": "NEP-DIVC-PSC",
+      "childTeamKey": {
+        "value": "NEP-DIVC-PSC-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-DIVC-SMC-men",
+      "parentClubKey": "NEP-DIVC-SMC",
+      "childTeamKey": {
+        "value": "NEP-DIVC-SMC-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-DIVC-KFC-men",
+      "parentClubKey": "NEP-DIVC-KFC",
+      "childTeamKey": {
+        "value": "NEP-DIVC-KFC-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-DIVC-SWS-men",
+      "parentClubKey": "NEP-DIVC-SWS",
+      "childTeamKey": {
+        "value": "NEP-DIVC-SWS-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-DIVC-SFC-men",
+      "parentClubKey": "NEP-DIVC-SFC",
+      "childTeamKey": {
+        "value": "NEP-DIVC-SFC-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-DIVC-JYC-men",
+      "parentClubKey": "NEP-DIVC-JYC",
+      "childTeamKey": {
+        "value": "NEP-DIVC-JYC-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-DIVC-SAS-men",
+      "parentClubKey": "NEP-DIVC-SAS",
+      "childTeamKey": {
+        "value": "NEP-DIVC-SAS-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-DIVC-MAB-men",
+      "parentClubKey": "NEP-DIVC-MAB",
+      "childTeamKey": {
+        "value": "NEP-DIVC-MAB-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-DIVC-MUY-men",
+      "parentClubKey": "NEP-DIVC-MUY",
+      "childTeamKey": {
+        "value": "NEP-DIVC-MUY-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-DIVC-SWO-men",
+      "parentClubKey": "NEP-DIVC-SWO",
+      "childTeamKey": {
+        "value": "NEP-DIVC-SWO-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-DIVC-RSC-men",
+      "parentClubKey": "NEP-DIVC-RSC",
+      "childTeamKey": {
+        "value": "NEP-DIVC-RSC-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-DIVC-GSC-men",
+      "parentClubKey": "NEP-DIVC-GSC",
+      "childTeamKey": {
+        "value": "NEP-DIVC-GSC-MEN",
+        "status": "REPORTED"
+      },
+      "relationshipType": "MEN_FIRST_TEAM",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-WOM-APF",
+      "parentClubKey": "NEP-DEP-APF",
+      "childTeamKey": {
+        "value": "NEP-WOM-APF",
+        "status": "REPORTED"
+      },
+      "relationshipType": "WOMENS_BRANCH",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-WOM-POL",
+      "parentClubKey": "NEP-DEP-POL",
+      "childTeamKey": {
+        "value": "NEP-WOM-POL",
+        "status": "REPORTED"
+      },
+      "relationshipType": "WOMENS_BRANCH",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-WOM-ARM",
+      "parentClubKey": "NEP-DEP-ARM",
+      "childTeamKey": {
+        "value": "NEP-WOM-ARM",
+        "status": "REPORTED"
+      },
+      "relationshipType": "WOMENS_BRANCH",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-WOM-CBU",
+      "parentClubKey": "NEP-DIVA-CBU",
+      "childTeamKey": {
+        "value": "NEP-WOM-CBU",
+        "status": "REPORTED"
+      },
+      "relationshipType": "WOMENS_BRANCH",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-WOM-SBO",
+      "parentClubKey": "NEP-DIVA-SBO",
+      "childTeamKey": {
+        "value": "NEP-WOM-SBO",
+        "status": "REPORTED"
+      },
+      "relationshipType": "WOMENS_BRANCH",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-WOM-NRT",
+      "parentClubKey": "NEP-DIVA-NRT",
+      "childTeamKey": {
+        "value": "NEP-WOM-NRT",
+        "status": "REPORTED"
+      },
+      "relationshipType": "WOMENS_BRANCH",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-WOM-BYC",
+      "parentClubKey": "NEP-DIVC-BYC",
+      "childTeamKey": {
+        "value": "NEP-WOM-BYC",
+        "status": "REPORTED"
+      },
+      "relationshipType": "WOMENS_BRANCH",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-WOM-JHA",
+      "parentClubKey": "NEP-DIVB-JHA",
+      "childTeamKey": {
+        "value": "NEP-WOM-JHA",
+        "status": "REPORTED"
+      },
+      "relationshipType": "WOMENS_BRANCH",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rel-NEP-ACA-RC3",
+      "parentClubKey": "NEP-DIVC-RC3",
+      "childClubKey": {
+        "value": "NEP-DIVC-RC3",
+        "status": "REPORTED"
+      },
+      "relationshipType": "LINKED_ENTITY",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    }
+  ],
+  "clubMemberships": [
+    {
+      "key": "membership-NEP-NSL-KTM-nepal-super-league-2026",
+      "clubKey": "NEP-NSL-KTM",
+      "teamKey": {
+        "value": "NEP-NSL-KTM-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "nepal-super-league",
+      "competitionSeasonKey": {
+        "value": "nepal-super-league-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "FRANCHISE",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-NSL-LIT-nepal-super-league-2026",
+      "clubKey": "NEP-NSL-LIT",
+      "teamKey": {
+        "value": "NEP-NSL-LIT-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "nepal-super-league",
+      "competitionSeasonKey": {
+        "value": "nepal-super-league-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "FRANCHISE",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-NSL-DHG-nepal-super-league-2026",
+      "clubKey": "NEP-NSL-DHG",
+      "teamKey": {
+        "value": "NEP-NSL-DHG-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "nepal-super-league",
+      "competitionSeasonKey": {
+        "value": "nepal-super-league-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "FRANCHISE",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-NSL-POK-nepal-super-league-2026",
+      "clubKey": "NEP-NSL-POK",
+      "teamKey": {
+        "value": "NEP-NSL-POK-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "nepal-super-league",
+      "competitionSeasonKey": {
+        "value": "nepal-super-league-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "FRANCHISE",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-NSL-JHA-nepal-super-league-2026",
+      "clubKey": "NEP-NSL-JHA",
+      "teamKey": {
+        "value": "NEP-NSL-JHA-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "nepal-super-league",
+      "competitionSeasonKey": {
+        "value": "nepal-super-league-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "FRANCHISE",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-NSL-BUT-nepal-super-league-2026",
+      "clubKey": "NEP-NSL-BUT",
+      "teamKey": {
+        "value": "NEP-NSL-BUT-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "nepal-super-league",
+      "competitionSeasonKey": {
+        "value": "nepal-super-league-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "FRANCHISE",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-NSL-CHI-nepal-super-league-2026",
+      "clubKey": "NEP-NSL-CHI",
+      "teamKey": {
+        "value": "NEP-NSL-CHI-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "nepal-super-league",
+      "competitionSeasonKey": {
+        "value": "nepal-super-league-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "FRANCHISE",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-NSL-ILA-nepal-super-league-2026",
+      "clubKey": "NEP-NSL-ILA",
+      "teamKey": {
+        "value": "NEP-NSL-ILA-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "nepal-super-league",
+      "competitionSeasonKey": {
+        "value": "nepal-super-league-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "FRANCHISE",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-NSL-BIR-nepal-super-league-2026",
+      "clubKey": "NEP-NSL-BIR",
+      "teamKey": {
+        "value": "NEP-NSL-BIR-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "nepal-super-league",
+      "competitionSeasonKey": {
+        "value": "nepal-super-league-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "FRANCHISE",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-DIVA-CBU-martyrs-memorial-a-division-2026",
+      "clubKey": "NEP-DIVA-CBU",
+      "teamKey": {
+        "value": "NEP-DIVA-CBU-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "martyrs-memorial-a-division-league",
+      "competitionSeasonKey": {
+        "value": "martyrs-memorial-a-division-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "LEAGUE_MEMBER",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-DIVA-MAC-martyrs-memorial-a-division-2026",
+      "clubKey": "NEP-DIVA-MAC",
+      "teamKey": {
+        "value": "NEP-DIVA-MAC-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "martyrs-memorial-a-division-league",
+      "competitionSeasonKey": {
+        "value": "martyrs-memorial-a-division-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "LEAGUE_MEMBER",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-DIVA-MMC-martyrs-memorial-a-division-2026",
+      "clubKey": "NEP-DIVA-MMC",
+      "teamKey": {
+        "value": "NEP-DIVA-MMC-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "martyrs-memorial-a-division-league",
+      "competitionSeasonKey": {
+        "value": "martyrs-memorial-a-division-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "LEAGUE_MEMBER",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-DIVA-TSC-martyrs-memorial-a-division-2026",
+      "clubKey": "NEP-DIVA-TSC",
+      "teamKey": {
+        "value": "NEP-DIVA-TSC-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "martyrs-memorial-a-division-league",
+      "competitionSeasonKey": {
+        "value": "martyrs-memorial-a-division-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "LEAGUE_MEMBER",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-DIVA-JYC-martyrs-memorial-a-division-2026",
+      "clubKey": "NEP-DIVA-JYC",
+      "teamKey": {
+        "value": "NEP-DIVA-JYC-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "martyrs-memorial-a-division-league",
+      "competitionSeasonKey": {
+        "value": "martyrs-memorial-a-division-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "LEAGUE_MEMBER",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-DIVA-SYC-martyrs-memorial-a-division-2026",
+      "clubKey": "NEP-DIVA-SYC",
+      "teamKey": {
+        "value": "NEP-DIVA-SYC-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "martyrs-memorial-a-division-league",
+      "competitionSeasonKey": {
+        "value": "martyrs-memorial-a-division-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "LEAGUE_MEMBER",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-DIVA-NRT-martyrs-memorial-a-division-2026",
+      "clubKey": "NEP-DIVA-NRT",
+      "teamKey": {
+        "value": "NEP-DIVA-NRT-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "martyrs-memorial-a-division-league",
+      "competitionSeasonKey": {
+        "value": "martyrs-memorial-a-division-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "LEAGUE_MEMBER",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-DIVA-SBO-martyrs-memorial-a-division-2026",
+      "clubKey": "NEP-DIVA-SBO",
+      "teamKey": {
+        "value": "NEP-DIVA-SBO-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "martyrs-memorial-a-division-league",
+      "competitionSeasonKey": {
+        "value": "martyrs-memorial-a-division-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "LEAGUE_MEMBER",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-DIVA-HSC-martyrs-memorial-a-division-2026",
+      "clubKey": "NEP-DIVA-HSC",
+      "teamKey": {
+        "value": "NEP-DIVA-HSC-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "martyrs-memorial-a-division-league",
+      "competitionSeasonKey": {
+        "value": "martyrs-memorial-a-division-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "LEAGUE_MEMBER",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-DIVA-FRN-martyrs-memorial-a-division-2026",
+      "clubKey": "NEP-DIVA-FRN",
+      "teamKey": {
+        "value": "NEP-DIVA-FRN-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "martyrs-memorial-a-division-league",
+      "competitionSeasonKey": {
+        "value": "martyrs-memorial-a-division-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "LEAGUE_MEMBER",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-DIVA-KYC-martyrs-memorial-a-division-2026",
+      "clubKey": "NEP-DIVA-KYC",
+      "teamKey": {
+        "value": "NEP-DIVA-KYC-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "martyrs-memorial-a-division-league",
+      "competitionSeasonKey": {
+        "value": "martyrs-memorial-a-division-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "LEAGUE_MEMBER",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-DEP-APF-martyrs-memorial-a-division-2026",
+      "clubKey": "NEP-DEP-APF",
+      "teamKey": {
+        "value": "NEP-DEP-APF-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "martyrs-memorial-a-division-league",
+      "competitionSeasonKey": {
+        "value": "martyrs-memorial-a-division-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "LEAGUE_MEMBER",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-DEP-POL-martyrs-memorial-a-division-2026",
+      "clubKey": "NEP-DEP-POL",
+      "teamKey": {
+        "value": "NEP-DEP-POL-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "martyrs-memorial-a-division-league",
+      "competitionSeasonKey": {
+        "value": "martyrs-memorial-a-division-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "LEAGUE_MEMBER",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-DEP-ARM-martyrs-memorial-a-division-2026",
+      "clubKey": "NEP-DEP-ARM",
+      "teamKey": {
+        "value": "NEP-DEP-ARM-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "martyrs-memorial-a-division-league",
+      "competitionSeasonKey": {
+        "value": "martyrs-memorial-a-division-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "LEAGUE_MEMBER",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-DIVB-PBU-martyrs-memorial-b-division-2026",
+      "clubKey": "NEP-DIVB-PBU",
+      "teamKey": {
+        "value": "NEP-DIVB-PBU-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "martyrs-memorial-b-division-league",
+      "competitionSeasonKey": {
+        "value": "martyrs-memorial-b-division-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "LEAGUE_MEMBER",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-DIVB-SBC-martyrs-memorial-b-division-2026",
+      "clubKey": "NEP-DIVB-SBC",
+      "teamKey": {
+        "value": "NEP-DIVB-SBC-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "martyrs-memorial-b-division-league",
+      "competitionSeasonKey": {
+        "value": "martyrs-memorial-b-division-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "LEAGUE_MEMBER",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-DIVB-BUC-martyrs-memorial-b-division-2026",
+      "clubKey": "NEP-DIVB-BUC",
+      "teamKey": {
+        "value": "NEP-DIVB-BUC-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "martyrs-memorial-b-division-league",
+      "competitionSeasonKey": {
+        "value": "martyrs-memorial-b-division-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "LEAGUE_MEMBER",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-DIVB-RCT-martyrs-memorial-b-division-2026",
+      "clubKey": "NEP-DIVB-RCT",
+      "teamKey": {
+        "value": "NEP-DIVB-RCT-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "martyrs-memorial-b-division-league",
+      "competitionSeasonKey": {
+        "value": "martyrs-memorial-b-division-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "LEAGUE_MEMBER",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-DIVB-CYC-martyrs-memorial-b-division-2026",
+      "clubKey": "NEP-DIVB-CYC",
+      "teamKey": {
+        "value": "NEP-DIVB-CYC-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "martyrs-memorial-b-division-league",
+      "competitionSeasonKey": {
+        "value": "martyrs-memorial-b-division-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "LEAGUE_MEMBER",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-DIVB-BBC-martyrs-memorial-b-division-2026",
+      "clubKey": "NEP-DIVB-BBC",
+      "teamKey": {
+        "value": "NEP-DIVB-BBC-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "martyrs-memorial-b-division-league",
+      "competitionSeasonKey": {
+        "value": "martyrs-memorial-b-division-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "LEAGUE_MEMBER",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-DIVB-MYA-martyrs-memorial-b-division-2026",
+      "clubKey": "NEP-DIVB-MYA",
+      "teamKey": {
+        "value": "NEP-DIVB-MYA-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "martyrs-memorial-b-division-league",
+      "competitionSeasonKey": {
+        "value": "martyrs-memorial-b-division-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "LEAGUE_MEMBER",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-DIVB-SYC-martyrs-memorial-b-division-2026",
+      "clubKey": "NEP-DIVB-SYC",
+      "teamKey": {
+        "value": "NEP-DIVB-SYC-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "martyrs-memorial-b-division-league",
+      "competitionSeasonKey": {
+        "value": "martyrs-memorial-b-division-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "LEAGUE_MEMBER",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-DIVB-SKC-martyrs-memorial-b-division-2026",
+      "clubKey": "NEP-DIVB-SKC",
+      "teamKey": {
+        "value": "NEP-DIVB-SKC-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "martyrs-memorial-b-division-league",
+      "competitionSeasonKey": {
+        "value": "martyrs-memorial-b-division-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "LEAGUE_MEMBER",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-DIVB-BAN-martyrs-memorial-b-division-2026",
+      "clubKey": "NEP-DIVB-BAN",
+      "teamKey": {
+        "value": "NEP-DIVB-BAN-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "martyrs-memorial-b-division-league",
+      "competitionSeasonKey": {
+        "value": "martyrs-memorial-b-division-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "LEAGUE_MEMBER",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-DIVB-TYC-martyrs-memorial-b-division-2026",
+      "clubKey": "NEP-DIVB-TYC",
+      "teamKey": {
+        "value": "NEP-DIVB-TYC-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "martyrs-memorial-b-division-league",
+      "competitionSeasonKey": {
+        "value": "martyrs-memorial-b-division-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "LEAGUE_MEMBER",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-DIVB-NYC-martyrs-memorial-b-division-2026",
+      "clubKey": "NEP-DIVB-NYC",
+      "teamKey": {
+        "value": "NEP-DIVB-NYC-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "martyrs-memorial-b-division-league",
+      "competitionSeasonKey": {
+        "value": "martyrs-memorial-b-division-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "LEAGUE_MEMBER",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-DIVB-BJU-martyrs-memorial-b-division-2026",
+      "clubKey": "NEP-DIVB-BJU",
+      "teamKey": {
+        "value": "NEP-DIVB-BJU-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "martyrs-memorial-b-division-league",
+      "competitionSeasonKey": {
+        "value": "martyrs-memorial-b-division-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "LEAGUE_MEMBER",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-DIVB-JHA-martyrs-memorial-b-division-2026",
+      "clubKey": "NEP-DIVB-JHA",
+      "teamKey": {
+        "value": "NEP-DIVB-JHA-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "martyrs-memorial-b-division-league",
+      "competitionSeasonKey": {
+        "value": "martyrs-memorial-b-division-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "LEAGUE_MEMBER",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-DIVC-BYC-martyrs-memorial-c-division-2026",
+      "clubKey": "NEP-DIVC-BYC",
+      "teamKey": {
+        "value": "NEP-DIVC-BYC-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "martyrs-memorial-c-division-league",
+      "competitionSeasonKey": {
+        "value": "martyrs-memorial-c-division-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "LEAGUE_MEMBER",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-DIVC-RC3-martyrs-memorial-c-division-2026",
+      "clubKey": "NEP-DIVC-RC3",
+      "teamKey": {
+        "value": "NEP-DIVC-RC3-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "martyrs-memorial-c-division-league",
+      "competitionSeasonKey": {
+        "value": "martyrs-memorial-c-division-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "LEAGUE_MEMBER",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-DIVC-PSC-martyrs-memorial-c-division-2026",
+      "clubKey": "NEP-DIVC-PSC",
+      "teamKey": {
+        "value": "NEP-DIVC-PSC-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "martyrs-memorial-c-division-league",
+      "competitionSeasonKey": {
+        "value": "martyrs-memorial-c-division-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "LEAGUE_MEMBER",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-DIVC-SMC-martyrs-memorial-c-division-2026",
+      "clubKey": "NEP-DIVC-SMC",
+      "teamKey": {
+        "value": "NEP-DIVC-SMC-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "martyrs-memorial-c-division-league",
+      "competitionSeasonKey": {
+        "value": "martyrs-memorial-c-division-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "LEAGUE_MEMBER",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-DIVC-KFC-martyrs-memorial-c-division-2026",
+      "clubKey": "NEP-DIVC-KFC",
+      "teamKey": {
+        "value": "NEP-DIVC-KFC-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "martyrs-memorial-c-division-league",
+      "competitionSeasonKey": {
+        "value": "martyrs-memorial-c-division-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "LEAGUE_MEMBER",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-DIVC-SWS-martyrs-memorial-c-division-2026",
+      "clubKey": "NEP-DIVC-SWS",
+      "teamKey": {
+        "value": "NEP-DIVC-SWS-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "martyrs-memorial-c-division-league",
+      "competitionSeasonKey": {
+        "value": "martyrs-memorial-c-division-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "LEAGUE_MEMBER",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-DIVC-SFC-martyrs-memorial-c-division-2026",
+      "clubKey": "NEP-DIVC-SFC",
+      "teamKey": {
+        "value": "NEP-DIVC-SFC-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "martyrs-memorial-c-division-league",
+      "competitionSeasonKey": {
+        "value": "martyrs-memorial-c-division-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "LEAGUE_MEMBER",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-DIVC-JYC-martyrs-memorial-c-division-2026",
+      "clubKey": "NEP-DIVC-JYC",
+      "teamKey": {
+        "value": "NEP-DIVC-JYC-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "martyrs-memorial-c-division-league",
+      "competitionSeasonKey": {
+        "value": "martyrs-memorial-c-division-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "LEAGUE_MEMBER",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-DIVC-SAS-martyrs-memorial-c-division-2026",
+      "clubKey": "NEP-DIVC-SAS",
+      "teamKey": {
+        "value": "NEP-DIVC-SAS-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "martyrs-memorial-c-division-league",
+      "competitionSeasonKey": {
+        "value": "martyrs-memorial-c-division-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "LEAGUE_MEMBER",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-DIVC-MAB-martyrs-memorial-c-division-2026",
+      "clubKey": "NEP-DIVC-MAB",
+      "teamKey": {
+        "value": "NEP-DIVC-MAB-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "martyrs-memorial-c-division-league",
+      "competitionSeasonKey": {
+        "value": "martyrs-memorial-c-division-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "LEAGUE_MEMBER",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-DIVC-MUY-martyrs-memorial-c-division-2026",
+      "clubKey": "NEP-DIVC-MUY",
+      "teamKey": {
+        "value": "NEP-DIVC-MUY-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "martyrs-memorial-c-division-league",
+      "competitionSeasonKey": {
+        "value": "martyrs-memorial-c-division-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "LEAGUE_MEMBER",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-DIVC-SWO-martyrs-memorial-c-division-2026",
+      "clubKey": "NEP-DIVC-SWO",
+      "teamKey": {
+        "value": "NEP-DIVC-SWO-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "martyrs-memorial-c-division-league",
+      "competitionSeasonKey": {
+        "value": "martyrs-memorial-c-division-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "LEAGUE_MEMBER",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-DIVC-RSC-martyrs-memorial-c-division-2026",
+      "clubKey": "NEP-DIVC-RSC",
+      "teamKey": {
+        "value": "NEP-DIVC-RSC-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "martyrs-memorial-c-division-league",
+      "competitionSeasonKey": {
+        "value": "martyrs-memorial-c-division-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "LEAGUE_MEMBER",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "membership-NEP-DIVC-GSC-martyrs-memorial-c-division-2026",
+      "clubKey": "NEP-DIVC-GSC",
+      "teamKey": {
+        "value": "NEP-DIVC-GSC-MEN",
+        "status": "REPORTED"
+      },
+      "competitionKey": "martyrs-memorial-c-division-league",
+      "competitionSeasonKey": {
+        "value": "martyrs-memorial-c-division-2026",
+        "status": "REPORTED"
+      },
+      "membershipType": "LEAGUE_MEMBER",
+      "status": "ACTIVE",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    }
+  ],
+  "academies": [
+    {
+      "key": "NEP-ACA-ANF1",
+      "canonicalExternalId": "NEP-ACA-ANF1",
+      "name": "ANFA Complex Central Academy",
+      "countryKey": "np",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "federationKey": {
+        "value": "anfa",
+        "status": "REPORTED"
+      },
+      "academyType": "NATIONAL_ACADEMY",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-ACA-ANF2",
+      "canonicalExternalId": "NEP-ACA-ANF2",
+      "name": "ANFA Dharan Academy",
+      "countryKey": "np",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "federationKey": {
+        "value": "anfa",
+        "status": "REPORTED"
+      },
+      "academyType": "REGIONAL_ACADEMY",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-ACA-ANF3",
+      "canonicalExternalId": "NEP-ACA-ANF3",
+      "name": "ANFA Butwal Academy",
+      "countryKey": "np",
+      "locationKey": {
+        "value": "butwal",
+        "status": "REPORTED"
+      },
+      "federationKey": {
+        "value": "anfa",
+        "status": "REPORTED"
+      },
+      "academyType": "REGIONAL_ACADEMY",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-ACA-BBC",
+      "canonicalExternalId": "NEP-ACA-BBC",
+      "name": "Brigade Boys Academy",
+      "countryKey": "np",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "parentClubKey": {
+        "value": "NEP-DIVB-BBC",
+        "status": "REPORTED"
+      },
+      "academyType": "CLUB_ACADEMY",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-ACA-RC3",
+      "canonicalExternalId": "NEP-ACA-RC3",
+      "name": "RC32 Football Academy",
+      "countryKey": "np",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "parentClubKey": {
+        "value": "NEP-DIVC-RC3",
+        "status": "REPORTED"
+      },
+      "linkedClubKey": {
+        "value": "NEP-DIVC-RC3",
+        "status": "REPORTED"
+      },
+      "academyType": "ACADEMY_CLUB_HYBRID",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-ACA-SAH",
+      "canonicalExternalId": "NEP-ACA-SAH",
+      "name": "Sahara Club Academy",
+      "countryKey": "np",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "academyType": "PRIVATE_ACADEMY",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-ACA-MAC",
+      "canonicalExternalId": "NEP-ACA-MAC",
+      "name": "Machhindra Youth Wing",
+      "countryKey": "np",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "parentClubKey": {
+        "value": "NEP-DIVA-MAC",
+        "status": "REPORTED"
+      },
+      "academyType": "CLUB_ACADEMY",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "NEP-ACA-MMC",
+      "canonicalExternalId": "NEP-ACA-MMC",
+      "name": "MMC Youth Setup",
+      "countryKey": "np",
+      "locationKey": {
+        "status": "UNKNOWN"
+      },
+      "parentClubKey": {
+        "value": "NEP-DIVA-MMC",
+        "status": "REPORTED"
+      },
+      "academyType": "CLUB_ACADEMY",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    }
+  ],
+  "venueRelationships": [],
+  "persons": [],
+  "personRoles": [],
+  "teamPersonAssignments": [],
+  "playerAttributes": []
+}

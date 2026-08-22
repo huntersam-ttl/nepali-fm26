@@ -10,9 +10,21 @@
 ## Clubs and Teams
 
 - `Club`: football club with country, optional location, founded year, and ownership type.
+- Club records may also carry a canonical external ID, official name, short name, Nepali-script
+  name, organisation type, and parent organisation text when supplied by researched datasets.
+- `ClubAlias`: common, former, sponsor, short, or search names attached to one club so aliases do
+  not create duplicate club entities.
+- `ClubRelationship`: parent/child links for men's first teams, women's branches, youth branches,
+  academies, institutional parents, and linked entities.
+- `ClubMembership`: season-specific competition membership independent of club identity. A club may
+  move divisions without changing its stable club ID.
 - `ClubOwnershipType`: supports `PRIVATE`, `CORPORATE`, `COMMUNITY`, `MEMBER_OWNED`, `DEPARTMENTAL`, `MUNICIPALITY_BACKED`, `INSTITUTIONAL`, and `UNKNOWN`.
 - `Team`: senior, reserve, academy, or age-level side linked to a club or federation.
 - `TeamPersonAssignment`: links imported players, managers, or staff to a team without turning squad management into gameplay yet.
+- `Academy`: national, regional, club, private, or academy/club hybrid entity linked to a country
+  and optionally to a parent club, linked club, federation, and location.
+- `VenueRelationship`: staged venue use/ownership relationships with `OWNER`, `OPERATOR`, `TENANT`,
+  `TEMPORARY_USER`, `SHARED_USER`, or `UNKNOWN` relationship types.
 
 ## People and Careers
 
@@ -65,6 +77,10 @@ Stage 2 Nepal datasets wrap uncertain fields as facts:
 - `provenance`: optional field-level source metadata when it differs from the record source.
 
 The SQLite save stores relational entities plus `entity_provenance` rows so imported facts remain auditable after reload.
+
+The August 2026 Nepal club registry import preserves canonical IDs such as `NEP-NSL-*`,
+`NEP-DIVA-*`, `NEP-DIVB-*`, `NEP-DIVC-*`, `NEP-WOM-*`, and `NEP-ACA-*` as external IDs while
+continuing to use internal stable entity IDs for save records.
 
 ## Football Simulation
 

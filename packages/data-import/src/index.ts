@@ -12,11 +12,15 @@ export const provenanceStatusSchema = z.enum([
 ]);
 
 export const provenanceSchema = z.object({
+  sourceId: z.string().min(1).optional(),
   sourceUrl: z.string().url().optional(),
   sourceName: z.string().min(1),
   lastVerifiedDate: isoDateSchema.optional(),
+  retrievedAt: z.string().datetime().optional(),
   confidence: z.number().min(0).max(1),
+  confidenceLevel: z.enum(["HIGH", "MEDIUM", "LOW"]).optional(),
   status: provenanceStatusSchema,
+  notes: z.string().min(1).optional(),
 });
 
 const factSchema = <T extends z.ZodTypeAny>(valueSchema: T) =>
@@ -82,6 +86,7 @@ const venueRecordSchema = z.object({
   name: z.string().min(1),
   locationKey: nullableKeyFactSchema,
   capacity: nullableNumberFactSchema,
+  pitchType: nullableStringFactSchema.optional(),
   provenance: provenanceSchema,
 });
 
@@ -151,8 +156,12 @@ const competitionRuleRecordSchema = z.object({
 
 const clubRecordSchema = z.object({
   key: keySchema,
+  canonicalExternalId: z.string().min(1).optional(),
   countryKey: keySchema,
   name: z.string().min(1),
+  officialName: nullableStringFactSchema.optional(),
+  shortName: nullableStringFactSchema.optional(),
+  nepaliName: nullableStringFactSchema.optional(),
   locationKey: nullableKeyFactSchema,
   ownershipType: factSchema(
     z.enum([
@@ -166,13 +175,26 @@ const clubRecordSchema = z.object({
       "UNKNOWN",
     ]),
   ),
+  organisationType: factSchema(
+    z.enum(["CLUB", "FRANCHISE", "DEPARTMENTAL", "ACADEMY", "UNKNOWN"]),
+  ).optional(),
+  parentOrganisation: nullableStringFactSchema.optional(),
   foundedYear: nullableNumberFactSchema,
+  provenance: provenanceSchema,
+});
+
+const clubAliasRecordSchema = z.object({
+  key: keySchema,
+  clubKey: keySchema,
+  alias: z.string().min(1),
+  aliasType: z.enum(["SHORT_NAME", "FORMER_NAME", "SPONSOR_NAME", "COMMON_NAME", "SEARCH_ALIAS"]),
   provenance: provenanceSchema,
 });
 
 const teamRecordSchema = z
   .object({
     key: keySchema,
+    canonicalExternalId: z.string().min(1).optional(),
     name: z.string().min(1),
     clubKey: nullableKeyFactSchema.optional(),
     federationKey: nullableKeyFactSchema.optional(),
@@ -185,6 +207,86 @@ const teamRecordSchema = z
       context.addIssue({
         code: z.ZodIssueCode.custom,
         message: "Team must link to a club or federation when imported",
+      });
+    }
+  });
+
+const clubRelationshipRecordSchema = z
+  .object({
+    key: keySchema,
+    parentClubKey: keySchema,
+    childClubKey: nullableKeyFactSchema.optional(),
+    childTeamKey: nullableKeyFactSchema.optional(),
+    relationshipType: z.enum([
+      "MEN_FIRST_TEAM",
+      "WOMENS_BRANCH",
+      "YOUTH_BRANCH",
+      "ACADEMY",
+      "INSTITUTIONAL_PARENT",
+      "LINKED_ENTITY",
+    ]),
+    provenance: provenanceSchema,
+  })
+  .superRefine((relationship, context) => {
+    if (!relationship.childClubKey?.value && !relationship.childTeamKey?.value) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Club relationship must link to a child club or child team",
+      });
+    }
+  });
+
+const clubMembershipRecordSchema = z.object({
+  key: keySchema,
+  clubKey: keySchema,
+  teamKey: nullableKeyFactSchema.optional(),
+  competitionKey: keySchema,
+  competitionSeasonKey: nullableKeyFactSchema.optional(),
+  membershipType: z.enum(["FRANCHISE", "LEAGUE_MEMBER", "CUP_PARTICIPANT", "WOMENS_COMPETITION"]),
+  status: z.enum(["ACTIVE", "INACTIVE", "REPORTED", "UNKNOWN"]),
+  provenance: provenanceSchema,
+});
+
+const academyRecordSchema = z.object({
+  key: keySchema,
+  canonicalExternalId: z.string().min(1).optional(),
+  name: z.string().min(1),
+  countryKey: keySchema,
+  locationKey: nullableKeyFactSchema,
+  parentClubKey: nullableKeyFactSchema.optional(),
+  linkedClubKey: nullableKeyFactSchema.optional(),
+  federationKey: nullableKeyFactSchema.optional(),
+  academyType: z.enum([
+    "NATIONAL_ACADEMY",
+    "REGIONAL_ACADEMY",
+    "CLUB_ACADEMY",
+    "PRIVATE_ACADEMY",
+    "ACADEMY_CLUB_HYBRID",
+  ]),
+  provenance: provenanceSchema,
+});
+
+const venueRelationshipRecordSchema = z
+  .object({
+    key: keySchema,
+    venueKey: keySchema,
+    clubKey: nullableKeyFactSchema.optional(),
+    teamKey: nullableKeyFactSchema.optional(),
+    relationshipType: z.enum([
+      "OWNER",
+      "OPERATOR",
+      "TENANT",
+      "TEMPORARY_USER",
+      "SHARED_USER",
+      "UNKNOWN",
+    ]),
+    provenance: provenanceSchema,
+  })
+  .superRefine((relationship, context) => {
+    if (!relationship.clubKey?.value && !relationship.teamKey?.value) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Venue relationship must link to a club or team",
       });
     }
   });
@@ -293,7 +395,12 @@ export const nepalWorldDatasetSchema = z.object({
   competitionSeasons: z.array(competitionSeasonRecordSchema),
   competitionRules: z.array(competitionRuleRecordSchema).default([]),
   clubs: z.array(clubRecordSchema),
+  clubAliases: z.array(clubAliasRecordSchema).default([]),
   teams: z.array(teamRecordSchema),
+  clubRelationships: z.array(clubRelationshipRecordSchema).default([]),
+  clubMemberships: z.array(clubMembershipRecordSchema).default([]),
+  academies: z.array(academyRecordSchema).default([]),
+  venueRelationships: z.array(venueRelationshipRecordSchema).default([]),
   persons: z.array(personRecordSchema),
   personRoles: z.array(personRoleRecordSchema),
   teamPersonAssignments: z.array(teamPersonAssignmentRecordSchema),
@@ -321,12 +428,25 @@ export const validateNepalWorldReferences = (
   const issues: DatasetReferenceIssue[] = [];
   const countries = keySet(dataset.countries);
   const locations = keySet(dataset.locations);
+  const venues = keySet(dataset.venues);
   const federations = keySet(dataset.federations);
   const competitions = keySet(dataset.competitions);
   const competitionSeasons = keySet(dataset.competitionSeasons);
   const clubs = keySet(dataset.clubs);
   const teams = keySet(dataset.teams);
   const persons = keySet(dataset.persons);
+
+  requireUniqueKeys(issues, "countries", dataset.countries);
+  requireUniqueKeys(issues, "locations", dataset.locations);
+  requireUniqueKeys(issues, "venues", dataset.venues);
+  requireUniqueKeys(issues, "federations", dataset.federations);
+  requireUniqueKeys(issues, "competitions", dataset.competitions);
+  requireUniqueKeys(issues, "competitionSeasons", dataset.competitionSeasons);
+  requireUniqueKeys(issues, "clubs", dataset.clubs);
+  requireUniqueKeys(issues, "teams", dataset.teams);
+  requireUniqueCanonicalExternalIds(issues, dataset.clubs);
+  requireUniqueCanonicalExternalIds(issues, dataset.teams);
+  requireAliasIntegrity(issues, dataset.clubAliases, clubs);
 
   for (const [index, location] of dataset.locations.entries()) {
     requireRef(issues, `locations.${index}.countryKey`, location.countryKey, countries);
@@ -372,9 +492,90 @@ export const validateNepalWorldReferences = (
     requireRef(issues, `clubs.${index}.countryKey`, club.countryKey, countries);
     requireOptionalFactRef(issues, `clubs.${index}.locationKey`, club.locationKey, locations);
   }
+  for (const [index, alias] of dataset.clubAliases.entries()) {
+    requireRef(issues, `clubAliases.${index}.clubKey`, alias.clubKey, clubs);
+  }
   for (const [index, team] of dataset.teams.entries()) {
     requireOptionalFactRef(issues, `teams.${index}.clubKey`, team.clubKey, clubs);
     requireOptionalFactRef(issues, `teams.${index}.federationKey`, team.federationKey, federations);
+  }
+  for (const [index, relationship] of dataset.clubRelationships.entries()) {
+    requireRef(
+      issues,
+      `clubRelationships.${index}.parentClubKey`,
+      relationship.parentClubKey,
+      clubs,
+    );
+    requireOptionalFactRef(
+      issues,
+      `clubRelationships.${index}.childClubKey`,
+      relationship.childClubKey,
+      clubs,
+    );
+    requireOptionalFactRef(
+      issues,
+      `clubRelationships.${index}.childTeamKey`,
+      relationship.childTeamKey,
+      teams,
+    );
+  }
+  for (const [index, membership] of dataset.clubMemberships.entries()) {
+    requireRef(issues, `clubMemberships.${index}.clubKey`, membership.clubKey, clubs);
+    requireOptionalFactRef(issues, `clubMemberships.${index}.teamKey`, membership.teamKey, teams);
+    requireRef(
+      issues,
+      `clubMemberships.${index}.competitionKey`,
+      membership.competitionKey,
+      competitions,
+    );
+    requireOptionalFactRef(
+      issues,
+      `clubMemberships.${index}.competitionSeasonKey`,
+      membership.competitionSeasonKey,
+      competitionSeasons,
+    );
+  }
+  for (const [index, academy] of dataset.academies.entries()) {
+    requireRef(issues, `academies.${index}.countryKey`, academy.countryKey, countries);
+    requireOptionalFactRef(
+      issues,
+      `academies.${index}.locationKey`,
+      academy.locationKey,
+      locations,
+    );
+    requireOptionalFactRef(
+      issues,
+      `academies.${index}.parentClubKey`,
+      academy.parentClubKey,
+      clubs,
+    );
+    requireOptionalFactRef(
+      issues,
+      `academies.${index}.linkedClubKey`,
+      academy.linkedClubKey,
+      clubs,
+    );
+    requireOptionalFactRef(
+      issues,
+      `academies.${index}.federationKey`,
+      academy.federationKey,
+      federations,
+    );
+  }
+  for (const [index, venueRelationship] of dataset.venueRelationships.entries()) {
+    requireRef(issues, `venueRelationships.${index}.venueKey`, venueRelationship.venueKey, venues);
+    requireOptionalFactRef(
+      issues,
+      `venueRelationships.${index}.clubKey`,
+      venueRelationship.clubKey,
+      clubs,
+    );
+    requireOptionalFactRef(
+      issues,
+      `venueRelationships.${index}.teamKey`,
+      venueRelationship.teamKey,
+      teams,
+    );
   }
   for (const [index, person] of dataset.persons.entries()) {
     requireRef(
@@ -418,6 +619,65 @@ export const validateNepalWorldReferences = (
 
 const keySet = (records: ReadonlyArray<{ key: string }>): ReadonlySet<string> =>
   new Set(records.map((record) => record.key));
+
+const requireUniqueKeys = (
+  issues: DatasetReferenceIssue[],
+  label: string,
+  records: ReadonlyArray<{ key: string }>,
+): void => {
+  const seen = new Set<string>();
+  for (const [index, record] of records.entries()) {
+    if (seen.has(record.key)) {
+      issues.push({ path: `${label}.${index}.key`, message: `Duplicate key: ${record.key}` });
+    }
+    seen.add(record.key);
+  }
+};
+
+const requireUniqueCanonicalExternalIds = (
+  issues: DatasetReferenceIssue[],
+  records: ReadonlyArray<{ canonicalExternalId?: string }>,
+): void => {
+  const seen = new Map<string, number>();
+  for (const [index, record] of records.entries()) {
+    if (!record.canonicalExternalId) {
+      continue;
+    }
+    const existing = seen.get(record.canonicalExternalId);
+    if (existing !== undefined) {
+      issues.push({
+        path: `canonicalExternalId.${index}`,
+        message: `Duplicate canonical external ID: ${record.canonicalExternalId} first seen at ${existing}`,
+      });
+    }
+    seen.set(record.canonicalExternalId, index);
+  }
+};
+
+const requireAliasIntegrity = (
+  issues: DatasetReferenceIssue[],
+  aliases: ReadonlyArray<{ clubKey: string; alias: string }>,
+  clubs: ReadonlySet<string>,
+): void => {
+  const seenAliases = new Map<string, string>();
+  for (const [index, alias] of aliases.entries()) {
+    const normalized = alias.alias.trim().toLocaleLowerCase("en-US");
+    const existingClub = seenAliases.get(normalized);
+    if (existingClub !== undefined && existingClub !== alias.clubKey) {
+      issues.push({
+        path: `clubAliases.${index}.alias`,
+        message: `Alias collision: ${alias.alias} already belongs to ${existingClub}`,
+      });
+    }
+    if (!clubs.has(alias.clubKey)) {
+      issues.push({
+        path: `clubAliases.${index}.clubKey`,
+        message: `Unknown reference: ${alias.clubKey}`,
+      });
+    }
+    seenAliases.set(normalized, alias.clubKey);
+  }
+};
 
 const requireRef = (
   issues: DatasetReferenceIssue[],

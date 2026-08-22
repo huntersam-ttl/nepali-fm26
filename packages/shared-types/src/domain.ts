@@ -48,6 +48,7 @@ export type Venue = {
   locationId?: EntityId;
   name: string;
   capacity?: number;
+  pitchType?: string;
 };
 
 export type Federation = {
@@ -70,10 +71,23 @@ export type ClubOwnershipType =
 export type Club = {
   id: EntityId;
   name: string;
+  officialName?: string;
+  shortName?: string;
+  nepaliName?: string;
+  canonicalExternalId?: string;
   countryId: EntityId;
   locationId?: EntityId;
   ownershipType: ClubOwnershipType;
+  organisationType?: "CLUB" | "FRANCHISE" | "DEPARTMENTAL" | "ACADEMY" | "UNKNOWN";
+  parentOrganisation?: string;
   foundedYear?: number;
+};
+
+export type ClubAlias = {
+  id: EntityId;
+  clubId: EntityId;
+  alias: string;
+  aliasType: "SHORT_NAME" | "FORMER_NAME" | "SPONSOR_NAME" | "COMMON_NAME" | "SEARCH_ALIAS";
 };
 
 export type Team = {
@@ -81,8 +95,60 @@ export type Team = {
   clubId?: EntityId;
   federationId?: EntityId;
   name: string;
+  canonicalExternalId?: string;
   level: "senior" | "u23" | "u20" | "u17" | "reserve" | "academy";
   gender: "men" | "women" | "mixed" | "unknown";
+};
+
+export type ClubRelationship = {
+  id: EntityId;
+  parentClubId: EntityId;
+  childClubId?: EntityId;
+  childTeamId?: EntityId;
+  relationshipType:
+    | "MEN_FIRST_TEAM"
+    | "WOMENS_BRANCH"
+    | "YOUTH_BRANCH"
+    | "ACADEMY"
+    | "INSTITUTIONAL_PARENT"
+    | "LINKED_ENTITY";
+};
+
+export type ClubMembership = {
+  id: EntityId;
+  clubId: EntityId;
+  teamId?: EntityId;
+  competitionId: EntityId;
+  competitionSeasonId?: EntityId;
+  membershipType: "FRANCHISE" | "LEAGUE_MEMBER" | "CUP_PARTICIPANT" | "WOMENS_COMPETITION";
+  status: "ACTIVE" | "INACTIVE" | "REPORTED" | "UNKNOWN";
+};
+
+export type AcademyType =
+  | "NATIONAL_ACADEMY"
+  | "REGIONAL_ACADEMY"
+  | "CLUB_ACADEMY"
+  | "PRIVATE_ACADEMY"
+  | "ACADEMY_CLUB_HYBRID";
+
+export type Academy = {
+  id: EntityId;
+  name: string;
+  canonicalExternalId?: string;
+  countryId: EntityId;
+  locationId?: EntityId;
+  parentClubId?: EntityId;
+  linkedClubId?: EntityId;
+  federationId?: EntityId;
+  academyType: AcademyType;
+};
+
+export type VenueRelationship = {
+  id: EntityId;
+  venueId: EntityId;
+  clubId?: EntityId;
+  teamId?: EntityId;
+  relationshipType: "OWNER" | "OPERATOR" | "TENANT" | "TEMPORARY_USER" | "SHARED_USER" | "UNKNOWN";
 };
 
 export type TeamPersonAssignment = {
@@ -835,9 +901,13 @@ export type DataProvenanceStatus =
   "VERIFIED" | "REPORTED" | "ESTIMATED" | "UNKNOWN" | "SIMULATION_ONLY";
 
 export type DataProvenance = {
+  sourceId?: string;
   sourceUrl?: string;
   sourceName: string;
   lastVerifiedDate?: ISODate;
+  retrievedAt?: ISODateTime;
   confidence: number;
+  confidenceLevel?: "HIGH" | "MEDIUM" | "LOW";
   status: DataProvenanceStatus;
+  notes?: string;
 };
