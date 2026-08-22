@@ -3,9 +3,16 @@
 ## Geography and Governance
 
 - `Country`: national container, starting with Nepal in future data.
-- `Location`: city, district, province, stadium, or unknown place within a country.
-- `Venue`: stadium or ground record linked to a country and optionally to a location.
+- `Location`: province, district, city, municipality, neighbourhood, airport, stadium, or unknown
+  place within a country. Locations may carry city-level coordinates, altitude, and a coarse climate
+  profile with field-level provenance in the source dataset.
+- `Venue`: stadium, football ground, training ground, academy ground, multi-sport stadium, national
+  training centre, or unknown venue linked to a country and optionally to province, district, city,
+  and local/neighbourhood locations.
 - `Federation`: national football governing body linked to a country.
+- `LocationTravelContext`: basic imported travel context between two locations, including optional
+  road distance, estimated road travel time, air-travel availability, and nearest airport. It is a
+  data hook, not a route network.
 
 ## Clubs and Teams
 
@@ -23,8 +30,10 @@
 - `TeamPersonAssignment`: links imported players, managers, or staff to a team without turning squad management into gameplay yet.
 - `Academy`: national, regional, club, private, or academy/club hybrid entity linked to a country
   and optionally to a parent club, linked club, federation, and location.
-- `VenueRelationship`: staged venue use/ownership relationships with `OWNER`, `OPERATOR`, `TENANT`,
-  `TEMPORARY_USER`, `SHARED_USER`, or `UNKNOWN` relationship types.
+- `VenueRelationship`: staged venue use/ownership relationships with `OWNER`, `OPERATOR`,
+  `PRIMARY_TENANT`, `TENANT`, `TEMPORARY_USER`, `SHARED_USER`, `TRAINING_USER`,
+  `ACADEMY_USER`, `NATIONAL_TEAM_USER`, or `UNKNOWN` relationship types. Relationships may link to a
+  club, team, federation, or academy and can be dated or season-specific.
 
 ## People and Careers
 
@@ -93,6 +102,10 @@ continuing to use internal stable entity IDs for save records.
 ## Football Simulation
 
 - `PlayerAttributeSet`: our own 1-20 game ratings across technical, mental, physical, and goalkeeping groups. Imported real-player ratings are game assessments and must be `SIMULATION_ONLY`.
+- `MatchEnvironment`: neutral match modifier input used by the event-based match engine.
+  `buildMatchEnvironmentFromVenue` exposes venue and location signals such as altitude, surface,
+  pitch-quality enum, and climate risks for future derivation without inventing Stage 2 gameplay
+  modifier values.
 - `PlayerMatchState`: match-local state for fitness, fatigue, discipline, injuries, minutes, position, rating, and core stats.
 - `InjuryRecord`: simple injury type, date, expected recovery, and severity.
 - `SuspensionRecord`: competition-scoped disciplinary state for red cards and future yellow accumulation.

@@ -28,6 +28,8 @@ export type EntityRef = {
     | "inboxItem";
 };
 
+export type RiskLevel = "LOW" | "MEDIUM" | "HIGH" | "UNKNOWN";
+
 export type Country = {
   id: EntityId;
   name: string;
@@ -36,20 +38,76 @@ export type Country = {
 
 export type Location = {
   id: EntityId;
+  canonicalExternalId?: string;
   countryId: EntityId;
   name: string;
-  kind: "city" | "district" | "province" | "stadium" | "unknown";
+  kind:
+    | "city"
+    | "municipality"
+    | "neighbourhood"
+    | "district"
+    | "province"
+    | "stadium"
+    | "airport"
+    | "unknown";
   parentLocationId?: EntityId;
+  latitude?: number;
+  longitude?: number;
+  altitudeMeters?: number;
+  climateProfile?: LocationClimateProfile;
 };
 
 export type Venue = {
   id: EntityId;
+  canonicalExternalId?: string;
   countryId: EntityId;
   locationId?: EntityId;
+  provinceId?: EntityId;
+  districtId?: EntityId;
+  cityId?: EntityId;
   name: string;
+  officialName?: string;
+  shortName?: string;
+  aliases?: string[];
+  venueType?: VenueType;
   capacity?: number;
-  pitchType?: string;
+  latitude?: number;
+  longitude?: number;
+  altitudeMeters?: number;
+  surfaceType?: SurfaceType;
+  pitchQuality?: PitchQuality;
+  yearOpened?: number;
+  yearLastRenovated?: number;
+  floodlights?: boolean;
+  runningTrack?: boolean;
+  coveredStands?: boolean;
+  ownerEntity?: string;
+  operatorEntity?: string;
+  status?: VenueStatus;
 };
+
+export type LocationClimateProfile = {
+  climateZone?: string;
+  seasonalHeatRisk: RiskLevel;
+  monsoonRisk: RiskLevel;
+  coldRisk: RiskLevel;
+  humidityRisk: RiskLevel;
+};
+
+export type VenueType =
+  | "STADIUM"
+  | "FOOTBALL_GROUND"
+  | "TRAINING_GROUND"
+  | "ACADEMY_GROUND"
+  | "MULTI_SPORT_STADIUM"
+  | "NATIONAL_TRAINING_CENTRE"
+  | "UNKNOWN";
+
+export type SurfaceType = "NATURAL_GRASS" | "ARTIFICIAL_TURF" | "HYBRID" | "DIRT" | "UNKNOWN";
+
+export type PitchQuality = "EXCELLENT" | "GOOD" | "FAIR" | "POOR" | "VERY_POOR" | "UNKNOWN";
+
+export type VenueStatus = "ACTIVE" | "LIMITED_USE" | "UNDER_RENOVATION" | "CLOSED" | "UNKNOWN";
 
 export type Federation = {
   id: EntityId;
@@ -158,7 +216,39 @@ export type VenueRelationship = {
   venueId: EntityId;
   clubId?: EntityId;
   teamId?: EntityId;
-  relationshipType: "OWNER" | "OPERATOR" | "TENANT" | "TEMPORARY_USER" | "SHARED_USER" | "UNKNOWN";
+  federationId?: EntityId;
+  academyId?: EntityId;
+  relationshipType:
+    | "OWNER"
+    | "OPERATOR"
+    | "PRIMARY_TENANT"
+    | "TENANT"
+    | "TEMPORARY_USER"
+    | "SHARED_USER"
+    | "TRAINING_USER"
+    | "ACADEMY_USER"
+    | "NATIONAL_TEAM_USER"
+    | "UNKNOWN";
+  startDate?: ISODate;
+  endDate?: ISODate;
+  competitionSeasonId?: EntityId;
+  status:
+    | "available"
+    | "unavailable"
+    | "underRenovation"
+    | "sharedConflict"
+    | "federationAssigned"
+    | "unknown";
+};
+
+export type LocationTravelContext = {
+  id: EntityId;
+  fromLocationId: EntityId;
+  toLocationId: EntityId;
+  roadDistanceKm?: number;
+  estimatedRoadTravelHours?: number;
+  airTravelAvailable?: boolean;
+  nearestAirportId?: EntityId;
 };
 
 export type TeamPersonAssignment = {

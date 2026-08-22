@@ -35,12 +35,39 @@
       "name": "Kathmandu",
       "kind": "city",
       "provenance": {
-        "sourceId": "supplied-nepal-club-master-registry",
-        "sourceName": "Supplied Nepal club master registry",
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
         "retrievedAt": "2026-08-22T00:00:00.000Z",
         "confidence": 0.65,
         "confidenceLevel": "MEDIUM",
         "status": "REPORTED"
+      },
+      "canonicalExternalId": "NP-CITY-KATHMANDU",
+      "parentLocationKey": {
+        "value": "kathmandu-district",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
       }
     },
     {
@@ -49,12 +76,39 @@
       "name": "Lalitpur",
       "kind": "city",
       "provenance": {
-        "sourceId": "supplied-nepal-club-master-registry",
-        "sourceName": "Supplied Nepal club master registry",
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
         "retrievedAt": "2026-08-22T00:00:00.000Z",
         "confidence": 0.65,
         "confidenceLevel": "MEDIUM",
         "status": "REPORTED"
+      },
+      "canonicalExternalId": "NP-CITY-LALITPUR",
+      "parentLocationKey": {
+        "value": "lalitpur-district",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
       }
     },
     {
@@ -63,12 +117,39 @@
       "name": "Bhaktapur",
       "kind": "city",
       "provenance": {
-        "sourceId": "supplied-nepal-club-master-registry",
-        "sourceName": "Supplied Nepal club master registry",
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
         "retrievedAt": "2026-08-22T00:00:00.000Z",
         "confidence": 0.65,
         "confidenceLevel": "MEDIUM",
         "status": "REPORTED"
+      },
+      "canonicalExternalId": "NP-CITY-BHAKTAPUR",
+      "parentLocationKey": {
+        "value": "bhaktapur-district",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
       }
     },
     {
@@ -77,12 +158,39 @@
       "name": "Pokhara",
       "kind": "city",
       "provenance": {
-        "sourceId": "supplied-nepal-club-master-registry",
-        "sourceName": "Supplied Nepal club master registry",
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
         "retrievedAt": "2026-08-22T00:00:00.000Z",
         "confidence": 0.65,
         "confidenceLevel": "MEDIUM",
         "status": "REPORTED"
+      },
+      "canonicalExternalId": "NP-CITY-POKHARA",
+      "parentLocationKey": {
+        "value": "kaski",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
       }
     },
     {
@@ -91,12 +199,39 @@
       "name": "Dhangadhi",
       "kind": "city",
       "provenance": {
-        "sourceId": "supplied-nepal-club-master-registry",
-        "sourceName": "Supplied Nepal club master registry",
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
         "retrievedAt": "2026-08-22T00:00:00.000Z",
         "confidence": 0.65,
         "confidenceLevel": "MEDIUM",
         "status": "REPORTED"
+      },
+      "canonicalExternalId": "NP-CITY-DHANGADHI",
+      "parentLocationKey": {
+        "value": "kailali",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
       }
     },
     {
@@ -105,12 +240,39 @@
       "name": "Butwal",
       "kind": "city",
       "provenance": {
-        "sourceId": "supplied-nepal-club-master-registry",
-        "sourceName": "Supplied Nepal club master registry",
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
         "retrievedAt": "2026-08-22T00:00:00.000Z",
         "confidence": 0.65,
         "confidenceLevel": "MEDIUM",
         "status": "REPORTED"
+      },
+      "canonicalExternalId": "NP-CITY-BUTWAL",
+      "parentLocationKey": {
+        "value": "rupandehi",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
       }
     },
     {
@@ -119,12 +281,39 @@
       "name": "Bharatpur",
       "kind": "city",
       "provenance": {
-        "sourceId": "supplied-nepal-club-master-registry",
-        "sourceName": "Supplied Nepal club master registry",
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
         "retrievedAt": "2026-08-22T00:00:00.000Z",
         "confidence": 0.65,
         "confidenceLevel": "MEDIUM",
         "status": "REPORTED"
+      },
+      "canonicalExternalId": "NP-CITY-BHARATPUR",
+      "parentLocationKey": {
+        "value": "chitwan",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
       }
     },
     {
@@ -133,12 +322,39 @@
       "name": "Ilam",
       "kind": "city",
       "provenance": {
-        "sourceId": "supplied-nepal-club-master-registry",
-        "sourceName": "Supplied Nepal club master registry",
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
         "retrievedAt": "2026-08-22T00:00:00.000Z",
         "confidence": 0.65,
         "confidenceLevel": "MEDIUM",
         "status": "REPORTED"
+      },
+      "canonicalExternalId": "NP-CITY-ILAM",
+      "parentLocationKey": {
+        "value": "ilam-district",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
       }
     },
     {
@@ -147,12 +363,39 @@
       "name": "Biratnagar",
       "kind": "city",
       "provenance": {
-        "sourceId": "supplied-nepal-club-master-registry",
-        "sourceName": "Supplied Nepal club master registry",
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
         "retrievedAt": "2026-08-22T00:00:00.000Z",
         "confidence": 0.65,
         "confidenceLevel": "MEDIUM",
         "status": "REPORTED"
+      },
+      "canonicalExternalId": "NP-CITY-BIRATNAGAR",
+      "parentLocationKey": {
+        "value": "morang",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
       }
     },
     {
@@ -161,12 +404,39 @@
       "name": "Jhapa",
       "kind": "district",
       "provenance": {
-        "sourceId": "supplied-nepal-club-master-registry",
-        "sourceName": "Supplied Nepal club master registry",
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
         "retrievedAt": "2026-08-22T00:00:00.000Z",
         "confidence": 0.65,
         "confidenceLevel": "MEDIUM",
         "status": "REPORTED"
+      },
+      "canonicalExternalId": "NP-DIST-JHAPA",
+      "parentLocationKey": {
+        "value": "koshi",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
       }
     },
     {
@@ -176,15 +446,38 @@
       "kind": "city",
       "parentLocationKey": {
         "value": "jhapa",
-        "status": "REPORTED"
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
       },
       "provenance": {
-        "sourceId": "supplied-nepal-club-master-registry",
-        "sourceName": "Supplied Nepal club master registry",
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
         "retrievedAt": "2026-08-22T00:00:00.000Z",
         "confidence": 0.65,
         "confidenceLevel": "MEDIUM",
         "status": "REPORTED"
+      },
+      "canonicalExternalId": "NP-CITY-DAMAK",
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
       }
     },
     {
@@ -194,15 +487,38 @@
       "kind": "city",
       "parentLocationKey": {
         "value": "jhapa",
-        "status": "REPORTED"
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
       },
       "provenance": {
-        "sourceId": "supplied-nepal-club-master-registry",
-        "sourceName": "Supplied Nepal club master registry",
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
         "retrievedAt": "2026-08-22T00:00:00.000Z",
         "confidence": 0.65,
         "confidenceLevel": "MEDIUM",
         "status": "REPORTED"
+      },
+      "canonicalExternalId": "NP-CITY-BIRTAMOD",
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
       }
     },
     {
@@ -211,12 +527,39 @@
       "name": "Surkhet",
       "kind": "district",
       "provenance": {
-        "sourceId": "supplied-nepal-club-master-registry",
-        "sourceName": "Supplied Nepal club master registry",
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
         "retrievedAt": "2026-08-22T00:00:00.000Z",
         "confidence": 0.65,
         "confidenceLevel": "MEDIUM",
         "status": "REPORTED"
+      },
+      "canonicalExternalId": "NP-DIST-SURKHET",
+      "parentLocationKey": {
+        "value": "karnali",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
       }
     },
     {
@@ -225,12 +568,39 @@
       "name": "Sarlahi",
       "kind": "district",
       "provenance": {
-        "sourceId": "supplied-nepal-club-master-registry",
-        "sourceName": "Supplied Nepal club master registry",
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
         "retrievedAt": "2026-08-22T00:00:00.000Z",
         "confidence": 0.65,
         "confidenceLevel": "MEDIUM",
         "status": "REPORTED"
+      },
+      "canonicalExternalId": "NP-DIST-SARLAHI",
+      "parentLocationKey": {
+        "value": "madhesh",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
       }
     },
     {
@@ -239,12 +609,39 @@
       "name": "Siraha",
       "kind": "district",
       "provenance": {
-        "sourceId": "supplied-nepal-club-master-registry",
-        "sourceName": "Supplied Nepal club master registry",
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
         "retrievedAt": "2026-08-22T00:00:00.000Z",
         "confidence": 0.65,
         "confidenceLevel": "MEDIUM",
         "status": "REPORTED"
+      },
+      "canonicalExternalId": "NP-DIST-SIRAHA",
+      "parentLocationKey": {
+        "value": "madhesh",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
       }
     },
     {
@@ -253,58 +650,228 @@
       "name": "Bajura",
       "kind": "district",
       "provenance": {
-        "sourceId": "supplied-nepal-club-master-registry",
-        "sourceName": "Supplied Nepal club master registry",
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
         "retrievedAt": "2026-08-22T00:00:00.000Z",
         "confidence": 0.65,
         "confidenceLevel": "MEDIUM",
         "status": "REPORTED"
+      },
+      "canonicalExternalId": "NP-DIST-BAJURA",
+      "parentLocationKey": {
+        "value": "sudurpashchim",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
       }
     },
     {
       "key": "kavre",
       "countryKey": "np",
-      "name": "Kavre",
+      "name": "Kavrepalanchok",
       "kind": "district",
       "provenance": {
-        "sourceId": "supplied-nepal-club-master-registry",
-        "sourceName": "Supplied Nepal club master registry",
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
         "retrievedAt": "2026-08-22T00:00:00.000Z",
         "confidence": 0.65,
         "confidenceLevel": "MEDIUM",
         "status": "REPORTED"
+      },
+      "canonicalExternalId": "NP-DIST-KAVRE",
+      "parentLocationKey": {
+        "value": "bagmati",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
       }
     },
     {
       "key": "new-road",
       "countryKey": "np",
       "name": "New Road",
-      "kind": "city",
+      "kind": "neighbourhood",
       "parentLocationKey": {
         "value": "kathmandu",
-        "status": "REPORTED"
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
       },
       "provenance": {
-        "sourceId": "supplied-nepal-club-master-registry",
-        "sourceName": "Supplied Nepal club master registry",
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
         "retrievedAt": "2026-08-22T00:00:00.000Z",
         "confidence": 0.65,
         "confidenceLevel": "MEDIUM",
         "status": "REPORTED"
+      },
+      "canonicalExternalId": "NP-NBH-NEW-ROAD",
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
       }
     },
     {
       "key": "keltole",
       "countryKey": "np",
       "name": "Keltole",
-      "kind": "city",
+      "kind": "neighbourhood",
       "parentLocationKey": {
         "value": "kathmandu",
-        "status": "REPORTED"
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
       },
       "provenance": {
-        "sourceId": "supplied-nepal-club-master-registry",
-        "sourceName": "Supplied Nepal club master registry",
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      },
+      "canonicalExternalId": "NP-NBH-KELTOLE",
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
+      }
+    },
+    {
+      "key": "satdobato",
+      "countryKey": "np",
+      "name": "Satdobato",
+      "kind": "neighbourhood",
+      "parentLocationKey": {
+        "value": "lalitpur",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      },
+      "canonicalExternalId": "NP-NBH-SATDOBATO",
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
+      }
+    },
+    {
+      "key": "koshi",
+      "canonicalExternalId": "NP-PROV-KOSHI",
+      "countryKey": "np",
+      "name": "Koshi",
+      "kind": "province",
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
         "retrievedAt": "2026-08-22T00:00:00.000Z",
         "confidence": 0.65,
         "confidenceLevel": "MEDIUM",
@@ -312,17 +879,829 @@
       }
     },
     {
-      "key": "satdobato",
+      "key": "madhesh",
+      "canonicalExternalId": "NP-PROV-MADHESH",
       "countryKey": "np",
-      "name": "Satdobato",
-      "kind": "city",
-      "parentLocationKey": {
-        "value": "lalitpur",
-        "status": "REPORTED"
+      "name": "Madhesh",
+      "kind": "province",
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
       },
       "provenance": {
-        "sourceId": "supplied-nepal-club-master-registry",
-        "sourceName": "Supplied Nepal club master registry",
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "bagmati",
+      "canonicalExternalId": "NP-PROV-BAGMATI",
+      "countryKey": "np",
+      "name": "Bagmati",
+      "kind": "province",
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "gandaki",
+      "canonicalExternalId": "NP-PROV-GANDAKI",
+      "countryKey": "np",
+      "name": "Gandaki",
+      "kind": "province",
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "lumbini",
+      "canonicalExternalId": "NP-PROV-LUMBINI",
+      "countryKey": "np",
+      "name": "Lumbini",
+      "kind": "province",
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "karnali",
+      "canonicalExternalId": "NP-PROV-KARNALI",
+      "countryKey": "np",
+      "name": "Karnali",
+      "kind": "province",
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "sudurpashchim",
+      "canonicalExternalId": "NP-PROV-SUDURPASHCHIM",
+      "countryKey": "np",
+      "name": "Sudurpashchim",
+      "kind": "province",
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "kaski",
+      "canonicalExternalId": "NP-DIST-KASKI",
+      "countryKey": "np",
+      "name": "Kaski",
+      "kind": "district",
+      "parentLocationKey": {
+        "value": "gandaki",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "kailali",
+      "canonicalExternalId": "NP-DIST-KAILALI",
+      "countryKey": "np",
+      "name": "Kailali",
+      "kind": "district",
+      "parentLocationKey": {
+        "value": "sudurpashchim",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "rupandehi",
+      "canonicalExternalId": "NP-DIST-RUPANDEHI",
+      "countryKey": "np",
+      "name": "Rupandehi",
+      "kind": "district",
+      "parentLocationKey": {
+        "value": "lumbini",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "chitwan",
+      "canonicalExternalId": "NP-DIST-CHITWAN",
+      "countryKey": "np",
+      "name": "Chitwan",
+      "kind": "district",
+      "parentLocationKey": {
+        "value": "bagmati",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "morang",
+      "canonicalExternalId": "NP-DIST-MORANG",
+      "countryKey": "np",
+      "name": "Morang",
+      "kind": "district",
+      "parentLocationKey": {
+        "value": "koshi",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "parsa",
+      "canonicalExternalId": "NP-DIST-PARSA",
+      "countryKey": "np",
+      "name": "Parsa",
+      "kind": "district",
+      "parentLocationKey": {
+        "value": "madhesh",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "sunsari",
+      "canonicalExternalId": "NP-DIST-SUNSARI",
+      "countryKey": "np",
+      "name": "Sunsari",
+      "kind": "district",
+      "parentLocationKey": {
+        "value": "koshi",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "birgunj",
+      "canonicalExternalId": "NP-CITY-BIRGUNJ",
+      "countryKey": "np",
+      "name": "Birgunj",
+      "kind": "city",
+      "parentLocationKey": {
+        "value": "parsa",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "dharan",
+      "canonicalExternalId": "NP-CITY-DHARAN",
+      "countryKey": "np",
+      "name": "Dharan",
+      "kind": "city",
+      "parentLocationKey": {
+        "value": "sunsari",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "chyasal",
+      "canonicalExternalId": "NP-NBH-CHYASAL",
+      "countryKey": "np",
+      "name": "Chyasal",
+      "kind": "neighbourhood",
+      "parentLocationKey": {
+        "value": "lalitpur",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "tripureshwor",
+      "canonicalExternalId": "NP-NBH-TRIPURESHWOR",
+      "countryKey": "np",
+      "name": "Tripureshwor",
+      "kind": "neighbourhood",
+      "parentLocationKey": {
+        "value": "kathmandu",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "tribhuvan-international-airport",
+      "canonicalExternalId": "NP-AIR-TIA",
+      "countryKey": "np",
+      "name": "Tribhuvan International Airport",
+      "kind": "airport",
+      "parentLocationKey": {
+        "value": "kathmandu",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "kathmandu-district",
+      "canonicalExternalId": "NEP-LOC-DIST-KATHMANDU",
+      "countryKey": "np",
+      "name": "Kathmandu District",
+      "kind": "district",
+      "parentLocationKey": {
+        "value": "bagmati",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "lalitpur-district",
+      "canonicalExternalId": "NEP-LOC-DIST-LALITPUR",
+      "countryKey": "np",
+      "name": "Lalitpur District",
+      "kind": "district",
+      "parentLocationKey": {
+        "value": "bagmati",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "bhaktapur-district",
+      "canonicalExternalId": "NEP-LOC-DIST-BHAKTAPUR",
+      "countryKey": "np",
+      "name": "Bhaktapur District",
+      "kind": "district",
+      "parentLocationKey": {
+        "value": "bagmati",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "ilam-district",
+      "canonicalExternalId": "NEP-LOC-DIST-ILAM",
+      "countryKey": "np",
+      "name": "Ilam District",
+      "kind": "district",
+      "parentLocationKey": {
+        "value": "koshi",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "climateProfile": {
+        "seasonalHeatRisk": {
+          "status": "UNKNOWN"
+        },
+        "monsoonRisk": {
+          "status": "UNKNOWN"
+        },
+        "coldRisk": {
+          "status": "UNKNOWN"
+        },
+        "humidityRisk": {
+          "status": "UNKNOWN"
+        }
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
         "retrievedAt": "2026-08-22T00:00:00.000Z",
         "confidence": 0.65,
         "confidenceLevel": "MEDIUM",
@@ -336,11 +1715,30 @@
       "countryKey": "np",
       "name": "Dasharath Rangasala",
       "locationKey": {
-        "value": "kathmandu",
-        "status": "REPORTED"
+        "value": "tripureshwor",
+        "status": "VERIFIED",
+        "provenance": {
+          "sourceId": "nsc-dasharath-stadium",
+          "sourceName": "National Sports Council Nepal infrastructure profile: Dasharath Stadium",
+          "sourceUrl": "https://nsc.gov.np/en/infrastructure/1",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.9,
+          "confidenceLevel": "HIGH",
+          "status": "VERIFIED"
+        }
       },
       "capacity": {
-        "status": "UNKNOWN"
+        "value": 15000,
+        "status": "VERIFIED",
+        "provenance": {
+          "sourceId": "nsc-dasharath-stadium",
+          "sourceName": "National Sports Council Nepal infrastructure profile: Dasharath Stadium",
+          "sourceUrl": "https://nsc.gov.np/en/infrastructure/1",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.9,
+          "confidenceLevel": "HIGH",
+          "status": "VERIFIED"
+        }
       },
       "pitchType": {
         "status": "UNKNOWN"
@@ -352,6 +1750,190 @@
         "confidence": 0.65,
         "confidenceLevel": "MEDIUM",
         "status": "REPORTED"
+      },
+      "canonicalExternalId": "NEP-VEN-DASHARATH-RANGASALA",
+      "officialName": {
+        "value": "Dasharath Stadium",
+        "status": "VERIFIED",
+        "provenance": {
+          "sourceId": "nsc-dasharath-stadium",
+          "sourceName": "National Sports Council Nepal infrastructure profile: Dasharath Stadium",
+          "sourceUrl": "https://nsc.gov.np/en/infrastructure/1",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.9,
+          "confidenceLevel": "HIGH",
+          "status": "VERIFIED"
+        }
+      },
+      "shortName": {
+        "value": "Dasharath Stadium",
+        "status": "VERIFIED",
+        "provenance": {
+          "sourceId": "nsc-dasharath-stadium",
+          "sourceName": "National Sports Council Nepal infrastructure profile: Dasharath Stadium",
+          "sourceUrl": "https://nsc.gov.np/en/infrastructure/1",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.9,
+          "confidenceLevel": "HIGH",
+          "status": "VERIFIED"
+        }
+      },
+      "aliases": ["Dasharath Rangasala", "Dasarath Stadium", "Dashrath Stadium"],
+      "venueType": {
+        "value": "MULTI_SPORT_STADIUM",
+        "status": "VERIFIED",
+        "provenance": {
+          "sourceId": "nsc-dasharath-stadium",
+          "sourceName": "National Sports Council Nepal infrastructure profile: Dasharath Stadium",
+          "sourceUrl": "https://nsc.gov.np/en/infrastructure/1",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.9,
+          "confidenceLevel": "HIGH",
+          "status": "VERIFIED"
+        }
+      },
+      "surfaceType": {
+        "status": "UNKNOWN",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "pitchQuality": {
+        "status": "UNKNOWN",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "status": {
+        "value": "ACTIVE",
+        "status": "VERIFIED",
+        "provenance": {
+          "sourceId": "nsc-dasharath-stadium",
+          "sourceName": "National Sports Council Nepal infrastructure profile: Dasharath Stadium",
+          "sourceUrl": "https://nsc.gov.np/en/infrastructure/1",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.9,
+          "confidenceLevel": "HIGH",
+          "status": "VERIFIED"
+        }
+      },
+      "latitude": {
+        "status": "UNKNOWN"
+      },
+      "longitude": {
+        "status": "UNKNOWN"
+      },
+      "altitudeMeters": {
+        "status": "UNKNOWN"
+      },
+      "yearOpened": {
+        "value": 1956,
+        "status": "VERIFIED",
+        "provenance": {
+          "sourceId": "nsc-dasharath-stadium",
+          "sourceName": "National Sports Council Nepal infrastructure profile: Dasharath Stadium",
+          "sourceUrl": "https://nsc.gov.np/en/infrastructure/1",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.9,
+          "confidenceLevel": "HIGH",
+          "status": "VERIFIED"
+        }
+      },
+      "yearLastRenovated": {
+        "status": "UNKNOWN"
+      },
+      "floodlights": {
+        "value": true,
+        "status": "VERIFIED",
+        "provenance": {
+          "sourceId": "nsc-dasharath-stadium",
+          "sourceName": "National Sports Council Nepal infrastructure profile: Dasharath Stadium",
+          "sourceUrl": "https://nsc.gov.np/en/infrastructure/1",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.9,
+          "confidenceLevel": "HIGH",
+          "status": "VERIFIED"
+        }
+      },
+      "runningTrack": {
+        "value": true,
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "nsc-dasharath-stadium",
+          "sourceName": "National Sports Council Nepal infrastructure profile: Dasharath Stadium",
+          "sourceUrl": "https://nsc.gov.np/en/infrastructure/1",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.9,
+          "confidenceLevel": "HIGH",
+          "status": "VERIFIED"
+        }
+      },
+      "coveredStands": {
+        "status": "UNKNOWN"
+      },
+      "ownerEntity": {
+        "value": "Government of Nepal",
+        "status": "VERIFIED",
+        "provenance": {
+          "sourceId": "nsc-dasharath-stadium",
+          "sourceName": "National Sports Council Nepal infrastructure profile: Dasharath Stadium",
+          "sourceUrl": "https://nsc.gov.np/en/infrastructure/1",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.9,
+          "confidenceLevel": "HIGH",
+          "status": "VERIFIED"
+        }
+      },
+      "operatorEntity": {
+        "status": "UNKNOWN"
+      },
+      "districtKey": {
+        "value": "kathmandu-district",
+        "status": "VERIFIED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "provinceKey": {
+        "value": "bagmati",
+        "status": "VERIFIED",
+        "provenance": {
+          "sourceId": "nsc-dasharath-stadium",
+          "sourceName": "National Sports Council Nepal infrastructure profile: Dasharath Stadium",
+          "sourceUrl": "https://nsc.gov.np/en/infrastructure/1",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.9,
+          "confidenceLevel": "HIGH",
+          "status": "VERIFIED"
+        }
+      },
+      "cityKey": {
+        "value": "kathmandu",
+        "status": "VERIFIED",
+        "provenance": {
+          "sourceId": "nsc-dasharath-stadium",
+          "sourceName": "National Sports Council Nepal infrastructure profile: Dasharath Stadium",
+          "sourceUrl": "https://nsc.gov.np/en/infrastructure/1",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.9,
+          "confidenceLevel": "HIGH",
+          "status": "VERIFIED"
+        }
       }
     },
     {
@@ -360,7 +1942,16 @@
       "name": "ANFA Complex Ground",
       "locationKey": {
         "value": "satdobato",
-        "status": "REPORTED"
+        "status": "VERIFIED",
+        "provenance": {
+          "sourceId": "anfa-satdobato-academy",
+          "sourceName": "ANFA Satdobato Academy profile",
+          "sourceUrl": "https://the-anfa.com/youth/Satdobato",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.85,
+          "confidenceLevel": "HIGH",
+          "status": "VERIFIED"
+        }
       },
       "capacity": {
         "status": "UNKNOWN"
@@ -375,6 +1966,150 @@
         "confidence": 0.65,
         "confidenceLevel": "MEDIUM",
         "status": "REPORTED"
+      },
+      "canonicalExternalId": "NEP-VEN-ANFA-COMPLEX-GROUND",
+      "officialName": {
+        "value": "ANFA Complex Ground",
+        "status": "VERIFIED",
+        "provenance": {
+          "sourceId": "anfa-satdobato-academy",
+          "sourceName": "ANFA Satdobato Academy profile",
+          "sourceUrl": "https://the-anfa.com/youth/Satdobato",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.85,
+          "confidenceLevel": "HIGH",
+          "status": "VERIFIED"
+        }
+      },
+      "shortName": {
+        "status": "UNKNOWN"
+      },
+      "aliases": ["ANFA Complex", "ANFA Complex, Satdobato"],
+      "venueType": {
+        "value": "NATIONAL_TRAINING_CENTRE",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "anfa-satdobato-academy",
+          "sourceName": "ANFA Satdobato Academy profile",
+          "sourceUrl": "https://the-anfa.com/youth/Satdobato",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.85,
+          "confidenceLevel": "HIGH",
+          "status": "VERIFIED"
+        }
+      },
+      "surfaceType": {
+        "value": "ARTIFICIAL_TURF",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "kathmandu-post-2026-central-venues",
+          "sourceName": "The Kathmandu Post reporting on 2026 National League venues",
+          "sourceUrl": "https://kathmandupost.com/football/2026/01/28/fagu-ram-tharu-inspires-planning-boyz-to-a-4-2-win-over-satdobato-youth-club",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.7,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "pitchQuality": {
+        "status": "UNKNOWN",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "status": {
+        "status": "UNKNOWN",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "latitude": {
+        "status": "UNKNOWN"
+      },
+      "longitude": {
+        "status": "UNKNOWN"
+      },
+      "altitudeMeters": {
+        "status": "UNKNOWN"
+      },
+      "yearOpened": {
+        "status": "UNKNOWN"
+      },
+      "yearLastRenovated": {
+        "status": "UNKNOWN"
+      },
+      "floodlights": {
+        "status": "UNKNOWN"
+      },
+      "runningTrack": {
+        "status": "UNKNOWN"
+      },
+      "coveredStands": {
+        "status": "UNKNOWN"
+      },
+      "ownerEntity": {
+        "status": "UNKNOWN"
+      },
+      "operatorEntity": {
+        "value": "All Nepal Football Association",
+        "status": "VERIFIED",
+        "provenance": {
+          "sourceId": "anfa-satdobato-academy",
+          "sourceName": "ANFA Satdobato Academy profile",
+          "sourceUrl": "https://the-anfa.com/youth/Satdobato",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.85,
+          "confidenceLevel": "HIGH",
+          "status": "VERIFIED"
+        }
+      },
+      "districtKey": {
+        "value": "lalitpur-district",
+        "status": "VERIFIED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "provinceKey": {
+        "value": "bagmati",
+        "status": "VERIFIED",
+        "provenance": {
+          "sourceId": "anfa-satdobato-academy",
+          "sourceName": "ANFA Satdobato Academy profile",
+          "sourceUrl": "https://the-anfa.com/youth/Satdobato",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.85,
+          "confidenceLevel": "HIGH",
+          "status": "VERIFIED"
+        }
+      },
+      "cityKey": {
+        "value": "lalitpur",
+        "status": "VERIFIED",
+        "provenance": {
+          "sourceId": "anfa-satdobato-academy",
+          "sourceName": "ANFA Satdobato Academy profile",
+          "sourceUrl": "https://the-anfa.com/youth/Satdobato",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.85,
+          "confidenceLevel": "HIGH",
+          "status": "VERIFIED"
+        }
       }
     },
     {
@@ -382,8 +2117,16 @@
       "countryKey": "np",
       "name": "Chyasal Stadium",
       "locationKey": {
-        "value": "lalitpur",
-        "status": "REPORTED"
+        "value": "chyasal",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
       },
       "capacity": {
         "status": "UNKNOWN"
@@ -398,6 +2141,136 @@
         "confidence": 0.65,
         "confidenceLevel": "MEDIUM",
         "status": "REPORTED"
+      },
+      "canonicalExternalId": "NEP-VEN-CHYASAL-STADIUM",
+      "officialName": {
+        "value": "Chyasal Stadium",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "shortName": {
+        "status": "UNKNOWN"
+      },
+      "aliases": [],
+      "venueType": {
+        "value": "STADIUM",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "surfaceType": {
+        "value": "NATURAL_GRASS",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "kathmandu-post-2026-central-venues",
+          "sourceName": "The Kathmandu Post reporting on 2026 National League venues",
+          "sourceUrl": "https://kathmandupost.com/football/2026/01/28/fagu-ram-tharu-inspires-planning-boyz-to-a-4-2-win-over-satdobato-youth-club",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.7,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "pitchQuality": {
+        "status": "UNKNOWN",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "status": {
+        "status": "UNKNOWN",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "latitude": {
+        "status": "UNKNOWN"
+      },
+      "longitude": {
+        "status": "UNKNOWN"
+      },
+      "altitudeMeters": {
+        "status": "UNKNOWN"
+      },
+      "yearOpened": {
+        "status": "UNKNOWN"
+      },
+      "yearLastRenovated": {
+        "status": "UNKNOWN"
+      },
+      "floodlights": {
+        "status": "UNKNOWN"
+      },
+      "runningTrack": {
+        "status": "UNKNOWN"
+      },
+      "coveredStands": {
+        "status": "UNKNOWN"
+      },
+      "ownerEntity": {
+        "status": "UNKNOWN"
+      },
+      "operatorEntity": {
+        "status": "UNKNOWN"
+      },
+      "districtKey": {
+        "value": "lalitpur-district",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "provinceKey": {
+        "value": "bagmati",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "cityKey": {
+        "value": "lalitpur",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
       }
     },
     {
@@ -406,7 +2279,15 @@
       "name": "Halchowk Stadium",
       "locationKey": {
         "value": "kathmandu",
-        "status": "REPORTED"
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
       },
       "capacity": {
         "status": "UNKNOWN"
@@ -421,6 +2302,144 @@
         "confidence": 0.65,
         "confidenceLevel": "MEDIUM",
         "status": "REPORTED"
+      },
+      "canonicalExternalId": "NEP-VEN-HALCHOWK-STADIUM",
+      "officialName": {
+        "value": "Halchowk Stadium",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "shortName": {
+        "status": "UNKNOWN"
+      },
+      "aliases": [],
+      "venueType": {
+        "value": "STADIUM",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "surfaceType": {
+        "status": "UNKNOWN",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "pitchQuality": {
+        "status": "UNKNOWN",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "status": {
+        "status": "UNKNOWN",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "latitude": {
+        "status": "UNKNOWN"
+      },
+      "longitude": {
+        "status": "UNKNOWN"
+      },
+      "altitudeMeters": {
+        "status": "UNKNOWN"
+      },
+      "yearOpened": {
+        "status": "UNKNOWN"
+      },
+      "yearLastRenovated": {
+        "status": "UNKNOWN"
+      },
+      "floodlights": {
+        "status": "UNKNOWN"
+      },
+      "runningTrack": {
+        "status": "UNKNOWN"
+      },
+      "coveredStands": {
+        "status": "UNKNOWN"
+      },
+      "ownerEntity": {
+        "value": "Armed Police Force, Nepal",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "apf-halchowk-headquarters",
+          "sourceName": "Armed Police Force Nepal development timeline",
+          "sourceUrl": "https://www.apf.gov.np/development",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.7,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "operatorEntity": {
+        "status": "UNKNOWN"
+      },
+      "districtKey": {
+        "value": "kathmandu-district",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "provinceKey": {
+        "value": "bagmati",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "cityKey": {
+        "value": "kathmandu",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
       }
     },
     {
@@ -444,6 +2463,134 @@
         "confidence": 0.65,
         "confidenceLevel": "MEDIUM",
         "status": "REPORTED"
+      },
+      "canonicalExternalId": "NEP-VEN-POKHARA-RANGASALA",
+      "officialName": {
+        "value": "Pokhara Rangasala",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "shortName": {
+        "status": "UNKNOWN"
+      },
+      "aliases": [],
+      "venueType": {
+        "value": "MULTI_SPORT_STADIUM",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "surfaceType": {
+        "status": "UNKNOWN",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "pitchQuality": {
+        "status": "UNKNOWN",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "status": {
+        "status": "UNKNOWN",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "latitude": {
+        "status": "UNKNOWN"
+      },
+      "longitude": {
+        "status": "UNKNOWN"
+      },
+      "altitudeMeters": {
+        "status": "UNKNOWN"
+      },
+      "yearOpened": {
+        "status": "UNKNOWN"
+      },
+      "yearLastRenovated": {
+        "status": "UNKNOWN"
+      },
+      "floodlights": {
+        "status": "UNKNOWN"
+      },
+      "runningTrack": {
+        "status": "UNKNOWN"
+      },
+      "coveredStands": {
+        "status": "UNKNOWN"
+      },
+      "ownerEntity": {
+        "status": "UNKNOWN"
+      },
+      "operatorEntity": {
+        "status": "UNKNOWN"
+      },
+      "districtKey": {
+        "value": "kaski",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "provinceKey": {
+        "value": "gandaki",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "cityKey": {
+        "value": "pokhara",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
       }
     },
     {
@@ -467,6 +2614,134 @@
         "confidence": 0.65,
         "confidenceLevel": "MEDIUM",
         "status": "REPORTED"
+      },
+      "canonicalExternalId": "NEP-VEN-SAHID-RANGASALA",
+      "officialName": {
+        "value": "Sahid Rangasala",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "shortName": {
+        "status": "UNKNOWN"
+      },
+      "aliases": [],
+      "venueType": {
+        "value": "STADIUM",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "surfaceType": {
+        "status": "UNKNOWN",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "pitchQuality": {
+        "status": "UNKNOWN",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "status": {
+        "status": "UNKNOWN",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "latitude": {
+        "status": "UNKNOWN"
+      },
+      "longitude": {
+        "status": "UNKNOWN"
+      },
+      "altitudeMeters": {
+        "status": "UNKNOWN"
+      },
+      "yearOpened": {
+        "status": "UNKNOWN"
+      },
+      "yearLastRenovated": {
+        "status": "UNKNOWN"
+      },
+      "floodlights": {
+        "status": "UNKNOWN"
+      },
+      "runningTrack": {
+        "status": "UNKNOWN"
+      },
+      "coveredStands": {
+        "status": "UNKNOWN"
+      },
+      "ownerEntity": {
+        "status": "UNKNOWN"
+      },
+      "operatorEntity": {
+        "status": "UNKNOWN"
+      },
+      "districtKey": {
+        "value": "morang",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "provinceKey": {
+        "value": "koshi",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "cityKey": {
+        "value": "biratnagar",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
       }
     },
     {
@@ -490,6 +2765,304 @@
         "confidence": 0.65,
         "confidenceLevel": "MEDIUM",
         "status": "REPORTED"
+      },
+      "canonicalExternalId": "NEP-VEN-DOMALAL-RAJBANSHI-STADIUM",
+      "officialName": {
+        "value": "Domalal Rajbanshi Stadium",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "shortName": {
+        "status": "UNKNOWN"
+      },
+      "aliases": [],
+      "venueType": {
+        "value": "STADIUM",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "surfaceType": {
+        "status": "UNKNOWN",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "pitchQuality": {
+        "status": "UNKNOWN",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "status": {
+        "status": "UNKNOWN",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "latitude": {
+        "status": "UNKNOWN"
+      },
+      "longitude": {
+        "status": "UNKNOWN"
+      },
+      "altitudeMeters": {
+        "status": "UNKNOWN"
+      },
+      "yearOpened": {
+        "status": "UNKNOWN"
+      },
+      "yearLastRenovated": {
+        "status": "UNKNOWN"
+      },
+      "floodlights": {
+        "status": "UNKNOWN"
+      },
+      "runningTrack": {
+        "status": "UNKNOWN"
+      },
+      "coveredStands": {
+        "status": "UNKNOWN"
+      },
+      "ownerEntity": {
+        "status": "UNKNOWN"
+      },
+      "operatorEntity": {
+        "status": "UNKNOWN"
+      },
+      "districtKey": {
+        "value": "jhapa",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "provinceKey": {
+        "value": "koshi",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "cityKey": {
+        "value": "birtamod",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      }
+    },
+    {
+      "key": "anfa-technical-centre-butwal",
+      "canonicalExternalId": "NEP-VEN-ANFA-TECHNICAL-CENTRE-BUTWAL",
+      "countryKey": "np",
+      "name": "ANFA Technical Centre Butwal",
+      "officialName": {
+        "value": "ANFA Technical Centre Butwal",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "compiled-nepal-stadium-list",
+          "sourceName": "Compiled Nepal football stadium listing",
+          "sourceUrl": "https://everything.explained.today/List_of_football_stadiums_in_Nepal/",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.45,
+          "confidenceLevel": "LOW",
+          "status": "REPORTED",
+          "notes": "Used only for low-confidence venue association staging pending official verification."
+        }
+      },
+      "shortName": {
+        "status": "UNKNOWN"
+      },
+      "aliases": [],
+      "venueType": {
+        "value": "ACADEMY_GROUND",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "compiled-nepal-stadium-list",
+          "sourceName": "Compiled Nepal football stadium listing",
+          "sourceUrl": "https://everything.explained.today/List_of_football_stadiums_in_Nepal/",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.45,
+          "confidenceLevel": "LOW",
+          "status": "REPORTED",
+          "notes": "Used only for low-confidence venue association staging pending official verification."
+        }
+      },
+      "locationKey": {
+        "value": "butwal",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "compiled-nepal-stadium-list",
+          "sourceName": "Compiled Nepal football stadium listing",
+          "sourceUrl": "https://everything.explained.today/List_of_football_stadiums_in_Nepal/",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.45,
+          "confidenceLevel": "LOW",
+          "status": "REPORTED",
+          "notes": "Used only for low-confidence venue association staging pending official verification."
+        }
+      },
+      "cityKey": {
+        "value": "butwal",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "compiled-nepal-stadium-list",
+          "sourceName": "Compiled Nepal football stadium listing",
+          "sourceUrl": "https://everything.explained.today/List_of_football_stadiums_in_Nepal/",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.45,
+          "confidenceLevel": "LOW",
+          "status": "REPORTED",
+          "notes": "Used only for low-confidence venue association staging pending official verification."
+        }
+      },
+      "districtKey": {
+        "value": "rupandehi",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "compiled-nepal-stadium-list",
+          "sourceName": "Compiled Nepal football stadium listing",
+          "sourceUrl": "https://everything.explained.today/List_of_football_stadiums_in_Nepal/",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.45,
+          "confidenceLevel": "LOW",
+          "status": "REPORTED",
+          "notes": "Used only for low-confidence venue association staging pending official verification."
+        }
+      },
+      "provinceKey": {
+        "value": "lumbini",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "compiled-nepal-stadium-list",
+          "sourceName": "Compiled Nepal football stadium listing",
+          "sourceUrl": "https://everything.explained.today/List_of_football_stadiums_in_Nepal/",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.45,
+          "confidenceLevel": "LOW",
+          "status": "REPORTED",
+          "notes": "Used only for low-confidence venue association staging pending official verification."
+        }
+      },
+      "latitude": {
+        "status": "UNKNOWN"
+      },
+      "longitude": {
+        "status": "UNKNOWN"
+      },
+      "altitudeMeters": {
+        "status": "UNKNOWN"
+      },
+      "capacity": {
+        "status": "UNKNOWN"
+      },
+      "surfaceType": {
+        "status": "UNKNOWN",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "pitchQuality": {
+        "status": "UNKNOWN",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "yearOpened": {
+        "status": "UNKNOWN"
+      },
+      "yearLastRenovated": {
+        "status": "UNKNOWN"
+      },
+      "floodlights": {
+        "status": "UNKNOWN"
+      },
+      "runningTrack": {
+        "status": "UNKNOWN"
+      },
+      "coveredStands": {
+        "status": "UNKNOWN"
+      },
+      "ownerEntity": {
+        "status": "UNKNOWN"
+      },
+      "operatorEntity": {
+        "status": "UNKNOWN"
+      },
+      "status": {
+        "status": "UNKNOWN",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "provenance": {
+        "sourceId": "compiled-nepal-stadium-list",
+        "sourceName": "Compiled Nepal football stadium listing",
+        "sourceUrl": "https://everything.explained.today/List_of_football_stadiums_in_Nepal/",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.45,
+        "confidenceLevel": "LOW",
+        "status": "REPORTED",
+        "notes": "Used only for low-confidence venue association staging pending official verification."
       }
     }
   ],
@@ -6137,7 +8710,263 @@
       }
     }
   ],
-  "venueRelationships": [],
+  "venueRelationships": [
+    {
+      "key": "venue-rel-dasharath-anfa-national-team",
+      "venueKey": "dasharath-rangasala",
+      "federationKey": {
+        "value": "anfa",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "nsc-dasharath-stadium",
+          "sourceName": "National Sports Council Nepal infrastructure profile: Dasharath Stadium",
+          "sourceUrl": "https://nsc.gov.np/en/infrastructure/1",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.9,
+          "confidenceLevel": "HIGH",
+          "status": "VERIFIED"
+        }
+      },
+      "relationshipType": "NATIONAL_TEAM_USER",
+      "status": "federationAssigned",
+      "provenance": {
+        "sourceId": "nsc-dasharath-stadium",
+        "sourceName": "National Sports Council Nepal infrastructure profile: Dasharath Stadium",
+        "sourceUrl": "https://nsc.gov.np/en/infrastructure/1",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.9,
+        "confidenceLevel": "HIGH",
+        "status": "VERIFIED"
+      }
+    },
+    {
+      "key": "venue-rel-dasharath-anfa-operator",
+      "venueKey": "dasharath-rangasala",
+      "federationKey": {
+        "value": "anfa",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "nsc-dasharath-stadium",
+          "sourceName": "National Sports Council Nepal infrastructure profile: Dasharath Stadium",
+          "sourceUrl": "https://nsc.gov.np/en/infrastructure/1",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.9,
+          "confidenceLevel": "HIGH",
+          "status": "VERIFIED"
+        }
+      },
+      "relationshipType": "OPERATOR",
+      "status": "unknown",
+      "provenance": {
+        "sourceId": "nsc-dasharath-stadium",
+        "sourceName": "National Sports Council Nepal infrastructure profile: Dasharath Stadium",
+        "sourceUrl": "https://nsc.gov.np/en/infrastructure/1",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.9,
+        "confidenceLevel": "HIGH",
+        "status": "VERIFIED"
+      }
+    },
+    {
+      "key": "venue-rel-anfa-complex-anfa-operator",
+      "venueKey": "anfa-complex-ground",
+      "federationKey": {
+        "value": "anfa",
+        "status": "VERIFIED",
+        "provenance": {
+          "sourceId": "anfa-satdobato-academy",
+          "sourceName": "ANFA Satdobato Academy profile",
+          "sourceUrl": "https://the-anfa.com/youth/Satdobato",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.85,
+          "confidenceLevel": "HIGH",
+          "status": "VERIFIED"
+        }
+      },
+      "relationshipType": "OPERATOR",
+      "status": "available",
+      "provenance": {
+        "sourceId": "anfa-satdobato-academy",
+        "sourceName": "ANFA Satdobato Academy profile",
+        "sourceUrl": "https://the-anfa.com/youth/Satdobato",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.85,
+        "confidenceLevel": "HIGH",
+        "status": "VERIFIED"
+      }
+    },
+    {
+      "key": "venue-rel-anfa-complex-national-team-training",
+      "venueKey": "anfa-complex-ground",
+      "federationKey": {
+        "value": "anfa",
+        "status": "VERIFIED",
+        "provenance": {
+          "sourceId": "anfa-satdobato-academy",
+          "sourceName": "ANFA Satdobato Academy profile",
+          "sourceUrl": "https://the-anfa.com/youth/Satdobato",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.85,
+          "confidenceLevel": "HIGH",
+          "status": "VERIFIED"
+        }
+      },
+      "relationshipType": "NATIONAL_TEAM_USER",
+      "status": "available",
+      "provenance": {
+        "sourceId": "anfa-satdobato-academy",
+        "sourceName": "ANFA Satdobato Academy profile",
+        "sourceUrl": "https://the-anfa.com/youth/Satdobato",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.85,
+        "confidenceLevel": "HIGH",
+        "status": "VERIFIED"
+      }
+    },
+    {
+      "key": "venue-rel-anfa-complex-central-academy",
+      "venueKey": "anfa-complex-ground",
+      "academyKey": {
+        "value": "NEP-ACA-ANF1",
+        "status": "VERIFIED",
+        "provenance": {
+          "sourceId": "anfa-satdobato-academy",
+          "sourceName": "ANFA Satdobato Academy profile",
+          "sourceUrl": "https://the-anfa.com/youth/Satdobato",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.85,
+          "confidenceLevel": "HIGH",
+          "status": "VERIFIED"
+        }
+      },
+      "relationshipType": "ACADEMY_USER",
+      "status": "available",
+      "provenance": {
+        "sourceId": "anfa-satdobato-academy",
+        "sourceName": "ANFA Satdobato Academy profile",
+        "sourceUrl": "https://the-anfa.com/youth/Satdobato",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.85,
+        "confidenceLevel": "HIGH",
+        "status": "VERIFIED"
+      }
+    },
+    {
+      "key": "venue-rel-apf-halchowk-training",
+      "venueKey": "halchowk-stadium",
+      "clubKey": {
+        "value": "NEP-DEP-APF",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "apf-halchowk-headquarters",
+          "sourceName": "Armed Police Force Nepal development timeline",
+          "sourceUrl": "https://www.apf.gov.np/development",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.7,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "teamKey": {
+        "value": "NEP-DEP-APF-MEN",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "apf-halchowk-headquarters",
+          "sourceName": "Armed Police Force Nepal development timeline",
+          "sourceUrl": "https://www.apf.gov.np/development",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.7,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "relationshipType": "TRAINING_USER",
+      "status": "unknown",
+      "provenance": {
+        "sourceId": "apf-halchowk-headquarters",
+        "sourceName": "Armed Police Force Nepal development timeline",
+        "sourceUrl": "https://www.apf.gov.np/development",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.7,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "venue-rel-nsl-jhapa-domalal-temp",
+      "venueKey": "domalal-rajbanshi-stadium",
+      "clubKey": {
+        "value": "NEP-NSL-JHA",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "compiled-nepal-stadium-list",
+          "sourceName": "Compiled Nepal football stadium listing",
+          "sourceUrl": "https://everything.explained.today/List_of_football_stadiums_in_Nepal/",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.45,
+          "confidenceLevel": "LOW",
+          "status": "REPORTED",
+          "notes": "Used only for low-confidence venue association staging pending official verification."
+        }
+      },
+      "teamKey": {
+        "value": "NEP-NSL-JHA-MEN",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "compiled-nepal-stadium-list",
+          "sourceName": "Compiled Nepal football stadium listing",
+          "sourceUrl": "https://everything.explained.today/List_of_football_stadiums_in_Nepal/",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.45,
+          "confidenceLevel": "LOW",
+          "status": "REPORTED",
+          "notes": "Used only for low-confidence venue association staging pending official verification."
+        }
+      },
+      "relationshipType": "TEMPORARY_USER",
+      "status": "unknown",
+      "provenance": {
+        "sourceId": "compiled-nepal-stadium-list",
+        "sourceName": "Compiled Nepal football stadium listing",
+        "sourceUrl": "https://everything.explained.today/List_of_football_stadiums_in_Nepal/",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.45,
+        "confidenceLevel": "LOW",
+        "status": "REPORTED",
+        "notes": "Used only for low-confidence venue association staging pending official verification."
+      }
+    },
+    {
+      "key": "venue-rel-anfa-butwal-academy",
+      "venueKey": "anfa-technical-centre-butwal",
+      "academyKey": {
+        "value": "NEP-ACA-ANF3",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "compiled-nepal-stadium-list",
+          "sourceName": "Compiled Nepal football stadium listing",
+          "sourceUrl": "https://everything.explained.today/List_of_football_stadiums_in_Nepal/",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.45,
+          "confidenceLevel": "LOW",
+          "status": "REPORTED",
+          "notes": "Used only for low-confidence venue association staging pending official verification."
+        }
+      },
+      "relationshipType": "ACADEMY_USER",
+      "status": "unknown",
+      "provenance": {
+        "sourceId": "compiled-nepal-stadium-list",
+        "sourceName": "Compiled Nepal football stadium listing",
+        "sourceUrl": "https://everything.explained.today/List_of_football_stadiums_in_Nepal/",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.45,
+        "confidenceLevel": "LOW",
+        "status": "REPORTED",
+        "notes": "Used only for low-confidence venue association staging pending official verification."
+      }
+    }
+  ],
   "persons": [],
   "personRoles": [],
   "teamPersonAssignments": [],
@@ -6226,6 +9055,119 @@
         "confidenceLevel": "HIGH",
         "status": "SIMULATION_ONLY",
         "notes": "Simulation-only starter rule to exercise pyramid progression until researched regulations are imported."
+      }
+    }
+  ],
+  "locationTravelContexts": [
+    {
+      "key": "travel-kathmandu-lalitpur",
+      "fromLocationKey": "kathmandu",
+      "toLocationKey": "lalitpur",
+      "roadDistanceKm": {
+        "status": "UNKNOWN"
+      },
+      "estimatedRoadTravelHours": {
+        "status": "UNKNOWN"
+      },
+      "airTravelAvailable": {
+        "value": false,
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "nearestAirportKey": {
+        "value": "tribhuvan-international-airport",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "travel-kathmandu-pokhara",
+      "fromLocationKey": "kathmandu",
+      "toLocationKey": "pokhara",
+      "roadDistanceKm": {
+        "status": "UNKNOWN"
+      },
+      "estimatedRoadTravelHours": {
+        "status": "UNKNOWN"
+      },
+      "airTravelAvailable": {
+        "status": "UNKNOWN"
+      },
+      "nearestAirportKey": {
+        "value": "tribhuvan-international-airport",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
+    },
+    {
+      "key": "travel-kathmandu-dhangadhi",
+      "fromLocationKey": "kathmandu",
+      "toLocationKey": "dhangadhi",
+      "roadDistanceKm": {
+        "status": "UNKNOWN"
+      },
+      "estimatedRoadTravelHours": {
+        "status": "UNKNOWN"
+      },
+      "airTravelAvailable": {
+        "status": "UNKNOWN"
+      },
+      "nearestAirportKey": {
+        "value": "tribhuvan-international-airport",
+        "status": "REPORTED",
+        "provenance": {
+          "sourceId": "supplied-nepal-venues-geography-brief",
+          "sourceName": "Supplied Nepal venues and geography brief",
+          "retrievedAt": "2026-08-22T00:00:00.000Z",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "status": "REPORTED"
+        }
+      },
+      "provenance": {
+        "sourceId": "supplied-nepal-venues-geography-brief",
+        "sourceName": "Supplied Nepal venues and geography brief",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
       }
     }
   ]

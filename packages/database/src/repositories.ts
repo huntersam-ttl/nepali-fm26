@@ -13,6 +13,7 @@ import type {
   FinancialTransaction,
   HistoricalEvent,
   Location,
+  LocationTravelContext,
   Person,
   PersonRole,
   SaveMetadata,
@@ -48,6 +49,9 @@ const json = {
     value === null || value === undefined ? fallback : (JSON.parse(value) as T),
   stringify: (value: unknown): string => JSON.stringify(value),
 };
+
+const boolToDb = (value: boolean | undefined): number | null =>
+  value === undefined ? null : Number(value);
 
 export class SaveRepository {
   constructor(private readonly db: GameDatabase) {}
@@ -115,29 +119,64 @@ export class WorldRepository {
   insertLocation(location: Location): void {
     this.db
       .prepare(
-        "INSERT INTO locations (id, country_id, name, kind, parent_location_id) VALUES (?, ?, ?, ?, ?)",
+        `INSERT INTO locations
+        (id, canonical_external_id, country_id, name, kind, parent_location_id, latitude, longitude,
+          altitude_meters, climate_profile_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         location.id,
+        location.canonicalExternalId ?? null,
         location.countryId,
         location.name,
         location.kind,
         location.parentLocationId ?? null,
+        location.latitude ?? null,
+        location.longitude ?? null,
+        location.altitudeMeters ?? null,
+        location.climateProfile ? json.stringify(location.climateProfile) : null,
       );
   }
 
   insertVenue(venue: Venue): void {
     this.db
       .prepare(
-        "INSERT INTO venues (id, country_id, location_id, name, capacity, pitch_type) VALUES (?, ?, ?, ?, ?, ?)",
+        `INSERT INTO venues
+        (id, canonical_external_id, country_id, location_id, province_id, district_id, city_id, name,
+          official_name, short_name, aliases_json, venue_type, capacity, pitch_type, latitude,
+          longitude, altitude_meters, surface_type, pitch_quality, year_opened,
+          year_last_renovated, floodlights, running_track, covered_stands, owner_entity,
+          operator_entity, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         venue.id,
+        venue.canonicalExternalId ?? null,
         venue.countryId,
         venue.locationId ?? null,
+        venue.provinceId ?? null,
+        venue.districtId ?? null,
+        venue.cityId ?? null,
         venue.name,
+        venue.officialName ?? null,
+        venue.shortName ?? null,
+        json.stringify(venue.aliases ?? []),
+        venue.venueType ?? "UNKNOWN",
         venue.capacity ?? null,
-        venue.pitchType ?? null,
+        venue.surfaceType ?? "UNKNOWN",
+        venue.latitude ?? null,
+        venue.longitude ?? null,
+        venue.altitudeMeters ?? null,
+        venue.surfaceType ?? "UNKNOWN",
+        venue.pitchQuality ?? "UNKNOWN",
+        venue.yearOpened ?? null,
+        venue.yearLastRenovated ?? null,
+        boolToDb(venue.floodlights),
+        boolToDb(venue.runningTrack),
+        boolToDb(venue.coveredStands),
+        venue.ownerEntity ?? null,
+        venue.operatorEntity ?? null,
+        venue.status ?? "UNKNOWN",
       );
   }
 
@@ -247,15 +286,41 @@ export class WorldRepository {
     this.db
       .prepare(
         `INSERT INTO venue_relationships
-        (id, venue_id, club_id, team_id, relationship_type)
-        VALUES (?, ?, ?, ?, ?)`,
+        (id, venue_id, club_id, team_id, federation_id, academy_id, relationship_type,
+          start_date, end_date, competition_season_id, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         relationship.id,
         relationship.venueId,
         relationship.clubId ?? null,
         relationship.teamId ?? null,
+        relationship.federationId ?? null,
+        relationship.academyId ?? null,
         relationship.relationshipType,
+        relationship.startDate ?? null,
+        relationship.endDate ?? null,
+        relationship.competitionSeasonId ?? null,
+        relationship.status,
+      );
+  }
+
+  insertLocationTravelContext(context: LocationTravelContext): void {
+    this.db
+      .prepare(
+        `INSERT INTO location_travel_contexts
+        (id, from_location_id, to_location_id, road_distance_km, estimated_road_travel_hours,
+          air_travel_available, nearest_airport_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        context.id,
+        context.fromLocationId,
+        context.toLocationId,
+        context.roadDistanceKm ?? null,
+        context.estimatedRoadTravelHours ?? null,
+        boolToDb(context.airTravelAvailable),
+        context.nearestAirportId ?? null,
       );
   }
 
@@ -483,6 +548,7 @@ export class WorldRepository {
       teams: scalar("teams"),
       academies: scalar("academies"),
       venueRelationships: scalar("venue_relationships"),
+      locationTravelContexts: scalar("location_travel_contexts"),
       persons: scalar("persons"),
       personRoles: scalar("person_roles"),
       teamPersonAssignments: scalar("team_person_assignments"),
@@ -1266,6 +1332,7 @@ export type WorldInspection = {
   teams: number;
   academies: number;
   venueRelationships: number;
+  locationTravelContexts: number;
   persons: number;
   personRoles: number;
   teamPersonAssignments: number;

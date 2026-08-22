@@ -4,6 +4,7 @@ export * from "./desktop-application.js";
 export * from "./fixture-generation.js";
 export * from "./manager-career.js";
 export * from "./manager-flow.js";
+export * from "./match-environment.js";
 export * from "./match-engine.js";
 export * from "./nepal-save.js";
 export * from "./pyramid-progression.js";

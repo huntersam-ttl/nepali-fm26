@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 6;
+export const CURRENT_DATABASE_VERSION = 7;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -556,6 +556,84 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
         ON competition_relationships(from_competition_id, movement_type);
       CREATE INDEX IF NOT EXISTS idx_competition_movements_season
         ON competition_movements(from_competition_season_id, to_competition_season_id);
+    `,
+  },
+  {
+    version: 7,
+    sql: `
+      ALTER TABLE locations ADD COLUMN canonical_external_id TEXT;
+      ALTER TABLE locations ADD COLUMN latitude REAL;
+      ALTER TABLE locations ADD COLUMN longitude REAL;
+      ALTER TABLE locations ADD COLUMN altitude_meters INTEGER;
+      ALTER TABLE locations ADD COLUMN climate_profile_json TEXT;
+
+      ALTER TABLE venues ADD COLUMN canonical_external_id TEXT;
+      ALTER TABLE venues ADD COLUMN province_id TEXT REFERENCES locations(id);
+      ALTER TABLE venues ADD COLUMN district_id TEXT REFERENCES locations(id);
+      ALTER TABLE venues ADD COLUMN city_id TEXT REFERENCES locations(id);
+      ALTER TABLE venues ADD COLUMN official_name TEXT;
+      ALTER TABLE venues ADD COLUMN short_name TEXT;
+      ALTER TABLE venues ADD COLUMN aliases_json TEXT NOT NULL DEFAULT '[]';
+      ALTER TABLE venues ADD COLUMN venue_type TEXT NOT NULL DEFAULT 'UNKNOWN';
+      ALTER TABLE venues ADD COLUMN latitude REAL;
+      ALTER TABLE venues ADD COLUMN longitude REAL;
+      ALTER TABLE venues ADD COLUMN altitude_meters INTEGER;
+      ALTER TABLE venues ADD COLUMN surface_type TEXT NOT NULL DEFAULT 'UNKNOWN';
+      ALTER TABLE venues ADD COLUMN pitch_quality TEXT NOT NULL DEFAULT 'UNKNOWN';
+      ALTER TABLE venues ADD COLUMN year_opened INTEGER;
+      ALTER TABLE venues ADD COLUMN year_last_renovated INTEGER;
+      ALTER TABLE venues ADD COLUMN floodlights INTEGER;
+      ALTER TABLE venues ADD COLUMN running_track INTEGER;
+      ALTER TABLE venues ADD COLUMN covered_stands INTEGER;
+      ALTER TABLE venues ADD COLUMN owner_entity TEXT;
+      ALTER TABLE venues ADD COLUMN operator_entity TEXT;
+      ALTER TABLE venues ADD COLUMN status TEXT NOT NULL DEFAULT 'UNKNOWN';
+
+      CREATE TABLE IF NOT EXISTS venue_relationships_v7 (
+        id TEXT PRIMARY KEY,
+        venue_id TEXT NOT NULL REFERENCES venues(id),
+        club_id TEXT REFERENCES clubs(id),
+        team_id TEXT REFERENCES teams(id),
+        federation_id TEXT REFERENCES federations(id),
+        academy_id TEXT REFERENCES academies(id),
+        relationship_type TEXT NOT NULL,
+        start_date TEXT,
+        end_date TEXT,
+        competition_season_id TEXT REFERENCES competition_seasons(id),
+        status TEXT NOT NULL DEFAULT 'unknown',
+        CHECK (
+          club_id IS NOT NULL OR team_id IS NOT NULL OR federation_id IS NOT NULL OR academy_id IS NOT NULL
+        )
+      );
+
+      INSERT INTO venue_relationships_v7
+        (id, venue_id, club_id, team_id, relationship_type, status)
+        SELECT id, venue_id, club_id, team_id, relationship_type, 'unknown'
+        FROM venue_relationships;
+
+      DROP TABLE venue_relationships;
+      ALTER TABLE venue_relationships_v7 RENAME TO venue_relationships;
+
+      CREATE TABLE IF NOT EXISTS location_travel_contexts (
+        id TEXT PRIMARY KEY,
+        from_location_id TEXT NOT NULL REFERENCES locations(id),
+        to_location_id TEXT NOT NULL REFERENCES locations(id),
+        road_distance_km REAL,
+        estimated_road_travel_hours REAL,
+        air_travel_available INTEGER,
+        nearest_airport_id TEXT REFERENCES locations(id)
+      );
+
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_locations_canonical_external_id
+        ON locations(canonical_external_id)
+        WHERE canonical_external_id IS NOT NULL;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_venues_canonical_external_id
+        ON venues(canonical_external_id)
+        WHERE canonical_external_id IS NOT NULL;
+      CREATE INDEX IF NOT EXISTS idx_venue_relationships_venue
+        ON venue_relationships(venue_id);
+      CREATE INDEX IF NOT EXISTS idx_location_travel_contexts_pair
+        ON location_travel_contexts(from_location_id, to_location_id);
     `,
   },
 ];

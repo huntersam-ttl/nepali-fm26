@@ -86,3 +86,18 @@ Promotion, relegation, qualification, expansion, and suspended movement are reso
 competition-season rules plus competition relationship records. Slot counts and exceptional flags live
 in data, not simulation constants, so federation-mode policy changes can later alter league size,
 format, and movement rules without changing club identity or rewriting the engine.
+
+## ADR-021: Nepal venues and geography are import data, not simulation constants
+
+Stage 2 models Nepal's physical football world through importable datasets: provinces, districts,
+cities, neighbourhoods, airports, venues, venue relationships, climate profiles, and basic travel
+contexts. Volatile claims such as stadium capacity, surface, ownership, operator, venue condition,
+club usage, and academy/training links stay in data with field-level provenance.
+
+Venue relationships distinguish owner, operator, tenant, temporary user, shared user, training user,
+academy user, and national-team user. This keeps government, federation, departmental, club,
+academy, and franchise relationships from collapsing into one ambiguous "home ground" field.
+
+The match engine may receive neutral venue/geography signals, but Stage 2 does not convert those
+signals into altitude, heat, monsoon, pitch, travel, scheduling, or home-advantage modifiers. Those
+systems should be added later as data consumers.

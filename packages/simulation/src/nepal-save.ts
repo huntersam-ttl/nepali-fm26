@@ -54,6 +54,7 @@ type EntityMaps = {
   clubMemberships: Map<string, EntityId>;
   academies: Map<string, EntityId>;
   venueRelationships: Map<string, EntityId>;
+  locationTravelContexts: Map<string, EntityId>;
   persons: Map<string, EntityId>;
   personRoles: Map<string, EntityId>;
   teamPersonAssignments: Map<string, EntityId>;
@@ -131,14 +132,27 @@ const importNepalWorld = (db: GameDatabase, dataset: NepalWorldDataset): void =>
     persistImport(imports, "country", id, country, country.provenance, importedAt);
   }
 
-  for (const location of dataset.locations) {
+  for (const location of orderLocationsForImport(dataset.locations)) {
     const id = maps.locations.get(location.key)!;
     world.insertLocation({
       id,
+      canonicalExternalId: location.canonicalExternalId,
       countryId: maps.countries.get(location.countryKey)!,
       name: location.name,
       kind: location.kind,
       parentLocationId: mapFact(location.parentLocationKey, maps.locations),
+      latitude: valueOf(location.latitude),
+      longitude: valueOf(location.longitude),
+      altitudeMeters: valueOf(location.altitudeMeters),
+      climateProfile: location.climateProfile
+        ? {
+            climateZone: valueOf(location.climateProfile.climateZone),
+            seasonalHeatRisk: valueOf(location.climateProfile.seasonalHeatRisk) ?? "UNKNOWN",
+            monsoonRisk: valueOf(location.climateProfile.monsoonRisk) ?? "UNKNOWN",
+            coldRisk: valueOf(location.climateProfile.coldRisk) ?? "UNKNOWN",
+            humidityRisk: valueOf(location.climateProfile.humidityRisk) ?? "UNKNOWN",
+          }
+        : undefined,
     });
     persistImport(imports, "location", id, location, location.provenance, importedAt);
   }
@@ -147,11 +161,31 @@ const importNepalWorld = (db: GameDatabase, dataset: NepalWorldDataset): void =>
     const id = maps.venues.get(venue.key)!;
     world.insertVenue({
       id,
+      canonicalExternalId: venue.canonicalExternalId,
       countryId: maps.countries.get(venue.countryKey)!,
       locationId: mapFact(venue.locationKey, maps.locations),
+      provinceId: mapFact(venue.provinceKey, maps.locations),
+      districtId: mapFact(venue.districtKey, maps.locations),
+      cityId: mapFact(venue.cityKey, maps.locations),
       name: venue.name,
+      officialName: valueOf(venue.officialName),
+      shortName: valueOf(venue.shortName),
+      aliases: venue.aliases,
+      venueType: valueOf(venue.venueType) ?? "UNKNOWN",
       capacity: valueOf(venue.capacity),
-      pitchType: valueOf(venue.pitchType),
+      latitude: valueOf(venue.latitude),
+      longitude: valueOf(venue.longitude),
+      altitudeMeters: valueOf(venue.altitudeMeters),
+      surfaceType: valueOf(venue.surfaceType) ?? "UNKNOWN",
+      pitchQuality: valueOf(venue.pitchQuality) ?? "UNKNOWN",
+      yearOpened: valueOf(venue.yearOpened),
+      yearLastRenovated: valueOf(venue.yearLastRenovated),
+      floodlights: valueOf(venue.floodlights),
+      runningTrack: valueOf(venue.runningTrack),
+      coveredStands: valueOf(venue.coveredStands),
+      ownerEntity: valueOf(venue.ownerEntity),
+      operatorEntity: valueOf(venue.operatorEntity),
+      status: valueOf(venue.status) ?? "UNKNOWN",
     });
     persistImport(imports, "venue", id, venue, venue.provenance, importedAt);
   }
@@ -338,7 +372,13 @@ const importNepalWorld = (db: GameDatabase, dataset: NepalWorldDataset): void =>
       venueId: maps.venues.get(relationship.venueKey)!,
       clubId: mapFact(relationship.clubKey, maps.clubs),
       teamId: mapFact(relationship.teamKey, maps.teams),
+      federationId: mapFact(relationship.federationKey, maps.federations),
+      academyId: mapFact(relationship.academyKey, maps.academies),
       relationshipType: relationship.relationshipType,
+      startDate: valueOf(relationship.startDate),
+      endDate: valueOf(relationship.endDate),
+      competitionSeasonId: mapFact(relationship.competitionSeasonKey, maps.competitionSeasons),
+      status: relationship.status,
     });
     persistImport(
       imports,
@@ -348,6 +388,20 @@ const importNepalWorld = (db: GameDatabase, dataset: NepalWorldDataset): void =>
       relationship.provenance,
       importedAt,
     );
+  }
+
+  for (const travel of dataset.locationTravelContexts) {
+    const id = maps.locationTravelContexts.get(travel.key)!;
+    world.insertLocationTravelContext({
+      id,
+      fromLocationId: maps.locations.get(travel.fromLocationKey)!,
+      toLocationId: maps.locations.get(travel.toLocationKey)!,
+      roadDistanceKm: valueOf(travel.roadDistanceKm),
+      estimatedRoadTravelHours: valueOf(travel.estimatedRoadTravelHours),
+      airTravelAvailable: valueOf(travel.airTravelAvailable),
+      nearestAirportId: mapFact(travel.nearestAirportKey, maps.locations),
+    });
+    persistImport(imports, "locationTravelContext", id, travel, travel.provenance, importedAt);
   }
 
   for (const person of dataset.persons) {
@@ -431,11 +485,37 @@ const buildEntityMaps = (dataset: NepalWorldDataset): EntityMaps => ({
   clubMemberships: mapKeys("club-membership", dataset.clubMemberships),
   academies: mapKeys("academy", dataset.academies),
   venueRelationships: mapKeys("venue-relationship", dataset.venueRelationships),
+  locationTravelContexts: mapKeys("location-travel-context", dataset.locationTravelContexts),
   persons: mapKeys("person", dataset.persons),
   personRoles: mapKeys("person-role", dataset.personRoles),
   teamPersonAssignments: mapKeys("team-person-assignment", dataset.teamPersonAssignments),
   playerAttributes: mapKeys("player-attribute", dataset.playerAttributes),
 });
+
+const orderLocationsForImport = (
+  locations: NepalWorldDataset["locations"],
+): NepalWorldDataset["locations"] => {
+  const pending = new Map(locations.map((location) => [location.key, location]));
+  const ordered: NepalWorldDataset["locations"] = [];
+  const inserted = new Set<string>();
+
+  while (pending.size > 0) {
+    const startingSize = pending.size;
+    for (const [key, location] of pending) {
+      const parentKey = location.parentLocationKey?.value;
+      if (parentKey === undefined || inserted.has(parentKey) || !pending.has(parentKey)) {
+        ordered.push(location);
+        inserted.add(key);
+        pending.delete(key);
+      }
+    }
+    if (pending.size === startingSize) {
+      throw new Error("Nepal world dataset has cyclic location parent references");
+    }
+  }
+
+  return ordered;
+};
 
 const mapKeys = (
   namespace: string,

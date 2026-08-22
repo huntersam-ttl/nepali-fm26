@@ -78,9 +78,20 @@ Stage 2 dataset records use explicit fact wrappers for fields that may be unavai
 
 The August 2026 Nepal club registry import is the first real-data staging dataset. It adds clubs,
 teams, aliases, club/team hierarchy, women's branches, academy links, competition memberships,
-locations, venues, and venue relationships without importing players. Competition membership is stored
-outside club identity so NSL franchises, ANFA pyramid clubs, and future divisional changes remain
-separate concepts.
+locations, venues, venue relationships, and basic travel context without importing players.
+Competition membership is stored outside club identity so NSL franchises, ANFA pyramid clubs, and
+future divisional changes remain separate concepts.
+
+The Nepal physical-world layer models province, district, city/municipality, neighbourhood, venue,
+and airport records as import data. Venues carry field-level facts for type, capacity, surface,
+altitude, ownership/operator text, status, and facilities. Relationships distinguish ownership,
+operation, tenant use, temporary use, shared use, academy use, training use, and national-team use so
+future chairman/federation infrastructure systems do not confuse a club using a ground with owning it.
+
+Match simulation can receive venue/geography signals through `buildMatchEnvironmentFromVenue`, but
+Stage 2 does not derive gameplay modifiers from those facts yet. Altitude, monsoon, heat, travel
+fatigue, pitch deterioration, scheduling conflicts, and stadium projects should be implemented as
+future systems that consume this data.
 
 ## Competition and Match Simulation
 

@@ -11,7 +11,11 @@ import {
   migrateDatabase,
   openGameDatabase,
 } from "@nepal-football-sim/database";
-import { createNepalSave, inspectNepalSave } from "@nepal-football-sim/simulation";
+import {
+  buildMatchEnvironmentFromVenue,
+  createNepalSave,
+  inspectNepalSave,
+} from "@nepal-football-sim/simulation";
 
 const tempDirs: string[] = [];
 const fixturePath = resolve(process.cwd(), "data/fixtures/testing-only-nepal-world.json");
@@ -42,7 +46,8 @@ describe("stage two Nepal world data pipeline", () => {
         WHERE type = 'table'
           AND name IN ('venues', 'team_person_assignments', 'entity_provenance',
             'club_aliases', 'club_memberships', 'club_relationships', 'academies',
-            'venue_relationships', 'competition_relationships', 'competition_movements')
+            'venue_relationships', 'competition_relationships', 'competition_movements',
+            'location_travel_contexts')
         ORDER BY name`,
       )
       .all()
@@ -56,6 +61,7 @@ describe("stage two Nepal world data pipeline", () => {
       "competition_movements",
       "competition_relationships",
       "entity_provenance",
+      "location_travel_contexts",
       "team_person_assignments",
       "venue_relationships",
       "venues",
@@ -158,8 +164,8 @@ describe("stage two Nepal world data pipeline", () => {
 
     expect(created.inspection).toMatchObject({
       countries: 1,
-      locations: 20,
-      venues: 7,
+      locations: 43,
+      venues: 8,
       federations: 1,
       competitions: 5,
       competitionSeasons: 5,
@@ -170,9 +176,11 @@ describe("stage two Nepal world data pipeline", () => {
       clubMemberships: 51,
       teams: 61,
       academies: 8,
-      venueRelationships: 0,
+      venueRelationships: 8,
+      locationTravelContexts: 3,
       persons: 0,
       playerAttributes: 0,
+      entityProvenance: 335,
     });
     expect(inspectNepalSave(databasePath)).toEqual(created);
 
@@ -205,5 +213,209 @@ describe("stage two Nepal world data pipeline", () => {
       .get() as { count: number };
     expect(aliasCount.count).toBe(3);
     db.close();
+  });
+
+  it("models Nepal venue geography, climate and travel without invented venue precision", () => {
+    const databasePath = tempDbPath();
+    createNepalSave({
+      databasePath,
+      dataset: loadClubRegistry(),
+      saveName: "Nepal Venue Geography August 2026",
+      gameVersion: "0.2.0",
+      randomSeed: "venue-geography-seed",
+    });
+
+    const db = openGameDatabase(databasePath);
+    migrateDatabase(db);
+
+    const provinceCount = db
+      .prepare("SELECT COUNT(*) AS count FROM locations WHERE kind = 'province'")
+      .get() as {
+      count: number;
+    };
+    expect(provinceCount.count).toBe(7);
+
+    const kathmanduHierarchy = db
+      .prepare(
+        `SELECT city.name AS city, district.name AS district, province.name AS province
+        FROM locations city
+        JOIN locations district ON district.id = city.parent_location_id
+        JOIN locations province ON province.id = district.parent_location_id
+        WHERE city.canonical_external_id = 'NP-CITY-KATHMANDU'`,
+      )
+      .get();
+    expect(kathmanduHierarchy).toEqual({
+      city: "Kathmandu",
+      district: "Kathmandu District",
+      province: "Bagmati",
+    });
+
+    const dasharath = db
+      .prepare(
+        `SELECT v.capacity, v.venue_type, v.status, v.surface_type, v.altitude_meters,
+          city.name AS city, district.name AS district, province.name AS province
+        FROM venues v
+        JOIN locations city ON city.id = v.city_id
+        JOIN locations district ON district.id = v.district_id
+        JOIN locations province ON province.id = v.province_id
+        WHERE v.canonical_external_id = 'NEP-VEN-DASHARATH-RANGASALA'`,
+      )
+      .get();
+    expect(dasharath).toEqual({
+      capacity: 15000,
+      venue_type: "MULTI_SPORT_STADIUM",
+      status: "ACTIVE",
+      surface_type: "UNKNOWN",
+      altitude_meters: null,
+      city: "Kathmandu",
+      district: "Kathmandu District",
+      province: "Bagmati",
+    });
+
+    const anfaComplex = db
+      .prepare(
+        `SELECT v.surface_type, l.climate_profile_json
+        FROM venues v
+        JOIN locations l ON l.id = v.location_id
+        WHERE v.canonical_external_id = 'NEP-VEN-ANFA-COMPLEX-GROUND'`,
+      )
+      .get() as { surface_type: string; climate_profile_json: string };
+    expect(anfaComplex.surface_type).toBe("ARTIFICIAL_TURF");
+    expect(JSON.parse(anfaComplex.climate_profile_json)).toMatchObject({
+      seasonalHeatRisk: "UNKNOWN",
+      monsoonRisk: "UNKNOWN",
+      coldRisk: "UNKNOWN",
+      humidityRisk: "UNKNOWN",
+    });
+
+    const travel = db
+      .prepare(
+        `SELECT road_distance_km, estimated_road_travel_hours, air_travel_available
+        FROM location_travel_contexts
+        WHERE from_location_id = (
+          SELECT id FROM locations WHERE canonical_external_id = 'NP-CITY-KATHMANDU'
+        )
+        AND to_location_id = (
+          SELECT id FROM locations WHERE canonical_external_id = 'NP-CITY-POKHARA'
+        )`,
+      )
+      .get();
+    expect(travel).toEqual({
+      road_distance_km: null,
+      estimated_road_travel_hours: null,
+      air_travel_available: null,
+    });
+
+    db.close();
+  });
+
+  it("distinguishes venue operators, national-team use, academy use and temporary club use", () => {
+    const databasePath = tempDbPath();
+    createNepalSave({
+      databasePath,
+      dataset: loadClubRegistry(),
+      saveName: "Nepal Venue Relationships August 2026",
+      gameVersion: "0.2.0",
+      randomSeed: "venue-relationships-seed",
+    });
+
+    const db = openGameDatabase(databasePath);
+    migrateDatabase(db);
+
+    const relationships = db
+      .prepare(
+        `SELECT v.canonical_external_id AS venue, c.canonical_external_id AS club,
+          t.canonical_external_id AS team, a.canonical_external_id AS academy,
+          f.name AS federation, vr.relationship_type, vr.status
+        FROM venue_relationships vr
+        JOIN venues v ON v.id = vr.venue_id
+        LEFT JOIN clubs c ON c.id = vr.club_id
+        LEFT JOIN teams t ON t.id = vr.team_id
+        LEFT JOIN academies a ON a.id = vr.academy_id
+        LEFT JOIN federations f ON f.id = vr.federation_id
+        ORDER BY vr.relationship_type, venue`,
+      )
+      .all();
+
+    expect(relationships).toContainEqual(
+      expect.objectContaining({
+        venue: "NEP-VEN-DASHARATH-RANGASALA",
+        federation: "All Nepal Football Association",
+        relationship_type: "NATIONAL_TEAM_USER",
+        status: "federationAssigned",
+      }),
+    );
+    expect(relationships).toContainEqual(
+      expect.objectContaining({
+        venue: "NEP-VEN-ANFA-COMPLEX-GROUND",
+        academy: "NEP-ACA-ANF1",
+        relationship_type: "ACADEMY_USER",
+        status: "available",
+      }),
+    );
+    expect(relationships).toContainEqual(
+      expect.objectContaining({
+        venue: "NEP-VEN-HALCHOWK-STADIUM",
+        club: "NEP-DEP-APF",
+        team: "NEP-DEP-APF-MEN",
+        relationship_type: "TRAINING_USER",
+      }),
+    );
+    expect(relationships).toContainEqual(
+      expect.objectContaining({
+        venue: "NEP-VEN-DOMALAL-RAJBANSHI-STADIUM",
+        club: "NEP-NSL-JHA",
+        relationship_type: "TEMPORARY_USER",
+      }),
+    );
+
+    const ownerRows = relationships.filter(
+      (relationship: any) => relationship.relationship_type === "OWNER",
+    );
+    expect(ownerRows).toEqual([]);
+    db.close();
+  });
+
+  it("keeps venue facts available for future match environment derivation", () => {
+    const environment = buildMatchEnvironmentFromVenue(
+      {
+        id: "venue-1" as any,
+        countryId: "np" as any,
+        locationId: "location-1" as any,
+        name: "Testing Venue",
+        surfaceType: "NATURAL_GRASS",
+        pitchQuality: "UNKNOWN",
+      },
+      {
+        id: "location-1" as any,
+        countryId: "np" as any,
+        name: "Testing City",
+        kind: "city",
+        altitudeMeters: 1400,
+        climateProfile: {
+          seasonalHeatRisk: "MEDIUM",
+          monsoonRisk: "HIGH",
+          coldRisk: "LOW",
+          humidityRisk: "MEDIUM",
+        },
+      },
+    );
+
+    expect(environment.environment).toMatchObject({
+      matchTempo: 1,
+      pitchQuality: 1,
+      weatherImpact: 0,
+      altitudeImpact: 0,
+      heatImpact: 0,
+    });
+    expect(environment.signals).toMatchObject({
+      venueId: "venue-1",
+      locationId: "location-1",
+      altitudeMeters: 1400,
+      surfaceType: "NATURAL_GRASS",
+      pitchQuality: "UNKNOWN",
+      seasonalHeatRisk: "MEDIUM",
+      monsoonRisk: "HIGH",
+    });
   });
 });

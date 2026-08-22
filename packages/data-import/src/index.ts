@@ -56,6 +56,8 @@ const nullableKeyFactSchema = factSchema(keySchema);
 const nullableDateFactSchema = factSchema(isoDateSchema);
 const nullableStringFactSchema = factSchema(z.string().min(1));
 const nullableNumberFactSchema = factSchema(z.number().int().nonnegative());
+const nullableDecimalFactSchema = factSchema(z.number());
+const nullableBooleanFactSchema = factSchema(z.boolean());
 
 export const importRecordSchema = z.object({
   entityType: z.string().min(1),
@@ -73,20 +75,79 @@ const countryRecordSchema = z.object({
 
 const locationRecordSchema = z.object({
   key: keySchema,
+  canonicalExternalId: z.string().min(1).optional(),
   countryKey: keySchema,
   name: z.string().min(1),
-  kind: z.enum(["city", "district", "province", "stadium", "unknown"]),
+  kind: z.enum([
+    "city",
+    "municipality",
+    "neighbourhood",
+    "district",
+    "province",
+    "stadium",
+    "airport",
+    "unknown",
+  ]),
   parentLocationKey: nullableKeyFactSchema.optional(),
+  latitude: nullableDecimalFactSchema.optional(),
+  longitude: nullableDecimalFactSchema.optional(),
+  altitudeMeters: nullableNumberFactSchema.optional(),
+  climateProfile: z
+    .object({
+      climateZone: nullableStringFactSchema.optional(),
+      seasonalHeatRisk: factSchema(z.enum(["LOW", "MEDIUM", "HIGH", "UNKNOWN"])),
+      monsoonRisk: factSchema(z.enum(["LOW", "MEDIUM", "HIGH", "UNKNOWN"])),
+      coldRisk: factSchema(z.enum(["LOW", "MEDIUM", "HIGH", "UNKNOWN"])),
+      humidityRisk: factSchema(z.enum(["LOW", "MEDIUM", "HIGH", "UNKNOWN"])),
+    })
+    .optional(),
   provenance: provenanceSchema,
 });
 
 const venueRecordSchema = z.object({
   key: keySchema,
+  canonicalExternalId: z.string().min(1).optional(),
   countryKey: keySchema,
   name: z.string().min(1),
+  officialName: nullableStringFactSchema.optional(),
+  shortName: nullableStringFactSchema.optional(),
+  aliases: z.array(z.string().min(1)).default([]),
+  venueType: factSchema(
+    z.enum([
+      "STADIUM",
+      "FOOTBALL_GROUND",
+      "TRAINING_GROUND",
+      "ACADEMY_GROUND",
+      "MULTI_SPORT_STADIUM",
+      "NATIONAL_TRAINING_CENTRE",
+      "UNKNOWN",
+    ]),
+  ).optional(),
   locationKey: nullableKeyFactSchema,
+  provinceKey: nullableKeyFactSchema.optional(),
+  districtKey: nullableKeyFactSchema.optional(),
+  cityKey: nullableKeyFactSchema.optional(),
+  latitude: nullableDecimalFactSchema.optional(),
+  longitude: nullableDecimalFactSchema.optional(),
+  altitudeMeters: nullableNumberFactSchema.optional(),
   capacity: nullableNumberFactSchema,
+  surfaceType: factSchema(
+    z.enum(["NATURAL_GRASS", "ARTIFICIAL_TURF", "HYBRID", "DIRT", "UNKNOWN"]),
+  ).optional(),
   pitchType: nullableStringFactSchema.optional(),
+  pitchQuality: factSchema(
+    z.enum(["EXCELLENT", "GOOD", "FAIR", "POOR", "VERY_POOR", "UNKNOWN"]),
+  ).optional(),
+  yearOpened: nullableNumberFactSchema.optional(),
+  yearLastRenovated: nullableNumberFactSchema.optional(),
+  floodlights: nullableBooleanFactSchema.optional(),
+  runningTrack: nullableBooleanFactSchema.optional(),
+  coveredStands: nullableBooleanFactSchema.optional(),
+  ownerEntity: nullableStringFactSchema.optional(),
+  operatorEntity: nullableStringFactSchema.optional(),
+  status: factSchema(
+    z.enum(["ACTIVE", "LIMITED_USE", "UNDER_RENOVATION", "CLOSED", "UNKNOWN"]),
+  ).optional(),
   provenance: provenanceSchema,
 });
 
@@ -323,24 +384,59 @@ const venueRelationshipRecordSchema = z
     venueKey: keySchema,
     clubKey: nullableKeyFactSchema.optional(),
     teamKey: nullableKeyFactSchema.optional(),
+    federationKey: nullableKeyFactSchema.optional(),
+    academyKey: nullableKeyFactSchema.optional(),
     relationshipType: z.enum([
       "OWNER",
       "OPERATOR",
+      "PRIMARY_TENANT",
       "TENANT",
       "TEMPORARY_USER",
       "SHARED_USER",
+      "TRAINING_USER",
+      "ACADEMY_USER",
+      "NATIONAL_TEAM_USER",
       "UNKNOWN",
     ]),
+    startDate: nullableDateFactSchema.optional(),
+    endDate: nullableDateFactSchema.optional(),
+    competitionSeasonKey: nullableKeyFactSchema.optional(),
+    status: z
+      .enum([
+        "available",
+        "unavailable",
+        "underRenovation",
+        "sharedConflict",
+        "federationAssigned",
+        "unknown",
+      ])
+      .default("unknown"),
     provenance: provenanceSchema,
   })
   .superRefine((relationship, context) => {
-    if (!relationship.clubKey?.value && !relationship.teamKey?.value) {
+    if (
+      !relationship.clubKey?.value &&
+      !relationship.teamKey?.value &&
+      !relationship.federationKey?.value &&
+      !relationship.academyKey?.value
+    ) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Venue relationship must link to a club or team",
+        message: "Venue relationship must link to a club, team, federation, or academy",
       });
     }
   });
+
+const locationTravelContextRecordSchema = z.object({
+  key: keySchema,
+  fromLocationKey: keySchema,
+  toLocationKey: keySchema,
+  roadDistanceKm: nullableDecimalFactSchema.optional(),
+  estimatedRoadTravelHours: nullableDecimalFactSchema.optional(),
+  airTravelAvailable: nullableBooleanFactSchema.optional(),
+  nearestAirportKey: nullableKeyFactSchema.optional(),
+  provenance: provenanceSchema,
+});
 
 const personRecordSchema = z.object({
   key: keySchema,
@@ -453,6 +549,7 @@ export const nepalWorldDatasetSchema = z.object({
   clubMemberships: z.array(clubMembershipRecordSchema).default([]),
   academies: z.array(academyRecordSchema).default([]),
   venueRelationships: z.array(venueRelationshipRecordSchema).default([]),
+  locationTravelContexts: z.array(locationTravelContextRecordSchema).default([]),
   persons: z.array(personRecordSchema),
   personRoles: z.array(personRoleRecordSchema),
   teamPersonAssignments: z.array(teamPersonAssignmentRecordSchema),
@@ -480,12 +577,14 @@ export const validateNepalWorldReferences = (
   const issues: DatasetReferenceIssue[] = [];
   const countries = keySet(dataset.countries);
   const locations = keySet(dataset.locations);
+  const locationKinds = new Map(dataset.locations.map((location) => [location.key, location.kind]));
   const venues = keySet(dataset.venues);
   const federations = keySet(dataset.federations);
   const competitions = keySet(dataset.competitions);
   const competitionSeasons = keySet(dataset.competitionSeasons);
   const clubs = keySet(dataset.clubs);
   const teams = keySet(dataset.teams);
+  const academies = keySet(dataset.academies);
   const persons = keySet(dataset.persons);
 
   requireUniqueKeys(issues, "countries", dataset.countries);
@@ -499,6 +598,7 @@ export const validateNepalWorldReferences = (
   requireUniqueKeys(issues, "teams", dataset.teams);
   requireUniqueCanonicalExternalIds(issues, dataset.clubs);
   requireUniqueCanonicalExternalIds(issues, dataset.teams);
+  requireUniqueCanonicalExternalIds(issues, dataset.venues);
   requireAliasIntegrity(issues, dataset.clubAliases, clubs);
 
   for (const [index, location] of dataset.locations.entries()) {
@@ -509,10 +609,74 @@ export const validateNepalWorldReferences = (
       location.parentLocationKey,
       locations,
     );
+    requireValidCoordinates(issues, `locations.${index}`, location.latitude, location.longitude);
+    requireValidAltitude(issues, `locations.${index}.altitudeMeters`, location.altitudeMeters);
+    if (location.parentLocationKey?.value === location.key) {
+      issues.push({
+        path: `locations.${index}.parentLocationKey`,
+        message: "Location cannot be its own parent",
+      });
+    }
+    if (location.kind === "province" && location.parentLocationKey?.value) {
+      issues.push({
+        path: `locations.${index}.parentLocationKey`,
+        message: "Province locations must not have a parent location",
+      });
+    }
+    if (location.kind === "district") {
+      requireOptionalLocationKind(
+        issues,
+        `locations.${index}.parentLocationKey`,
+        location.parentLocationKey,
+        locationKinds,
+        ["province"],
+      );
+    }
+    if (location.kind === "city" || location.kind === "municipality") {
+      requireOptionalLocationKind(
+        issues,
+        `locations.${index}.parentLocationKey`,
+        location.parentLocationKey,
+        locationKinds,
+        ["district"],
+      );
+    }
+    if (location.kind === "neighbourhood" || location.kind === "airport") {
+      requireOptionalLocationKind(
+        issues,
+        `locations.${index}.parentLocationKey`,
+        location.parentLocationKey,
+        locationKinds,
+        ["city", "municipality"],
+      );
+    }
   }
   for (const [index, venue] of dataset.venues.entries()) {
     requireRef(issues, `venues.${index}.countryKey`, venue.countryKey, countries);
     requireOptionalFactRef(issues, `venues.${index}.locationKey`, venue.locationKey, locations);
+    requireOptionalFactRef(issues, `venues.${index}.provinceKey`, venue.provinceKey, locations);
+    requireOptionalFactRef(issues, `venues.${index}.districtKey`, venue.districtKey, locations);
+    requireOptionalFactRef(issues, `venues.${index}.cityKey`, venue.cityKey, locations);
+    requireOptionalLocationKind(
+      issues,
+      `venues.${index}.provinceKey`,
+      venue.provinceKey,
+      locationKinds,
+      ["province"],
+    );
+    requireOptionalLocationKind(
+      issues,
+      `venues.${index}.districtKey`,
+      venue.districtKey,
+      locationKinds,
+      ["district"],
+    );
+    requireOptionalLocationKind(issues, `venues.${index}.cityKey`, venue.cityKey, locationKinds, [
+      "city",
+      "municipality",
+    ]);
+    requireValidCoordinates(issues, `venues.${index}`, venue.latitude, venue.longitude);
+    requireValidAltitude(issues, `venues.${index}.altitudeMeters`, venue.altitudeMeters);
   }
   for (const [index, federation] of dataset.federations.entries()) {
     requireRef(issues, `federations.${index}.countryKey`, federation.countryKey, countries);
@@ -649,6 +813,44 @@ export const validateNepalWorldReferences = (
       venueRelationship.teamKey,
       teams,
     );
+    requireOptionalFactRef(
+      issues,
+      `venueRelationships.${index}.federationKey`,
+      venueRelationship.federationKey,
+      federations,
+    );
+    requireOptionalFactRef(
+      issues,
+      `venueRelationships.${index}.academyKey`,
+      venueRelationship.academyKey,
+      academies,
+    );
+    requireOptionalFactRef(
+      issues,
+      `venueRelationships.${index}.competitionSeasonKey`,
+      venueRelationship.competitionSeasonKey,
+      competitionSeasons,
+    );
+  }
+  for (const [index, travel] of dataset.locationTravelContexts.entries()) {
+    requireRef(
+      issues,
+      `locationTravelContexts.${index}.fromLocationKey`,
+      travel.fromLocationKey,
+      locations,
+    );
+    requireRef(
+      issues,
+      `locationTravelContexts.${index}.toLocationKey`,
+      travel.toLocationKey,
+      locations,
+    );
+    requireOptionalFactRef(
+      issues,
+      `locationTravelContexts.${index}.nearestAirportKey`,
+      travel.nearestAirportKey,
+      locations,
+    );
   }
   for (const [index, person] of dataset.persons.entries()) {
     requireRef(
@@ -771,5 +973,48 @@ const requireOptionalFactRef = (
 ): void => {
   if (fact?.value !== undefined && !validKeys.has(fact.value)) {
     issues.push({ path, message: `Unknown reference: ${fact.value}` });
+  }
+};
+
+const requireOptionalLocationKind = (
+  issues: DatasetReferenceIssue[],
+  path: string,
+  fact: { value?: string } | undefined,
+  locationKinds: ReadonlyMap<string, string>,
+  allowedKinds: readonly string[],
+): void => {
+  if (fact?.value === undefined) {
+    return;
+  }
+  const kind = locationKinds.get(fact.value);
+  if (kind !== undefined && !allowedKinds.includes(kind)) {
+    issues.push({
+      path,
+      message: `Expected ${fact.value} to be ${allowedKinds.join(" or ")}, got ${kind}`,
+    });
+  }
+};
+
+const requireValidCoordinates = (
+  issues: DatasetReferenceIssue[],
+  path: string,
+  latitude: { value?: number } | undefined,
+  longitude: { value?: number } | undefined,
+): void => {
+  if (latitude?.value !== undefined && (latitude.value < -90 || latitude.value > 90)) {
+    issues.push({ path: `${path}.latitude`, message: `Invalid latitude: ${latitude.value}` });
+  }
+  if (longitude?.value !== undefined && (longitude.value < -180 || longitude.value > 180)) {
+    issues.push({ path: `${path}.longitude`, message: `Invalid longitude: ${longitude.value}` });
+  }
+};
+
+const requireValidAltitude = (
+  issues: DatasetReferenceIssue[],
+  path: string,
+  altitude: { value?: number } | undefined,
+): void => {
+  if (altitude?.value !== undefined && (altitude.value < -500 || altitude.value > 9000)) {
+    issues.push({ path, message: `Invalid altitudeMeters: ${altitude.value}` });
   }
 };
