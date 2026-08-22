@@ -223,6 +223,18 @@ select {
   margin-bottom: 10px;
 }
 
+.button-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.inbox-item {
+  display: grid;
+  gap: 4px;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;

@@ -118,3 +118,11 @@ The desktop app currently uses a testing-mode manager flow read model. Productio
 Additional headless command:
 
 - `pnpm tactics:balance`
+
+## Desktop Save Integration
+
+Stage 4.1 adds a save-backed desktop application service and bridge contract for manager careers. The core persisted flow is tested through `DesktopApplicationService`, which creates SQLite save files outside the repository, seeds a testing-only Nepal world, persists character/manager/tactic data, runs the real quick-sim manager flow, and reloads read models from the saved database.
+
+The React app talks to `apps/desktop/src/appBridge.ts`. In native Tauri it calls command names such as `create_career`, `load_save`, `save_tactic`, and `quick_sim_match`. In browser/E2E development it uses a local persisted adapter with the same UI contract so the flow can be tested without native automation.
+
+See `docs/architecture/desktop-save-integration.md`.

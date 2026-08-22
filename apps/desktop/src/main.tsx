@@ -1,206 +1,118 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
+import {
+  createAppBridge,
+  type AppError,
+  type DesktopApplicationState,
+  type SaveListItem,
+  type SquadRow,
+  type TacticalSetup,
+} from "./appBridge.js";
 import "./styles.css";
 
 type Screen = "home" | "squad" | "tactics" | "fixtures" | "competition" | "profile";
-type CareerStep = "character" | "club" | "manager";
+type Entry = "start" | "new" | "load" | "manager";
 
-type Player = {
-  id: string;
-  name: string;
-  age: number;
-  nationality: string;
-  positions: string[];
-  foot: "Left" | "Right";
-  fitness: number;
-  form: number;
-  morale: string;
-  overall: number;
-  appearances: number;
-  goals: number;
-  assists: number;
-  averageRating: number;
-  availability: string;
-  attributes: Record<string, number>;
-};
-
-type TacticalSlot = {
-  id: string;
-  label: string;
-  x: number;
-  y: number;
-  role: string;
-  playerId?: string;
-};
-
-const players: Player[] = [
-  player("p1", "Kiran Rai", 28, ["GK"], "Right", 84, 7.01, 12),
-  player("p2", "Suman Lama", 24, ["RB", "LB"], "Right", 91, 6.79, 11),
-  player("p3", "Anil Gurung", 31, ["CB"], "Right", 76, 6.88, 12),
-  player("p4", "Bikash Thapa", 22, ["CB", "DM"], "Left", 88, 6.95, 10),
-  player("p5", "Nabin Shrestha", 25, ["LB", "WBL"], "Left", 82, 6.72, 10),
-  player("p6", "Rohit Karki", 27, ["DM", "CM"], "Right", 79, 6.91, 12),
-  player("p7", "Aakash Tamang", 23, ["CM"], "Right", 86, 6.84, 11),
-  player("p8", "Sanjay Magar", 21, ["AM", "CM"], "Left", 92, 7.12, 13),
-  player("p9", "Prakash Bista", 26, ["RW", "AM"], "Right", 73, 6.66, 10),
-  player("p10", "Milan Sunar", 20, ["LW", "ST"], "Left", 89, 6.93, 11),
-  player("p11", "Dinesh Ale", 29, ["ST"], "Right", 81, 7.2, 13),
-  player("p12", "Ramesh Chaudhary", 19, ["GK"], "Right", 96, 6.41, 8),
-  player("p13", "Ashim KC", 24, ["CB", "RB"], "Right", 83, 6.54, 9),
-  player("p14", "Manish Bhandari", 27, ["CM", "DM"], "Left", 77, 6.5, 9),
-  player("p15", "Sagar Budha", 22, ["RW", "LW"], "Right", 87, 6.69, 10),
-  player("p16", "Bimal Rana", 30, ["ST", "AM"], "Right", 74, 6.61, 10),
-  player("p17", "Hari Malla", 23, ["LB", "CB"], "Left", 90, 6.48, 9),
-  player("p18", "Deepak Tamang", 21, ["CM"], "Right", 93, 6.36, 8),
-];
-
-const initialSlots: TacticalSlot[] = [
-  slot("GK", 50, 8, "Goalkeeper", "p1"),
-  slot("DL", 18, 25, "Full Back", "p5"),
-  slot("DCL", 38, 23, "Ball-Playing Defender", "p3"),
-  slot("DCR", 62, 23, "Cover", "p4"),
-  slot("DR", 82, 25, "Full Back", "p2"),
-  slot("MCL", 38, 52, "Box-to-Box Midfielder", "p6"),
-  slot("MC", 50, 49, "Deep-Lying Playmaker", "p7"),
-  slot("MCR", 62, 52, "Advanced Playmaker", "p8"),
-  slot("AML", 22, 76, "Inside Forward", "p10"),
-  slot("AMR", 78, 76, "Winger", "p9"),
-  slot("STC", 50, 89, "Pressing Forward", "p11"),
-];
-
-const bench = ["p12", "p13", "p14", "p15", "p16", "p17", "p18"];
+const bridge = createAppBridge();
 
 const App = (): React.ReactElement => {
-  const [careerStep, setCareerStep] = useState<CareerStep>("character");
+  const [entry, setEntry] = useState<Entry>("start");
   const [screen, setScreen] = useState<Screen>("home");
-  const [managerName, setManagerName] = useState("Maya Adhikari");
-  const [displayName, setDisplayName] = useState("Maya");
-  const [dateOfBirth, setDateOfBirth] = useState("1993-05-12");
-  const [startingAge, setStartingAge] = useState(33);
-  const [clubJoined, setClubJoined] = useState(false);
-  const [selectedPlayerId, setSelectedPlayerId] = useState("p11");
-  const [filter, setFilter] = useState("");
-  const [sortKey, setSortKey] = useState<"overall" | "fitness" | "rating">("overall");
-  const [slots, setSlots] = useState(initialSlots);
-  const [style, setStyle] = useState("Balanced");
-  const [mentality, setMentality] = useState("Balanced");
-  const [tempo, setTempo] = useState(50);
-  const [pressing, setPressing] = useState(50);
-  const [result, setResult] = useState<null | { score: string; events: string[] }>(null);
-  const selectedPlayer =
-    players.find((candidate) => candidate.id === selectedPlayerId) ?? players[0]!;
-  const starters = slots.flatMap((candidate) => {
-    const picked = players.find((playerItem) => playerItem.id === candidate.playerId);
-    return picked ? [picked] : [];
-  });
-  const squadRows = useMemo(
-    () =>
-      [...players]
-        .filter((candidate) => candidate.name.toLowerCase().includes(filter.toLowerCase()))
-        .sort((a, b) =>
-          sortKey === "rating"
-            ? b.averageRating - a.averageRating
-            : sortKey === "fitness"
-              ? b.fitness - a.fitness
-              : b.overall - a.overall,
-        ),
-    [filter, sortKey],
-  );
-  const warnings = [
-    starters.length !== 11 ? "Starting XI must contain 11 players." : undefined,
-    new Set(starters.map((playerItem) => playerItem.id)).size !== starters.length
-      ? "Duplicate starter detected."
-      : undefined,
-    starters.some((playerItem) => playerItem.positions.includes("GK"))
-      ? undefined
-      : "No goalkeeper selected.",
-    pressing > 75 ? "High press will increase fatigue and transition risk." : undefined,
-  ].filter(Boolean);
+  const [state, setState] = useState<DesktopApplicationState | null>(null);
+  const [saves, setSaves] = useState<SaveListItem[]>([]);
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string | undefined>();
+  const [error, setError] = useState<AppError | null>(null);
 
-  if (careerStep !== "manager") {
+  const refreshSaves = async (): Promise<void> => {
+    const result = await bridge.listSaves();
+    if (result.ok) {
+      setSaves(result.data);
+    } else {
+      setError(result.error);
+    }
+  };
+
+  useEffect(() => {
+    void refreshSaves();
+  }, []);
+
+  const applyState = (next: DesktopApplicationState): void => {
+    setState(next);
+    setSelectedPlayerId(next.squad[0]?.personId);
+    setEntry("manager");
+    setScreen("home");
+    setError(null);
+    void refreshSaves();
+  };
+
+  if (entry === "new") {
     return (
-      <main className="career-shell">
-        <section className="career-panel">
-          <p className="eyebrow">New Career</p>
-          <h1>{careerStep === "character" ? "Create Character" : "Join A Club"}</h1>
-          {careerStep === "character" ? (
-            <div className="form-grid">
-              <label>
-                Full name
-                <input
-                  value={managerName}
-                  onChange={(event) => setManagerName(event.target.value)}
-                />
-              </label>
-              <label>
-                Display name
-                <input
-                  value={displayName}
-                  onChange={(event) => setDisplayName(event.target.value)}
-                />
-              </label>
-              <label>
-                Date of birth
-                <input
-                  type="date"
-                  value={dateOfBirth}
-                  onChange={(event) => setDateOfBirth(event.target.value)}
-                />
-              </label>
-              <label>
-                Starting age
-                <input
-                  type="number"
-                  min="16"
-                  max="90"
-                  value={startingAge}
-                  onChange={(event) => setStartingAge(Number(event.target.value))}
-                />
-              </label>
-              <label>
-                Nationality
-                <select defaultValue="Nepal">
-                  <option>Nepal</option>
-                  <option>Second nationality optional</option>
-                </select>
-              </label>
-              <label>
-                Background
-                <select defaultValue="Youth Coach">
-                  <option>No Playing Experience</option>
-                  <option>Amateur Player</option>
-                  <option>Semi-Professional Player</option>
-                  <option>Professional Player</option>
-                  <option>Former International</option>
-                  <option>Youth Coach</option>
-                  <option>Sports-related Degree</option>
-                </select>
-              </label>
-              <button className="primary" onClick={() => setCareerStep("club")}>
-                Continue
-              </button>
-            </div>
-          ) : (
-            <div className="club-choice">
-              <button
-                className="club-row"
-                onClick={() => {
-                  setClubJoined(true);
-                  setCareerStep("manager");
-                }}
-              >
-                <strong>Kathmandu Testing Club</strong>
-                <span>Manager, NPR 90,000/month, active testing appointment</span>
-              </button>
-              <button className="ghost" onClick={() => setCareerStep("manager")}>
-                Start Unemployed
-              </button>
-            </div>
-          )}
-        </section>
-      </main>
+      <NewCareer onCancel={() => setEntry("start")} onCreated={applyState} onError={setError} />
     );
   }
+
+  if (entry === "load") {
+    return (
+      <StartShell error={error}>
+        <section className="career-panel">
+          <p className="eyebrow">Load Career</p>
+          <h1>Saved Careers</h1>
+          <div className="club-choice">
+            {saves.length === 0 && <p>No saves found.</p>}
+            {saves.map((save) => (
+              <button
+                className="club-row"
+                key={save.saveId}
+                onClick={async () => {
+                  const result = await bridge.loadSave(save.saveId);
+                  if (result.ok) {
+                    applyState(result.data);
+                  } else {
+                    setError(result.error);
+                  }
+                }}
+              >
+                <strong>{save.displayName}</strong>
+                <span>
+                  {save.characterName ?? "Unknown manager"} · {save.currentClub ?? "Unemployed"} ·{" "}
+                  {save.worldDate}
+                </span>
+              </button>
+            ))}
+            <button className="ghost" onClick={() => setEntry("start")}>
+              Back
+            </button>
+          </div>
+        </section>
+      </StartShell>
+    );
+  }
+
+  if (!state || entry === "start") {
+    return (
+      <StartShell error={error}>
+        <section className="career-panel">
+          <p className="eyebrow">Nepal Football Universe</p>
+          <h1>Career Saves</h1>
+          <div className="club-choice">
+            <button className="club-row" onClick={() => setEntry("new")}>
+              <strong>New Career</strong>
+              <span>Create a persisted testing-world manager save.</span>
+            </button>
+            <button className="club-row" onClick={() => setEntry("load")}>
+              <strong>Load Career</strong>
+              <span>
+                {saves.length} save{saves.length === 1 ? "" : "s"} available.
+              </span>
+            </button>
+          </div>
+        </section>
+      </StartShell>
+    );
+  }
+
+  const selectedPlayer =
+    state.squad.find((candidate) => candidate.personId === selectedPlayerId) ?? state.squad[0];
 
   return (
     <main className="manager-shell">
@@ -222,298 +134,162 @@ const App = (): React.ReactElement => {
             ),
           )}
         </nav>
+        <button className="ghost" onClick={() => setEntry("start")}>
+          Saves
+        </button>
       </aside>
       <section className="workspace">
+        {error && <ErrorBanner error={error} />}
         <header className="topbar">
           <div>
-            <strong>{displayName}</strong>
-            <span>{clubJoined ? "Kathmandu Testing Club" : "Unemployed"}</span>
+            <strong>{state.home.managerName}</strong>
+            <span>{state.home.clubName ?? "Unemployed"}</span>
           </div>
           <div>
-            <strong>2026-08-01</strong>
-            <span>Next: Testing League opener</span>
+            <strong>{state.save.worldDate}</strong>
+            <span>
+              {state.home.nextFixture
+                ? `Next: ${state.home.nextFixture.opponent}`
+                : "No fixture pending"}
+            </span>
           </div>
         </header>
         {screen === "home" && (
           <section className="dashboard">
             <Panel title="Inbox">
-              <div className="inbox-item">
-                Fixture upcoming: Kathmandu Testing Club vs Lalitpur Test XI.
-              </div>
-              {result && (
-                <div className="inbox-item">Match result: {result.score} quick sim completed.</div>
-              )}
-            </Panel>
-            <Panel title="Match Preparation">
-              <dl className="metrics">
-                <div>
-                  <dt>Formation</dt>
-                  <dd>4-3-3 Custom</dd>
+              {state.home.inbox.map((item) => (
+                <div className="inbox-item" key={item.id}>
+                  <strong>{item.title}</strong>
+                  <span>{item.body}</span>
                 </div>
-                <div>
-                  <dt>Style</dt>
-                  <dd>{style}</dd>
-                </div>
-                <div>
-                  <dt>Fitness warning</dt>
-                  <dd>{players.filter((playerItem) => playerItem.fitness < 80).length}</dd>
-                </div>
-              </dl>
-              <button className="primary" onClick={() => setScreen("fixtures")}>
-                Prepare Match
-              </button>
-            </Panel>
-            <Panel title="Recent Form">
-              <div className="form-strip">
-                {result ? "W D W L W" : "No competitive results yet"}
-              </div>
-            </Panel>
-          </section>
-        )}
-        {screen === "squad" && (
-          <section className="split">
-            <div>
-              <div className="table-tools">
-                <input
-                  placeholder="Filter squad"
-                  value={filter}
-                  onChange={(event) => setFilter(event.target.value)}
-                />
-                <select
-                  value={sortKey}
-                  onChange={(event) => setSortKey(event.target.value as typeof sortKey)}
-                >
-                  <option value="overall">Overall</option>
-                  <option value="fitness">Fitness</option>
-                  <option value="rating">Average rating</option>
-                </select>
-              </div>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Age</th>
-                    <th>Nat</th>
-                    <th>Positions</th>
-                    <th>Foot</th>
-                    <th>Fit</th>
-                    <th>Form</th>
-                    <th>Role fit</th>
-                    <th>Apps</th>
-                    <th>G</th>
-                    <th>A</th>
-                    <th>AvR</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {squadRows.map((playerItem) => (
-                    <tr key={playerItem.id} onClick={() => setSelectedPlayerId(playerItem.id)}>
-                      <td>{playerItem.name}</td>
-                      <td>{playerItem.age}</td>
-                      <td>{playerItem.nationality}</td>
-                      <td>{playerItem.positions.join(", ")}</td>
-                      <td>{playerItem.foot}</td>
-                      <td>{playerItem.fitness}</td>
-                      <td>{playerItem.form}</td>
-                      <td>{roleFitLabel(playerItem.overall)}</td>
-                      <td>{playerItem.appearances}</td>
-                      <td>{playerItem.goals}</td>
-                      <td>{playerItem.assists}</td>
-                      <td>{playerItem.averageRating.toFixed(2)}</td>
-                      <td>{playerItem.availability}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <PlayerProfile playerItem={selectedPlayer} />
-          </section>
-        )}
-        {screen === "tactics" && (
-          <section className="tactics-layout">
-            <Panel title="Team Instructions">
-              <div className="controls">
-                <label>
-                  Style
-                  <select value={style} onChange={(event) => setStyle(event.target.value)}>
-                    {[
-                      "Balanced",
-                      "Possession",
-                      "Gegenpress",
-                      "High Press",
-                      "Counter Attack",
-                      "Direct",
-                      "Low Block",
-                      "Wing Play",
-                      "Vertical",
-                    ].map((item) => (
-                      <option key={item}>{item}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Mentality
-                  <select value={mentality} onChange={(event) => setMentality(event.target.value)}>
-                    {[
-                      "Very Defensive",
-                      "Defensive",
-                      "Cautious",
-                      "Balanced",
-                      "Positive",
-                      "Attacking",
-                      "Very Attacking",
-                    ].map((item) => (
-                      <option key={item}>{item}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Tempo
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={tempo}
-                    onChange={(event) => setTempo(Number(event.target.value))}
-                  />
-                </label>
-                <label>
-                  Pressing
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={pressing}
-                    onChange={(event) => setPressing(Number(event.target.value))}
-                  />
-                </label>
-              </div>
-            </Panel>
-            <div className="pitch">
-              {slots.map((slotItem) => (
-                <button
-                  key={slotItem.id}
-                  className="slot"
-                  style={{ left: `${slotItem.x}%`, top: `${100 - slotItem.y}%` }}
-                  onClick={() =>
-                    setSlots((current) =>
-                      current.map((candidate) =>
-                        candidate.id === slotItem.id
-                          ? {
-                              ...candidate,
-                              role: candidate.role === "Winger" ? "Inside Forward" : "Winger",
-                            }
-                          : candidate,
-                      ),
-                    )
-                  }
-                >
-                  <strong>{slotItem.label}</strong>
-                  <span>
-                    {players
-                      .find((candidate) => candidate.id === slotItem.playerId)
-                      ?.name.split(" ")
-                      .at(-1)}
-                  </span>
-                </button>
               ))}
-            </div>
-            <Panel title="Selection Validation">
-              {warnings.length ? (
-                warnings.map((warning) => (
-                  <div key={warning} className="warning">
-                    {warning}
-                  </div>
-                ))
-              ) : (
-                <div className="ok">XI, bench, goalkeeper and duplicate checks pass.</div>
-              )}
-              <p>
-                Bench:{" "}
-                {bench
-                  .map((id) => players.find((candidate) => candidate.id === id)?.name)
-                  .join(", ")}
-              </p>
             </Panel>
-          </section>
-        )}
-        {screen === "fixtures" && (
-          <section className="dashboard">
-            <Panel title="Next Fixture">
-              <h2>Kathmandu Testing Club vs Lalitpur Test XI</h2>
-              <p>Testing League, Dasarath testing venue, 2026-08-03.</p>
+            <Panel title="Dashboard">
               <dl className="metrics">
                 <div>
-                  <dt>XI</dt>
-                  <dd>{starters.length}</dd>
+                  <dt>Position</dt>
+                  <dd>{state.home.position ?? "-"}</dd>
                 </div>
                 <div>
-                  <dt>Bench</dt>
-                  <dd>{bench.length}</dd>
+                  <dt>Unavailable</dt>
+                  <dd>{state.home.unavailablePlayers.length}</dd>
                 </div>
                 <div>
-                  <dt>Style</dt>
-                  <dd>{style}</dd>
+                  <dt>Tactic</dt>
+                  <dd>{state.activeTactic?.name ?? "None"}</dd>
                 </div>
               </dl>
               <button
                 className="primary"
-                onClick={() =>
-                  setResult({
-                    score: pressing > 70 ? "2-1" : style === "Low Block" ? "1-0" : "1-1",
-                    events: ["12' Shot saved", "31' Goal", "63' Substitution", "77' Yellow card"],
-                  })
-                }
+                onClick={async () => {
+                  const result = await bridge.continueToNextFixture(state.save.id);
+                  if (result.ok) {
+                    applyState(result.data);
+                  } else {
+                    setError(result.error);
+                  }
+                }}
               >
-                Quick Sim
+                Continue
               </button>
             </Panel>
-            {result && (
-              <Panel title="Post Match">
-                <h2>{result.score}</h2>
-                <dl className="metrics">
-                  <div>
-                    <dt>Shots</dt>
-                    <dd>8-6</dd>
-                  </div>
-                  <div>
-                    <dt>On target</dt>
-                    <dd>5-3</dd>
-                  </div>
-                  <div>
-                    <dt>xG</dt>
-                    <dd>1.42-1.08</dd>
-                  </div>
-                  <div>
-                    <dt>Possession</dt>
-                    <dd>52-48</dd>
-                  </div>
-                </dl>
-                {result.events.map((event) => (
-                  <div className="event" key={event}>
-                    {event}
-                  </div>
-                ))}
+            {state.home.previousResult && (
+              <Panel title="Previous Result">
+                <h2>{state.home.previousResult.score}</h2>
+                <p>
+                  {state.home.previousResult.homeTeam} vs {state.home.previousResult.awayTeam}
+                </p>
               </Panel>
             )}
           </section>
         )}
+        {screen === "squad" && (
+          <SquadScreen
+            rows={state.squad}
+            selectedPlayer={selectedPlayer}
+            onSelect={setSelectedPlayerId}
+          />
+        )}
+        {screen === "tactics" && (
+          <TacticsScreen
+            squad={state.squad}
+            tactic={state.activeTactic}
+            onSave={async (tactic) => {
+              const result = await bridge.saveTactic(state.save.id, tactic);
+              if (result.ok) {
+                setState({ ...state, activeTactic: result.data, tactics: [result.data] });
+                setError(null);
+              } else {
+                setError(result.error);
+              }
+            }}
+          />
+        )}
+        {screen === "fixtures" && (
+          <section className="dashboard">
+            <Panel title="Fixtures">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Opponent</th>
+                    <th>H/A</th>
+                    <th>Status</th>
+                    <th>Score</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {state.fixtures.map((fixture) => (
+                    <tr key={fixture.id}>
+                      <td>{fixture.date}</td>
+                      <td>{fixture.opponent}</td>
+                      <td>{fixture.homeAway}</td>
+                      <td>{fixture.status}</td>
+                      <td>{fixture.score ?? "-"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <button
+                className="primary"
+                onClick={async () => {
+                  const result = await bridge.quickSimMatch(
+                    state.save.id,
+                    state.home.nextFixture?.id,
+                  );
+                  if (result.ok) {
+                    applyState(result.data);
+                  } else {
+                    setError(result.error);
+                  }
+                }}
+              >
+                Quick Sim
+              </button>
+            </Panel>
+            {state.home.previousResult && <PostMatch result={state.home.previousResult} />}
+          </section>
+        )}
         {screen === "competition" && (
-          <Panel title="Testing League Table">
+          <Panel title={state.competition.name}>
             <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Team</th>
+                  <th>P</th>
+                  <th>GD</th>
+                  <th>Pts</th>
+                </tr>
+              </thead>
               <tbody>
-                {[
-                  "Kathmandu Testing Club",
-                  "Lalitpur Test XI",
-                  "Pokhara Sample Club",
-                  "Biratnagar Demo",
-                ].map((team, index) => (
-                  <tr key={team}>
+                {state.competition.table.map((row, index) => (
+                  <tr key={row.teamId}>
                     <td>{index + 1}</td>
-                    <td>{team}</td>
-                    <td>{result && index === 0 ? 3 : 0}</td>
-                    <td>{result && index === 0 ? "+1" : "0"}</td>
+                    <td>{row.teamName}</td>
+                    <td>{row.played}</td>
+                    <td>{row.goalDifference}</td>
+                    <td>{row.points}</td>
                   </tr>
                 ))}
               </tbody>
@@ -525,27 +301,19 @@ const App = (): React.ReactElement => {
             <dl className="profile-grid">
               <div>
                 <dt>Name</dt>
-                <dd>{managerName}</dd>
+                <dd>{state.home.managerName}</dd>
               </div>
               <div>
-                <dt>Date of birth</dt>
-                <dd>{dateOfBirth}</dd>
+                <dt>Role</dt>
+                <dd>{state.saveListItem.currentRole ?? "Manager"}</dd>
               </div>
               <div>
-                <dt>Starting age</dt>
-                <dd>{startingAge}</dd>
+                <dt>Club</dt>
+                <dd>{state.home.clubName ?? "Unemployed"}</dd>
               </div>
               <div>
-                <dt>Nationality</dt>
-                <dd>Nepal</dd>
-              </div>
-              <div>
-                <dt>Licences</dt>
-                <dd>Testing C Licence</dd>
-              </div>
-              <div>
-                <dt>Reputation</dt>
-                <dd>Local respected</dd>
+                <dt>Save</dt>
+                <dd>{state.save.name}</dd>
               </div>
             </dl>
           </Panel>
@@ -555,6 +323,367 @@ const App = (): React.ReactElement => {
   );
 };
 
+const NewCareer = (props: {
+  onCancel: () => void;
+  onCreated: (state: DesktopApplicationState) => void;
+  onError: (error: AppError) => void;
+}): React.ReactElement => {
+  const [saveName, setSaveName] = useState("Maya Manager Save");
+  const [fullName, setFullName] = useState("Maya Adhikari");
+  const [displayName, setDisplayName] = useState("Maya");
+  const [dateOfBirth, setDateOfBirth] = useState("1993-05-12");
+  const [startingAge, setStartingAge] = useState(33);
+  const [step, setStep] = useState(1);
+  return (
+    <StartShell>
+      <section className="career-panel">
+        <p className="eyebrow">New Career</p>
+        <h1>
+          {["Character", "Background", "Career Role", "Starting World", "Confirmation"][step - 1]}
+        </h1>
+        {step === 1 && (
+          <div className="form-grid">
+            <label>
+              Save name
+              <input value={saveName} onChange={(event) => setSaveName(event.target.value)} />
+            </label>
+            <label>
+              Full name
+              <input value={fullName} onChange={(event) => setFullName(event.target.value)} />
+            </label>
+            <label>
+              Display name
+              <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
+            </label>
+            <label>
+              Date of birth
+              <input
+                type="date"
+                value={dateOfBirth}
+                onChange={(event) => setDateOfBirth(event.target.value)}
+              />
+            </label>
+            <label>
+              Starting age
+              <input
+                type="number"
+                min="16"
+                max="90"
+                value={startingAge}
+                onChange={(event) => setStartingAge(Number(event.target.value))}
+              />
+            </label>
+          </div>
+        )}
+        {step === 2 && (
+          <div className="form-grid">
+            <label>
+              Playing experience
+              <select defaultValue="AMATEUR_PLAYER">
+                <option value="NO_PLAYING_EXPERIENCE">No Playing Experience</option>
+                <option value="AMATEUR_PLAYER">Amateur Player</option>
+                <option value="SEMI_PROFESSIONAL_PLAYER">Semi-Professional Player</option>
+              </select>
+            </label>
+            <label>
+              Coaching experience
+              <select defaultValue="YOUTH_COACH">
+                <option value="NONE">None</option>
+                <option value="GRASSROOTS">Grassroots</option>
+                <option value="YOUTH_COACH">Youth Coach</option>
+              </select>
+            </label>
+            <label>
+              Education
+              <select defaultValue="SPORTS_RELATED_DEGREE">
+                <option value="SECONDARY">Secondary</option>
+                <option value="UNIVERSITY">University</option>
+                <option value="SPORTS_RELATED_DEGREE">Sports-related Degree</option>
+              </select>
+            </label>
+          </div>
+        )}
+        {step === 3 && <p>Manager career is available for Stage 4.1.</p>}
+        {step === 4 && <p>Starting world: Testing-only Nepal League 2026.</p>}
+        {step === 5 && <p>Join Kathmandu Testing Club as manager and create a persisted save.</p>}
+        <div className="button-row">
+          <button className="ghost" onClick={step === 1 ? props.onCancel : () => setStep(step - 1)}>
+            Back
+          </button>
+          <button
+            className="primary"
+            onClick={async () => {
+              if (step < 5) {
+                setStep(step + 1);
+                return;
+              }
+              const result = await bridge.createCareer({
+                saveName,
+                character: {
+                  fullName,
+                  preferredDisplayName: displayName,
+                  dateOfBirth,
+                  startingAge,
+                  languages: ["ne", "en"],
+                  footballBackground: "COMMUNITY_COACHING",
+                  education: "SPORTS_RELATED_DEGREE",
+                  playingExperience: "AMATEUR_PLAYER",
+                  coachingExperience: "YOUTH_COACH",
+                  businessBackground: "SMALL_BUSINESS",
+                  startingReputationProfile: "LOCAL_RESPECTED",
+                },
+              });
+              if (result.ok) {
+                props.onCreated(result.data);
+              } else {
+                props.onError(result.error);
+              }
+            }}
+          >
+            {step < 5 ? "Continue" : "Create Save"}
+          </button>
+        </div>
+      </section>
+    </StartShell>
+  );
+};
+
+const SquadScreen = (props: {
+  rows: SquadRow[];
+  selectedPlayer?: SquadRow;
+  onSelect: (id: string) => void;
+}): React.ReactElement => {
+  const [filter, setFilter] = useState("");
+  const [sortKey, setSortKey] = useState<"overall" | "fitness" | "rating">("overall");
+  const rows = useMemo(
+    () =>
+      [...props.rows]
+        .filter((row) => row.name.toLowerCase().includes(filter.toLowerCase()))
+        .sort((a, b) =>
+          sortKey === "rating"
+            ? b.averageRating - a.averageRating
+            : sortKey === "fitness"
+              ? b.fitness - a.fitness
+              : b.overall - a.overall,
+        ),
+    [filter, props.rows, sortKey],
+  );
+  return (
+    <section className="split">
+      <div>
+        <div className="table-tools">
+          <input
+            placeholder="Filter squad"
+            value={filter}
+            onChange={(event) => setFilter(event.target.value)}
+          />
+          <select
+            value={sortKey}
+            onChange={(event) => setSortKey(event.target.value as typeof sortKey)}
+          >
+            <option value="overall">Overall</option>
+            <option value="fitness">Fitness</option>
+            <option value="rating">Average rating</option>
+          </select>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Age</th>
+              <th>Nat</th>
+              <th>Positions</th>
+              <th>Fit</th>
+              <th>Role</th>
+              <th>Apps</th>
+              <th>G</th>
+              <th>A</th>
+              <th>AvR</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.personId} onClick={() => props.onSelect(row.personId)}>
+                <td>{row.name}</td>
+                <td>{row.age ?? "-"}</td>
+                <td>{row.nationality}</td>
+                <td>{row.positions.join(", ")}</td>
+                <td>{row.fitness}</td>
+                <td>{row.roleSuitability}</td>
+                <td>{row.appearances}</td>
+                <td>{row.goals}</td>
+                <td>{row.assists}</td>
+                <td>{row.averageRating ? row.averageRating.toFixed(2) : "-"}</td>
+                <td>{row.availability}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {props.selectedPlayer && <PlayerProfile player={props.selectedPlayer} />}
+    </section>
+  );
+};
+
+const TacticsScreen = (props: {
+  squad: SquadRow[];
+  tactic?: TacticalSetup;
+  onSave: (tactic: TacticalSetup) => Promise<void>;
+}): React.ReactElement => {
+  const [draft, setDraft] = useState<TacticalSetup | undefined>(props.tactic);
+  useEffect(() => setDraft(props.tactic), [props.tactic]);
+  if (!draft) return <Panel title="Tactics">No tactic loaded.</Panel>;
+  const starters = draft.assignments.flatMap((assignment) =>
+    assignment.playerId
+      ? [props.squad.find((player) => player.personId === assignment.playerId)]
+      : [],
+  );
+  return (
+    <section className="tactics-layout">
+      <Panel title="Team Instructions">
+        <div className="controls">
+          <label>
+            Tactic name
+            <input
+              value={draft.name}
+              onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+            />
+          </label>
+          <label>
+            Style
+            <select
+              value={draft.style}
+              onChange={(event) => setDraft({ ...draft, style: event.target.value })}
+            >
+              {["BALANCED", "POSSESSION", "HIGH_PRESS", "DIRECT", "LOW_BLOCK", "VERTICAL"].map(
+                (style) => (
+                  <option key={style}>{style}</option>
+                ),
+              )}
+            </select>
+          </label>
+          <label>
+            Tempo
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={draft.instructions.inPossession.tempo}
+              onChange={(event) =>
+                setDraft({
+                  ...draft,
+                  instructions: {
+                    ...draft.instructions,
+                    inPossession: {
+                      ...draft.instructions.inPossession,
+                      tempo: Number(event.target.value),
+                    },
+                  },
+                })
+              }
+            />
+          </label>
+          <button className="primary" onClick={() => props.onSave(draft)}>
+            Save Tactic
+          </button>
+        </div>
+      </Panel>
+      <div className="pitch">
+        {draft.formation.slots.map((slot) => {
+          const assignment = draft.assignments.find((candidate) => candidate.slotId === slot.id);
+          const player = props.squad.find(
+            (candidate) => candidate.personId === assignment?.playerId,
+          );
+          return (
+            <button
+              key={slot.id}
+              className="slot"
+              style={{ left: `${slot.x}%`, top: `${100 - slot.y}%` }}
+            >
+              <strong>{slot.label}</strong>
+              <span>{player?.name.split(" ").at(0) ?? "-"}</span>
+            </button>
+          );
+        })}
+      </div>
+      <Panel title="Selection">
+        <div className="ok">Starters: {starters.length}</div>
+        <p>
+          Bench:{" "}
+          {draft.bench
+            .map((id) => props.squad.find((player) => player.personId === id)?.name)
+            .join(", ")}
+        </p>
+        <p>Set pieces: penalty, free-kick, and corners are saved with this tactic.</p>
+      </Panel>
+    </section>
+  );
+};
+
+const PlayerProfile = ({ player }: { player: SquadRow }): React.ReactElement => (
+  <aside className="player-profile">
+    <h2>{player.name}</h2>
+    <p>
+      {player.positions.join(" / ")} · {player.age ?? "-"} · {player.preferredFoot} foot
+    </p>
+    <div className="attribute-groups">
+      {["Overview", "Attributes", "Form", "Match Stats"].map((group) => (
+        <section key={group}>
+          <h3>{group}</h3>
+          <div className="attribute">
+            <span>Overall assessment</span>
+            <strong>{player.overall}</strong>
+          </div>
+          <div className="attribute">
+            <span>Fitness</span>
+            <strong>{player.fitness}</strong>
+          </div>
+          <div className="attribute">
+            <span>Average rating</span>
+            <strong>{player.averageRating ? player.averageRating.toFixed(2) : "-"}</strong>
+          </div>
+        </section>
+      ))}
+    </div>
+  </aside>
+);
+
+const PostMatch = ({
+  result,
+}: {
+  result: NonNullable<DesktopApplicationState["home"]["previousResult"]>;
+}) => (
+  <Panel title="Post Match">
+    <h2>{result.score}</h2>
+    <dl className="metrics">
+      <div>
+        <dt>Shots</dt>
+        <dd>
+          {result.homeStats.shots}-{result.awayStats.shots}
+        </dd>
+      </div>
+      <div>
+        <dt>xG</dt>
+        <dd>
+          {result.homeStats.xg}-{result.awayStats.xg}
+        </dd>
+      </div>
+      <div>
+        <dt>Possession</dt>
+        <dd>
+          {result.homeStats.possession}-{result.awayStats.possession}
+        </dd>
+      </div>
+    </dl>
+    {result.events.slice(0, 8).map((event) => (
+      <div className="event" key={event.id}>
+        {event.minute}' {event.type}
+      </div>
+    ))}
+  </Panel>
+);
+
 const Panel = (props: { title: string; children: React.ReactNode }): React.ReactElement => (
   <article className="panel">
     <h2>{props.title}</h2>
@@ -562,79 +691,24 @@ const Panel = (props: { title: string; children: React.ReactNode }): React.React
   </article>
 );
 
-const PlayerProfile = ({ playerItem }: { playerItem: Player }): React.ReactElement => (
-  <aside className="player-profile">
-    <h2>{playerItem.name}</h2>
-    <p>
-      {playerItem.positions.join(" / ")} · {playerItem.age} · {playerItem.foot} foot
-    </p>
-    <div className="attribute-groups">
-      {["Technical", "Mental", "Physical", "Goalkeeping"].map((group) => (
-        <section key={group}>
-          <h3>{group}</h3>
-          {Object.entries(playerItem.attributes)
-            .slice(0, 5)
-            .map(([key, value]) => (
-              <div className="attribute" key={`${group}-${key}`}>
-                <span>{key}</span>
-                <strong>{value}</strong>
-              </div>
-            ))}
-        </section>
-      ))}
-    </div>
-  </aside>
+const StartShell = (props: {
+  children: React.ReactNode;
+  error?: AppError | null;
+}): React.ReactElement => (
+  <main className="career-shell">
+    {props.error && <ErrorBanner error={props.error} />}
+    {props.children}
+  </main>
 );
 
-function player(
-  id: string,
-  name: string,
-  age: number,
-  positions: string[],
-  foot: Player["foot"],
-  fitness: number,
-  averageRating: number,
-  overall: number,
-): Player {
-  return {
-    id,
-    name,
-    age,
-    nationality: "NEP",
-    positions,
-    foot,
-    fitness,
-    form: Math.round((averageRating - 6) * 20),
-    morale: "Okay",
-    overall,
-    appearances: Math.max(0, overall - 6),
-    goals: positions.includes("ST") ? 4 : positions.includes("GK") ? 0 : 1,
-    assists: positions.includes("CM") || positions.includes("AM") ? 3 : 1,
-    averageRating,
-    availability: fitness < 78 ? "Managed minutes" : "Available",
-    attributes: {
-      passing: overall,
-      decisions: overall - 1,
-      stamina: Math.min(20, overall + 2),
-      tackling: positions.includes("CB") ? overall + 1 : overall - 1,
-      finishing: positions.includes("ST") ? overall + 1 : overall - 2,
-    },
-  };
-}
-
-function slot(label: string, x: number, y: number, role: string, playerId?: string): TacticalSlot {
-  return { id: label, label, x, y, role, playerId };
-}
+const ErrorBanner = ({ error }: { error: AppError }): React.ReactElement => (
+  <div className="warning">
+    <strong>{error.code}</strong> {error.message} {error.detail}
+  </div>
+);
 
 function title(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
-}
-
-function roleFitLabel(overall: number): string {
-  if (overall >= 13) return "Very Good";
-  if (overall >= 11) return "Good";
-  if (overall >= 9) return "Adequate";
-  return "Weak";
 }
 
 const root = document.getElementById("root");

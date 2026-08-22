@@ -63,3 +63,11 @@ Preset formations are not labels only. They are stored as tactical slots with co
 ## ADR-016: Stage 4 desktop uses a testing-mode read model
 
 The current Tauri shell has no save-command bridge. Stage 4 therefore adds a desktop testing-mode manager flow that mirrors the domain concepts without importing SQLite into React. Future desktop work should expose save-backed manager commands from the application layer and keep the database adapter replaceable.
+
+## ADR-017: Desktop commands are the persistence boundary
+
+Stage 4.1 introduces a desktop bridge contract between React and save-backed application services. React may cache presentation state but the save remains source of truth. Manager actions such as career creation, tactic saving, quick sim, and continue flow are command calls that reload read models from persistence.
+
+## ADR-018: Native desktop SQLite must sit behind the command/service boundary
+
+Headless tooling may continue using the `node:sqlite` adapter in `packages/database`. Production Tauri should use a Tauri-compatible SQLite mechanism behind the same command contracts and schema semantics so desktop does not require a Node runtime. Stage 4.1 isolates that adapter decision and verifies the real persisted path through the Node application service while keeping UI free of database access.
