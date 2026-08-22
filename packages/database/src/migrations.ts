@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 10;
+export const CURRENT_DATABASE_VERSION = 11;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -875,6 +875,48 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
         ON player_factual_profiles(player_id);
       CREATE INDEX IF NOT EXISTS idx_player_factual_profiles_club
         ON player_factual_profiles(current_club_id);
+    `,
+  },
+  {
+    version: 11,
+    sql: `
+      CREATE TABLE IF NOT EXISTS competition_season_states (
+        competition_season_id TEXT PRIMARY KEY REFERENCES competition_seasons(id),
+        competition_id TEXT NOT NULL REFERENCES competitions(id),
+        season_label TEXT NOT NULL,
+        start_date TEXT NOT NULL,
+        end_date TEXT NOT NULL,
+        status TEXT NOT NULL,
+        current_round INTEGER NOT NULL DEFAULT 0,
+        champion_club_id TEXT REFERENCES clubs(id),
+        completed_at TEXT,
+        rolled_over_at TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS player_career_stats (
+        person_id TEXT NOT NULL REFERENCES persons(id),
+        team_id TEXT NOT NULL REFERENCES teams(id),
+        appearances INTEGER NOT NULL,
+        starts INTEGER NOT NULL,
+        minutes INTEGER NOT NULL,
+        goals INTEGER NOT NULL,
+        assists INTEGER NOT NULL,
+        yellow_cards INTEGER NOT NULL,
+        red_cards INTEGER NOT NULL,
+        clean_sheets INTEGER NOT NULL,
+        PRIMARY KEY (person_id, team_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS season_awards (
+        id TEXT PRIMARY KEY,
+        competition_season_id TEXT NOT NULL REFERENCES competition_seasons(id),
+        award_type TEXT NOT NULL,
+        person_id TEXT REFERENCES persons(id),
+        team_id TEXT REFERENCES teams(id),
+        value REAL NOT NULL,
+        decided_on TEXT NOT NULL,
+        UNIQUE (competition_season_id, award_type)
+      );
     `,
   },
 ];

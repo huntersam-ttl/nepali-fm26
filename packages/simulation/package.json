@@ -16,6 +16,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "career:simulate": "pnpm build && node dist/career-cli.js",
     "headless:sim": "pnpm build && node dist/cli.js",
     "development:simulate": "pnpm build && node dist/development-cli.js",
     "match:simulate": "pnpm build && node dist/match-cli.js",

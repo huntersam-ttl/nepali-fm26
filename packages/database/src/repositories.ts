@@ -778,6 +778,13 @@ export class WorldRepository {
       federations: scalar("federations"),
       competitions: scalar("competitions"),
       competitionSeasons: scalar("competition_seasons"),
+      fixtures: scalar("fixtures"),
+      matches: scalar("matches"),
+      matchEvents: scalar("match_events"),
+      leagueStandings: scalar("league_standings"),
+      playerSeasonStats: scalar("player_season_stats"),
+      teamSeasonStats: scalar("team_season_stats"),
+      competitionWinners: scalar("competition_winners"),
       competitionRelationships: scalar("competition_relationships"),
       competitionMovements: scalar("competition_movements"),
       clubs: scalar("clubs"),
@@ -799,6 +806,9 @@ export class WorldRepository {
       staffHistoryEvents: scalar("staff_history_events"),
       playerAttributes: scalar("player_attributes"),
       playerFactualProfiles: scalar("player_factual_profiles"),
+      competitionSeasonStates: scalar("competition_season_states"),
+      playerCareerStats: scalar("player_career_stats"),
+      seasonAwards: scalar("season_awards"),
       trainingPlans: scalar("training_plans"),
       individualDevelopmentPlans: scalar("individual_development_plans"),
       playerDevelopmentStates: scalar("player_development_states"),
@@ -1802,6 +1812,13 @@ export type WorldInspection = {
   federations: number;
   competitions: number;
   competitionSeasons: number;
+  fixtures: number;
+  matches: number;
+  matchEvents: number;
+  leagueStandings: number;
+  playerSeasonStats: number;
+  teamSeasonStats: number;
+  competitionWinners: number;
   competitionRelationships: number;
   competitionMovements: number;
   clubs: number;
@@ -1823,6 +1840,9 @@ export type WorldInspection = {
   staffHistoryEvents: number;
   playerAttributes: number;
   playerFactualProfiles: number;
+  competitionSeasonStates: number;
+  playerCareerStats: number;
+  seasonAwards: number;
   trainingPlans: number;
   individualDevelopmentPlans: number;
   playerDevelopmentStates: number;

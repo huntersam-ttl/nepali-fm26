@@ -6,6 +6,7 @@
   "packageManager": "pnpm@9.15.4",
   "scripts": {
     "build": "pnpm -r build",
+    "career:simulate": "pnpm --filter @nepal-football-sim/simulation career:simulate",
     "dev": "pnpm --filter @nepal-football-sim/desktop dev",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
