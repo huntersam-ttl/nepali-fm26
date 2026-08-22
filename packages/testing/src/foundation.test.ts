@@ -45,7 +45,7 @@ describe("stage one foundation", () => {
     expect(loadSave(db, save.id)).toMatchObject({
       name: "Unit Save",
       worldDate: "2026-01-01",
-      databaseVersion: 1,
+      databaseVersion: 2,
       randomSeed: "seed",
     });
     db.close();
@@ -53,10 +53,10 @@ describe("stage one foundation", () => {
 
   it("applies database migrations once", () => {
     const db = openGameDatabase(":memory:");
-    expect(migrateDatabase(db)).toBe(1);
-    expect(migrateDatabase(db)).toBe(1);
+    expect(migrateDatabase(db)).toBe(2);
+    expect(migrateDatabase(db)).toBe(2);
     const rows = db.prepare("SELECT version FROM schema_migrations").all();
-    expect(rows).toHaveLength(1);
+    expect(rows).toHaveLength(2);
     db.close();
   });
 

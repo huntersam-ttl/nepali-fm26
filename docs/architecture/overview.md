@@ -2,7 +2,7 @@
 
 ## Goal
 
-Stage 1 establishes the permanent technical foundation for a Nepal-first football world simulation game. It is not a gameplay demo. The foundation supports long-running local saves, deterministic simulation, strict package boundaries, and future playable careers as manager, club owner/chairman, and federation chairman/president.
+Stage 1 established the permanent technical foundation for a Nepal-first football world simulation game. Stage 2 adds the Nepal world import pipeline without hard-coding volatile real-world facts into application logic. The foundation supports long-running local saves, deterministic simulation, strict package boundaries, and future playable careers as manager, club owner/chairman, and federation chairman/president.
 
 ## Boundaries
 
@@ -16,7 +16,7 @@ Stage 1 establishes the permanent technical foundation for a Nepal-first footbal
 
 ## Domain Model
 
-The model starts with countries, locations, federations, clubs, teams, people, roles, competitions, fixtures, matches, contracts, transfers, loans, finance accounts, relationships, promises, scheduled events, and historical events.
+The model starts with countries, locations, venues, federations, clubs, teams, people, roles, team-person assignments, competitions, fixtures, matches, contracts, transfers, loans, finance accounts, relationships, promises, scheduled events, and historical events.
 
 `Person` is the common human identity. Player, manager, staff, agent, chairman, and federation official are modeled as roles attached to the same person. This preserves career continuity when a player retires into coaching, chairmanship, or federation work.
 
@@ -33,6 +33,8 @@ The clock persists the save world date through the database package. Scheduled e
 ## Database Strategy
 
 SQLite is the local save database. The database package owns schema migrations through `schema_migrations` and stores entities in relational tables rather than a single world JSON blob. JSON columns are used only for structured secondary data such as involved entity refs, event payloads, and import provenance.
+
+Stage 2 keeps the Stage 1 `node:sqlite` adapter inside `packages/database`. Production Tauri or mobile adapters may differ later, so UI, simulation, domain, rules, and import packages must not import or expose `node:sqlite` directly.
 
 ## Save Strategy
 
@@ -62,7 +64,7 @@ Stage 1 processes scheduled events into historical events only. Later systems ca
 
 ## Data Import Strategy
 
-Research/import data will be validated through Zod schemas with provenance:
+Research/import data is validated through Zod schemas with provenance:
 
 - source URL
 - source name
@@ -71,3 +73,5 @@ Research/import data will be validated through Zod schemas with provenance:
 - status
 
 Allowed statuses are `VERIFIED`, `REPORTED`, `ESTIMATED`, `UNKNOWN`, and `SIMULATION_ONLY`. Stage 1 intentionally includes no real Nepal dataset.
+
+Stage 2 dataset records use explicit fact wrappers for fields that may be unavailable or uncertain. `UNKNOWN` facts cannot carry a value. `VERIFIED`, `REPORTED`, and `ESTIMATED` facts must carry a value and remain distinguishable after import through entity provenance records. Real Nepal data belongs under `data/nepal/`, while automated tests use `data/fixtures/`.

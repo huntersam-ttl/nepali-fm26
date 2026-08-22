@@ -31,3 +31,15 @@ The permanent match direction is quick sim, key events, and text live. No 2D or 
 ## ADR-008: Node built-in SQLite module
 
 The database package uses Node's built-in SQLite module to keep dependency count low and avoid native package setup during Stage 1. If the module stabilizes differently, this can be isolated inside `packages/database`.
+
+## ADR-009: Dataset-driven Nepal world creation
+
+Stage 2 creates Nepal saves from importable datasets rather than hard-coded application constants. This lets the August 2026 starting database be updated by the research process without rewriting simulation code.
+
+## ADR-010: Explicit uncertainty for imported facts
+
+Import records separate `VERIFIED`, `REPORTED`, `ESTIMATED`, `UNKNOWN`, and `SIMULATION_ONLY` facts. Unknown fields are not represented as silent nulls in the input dataset; they must explicitly state `UNKNOWN` so the game never treats missing data as verified fact.
+
+## ADR-011: Database adapter replaceability
+
+`node:sqlite` remains acceptable for Stage 2 because it is fully hidden behind `packages/database`. Future production Tauri or mobile builds may need a different adapter, so Stage 2 code must continue depending on repository and service boundaries rather than the Node adapter.

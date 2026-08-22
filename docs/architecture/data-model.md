@@ -4,6 +4,7 @@
 
 - `Country`: national container, starting with Nepal in future data.
 - `Location`: city, district, province, stadium, or unknown place within a country.
+- `Venue`: stadium or ground record linked to a country and optionally to a location.
 - `Federation`: national football governing body linked to a country.
 
 ## Clubs and Teams
@@ -11,6 +12,7 @@
 - `Club`: football club with country, optional location, founded year, and ownership type.
 - `ClubOwnershipType`: supports `PRIVATE`, `CORPORATE`, `COMMUNITY`, `MEMBER_OWNED`, `DEPARTMENTAL`, `MUNICIPALITY_BACKED`, `INSTITUTIONAL`, and `UNKNOWN`.
 - `Team`: senior, reserve, academy, or age-level side linked to a club or federation.
+- `TeamPersonAssignment`: links imported players, managers, or staff to a team without turning squad management into gameplay yet.
 
 ## People and Careers
 
@@ -48,3 +50,11 @@
 ## Imports
 
 Import records validate payloads with provenance. Provenance records source, verification date, confidence, and whether the data is verified, reported, estimated, unknown, or simulation-only.
+
+Stage 2 Nepal datasets wrap uncertain fields as facts:
+
+- `value`: present only when the source supports a value.
+- `status`: one of `VERIFIED`, `REPORTED`, `ESTIMATED`, `UNKNOWN`, or `SIMULATION_ONLY`.
+- `provenance`: optional field-level source metadata when it differs from the record source.
+
+The SQLite save stores relational entities plus `entity_provenance` rows so imported facts remain auditable after reload.

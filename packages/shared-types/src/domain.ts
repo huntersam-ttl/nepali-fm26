@@ -8,6 +8,7 @@ export type EntityRef = {
   type:
     | "country"
     | "location"
+    | "venue"
     | "federation"
     | "club"
     | "team"
@@ -34,6 +35,14 @@ export type Location = {
   name: string;
   kind: "city" | "district" | "province" | "stadium" | "unknown";
   parentLocationId?: EntityId;
+};
+
+export type Venue = {
+  id: EntityId;
+  countryId: EntityId;
+  locationId?: EntityId;
+  name: string;
+  capacity?: number;
 };
 
 export type Federation = {
@@ -69,6 +78,15 @@ export type Team = {
   name: string;
   level: "senior" | "u23" | "u20" | "u17" | "reserve" | "academy";
   gender: "men" | "women" | "mixed" | "unknown";
+};
+
+export type TeamPersonAssignment = {
+  id: EntityId;
+  personId: EntityId;
+  teamId: EntityId;
+  role: PersonRoleType;
+  startedOn?: ISODate;
+  endedOn?: ISODate;
 };
 
 export type Person = {

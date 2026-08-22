@@ -7,5 +7,9 @@
     "composite": true
   },
   "include": ["src/**/*.ts"],
-  "references": [{ "path": "../shared-types" }, { "path": "../database" }]
+  "references": [
+    { "path": "../shared-types" },
+    { "path": "../database" },
+    { "path": "../data-import" }
+  ]
 }

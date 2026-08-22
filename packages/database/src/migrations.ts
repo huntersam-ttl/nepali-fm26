@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 1;
+export const CURRENT_DATABASE_VERSION = 2;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -234,6 +234,42 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
         provenance_json TEXT NOT NULL,
         imported_at TEXT NOT NULL
       );
+    `,
+  },
+  {
+    version: 2,
+    sql: `
+      CREATE TABLE IF NOT EXISTS venues (
+        id TEXT PRIMARY KEY,
+        country_id TEXT NOT NULL REFERENCES countries(id),
+        location_id TEXT REFERENCES locations(id),
+        name TEXT NOT NULL,
+        capacity INTEGER
+      );
+
+      CREATE TABLE IF NOT EXISTS team_person_assignments (
+        id TEXT PRIMARY KEY,
+        person_id TEXT NOT NULL REFERENCES persons(id),
+        team_id TEXT NOT NULL REFERENCES teams(id),
+        role TEXT NOT NULL,
+        started_on TEXT,
+        ended_on TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS entity_provenance (
+        id TEXT PRIMARY KEY,
+        entity_type TEXT NOT NULL,
+        entity_id TEXT NOT NULL,
+        source_url TEXT,
+        source_name TEXT NOT NULL,
+        last_verified_date TEXT,
+        confidence REAL NOT NULL,
+        status TEXT NOT NULL,
+        imported_at TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_entity_provenance_entity
+        ON entity_provenance(entity_type, entity_id);
     `,
   },
 ];

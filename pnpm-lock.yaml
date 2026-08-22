@@ -95,6 +95,9 @@ importers:
 
   packages/simulation:
     dependencies:
+      "@nepal-football-sim/data-import":
+        specifier: workspace:*
+        version: link:../data-import
       "@nepal-football-sim/database":
         specifier: workspace:*
         version: link:../database

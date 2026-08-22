@@ -3,18 +3,25 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./dist/index.js"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
   "bin": {
-    "nepal-football-headless": "./dist/cli.js"
+    "nepal-football-headless": "./dist/cli.js",
+    "nepal-football-create-save": "./dist/nepal-cli.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "headless:sim": "pnpm build && node dist/cli.js",
+    "nepal:create-save": "pnpm build && node dist/nepal-cli.js",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@nepal-football-sim/data-import": "workspace:*",
     "@nepal-football-sim/database": "workspace:*",
     "@nepal-football-sim/shared-types": "workspace:*"
   },

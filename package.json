@@ -10,6 +10,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "headless:sim": "pnpm --filter @nepal-football-sim/simulation headless:sim",
+    "nepal:create-save": "pnpm --filter @nepal-football-sim/simulation nepal:create-save",
     "lint": "eslint .",
     "test": "vitest run",
     "typecheck": "tsc -b"

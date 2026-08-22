@@ -1,0 +1,257 @@
+{
+  "meta": {
+    "datasetId": "testing-only-nepal-world",
+    "targetDatabaseDate": "2026-08",
+    "description": "Testing-only Stage 2 Nepal world import fixture. Not researched real-world data.",
+    "provenance": {
+      "sourceName": "Automated test fixture",
+      "confidence": 1,
+      "status": "SIMULATION_ONLY"
+    }
+  },
+  "countries": [
+    {
+      "key": "np",
+      "name": "Testing-only Nepal",
+      "isoCode": "NP",
+      "provenance": {
+        "sourceName": "Automated test fixture",
+        "confidence": 1,
+        "status": "SIMULATION_ONLY"
+      }
+    }
+  ],
+  "locations": [
+    {
+      "key": "kathmandu",
+      "countryKey": "np",
+      "name": "Testing-only Kathmandu",
+      "kind": "city",
+      "provenance": {
+        "sourceName": "Automated test fixture",
+        "confidence": 1,
+        "status": "SIMULATION_ONLY"
+      }
+    }
+  ],
+  "venues": [
+    {
+      "key": "test-stadium",
+      "countryKey": "np",
+      "name": "Testing-only Stadium",
+      "locationKey": {
+        "value": "kathmandu",
+        "status": "SIMULATION_ONLY"
+      },
+      "capacity": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceName": "Automated test fixture",
+        "confidence": 1,
+        "status": "SIMULATION_ONLY"
+      }
+    }
+  ],
+  "federations": [
+    {
+      "key": "test-federation",
+      "countryKey": "np",
+      "name": "Testing-only Football Federation",
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceName": "Automated test fixture",
+        "confidence": 1,
+        "status": "SIMULATION_ONLY"
+      }
+    }
+  ],
+  "competitions": [
+    {
+      "key": "test-league",
+      "federationKey": {
+        "value": "test-federation",
+        "status": "SIMULATION_ONLY"
+      },
+      "name": "Testing-only League",
+      "scope": "domestic",
+      "provenance": {
+        "sourceName": "Automated test fixture",
+        "confidence": 1,
+        "status": "SIMULATION_ONLY"
+      }
+    }
+  ],
+  "competitionSeasons": [
+    {
+      "key": "test-league-2026",
+      "competitionKey": "test-league",
+      "name": "Testing-only League 2026",
+      "startDate": "2026-08-01",
+      "endDate": "2027-05-31",
+      "provenance": {
+        "sourceName": "Automated test fixture",
+        "confidence": 1,
+        "status": "SIMULATION_ONLY"
+      }
+    }
+  ],
+  "clubs": [
+    {
+      "key": "test-club",
+      "countryKey": "np",
+      "name": "Testing-only Club",
+      "locationKey": {
+        "value": "kathmandu",
+        "status": "SIMULATION_ONLY"
+      },
+      "ownershipType": {
+        "value": "COMMUNITY",
+        "status": "SIMULATION_ONLY"
+      },
+      "foundedYear": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceName": "Automated test fixture",
+        "confidence": 1,
+        "status": "SIMULATION_ONLY"
+      }
+    }
+  ],
+  "teams": [
+    {
+      "key": "test-club-senior-men",
+      "name": "Testing-only Club Senior Men",
+      "clubKey": {
+        "value": "test-club",
+        "status": "SIMULATION_ONLY"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceName": "Automated test fixture",
+        "confidence": 1,
+        "status": "SIMULATION_ONLY"
+      }
+    }
+  ],
+  "persons": [
+    {
+      "key": "test-player",
+      "fullName": "Testing-only Player",
+      "dateOfBirth": {
+        "status": "UNKNOWN"
+      },
+      "nationalityCountryKey": "np",
+      "genderPresentation": {
+        "status": "UNKNOWN"
+      },
+      "placeOfBirthLocationKey": {
+        "status": "UNKNOWN"
+      },
+      "hometownLocationKey": {
+        "value": "kathmandu",
+        "status": "SIMULATION_ONLY"
+      },
+      "languages": {
+        "value": ["ne"],
+        "status": "SIMULATION_ONLY"
+      },
+      "provenance": {
+        "sourceName": "Automated test fixture",
+        "confidence": 1,
+        "status": "SIMULATION_ONLY"
+      }
+    },
+    {
+      "key": "test-staff",
+      "fullName": "Testing-only Staff",
+      "dateOfBirth": {
+        "status": "UNKNOWN"
+      },
+      "nationalityCountryKey": "np",
+      "genderPresentation": {
+        "status": "UNKNOWN"
+      },
+      "placeOfBirthLocationKey": {
+        "status": "UNKNOWN"
+      },
+      "hometownLocationKey": {
+        "status": "UNKNOWN"
+      },
+      "languages": {
+        "status": "UNKNOWN"
+      },
+      "provenance": {
+        "sourceName": "Automated test fixture",
+        "confidence": 1,
+        "status": "SIMULATION_ONLY"
+      }
+    }
+  ],
+  "personRoles": [
+    {
+      "key": "test-player-role",
+      "personKey": "test-player",
+      "role": "PLAYER",
+      "activeFrom": {
+        "value": "2026-08-01",
+        "status": "SIMULATION_ONLY"
+      },
+      "provenance": {
+        "sourceName": "Automated test fixture",
+        "confidence": 1,
+        "status": "SIMULATION_ONLY"
+      }
+    },
+    {
+      "key": "test-staff-role",
+      "personKey": "test-staff",
+      "role": "STAFF",
+      "activeFrom": {
+        "value": "2026-08-01",
+        "status": "SIMULATION_ONLY"
+      },
+      "provenance": {
+        "sourceName": "Automated test fixture",
+        "confidence": 1,
+        "status": "SIMULATION_ONLY"
+      }
+    }
+  ],
+  "teamPersonAssignments": [
+    {
+      "key": "test-player-team-link",
+      "personKey": "test-player",
+      "teamKey": "test-club-senior-men",
+      "role": "PLAYER",
+      "startedOn": {
+        "value": "2026-08-01",
+        "status": "SIMULATION_ONLY"
+      },
+      "provenance": {
+        "sourceName": "Automated test fixture",
+        "confidence": 1,
+        "status": "SIMULATION_ONLY"
+      }
+    },
+    {
+      "key": "test-staff-team-link",
+      "personKey": "test-staff",
+      "teamKey": "test-club-senior-men",
+      "role": "STAFF",
+      "startedOn": {
+        "value": "2026-08-01",
+        "status": "SIMULATION_ONLY"
+      },
+      "provenance": {
+        "sourceName": "Automated test fixture",
+        "confidence": 1,
+        "status": "SIMULATION_ONLY"
+      }
+    }
+  ]
+}

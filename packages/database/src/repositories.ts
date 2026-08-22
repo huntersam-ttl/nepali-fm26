@@ -12,6 +12,11 @@ import type {
   SaveMetadata,
   ScheduledEvent,
   Team,
+  TeamPersonAssignment,
+  Venue,
+  Competition,
+  CompetitionSeason,
+  DataProvenance,
 } from "@nepal-football-sim/shared-types";
 import type { EntityId } from "@nepal-football-sim/shared-types";
 import type { GameDatabase } from "./connection.js";
@@ -99,6 +104,14 @@ export class WorldRepository {
       );
   }
 
+  insertVenue(venue: Venue): void {
+    this.db
+      .prepare(
+        "INSERT INTO venues (id, country_id, location_id, name, capacity) VALUES (?, ?, ?, ?, ?)",
+      )
+      .run(venue.id, venue.countryId, venue.locationId ?? null, venue.name, venue.capacity ?? null);
+  }
+
   insertFederation(federation: Federation): void {
     this.db
       .prepare("INSERT INTO federations (id, country_id, name, founded_year) VALUES (?, ?, ?, ?)")
@@ -133,6 +146,20 @@ export class WorldRepository {
         team.level,
         team.gender,
       );
+  }
+
+  insertCompetition(competition: Competition): void {
+    this.db
+      .prepare("INSERT INTO competitions (id, federation_id, name, scope) VALUES (?, ?, ?, ?)")
+      .run(competition.id, competition.federationId ?? null, competition.name, competition.scope);
+  }
+
+  insertCompetitionSeason(season: CompetitionSeason): void {
+    this.db
+      .prepare(
+        "INSERT INTO competition_seasons (id, competition_id, name, start_date, end_date) VALUES (?, ?, ?, ?, ?)",
+      )
+      .run(season.id, season.competitionId, season.name, season.startDate, season.endDate);
   }
 
   insertPerson(person: Person): void {
@@ -183,6 +210,21 @@ export class WorldRepository {
       .run(role.id, role.personId, role.role, role.activeFrom, role.activeTo ?? null);
   }
 
+  insertTeamPersonAssignment(assignment: TeamPersonAssignment): void {
+    this.db
+      .prepare(
+        "INSERT INTO team_person_assignments (id, person_id, team_id, role, started_on, ended_on) VALUES (?, ?, ?, ?, ?, ?)",
+      )
+      .run(
+        assignment.id,
+        assignment.personId,
+        assignment.teamId,
+        assignment.role,
+        assignment.startedOn ?? null,
+        assignment.endedOn ?? null,
+      );
+  }
+
   getPersonRoles(personId: EntityId): PersonRole[] {
     return this.db
       .prepare("SELECT * FROM person_roles WHERE person_id = ? ORDER BY active_from")
@@ -215,6 +257,95 @@ export class WorldRepository {
         json.stringify(character.coachingLicences),
         character.businessBackground ?? null,
         character.startingReputationProfile ?? null,
+      );
+  }
+
+  inspectWorld(): WorldInspection {
+    const scalar = (table: string): number =>
+      (this.db.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get() as { count: number }).count;
+
+    return {
+      countries: scalar("countries"),
+      locations: scalar("locations"),
+      venues: scalar("venues"),
+      federations: scalar("federations"),
+      competitions: scalar("competitions"),
+      competitionSeasons: scalar("competition_seasons"),
+      clubs: scalar("clubs"),
+      teams: scalar("teams"),
+      persons: scalar("persons"),
+      personRoles: scalar("person_roles"),
+      teamPersonAssignments: scalar("team_person_assignments"),
+      entityProvenance: scalar("entity_provenance"),
+    };
+  }
+}
+
+export type WorldInspection = {
+  countries: number;
+  locations: number;
+  venues: number;
+  federations: number;
+  competitions: number;
+  competitionSeasons: number;
+  clubs: number;
+  teams: number;
+  persons: number;
+  personRoles: number;
+  teamPersonAssignments: number;
+  entityProvenance: number;
+};
+
+export class ImportRepository {
+  constructor(private readonly db: GameDatabase) {}
+
+  insertImportRecord(input: {
+    id: EntityId;
+    entityType: string;
+    entityId?: EntityId;
+    payload: Record<string, unknown>;
+    provenance: DataProvenance;
+    importedAt: string;
+  }): void {
+    this.db
+      .prepare(
+        `INSERT INTO import_records
+        (id, entity_type, entity_id, payload_json, provenance_json, imported_at)
+        VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        input.id,
+        input.entityType,
+        input.entityId ?? null,
+        json.stringify(input.payload),
+        json.stringify(input.provenance),
+        input.importedAt,
+      );
+  }
+
+  insertEntityProvenance(input: {
+    id: EntityId;
+    entityType: string;
+    entityId: EntityId;
+    provenance: DataProvenance;
+    importedAt: string;
+  }): void {
+    this.db
+      .prepare(
+        `INSERT INTO entity_provenance
+        (id, entity_type, entity_id, source_url, source_name, last_verified_date, confidence, status, imported_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        input.id,
+        input.entityType,
+        input.entityId,
+        input.provenance.sourceUrl ?? null,
+        input.provenance.sourceName,
+        input.provenance.lastVerifiedDate ?? null,
+        input.provenance.confidence,
+        input.provenance.status,
+        input.importedAt,
       );
   }
 }
