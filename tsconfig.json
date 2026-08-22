@@ -1,0 +1,23 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/shared-types" },
+    { "path": "./packages/rules" },
+    { "path": "./packages/database" },
+    { "path": "./packages/data-import" },
+    { "path": "./packages/simulation" },
+    { "path": "./packages/testing" },
+    { "path": "./apps/desktop" }
+  ],
+  "compilerOptions": {
+    "composite": true,
+    "strict": true,
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "skipLibCheck": true
+  }
+}

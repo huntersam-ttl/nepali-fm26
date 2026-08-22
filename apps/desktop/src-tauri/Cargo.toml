@@ -1,0 +1,14 @@
+[package]
+name = "nepal-football-sim"
+version = "0.1.0"
+description = "Nepal-first football world simulation"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]

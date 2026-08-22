@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "declaration": true,
+    "composite": true,
+    "types": ["vitest/globals"]
+  },
+  "include": ["src/**/*.ts"],
+  "references": [
+    { "path": "../shared-types" },
+    { "path": "../rules" },
+    { "path": "../database" },
+    { "path": "../data-import" },
+    { "path": "../simulation" }
+  ]
+}

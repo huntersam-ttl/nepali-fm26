@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.turbo/
+*.db
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.tsbuildinfo
+apps/desktop/src-tauri/target/

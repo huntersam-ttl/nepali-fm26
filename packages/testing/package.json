@@ -1,0 +1,20 @@
+{
+  "name": "@nepal-football-sim/testing",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@nepal-football-sim/data-import": "workspace:*",
+    "@nepal-football-sim/database": "workspace:*",
+    "@nepal-football-sim/rules": "workspace:*",
+    "@nepal-football-sim/shared-types": "workspace:*",
+    "@nepal-football-sim/simulation": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "^2.0.5"
+  }
+}
