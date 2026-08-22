@@ -116,3 +116,19 @@ from job title.
 Player-controlled managers and NPC managers should converge on this same appointment architecture
 where practical. Stage 4's existing manager profile and manager contract tables remain supported, but
 future career work should avoid creating a parallel NPC-only employment system.
+
+## ADR-023: Player development is save-backed and formula-driven
+
+Training and player development are permanent simulation systems, not UI state and not a seasonal
+`+1` shortcut. Stage 2 stores training plans, individual development plans, player development state,
+internal potential, playing-time snapshots, staff training-effect profiles, facility hooks, and sparse
+training history in SQLite behind `packages/database`.
+
+The formulas consume configurable inputs: age curve, current attributes, potential gap, plan quality,
+coaching, facilities, minutes, match sharpness, fitness, fatigue, recovery, morale, competition
+context, workload, position or role focus, and seeded variation. Rate limits prevent runaway monthly
+growth and position familiarity advances gradually. Older players can regress, especially physically.
+
+Potential and staff simulation attributes are game abstractions and must be marked
+`SIMULATION_ONLY`. Missing real Nepal data remains `UNKNOWN` or absent in datasets rather than being
+invented in application code.

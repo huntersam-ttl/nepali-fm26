@@ -31,7 +31,12 @@ export type EntityRef = {
     | "staffLicence"
     | "refereeProfile"
     | "staffProfile"
-    | "staffHistoryEvent";
+    | "staffHistoryEvent"
+    | "trainingPlan"
+    | "individualDevelopmentPlan"
+    | "playerDevelopmentState"
+    | "playerPotential"
+    | "trainingHistoryEvent";
 };
 
 export type RiskLevel = "LOW" | "MEDIUM" | "HIGH" | "UNKNOWN";
@@ -932,6 +937,197 @@ export type PlayerAttributeSet = {
     distribution: number;
     commandOfArea: number;
   };
+};
+
+export type TrainingIntensity = "LOW" | "NORMAL" | "HIGH" | "VERY_HIGH";
+
+export type TrainingSessionCategory =
+  | "RECOVERY"
+  | "FITNESS"
+  | "ENDURANCE"
+  | "STRENGTH"
+  | "SPEED"
+  | "AGILITY"
+  | "TECHNICAL_GENERAL"
+  | "PASSING"
+  | "FIRST_TOUCH"
+  | "DRIBBLING"
+  | "FINISHING"
+  | "CROSSING"
+  | "DEFENDING"
+  | "TACKLING"
+  | "HEADING"
+  | "TACTICAL_GENERAL"
+  | "ATTACKING_SHAPE"
+  | "DEFENSIVE_SHAPE"
+  | "PRESSING"
+  | "TRANSITION"
+  | "POSSESSION"
+  | "COUNTER_ATTACK"
+  | "SET_PIECES_ATTACK"
+  | "SET_PIECES_DEFENCE"
+  | "GOALKEEPING"
+  | "GK_SHOT_STOPPING"
+  | "GK_DISTRIBUTION"
+  | "MATCH_PREPARATION"
+  | "TEAM_BONDING"
+  | "VIDEO_ANALYSIS"
+  | "REST"
+  | string;
+
+export type TrainingGroup =
+  | "FULL_SQUAD"
+  | "GOALKEEPERS"
+  | "DEFENDERS"
+  | "MIDFIELDERS"
+  | "ATTACKERS"
+  | "YOUTH"
+  | "RESERVES"
+  | "CUSTOM";
+
+export type TrainingPlanSource = "USER" | "AI" | "DEFAULT";
+
+export type TrainingSession = {
+  day: "MONDAY" | "TUESDAY" | "WEDNESDAY" | "THURSDAY" | "FRIDAY" | "SATURDAY" | "SUNDAY";
+  slot: number;
+  category: TrainingSessionCategory;
+  intensity: TrainingIntensity;
+  targetGroup: TrainingGroup;
+  coachAssignmentId?: EntityId;
+};
+
+export type TrainingPlan = {
+  id: EntityId;
+  teamId: EntityId;
+  name: string;
+  effectiveFrom: ISODate;
+  effectiveTo?: ISODate;
+  intensity: TrainingIntensity;
+  sessions: TrainingSession[];
+  source: TrainingPlanSource;
+};
+
+export type DevelopmentFocusType =
+  "ATTRIBUTE" | "POSITION" | "ROLE" | "PHYSICAL" | "TECHNICAL" | "MENTAL" | "BALANCED";
+
+export type IndividualDevelopmentPlan = {
+  id: EntityId;
+  playerId: EntityId;
+  focusType: DevelopmentFocusType;
+  targetPosition?: PlayerPosition;
+  targetRole?: string;
+  targetAttributeGroup?: "technical" | "mental" | "physical" | "goalkeeping";
+  intensity: TrainingIntensity;
+  startDate: ISODate;
+  endDate?: ISODate;
+  status: "ACTIVE" | "PAUSED" | "COMPLETED";
+};
+
+export type DevelopmentPhase =
+  "YOUTH_DEVELOPMENT" | "EARLY_CAREER" | "PRIME" | "LATE_PRIME" | "DECLINE";
+
+export type FamiliarityLevel = "NATURAL" | "ACCOMPLISHED" | "COMPETENT" | "BASIC" | "UNFAMILIAR";
+
+export type PlayerDevelopmentState = {
+  id: EntityId;
+  playerId: EntityId;
+  developmentPhase: DevelopmentPhase;
+  trainingLoad: number;
+  fatigue: number;
+  matchSharpness: number;
+  fitness: number;
+  recovery: number;
+  developmentMomentum: number;
+  positionFamiliarity: Record<string, number>;
+  roleFamiliarity: Record<string, number>;
+  lastTrainingDate?: ISODate;
+  lastDevelopmentUpdate?: ISODate;
+};
+
+export type PlayerPotential = {
+  id: EntityId;
+  playerId: EntityId;
+  potentialCeiling: number;
+  developmentRate: number;
+  volatility: number;
+  professionalism: number;
+  status: "SIMULATION_ONLY";
+};
+
+export type PlayerDevelopmentCurve = {
+  id: EntityId;
+  name: string;
+  youthMaxAge: number;
+  earlyCareerMaxAge: number;
+  primeMaxAge: number;
+  latePrimeMaxAge: number;
+};
+
+export type PlayerPlayingTimeSnapshot = {
+  id: EntityId;
+  playerId: EntityId;
+  competitionSeasonId?: EntityId;
+  minutesLast30Days: number;
+  minutesSeason: number;
+  startsSeason: number;
+  subAppearances: number;
+  updatedOn: ISODate;
+};
+
+export type CompetitionDevelopmentMultiplier = {
+  id: EntityId;
+  competitionId: EntityId;
+  multiplier: number;
+  status: "SIMULATION_ONLY" | "UNKNOWN";
+};
+
+export type StaffSimulationProfile = {
+  id: EntityId;
+  personId: EntityId;
+  coachingTechnical: number;
+  coachingTactical: number;
+  coachingPhysical: number;
+  coachingMental: number;
+  goalkeeping: number;
+  youthDevelopment: number;
+  manManagement: number;
+  status: "SIMULATION_ONLY";
+};
+
+export type TrainingFacilityProfile = {
+  id: EntityId;
+  clubId?: EntityId;
+  academyId?: EntityId;
+  trainingFacilityQuality?: number;
+  youthFacilityQuality?: number;
+  medicalFacilityQuality?: number;
+  status: "SIMULATION_ONLY" | "UNKNOWN";
+};
+
+export type TrainingInjuryRiskSignal = {
+  playerId: EntityId;
+  load: number;
+  fatigue: number;
+  recovery: number;
+  physicalCondition: number;
+  risk: number;
+};
+
+export type TrainingHistoryEvent = {
+  id: EntityId;
+  playerId?: EntityId;
+  teamId?: EntityId;
+  eventType:
+    | "TRAINING_PLAN_CHANGED"
+    | "INDIVIDUAL_FOCUS_STARTED"
+    | "POSITION_TRAINING_STARTED"
+    | "POSITION_FAMILIARITY_INCREASED"
+    | "ATTRIBUTE_IMPROVED"
+    | "ATTRIBUTE_DECLINED"
+    | "PLAYER_OVERTRAINED"
+    | "PLAYER_RETURNED_TO_FULL_TRAINING";
+  occurredOn: ISODate;
+  data?: Record<string, unknown>;
 };
 
 export type PlayerAvailability = {

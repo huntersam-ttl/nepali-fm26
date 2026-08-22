@@ -99,6 +99,14 @@ It deliberately reuses `Person` for player-to-coach-to-official continuity. Miss
 or vacancy records, not fake people, and real August 2026 staff data remains outside application
 logic until the research process supplies source-backed records.
 
+The training and player-development layer is also dataset-backed. Training plans, individual
+development plans, player development state, internal potential, playing-time snapshots, competition
+development multipliers, staff simulation profiles, facility profiles, and sparse training history
+events can be imported and persisted without hard-coding August 2026 claims. Real players are not
+imported by this foundation; testing players remain `SIMULATION_ONLY`. Internal potential and staff
+training attributes are explicitly `SIMULATION_ONLY` game data, while unavailable facility or
+competition values can remain `UNKNOWN`.
+
 ## Competition and Match Simulation
 
 Stage 3 adds a headless competition layer. Competition rule sets are dataset-driven and define season type, points, tiebreakers, home/away structure, round spacing, and promotion/relegation/continental slots. The engine supports deterministic single and double round-robin fixture generation.
@@ -148,6 +156,29 @@ The desktop app currently uses a testing-mode manager flow read model. Productio
 Additional headless command:
 
 - `pnpm tactics:balance`
+
+## Training and Development
+
+The player-development engine is deterministic, headless, and independent of React. It exposes:
+
+- `simulateTrainingDay()`
+- `simulateTrainingWeek()`
+- `updatePlayerDevelopment()`
+
+Development uses the existing 1-20 attribute groups rather than a single overall rating. Weekly
+change is capped and derived from age phase, current ability, internal potential gap, plan load,
+coaching, facilities, playing time, fitness, fatigue, recovery, morale, competition level, individual
+focus, position/role training, and seeded variation. Position and role familiarity progress
+gradually from numeric internal values to labels such as `UNFAMILIAR`, `BASIC`, `COMPETENT`,
+`ACCOMPLISHED`, and `NATURAL`.
+
+Training does not create injuries directly. It emits a `trainingInjuryRiskSignal` from load, fatigue,
+recovery, and fitness so a future injury system can consume the signal. Training history is sparse
+and records meaningful changes rather than every daily session.
+
+Additional headless command:
+
+- `pnpm development:simulate`
 
 ## Desktop Save Integration
 

@@ -9,6 +9,10 @@ const addDays = (date: string, days: number): string => {
   return parsed.toISOString().slice(0, 10);
 };
 
+export type SimulationClockOptions = {
+  onAdvanceDay?: (worldDate: string) => void;
+};
+
 export class SimulationClock {
   private save: SaveMetadata;
   private readonly events: EventRepository;
@@ -16,6 +20,7 @@ export class SimulationClock {
   constructor(
     private readonly db: GameDatabase,
     save: SaveMetadata,
+    private readonly options: SimulationClockOptions = {},
   ) {
     this.save = save;
     this.events = new EventRepository(db);
@@ -40,6 +45,7 @@ export class SimulationClock {
 
   advanceDay(): void {
     this.save = updateSaveWorldDate(this.db, this.save, addDays(this.save.worldDate, 1));
+    this.options.onAdvanceDay?.(this.save.worldDate);
     this.processDueEvents();
   }
 

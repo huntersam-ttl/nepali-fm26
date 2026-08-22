@@ -59,6 +59,8 @@
   generate staff attributes.
 - `StaffHistoryEvent`: factual staff movement history for appointments, departures, federation
   official changes, and referee promotions.
+- `StaffSimulationProfile`: internal training-effect attributes for coaches and staff. These are
+  game simulation values and must be marked `SIMULATION_ONLY`, not inferred from factual job titles.
 
 ## Competitions and Matches
 
@@ -79,6 +81,8 @@
 - `LeagueStanding`: reconstructable table row for a competition season.
 - `PlayerSeasonStat` and `TeamSeasonStat`: season totals derived from match outputs.
 - `CompetitionWinner`: persisted winner record for completed seasons.
+- `CompetitionDevelopmentMultiplier`: configurable development context for competitions. It exists
+  as data so Nepal-specific or continental coefficients are not invented in application logic.
 
 ## Contracts and Movement
 
@@ -118,6 +122,21 @@ continuing to use internal stable entity IDs for save records.
 ## Football Simulation
 
 - `PlayerAttributeSet`: our own 1-20 game ratings across technical, mental, physical, and goalkeeping groups. Imported real-player ratings are game assessments and must be `SIMULATION_ONLY`.
+- `TrainingPlan`: weekly plan for a team, made of sessions such as recovery, physical, technical,
+  tactical, set-piece, goalkeeping, video, bonding, match preparation, rest, or future expanded
+  categories.
+- `IndividualDevelopmentPlan`: player-specific focus for attribute, position, role, physical,
+  technical, mental, or balanced development, with intensity and lifecycle status.
+- `PlayerDevelopmentState`: persistent state for development phase, training load, fatigue, match
+  sharpness, fitness, recovery, momentum, position familiarity, role familiarity, and last update
+  dates.
+- `PlayerPotential`: internal potential ceiling and development traits. This is not a factual
+  scouting claim and must be `SIMULATION_ONLY`.
+- `PlayerPlayingTimeSnapshot`: minutes and appearances used by development and sharpness systems.
+- `TrainingFacilityProfile`: club or academy facility hooks for training, youth, and medical
+  quality. Missing values should be `UNKNOWN`, not guessed.
+- `TrainingHistoryEvent`: sparse development log for plan changes, individual focus, position
+  training, familiarity changes, attribute movement, overtraining, and return to full training.
 - `MatchEnvironment`: neutral match modifier input used by the event-based match engine.
   `buildMatchEnvironmentFromVenue` exposes venue and location signals such as altitude, surface,
   pitch-quality enum, and climate risks for future derivation without inventing Stage 2 gameplay

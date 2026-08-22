@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 8;
+export const CURRENT_DATABASE_VERSION = 9;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -738,6 +738,121 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
         ON referee_profiles(person_id);
       CREATE INDEX IF NOT EXISTS idx_staff_history_person
         ON staff_history_events(person_id, occurred_on);
+    `,
+  },
+  {
+    version: 9,
+    sql: `
+      CREATE TABLE IF NOT EXISTS training_plans (
+        id TEXT PRIMARY KEY,
+        team_id TEXT NOT NULL REFERENCES teams(id),
+        name TEXT NOT NULL,
+        effective_from TEXT NOT NULL,
+        effective_to TEXT,
+        intensity TEXT NOT NULL,
+        sessions_json TEXT NOT NULL,
+        source TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS individual_development_plans (
+        id TEXT PRIMARY KEY,
+        player_id TEXT NOT NULL REFERENCES persons(id),
+        focus_type TEXT NOT NULL,
+        target_position TEXT,
+        target_role TEXT,
+        target_attribute_group TEXT,
+        intensity TEXT NOT NULL,
+        start_date TEXT NOT NULL,
+        end_date TEXT,
+        status TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS player_development_states (
+        id TEXT PRIMARY KEY,
+        player_id TEXT NOT NULL REFERENCES persons(id),
+        development_phase TEXT NOT NULL,
+        training_load REAL NOT NULL,
+        fatigue REAL NOT NULL,
+        match_sharpness REAL NOT NULL,
+        fitness REAL NOT NULL,
+        recovery REAL NOT NULL,
+        development_momentum REAL NOT NULL,
+        position_familiarity_json TEXT NOT NULL,
+        role_familiarity_json TEXT NOT NULL,
+        last_training_date TEXT,
+        last_development_update TEXT,
+        UNIQUE(player_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS player_potentials (
+        id TEXT PRIMARY KEY,
+        player_id TEXT NOT NULL REFERENCES persons(id),
+        potential_ceiling REAL NOT NULL,
+        development_rate REAL NOT NULL,
+        volatility REAL NOT NULL,
+        professionalism REAL NOT NULL,
+        status TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS player_playing_time_snapshots (
+        id TEXT PRIMARY KEY,
+        player_id TEXT NOT NULL REFERENCES persons(id),
+        competition_season_id TEXT REFERENCES competition_seasons(id),
+        minutes_last_30_days INTEGER NOT NULL,
+        minutes_season INTEGER NOT NULL,
+        starts_season INTEGER NOT NULL,
+        sub_appearances INTEGER NOT NULL,
+        updated_on TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS competition_development_multipliers (
+        id TEXT PRIMARY KEY,
+        competition_id TEXT NOT NULL REFERENCES competitions(id),
+        multiplier REAL NOT NULL,
+        status TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS staff_simulation_profiles (
+        id TEXT PRIMARY KEY,
+        person_id TEXT NOT NULL REFERENCES persons(id),
+        coaching_technical REAL NOT NULL,
+        coaching_tactical REAL NOT NULL,
+        coaching_physical REAL NOT NULL,
+        coaching_mental REAL NOT NULL,
+        goalkeeping REAL NOT NULL,
+        youth_development REAL NOT NULL,
+        man_management REAL NOT NULL,
+        status TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS training_facility_profiles (
+        id TEXT PRIMARY KEY,
+        club_id TEXT REFERENCES clubs(id),
+        academy_id TEXT REFERENCES academies(id),
+        training_facility_quality REAL,
+        youth_facility_quality REAL,
+        medical_facility_quality REAL,
+        status TEXT NOT NULL,
+        CHECK (club_id IS NOT NULL OR academy_id IS NOT NULL)
+      );
+
+      CREATE TABLE IF NOT EXISTS training_history_events (
+        id TEXT PRIMARY KEY,
+        player_id TEXT REFERENCES persons(id),
+        team_id TEXT REFERENCES teams(id),
+        event_type TEXT NOT NULL,
+        occurred_on TEXT NOT NULL,
+        data_json TEXT
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_training_plans_team
+        ON training_plans(team_id, effective_from, effective_to);
+      CREATE INDEX IF NOT EXISTS idx_development_plans_player
+        ON individual_development_plans(player_id, status);
+      CREATE INDEX IF NOT EXISTS idx_playing_time_player
+        ON player_playing_time_snapshots(player_id, updated_on);
+      CREATE INDEX IF NOT EXISTS idx_training_history_player
+        ON training_history_events(player_id, occurred_on);
     `,
   },
 ];

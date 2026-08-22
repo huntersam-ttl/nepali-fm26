@@ -65,6 +65,15 @@ type EntityMaps = {
   refereeProfiles: Map<string, EntityId>;
   staffHistoryEvents: Map<string, EntityId>;
   playerAttributes: Map<string, EntityId>;
+  trainingPlans: Map<string, EntityId>;
+  individualDevelopmentPlans: Map<string, EntityId>;
+  playerDevelopmentStates: Map<string, EntityId>;
+  playerPotentials: Map<string, EntityId>;
+  playerPlayingTimeSnapshots: Map<string, EntityId>;
+  competitionDevelopmentMultipliers: Map<string, EntityId>;
+  staffSimulationProfiles: Map<string, EntityId>;
+  trainingFacilityProfiles: Map<string, EntityId>;
+  trainingHistoryEvents: Map<string, EntityId>;
 };
 
 export const createNepalSave = (input: CreateNepalSaveInput): NepalSaveResult => {
@@ -574,6 +583,163 @@ const importNepalWorld = (db: GameDatabase, dataset: NepalWorldDataset): void =>
     });
     persistImport(imports, "playerAttribute", id, attributes, attributes.provenance, importedAt);
   }
+
+  for (const plan of dataset.trainingPlans) {
+    const id = maps.trainingPlans.get(plan.key)!;
+    world.insertTrainingPlan({
+      id,
+      teamId: maps.teams.get(plan.teamKey)!,
+      name: plan.name,
+      effectiveFrom: plan.effectiveFrom,
+      effectiveTo: plan.effectiveTo,
+      intensity: plan.intensity,
+      sessions: plan.sessions.map((session) => ({
+        day: session.day,
+        slot: session.slot,
+        category: session.category,
+        intensity: session.intensity,
+        targetGroup: session.targetGroup,
+        coachAssignmentId: mapFact(session.coachAssignmentKey, maps.staffAppointments),
+      })),
+      source: plan.source,
+    });
+    persistImport(imports, "trainingPlan", id, plan, plan.provenance, importedAt);
+  }
+
+  for (const plan of dataset.individualDevelopmentPlans) {
+    const id = maps.individualDevelopmentPlans.get(plan.key)!;
+    world.insertIndividualDevelopmentPlan({
+      id,
+      playerId: maps.persons.get(plan.playerKey)!,
+      focusType: plan.focusType,
+      targetPosition: plan.targetPosition,
+      targetRole: plan.targetRole,
+      targetAttributeGroup: plan.targetAttributeGroup,
+      intensity: plan.intensity,
+      startDate: plan.startDate,
+      endDate: plan.endDate,
+      status: plan.status,
+    });
+    persistImport(imports, "individualDevelopmentPlan", id, plan, plan.provenance, importedAt);
+  }
+
+  for (const state of dataset.playerDevelopmentStates) {
+    const id = maps.playerDevelopmentStates.get(state.key)!;
+    players.upsertDevelopmentState({
+      id,
+      playerId: maps.persons.get(state.playerKey)!,
+      developmentPhase: state.developmentPhase,
+      trainingLoad: state.trainingLoad,
+      fatigue: state.fatigue,
+      matchSharpness: state.matchSharpness,
+      fitness: state.fitness,
+      recovery: state.recovery,
+      developmentMomentum: state.developmentMomentum,
+      positionFamiliarity: state.positionFamiliarity,
+      roleFamiliarity: state.roleFamiliarity,
+      lastTrainingDate: state.lastTrainingDate,
+      lastDevelopmentUpdate: state.lastDevelopmentUpdate,
+    });
+    persistImport(imports, "playerDevelopmentState", id, state, state.provenance, importedAt);
+  }
+
+  for (const potential of dataset.playerPotentials) {
+    const id = maps.playerPotentials.get(potential.key)!;
+    players.insertPotential({
+      id,
+      playerId: maps.persons.get(potential.playerKey)!,
+      potentialCeiling: potential.potentialCeiling,
+      developmentRate: potential.developmentRate,
+      volatility: potential.volatility,
+      professionalism: potential.professionalism,
+      status: potential.status,
+    });
+    persistImport(imports, "playerPotential", id, potential, potential.provenance, importedAt);
+  }
+
+  for (const snapshot of dataset.playerPlayingTimeSnapshots) {
+    const id = maps.playerPlayingTimeSnapshots.get(snapshot.key)!;
+    players.insertPlayingTimeSnapshot({
+      id,
+      playerId: maps.persons.get(snapshot.playerKey)!,
+      competitionSeasonId: mapFact(snapshot.competitionSeasonKey, maps.competitionSeasons),
+      minutesLast30Days: snapshot.minutesLast30Days,
+      minutesSeason: snapshot.minutesSeason,
+      startsSeason: snapshot.startsSeason,
+      subAppearances: snapshot.subAppearances,
+      updatedOn: snapshot.updatedOn,
+    });
+    persistImport(
+      imports,
+      "playerPlayingTimeSnapshot",
+      id,
+      snapshot,
+      snapshot.provenance,
+      importedAt,
+    );
+  }
+
+  for (const multiplier of dataset.competitionDevelopmentMultipliers) {
+    const id = maps.competitionDevelopmentMultipliers.get(multiplier.key)!;
+    world.insertCompetitionDevelopmentMultiplier({
+      id,
+      competitionId: maps.competitions.get(multiplier.competitionKey)!,
+      multiplier: multiplier.multiplier,
+      status: multiplier.status,
+    });
+    persistImport(
+      imports,
+      "competitionDevelopmentMultiplier",
+      id,
+      multiplier,
+      multiplier.provenance,
+      importedAt,
+    );
+  }
+
+  for (const profile of dataset.staffSimulationProfiles) {
+    const id = maps.staffSimulationProfiles.get(profile.key)!;
+    world.insertStaffSimulationProfile({
+      id,
+      personId: maps.persons.get(profile.personKey)!,
+      coachingTechnical: profile.coachingTechnical,
+      coachingTactical: profile.coachingTactical,
+      coachingPhysical: profile.coachingPhysical,
+      coachingMental: profile.coachingMental,
+      goalkeeping: profile.goalkeeping,
+      youthDevelopment: profile.youthDevelopment,
+      manManagement: profile.manManagement,
+      status: profile.status,
+    });
+    persistImport(imports, "staffSimulationProfile", id, profile, profile.provenance, importedAt);
+  }
+
+  for (const profile of dataset.trainingFacilityProfiles) {
+    const id = maps.trainingFacilityProfiles.get(profile.key)!;
+    world.insertTrainingFacilityProfile({
+      id,
+      clubId: mapFact(profile.clubKey, maps.clubs),
+      academyId: mapFact(profile.academyKey, maps.academies),
+      trainingFacilityQuality: valueOf(profile.trainingFacilityQuality),
+      youthFacilityQuality: valueOf(profile.youthFacilityQuality),
+      medicalFacilityQuality: valueOf(profile.medicalFacilityQuality),
+      status: profile.status,
+    });
+    persistImport(imports, "trainingFacilityProfile", id, profile, profile.provenance, importedAt);
+  }
+
+  for (const event of dataset.trainingHistoryEvents) {
+    const id = maps.trainingHistoryEvents.get(event.key)!;
+    players.insertTrainingHistoryEvent({
+      id,
+      playerId: mapFact(event.playerKey, maps.persons),
+      teamId: mapFact(event.teamKey, maps.teams),
+      eventType: event.eventType,
+      occurredOn: event.occurredOn,
+      data: event.data,
+    });
+    persistImport(imports, "trainingHistoryEvent", id, event, event.provenance, importedAt);
+  }
 };
 
 const buildEntityMaps = (dataset: NepalWorldDataset): EntityMaps => ({
@@ -603,6 +769,24 @@ const buildEntityMaps = (dataset: NepalWorldDataset): EntityMaps => ({
   refereeProfiles: mapKeys("referee-profile", dataset.refereeProfiles),
   staffHistoryEvents: mapKeys("staff-history-event", dataset.staffHistoryEvents),
   playerAttributes: mapKeys("player-attribute", dataset.playerAttributes),
+  trainingPlans: mapKeys("training-plan", dataset.trainingPlans),
+  individualDevelopmentPlans: mapKeys(
+    "individual-development-plan",
+    dataset.individualDevelopmentPlans,
+  ),
+  playerDevelopmentStates: mapKeys("player-development-state", dataset.playerDevelopmentStates),
+  playerPotentials: mapKeys("player-potential", dataset.playerPotentials),
+  playerPlayingTimeSnapshots: mapKeys(
+    "player-playing-time-snapshot",
+    dataset.playerPlayingTimeSnapshots,
+  ),
+  competitionDevelopmentMultipliers: mapKeys(
+    "competition-development-multiplier",
+    dataset.competitionDevelopmentMultipliers,
+  ),
+  staffSimulationProfiles: mapKeys("staff-simulation-profile", dataset.staffSimulationProfiles),
+  trainingFacilityProfiles: mapKeys("training-facility-profile", dataset.trainingFacilityProfiles),
+  trainingHistoryEvents: mapKeys("training-history-event", dataset.trainingHistoryEvents),
 });
 
 const orderLocationsForImport = (

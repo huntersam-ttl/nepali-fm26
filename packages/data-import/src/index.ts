@@ -76,6 +76,60 @@ const staffEmploymentStatusSchema = z.enum([
   "CONTRACT_EXPIRED",
   "UNKNOWN",
 ]);
+const trainingIntensitySchema = z.enum(["LOW", "NORMAL", "HIGH", "VERY_HIGH"]);
+const trainingSessionCategorySchema = z
+  .enum([
+    "RECOVERY",
+    "FITNESS",
+    "ENDURANCE",
+    "STRENGTH",
+    "SPEED",
+    "AGILITY",
+    "TECHNICAL_GENERAL",
+    "PASSING",
+    "FIRST_TOUCH",
+    "DRIBBLING",
+    "FINISHING",
+    "CROSSING",
+    "DEFENDING",
+    "TACKLING",
+    "HEADING",
+    "TACTICAL_GENERAL",
+    "ATTACKING_SHAPE",
+    "DEFENSIVE_SHAPE",
+    "PRESSING",
+    "TRANSITION",
+    "POSSESSION",
+    "COUNTER_ATTACK",
+    "SET_PIECES_ATTACK",
+    "SET_PIECES_DEFENCE",
+    "GOALKEEPING",
+    "GK_SHOT_STOPPING",
+    "GK_DISTRIBUTION",
+    "MATCH_PREPARATION",
+    "TEAM_BONDING",
+    "VIDEO_ANALYSIS",
+    "REST",
+  ])
+  .or(z.string().min(1));
+const trainingGroupSchema = z.enum([
+  "FULL_SQUAD",
+  "GOALKEEPERS",
+  "DEFENDERS",
+  "MIDFIELDERS",
+  "ATTACKERS",
+  "YOUTH",
+  "RESERVES",
+  "CUSTOM",
+]);
+const developmentPhaseSchema = z.enum([
+  "YOUTH_DEVELOPMENT",
+  "EARLY_CAREER",
+  "PRIME",
+  "LATE_PRIME",
+  "DECLINE",
+]);
+const playerPositionSchema = z.enum(["GK", "RB", "CB", "LB", "DM", "CM", "AM", "RW", "LW", "ST"]);
 
 export const importRecordSchema = z.object({
   entityType: z.string().min(1),
@@ -578,6 +632,154 @@ const staffHistoryEventRecordSchema = z.object({
   provenance: provenanceSchema,
 });
 
+const trainingSessionRecordSchema = z.object({
+  day: z.enum(["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"]),
+  slot: z.number().int().min(1),
+  category: trainingSessionCategorySchema,
+  intensity: trainingIntensitySchema,
+  targetGroup: trainingGroupSchema,
+  coachAssignmentKey: nullableKeyFactSchema.optional(),
+});
+
+const trainingPlanRecordSchema = z.object({
+  key: keySchema,
+  teamKey: keySchema,
+  name: z.string().min(1),
+  effectiveFrom: isoDateSchema,
+  effectiveTo: isoDateSchema.optional(),
+  intensity: trainingIntensitySchema,
+  sessions: z.array(trainingSessionRecordSchema),
+  source: z.enum(["USER", "AI", "DEFAULT"]),
+  provenance: provenanceSchema,
+});
+
+const individualDevelopmentPlanRecordSchema = z.object({
+  key: keySchema,
+  playerKey: keySchema,
+  focusType: z.enum([
+    "ATTRIBUTE",
+    "POSITION",
+    "ROLE",
+    "PHYSICAL",
+    "TECHNICAL",
+    "MENTAL",
+    "BALANCED",
+  ]),
+  targetPosition: playerPositionSchema.optional(),
+  targetRole: z.string().min(1).optional(),
+  targetAttributeGroup: z.enum(["technical", "mental", "physical", "goalkeeping"]).optional(),
+  intensity: trainingIntensitySchema,
+  startDate: isoDateSchema,
+  endDate: isoDateSchema.optional(),
+  status: z.enum(["ACTIVE", "PAUSED", "COMPLETED"]),
+  provenance: provenanceSchema,
+});
+
+const playerDevelopmentStateRecordSchema = z.object({
+  key: keySchema,
+  playerKey: keySchema,
+  developmentPhase: developmentPhaseSchema,
+  trainingLoad: z.number().min(0).max(100),
+  fatigue: z.number().min(0).max(100),
+  matchSharpness: z.number().min(0).max(100),
+  fitness: z.number().min(0).max(100),
+  recovery: z.number().min(0).max(100),
+  developmentMomentum: z.number().min(-100).max(100),
+  positionFamiliarity: z.record(z.number().min(0).max(100)).default({}),
+  roleFamiliarity: z.record(z.number().min(0).max(100)).default({}),
+  lastTrainingDate: isoDateSchema.optional(),
+  lastDevelopmentUpdate: isoDateSchema.optional(),
+  provenance: provenanceSchema,
+});
+
+const playerPotentialRecordSchema = z.object({
+  key: keySchema,
+  playerKey: keySchema,
+  potentialCeiling: z.number().min(1).max(20),
+  developmentRate: z.number().min(0).max(2),
+  volatility: z.number().min(0).max(2),
+  professionalism: z.number().min(0).max(2),
+  status: z.literal("SIMULATION_ONLY"),
+  provenance: provenanceSchema.refine((provenance) => provenance.status === "SIMULATION_ONLY", {
+    message: "Potential must be marked SIMULATION_ONLY",
+  }),
+});
+
+const playerPlayingTimeSnapshotRecordSchema = z.object({
+  key: keySchema,
+  playerKey: keySchema,
+  competitionSeasonKey: nullableKeyFactSchema.optional(),
+  minutesLast30Days: z.number().int().min(0),
+  minutesSeason: z.number().int().min(0),
+  startsSeason: z.number().int().min(0),
+  subAppearances: z.number().int().min(0),
+  updatedOn: isoDateSchema,
+  provenance: provenanceSchema,
+});
+
+const competitionDevelopmentMultiplierRecordSchema = z.object({
+  key: keySchema,
+  competitionKey: keySchema,
+  multiplier: z.number().min(0),
+  status: z.enum(["SIMULATION_ONLY", "UNKNOWN"]),
+  provenance: provenanceSchema,
+});
+
+const staffSimulationProfileRecordSchema = z.object({
+  key: keySchema,
+  personKey: keySchema,
+  coachingTechnical: z.number().min(0).max(20),
+  coachingTactical: z.number().min(0).max(20),
+  coachingPhysical: z.number().min(0).max(20),
+  coachingMental: z.number().min(0).max(20),
+  goalkeeping: z.number().min(0).max(20),
+  youthDevelopment: z.number().min(0).max(20),
+  manManagement: z.number().min(0).max(20),
+  status: z.literal("SIMULATION_ONLY"),
+  provenance: provenanceSchema.refine((provenance) => provenance.status === "SIMULATION_ONLY", {
+    message: "Staff simulation profiles must be marked SIMULATION_ONLY",
+  }),
+});
+
+const trainingFacilityProfileRecordSchema = z
+  .object({
+    key: keySchema,
+    clubKey: nullableKeyFactSchema.optional(),
+    academyKey: nullableKeyFactSchema.optional(),
+    trainingFacilityQuality: nullableDecimalFactSchema.optional(),
+    youthFacilityQuality: nullableDecimalFactSchema.optional(),
+    medicalFacilityQuality: nullableDecimalFactSchema.optional(),
+    status: z.enum(["SIMULATION_ONLY", "UNKNOWN"]),
+    provenance: provenanceSchema,
+  })
+  .superRefine((profile, context) => {
+    if (!profile.clubKey?.value && !profile.academyKey?.value) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Training facility profile must link to a club or academy",
+      });
+    }
+  });
+
+const trainingHistoryEventRecordSchema = z.object({
+  key: keySchema,
+  playerKey: nullableKeyFactSchema.optional(),
+  teamKey: nullableKeyFactSchema.optional(),
+  eventType: z.enum([
+    "TRAINING_PLAN_CHANGED",
+    "INDIVIDUAL_FOCUS_STARTED",
+    "POSITION_TRAINING_STARTED",
+    "POSITION_FAMILIARITY_INCREASED",
+    "ATTRIBUTE_IMPROVED",
+    "ATTRIBUTE_DECLINED",
+    "PLAYER_OVERTRAINED",
+    "PLAYER_RETURNED_TO_FULL_TRAINING",
+  ]),
+  occurredOn: isoDateSchema,
+  data: z.record(z.unknown()).optional(),
+  provenance: provenanceSchema,
+});
+
 const personRecordSchema = z.object({
   key: keySchema,
   fullName: z.string().min(1),
@@ -616,8 +818,8 @@ const ratingSchema = z.number().int().min(1).max(20);
 const playerAttributeRecordSchema = z.object({
   key: keySchema,
   personKey: keySchema,
-  primaryPosition: z.enum(["GK", "RB", "CB", "LB", "DM", "CM", "AM", "RW", "LW", "ST"]),
-  secondaryPositions: z.array(z.enum(["GK", "RB", "CB", "LB", "DM", "CM", "AM", "RW", "LW", "ST"])),
+  primaryPosition: playerPositionSchema,
+  secondaryPositions: z.array(playerPositionSchema),
   technical: z.object({
     firstTouch: ratingSchema,
     passing: ratingSchema,
@@ -700,6 +902,17 @@ export const nepalWorldDatasetSchema = z.object({
   personRoles: z.array(personRoleRecordSchema),
   teamPersonAssignments: z.array(teamPersonAssignmentRecordSchema),
   playerAttributes: z.array(playerAttributeRecordSchema).default([]),
+  trainingPlans: z.array(trainingPlanRecordSchema).default([]),
+  individualDevelopmentPlans: z.array(individualDevelopmentPlanRecordSchema).default([]),
+  playerDevelopmentStates: z.array(playerDevelopmentStateRecordSchema).default([]),
+  playerPotentials: z.array(playerPotentialRecordSchema).default([]),
+  playerPlayingTimeSnapshots: z.array(playerPlayingTimeSnapshotRecordSchema).default([]),
+  competitionDevelopmentMultipliers: z
+    .array(competitionDevelopmentMultiplierRecordSchema)
+    .default([]),
+  staffSimulationProfiles: z.array(staffSimulationProfileRecordSchema).default([]),
+  trainingFacilityProfiles: z.array(trainingFacilityProfileRecordSchema).default([]),
+  trainingHistoryEvents: z.array(trainingHistoryEventRecordSchema).default([]),
 });
 
 export type ImportRecordInput = z.infer<typeof importRecordSchema>;
@@ -746,6 +959,19 @@ export const validateNepalWorldReferences = (
   requireUniqueKeys(issues, "staffLicences", dataset.staffLicences);
   requireUniqueKeys(issues, "refereeProfiles", dataset.refereeProfiles);
   requireUniqueKeys(issues, "staffHistoryEvents", dataset.staffHistoryEvents);
+  requireUniqueKeys(issues, "trainingPlans", dataset.trainingPlans);
+  requireUniqueKeys(issues, "individualDevelopmentPlans", dataset.individualDevelopmentPlans);
+  requireUniqueKeys(issues, "playerDevelopmentStates", dataset.playerDevelopmentStates);
+  requireUniqueKeys(issues, "playerPotentials", dataset.playerPotentials);
+  requireUniqueKeys(issues, "playerPlayingTimeSnapshots", dataset.playerPlayingTimeSnapshots);
+  requireUniqueKeys(
+    issues,
+    "competitionDevelopmentMultipliers",
+    dataset.competitionDevelopmentMultipliers,
+  );
+  requireUniqueKeys(issues, "staffSimulationProfiles", dataset.staffSimulationProfiles);
+  requireUniqueKeys(issues, "trainingFacilityProfiles", dataset.trainingFacilityProfiles);
+  requireUniqueKeys(issues, "trainingHistoryEvents", dataset.trainingHistoryEvents);
   requireUniqueKeys(issues, "clubs", dataset.clubs);
   requireUniqueKeys(issues, "teams", dataset.teams);
   requireUniqueCanonicalExternalIds(issues, dataset.clubs);
@@ -1140,6 +1366,74 @@ export const validateNepalWorldReferences = (
   }
   for (const [index, attributes] of dataset.playerAttributes.entries()) {
     requireRef(issues, `playerAttributes.${index}.personKey`, attributes.personKey, persons);
+  }
+  for (const [index, plan] of dataset.trainingPlans.entries()) {
+    requireRef(issues, `trainingPlans.${index}.teamKey`, plan.teamKey, teams);
+    for (const [sessionIndex, session] of plan.sessions.entries()) {
+      requireOptionalFactRef(
+        issues,
+        `trainingPlans.${index}.sessions.${sessionIndex}.coachAssignmentKey`,
+        session.coachAssignmentKey,
+        staffAppointments,
+      );
+    }
+  }
+  for (const [index, plan] of dataset.individualDevelopmentPlans.entries()) {
+    requireRef(issues, `individualDevelopmentPlans.${index}.playerKey`, plan.playerKey, persons);
+  }
+  for (const [index, state] of dataset.playerDevelopmentStates.entries()) {
+    requireRef(issues, `playerDevelopmentStates.${index}.playerKey`, state.playerKey, persons);
+  }
+  for (const [index, potential] of dataset.playerPotentials.entries()) {
+    requireRef(issues, `playerPotentials.${index}.playerKey`, potential.playerKey, persons);
+  }
+  for (const [index, snapshot] of dataset.playerPlayingTimeSnapshots.entries()) {
+    requireRef(
+      issues,
+      `playerPlayingTimeSnapshots.${index}.playerKey`,
+      snapshot.playerKey,
+      persons,
+    );
+    requireOptionalFactRef(
+      issues,
+      `playerPlayingTimeSnapshots.${index}.competitionSeasonKey`,
+      snapshot.competitionSeasonKey,
+      competitionSeasons,
+    );
+  }
+  for (const [index, multiplier] of dataset.competitionDevelopmentMultipliers.entries()) {
+    requireRef(
+      issues,
+      `competitionDevelopmentMultipliers.${index}.competitionKey`,
+      multiplier.competitionKey,
+      competitions,
+    );
+  }
+  for (const [index, profile] of dataset.staffSimulationProfiles.entries()) {
+    requireRef(issues, `staffSimulationProfiles.${index}.personKey`, profile.personKey, persons);
+  }
+  for (const [index, profile] of dataset.trainingFacilityProfiles.entries()) {
+    requireOptionalFactRef(
+      issues,
+      `trainingFacilityProfiles.${index}.clubKey`,
+      profile.clubKey,
+      clubs,
+    );
+    requireOptionalFactRef(
+      issues,
+      `trainingFacilityProfiles.${index}.academyKey`,
+      profile.academyKey,
+      academies,
+    );
+  }
+  for (const [index, event] of dataset.trainingHistoryEvents.entries()) {
+    requireOptionalFactRef(
+      issues,
+      `trainingHistoryEvents.${index}.playerKey`,
+      event.playerKey,
+      persons,
+    );
+    requireOptionalFactRef(issues, `trainingHistoryEvents.${index}.teamKey`, event.teamKey, teams);
   }
 
   return issues;

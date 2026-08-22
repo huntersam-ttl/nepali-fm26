@@ -6,12 +6,14 @@ import type {
   ClubRelationship,
   Club,
   CompetitionMovement,
+  CompetitionDevelopmentMultiplier,
   CompetitionRelationship,
   Country,
   Federation,
   FinanceAccount,
   FinancialTransaction,
   HistoricalEvent,
+  IndividualDevelopmentPlan,
   Location,
   LocationTravelContext,
   Person,
@@ -22,6 +24,7 @@ import type {
   StaffHistoryEvent,
   StaffLicence,
   StaffProfile,
+  StaffSimulationProfile,
   StaffVacancy,
   Team,
   TeamPersonAssignment,
@@ -40,11 +43,17 @@ import type {
   Match,
   MatchEvent,
   PlayerAttributeSet,
+  PlayerDevelopmentState,
   RefereeProfile,
+  PlayerPotential,
+  PlayerPlayingTimeSnapshot,
   PlayerSeasonStat,
   SuspensionRecord,
   TacticalSetup,
   TeamSeasonStat,
+  TrainingFacilityProfile,
+  TrainingHistoryEvent,
+  TrainingPlan,
   VenueRelationship,
 } from "@nepal-football-sim/shared-types";
 import type { EntityId } from "@nepal-football-sim/shared-types";
@@ -596,6 +605,98 @@ export class WorldRepository {
       );
   }
 
+  insertTrainingPlan(plan: TrainingPlan): void {
+    this.db
+      .prepare(
+        `INSERT INTO training_plans
+        (id, team_id, name, effective_from, effective_to, intensity, sessions_json, source)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        plan.id,
+        plan.teamId,
+        plan.name,
+        plan.effectiveFrom,
+        plan.effectiveTo ?? null,
+        plan.intensity,
+        json.stringify(plan.sessions),
+        plan.source,
+      );
+  }
+
+  insertTrainingFacilityProfile(profile: TrainingFacilityProfile): void {
+    this.db
+      .prepare(
+        `INSERT INTO training_facility_profiles
+        (id, club_id, academy_id, training_facility_quality, youth_facility_quality,
+          medical_facility_quality, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        profile.id,
+        profile.clubId ?? null,
+        profile.academyId ?? null,
+        profile.trainingFacilityQuality ?? null,
+        profile.youthFacilityQuality ?? null,
+        profile.medicalFacilityQuality ?? null,
+        profile.status,
+      );
+  }
+
+  insertIndividualDevelopmentPlan(plan: IndividualDevelopmentPlan): void {
+    this.db
+      .prepare(
+        `INSERT INTO individual_development_plans
+        (id, player_id, focus_type, target_position, target_role, target_attribute_group,
+          intensity, start_date, end_date, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        plan.id,
+        plan.playerId,
+        plan.focusType,
+        plan.targetPosition ?? null,
+        plan.targetRole ?? null,
+        plan.targetAttributeGroup ?? null,
+        plan.intensity,
+        plan.startDate,
+        plan.endDate ?? null,
+        plan.status,
+      );
+  }
+
+  insertCompetitionDevelopmentMultiplier(multiplier: CompetitionDevelopmentMultiplier): void {
+    this.db
+      .prepare(
+        `INSERT INTO competition_development_multipliers
+        (id, competition_id, multiplier, status)
+        VALUES (?, ?, ?, ?)`,
+      )
+      .run(multiplier.id, multiplier.competitionId, multiplier.multiplier, multiplier.status);
+  }
+
+  insertStaffSimulationProfile(profile: StaffSimulationProfile): void {
+    this.db
+      .prepare(
+        `INSERT INTO staff_simulation_profiles
+        (id, person_id, coaching_technical, coaching_tactical, coaching_physical,
+          coaching_mental, goalkeeping, youth_development, man_management, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        profile.id,
+        profile.personId,
+        profile.coachingTechnical,
+        profile.coachingTactical,
+        profile.coachingPhysical,
+        profile.coachingMental,
+        profile.goalkeeping,
+        profile.youthDevelopment,
+        profile.manManagement,
+        profile.status,
+      );
+  }
+
   getTeamPersonAssignments(teamId: EntityId): TeamPersonAssignment[] {
     return this.db
       .prepare("SELECT * FROM team_person_assignments WHERE team_id = ? ORDER BY id")
@@ -696,6 +797,15 @@ export class WorldRepository {
       refereeProfiles: scalar("referee_profiles"),
       staffHistoryEvents: scalar("staff_history_events"),
       playerAttributes: scalar("player_attributes"),
+      trainingPlans: scalar("training_plans"),
+      individualDevelopmentPlans: scalar("individual_development_plans"),
+      playerDevelopmentStates: scalar("player_development_states"),
+      playerPotentials: scalar("player_potentials"),
+      playerPlayingTimeSnapshots: scalar("player_playing_time_snapshots"),
+      competitionDevelopmentMultipliers: scalar("competition_development_multipliers"),
+      staffSimulationProfiles: scalar("staff_simulation_profiles"),
+      trainingFacilityProfiles: scalar("training_facility_profiles"),
+      trainingHistoryEvents: scalar("training_history_events"),
       entityProvenance: scalar("entity_provenance"),
     };
   }
@@ -1241,6 +1351,10 @@ export class PlayerRepository {
       );
   }
 
+  upsertAttributes(attributes: PlayerAttributeSet): void {
+    this.insertAttributes(attributes);
+  }
+
   getAttributes(personId: EntityId): PlayerAttributeSet | undefined {
     const row = this.db
       .prepare("SELECT * FROM player_attributes WHERE person_id = ?")
@@ -1259,6 +1373,146 @@ export class PlayerRepository {
       )
       .all(teamId)
       .map(mapAttributes);
+  }
+
+  upsertDevelopmentState(state: PlayerDevelopmentState): void {
+    this.db
+      .prepare(
+        `INSERT INTO player_development_states
+        (id, player_id, development_phase, training_load, fatigue, match_sharpness,
+          fitness, recovery, development_momentum, position_familiarity_json,
+          role_familiarity_json, last_training_date, last_development_update)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(player_id) DO UPDATE SET
+          development_phase = excluded.development_phase,
+          training_load = excluded.training_load,
+          fatigue = excluded.fatigue,
+          match_sharpness = excluded.match_sharpness,
+          fitness = excluded.fitness,
+          recovery = excluded.recovery,
+          development_momentum = excluded.development_momentum,
+          position_familiarity_json = excluded.position_familiarity_json,
+          role_familiarity_json = excluded.role_familiarity_json,
+          last_training_date = excluded.last_training_date,
+          last_development_update = excluded.last_development_update`,
+      )
+      .run(
+        state.id,
+        state.playerId,
+        state.developmentPhase,
+        state.trainingLoad,
+        state.fatigue,
+        state.matchSharpness,
+        state.fitness,
+        state.recovery,
+        state.developmentMomentum,
+        json.stringify(state.positionFamiliarity),
+        json.stringify(state.roleFamiliarity),
+        state.lastTrainingDate ?? null,
+        state.lastDevelopmentUpdate ?? null,
+      );
+  }
+
+  developmentState(playerId: EntityId): PlayerDevelopmentState | undefined {
+    const row = this.db
+      .prepare("SELECT * FROM player_development_states WHERE player_id = ?")
+      .get(playerId) as any;
+    return row ? mapDevelopmentState(row) : undefined;
+  }
+
+  insertPotential(potential: PlayerPotential): void {
+    this.db
+      .prepare(
+        `INSERT INTO player_potentials
+        (id, player_id, potential_ceiling, development_rate, volatility, professionalism, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        potential.id,
+        potential.playerId,
+        potential.potentialCeiling,
+        potential.developmentRate,
+        potential.volatility,
+        potential.professionalism,
+        potential.status,
+      );
+  }
+
+  potential(playerId: EntityId): PlayerPotential | undefined {
+    const row = this.db
+      .prepare("SELECT * FROM player_potentials WHERE player_id = ? ORDER BY id LIMIT 1")
+      .get(playerId) as any;
+    return row
+      ? {
+          id: row.id,
+          playerId: row.player_id,
+          potentialCeiling: row.potential_ceiling,
+          developmentRate: row.development_rate,
+          volatility: row.volatility,
+          professionalism: row.professionalism,
+          status: row.status,
+        }
+      : undefined;
+  }
+
+  insertPlayingTimeSnapshot(snapshot: PlayerPlayingTimeSnapshot): void {
+    this.db
+      .prepare(
+        `INSERT INTO player_playing_time_snapshots
+        (id, player_id, competition_season_id, minutes_last_30_days, minutes_season,
+          starts_season, sub_appearances, updated_on)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        snapshot.id,
+        snapshot.playerId,
+        snapshot.competitionSeasonId ?? null,
+        snapshot.minutesLast30Days,
+        snapshot.minutesSeason,
+        snapshot.startsSeason,
+        snapshot.subAppearances,
+        snapshot.updatedOn,
+      );
+  }
+
+  latestPlayingTime(playerId: EntityId): PlayerPlayingTimeSnapshot | undefined {
+    const row = this.db
+      .prepare(
+        `SELECT * FROM player_playing_time_snapshots
+        WHERE player_id = ?
+        ORDER BY updated_on DESC, id DESC
+        LIMIT 1`,
+      )
+      .get(playerId) as any;
+    return row
+      ? {
+          id: row.id,
+          playerId: row.player_id,
+          competitionSeasonId: row.competition_season_id ?? undefined,
+          minutesLast30Days: row.minutes_last_30_days,
+          minutesSeason: row.minutes_season,
+          startsSeason: row.starts_season,
+          subAppearances: row.sub_appearances,
+          updatedOn: row.updated_on,
+        }
+      : undefined;
+  }
+
+  insertTrainingHistoryEvent(event: TrainingHistoryEvent): void {
+    this.db
+      .prepare(
+        `INSERT INTO training_history_events
+        (id, player_id, team_id, event_type, occurred_on, data_json)
+        VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        event.id,
+        event.playerId ?? null,
+        event.teamId ?? null,
+        event.eventType,
+        event.occurredOn,
+        event.data ? json.stringify(event.data) : null,
+      );
   }
 
   insertInjury(injury: InjuryRecord): void {
@@ -1387,6 +1641,22 @@ const mapAttributes = (row: any): PlayerAttributeSet => ({
   goalkeeping: json.parse(row.goalkeeping_json, {}) as PlayerAttributeSet["goalkeeping"],
 });
 
+const mapDevelopmentState = (row: any): PlayerDevelopmentState => ({
+  id: row.id,
+  playerId: row.player_id,
+  developmentPhase: row.development_phase,
+  trainingLoad: row.training_load,
+  fatigue: row.fatigue,
+  matchSharpness: row.match_sharpness,
+  fitness: row.fitness,
+  recovery: row.recovery,
+  developmentMomentum: row.development_momentum,
+  positionFamiliarity: json.parse(row.position_familiarity_json, {}),
+  roleFamiliarity: json.parse(row.role_familiarity_json, {}),
+  lastTrainingDate: row.last_training_date ?? undefined,
+  lastDevelopmentUpdate: row.last_development_update ?? undefined,
+});
+
 const mapManagerProfile = (row: any): ManagerProfile => ({
   id: row.id,
   personId: row.person_id,
@@ -1486,6 +1756,15 @@ export type WorldInspection = {
   refereeProfiles: number;
   staffHistoryEvents: number;
   playerAttributes: number;
+  trainingPlans: number;
+  individualDevelopmentPlans: number;
+  playerDevelopmentStates: number;
+  playerPotentials: number;
+  playerPlayingTimeSnapshots: number;
+  competitionDevelopmentMultipliers: number;
+  staffSimulationProfiles: number;
+  trainingFacilityProfiles: number;
+  trainingHistoryEvents: number;
   entityProvenance: number;
 };
 

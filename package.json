@@ -10,6 +10,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "headless:sim": "pnpm --filter @nepal-football-sim/simulation headless:sim",
+    "development:simulate": "pnpm --filter @nepal-football-sim/simulation development:simulate",
     "match:simulate": "pnpm --filter @nepal-football-sim/simulation match:simulate",
     "nepal:create-save": "pnpm --filter @nepal-football-sim/simulation nepal:create-save",
     "season:simulate": "pnpm --filter @nepal-football-sim/simulation season:simulate",

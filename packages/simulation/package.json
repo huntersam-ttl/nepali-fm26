@@ -17,6 +17,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "headless:sim": "pnpm build && node dist/cli.js",
+    "development:simulate": "pnpm build && node dist/development-cli.js",
     "match:simulate": "pnpm build && node dist/match-cli.js",
     "nepal:create-save": "pnpm build && node dist/nepal-cli.js",
     "season:simulate": "pnpm build && node dist/season-cli.js --seasons 1",
