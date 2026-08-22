@@ -15,6 +15,7 @@ export const provenanceSchema = z.object({
   sourceId: z.string().min(1).optional(),
   sourceUrl: z.string().url().optional(),
   sourceName: z.string().min(1),
+  publishedAt: z.string().datetime().optional(),
   lastVerifiedDate: isoDateSchema.optional(),
   retrievedAt: z.string().datetime().optional(),
   confidence: z.number().min(0).max(1),
@@ -58,6 +59,23 @@ const nullableStringFactSchema = factSchema(z.string().min(1));
 const nullableNumberFactSchema = factSchema(z.number().int().nonnegative());
 const nullableDecimalFactSchema = factSchema(z.number());
 const nullableBooleanFactSchema = factSchema(z.boolean());
+const footballStaffRoleSchema = z.string().min(1);
+const staffOrganisationTypeSchema = z.enum([
+  "CLUB",
+  "TEAM",
+  "FEDERATION",
+  "ACADEMY",
+  "PARENT_ORGANISATION",
+  "NATIONAL_TEAM",
+  "UNKNOWN",
+]);
+const staffEmploymentStatusSchema = z.enum([
+  "ACTIVE",
+  "FORMER",
+  "INTERIM",
+  "CONTRACT_EXPIRED",
+  "UNKNOWN",
+]);
 
 export const importRecordSchema = z.object({
   entityType: z.string().min(1),
@@ -438,6 +456,128 @@ const locationTravelContextRecordSchema = z.object({
   provenance: provenanceSchema,
 });
 
+const staffProfileRecordSchema = z.object({
+  key: keySchema,
+  personKey: keySchema,
+  preferredRole: nullableStringFactSchema.optional(),
+  salaryExpectation: nullableStringFactSchema.optional(),
+  reputation: nullableStringFactSchema.optional(),
+  countryKnowledgeKeys: z.array(keySchema).default([]),
+  clubKnowledgeKeys: z.array(keySchema).default([]),
+  availability: factSchema(z.enum(["AVAILABLE", "EMPLOYED", "UNKNOWN"])).optional(),
+  workEligibilityStatus: factSchema(z.enum(["ELIGIBLE", "REQUIRES_PERMIT", "UNKNOWN"])).optional(),
+  provenance: provenanceSchema,
+});
+
+const staffAppointmentRecordSchema = z
+  .object({
+    key: keySchema,
+    personKey: keySchema,
+    organisationType: staffOrganisationTypeSchema,
+    clubKey: nullableKeyFactSchema.optional(),
+    teamKey: nullableKeyFactSchema.optional(),
+    federationKey: nullableKeyFactSchema.optional(),
+    academyKey: nullableKeyFactSchema.optional(),
+    organisationName: nullableStringFactSchema.optional(),
+    role: footballStaffRoleSchema,
+    startDate: nullableDateFactSchema.optional(),
+    endDate: nullableDateFactSchema.optional(),
+    employmentStatus: staffEmploymentStatusSchema,
+    contractId: nullableStringFactSchema.optional(),
+    serviceRankTitle: nullableStringFactSchema.optional(),
+    provenance: provenanceSchema,
+  })
+  .superRefine((appointment, context) => {
+    if (
+      !appointment.clubKey?.value &&
+      !appointment.teamKey?.value &&
+      !appointment.federationKey?.value &&
+      !appointment.academyKey?.value &&
+      !appointment.organisationName?.value
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Staff appointment must target an organisation",
+      });
+    }
+  });
+
+const staffVacancyRecordSchema = z
+  .object({
+    key: keySchema,
+    organisationType: staffOrganisationTypeSchema,
+    clubKey: nullableKeyFactSchema.optional(),
+    teamKey: nullableKeyFactSchema.optional(),
+    federationKey: nullableKeyFactSchema.optional(),
+    academyKey: nullableKeyFactSchema.optional(),
+    organisationName: nullableStringFactSchema.optional(),
+    role: footballStaffRoleSchema,
+    required: z.boolean(),
+    assignedPersonKey: nullableKeyFactSchema.optional(),
+    status: z.enum(["FILLED", "VACANT", "UNKNOWN"]),
+    provenance: provenanceSchema,
+  })
+  .superRefine((vacancy, context) => {
+    if (
+      !vacancy.clubKey?.value &&
+      !vacancy.teamKey?.value &&
+      !vacancy.federationKey?.value &&
+      !vacancy.academyKey?.value &&
+      !vacancy.organisationName?.value
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Staff vacancy must target an organisation",
+      });
+    }
+  });
+
+const staffLicenceRecordSchema = z.object({
+  key: keySchema,
+  personKey: keySchema,
+  licenceType: z.string().min(1),
+  issuer: z.string().min(1),
+  issueDate: nullableDateFactSchema.optional(),
+  expiryDate: nullableDateFactSchema.optional(),
+  status: z.enum(["VERIFIED", "REPORTED", "UNKNOWN"]),
+  provenance: provenanceSchema,
+});
+
+const refereeProfileRecordSchema = z.object({
+  key: keySchema,
+  personKey: keySchema,
+  refereeLevel: nullableStringFactSchema.optional(),
+  fifaListed: nullableBooleanFactSchema.optional(),
+  fifaListedSince: nullableDateFactSchema.optional(),
+  primaryRole: footballStaffRoleSchema,
+  competitionsEligibleKeys: z.array(keySchema).default([]),
+  experienceLevel: nullableStringFactSchema.optional(),
+  provenance: provenanceSchema,
+});
+
+const staffHistoryEventRecordSchema = z.object({
+  key: keySchema,
+  personKey: keySchema,
+  eventType: z.enum([
+    "MANAGER_APPOINTED",
+    "MANAGER_SACKED",
+    "MANAGER_RESIGNED",
+    "STAFF_JOINED",
+    "STAFF_LEFT",
+    "FEDERATION_OFFICIAL_APPOINTED",
+    "FEDERATION_OFFICIAL_LEFT",
+    "REFEREE_PROMOTED",
+  ]),
+  occurredOn: isoDateSchema,
+  staffAppointmentKey: nullableKeyFactSchema.optional(),
+  clubKey: nullableKeyFactSchema.optional(),
+  teamKey: nullableKeyFactSchema.optional(),
+  federationKey: nullableKeyFactSchema.optional(),
+  academyKey: nullableKeyFactSchema.optional(),
+  description: nullableStringFactSchema.optional(),
+  provenance: provenanceSchema,
+});
+
 const personRecordSchema = z.object({
   key: keySchema,
   fullName: z.string().min(1),
@@ -550,6 +690,12 @@ export const nepalWorldDatasetSchema = z.object({
   academies: z.array(academyRecordSchema).default([]),
   venueRelationships: z.array(venueRelationshipRecordSchema).default([]),
   locationTravelContexts: z.array(locationTravelContextRecordSchema).default([]),
+  staffProfiles: z.array(staffProfileRecordSchema).default([]),
+  staffAppointments: z.array(staffAppointmentRecordSchema).default([]),
+  staffVacancies: z.array(staffVacancyRecordSchema).default([]),
+  staffLicences: z.array(staffLicenceRecordSchema).default([]),
+  refereeProfiles: z.array(refereeProfileRecordSchema).default([]),
+  staffHistoryEvents: z.array(staffHistoryEventRecordSchema).default([]),
   persons: z.array(personRecordSchema),
   personRoles: z.array(personRoleRecordSchema),
   teamPersonAssignments: z.array(teamPersonAssignmentRecordSchema),
@@ -594,6 +740,12 @@ export const validateNepalWorldReferences = (
   requireUniqueKeys(issues, "competitions", dataset.competitions);
   requireUniqueKeys(issues, "competitionSeasons", dataset.competitionSeasons);
   requireUniqueKeys(issues, "competitionRelationships", dataset.competitionRelationships);
+  requireUniqueKeys(issues, "staffProfiles", dataset.staffProfiles);
+  requireUniqueKeys(issues, "staffAppointments", dataset.staffAppointments);
+  requireUniqueKeys(issues, "staffVacancies", dataset.staffVacancies);
+  requireUniqueKeys(issues, "staffLicences", dataset.staffLicences);
+  requireUniqueKeys(issues, "refereeProfiles", dataset.refereeProfiles);
+  requireUniqueKeys(issues, "staffHistoryEvents", dataset.staffHistoryEvents);
   requireUniqueKeys(issues, "clubs", dataset.clubs);
   requireUniqueKeys(issues, "teams", dataset.teams);
   requireUniqueCanonicalExternalIds(issues, dataset.clubs);
@@ -850,6 +1002,107 @@ export const validateNepalWorldReferences = (
       `locationTravelContexts.${index}.nearestAirportKey`,
       travel.nearestAirportKey,
       locations,
+    );
+  }
+  for (const [index, profile] of dataset.staffProfiles.entries()) {
+    requireRef(issues, `staffProfiles.${index}.personKey`, profile.personKey, persons);
+    for (const [countryIndex, countryKey] of profile.countryKnowledgeKeys.entries()) {
+      requireRef(
+        issues,
+        `staffProfiles.${index}.countryKnowledgeKeys.${countryIndex}`,
+        countryKey,
+        countries,
+      );
+    }
+    for (const [clubIndex, clubKey] of profile.clubKnowledgeKeys.entries()) {
+      requireRef(issues, `staffProfiles.${index}.clubKnowledgeKeys.${clubIndex}`, clubKey, clubs);
+    }
+  }
+  for (const [index, appointment] of dataset.staffAppointments.entries()) {
+    requireRef(issues, `staffAppointments.${index}.personKey`, appointment.personKey, persons);
+    requireOptionalFactRef(
+      issues,
+      `staffAppointments.${index}.clubKey`,
+      appointment.clubKey,
+      clubs,
+    );
+    requireOptionalFactRef(
+      issues,
+      `staffAppointments.${index}.teamKey`,
+      appointment.teamKey,
+      teams,
+    );
+    requireOptionalFactRef(
+      issues,
+      `staffAppointments.${index}.federationKey`,
+      appointment.federationKey,
+      federations,
+    );
+    requireOptionalFactRef(
+      issues,
+      `staffAppointments.${index}.academyKey`,
+      appointment.academyKey,
+      academies,
+    );
+  }
+  for (const [index, vacancy] of dataset.staffVacancies.entries()) {
+    requireOptionalFactRef(issues, `staffVacancies.${index}.clubKey`, vacancy.clubKey, clubs);
+    requireOptionalFactRef(issues, `staffVacancies.${index}.teamKey`, vacancy.teamKey, teams);
+    requireOptionalFactRef(
+      issues,
+      `staffVacancies.${index}.federationKey`,
+      vacancy.federationKey,
+      federations,
+    );
+    requireOptionalFactRef(
+      issues,
+      `staffVacancies.${index}.academyKey`,
+      vacancy.academyKey,
+      academies,
+    );
+    requireOptionalFactRef(
+      issues,
+      `staffVacancies.${index}.assignedPersonKey`,
+      vacancy.assignedPersonKey,
+      persons,
+    );
+  }
+  for (const [index, licence] of dataset.staffLicences.entries()) {
+    requireRef(issues, `staffLicences.${index}.personKey`, licence.personKey, persons);
+  }
+  for (const [index, referee] of dataset.refereeProfiles.entries()) {
+    requireRef(issues, `refereeProfiles.${index}.personKey`, referee.personKey, persons);
+    for (const [competitionIndex, competitionKey] of referee.competitionsEligibleKeys.entries()) {
+      requireRef(
+        issues,
+        `refereeProfiles.${index}.competitionsEligibleKeys.${competitionIndex}`,
+        competitionKey,
+        competitions,
+      );
+    }
+  }
+  const staffAppointments = keySet(dataset.staffAppointments);
+  for (const [index, event] of dataset.staffHistoryEvents.entries()) {
+    requireRef(issues, `staffHistoryEvents.${index}.personKey`, event.personKey, persons);
+    requireOptionalFactRef(
+      issues,
+      `staffHistoryEvents.${index}.staffAppointmentKey`,
+      event.staffAppointmentKey,
+      staffAppointments,
+    );
+    requireOptionalFactRef(issues, `staffHistoryEvents.${index}.clubKey`, event.clubKey, clubs);
+    requireOptionalFactRef(issues, `staffHistoryEvents.${index}.teamKey`, event.teamKey, teams);
+    requireOptionalFactRef(
+      issues,
+      `staffHistoryEvents.${index}.federationKey`,
+      event.federationKey,
+      federations,
+    );
+    requireOptionalFactRef(
+      issues,
+      `staffHistoryEvents.${index}.academyKey`,
+      event.academyKey,
+      academies,
     );
   }
   for (const [index, person] of dataset.persons.entries()) {

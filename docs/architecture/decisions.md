@@ -101,3 +101,18 @@ academy, and franchise relationships from collapsing into one ambiguous "home gr
 The match engine may receive neutral venue/geography signals, but Stage 2 does not convert those
 signals into altitude, heat, monsoon, pitch, travel, scheduling, or home-advantage modifiers. Those
 systems should be added later as data consumers.
+
+## ADR-022: Football workforce appointments reuse Person identity
+
+Staff, executives, federation officials, national-team staff, and referees are modeled through
+appointments linked to the existing `Person` table. A retired player who becomes a coach, a coach who
+becomes technical director, or an executive who joins a federation committee keeps one person ID.
+
+Staffing requirements are separate vacancy records, so missing real-world staff data does not force
+fictional people into the August 2026 database. Staff licences, referee profiles, market-readiness
+fields, and staff history events are separate factual records with provenance and are not inferred
+from job title.
+
+Player-controlled managers and NPC managers should converge on this same appointment architecture
+where practical. Stage 4's existing manager profile and manager contract tables remain supported, but
+future career work should avoid creating a parallel NPC-only employment system.

@@ -58,6 +58,12 @@ type EntityMaps = {
   persons: Map<string, EntityId>;
   personRoles: Map<string, EntityId>;
   teamPersonAssignments: Map<string, EntityId>;
+  staffProfiles: Map<string, EntityId>;
+  staffAppointments: Map<string, EntityId>;
+  staffVacancies: Map<string, EntityId>;
+  staffLicences: Map<string, EntityId>;
+  refereeProfiles: Map<string, EntityId>;
+  staffHistoryEvents: Map<string, EntityId>;
   playerAttributes: Map<string, EntityId>;
 };
 
@@ -453,6 +459,107 @@ const importNepalWorld = (db: GameDatabase, dataset: NepalWorldDataset): void =>
     );
   }
 
+  for (const profile of dataset.staffProfiles) {
+    const id = maps.staffProfiles.get(profile.key)!;
+    world.insertStaffProfile({
+      id,
+      personId: maps.persons.get(profile.personKey)!,
+      preferredRole: valueOf(profile.preferredRole),
+      salaryExpectation: valueOf(profile.salaryExpectation),
+      reputation: valueOf(profile.reputation),
+      countryKnowledge: mapKeyArray(profile.countryKnowledgeKeys, maps.countries),
+      clubKnowledge: mapKeyArray(profile.clubKnowledgeKeys, maps.clubs),
+      availability: valueOf(profile.availability),
+      workEligibilityStatus: valueOf(profile.workEligibilityStatus),
+    });
+    persistImport(imports, "staffProfile", id, profile, profile.provenance, importedAt);
+  }
+
+  for (const appointment of dataset.staffAppointments) {
+    const id = maps.staffAppointments.get(appointment.key)!;
+    world.insertStaffAppointment({
+      id,
+      personId: maps.persons.get(appointment.personKey)!,
+      organisationType: appointment.organisationType,
+      clubId: mapFact(appointment.clubKey, maps.clubs),
+      teamId: mapFact(appointment.teamKey, maps.teams),
+      federationId: mapFact(appointment.federationKey, maps.federations),
+      academyId: mapFact(appointment.academyKey, maps.academies),
+      organisationName: valueOf(appointment.organisationName),
+      role: appointment.role,
+      startDate: valueOf(appointment.startDate),
+      endDate: valueOf(appointment.endDate),
+      employmentStatus: appointment.employmentStatus,
+      contractId: valueOf(appointment.contractId) as EntityId | undefined,
+      serviceRankTitle: valueOf(appointment.serviceRankTitle),
+    });
+    persistImport(imports, "staffAppointment", id, appointment, appointment.provenance, importedAt);
+  }
+
+  for (const vacancy of dataset.staffVacancies) {
+    const id = maps.staffVacancies.get(vacancy.key)!;
+    world.insertStaffVacancy({
+      id,
+      organisationType: vacancy.organisationType,
+      clubId: mapFact(vacancy.clubKey, maps.clubs),
+      teamId: mapFact(vacancy.teamKey, maps.teams),
+      federationId: mapFact(vacancy.federationKey, maps.federations),
+      academyId: mapFact(vacancy.academyKey, maps.academies),
+      organisationName: valueOf(vacancy.organisationName),
+      role: vacancy.role,
+      required: vacancy.required,
+      assignedPersonId: mapFact(vacancy.assignedPersonKey, maps.persons),
+      status: vacancy.status,
+    });
+    persistImport(imports, "staffVacancy", id, vacancy, vacancy.provenance, importedAt);
+  }
+
+  for (const licence of dataset.staffLicences) {
+    const id = maps.staffLicences.get(licence.key)!;
+    world.insertStaffLicence({
+      id,
+      personId: maps.persons.get(licence.personKey)!,
+      licenceType: licence.licenceType,
+      issuer: licence.issuer,
+      issueDate: valueOf(licence.issueDate),
+      expiryDate: valueOf(licence.expiryDate),
+      status: licence.status,
+    });
+    persistImport(imports, "staffLicence", id, licence, licence.provenance, importedAt);
+  }
+
+  for (const referee of dataset.refereeProfiles) {
+    const id = maps.refereeProfiles.get(referee.key)!;
+    world.insertRefereeProfile({
+      id,
+      personId: maps.persons.get(referee.personKey)!,
+      refereeLevel: valueOf(referee.refereeLevel),
+      fifaListed: valueOf(referee.fifaListed),
+      fifaListedSince: valueOf(referee.fifaListedSince),
+      primaryRole: referee.primaryRole,
+      competitionsEligible: mapKeyArray(referee.competitionsEligibleKeys, maps.competitions),
+      experienceLevel: valueOf(referee.experienceLevel),
+    });
+    persistImport(imports, "refereeProfile", id, referee, referee.provenance, importedAt);
+  }
+
+  for (const event of dataset.staffHistoryEvents) {
+    const id = maps.staffHistoryEvents.get(event.key)!;
+    world.insertStaffHistoryEvent({
+      id,
+      personId: maps.persons.get(event.personKey)!,
+      eventType: event.eventType,
+      occurredOn: event.occurredOn,
+      appointmentId: mapFact(event.staffAppointmentKey, maps.staffAppointments),
+      clubId: mapFact(event.clubKey, maps.clubs),
+      teamId: mapFact(event.teamKey, maps.teams),
+      federationId: mapFact(event.federationKey, maps.federations),
+      academyId: mapFact(event.academyKey, maps.academies),
+      description: valueOf(event.description),
+    });
+    persistImport(imports, "staffHistoryEvent", id, event, event.provenance, importedAt);
+  }
+
   for (const attributes of dataset.playerAttributes) {
     const id = maps.playerAttributes.get(attributes.key)!;
     players.insertAttributes({
@@ -489,6 +596,12 @@ const buildEntityMaps = (dataset: NepalWorldDataset): EntityMaps => ({
   persons: mapKeys("person", dataset.persons),
   personRoles: mapKeys("person-role", dataset.personRoles),
   teamPersonAssignments: mapKeys("team-person-assignment", dataset.teamPersonAssignments),
+  staffProfiles: mapKeys("staff-profile", dataset.staffProfiles),
+  staffAppointments: mapKeys("staff-appointment", dataset.staffAppointments),
+  staffVacancies: mapKeys("staff-vacancy", dataset.staffVacancies),
+  staffLicences: mapKeys("staff-licence", dataset.staffLicences),
+  refereeProfiles: mapKeys("referee-profile", dataset.refereeProfiles),
+  staffHistoryEvents: mapKeys("staff-history-event", dataset.staffHistoryEvents),
   playerAttributes: mapKeys("player-attribute", dataset.playerAttributes),
 });
 
@@ -534,6 +647,9 @@ const mapFact = (
   }
   return map.get(fact.value);
 };
+
+const mapKeyArray = (keys: readonly string[], map: ReadonlyMap<string, EntityId>): EntityId[] =>
+  keys.map((key) => map.get(key)!);
 
 const persistImport = (
   imports: ImportRepository,

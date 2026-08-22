@@ -22,6 +22,11 @@ relationships, and basic location-to-location travel context.
 It intentionally does not import players, staff, ratings, finances, budgets, squad values, Football
 Manager IDs, or proprietary game ratings.
 
+The schema now supports source-backed staff, official, referee, licence, vacancy, and staff-history
+imports, but this real Nepal registry keeps those arrays empty until the separate staff research
+process supplies current August 2026 records. Do not fill club, federation, or referee roles with
+invented people.
+
 The supplied registry did not provide direct source URLs for every field in this task, so factual
 records are generally marked `REPORTED` with `MEDIUM` confidence. Unknown venue capacity, surface,
 pitch quality, altitude, coordinates, founded year, travel distance, and similar unavailable facts

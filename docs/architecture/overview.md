@@ -93,6 +93,12 @@ Stage 2 does not derive gameplay modifiers from those facts yet. Altitude, monso
 fatigue, pitch deterioration, scheduling conflicts, and stadium projects should be implemented as
 future systems that consume this data.
 
+The football workforce layer extends the same import pipeline for staff, executives, federation
+officials, national-team staff, referees, licences, staffing vacancies, and staff movement history.
+It deliberately reuses `Person` for player-to-coach-to-official continuity. Missing roles are empty
+or vacancy records, not fake people, and real August 2026 staff data remains outside application
+logic until the research process supplies source-backed records.
+
 ## Competition and Match Simulation
 
 Stage 3 adds a headless competition layer. Competition rule sets are dataset-driven and define season type, points, tiebreakers, home/away structure, round spacing, and promotion/relegation/continental slots. The engine supports deterministic single and double round-robin fixture generation.

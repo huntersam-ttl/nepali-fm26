@@ -25,7 +25,13 @@ export type EntityRef = {
     | "managerProfile"
     | "managerContract"
     | "tacticalSetup"
-    | "inboxItem";
+    | "inboxItem"
+    | "staffAppointment"
+    | "staffVacancy"
+    | "staffLicence"
+    | "refereeProfile"
+    | "staffProfile"
+    | "staffHistoryEvent";
 };
 
 export type RiskLevel = "LOW" | "MEDIUM" | "HIGH" | "UNKNOWN";
@@ -397,6 +403,143 @@ export type ManagerContract = {
   salaryAmountMinor: number;
   currency: string;
   status: ManagerContractStatus;
+};
+
+export type FootballStaffRole =
+  | "HEAD_COACH"
+  | "ASSISTANT_COACH"
+  | "FIRST_TEAM_COACH"
+  | "GOALKEEPER_COACH"
+  | "FITNESS_COACH"
+  | "SET_PIECE_COACH"
+  | "YOUTH_COACH"
+  | "ACADEMY_DIRECTOR"
+  | "SCOUT"
+  | "CHIEF_SCOUT"
+  | "ANALYST"
+  | "HEAD_ANALYST"
+  | "PHYSIO"
+  | "HEAD_PHYSIO"
+  | "DOCTOR"
+  | "SPORTS_SCIENTIST"
+  | "NUTRITIONIST"
+  | "PSYCHOLOGIST"
+  | "SPORTING_DIRECTOR"
+  | "TECHNICAL_DIRECTOR"
+  | "DIRECTOR_OF_FOOTBALL"
+  | "CHAIRMAN"
+  | "PRESIDENT"
+  | "VICE_PRESIDENT"
+  | "CEO"
+  | "GENERAL_SECRETARY"
+  | "BOARD_MEMBER"
+  | "FEDERATION_PRESIDENT"
+  | "FEDERATION_GENERAL_SECRETARY"
+  | "FEDERATION_EXECUTIVE"
+  | "TECHNICAL_COMMITTEE_MEMBER"
+  | "REFEREE_COMMITTEE_MEMBER"
+  | "NATIONAL_TEAM_HEAD_COACH"
+  | "NATIONAL_TEAM_ASSISTANT"
+  | "NATIONAL_TEAM_GK_COACH"
+  | "NATIONAL_TEAM_PHYSIO"
+  | "NATIONAL_TEAM_ANALYST"
+  | "REFEREE"
+  | "ASSISTANT_REFEREE"
+  | "FOURTH_OFFICIAL"
+  | "VAR_OFFICIAL"
+  | "REFEREE_INSTRUCTOR"
+  | "REFEREE_ASSESSOR"
+  | string;
+
+export type StaffEmploymentStatus =
+  "ACTIVE" | "FORMER" | "INTERIM" | "CONTRACT_EXPIRED" | "UNKNOWN";
+
+export type StaffOrganisationType =
+  "CLUB" | "TEAM" | "FEDERATION" | "ACADEMY" | "PARENT_ORGANISATION" | "NATIONAL_TEAM" | "UNKNOWN";
+
+export type StaffAppointment = {
+  id: EntityId;
+  personId: EntityId;
+  organisationType: StaffOrganisationType;
+  clubId?: EntityId;
+  teamId?: EntityId;
+  federationId?: EntityId;
+  academyId?: EntityId;
+  organisationName?: string;
+  role: FootballStaffRole;
+  startDate?: ISODate;
+  endDate?: ISODate;
+  employmentStatus: StaffEmploymentStatus;
+  contractId?: EntityId;
+  serviceRankTitle?: string;
+};
+
+export type StaffVacancy = {
+  id: EntityId;
+  organisationType: StaffOrganisationType;
+  clubId?: EntityId;
+  teamId?: EntityId;
+  federationId?: EntityId;
+  academyId?: EntityId;
+  organisationName?: string;
+  role: FootballStaffRole;
+  required: boolean;
+  assignedPersonId?: EntityId;
+  status: "FILLED" | "VACANT" | "UNKNOWN";
+};
+
+export type StaffLicence = {
+  id: EntityId;
+  personId: EntityId;
+  licenceType: string;
+  issuer: string;
+  issueDate?: ISODate;
+  expiryDate?: ISODate;
+  status: "VERIFIED" | "REPORTED" | "UNKNOWN";
+};
+
+export type RefereeProfile = {
+  id: EntityId;
+  personId: EntityId;
+  refereeLevel?: string;
+  fifaListed?: boolean;
+  fifaListedSince?: ISODate;
+  primaryRole: FootballStaffRole;
+  competitionsEligible: EntityId[];
+  experienceLevel?: string;
+};
+
+export type StaffProfile = {
+  id: EntityId;
+  personId: EntityId;
+  preferredRole?: FootballStaffRole;
+  salaryExpectation?: string;
+  reputation?: string;
+  countryKnowledge: EntityId[];
+  clubKnowledge: EntityId[];
+  availability?: "AVAILABLE" | "EMPLOYED" | "UNKNOWN";
+  workEligibilityStatus?: "ELIGIBLE" | "REQUIRES_PERMIT" | "UNKNOWN";
+};
+
+export type StaffHistoryEvent = {
+  id: EntityId;
+  personId: EntityId;
+  eventType:
+    | "MANAGER_APPOINTED"
+    | "MANAGER_SACKED"
+    | "MANAGER_RESIGNED"
+    | "STAFF_JOINED"
+    | "STAFF_LEFT"
+    | "FEDERATION_OFFICIAL_APPOINTED"
+    | "FEDERATION_OFFICIAL_LEFT"
+    | "REFEREE_PROMOTED";
+  occurredOn: ISODate;
+  appointmentId?: EntityId;
+  clubId?: EntityId;
+  teamId?: EntityId;
+  federationId?: EntityId;
+  academyId?: EntityId;
+  description?: string;
 };
 
 export type Competition = {
@@ -1053,6 +1196,7 @@ export type DataProvenance = {
   sourceId?: string;
   sourceUrl?: string;
   sourceName: string;
+  publishedAt?: ISODateTime;
   lastVerifiedDate?: ISODate;
   retrievedAt?: ISODateTime;
   confidence: number;

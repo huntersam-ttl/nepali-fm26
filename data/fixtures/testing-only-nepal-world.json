@@ -19,6 +19,16 @@
         "confidence": 1,
         "status": "SIMULATION_ONLY"
       }
+    },
+    {
+      "key": "au",
+      "name": "Testing-only Australia",
+      "isoCode": "AU",
+      "provenance": {
+        "sourceName": "Automated test fixture",
+        "confidence": 1,
+        "status": "SIMULATION_ONLY"
+      }
     }
   ],
   "locations": [
@@ -136,6 +146,21 @@
         "confidence": 1,
         "status": "SIMULATION_ONLY"
       }
+    },
+    {
+      "key": "test-national-senior-men",
+      "name": "Testing-only Nepal Senior Men",
+      "federationKey": {
+        "value": "test-federation",
+        "status": "SIMULATION_ONLY"
+      },
+      "level": "senior",
+      "gender": "men",
+      "provenance": {
+        "sourceName": "Automated test fixture",
+        "confidence": 1,
+        "status": "SIMULATION_ONLY"
+      }
     }
   ],
   "persons": [
@@ -190,6 +215,62 @@
         "confidence": 1,
         "status": "SIMULATION_ONLY"
       }
+    },
+    {
+      "key": "test-foreign-coach",
+      "fullName": "Testing-only Foreign Coach",
+      "dateOfBirth": {
+        "status": "UNKNOWN"
+      },
+      "nationalityCountryKey": "au",
+      "secondNationalityCountryKey": {
+        "value": "np",
+        "status": "SIMULATION_ONLY"
+      },
+      "genderPresentation": {
+        "status": "UNKNOWN"
+      },
+      "placeOfBirthLocationKey": {
+        "status": "UNKNOWN"
+      },
+      "hometownLocationKey": {
+        "status": "UNKNOWN"
+      },
+      "languages": {
+        "value": ["en", "ne"],
+        "status": "SIMULATION_ONLY"
+      },
+      "provenance": {
+        "sourceName": "Automated test fixture",
+        "confidence": 1,
+        "status": "SIMULATION_ONLY"
+      }
+    },
+    {
+      "key": "test-referee",
+      "fullName": "Testing-only Referee",
+      "dateOfBirth": {
+        "status": "UNKNOWN"
+      },
+      "nationalityCountryKey": "np",
+      "genderPresentation": {
+        "status": "UNKNOWN"
+      },
+      "placeOfBirthLocationKey": {
+        "status": "UNKNOWN"
+      },
+      "hometownLocationKey": {
+        "status": "UNKNOWN"
+      },
+      "languages": {
+        "value": ["ne"],
+        "status": "SIMULATION_ONLY"
+      },
+      "provenance": {
+        "sourceName": "Automated test fixture",
+        "confidence": 1,
+        "status": "SIMULATION_ONLY"
+      }
     }
   ],
   "personRoles": [
@@ -210,6 +291,48 @@
     {
       "key": "test-staff-role",
       "personKey": "test-staff",
+      "role": "STAFF",
+      "activeFrom": {
+        "value": "2026-08-01",
+        "status": "SIMULATION_ONLY"
+      },
+      "provenance": {
+        "sourceName": "Automated test fixture",
+        "confidence": 1,
+        "status": "SIMULATION_ONLY"
+      }
+    },
+    {
+      "key": "test-player-coach-role",
+      "personKey": "test-player",
+      "role": "STAFF",
+      "activeFrom": {
+        "value": "2026-08-01",
+        "status": "SIMULATION_ONLY"
+      },
+      "provenance": {
+        "sourceName": "Automated test fixture",
+        "confidence": 1,
+        "status": "SIMULATION_ONLY"
+      }
+    },
+    {
+      "key": "test-foreign-coach-role",
+      "personKey": "test-foreign-coach",
+      "role": "STAFF",
+      "activeFrom": {
+        "value": "2026-08-01",
+        "status": "SIMULATION_ONLY"
+      },
+      "provenance": {
+        "sourceName": "Automated test fixture",
+        "confidence": 1,
+        "status": "SIMULATION_ONLY"
+      }
+    },
+    {
+      "key": "test-referee-role",
+      "personKey": "test-referee",
       "role": "STAFF",
       "activeFrom": {
         "value": "2026-08-01",
@@ -245,6 +368,241 @@
       "role": "STAFF",
       "startedOn": {
         "value": "2026-08-01",
+        "status": "SIMULATION_ONLY"
+      },
+      "provenance": {
+        "sourceName": "Automated test fixture",
+        "confidence": 1,
+        "status": "SIMULATION_ONLY"
+      }
+    }
+  ],
+  "staffProfiles": [
+    {
+      "key": "test-foreign-coach-profile",
+      "personKey": "test-foreign-coach",
+      "preferredRole": {
+        "value": "NATIONAL_TEAM_HEAD_COACH",
+        "status": "SIMULATION_ONLY"
+      },
+      "countryKnowledgeKeys": ["np"],
+      "clubKnowledgeKeys": ["test-club"],
+      "availability": {
+        "value": "EMPLOYED",
+        "status": "SIMULATION_ONLY"
+      },
+      "workEligibilityStatus": {
+        "value": "ELIGIBLE",
+        "status": "SIMULATION_ONLY"
+      },
+      "provenance": {
+        "sourceName": "Automated test fixture",
+        "confidence": 1,
+        "status": "SIMULATION_ONLY"
+      }
+    }
+  ],
+  "staffAppointments": [
+    {
+      "key": "test-player-head-coach",
+      "personKey": "test-player",
+      "organisationType": "CLUB",
+      "clubKey": {
+        "value": "test-club",
+        "status": "SIMULATION_ONLY"
+      },
+      "teamKey": {
+        "value": "test-club-senior-men",
+        "status": "SIMULATION_ONLY"
+      },
+      "role": "HEAD_COACH",
+      "startDate": {
+        "value": "2026-08-01",
+        "status": "SIMULATION_ONLY"
+      },
+      "employmentStatus": "ACTIVE",
+      "provenance": {
+        "sourceName": "Automated test fixture",
+        "confidence": 1,
+        "status": "SIMULATION_ONLY"
+      }
+    },
+    {
+      "key": "test-staff-assistant",
+      "personKey": "test-staff",
+      "organisationType": "CLUB",
+      "clubKey": {
+        "value": "test-club",
+        "status": "SIMULATION_ONLY"
+      },
+      "teamKey": {
+        "value": "test-club-senior-men",
+        "status": "SIMULATION_ONLY"
+      },
+      "role": "ASSISTANT_COACH",
+      "startDate": {
+        "value": "2025-01-01",
+        "status": "SIMULATION_ONLY"
+      },
+      "endDate": {
+        "value": "2026-07-01",
+        "status": "SIMULATION_ONLY"
+      },
+      "employmentStatus": "FORMER",
+      "provenance": {
+        "sourceName": "Automated test fixture",
+        "confidence": 1,
+        "status": "SIMULATION_ONLY"
+      }
+    },
+    {
+      "key": "test-staff-interim",
+      "personKey": "test-staff",
+      "organisationType": "CLUB",
+      "clubKey": {
+        "value": "test-club",
+        "status": "SIMULATION_ONLY"
+      },
+      "role": "HEAD_COACH",
+      "startDate": {
+        "value": "2026-07-02",
+        "status": "SIMULATION_ONLY"
+      },
+      "endDate": {
+        "value": "2026-07-31",
+        "status": "SIMULATION_ONLY"
+      },
+      "employmentStatus": "INTERIM",
+      "provenance": {
+        "sourceName": "Automated test fixture",
+        "confidence": 1,
+        "status": "SIMULATION_ONLY"
+      }
+    },
+    {
+      "key": "test-foreign-national-coach",
+      "personKey": "test-foreign-coach",
+      "organisationType": "NATIONAL_TEAM",
+      "teamKey": {
+        "value": "test-national-senior-men",
+        "status": "SIMULATION_ONLY"
+      },
+      "federationKey": {
+        "value": "test-federation",
+        "status": "SIMULATION_ONLY"
+      },
+      "role": "NATIONAL_TEAM_HEAD_COACH",
+      "employmentStatus": "ACTIVE",
+      "provenance": {
+        "sourceName": "Automated test fixture",
+        "confidence": 1,
+        "status": "SIMULATION_ONLY"
+      }
+    },
+    {
+      "key": "test-federation-official",
+      "personKey": "test-staff",
+      "organisationType": "FEDERATION",
+      "federationKey": {
+        "value": "test-federation",
+        "status": "SIMULATION_ONLY"
+      },
+      "role": "FEDERATION_GENERAL_SECRETARY",
+      "employmentStatus": "ACTIVE",
+      "provenance": {
+        "sourceName": "Automated test fixture",
+        "confidence": 1,
+        "status": "SIMULATION_ONLY"
+      }
+    },
+    {
+      "key": "test-referee-appointment",
+      "personKey": "test-referee",
+      "organisationType": "FEDERATION",
+      "federationKey": {
+        "value": "test-federation",
+        "status": "SIMULATION_ONLY"
+      },
+      "role": "REFEREE",
+      "employmentStatus": "ACTIVE",
+      "provenance": {
+        "sourceName": "Automated test fixture",
+        "confidence": 1,
+        "status": "SIMULATION_ONLY"
+      }
+    }
+  ],
+  "staffVacancies": [
+    {
+      "key": "test-club-physio-vacancy",
+      "organisationType": "CLUB",
+      "clubKey": {
+        "value": "test-club",
+        "status": "SIMULATION_ONLY"
+      },
+      "role": "PHYSIO",
+      "required": false,
+      "assignedPersonKey": {
+        "status": "UNKNOWN"
+      },
+      "status": "VACANT",
+      "provenance": {
+        "sourceName": "Automated test fixture",
+        "confidence": 1,
+        "status": "SIMULATION_ONLY"
+      }
+    }
+  ],
+  "staffLicences": [
+    {
+      "key": "test-foreign-coach-afc-a",
+      "personKey": "test-foreign-coach",
+      "licenceType": "AFC A",
+      "issuer": "Asian Football Confederation",
+      "status": "REPORTED",
+      "provenance": {
+        "sourceName": "Automated test fixture",
+        "confidence": 1,
+        "status": "SIMULATION_ONLY"
+      }
+    }
+  ],
+  "refereeProfiles": [
+    {
+      "key": "test-referee-profile",
+      "personKey": "test-referee",
+      "refereeLevel": {
+        "value": "Testing-only national list",
+        "status": "SIMULATION_ONLY"
+      },
+      "fifaListed": {
+        "status": "UNKNOWN"
+      },
+      "primaryRole": "REFEREE",
+      "competitionsEligibleKeys": ["test-league"],
+      "provenance": {
+        "sourceName": "Automated test fixture",
+        "confidence": 1,
+        "status": "SIMULATION_ONLY"
+      }
+    }
+  ],
+  "staffHistoryEvents": [
+    {
+      "key": "test-player-manager-appointed",
+      "personKey": "test-player",
+      "eventType": "MANAGER_APPOINTED",
+      "occurredOn": "2026-08-01",
+      "staffAppointmentKey": {
+        "value": "test-player-head-coach",
+        "status": "SIMULATION_ONLY"
+      },
+      "clubKey": {
+        "value": "test-club",
+        "status": "SIMULATION_ONLY"
+      },
+      "description": {
+        "value": "Testing-only retired player became head coach.",
         "status": "SIMULATION_ONLY"
       },
       "provenance": {

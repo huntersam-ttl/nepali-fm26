@@ -18,6 +18,11 @@ import type {
   PersonRole,
   SaveMetadata,
   ScheduledEvent,
+  StaffAppointment,
+  StaffHistoryEvent,
+  StaffLicence,
+  StaffProfile,
+  StaffVacancy,
   Team,
   TeamPersonAssignment,
   Venue,
@@ -35,6 +40,7 @@ import type {
   Match,
   MatchEvent,
   PlayerAttributeSet,
+  RefereeProfile,
   PlayerSeasonStat,
   SuspensionRecord,
   TacticalSetup,
@@ -459,6 +465,137 @@ export class WorldRepository {
       );
   }
 
+  insertStaffProfile(profile: StaffProfile): void {
+    this.db
+      .prepare(
+        `INSERT INTO staff_profiles
+        (id, person_id, preferred_role, salary_expectation, reputation, country_knowledge_json,
+          club_knowledge_json, availability, work_eligibility_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        profile.id,
+        profile.personId,
+        profile.preferredRole ?? null,
+        profile.salaryExpectation ?? null,
+        profile.reputation ?? null,
+        json.stringify(profile.countryKnowledge),
+        json.stringify(profile.clubKnowledge),
+        profile.availability ?? null,
+        profile.workEligibilityStatus ?? null,
+      );
+  }
+
+  insertStaffAppointment(appointment: StaffAppointment): void {
+    this.db
+      .prepare(
+        `INSERT INTO staff_appointments
+        (id, person_id, organisation_type, club_id, team_id, federation_id, academy_id,
+          organisation_name, role, start_date, end_date, employment_status, contract_id,
+          service_rank_title)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        appointment.id,
+        appointment.personId,
+        appointment.organisationType,
+        appointment.clubId ?? null,
+        appointment.teamId ?? null,
+        appointment.federationId ?? null,
+        appointment.academyId ?? null,
+        appointment.organisationName ?? null,
+        appointment.role,
+        appointment.startDate ?? null,
+        appointment.endDate ?? null,
+        appointment.employmentStatus,
+        appointment.contractId ?? null,
+        appointment.serviceRankTitle ?? null,
+      );
+  }
+
+  insertStaffVacancy(vacancy: StaffVacancy): void {
+    this.db
+      .prepare(
+        `INSERT INTO staff_vacancies
+        (id, organisation_type, club_id, team_id, federation_id, academy_id, organisation_name,
+          role, required, assigned_person_id, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        vacancy.id,
+        vacancy.organisationType,
+        vacancy.clubId ?? null,
+        vacancy.teamId ?? null,
+        vacancy.federationId ?? null,
+        vacancy.academyId ?? null,
+        vacancy.organisationName ?? null,
+        vacancy.role,
+        Number(vacancy.required),
+        vacancy.assignedPersonId ?? null,
+        vacancy.status,
+      );
+  }
+
+  insertStaffLicence(licence: StaffLicence): void {
+    this.db
+      .prepare(
+        `INSERT INTO staff_licences
+        (id, person_id, licence_type, issuer, issue_date, expiry_date, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        licence.id,
+        licence.personId,
+        licence.licenceType,
+        licence.issuer,
+        licence.issueDate ?? null,
+        licence.expiryDate ?? null,
+        licence.status,
+      );
+  }
+
+  insertRefereeProfile(profile: RefereeProfile): void {
+    this.db
+      .prepare(
+        `INSERT INTO referee_profiles
+        (id, person_id, referee_level, fifa_listed, fifa_listed_since, primary_role,
+          competitions_eligible_json, experience_level)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        profile.id,
+        profile.personId,
+        profile.refereeLevel ?? null,
+        boolToDb(profile.fifaListed),
+        profile.fifaListedSince ?? null,
+        profile.primaryRole,
+        json.stringify(profile.competitionsEligible),
+        profile.experienceLevel ?? null,
+      );
+  }
+
+  insertStaffHistoryEvent(event: StaffHistoryEvent): void {
+    this.db
+      .prepare(
+        `INSERT INTO staff_history_events
+        (id, person_id, event_type, occurred_on, staff_appointment_id, club_id, team_id,
+          federation_id, academy_id, description)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        event.id,
+        event.personId,
+        event.eventType,
+        event.occurredOn,
+        event.appointmentId ?? null,
+        event.clubId ?? null,
+        event.teamId ?? null,
+        event.federationId ?? null,
+        event.academyId ?? null,
+        event.description ?? null,
+      );
+  }
+
   getTeamPersonAssignments(teamId: EntityId): TeamPersonAssignment[] {
     return this.db
       .prepare("SELECT * FROM team_person_assignments WHERE team_id = ? ORDER BY id")
@@ -552,6 +689,12 @@ export class WorldRepository {
       persons: scalar("persons"),
       personRoles: scalar("person_roles"),
       teamPersonAssignments: scalar("team_person_assignments"),
+      staffProfiles: scalar("staff_profiles"),
+      staffAppointments: scalar("staff_appointments"),
+      staffVacancies: scalar("staff_vacancies"),
+      staffLicences: scalar("staff_licences"),
+      refereeProfiles: scalar("referee_profiles"),
+      staffHistoryEvents: scalar("staff_history_events"),
       playerAttributes: scalar("player_attributes"),
       entityProvenance: scalar("entity_provenance"),
     };
@@ -1336,6 +1479,12 @@ export type WorldInspection = {
   persons: number;
   personRoles: number;
   teamPersonAssignments: number;
+  staffProfiles: number;
+  staffAppointments: number;
+  staffVacancies: number;
+  staffLicences: number;
+  refereeProfiles: number;
+  staffHistoryEvents: number;
   playerAttributes: number;
   entityProvenance: number;
 };

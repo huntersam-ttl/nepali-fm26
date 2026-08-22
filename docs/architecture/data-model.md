@@ -43,6 +43,22 @@
 - `ManagerProfile`: manager attributes linked to `Person`, covering tactical, coaching, people, recruitment, and personality categories.
 - `ManagerContract`: basic manager employment with club/team, job title, contract dates, salary, currency, and `ACTIVE`, `RESIGNED`, `SACKED`, or `EXPIRED` status.
 - `CoachingLicence`: licence level, issuing body, issue/expiry dates, requirements, and modest reputation effect. Testing data uses generic licences until researched Nepal/AFC rules are available.
+- `StaffAppointment`: factual football workforce appointment for club, team, federation, academy,
+  national-team, or named parent-organisation roles. It uses the same `Person` identity as players
+  and managers, supports current, former, interim, expired, and unknown employment status, and allows
+  departmental service rank/title without modeling full government employment.
+- `StaffVacancy`: organisation staffing slot with a required flag and nullable assigned person so
+  clubs can have vacancies without fake named staff.
+- `StaffLicence`: factual staff licence record for AFC, UEFA, or other issuer licences. It stores
+  licence status/provenance separately from job title and does not infer qualification from role.
+- `RefereeProfile`: referee-specific factual profile linked to `Person`, covering referee level,
+  FIFA listing fields, primary officiating role, eligible competitions, and experience text without
+  importing referee ratings.
+- `StaffProfile`: future staff-market hook for preferred role, availability, work eligibility,
+  country knowledge, club knowledge, salary expectation text, and reputation text. Stage 2 does not
+  generate staff attributes.
+- `StaffHistoryEvent`: factual staff movement history for appointments, departures, federation
+  official changes, and referee promotions.
 
 ## Competitions and Matches
 

@@ -47,7 +47,8 @@ describe("stage two Nepal world data pipeline", () => {
           AND name IN ('venues', 'team_person_assignments', 'entity_provenance',
             'club_aliases', 'club_memberships', 'club_relationships', 'academies',
             'venue_relationships', 'competition_relationships', 'competition_movements',
-            'location_travel_contexts')
+            'location_travel_contexts', 'staff_profiles', 'staff_appointments',
+            'staff_vacancies', 'staff_licences', 'referee_profiles', 'staff_history_events')
         ORDER BY name`,
       )
       .all()
@@ -62,6 +63,12 @@ describe("stage two Nepal world data pipeline", () => {
       "competition_relationships",
       "entity_provenance",
       "location_travel_contexts",
+      "referee_profiles",
+      "staff_appointments",
+      "staff_history_events",
+      "staff_licences",
+      "staff_profiles",
+      "staff_vacancies",
       "team_person_assignments",
       "venue_relationships",
       "venues",
@@ -113,21 +120,159 @@ describe("stage two Nepal world data pipeline", () => {
 
     expect(created.worldDate).toBe("2026-08-01");
     expect(created.inspection).toMatchObject({
-      countries: 1,
+      countries: 2,
       locations: 1,
       venues: 1,
       federations: 1,
       competitions: 1,
       competitionSeasons: 1,
       clubs: 1,
-      teams: 1,
-      persons: 2,
-      personRoles: 2,
+      teams: 2,
+      persons: 4,
+      personRoles: 5,
       teamPersonAssignments: 2,
-      entityProvenance: 14,
+      staffProfiles: 1,
+      staffAppointments: 6,
+      staffVacancies: 1,
+      staffLicences: 1,
+      refereeProfiles: 1,
+      staffHistoryEvents: 1,
+      entityProvenance: 32,
     });
 
     expect(inspectNepalSave(databasePath)).toEqual(created);
+  });
+
+  it("imports the testing-only football workforce without duplicate people", () => {
+    const databasePath = tempDbPath();
+    createNepalSave({
+      databasePath,
+      dataset: loadFixture(),
+      saveName: "Testing-only Staff Workforce",
+      gameVersion: "0.2.0",
+      randomSeed: "staff-workforce-seed",
+    });
+
+    const db = openGameDatabase(databasePath);
+    migrateDatabase(db);
+
+    const playerCoach = db
+      .prepare(
+        `SELECT p.full_name, GROUP_CONCAT(DISTINCT pr.role) AS roles,
+          COUNT(DISTINCT sa.id) AS appointments
+        FROM persons p
+        JOIN person_roles pr ON pr.person_id = p.id
+        JOIN staff_appointments sa ON sa.person_id = p.id
+        WHERE p.full_name = 'Testing-only Player'
+        GROUP BY p.id`,
+      )
+      .get();
+    expect(playerCoach).toEqual({
+      full_name: "Testing-only Player",
+      roles: "PLAYER,STAFF",
+      appointments: 1,
+    });
+
+    const multiRoleStaff = db
+      .prepare(
+        `SELECT COUNT(*) AS count
+        FROM staff_appointments sa
+        JOIN persons p ON p.id = sa.person_id
+        WHERE p.full_name = 'Testing-only Staff'`,
+      )
+      .get() as { count: number };
+    expect(multiRoleStaff.count).toBe(3);
+
+    const workforce = db
+      .prepare(
+        `SELECT role, employment_status
+        FROM staff_appointments
+        WHERE role IN ('HEAD_COACH', 'ASSISTANT_COACH', 'NATIONAL_TEAM_HEAD_COACH',
+          'FEDERATION_GENERAL_SECRETARY', 'REFEREE')
+        ORDER BY role, employment_status`,
+      )
+      .all();
+    expect(workforce).toEqual([
+      { role: "ASSISTANT_COACH", employment_status: "FORMER" },
+      { role: "FEDERATION_GENERAL_SECRETARY", employment_status: "ACTIVE" },
+      { role: "HEAD_COACH", employment_status: "ACTIVE" },
+      { role: "HEAD_COACH", employment_status: "INTERIM" },
+      { role: "NATIONAL_TEAM_HEAD_COACH", employment_status: "ACTIVE" },
+      { role: "REFEREE", employment_status: "ACTIVE" },
+    ]);
+
+    const vacancy = db
+      .prepare("SELECT role, required, assigned_person_id, status FROM staff_vacancies")
+      .get();
+    expect(vacancy).toEqual({
+      role: "PHYSIO",
+      required: 0,
+      assigned_person_id: null,
+      status: "VACANT",
+    });
+
+    const licence = db
+      .prepare(
+        `SELECT sl.licence_type, sl.issuer, sl.status
+        FROM staff_licences sl
+        JOIN persons p ON p.id = sl.person_id
+        WHERE p.full_name = 'Testing-only Foreign Coach'`,
+      )
+      .get();
+    expect(licence).toEqual({
+      licence_type: "AFC A",
+      issuer: "Asian Football Confederation",
+      status: "REPORTED",
+    });
+
+    const foreignStaff = db
+      .prepare(
+        `SELECT c.iso_code AS nationality, sc.iso_code AS second_nationality, sp.work_eligibility_status
+        FROM persons p
+        JOIN countries c ON c.id = p.nationality_country_id
+        LEFT JOIN countries sc ON sc.id = p.second_nationality_country_id
+        JOIN staff_profiles sp ON sp.person_id = p.id
+        WHERE p.full_name = 'Testing-only Foreign Coach'`,
+      )
+      .get();
+    expect(foreignStaff).toEqual({
+      nationality: "AU",
+      second_nationality: "NP",
+      work_eligibility_status: "ELIGIBLE",
+    });
+
+    const referee = db
+      .prepare(
+        `SELECT rp.primary_role, rp.fifa_listed, rp.competitions_eligible_json
+        FROM referee_profiles rp
+        JOIN persons p ON p.id = rp.person_id
+        WHERE p.full_name = 'Testing-only Referee'`,
+      )
+      .get() as {
+      primary_role: string;
+      fifa_listed: number | null;
+      competitions_eligible_json: string;
+    };
+    expect(referee.primary_role).toBe("REFEREE");
+    expect(referee.fifa_listed).toBeNull();
+    expect(JSON.parse(referee.competitions_eligible_json)).toHaveLength(1);
+
+    const history = db.prepare("SELECT event_type, description FROM staff_history_events").get();
+    expect(history).toEqual({
+      event_type: "MANAGER_APPOINTED",
+      description: "Testing-only retired player became head coach.",
+    });
+
+    const duplicateNames = db
+      .prepare(
+        `SELECT full_name, COUNT(*) AS count
+        FROM persons
+        GROUP BY full_name
+        HAVING COUNT(*) > 1`,
+      )
+      .all();
+    expect(duplicateNames).toEqual([]);
+    db.close();
   });
 
   it("validates the canonical Nepal club registry without players", () => {

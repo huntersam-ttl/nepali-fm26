@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 7;
+export const CURRENT_DATABASE_VERSION = 8;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -634,6 +634,110 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
         ON venue_relationships(venue_id);
       CREATE INDEX IF NOT EXISTS idx_location_travel_contexts_pair
         ON location_travel_contexts(from_location_id, to_location_id);
+    `,
+  },
+  {
+    version: 8,
+    sql: `
+      CREATE TABLE IF NOT EXISTS staff_profiles (
+        id TEXT PRIMARY KEY,
+        person_id TEXT NOT NULL REFERENCES persons(id),
+        preferred_role TEXT,
+        salary_expectation TEXT,
+        reputation TEXT,
+        country_knowledge_json TEXT NOT NULL DEFAULT '[]',
+        club_knowledge_json TEXT NOT NULL DEFAULT '[]',
+        availability TEXT,
+        work_eligibility_status TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS staff_appointments (
+        id TEXT PRIMARY KEY,
+        person_id TEXT NOT NULL REFERENCES persons(id),
+        organisation_type TEXT NOT NULL,
+        club_id TEXT REFERENCES clubs(id),
+        team_id TEXT REFERENCES teams(id),
+        federation_id TEXT REFERENCES federations(id),
+        academy_id TEXT REFERENCES academies(id),
+        organisation_name TEXT,
+        role TEXT NOT NULL,
+        start_date TEXT,
+        end_date TEXT,
+        employment_status TEXT NOT NULL,
+        contract_id TEXT,
+        service_rank_title TEXT,
+        CHECK (
+          club_id IS NOT NULL OR team_id IS NOT NULL OR federation_id IS NOT NULL OR
+          academy_id IS NOT NULL OR organisation_name IS NOT NULL
+        )
+      );
+
+      CREATE TABLE IF NOT EXISTS staff_vacancies (
+        id TEXT PRIMARY KEY,
+        organisation_type TEXT NOT NULL,
+        club_id TEXT REFERENCES clubs(id),
+        team_id TEXT REFERENCES teams(id),
+        federation_id TEXT REFERENCES federations(id),
+        academy_id TEXT REFERENCES academies(id),
+        organisation_name TEXT,
+        role TEXT NOT NULL,
+        required INTEGER NOT NULL,
+        assigned_person_id TEXT REFERENCES persons(id),
+        status TEXT NOT NULL,
+        CHECK (
+          club_id IS NOT NULL OR team_id IS NOT NULL OR federation_id IS NOT NULL OR
+          academy_id IS NOT NULL OR organisation_name IS NOT NULL
+        )
+      );
+
+      CREATE TABLE IF NOT EXISTS staff_licences (
+        id TEXT PRIMARY KEY,
+        person_id TEXT NOT NULL REFERENCES persons(id),
+        licence_type TEXT NOT NULL,
+        issuer TEXT NOT NULL,
+        issue_date TEXT,
+        expiry_date TEXT,
+        status TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS referee_profiles (
+        id TEXT PRIMARY KEY,
+        person_id TEXT NOT NULL REFERENCES persons(id),
+        referee_level TEXT,
+        fifa_listed INTEGER,
+        fifa_listed_since TEXT,
+        primary_role TEXT NOT NULL,
+        competitions_eligible_json TEXT NOT NULL DEFAULT '[]',
+        experience_level TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS staff_history_events (
+        id TEXT PRIMARY KEY,
+        person_id TEXT NOT NULL REFERENCES persons(id),
+        event_type TEXT NOT NULL,
+        occurred_on TEXT NOT NULL,
+        staff_appointment_id TEXT REFERENCES staff_appointments(id),
+        club_id TEXT REFERENCES clubs(id),
+        team_id TEXT REFERENCES teams(id),
+        federation_id TEXT REFERENCES federations(id),
+        academy_id TEXT REFERENCES academies(id),
+        description TEXT
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_staff_appointments_person
+        ON staff_appointments(person_id, employment_status);
+      CREATE INDEX IF NOT EXISTS idx_staff_appointments_club
+        ON staff_appointments(club_id, role);
+      CREATE INDEX IF NOT EXISTS idx_staff_appointments_team
+        ON staff_appointments(team_id, role);
+      CREATE INDEX IF NOT EXISTS idx_staff_vacancies_org
+        ON staff_vacancies(organisation_type, club_id, team_id, federation_id, academy_id);
+      CREATE INDEX IF NOT EXISTS idx_staff_licences_person
+        ON staff_licences(person_id);
+      CREATE INDEX IF NOT EXISTS idx_referee_profiles_person
+        ON referee_profiles(person_id);
+      CREATE INDEX IF NOT EXISTS idx_staff_history_person
+        ON staff_history_events(person_id, occurred_on);
     `,
   },
 ];
