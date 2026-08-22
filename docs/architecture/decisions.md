@@ -43,3 +43,11 @@ Import records separate `VERIFIED`, `REPORTED`, `ESTIMATED`, `UNKNOWN`, and `SIM
 ## ADR-011: Database adapter replaceability
 
 `node:sqlite` remains acceptable for Stage 2 because it is fully hidden behind `packages/database`. Future production Tauri or mobile builds may need a different adapter, so Stage 2 code must continue depending on repository and service boundaries rather than the Node adapter.
+
+## ADR-012: Event-based match engine
+
+Stage 3 uses a minute-based event engine rather than selecting a final score and backfilling fake events. This keeps quick sim, key events, and text live presentation modes aligned around the same source event stream.
+
+## ADR-013: Derived standings with persisted snapshots
+
+Standings and season statistics are calculated from match results and then persisted as snapshots. This gives reliable reconstruction from fixtures/results while keeping save inspection fast.

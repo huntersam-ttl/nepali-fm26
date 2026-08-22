@@ -16,7 +16,18 @@ import type {
   Venue,
   Competition,
   CompetitionSeason,
+  CompetitionRuleSet,
+  CompetitionWinner,
   DataProvenance,
+  FixtureRecord,
+  InjuryRecord,
+  LeagueStanding,
+  Match,
+  MatchEvent,
+  PlayerAttributeSet,
+  PlayerSeasonStat,
+  SuspensionRecord,
+  TeamSeasonStat,
 } from "@nepal-football-sim/shared-types";
 import type { EntityId } from "@nepal-football-sim/shared-types";
 import type { GameDatabase } from "./connection.js";
@@ -162,6 +173,41 @@ export class WorldRepository {
       .run(season.id, season.competitionId, season.name, season.startDate, season.endDate);
   }
 
+  getCompetitionSeason(id: EntityId): CompetitionSeason | undefined {
+    const row = this.db.prepare("SELECT * FROM competition_seasons WHERE id = ?").get(id) as any;
+    return row
+      ? {
+          id: row.id,
+          competitionId: row.competition_id,
+          name: row.name,
+          startDate: row.start_date,
+          endDate: row.end_date,
+        }
+      : undefined;
+  }
+
+  teamsForCompetitionSeason(competitionSeasonId: EntityId): Team[] {
+    return this.db
+      .prepare(
+        `SELECT DISTINCT t.*
+        FROM teams t
+        JOIN clubs c ON c.id = t.club_id
+        JOIN competitions comp ON comp.federation_id IS NULL OR comp.federation_id = t.federation_id OR comp.federation_id IS NOT NULL
+        JOIN competition_seasons cs ON cs.competition_id = comp.id
+        WHERE cs.id = ? AND t.level = 'senior'
+        ORDER BY t.name`,
+      )
+      .all(competitionSeasonId)
+      .map((row: any) => ({
+        id: row.id,
+        clubId: row.club_id ?? undefined,
+        federationId: row.federation_id ?? undefined,
+        name: row.name,
+        level: row.level,
+        gender: row.gender,
+      }));
+  }
+
   insertPerson(person: Person): void {
     this.db
       .prepare(
@@ -225,6 +271,20 @@ export class WorldRepository {
       );
   }
 
+  getTeamPersonAssignments(teamId: EntityId): TeamPersonAssignment[] {
+    return this.db
+      .prepare("SELECT * FROM team_person_assignments WHERE team_id = ? ORDER BY id")
+      .all(teamId)
+      .map((row: any) => ({
+        id: row.id,
+        personId: row.person_id,
+        teamId: row.team_id,
+        role: row.role,
+        startedOn: row.started_on ?? undefined,
+        endedOn: row.ended_on ?? undefined,
+      }));
+  }
+
   getPersonRoles(personId: EntityId): PersonRole[] {
     return this.db
       .prepare("SELECT * FROM person_roles WHERE person_id = ? ORDER BY active_from")
@@ -280,6 +340,396 @@ export class WorldRepository {
     };
   }
 }
+
+export class CompetitionRepository {
+  constructor(private readonly db: GameDatabase) {}
+
+  insertRuleSet(ruleSet: CompetitionRuleSet): void {
+    this.db
+      .prepare(
+        `INSERT INTO competition_rules
+        (id, competition_season_id, competition_type, points_for_win, points_for_draw, points_for_loss,
+          tiebreakers_json, number_of_rounds, home_away_structure, fixture_count, season_start_date,
+          season_end_date, round_spacing_days, promotion_slots, relegation_slots, continental_qualification_slots)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          competition_type = excluded.competition_type,
+          points_for_win = excluded.points_for_win,
+          points_for_draw = excluded.points_for_draw,
+          points_for_loss = excluded.points_for_loss,
+          tiebreakers_json = excluded.tiebreakers_json,
+          number_of_rounds = excluded.number_of_rounds,
+          home_away_structure = excluded.home_away_structure,
+          fixture_count = excluded.fixture_count,
+          season_start_date = excluded.season_start_date,
+          season_end_date = excluded.season_end_date,
+          round_spacing_days = excluded.round_spacing_days,
+          promotion_slots = excluded.promotion_slots,
+          relegation_slots = excluded.relegation_slots,
+          continental_qualification_slots = excluded.continental_qualification_slots`,
+      )
+      .run(
+        ruleSet.id,
+        ruleSet.competitionSeasonId,
+        ruleSet.competitionType,
+        ruleSet.pointsForWin,
+        ruleSet.pointsForDraw,
+        ruleSet.pointsForLoss,
+        json.stringify(ruleSet.tiebreakers),
+        ruleSet.numberOfRounds,
+        ruleSet.homeAwayStructure,
+        ruleSet.fixtureCount ?? null,
+        ruleSet.seasonStartDate,
+        ruleSet.seasonEndDate,
+        ruleSet.roundSpacingDays,
+        ruleSet.promotionSlots,
+        ruleSet.relegationSlots,
+        ruleSet.continentalQualificationSlots,
+      );
+  }
+
+  getRuleSet(competitionSeasonId: EntityId): CompetitionRuleSet | undefined {
+    const row = this.db
+      .prepare("SELECT * FROM competition_rules WHERE competition_season_id = ? LIMIT 1")
+      .get(competitionSeasonId) as any;
+    return row
+      ? {
+          id: row.id,
+          competitionSeasonId: row.competition_season_id,
+          competitionType: row.competition_type,
+          pointsForWin: row.points_for_win,
+          pointsForDraw: row.points_for_draw,
+          pointsForLoss: row.points_for_loss,
+          tiebreakers: json.parse(row.tiebreakers_json, []),
+          numberOfRounds: row.number_of_rounds,
+          homeAwayStructure: row.home_away_structure,
+          fixtureCount: row.fixture_count ?? undefined,
+          seasonStartDate: row.season_start_date,
+          seasonEndDate: row.season_end_date,
+          roundSpacingDays: row.round_spacing_days,
+          promotionSlots: row.promotion_slots,
+          relegationSlots: row.relegation_slots,
+          continentalQualificationSlots: row.continental_qualification_slots,
+        }
+      : undefined;
+  }
+
+  insertFixture(fixture: FixtureRecord): void {
+    this.db
+      .prepare(
+        `INSERT INTO fixtures
+        (id, competition_season_id, home_team_id, away_team_id, scheduled_date, status, round, venue_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO NOTHING`,
+      )
+      .run(
+        fixture.id,
+        fixture.competitionSeasonId ?? null,
+        fixture.homeTeamId,
+        fixture.awayTeamId,
+        fixture.scheduledDate,
+        fixture.status,
+        fixture.round,
+        fixture.venueId ?? null,
+      );
+  }
+
+  fixtures(competitionSeasonId: EntityId): FixtureRecord[] {
+    return this.db
+      .prepare(
+        "SELECT * FROM fixtures WHERE competition_season_id = ? ORDER BY scheduled_date, round, id",
+      )
+      .all(competitionSeasonId)
+      .map((row: any) => ({
+        id: row.id,
+        competitionSeasonId: row.competition_season_id ?? undefined,
+        homeTeamId: row.home_team_id,
+        awayTeamId: row.away_team_id,
+        scheduledDate: row.scheduled_date,
+        status: row.status,
+        round: row.round,
+        venueId: row.venue_id ?? undefined,
+      }));
+  }
+
+  markFixturePlayed(fixtureId: EntityId): void {
+    this.db.prepare("UPDATE fixtures SET status = 'played' WHERE id = ?").run(fixtureId);
+  }
+
+  insertMatch(match: Match): void {
+    this.db
+      .prepare(
+        "INSERT INTO matches (id, fixture_id, played_date, home_goals, away_goals) VALUES (?, ?, ?, ?, ?)",
+      )
+      .run(
+        match.id,
+        match.fixtureId,
+        match.playedDate ?? null,
+        match.homeGoals ?? null,
+        match.awayGoals ?? null,
+      );
+  }
+
+  insertMatchEvent(event: MatchEvent): void {
+    this.db
+      .prepare(
+        `INSERT INTO match_events
+        (id, match_id, minute, stoppage_time, type, person_id, team_id, primary_person_id, secondary_person_id, data_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        event.id,
+        event.matchId,
+        event.minute ?? null,
+        event.stoppageTime ?? null,
+        event.type,
+        event.personId ?? event.primaryPersonId ?? null,
+        event.teamId ?? null,
+        event.primaryPersonId ?? null,
+        event.secondaryPersonId ?? null,
+        event.data ? json.stringify(event.data) : null,
+      );
+  }
+
+  upsertStanding(standing: LeagueStanding): void {
+    this.db
+      .prepare(
+        `INSERT INTO league_standings
+        (competition_season_id, team_id, played, won, drawn, lost, goals_for, goals_against, goal_difference, points)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(competition_season_id, team_id) DO UPDATE SET
+          played = excluded.played,
+          won = excluded.won,
+          drawn = excluded.drawn,
+          lost = excluded.lost,
+          goals_for = excluded.goals_for,
+          goals_against = excluded.goals_against,
+          goal_difference = excluded.goal_difference,
+          points = excluded.points`,
+      )
+      .run(
+        standing.competitionSeasonId,
+        standing.teamId,
+        standing.played,
+        standing.won,
+        standing.drawn,
+        standing.lost,
+        standing.goalsFor,
+        standing.goalsAgainst,
+        standing.goalDifference,
+        standing.points,
+      );
+  }
+
+  standings(competitionSeasonId: EntityId): LeagueStanding[] {
+    return this.db
+      .prepare(
+        "SELECT * FROM league_standings WHERE competition_season_id = ? ORDER BY points DESC",
+      )
+      .all(competitionSeasonId)
+      .map((row: any) => ({
+        competitionSeasonId: row.competition_season_id,
+        teamId: row.team_id,
+        played: row.played,
+        won: row.won,
+        drawn: row.drawn,
+        lost: row.lost,
+        goalsFor: row.goals_for,
+        goalsAgainst: row.goals_against,
+        goalDifference: row.goal_difference,
+        points: row.points,
+      }));
+  }
+
+  upsertPlayerSeasonStat(stat: PlayerSeasonStat): void {
+    this.db
+      .prepare(
+        `INSERT INTO player_season_stats
+        (competition_season_id, person_id, team_id, appearances, starts, minutes, goals, assists,
+          yellow_cards, red_cards, average_rating, clean_sheets)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(competition_season_id, person_id, team_id) DO UPDATE SET
+          appearances = excluded.appearances,
+          starts = excluded.starts,
+          minutes = excluded.minutes,
+          goals = excluded.goals,
+          assists = excluded.assists,
+          yellow_cards = excluded.yellow_cards,
+          red_cards = excluded.red_cards,
+          average_rating = excluded.average_rating,
+          clean_sheets = excluded.clean_sheets`,
+      )
+      .run(
+        stat.competitionSeasonId,
+        stat.personId,
+        stat.teamId,
+        stat.appearances,
+        stat.starts,
+        stat.minutes,
+        stat.goals,
+        stat.assists,
+        stat.yellowCards,
+        stat.redCards,
+        stat.averageRating,
+        stat.cleanSheets,
+      );
+  }
+
+  upsertTeamSeasonStat(stat: TeamSeasonStat): void {
+    this.db
+      .prepare(
+        `INSERT INTO team_season_stats
+        (competition_season_id, team_id, played, wins, draws, losses, goals_for, goals_against, clean_sheets)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(competition_season_id, team_id) DO UPDATE SET
+          played = excluded.played,
+          wins = excluded.wins,
+          draws = excluded.draws,
+          losses = excluded.losses,
+          goals_for = excluded.goals_for,
+          goals_against = excluded.goals_against,
+          clean_sheets = excluded.clean_sheets`,
+      )
+      .run(
+        stat.competitionSeasonId,
+        stat.teamId,
+        stat.played,
+        stat.wins,
+        stat.draws,
+        stat.losses,
+        stat.goalsFor,
+        stat.goalsAgainst,
+        stat.cleanSheets,
+      );
+  }
+
+  insertWinner(winner: CompetitionWinner): void {
+    this.db
+      .prepare(
+        "INSERT INTO competition_winners (id, competition_season_id, team_id, decided_on) VALUES (?, ?, ?, ?)",
+      )
+      .run(winner.id, winner.competitionSeasonId, winner.teamId, winner.decidedOn);
+  }
+}
+
+export class PlayerRepository {
+  constructor(private readonly db: GameDatabase) {}
+
+  insertAttributes(attributes: PlayerAttributeSet): void {
+    this.db
+      .prepare(
+        `INSERT INTO player_attributes
+        (id, person_id, primary_position, secondary_positions_json, technical_json, mental_json, physical_json, goalkeeping_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          primary_position = excluded.primary_position,
+          secondary_positions_json = excluded.secondary_positions_json,
+          technical_json = excluded.technical_json,
+          mental_json = excluded.mental_json,
+          physical_json = excluded.physical_json,
+          goalkeeping_json = excluded.goalkeeping_json`,
+      )
+      .run(
+        attributes.id,
+        attributes.personId,
+        attributes.primaryPosition,
+        json.stringify(attributes.secondaryPositions),
+        json.stringify(attributes.technical),
+        json.stringify(attributes.mental),
+        json.stringify(attributes.physical),
+        json.stringify(attributes.goalkeeping),
+      );
+  }
+
+  getAttributes(personId: EntityId): PlayerAttributeSet | undefined {
+    const row = this.db
+      .prepare("SELECT * FROM player_attributes WHERE person_id = ?")
+      .get(personId) as any;
+    return row ? mapAttributes(row) : undefined;
+  }
+
+  attributesForTeam(teamId: EntityId): PlayerAttributeSet[] {
+    return this.db
+      .prepare(
+        `SELECT pa.*
+        FROM player_attributes pa
+        JOIN team_person_assignments tpa ON tpa.person_id = pa.person_id
+        WHERE tpa.team_id = ? AND tpa.role = 'PLAYER'
+        ORDER BY pa.person_id`,
+      )
+      .all(teamId)
+      .map(mapAttributes);
+  }
+
+  insertInjury(injury: InjuryRecord): void {
+    this.db
+      .prepare(
+        "INSERT INTO injuries (id, person_id, injury_type, date_occurred, expected_recovery_date, severity) VALUES (?, ?, ?, ?, ?, ?)",
+      )
+      .run(
+        injury.id,
+        injury.personId,
+        injury.injuryType,
+        injury.dateOccurred,
+        injury.expectedRecoveryDate,
+        injury.severity,
+      );
+  }
+
+  activeInjuries(onDate: string): InjuryRecord[] {
+    return this.db
+      .prepare("SELECT * FROM injuries WHERE expected_recovery_date >= ? ORDER BY person_id")
+      .all(onDate)
+      .map((row: any) => ({
+        id: row.id,
+        personId: row.person_id,
+        injuryType: row.injury_type,
+        dateOccurred: row.date_occurred,
+        expectedRecoveryDate: row.expected_recovery_date,
+        severity: row.severity,
+      }));
+  }
+
+  insertSuspension(suspension: SuspensionRecord): void {
+    this.db
+      .prepare(
+        "INSERT INTO suspensions (id, person_id, competition_season_id, reason, matches_remaining) VALUES (?, ?, ?, ?, ?)",
+      )
+      .run(
+        suspension.id,
+        suspension.personId,
+        suspension.competitionSeasonId,
+        suspension.reason,
+        suspension.matchesRemaining,
+      );
+  }
+
+  activeSuspensions(competitionSeasonId: EntityId): SuspensionRecord[] {
+    return this.db
+      .prepare(
+        "SELECT * FROM suspensions WHERE competition_season_id = ? AND matches_remaining > 0",
+      )
+      .all(competitionSeasonId)
+      .map((row: any) => ({
+        id: row.id,
+        personId: row.person_id,
+        competitionSeasonId: row.competition_season_id,
+        reason: row.reason,
+        matchesRemaining: row.matches_remaining,
+      }));
+  }
+}
+
+const mapAttributes = (row: any): PlayerAttributeSet => ({
+  id: row.id,
+  personId: row.person_id,
+  primaryPosition: row.primary_position,
+  secondaryPositions: json.parse(row.secondary_positions_json, []),
+  technical: json.parse(row.technical_json, {}) as PlayerAttributeSet["technical"],
+  mental: json.parse(row.mental_json, {}) as PlayerAttributeSet["mental"],
+  physical: json.parse(row.physical_json, {}) as PlayerAttributeSet["physical"],
+  goalkeeping: json.parse(row.goalkeeping_json, {}) as PlayerAttributeSet["goalkeeping"],
+});
 
 export type WorldInspection = {
   countries: number;

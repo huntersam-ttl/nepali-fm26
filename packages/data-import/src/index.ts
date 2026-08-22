@@ -110,6 +110,45 @@ const competitionSeasonRecordSchema = z.object({
   provenance: provenanceSchema,
 });
 
+const competitionRuleRecordSchema = z.object({
+  key: keySchema,
+  competitionSeasonKey: keySchema,
+  competitionType: z.enum([
+    "LEAGUE",
+    "CUP",
+    "GROUP_AND_KNOCKOUT",
+    "ROUND_ROBIN",
+    "DOUBLE_ROUND_ROBIN",
+    "CUSTOM_FUTURE",
+  ]),
+  pointsForWin: z.number().int().min(0),
+  pointsForDraw: z.number().int().min(0),
+  pointsForLoss: z.number().int().min(0),
+  tiebreakers: z.array(
+    z.enum([
+      "points",
+      "goalDifference",
+      "goalsScored",
+      "headToHeadPoints",
+      "headToHeadGoalDifference",
+      "headToHeadGoals",
+      "wins",
+      "fairPlay",
+      "playoff",
+    ]),
+  ),
+  numberOfRounds: z.number().int().min(1),
+  homeAwayStructure: z.enum(["single", "double", "neutral", "custom"]),
+  fixtureCount: nullableNumberFactSchema.optional(),
+  seasonStartDate: isoDateSchema,
+  seasonEndDate: isoDateSchema,
+  roundSpacingDays: z.number().int().min(1),
+  promotionSlots: z.number().int().min(0),
+  relegationSlots: z.number().int().min(0),
+  continentalQualificationSlots: z.number().int().min(0),
+  provenance: provenanceSchema,
+});
+
 const clubRecordSchema = z.object({
   key: keySchema,
   countryKey: keySchema,
@@ -183,6 +222,62 @@ const teamPersonAssignmentRecordSchema = z.object({
   provenance: provenanceSchema,
 });
 
+const ratingSchema = z.number().int().min(1).max(20);
+
+const playerAttributeRecordSchema = z.object({
+  key: keySchema,
+  personKey: keySchema,
+  primaryPosition: z.enum(["GK", "RB", "CB", "LB", "DM", "CM", "AM", "RW", "LW", "ST"]),
+  secondaryPositions: z.array(z.enum(["GK", "RB", "CB", "LB", "DM", "CM", "AM", "RW", "LW", "ST"])),
+  technical: z.object({
+    firstTouch: ratingSchema,
+    passing: ratingSchema,
+    crossing: ratingSchema,
+    dribbling: ratingSchema,
+    finishing: ratingSchema,
+    heading: ratingSchema,
+    tackling: ratingSchema,
+    technique: ratingSchema,
+    longShots: ratingSchema,
+    setPieces: ratingSchema,
+  }),
+  mental: z.object({
+    decisions: ratingSchema,
+    vision: ratingSchema,
+    composure: ratingSchema,
+    positioning: ratingSchema,
+    anticipation: ratingSchema,
+    workRate: ratingSchema,
+    teamwork: ratingSchema,
+    leadership: ratingSchema,
+    aggression: ratingSchema,
+    determination: ratingSchema,
+    professionalism: ratingSchema,
+  }),
+  physical: z.object({
+    pace: ratingSchema,
+    acceleration: ratingSchema,
+    strength: ratingSchema,
+    stamina: ratingSchema,
+    agility: ratingSchema,
+    balance: ratingSchema,
+    jumping: ratingSchema,
+    naturalFitness: ratingSchema,
+  }),
+  goalkeeping: z.object({
+    handling: ratingSchema,
+    reflexes: ratingSchema,
+    oneOnOnes: ratingSchema,
+    aerialReach: ratingSchema,
+    kicking: ratingSchema,
+    distribution: ratingSchema,
+    commandOfArea: ratingSchema,
+  }),
+  provenance: provenanceSchema.refine((provenance) => provenance.status === "SIMULATION_ONLY", {
+    message: "Imported player ratings are game assessments and must be SIMULATION_ONLY",
+  }),
+});
+
 export const nepalWorldDatasetSchema = z.object({
   meta: z.object({
     datasetId: z.string().min(1),
@@ -196,11 +291,13 @@ export const nepalWorldDatasetSchema = z.object({
   federations: z.array(federationRecordSchema),
   competitions: z.array(competitionRecordSchema),
   competitionSeasons: z.array(competitionSeasonRecordSchema),
+  competitionRules: z.array(competitionRuleRecordSchema).default([]),
   clubs: z.array(clubRecordSchema),
   teams: z.array(teamRecordSchema),
   persons: z.array(personRecordSchema),
   personRoles: z.array(personRoleRecordSchema),
   teamPersonAssignments: z.array(teamPersonAssignmentRecordSchema),
+  playerAttributes: z.array(playerAttributeRecordSchema).default([]),
 });
 
 export type ImportRecordInput = z.infer<typeof importRecordSchema>;
@@ -226,6 +323,7 @@ export const validateNepalWorldReferences = (
   const locations = keySet(dataset.locations);
   const federations = keySet(dataset.federations);
   const competitions = keySet(dataset.competitions);
+  const competitionSeasons = keySet(dataset.competitionSeasons);
   const clubs = keySet(dataset.clubs);
   const teams = keySet(dataset.teams);
   const persons = keySet(dataset.persons);
@@ -260,6 +358,14 @@ export const validateNepalWorldReferences = (
       `competitionSeasons.${index}.competitionKey`,
       season.competitionKey,
       competitions,
+    );
+  }
+  for (const [index, rules] of dataset.competitionRules.entries()) {
+    requireRef(
+      issues,
+      `competitionRules.${index}.competitionSeasonKey`,
+      rules.competitionSeasonKey,
+      competitionSeasons,
     );
   }
   for (const [index, club] of dataset.clubs.entries()) {
@@ -302,6 +408,9 @@ export const validateNepalWorldReferences = (
   for (const [index, assignment] of dataset.teamPersonAssignments.entries()) {
     requireRef(issues, `teamPersonAssignments.${index}.personKey`, assignment.personKey, persons);
     requireRef(issues, `teamPersonAssignments.${index}.teamKey`, assignment.teamKey, teams);
+  }
+  for (const [index, attributes] of dataset.playerAttributes.entries()) {
+    requireRef(issues, `playerAttributes.${index}.personKey`, attributes.personKey, persons);
   }
 
   return issues;

@@ -10,7 +10,11 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "headless:sim": "pnpm --filter @nepal-football-sim/simulation headless:sim",
+    "match:simulate": "pnpm --filter @nepal-football-sim/simulation match:simulate",
     "nepal:create-save": "pnpm --filter @nepal-football-sim/simulation nepal:create-save",
+    "season:simulate": "pnpm --filter @nepal-football-sim/simulation season:simulate",
+    "years:simulate": "pnpm --filter @nepal-football-sim/simulation years:simulate",
+    "match:balance": "pnpm --filter @nepal-football-sim/simulation match:balance",
     "lint": "eslint .",
     "test": "vitest run",
     "typecheck": "tsc -b"

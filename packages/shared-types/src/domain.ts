@@ -14,6 +14,7 @@ export type EntityRef = {
     | "team"
     | "person"
     | "competition"
+    | "competitionSeason"
     | "fixture"
     | "match"
     | "contract"
@@ -148,6 +149,39 @@ export type CompetitionSeason = {
   endDate: ISODate;
 };
 
+export type CompetitionType =
+  "LEAGUE" | "CUP" | "GROUP_AND_KNOCKOUT" | "ROUND_ROBIN" | "DOUBLE_ROUND_ROBIN" | "CUSTOM_FUTURE";
+
+export type TableTiebreaker =
+  | "points"
+  | "goalDifference"
+  | "goalsScored"
+  | "headToHeadPoints"
+  | "headToHeadGoalDifference"
+  | "headToHeadGoals"
+  | "wins"
+  | "fairPlay"
+  | "playoff";
+
+export type CompetitionRuleSet = {
+  id: EntityId;
+  competitionSeasonId: EntityId;
+  competitionType: CompetitionType;
+  pointsForWin: number;
+  pointsForDraw: number;
+  pointsForLoss: number;
+  tiebreakers: TableTiebreaker[];
+  numberOfRounds: number;
+  homeAwayStructure: "single" | "double" | "neutral" | "custom";
+  fixtureCount?: number;
+  seasonStartDate: ISODate;
+  seasonEndDate: ISODate;
+  roundSpacingDays: number;
+  promotionSlots: number;
+  relegationSlots: number;
+  continentalQualificationSlots: number;
+};
+
 export type Fixture = {
   id: EntityId;
   competitionSeasonId?: EntityId;
@@ -155,6 +189,11 @@ export type Fixture = {
   awayTeamId: EntityId;
   scheduledDate: ISODate;
   status: "scheduled" | "postponed" | "played" | "cancelled";
+};
+
+export type FixtureRecord = Fixture & {
+  round: number;
+  venueId?: EntityId;
 };
 
 export type Match = {
@@ -165,14 +204,215 @@ export type Match = {
   awayGoals?: number;
 };
 
+export type MatchEventType =
+  | "KICK_OFF"
+  | "SHOT"
+  | "SHOT_ON_TARGET"
+  | "GOAL"
+  | "ASSIST"
+  | "SAVE"
+  | "CORNER"
+  | "FOUL"
+  | "YELLOW_CARD"
+  | "RED_CARD"
+  | "INJURY"
+  | "SUBSTITUTION"
+  | "HALF_TIME"
+  | "SECOND_HALF"
+  | "FULL_TIME"
+  | "TACTICAL_CHANGE"
+  | "VAR_CHECK"
+  | "PENALTY"
+  | "OFFSIDE"
+  | "OWN_GOAL";
+
 export type MatchEvent = {
   id: EntityId;
   matchId: EntityId;
   minute?: number;
+  stoppageTime?: number;
   type: string;
   personId?: EntityId;
   teamId?: EntityId;
+  primaryPersonId?: EntityId;
+  secondaryPersonId?: EntityId;
   data?: Record<string, unknown>;
+};
+
+export type PlayerPosition = "GK" | "RB" | "CB" | "LB" | "DM" | "CM" | "AM" | "RW" | "LW" | "ST";
+
+export type PlayerAttributeSet = {
+  id: EntityId;
+  personId: EntityId;
+  primaryPosition: PlayerPosition;
+  secondaryPositions: PlayerPosition[];
+  technical: {
+    firstTouch: number;
+    passing: number;
+    crossing: number;
+    dribbling: number;
+    finishing: number;
+    heading: number;
+    tackling: number;
+    technique: number;
+    longShots: number;
+    setPieces: number;
+  };
+  mental: {
+    decisions: number;
+    vision: number;
+    composure: number;
+    positioning: number;
+    anticipation: number;
+    workRate: number;
+    teamwork: number;
+    leadership: number;
+    aggression: number;
+    determination: number;
+    professionalism: number;
+  };
+  physical: {
+    pace: number;
+    acceleration: number;
+    strength: number;
+    stamina: number;
+    agility: number;
+    balance: number;
+    jumping: number;
+    naturalFitness: number;
+  };
+  goalkeeping: {
+    handling: number;
+    reflexes: number;
+    oneOnOnes: number;
+    aerialReach: number;
+    kicking: number;
+    distribution: number;
+    commandOfArea: number;
+  };
+};
+
+export type PlayerAvailability = {
+  personId: EntityId;
+  fitness: number;
+  moraleModifier: number;
+  formModifier: number;
+  injury?: InjuryRecord;
+  suspension?: SuspensionRecord;
+};
+
+export type InjuryRecord = {
+  id: EntityId;
+  personId: EntityId;
+  injuryType: string;
+  dateOccurred: ISODate;
+  expectedRecoveryDate: ISODate;
+  severity: "minor" | "moderate" | "major";
+};
+
+export type SuspensionRecord = {
+  id: EntityId;
+  personId: EntityId;
+  competitionSeasonId: EntityId;
+  reason: "yellowAccumulation" | "redCard";
+  matchesRemaining: number;
+};
+
+export type PlayerMatchState = {
+  personId: EntityId;
+  teamId: EntityId;
+  startingFitness: number;
+  currentFitness: number;
+  fatigue: number;
+  moraleModifier: number;
+  formModifier: number;
+  yellowCards: number;
+  redCard: boolean;
+  injuryDuringMatch?: InjuryRecord;
+  minutesPlayed: number;
+  position: PlayerPosition;
+  role?: string;
+  rating: number;
+  goals: number;
+  assists: number;
+  shots: number;
+  shotsOnTarget: number;
+  passesAttempted: number;
+  passesCompleted: number;
+  tackles: number;
+  interceptions: number;
+  keyPasses: number;
+  saves: number;
+};
+
+export type TeamMatchStats = {
+  teamId: EntityId;
+  possession: number;
+  shots: number;
+  shotsOnTarget: number;
+  xg: number;
+  corners: number;
+  fouls: number;
+  yellowCards: number;
+  redCards: number;
+};
+
+export type MatchResult = {
+  match: Match;
+  events: MatchEvent[];
+  homeStats: TeamMatchStats;
+  awayStats: TeamMatchStats;
+  playerStates: PlayerMatchState[];
+  attendance?: number;
+  weather?: string;
+  pitch?: string;
+};
+
+export type LeagueStanding = {
+  competitionSeasonId: EntityId;
+  teamId: EntityId;
+  played: number;
+  won: number;
+  drawn: number;
+  lost: number;
+  goalsFor: number;
+  goalsAgainst: number;
+  goalDifference: number;
+  points: number;
+};
+
+export type PlayerSeasonStat = {
+  competitionSeasonId: EntityId;
+  personId: EntityId;
+  teamId: EntityId;
+  appearances: number;
+  starts: number;
+  minutes: number;
+  goals: number;
+  assists: number;
+  yellowCards: number;
+  redCards: number;
+  averageRating: number;
+  cleanSheets: number;
+};
+
+export type TeamSeasonStat = {
+  competitionSeasonId: EntityId;
+  teamId: EntityId;
+  played: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  goalsFor: number;
+  goalsAgainst: number;
+  cleanSheets: number;
+};
+
+export type CompetitionWinner = {
+  id: EntityId;
+  competitionSeasonId: EntityId;
+  teamId: EntityId;
+  decidedOn: ISODate;
 };
 
 export type Contract = {

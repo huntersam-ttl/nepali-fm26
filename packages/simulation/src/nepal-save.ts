@@ -5,10 +5,12 @@ import {
 } from "@nepal-football-sim/data-import";
 import {
   createNewSave,
+  CompetitionRepository,
   ImportRepository,
   loadSave,
   migrateDatabase,
   openGameDatabase,
+  PlayerRepository,
   WorldRepository,
   type GameDatabase,
   type WorldInspection,
@@ -43,11 +45,13 @@ type EntityMaps = {
   federations: Map<string, EntityId>;
   competitions: Map<string, EntityId>;
   competitionSeasons: Map<string, EntityId>;
+  competitionRules: Map<string, EntityId>;
   clubs: Map<string, EntityId>;
   teams: Map<string, EntityId>;
   persons: Map<string, EntityId>;
   personRoles: Map<string, EntityId>;
   teamPersonAssignments: Map<string, EntityId>;
+  playerAttributes: Map<string, EntityId>;
 };
 
 export const createNepalSave = (input: CreateNepalSaveInput): NepalSaveResult => {
@@ -105,6 +109,8 @@ export const inspectNepalSave = (databasePath: string): NepalSaveResult => {
 
 const importNepalWorld = (db: GameDatabase, dataset: NepalWorldDataset): void => {
   const world = new WorldRepository(db);
+  const competitions = new CompetitionRepository(db);
+  const players = new PlayerRepository(db);
   const imports = new ImportRepository(db);
   const importedAt = new Date().toISOString();
   const maps = buildEntityMaps(dataset);
@@ -175,6 +181,29 @@ const importNepalWorld = (db: GameDatabase, dataset: NepalWorldDataset): void =>
       endDate: season.endDate,
     });
     persistImport(imports, "competitionSeason", id, season, season.provenance, importedAt);
+  }
+
+  for (const rules of dataset.competitionRules) {
+    const id = maps.competitionRules.get(rules.key)!;
+    competitions.insertRuleSet({
+      id,
+      competitionSeasonId: maps.competitionSeasons.get(rules.competitionSeasonKey)!,
+      competitionType: rules.competitionType,
+      pointsForWin: rules.pointsForWin,
+      pointsForDraw: rules.pointsForDraw,
+      pointsForLoss: rules.pointsForLoss,
+      tiebreakers: rules.tiebreakers,
+      numberOfRounds: rules.numberOfRounds,
+      homeAwayStructure: rules.homeAwayStructure,
+      fixtureCount: valueOf(rules.fixtureCount),
+      seasonStartDate: rules.seasonStartDate,
+      seasonEndDate: rules.seasonEndDate,
+      roundSpacingDays: rules.roundSpacingDays,
+      promotionSlots: rules.promotionSlots,
+      relegationSlots: rules.relegationSlots,
+      continentalQualificationSlots: rules.continentalQualificationSlots,
+    });
+    persistImport(imports, "competitionRule", id, rules, rules.provenance, importedAt);
   }
 
   for (const club of dataset.clubs) {
@@ -251,6 +280,21 @@ const importNepalWorld = (db: GameDatabase, dataset: NepalWorldDataset): void =>
       importedAt,
     );
   }
+
+  for (const attributes of dataset.playerAttributes) {
+    const id = maps.playerAttributes.get(attributes.key)!;
+    players.insertAttributes({
+      id,
+      personId: maps.persons.get(attributes.personKey)!,
+      primaryPosition: attributes.primaryPosition,
+      secondaryPositions: attributes.secondaryPositions,
+      technical: attributes.technical,
+      mental: attributes.mental,
+      physical: attributes.physical,
+      goalkeeping: attributes.goalkeeping,
+    });
+    persistImport(imports, "playerAttribute", id, attributes, attributes.provenance, importedAt);
+  }
 };
 
 const buildEntityMaps = (dataset: NepalWorldDataset): EntityMaps => ({
@@ -260,11 +304,13 @@ const buildEntityMaps = (dataset: NepalWorldDataset): EntityMaps => ({
   federations: mapKeys("federation", dataset.federations),
   competitions: mapKeys("competition", dataset.competitions),
   competitionSeasons: mapKeys("competition-season", dataset.competitionSeasons),
+  competitionRules: mapKeys("competition-rule", dataset.competitionRules),
   clubs: mapKeys("club", dataset.clubs),
   teams: mapKeys("team", dataset.teams),
   persons: mapKeys("person", dataset.persons),
   personRoles: mapKeys("person-role", dataset.personRoles),
   teamPersonAssignments: mapKeys("team-person-assignment", dataset.teamPersonAssignments),
+  playerAttributes: mapKeys("player-attribute", dataset.playerAttributes),
 });
 
 const mapKeys = (

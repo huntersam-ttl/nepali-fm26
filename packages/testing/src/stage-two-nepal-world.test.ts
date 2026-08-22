@@ -29,7 +29,7 @@ afterEach(() => {
 describe("stage two Nepal world data pipeline", () => {
   it("applies the additive Stage 2 migration", () => {
     const db = openGameDatabase(":memory:");
-    expect(migrateDatabase(db)).toBe(2);
+    expect(migrateDatabase(db)).toBe(3);
     const tables = db
       .prepare(
         "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('venues', 'team_person_assignments', 'entity_provenance') ORDER BY name",

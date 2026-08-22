@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 2;
+export const CURRENT_DATABASE_VERSION = 3;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -270,6 +270,114 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
 
       CREATE INDEX IF NOT EXISTS idx_entity_provenance_entity
         ON entity_provenance(entity_type, entity_id);
+    `,
+  },
+  {
+    version: 3,
+    sql: `
+      ALTER TABLE fixtures ADD COLUMN round INTEGER NOT NULL DEFAULT 1;
+      ALTER TABLE fixtures ADD COLUMN venue_id TEXT REFERENCES venues(id);
+
+      ALTER TABLE match_events ADD COLUMN stoppage_time INTEGER;
+      ALTER TABLE match_events ADD COLUMN primary_person_id TEXT REFERENCES persons(id);
+      ALTER TABLE match_events ADD COLUMN secondary_person_id TEXT REFERENCES persons(id);
+
+      CREATE TABLE IF NOT EXISTS competition_rules (
+        id TEXT PRIMARY KEY,
+        competition_season_id TEXT NOT NULL REFERENCES competition_seasons(id),
+        competition_type TEXT NOT NULL,
+        points_for_win INTEGER NOT NULL,
+        points_for_draw INTEGER NOT NULL,
+        points_for_loss INTEGER NOT NULL,
+        tiebreakers_json TEXT NOT NULL,
+        number_of_rounds INTEGER NOT NULL,
+        home_away_structure TEXT NOT NULL,
+        fixture_count INTEGER,
+        season_start_date TEXT NOT NULL,
+        season_end_date TEXT NOT NULL,
+        round_spacing_days INTEGER NOT NULL,
+        promotion_slots INTEGER NOT NULL,
+        relegation_slots INTEGER NOT NULL,
+        continental_qualification_slots INTEGER NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS player_attributes (
+        id TEXT PRIMARY KEY,
+        person_id TEXT NOT NULL REFERENCES persons(id),
+        primary_position TEXT NOT NULL,
+        secondary_positions_json TEXT NOT NULL,
+        technical_json TEXT NOT NULL,
+        mental_json TEXT NOT NULL,
+        physical_json TEXT NOT NULL,
+        goalkeeping_json TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS injuries (
+        id TEXT PRIMARY KEY,
+        person_id TEXT NOT NULL REFERENCES persons(id),
+        injury_type TEXT NOT NULL,
+        date_occurred TEXT NOT NULL,
+        expected_recovery_date TEXT NOT NULL,
+        severity TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS suspensions (
+        id TEXT PRIMARY KEY,
+        person_id TEXT NOT NULL REFERENCES persons(id),
+        competition_season_id TEXT NOT NULL REFERENCES competition_seasons(id),
+        reason TEXT NOT NULL,
+        matches_remaining INTEGER NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS league_standings (
+        competition_season_id TEXT NOT NULL REFERENCES competition_seasons(id),
+        team_id TEXT NOT NULL REFERENCES teams(id),
+        played INTEGER NOT NULL,
+        won INTEGER NOT NULL,
+        drawn INTEGER NOT NULL,
+        lost INTEGER NOT NULL,
+        goals_for INTEGER NOT NULL,
+        goals_against INTEGER NOT NULL,
+        goal_difference INTEGER NOT NULL,
+        points INTEGER NOT NULL,
+        PRIMARY KEY (competition_season_id, team_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS player_season_stats (
+        competition_season_id TEXT NOT NULL REFERENCES competition_seasons(id),
+        person_id TEXT NOT NULL REFERENCES persons(id),
+        team_id TEXT NOT NULL REFERENCES teams(id),
+        appearances INTEGER NOT NULL,
+        starts INTEGER NOT NULL,
+        minutes INTEGER NOT NULL,
+        goals INTEGER NOT NULL,
+        assists INTEGER NOT NULL,
+        yellow_cards INTEGER NOT NULL,
+        red_cards INTEGER NOT NULL,
+        average_rating REAL NOT NULL,
+        clean_sheets INTEGER NOT NULL,
+        PRIMARY KEY (competition_season_id, person_id, team_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS team_season_stats (
+        competition_season_id TEXT NOT NULL REFERENCES competition_seasons(id),
+        team_id TEXT NOT NULL REFERENCES teams(id),
+        played INTEGER NOT NULL,
+        wins INTEGER NOT NULL,
+        draws INTEGER NOT NULL,
+        losses INTEGER NOT NULL,
+        goals_for INTEGER NOT NULL,
+        goals_against INTEGER NOT NULL,
+        clean_sheets INTEGER NOT NULL,
+        PRIMARY KEY (competition_season_id, team_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS competition_winners (
+        id TEXT PRIMARY KEY,
+        competition_season_id TEXT NOT NULL REFERENCES competition_seasons(id),
+        team_id TEXT NOT NULL REFERENCES teams(id),
+        decided_on TEXT NOT NULL
+      );
     `,
   },
 ];

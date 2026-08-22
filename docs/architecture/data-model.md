@@ -24,9 +24,13 @@
 
 - `Competition`: domestic, local, continental, or international competition.
 - `CompetitionSeason`: dated edition of a competition.
+- `CompetitionRuleSet`: dataset-driven rules for type, points, tiebreakers, fixture structure, dates, and slot counts.
 - `Fixture`: scheduled match between teams.
 - `Match`: result record for a played fixture.
 - `MatchEvent`: future quick-sim, key-event, or text-live event record.
+- `LeagueStanding`: reconstructable table row for a competition season.
+- `PlayerSeasonStat` and `TeamSeasonStat`: season totals derived from match outputs.
+- `CompetitionWinner`: persisted winner record for completed seasons.
 
 ## Contracts and Movement
 
@@ -58,3 +62,10 @@ Stage 2 Nepal datasets wrap uncertain fields as facts:
 - `provenance`: optional field-level source metadata when it differs from the record source.
 
 The SQLite save stores relational entities plus `entity_provenance` rows so imported facts remain auditable after reload.
+
+## Football Simulation
+
+- `PlayerAttributeSet`: our own 1-20 game ratings across technical, mental, physical, and goalkeeping groups. Imported real-player ratings are game assessments and must be `SIMULATION_ONLY`.
+- `PlayerMatchState`: match-local state for fitness, fatigue, discipline, injuries, minutes, position, rating, and core stats.
+- `InjuryRecord`: simple injury type, date, expected recovery, and severity.
+- `SuspensionRecord`: competition-scoped disciplinary state for red cards and future yellow accumulation.

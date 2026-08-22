@@ -75,3 +75,16 @@ Research/import data is validated through Zod schemas with provenance:
 Allowed statuses are `VERIFIED`, `REPORTED`, `ESTIMATED`, `UNKNOWN`, and `SIMULATION_ONLY`. Stage 1 intentionally includes no real Nepal dataset.
 
 Stage 2 dataset records use explicit fact wrappers for fields that may be unavailable or uncertain. `UNKNOWN` facts cannot carry a value. `VERIFIED`, `REPORTED`, and `ESTIMATED` facts must carry a value and remain distinguishable after import through entity provenance records. Real Nepal data belongs under `data/nepal/`, while automated tests use `data/fixtures/`.
+
+## Competition and Match Simulation
+
+Stage 3 adds a headless competition layer. Competition rule sets are dataset-driven and define season type, points, tiebreakers, home/away structure, round spacing, and promotion/relegation/continental slots. The engine supports deterministic single and double round-robin fixture generation.
+
+Matches are event-based, not graphical. The minute engine produces shots, shots on target, goals, assists, saves, corners, fouls, cards, injuries, half-time/full-time events, xG, team stats, and player match states. Scores emerge from generated chances/events.
+
+Headless commands:
+
+- `pnpm match:simulate`
+- `pnpm season:simulate`
+- `pnpm years:simulate -- --years 10`
+- `pnpm match:balance`
