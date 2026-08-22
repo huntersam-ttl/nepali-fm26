@@ -2,6 +2,8 @@ import type {
   CareerCharacter,
   Academy,
   ClubAlias,
+  ClubRecruitmentProfile,
+  ClubShortlistItem,
   ClubMembership,
   ClubRelationship,
   Club,
@@ -20,6 +22,9 @@ import type {
   PersonRole,
   SaveMetadata,
   ScheduledEvent,
+  ScoutReport,
+  ScoutingAssignment,
+  ScoutingStaffSimulationProfile,
   StaffAppointment,
   StaffHistoryEvent,
   StaffLicence,
@@ -45,6 +50,7 @@ import type {
   PlayerAttributeSet,
   PlayerDevelopmentState,
   PlayerFactualProfile,
+  PlayerKnowledge,
   RefereeProfile,
   PlayerPotential,
   PlayerPlayingTimeSnapshot,
@@ -809,6 +815,12 @@ export class WorldRepository {
       competitionSeasonStates: scalar("competition_season_states"),
       playerCareerStats: scalar("player_career_stats"),
       seasonAwards: scalar("season_awards"),
+      playerKnowledge: scalar("player_knowledge"),
+      clubRecruitmentProfiles: scalar("club_recruitment_profiles"),
+      scoutingStaffSimulationProfiles: scalar("scouting_staff_simulation_profiles"),
+      scoutingAssignments: scalar("scouting_assignments"),
+      scoutReports: scalar("scout_reports"),
+      clubShortlist: scalar("club_shortlist"),
       trainingPlans: scalar("training_plans"),
       individualDevelopmentPlans: scalar("individual_development_plans"),
       playerDevelopmentStates: scalar("player_development_states"),
@@ -1334,6 +1346,252 @@ export class CompetitionRepository {
   }
 }
 
+export class RecruitmentRepository {
+  constructor(private readonly db: GameDatabase) {}
+
+  upsertPlayerKnowledge(knowledge: PlayerKnowledge): void {
+    this.db
+      .prepare(
+        `INSERT INTO player_knowledge
+        (id, observer_type, observer_organisation_id, player_id, discovery_status,
+          knowledge_level, confidence, source_type, identity_json, position_json, ability_json,
+          potential_json, contract_json, personality_json, medical_json, career_json,
+          observations, last_observed_at, last_scouted_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(observer_type, observer_organisation_id, player_id) DO UPDATE SET
+          discovery_status = excluded.discovery_status,
+          knowledge_level = excluded.knowledge_level,
+          confidence = excluded.confidence,
+          source_type = excluded.source_type,
+          identity_json = excluded.identity_json,
+          position_json = excluded.position_json,
+          ability_json = excluded.ability_json,
+          potential_json = excluded.potential_json,
+          contract_json = excluded.contract_json,
+          personality_json = excluded.personality_json,
+          medical_json = excluded.medical_json,
+          career_json = excluded.career_json,
+          observations = excluded.observations,
+          last_observed_at = excluded.last_observed_at,
+          last_scouted_at = excluded.last_scouted_at,
+          updated_at = excluded.updated_at`,
+      )
+      .run(
+        knowledge.id,
+        knowledge.observerType,
+        knowledge.observerOrganisationId,
+        knowledge.playerId,
+        knowledge.discoveryStatus,
+        knowledge.knowledgeLevel,
+        knowledge.confidence,
+        knowledge.sourceType,
+        json.stringify(knowledge.identityKnowledge),
+        json.stringify(knowledge.positionKnowledge),
+        json.stringify(knowledge.abilityKnowledge),
+        json.stringify(knowledge.potentialKnowledge),
+        json.stringify(knowledge.contractKnowledge),
+        json.stringify(knowledge.personalityKnowledge),
+        json.stringify(knowledge.medicalKnowledge),
+        json.stringify(knowledge.careerKnowledge),
+        knowledge.observations,
+        knowledge.lastObservedAt ?? null,
+        knowledge.lastScoutedAt ?? null,
+        knowledge.updatedAt,
+      );
+  }
+
+  playerKnowledge(clubId: EntityId, playerId: EntityId): PlayerKnowledge | undefined {
+    const row = this.db
+      .prepare(
+        `SELECT * FROM player_knowledge
+        WHERE observer_type = 'CLUB' AND observer_organisation_id = ? AND player_id = ?`,
+      )
+      .get(clubId, playerId) as any;
+    return row ? mapPlayerKnowledge(row) : undefined;
+  }
+
+  playerKnowledgeForClub(clubId: EntityId): PlayerKnowledge[] {
+    return this.db
+      .prepare(
+        `SELECT * FROM player_knowledge
+        WHERE observer_type = 'CLUB' AND observer_organisation_id = ?
+        ORDER BY updated_at DESC, player_id`,
+      )
+      .all(clubId)
+      .map(mapPlayerKnowledge);
+  }
+
+  upsertClubRecruitmentProfile(profile: ClubRecruitmentProfile): void {
+    this.db
+      .prepare(
+        `INSERT INTO club_recruitment_profiles
+        (id, club_id, domestic_knowledge, regional_knowledge, international_knowledge,
+          scouting_budget, network_reach, preferred_markets_json, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(club_id) DO UPDATE SET
+          domestic_knowledge = excluded.domestic_knowledge,
+          regional_knowledge = excluded.regional_knowledge,
+          international_knowledge = excluded.international_knowledge,
+          scouting_budget = excluded.scouting_budget,
+          network_reach = excluded.network_reach,
+          preferred_markets_json = excluded.preferred_markets_json,
+          status = excluded.status`,
+      )
+      .run(
+        profile.id,
+        profile.clubId,
+        profile.domesticKnowledge,
+        profile.regionalKnowledge,
+        profile.internationalKnowledge,
+        profile.scoutingBudget,
+        profile.networkReach,
+        json.stringify(profile.preferredMarkets),
+        profile.status,
+      );
+  }
+
+  clubRecruitmentProfile(clubId: EntityId): ClubRecruitmentProfile | undefined {
+    const row = this.db
+      .prepare("SELECT * FROM club_recruitment_profiles WHERE club_id = ?")
+      .get(clubId) as any;
+    return row ? mapClubRecruitmentProfile(row) : undefined;
+  }
+
+  upsertScoutingStaffSimulationProfile(profile: ScoutingStaffSimulationProfile): void {
+    this.db
+      .prepare(
+        `INSERT INTO scouting_staff_simulation_profiles
+        (id, person_id, player_judgement, potential_judgement, adaptability,
+          regional_knowledge, assignment_speed, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(person_id) DO UPDATE SET
+          player_judgement = excluded.player_judgement,
+          potential_judgement = excluded.potential_judgement,
+          adaptability = excluded.adaptability,
+          regional_knowledge = excluded.regional_knowledge,
+          assignment_speed = excluded.assignment_speed,
+          status = excluded.status`,
+      )
+      .run(
+        profile.id,
+        profile.personId,
+        profile.playerJudgement,
+        profile.potentialJudgement,
+        profile.adaptability,
+        profile.regionalKnowledge,
+        profile.assignmentSpeed,
+        profile.status,
+      );
+  }
+
+  insertAssignment(assignment: ScoutingAssignment): void {
+    this.db
+      .prepare(
+        `INSERT INTO scouting_assignments
+        (id, club_id, scout_person_id, assignment_type, target_player_id, target_club_id,
+          target_competition_id, target_location_id, started_at, expected_completion_at,
+          status, priority)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET status = excluded.status`,
+      )
+      .run(
+        assignment.id,
+        assignment.clubId,
+        assignment.scoutPersonId ?? null,
+        assignment.assignmentType,
+        assignment.targetPlayerId ?? null,
+        assignment.targetClubId ?? null,
+        assignment.targetCompetitionId ?? null,
+        assignment.targetLocationId ?? null,
+        assignment.startedAt,
+        assignment.expectedCompletionAt,
+        assignment.status,
+        assignment.priority,
+      );
+  }
+
+  activeAssignments(worldDate: string): ScoutingAssignment[] {
+    return this.db
+      .prepare(
+        `SELECT * FROM scouting_assignments
+        WHERE status IN ('QUEUED', 'ACTIVE') AND expected_completion_at <= ?
+        ORDER BY priority DESC, expected_completion_at, id`,
+      )
+      .all(worldDate)
+      .map(mapScoutingAssignment);
+  }
+
+  markAssignmentCompleted(id: EntityId): void {
+    this.db.prepare("UPDATE scouting_assignments SET status = 'COMPLETED' WHERE id = ?").run(id);
+  }
+
+  insertScoutReport(report: ScoutReport): void {
+    this.db
+      .prepare(
+        `INSERT INTO scout_reports
+        (id, player_id, observer_club_id, scout_id, estimated_ability_json,
+          estimated_potential_band, strengths_json, weaknesses_json, position_assessment,
+          role_assessment, personality_assessment, medical_assessment, recommendation,
+          confidence, observations, generated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO NOTHING`,
+      )
+      .run(
+        report.id,
+        report.playerId,
+        report.observerClubId,
+        report.scoutId ?? null,
+        json.stringify(report.estimatedAbilityBand),
+        report.estimatedPotentialBand,
+        json.stringify(report.strengths),
+        json.stringify(report.weaknesses),
+        report.positionAssessment,
+        report.roleAssessment,
+        report.personalityAssessment,
+        report.medicalAssessment,
+        report.recommendation,
+        report.confidence,
+        report.observations,
+        report.generatedAt,
+      );
+  }
+
+  addShortlistItem(item: ClubShortlistItem): void {
+    this.db
+      .prepare(
+        `INSERT INTO club_shortlist
+        (id, club_id, player_id, added_at, priority, notes, scouting_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(club_id, player_id) DO UPDATE SET
+          priority = excluded.priority,
+          notes = excluded.notes,
+          scouting_status = excluded.scouting_status`,
+      )
+      .run(
+        item.id,
+        item.clubId,
+        item.playerId,
+        item.addedAt,
+        item.priority,
+        item.notes ?? null,
+        item.scoutingStatus,
+      );
+  }
+
+  removeShortlistItem(clubId: EntityId, playerId: EntityId): void {
+    this.db
+      .prepare("DELETE FROM club_shortlist WHERE club_id = ? AND player_id = ?")
+      .run(clubId, playerId);
+  }
+
+  shortlist(clubId: EntityId): ClubShortlistItem[] {
+    return this.db
+      .prepare("SELECT * FROM club_shortlist WHERE club_id = ? ORDER BY added_at DESC")
+      .all(clubId)
+      .map(mapClubShortlistItem);
+  }
+}
+
 export class PlayerRepository {
   constructor(private readonly db: GameDatabase) {}
 
@@ -1805,6 +2063,66 @@ const mapCompetitionMovement = (row: any): CompetitionMovement => ({
   reason: row.reason ?? undefined,
 });
 
+const mapPlayerKnowledge = (row: any): PlayerKnowledge => ({
+  id: row.id,
+  observerType: row.observer_type,
+  observerOrganisationId: row.observer_organisation_id,
+  playerId: row.player_id,
+  discoveryStatus: row.discovery_status,
+  knowledgeLevel: row.knowledge_level,
+  confidence: row.confidence,
+  sourceType: row.source_type,
+  identityKnowledge: json.parse(row.identity_json, {}),
+  positionKnowledge: json.parse(row.position_json, {}),
+  abilityKnowledge: json.parse(row.ability_json, {}),
+  potentialKnowledge: json.parse(row.potential_json, {}),
+  contractKnowledge: json.parse(row.contract_json, {}),
+  personalityKnowledge: json.parse(row.personality_json, {}),
+  medicalKnowledge: json.parse(row.medical_json, {}),
+  careerKnowledge: json.parse(row.career_json, {}),
+  observations: row.observations,
+  lastObservedAt: row.last_observed_at ?? undefined,
+  lastScoutedAt: row.last_scouted_at ?? undefined,
+  updatedAt: row.updated_at,
+});
+
+const mapClubRecruitmentProfile = (row: any): ClubRecruitmentProfile => ({
+  id: row.id,
+  clubId: row.club_id,
+  domesticKnowledge: row.domestic_knowledge,
+  regionalKnowledge: row.regional_knowledge,
+  internationalKnowledge: row.international_knowledge,
+  scoutingBudget: row.scouting_budget,
+  networkReach: row.network_reach,
+  preferredMarkets: json.parse(row.preferred_markets_json, []),
+  status: row.status,
+});
+
+const mapScoutingAssignment = (row: any): ScoutingAssignment => ({
+  id: row.id,
+  clubId: row.club_id,
+  scoutPersonId: row.scout_person_id ?? undefined,
+  assignmentType: row.assignment_type,
+  targetPlayerId: row.target_player_id ?? undefined,
+  targetClubId: row.target_club_id ?? undefined,
+  targetCompetitionId: row.target_competition_id ?? undefined,
+  targetLocationId: row.target_location_id ?? undefined,
+  startedAt: row.started_at,
+  expectedCompletionAt: row.expected_completion_at,
+  status: row.status,
+  priority: row.priority,
+});
+
+const mapClubShortlistItem = (row: any): ClubShortlistItem => ({
+  id: row.id,
+  clubId: row.club_id,
+  playerId: row.player_id,
+  addedAt: row.added_at,
+  priority: row.priority,
+  notes: row.notes ?? undefined,
+  scoutingStatus: row.scouting_status,
+});
+
 export type WorldInspection = {
   countries: number;
   locations: number;
@@ -1843,6 +2161,12 @@ export type WorldInspection = {
   competitionSeasonStates: number;
   playerCareerStats: number;
   seasonAwards: number;
+  playerKnowledge: number;
+  clubRecruitmentProfiles: number;
+  scoutingStaffSimulationProfiles: number;
+  scoutingAssignments: number;
+  scoutReports: number;
+  clubShortlist: number;
   trainingPlans: number;
   individualDevelopmentPlans: number;
   playerDevelopmentStates: number;

@@ -163,3 +163,23 @@ records, movement generation, next-season membership creation, and save world-da
 Transfers, youth intake, and retirement are still absent. To keep long stress saves playable, next
 season membership and team-person assignments are retained unless an existing movement rule changes a
 club's competition membership. This is a temporary continuity policy, not a transfer model.
+
+## ADR-026: Recruitment uses club knowledge, not omniscient player state
+
+Stage 2 scouting introduces `PlayerKnowledge` as a separate save-backed view of a player from an
+observer's perspective. Real simulation state, imported facts, generated attributes, potential, and
+hidden traits remain in their existing player records. Clubs, managers, scouts, federations, and
+national teams must reason through knowledge records with source type, confidence, discovery status,
+observation dates, and bounded estimates.
+
+Own squads start with high knowledge, but potential and hidden traits still surface as bands or
+summaries rather than exact internal numbers. Public and same-league familiarity can reveal identity,
+club, broad position group, and coarse form signals. Match observation and scouting assignments improve
+knowledge over time, while stale knowledge decays. Search and reports therefore return ranges,
+recommendations, and assessments instead of leaking exact current ability, potential, or hidden trait
+values.
+
+Recruitment profiles, scout simulation profiles, assignments, reports, and shortlist entries are
+persistent domain records behind `packages/database`. They are marked `SIMULATION_ONLY` where they
+model Nepal-calibrated game capability rather than researched fact. Transfers are deliberately out of
+scope for this decision; AI clubs should later consume the same knowledge layer instead of bypassing it.

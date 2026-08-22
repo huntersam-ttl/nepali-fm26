@@ -1189,6 +1189,127 @@ export type TrainingHistoryEvent = {
   data?: Record<string, unknown>;
 };
 
+export type PlayerKnowledgeObserverType =
+  "CLUB" | "MANAGER" | "SCOUT" | "FEDERATION" | "NATIONAL_TEAM";
+export type PlayerKnowledgeLevel = "NONE" | "MINIMAL" | "BASIC" | "GOOD" | "EXTENSIVE" | "COMPLETE";
+export type PlayerDiscoveryStatus = "UNDISCOVERED" | "DISCOVERED" | "KNOWN" | "SCOUTED";
+export type KnowledgeConfidence = "LOW" | "MEDIUM" | "HIGH";
+export type PlayerKnowledgeSourceType =
+  | "PUBLIC"
+  | "MATCH_OBSERVATION"
+  | "SCOUT_REPORT"
+  | "TRIAL"
+  | "OWN_PLAYER"
+  | "FORMER_PLAYER"
+  | "NATIONAL_TEAM"
+  | "AGENT"
+  | "TRANSFER_INTEREST";
+
+export type KnowledgeRange = {
+  min: number;
+  max: number;
+};
+
+export type PlayerKnowledge = {
+  id: EntityId;
+  observerType: PlayerKnowledgeObserverType;
+  observerOrganisationId: EntityId;
+  playerId: EntityId;
+  discoveryStatus: PlayerDiscoveryStatus;
+  knowledgeLevel: PlayerKnowledgeLevel;
+  confidence: KnowledgeConfidence;
+  sourceType: PlayerKnowledgeSourceType;
+  identityKnowledge: Record<string, unknown>;
+  positionKnowledge: Record<string, unknown>;
+  abilityKnowledge: Record<string, unknown>;
+  potentialKnowledge: Record<string, unknown>;
+  contractKnowledge: Record<string, unknown>;
+  personalityKnowledge: Record<string, unknown>;
+  medicalKnowledge: Record<string, unknown>;
+  careerKnowledge: Record<string, unknown>;
+  observations: number;
+  lastObservedAt?: ISODate;
+  lastScoutedAt?: ISODate;
+  updatedAt: ISODate;
+};
+
+export type ClubRecruitmentProfile = {
+  id: EntityId;
+  clubId: EntityId;
+  domesticKnowledge: number;
+  regionalKnowledge: number;
+  internationalKnowledge: number;
+  scoutingBudget: number;
+  networkReach: "LOCAL" | "DISTRICT" | "REGIONAL" | "NATIONAL" | "SOUTH_ASIA" | "GLOBAL";
+  preferredMarkets: string[];
+  status: "SIMULATION_ONLY";
+};
+
+export type ScoutingStaffSimulationProfile = {
+  id: EntityId;
+  personId: EntityId;
+  playerJudgement: number;
+  potentialJudgement: number;
+  adaptability: number;
+  regionalKnowledge: number;
+  assignmentSpeed: number;
+  status: "SIMULATION_ONLY";
+};
+
+export type ScoutingAssignmentType =
+  "PLAYER" | "CLUB" | "COMPETITION" | "REGION" | "POSITION" | "SHORTLIST";
+export type ScoutingAssignmentStatus = "QUEUED" | "ACTIVE" | "COMPLETED" | "CANCELLED";
+export type ScoutingAssignmentPriority = "LOW" | "NORMAL" | "HIGH";
+
+export type ScoutingAssignment = {
+  id: EntityId;
+  clubId: EntityId;
+  scoutPersonId?: EntityId;
+  assignmentType: ScoutingAssignmentType;
+  targetPlayerId?: EntityId;
+  targetClubId?: EntityId;
+  targetCompetitionId?: EntityId;
+  targetLocationId?: EntityId;
+  startedAt: ISODate;
+  expectedCompletionAt: ISODate;
+  status: ScoutingAssignmentStatus;
+  priority: ScoutingAssignmentPriority;
+};
+
+export type ScoutReportRecommendation =
+  "DO_NOT_SIGN" | "BACKUP" | "ROTATION" | "STARTER" | "KEY_PLAYER" | "PROSPECT";
+
+export type ScoutReport = {
+  id: EntityId;
+  playerId: EntityId;
+  observerClubId: EntityId;
+  scoutId?: EntityId;
+  estimatedAbilityBand: KnowledgeRange;
+  estimatedPotentialBand: string;
+  strengths: string[];
+  weaknesses: string[];
+  positionAssessment: string;
+  roleAssessment: string;
+  personalityAssessment: string;
+  medicalAssessment: string;
+  recommendation: ScoutReportRecommendation;
+  confidence: KnowledgeConfidence;
+  observations: number;
+  generatedAt: ISODate;
+};
+
+export type ShortlistPriority = "MONITOR" | "INTERESTED" | "HIGH_PRIORITY";
+
+export type ClubShortlistItem = {
+  id: EntityId;
+  clubId: EntityId;
+  playerId: EntityId;
+  addedAt: ISODate;
+  priority: ShortlistPriority;
+  notes?: string;
+  scoutingStatus: ScoutingAssignmentStatus | "NONE";
+};
+
 export type PlayerAvailability = {
   personId: EntityId;
   fitness: number;

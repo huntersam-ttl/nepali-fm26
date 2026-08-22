@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 11;
+export const CURRENT_DATABASE_VERSION = 12;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -916,6 +916,113 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
         value REAL NOT NULL,
         decided_on TEXT NOT NULL,
         UNIQUE (competition_season_id, award_type)
+      );
+    `,
+  },
+  {
+    version: 12,
+    sql: `
+      CREATE TABLE IF NOT EXISTS player_knowledge (
+        id TEXT PRIMARY KEY,
+        observer_type TEXT NOT NULL,
+        observer_organisation_id TEXT NOT NULL,
+        player_id TEXT NOT NULL REFERENCES persons(id),
+        discovery_status TEXT NOT NULL,
+        knowledge_level TEXT NOT NULL,
+        confidence TEXT NOT NULL,
+        source_type TEXT NOT NULL,
+        identity_json TEXT NOT NULL,
+        position_json TEXT NOT NULL,
+        ability_json TEXT NOT NULL,
+        potential_json TEXT NOT NULL,
+        contract_json TEXT NOT NULL,
+        personality_json TEXT NOT NULL,
+        medical_json TEXT NOT NULL,
+        career_json TEXT NOT NULL,
+        observations INTEGER NOT NULL,
+        last_observed_at TEXT,
+        last_scouted_at TEXT,
+        updated_at TEXT NOT NULL,
+        UNIQUE(observer_type, observer_organisation_id, player_id)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_player_knowledge_observer
+        ON player_knowledge(observer_type, observer_organisation_id);
+      CREATE INDEX IF NOT EXISTS idx_player_knowledge_player
+        ON player_knowledge(player_id);
+
+      CREATE TABLE IF NOT EXISTS club_recruitment_profiles (
+        id TEXT PRIMARY KEY,
+        club_id TEXT NOT NULL UNIQUE REFERENCES clubs(id),
+        domestic_knowledge REAL NOT NULL,
+        regional_knowledge REAL NOT NULL,
+        international_knowledge REAL NOT NULL,
+        scouting_budget INTEGER NOT NULL,
+        network_reach TEXT NOT NULL,
+        preferred_markets_json TEXT NOT NULL,
+        status TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS scouting_staff_simulation_profiles (
+        id TEXT PRIMARY KEY,
+        person_id TEXT NOT NULL UNIQUE REFERENCES persons(id),
+        player_judgement INTEGER NOT NULL,
+        potential_judgement INTEGER NOT NULL,
+        adaptability INTEGER NOT NULL,
+        regional_knowledge INTEGER NOT NULL,
+        assignment_speed INTEGER NOT NULL,
+        status TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS scouting_assignments (
+        id TEXT PRIMARY KEY,
+        club_id TEXT NOT NULL REFERENCES clubs(id),
+        scout_person_id TEXT REFERENCES persons(id),
+        assignment_type TEXT NOT NULL,
+        target_player_id TEXT REFERENCES persons(id),
+        target_club_id TEXT REFERENCES clubs(id),
+        target_competition_id TEXT REFERENCES competitions(id),
+        target_location_id TEXT REFERENCES locations(id),
+        started_at TEXT NOT NULL,
+        expected_completion_at TEXT NOT NULL,
+        status TEXT NOT NULL,
+        priority TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_scouting_assignments_club_status
+        ON scouting_assignments(club_id, status);
+
+      CREATE TABLE IF NOT EXISTS scout_reports (
+        id TEXT PRIMARY KEY,
+        player_id TEXT NOT NULL REFERENCES persons(id),
+        observer_club_id TEXT NOT NULL REFERENCES clubs(id),
+        scout_id TEXT REFERENCES persons(id),
+        estimated_ability_json TEXT NOT NULL,
+        estimated_potential_band TEXT NOT NULL,
+        strengths_json TEXT NOT NULL,
+        weaknesses_json TEXT NOT NULL,
+        position_assessment TEXT NOT NULL,
+        role_assessment TEXT NOT NULL,
+        personality_assessment TEXT NOT NULL,
+        medical_assessment TEXT NOT NULL,
+        recommendation TEXT NOT NULL,
+        confidence TEXT NOT NULL,
+        observations INTEGER NOT NULL,
+        generated_at TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_scout_reports_club_player
+        ON scout_reports(observer_club_id, player_id);
+
+      CREATE TABLE IF NOT EXISTS club_shortlist (
+        id TEXT PRIMARY KEY,
+        club_id TEXT NOT NULL REFERENCES clubs(id),
+        player_id TEXT NOT NULL REFERENCES persons(id),
+        added_at TEXT NOT NULL,
+        priority TEXT NOT NULL,
+        notes TEXT,
+        scouting_status TEXT NOT NULL,
+        UNIQUE(club_id, player_id)
       );
     `,
   },

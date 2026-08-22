@@ -23,6 +23,7 @@
     "nepal:create-save": "pnpm build && node dist/nepal-cli.js",
     "players:balance": "pnpm build && node dist/player-balance-cli.js",
     "season:simulate": "pnpm build && node dist/season-cli.js --seasons 1",
+    "scouting:simulate": "pnpm build && node dist/scouting-cli.js",
     "years:simulate": "pnpm build && node dist/season-cli.js",
     "match:balance": "pnpm build && node dist/balance-cli.js",
     "tactics:balance": "pnpm build && node dist/tactical-balance-cli.js",

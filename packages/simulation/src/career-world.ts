@@ -22,6 +22,11 @@ import { generateLeagueFixtures } from "./fixture-generation.js";
 import { simulateMatch } from "./match-engine.js";
 import { updatePlayerDevelopment } from "./player-development.js";
 import { progressPyramidSeason, persistPyramidProgression } from "./pyramid-progression.js";
+import {
+  initializeRecruitmentForSave,
+  recordMatchObservation,
+  simulateScoutingDay,
+} from "./scouting.js";
 import { calculateStandings, sortStandings, summarizePlayerStats } from "./standings.js";
 
 export type CompetitionSeasonLifecycleStatus =
@@ -99,6 +104,8 @@ export const simulateNepalCareer = (input: {
   const save = loadSave(input.db);
   const reports: CareerSeasonReport[] = [];
   const skippedCompetitions: CareerSimulationReport["skippedCompetitions"] = [];
+
+  ensureRecruitmentFoundation(input.db, save.worldDate, input.seed);
 
   let activeSeasons = runnableSeasons(input.db, input.competitionSeasonId, skippedCompetitions);
   const runnableCompetitions = [...new Set(activeSeasons.map((season) => season.competitionName))];
@@ -211,6 +218,8 @@ const simulateCompetitionSeason = (
     });
     allResults.push(result);
     persistMatchResult(db, result, input.season.id, fixture.scheduledDate);
+    recordMatchKnowledge(db, fixture, result, fixture.scheduledDate, input.seed);
+    simulateScoutingDay({ db, worldDate: fixture.scheduledDate, seed: input.seed });
     playedThisRun += 1;
   }
 
@@ -311,6 +320,48 @@ const simulateCompetitionSeason = (
     squadHealth,
   };
 };
+
+function ensureRecruitmentFoundation(db: GameDatabase, worldDate: string, seed: string): void {
+  const existing = (
+    db.prepare("SELECT COUNT(*) AS count FROM club_recruitment_profiles").get() as {
+      count: number;
+    }
+  ).count;
+  if (existing === 0) {
+    initializeRecruitmentForSave({ db, worldDate, seed });
+  }
+}
+
+function recordMatchKnowledge(
+  db: GameDatabase,
+  fixture: FixtureRecord,
+  result: MatchResult,
+  playedDate: string,
+  seed: string,
+): void {
+  const homeClubId = clubIdForTeam(db, fixture.homeTeamId);
+  const awayClubId = clubIdForTeam(db, fixture.awayTeamId);
+  if (homeClubId && awayClubId) {
+    recordMatchObservation(
+      db,
+      homeClubId,
+      result.playerStates
+        .filter((state) => state.teamId === fixture.awayTeamId)
+        .map((state) => state.personId),
+      playedDate,
+      seed,
+    );
+    recordMatchObservation(
+      db,
+      awayClubId,
+      result.playerStates
+        .filter((state) => state.teamId === fixture.homeTeamId)
+        .map((state) => state.personId),
+      playedDate,
+      seed,
+    );
+  }
+}
 
 const ensureFixtures = (
   db: GameDatabase,
