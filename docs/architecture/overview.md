@@ -88,3 +88,33 @@ Headless commands:
 - `pnpm season:simulate`
 - `pnpm years:simulate -- --years 10`
 - `pnpm match:balance`
+
+## Manager Career and Tactics
+
+Stage 4 adds the first playable manager-career loop while preserving the non-graphical match direction. The UI presents manager commands and read models; React components do not calculate match probabilities and do not talk to SQLite directly.
+
+The Stage 4 flow is:
+
+UI
+↓
+manager commands
+↓
+simulation domain
+↓
+tactical context
+↓
+match engine
+↓
+events/result
+↓
+persistence
+↓
+UI read model
+
+Manager careers extend the existing `Person` identity model through `CareerCharacter`, `ManagerProfile`, and `ManagerContract`. Tactical setups are saved as structured formations, slot assignments, role choices, team instructions, familiarity values, bench selections, and set-piece assignments. The match engine accepts tactical setup context for each team and applies modest trade-offs to control, chance creation, xG, defense, transition defense, fatigue, possession, and discipline.
+
+The desktop app currently uses a testing-mode manager flow read model. Production save-backed desktop commands should bridge to the database package through Tauri/application services rather than importing SQLite into React.
+
+Additional headless command:
+
+- `pnpm tactics:balance`

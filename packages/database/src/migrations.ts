@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 3;
+export const CURRENT_DATABASE_VERSION = 4;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -377,6 +377,71 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
         competition_season_id TEXT NOT NULL REFERENCES competition_seasons(id),
         team_id TEXT NOT NULL REFERENCES teams(id),
         decided_on TEXT NOT NULL
+      );
+    `,
+  },
+  {
+    version: 4,
+    sql: `
+      ALTER TABLE career_characters ADD COLUMN coaching_experience TEXT;
+
+      CREATE TABLE IF NOT EXISTS manager_profiles (
+        id TEXT PRIMARY KEY,
+        person_id TEXT NOT NULL REFERENCES persons(id),
+        attributes_json TEXT NOT NULL,
+        preferred_style TEXT,
+        reputation_profile TEXT NOT NULL,
+        created_on TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS manager_contracts (
+        id TEXT PRIMARY KEY,
+        manager_profile_id TEXT NOT NULL REFERENCES manager_profiles(id),
+        person_id TEXT NOT NULL REFERENCES persons(id),
+        team_id TEXT REFERENCES teams(id),
+        club_id TEXT REFERENCES clubs(id),
+        job_title TEXT NOT NULL,
+        contract_start TEXT NOT NULL,
+        contract_end TEXT,
+        salary_amount_minor INTEGER NOT NULL,
+        currency TEXT NOT NULL,
+        status TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS tactical_setups (
+        id TEXT PRIMARY KEY,
+        manager_profile_id TEXT REFERENCES manager_profiles(id),
+        team_id TEXT NOT NULL REFERENCES teams(id),
+        name TEXT NOT NULL,
+        formation_json TEXT NOT NULL,
+        style TEXT NOT NULL,
+        instructions_json TEXT NOT NULL,
+        familiarity_json TEXT NOT NULL,
+        assignments_json TEXT NOT NULL,
+        bench_json TEXT NOT NULL,
+        set_pieces_json TEXT NOT NULL,
+        created_on TEXT NOT NULL,
+        updated_on TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS inbox_items (
+        id TEXT PRIMARY KEY,
+        created_on TEXT NOT NULL,
+        type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        related_entity_json TEXT,
+        read INTEGER NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS player_availability_states (
+        person_id TEXT PRIMARY KEY REFERENCES persons(id),
+        team_id TEXT REFERENCES teams(id),
+        fitness REAL NOT NULL,
+        morale_modifier REAL NOT NULL,
+        form_modifier REAL NOT NULL,
+        availability TEXT NOT NULL,
+        updated_on TEXT NOT NULL
       );
     `,
   },

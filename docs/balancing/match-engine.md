@@ -90,3 +90,31 @@ Still deliberately untuned:
 - Separate competition environments are not calibrated yet.
 - Weather, altitude, heat, and pitch values are hooks only; no Nepal-specific assumptions have been inserted.
 - Strong-team dominance may still be a little high and should be revisited after squads, tactics, fatigue, substitutions, and more realistic player pools exist.
+
+## Stage 4 Tactical Integration
+
+Stage 4 introduces manager tactical context without changing the permanent no-2D/no-3D match direction. `TacticalSetup` records feed the match engine through bounded modifiers:
+
+- Control and possession from midfield structure, possession style, manager match quality, and familiarity.
+- Chance creation and xG from tempo, directness, mentality, role fit, and style.
+- Defense and transition defense from shape coverage, low-block/counter trade-offs, and attacking risk.
+- Fatigue and discipline from pressing intensity, tempo, tackling intensity, and style.
+
+Role fit affects contribution by lightly scaling the selected player's technical, mental, physical, and goalkeeping groups before team strength is calculated. Poor fits remain selectable; they lower output rather than blocking unconventional choices.
+
+Substitution events are now generated as structured `SUBSTITUTION` events from the bench at simple match-time checkpoints. Stage 4 does not add interactive live match management.
+
+Run:
+
+`pnpm tactics:balance`
+
+The tactical balance harness samples:
+
+- Balanced vs Balanced
+- High Press vs Balanced
+- Possession vs Direct
+- Low Block vs Attacking/Vertical
+- Strong team badly suited to tactic
+- Weaker team highly suited to tactic
+
+It reports win/draw/loss, goals, xG, shots, possession, and final fitness. The goal is not exact target numbers yet; it is to verify that tactics materially change match texture without replacing player quality as the main driver.

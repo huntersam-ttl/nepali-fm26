@@ -21,7 +21,11 @@ export type EntityRef = {
     | "transfer"
     | "loan"
     | "financeAccount"
-    | "careerCharacter";
+    | "careerCharacter"
+    | "managerProfile"
+    | "managerContract"
+    | "tacticalSetup"
+    | "inboxItem";
 };
 
 export type Country = {
@@ -126,12 +130,107 @@ export type CareerCharacter = {
   personId: EntityId;
   preferredDisplayName?: string;
   startingAge?: number;
-  footballBackground?: string;
-  education?: string;
-  playingExperience?: string;
-  coachingLicences: string[];
-  businessBackground?: string;
+  footballBackground?: FootballBackground;
+  education?: EducationBackground;
+  playingExperience?: PlayingExperience;
+  coachingExperience?: CoachingExperience;
+  coachingLicences: CoachingLicence[];
+  businessBackground?: BusinessBackground;
   startingReputationProfile?: string;
+};
+
+export type PlayingExperience =
+  | "NO_PLAYING_EXPERIENCE"
+  | "AMATEUR_PLAYER"
+  | "SEMI_PROFESSIONAL_PLAYER"
+  | "PROFESSIONAL_PLAYER"
+  | "FORMER_INTERNATIONAL";
+
+export type CoachingExperience =
+  "NONE" | "GRASSROOTS" | "YOUTH_COACH" | "ASSISTANT_COACH" | "SENIOR_COACH";
+
+export type EducationBackground =
+  "BASIC" | "SECONDARY" | "UNIVERSITY" | "SPORTS_RELATED_DEGREE" | "BUSINESS_RELATED_DEGREE";
+
+export type BusinessBackground =
+  "NONE" | "SMALL_BUSINESS" | "CORPORATE" | "FINANCE" | "ENTREPRENEURSHIP";
+
+export type FootballBackground =
+  | "LOCAL_FOOTBALL"
+  | "SCHOOL_FOOTBALL"
+  | "ACADEMY"
+  | "COMMUNITY_COACHING"
+  | "ADMINISTRATION"
+  | "OTHER";
+
+export type CoachingLicence = {
+  id: EntityId;
+  level: string;
+  issuingBody: string;
+  issuedOn?: ISODate;
+  expiresOn?: ISODate;
+  requirements: string[];
+  reputationEffect: number;
+};
+
+export type ManagerProfile = {
+  id: EntityId;
+  personId: EntityId;
+  attributes: ManagerAttributeSet;
+  preferredStyle?: TacticalStyleId;
+  reputationProfile: string;
+  createdOn: ISODate;
+};
+
+export type ManagerAttributeSet = {
+  tactical: {
+    tacticalKnowledge: number;
+    adaptability: number;
+    matchManagement: number;
+    setPieceKnowledge: number;
+  };
+  coaching: {
+    attackingCoaching: number;
+    defensiveCoaching: number;
+    technicalCoaching: number;
+    mentalCoaching: number;
+    fitnessUnderstanding: number;
+    youthDevelopment: number;
+  };
+  people: {
+    manManagement: number;
+    motivation: number;
+    discipline: number;
+    communication: number;
+  };
+  recruitment: {
+    playerJudgement: number;
+    potentialJudgement: number;
+  };
+  personality: {
+    reputation: number;
+    mediaHandling: number;
+    pressureHandling: number;
+    professionalism: number;
+    ambition: number;
+    loyalty: number;
+  };
+};
+
+export type ManagerContractStatus = "ACTIVE" | "RESIGNED" | "SACKED" | "EXPIRED";
+
+export type ManagerContract = {
+  id: EntityId;
+  managerProfileId: EntityId;
+  personId: EntityId;
+  teamId?: EntityId;
+  clubId?: EntityId;
+  jobTitle: string;
+  contractStart: ISODate;
+  contractEnd?: ISODate;
+  salaryAmountMinor: number;
+  currency: string;
+  status: ManagerContractStatus;
 };
 
 export type Competition = {
@@ -241,6 +340,191 @@ export type MatchEvent = {
 
 export type PlayerPosition = "GK" | "RB" | "CB" | "LB" | "DM" | "CM" | "AM" | "RW" | "LW" | "ST";
 
+export type TacticalPositionCode =
+  | "GK"
+  | "DL"
+  | "DCL"
+  | "DC"
+  | "DCR"
+  | "DR"
+  | "WBL"
+  | "WBR"
+  | "DM"
+  | "DML"
+  | "DMR"
+  | "ML"
+  | "MCL"
+  | "MC"
+  | "MCR"
+  | "MR"
+  | "AML"
+  | "AMC"
+  | "AMR"
+  | "STL"
+  | "STC"
+  | "STR";
+
+export type TacticalSlot = {
+  id: string;
+  label: string;
+  position: TacticalPositionCode;
+  x: number;
+  y: number;
+  zone:
+    | "goalkeeper"
+    | "defense"
+    | "wingback"
+    | "defensiveMidfield"
+    | "midfield"
+    | "attackingMidfield"
+    | "forward";
+};
+
+export type FormationDefinition = {
+  id: string;
+  name: string;
+  kind: "PRESET" | "CUSTOM";
+  slots: TacticalSlot[];
+};
+
+export type RoleFamily =
+  "GOALKEEPER" | "CENTRE_BACK" | "FULLBACK_WINGBACK" | "MIDFIELD" | "WIDE_ATTACKING" | "FORWARD";
+
+export type PlayerRoleDefinition = {
+  id: string;
+  name: string;
+  family: RoleFamily;
+  weightedAttributes: Record<string, number>;
+  preferredZones: TacticalSlot["zone"][];
+  notes?: string;
+};
+
+export type RoleFit = {
+  playerId: EntityId;
+  slotId: string;
+  roleId: string;
+  positionFit: number;
+  attributeFit: number;
+  familiarity: number;
+  preferredFootFit: number;
+  physicalFit: number;
+  overall: number;
+  label: "Poor" | "Weak" | "Adequate" | "Good" | "Very Good" | "Natural";
+};
+
+export type TacticalStyleId =
+  | "BALANCED"
+  | "POSSESSION"
+  | "GEGENPRESS"
+  | "HIGH_PRESS"
+  | "COUNTER_ATTACK"
+  | "DIRECT"
+  | "LOW_BLOCK"
+  | "WING_PLAY"
+  | "VERTICAL";
+
+export type Mentality =
+  | "VERY_DEFENSIVE"
+  | "DEFENSIVE"
+  | "CAUTIOUS"
+  | "BALANCED"
+  | "POSITIVE"
+  | "ATTACKING"
+  | "VERY_ATTACKING";
+
+export type GoalkeeperDistributionStyle =
+  "SHORT" | "CENTRE_BACKS" | "FULLBACKS" | "TARGET_FORWARD" | "MIXED" | "LONG";
+
+export type TeamInstructions = {
+  mentality: Mentality;
+  inPossession: {
+    tempo: number;
+    passingLength: number;
+    width: number;
+    buildUpRisk: number;
+    playFromBack: boolean;
+    workBallIntoBox: boolean;
+    earlyCrosses: boolean;
+    focusMiddle: boolean;
+    focusLeft: boolean;
+    focusRight: boolean;
+    overlapLeft: boolean;
+    overlapRight: boolean;
+    underlapLeft: boolean;
+    underlapRight: boolean;
+  };
+  transition: {
+    counterPress: boolean;
+    regroup: boolean;
+    counter: boolean;
+    holdShape: boolean;
+    goalkeeperDistributionStyle: GoalkeeperDistributionStyle;
+  };
+  outOfPossession: {
+    pressingIntensity: number;
+    defensiveLine: number;
+    engagementLine: number;
+    tacklingIntensity: number;
+    pressGoalkeeper: boolean;
+    stopShortDistribution: boolean;
+    forceInside: boolean;
+    forceOutside: boolean;
+  };
+};
+
+export type TacticalFamiliarity = {
+  formation: number;
+  style: number;
+  roles: number;
+  instructions: number;
+};
+
+export type SetPieceAssignments = {
+  penaltyTaker?: EntityId;
+  directFreeKickTaker?: EntityId;
+  leftCornerTaker?: EntityId;
+  rightCornerTaker?: EntityId;
+};
+
+export type TacticalAssignment = {
+  slotId: string;
+  playerId?: EntityId;
+  roleId: string;
+};
+
+export type TacticalSetup = {
+  id: EntityId;
+  managerProfileId?: EntityId;
+  teamId: EntityId;
+  name: string;
+  formation: FormationDefinition;
+  style: TacticalStyleId;
+  instructions: TeamInstructions;
+  familiarity: TacticalFamiliarity;
+  assignments: TacticalAssignment[];
+  bench: EntityId[];
+  setPieces: SetPieceAssignments;
+  createdOn: ISODate;
+  updatedOn: ISODate;
+};
+
+export type TacticalShapeAnalysis = {
+  width: number;
+  centralDensity: number;
+  defensiveCoverage: number;
+  midfieldControl: number;
+  attackingNumbers: number;
+  restDefense: number;
+  pressingStructure: number;
+  warnings: string[];
+};
+
+export type SelectionValidation = {
+  isValid: boolean;
+  blockingErrors: string[];
+  warnings: string[];
+};
+
 export type PlayerAttributeSet = {
   id: EntityId;
   personId: EntityId;
@@ -297,6 +581,7 @@ export type PlayerAvailability = {
   fitness: number;
   moraleModifier: number;
   formModifier: number;
+  availability?: "AVAILABLE" | "INJURED" | "SUSPENDED" | "UNREGISTERED";
   injury?: InjuryRecord;
   suspension?: SuspensionRecord;
 };
@@ -366,6 +651,34 @@ export type MatchResult = {
   attendance?: number;
   weather?: string;
   pitch?: string;
+};
+
+export type InboxItem = {
+  id: EntityId;
+  createdOn: ISODate;
+  type: "FIXTURE_UPCOMING" | "MATCH_RESULT" | "INJURY" | "SUSPENSION" | "COMPETITION_UPDATE";
+  title: string;
+  body: string;
+  relatedEntity?: EntityRef;
+  read: boolean;
+};
+
+export type ManagerHomeSummary = {
+  worldDate: ISODate;
+  managerProfile: ManagerProfile;
+  activeContract?: ManagerContract;
+  nextFixture?: FixtureRecord;
+  previousResult?: MatchResult;
+  recentForm: string[];
+  unavailablePlayers: EntityId[];
+};
+
+export type QuickSimResult = {
+  result: MatchResult;
+  standings: LeagueStanding[];
+  inboxItems: InboxItem[];
+  tacticalShape: TacticalShapeAnalysis;
+  validation: SelectionValidation;
 };
 
 export type LeagueStanding = {

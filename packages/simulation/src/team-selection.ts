@@ -4,7 +4,9 @@ import type {
   PlayerAvailability,
   PlayerMatchState,
   PlayerPosition,
+  TacticalSetup,
 } from "@nepal-football-sim/shared-types";
+import { calculateRoleFit, roleById, tacticalPositionToPlayerPosition } from "./tactics.js";
 
 export const DEFAULT_SHAPE: readonly PlayerPosition[] = [
   "GK",
@@ -26,6 +28,9 @@ export type SelectedPlayer = {
   position: PlayerPosition;
   attributes: PlayerAttributeSet;
   availability: PlayerAvailability;
+  role?: string;
+  roleFit?: number;
+  tacticalSlotId?: string;
 };
 
 export const selectTeam = (input: {
@@ -60,6 +65,60 @@ export const selectTeam = (input: {
   });
 };
 
+export const selectTeamFromTacticalSetup = (input: {
+  teamId: EntityId;
+  players: readonly PlayerAttributeSet[];
+  setup: TacticalSetup;
+  availability?: ReadonlyMap<EntityId, PlayerAvailability>;
+}): SelectedPlayer[] => {
+  const byPerson = new Map(input.players.map((player) => [player.personId, player]));
+  return input.setup.formation.slots.map((slot, index) => {
+    const assignment = input.setup.assignments.find((candidate) => candidate.slotId === slot.id);
+    const assigned = assignment?.playerId ? byPerson.get(assignment.playerId) : undefined;
+    const chosen =
+      assigned ??
+      input.players
+        .filter((player) => {
+          const state = input.availability?.get(player.personId);
+          return !state?.injury && !state?.suspension && (state?.fitness ?? 100) >= 35;
+        })
+        .filter(
+          (player) =>
+            !input.setup.assignments.some(
+              (candidate) => candidate.playerId === player.personId && candidate.slotId !== slot.id,
+            ),
+        )
+        .sort(
+          (a, b) =>
+            suitability(b, tacticalPositionToPlayerPosition(slot.position)) -
+            suitability(a, tacticalPositionToPlayerPosition(slot.position)),
+        )[0] ??
+      createReplacementPlayer(input.teamId, tacticalPositionToPlayerPosition(slot.position), index);
+    const role = roleById(assignment?.roleId ?? "CENTRAL_MIDFIELDER");
+    const roleFit = calculateRoleFit({
+      player: chosen,
+      slot,
+      role,
+      familiarity: input.setup.familiarity.roles,
+    });
+    return {
+      personId: chosen.personId,
+      teamId: input.teamId,
+      position: tacticalPositionToPlayerPosition(slot.position),
+      attributes: applyRoleFitToAttributes(chosen, roleFit.overall),
+      availability: input.availability?.get(chosen.personId) ?? {
+        personId: chosen.personId,
+        fitness: 82,
+        moraleModifier: 0,
+        formModifier: 0,
+      },
+      role: role.id,
+      roleFit: roleFit.overall,
+      tacticalSlotId: slot.id,
+    };
+  });
+};
+
 export const createInitialPlayerState = (player: SelectedPlayer): PlayerMatchState => ({
   personId: player.personId,
   teamId: player.teamId,
@@ -72,7 +131,7 @@ export const createInitialPlayerState = (player: SelectedPlayer): PlayerMatchSta
   redCard: false,
   minutesPlayed: 0,
   position: player.position,
-  role: "default",
+  role: player.role ?? "default",
   rating: 6,
   goals: 0,
   assists: 0,
@@ -85,6 +144,24 @@ export const createInitialPlayerState = (player: SelectedPlayer): PlayerMatchSta
   keyPasses: 0,
   saves: 0,
 });
+
+const applyRoleFitToAttributes = (
+  attributes: PlayerAttributeSet,
+  roleFit: number,
+): PlayerAttributeSet => {
+  const factor = 0.92 + Math.max(35, Math.min(100, roleFit)) / 1250;
+  const scaleGroup = <T extends Record<string, number>>(group: T): T =>
+    Object.fromEntries(
+      Object.entries(group).map(([key, value]) => [key, Math.max(1, Math.min(20, value * factor))]),
+    ) as T;
+  return {
+    ...attributes,
+    technical: scaleGroup(attributes.technical),
+    mental: scaleGroup(attributes.mental),
+    physical: scaleGroup(attributes.physical),
+    goalkeeping: scaleGroup(attributes.goalkeeping),
+  };
+};
 
 export const suitability = (player: PlayerAttributeSet, position: PlayerPosition): number => {
   const positionFit =

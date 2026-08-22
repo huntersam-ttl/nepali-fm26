@@ -19,6 +19,9 @@
 - `Person`: common human identity for all football careers.
 - `PersonRole`: role history for `PLAYER`, `MANAGER`, `STAFF`, `AGENT`, `CHAIRMAN`, and `FEDERATION_OFFICIAL`.
 - `CareerCharacter`: player-created character metadata, including name support through `Person`, selected starting age, background, education, playing experience, coaching licences, business background, and starting reputation profile.
+- `ManagerProfile`: manager attributes linked to `Person`, covering tactical, coaching, people, recruitment, and personality categories.
+- `ManagerContract`: basic manager employment with club/team, job title, contract dates, salary, currency, and `ACTIVE`, `RESIGNED`, `SACKED`, or `EXPIRED` status.
+- `CoachingLicence`: licence level, issuing body, issue/expiry dates, requirements, and modest reputation effect. Testing data uses generic licences until researched Nepal/AFC rules are available.
 
 ## Competitions and Matches
 
@@ -69,3 +72,11 @@ The SQLite save stores relational entities plus `entity_provenance` rows so impo
 - `PlayerMatchState`: match-local state for fitness, fatigue, discipline, injuries, minutes, position, rating, and core stats.
 - `InjuryRecord`: simple injury type, date, expected recovery, and severity.
 - `SuspensionRecord`: competition-scoped disciplinary state for red cards and future yellow accumulation.
+- `FormationDefinition`: preset or custom tactical shape made of coordinate-based slots and zones.
+- `PlayerRoleDefinition`: reusable role requirements with weighted attributes and preferred zones.
+- `RoleFit`: 0-100 fit score split into position, attributes, familiarity, physical suitability, and preferred-foot placeholder.
+- `TeamInstructions`: mentality plus possession, transition, and out-of-possession instructions. Implemented settings feed tactical modifiers now or have a documented integration path.
+- `TacticalSetup`: saved manager tactic containing formation, style, instructions, familiarity, XI assignments, bench, and basic set-piece takers.
+- `TacticalShapeAnalysis`: derived width, central density, defensive coverage, midfield control, attacking numbers, rest defense, and pressing structure.
+- `InboxItem`: basic system-generated items for fixture, result, injury, suspension, and competition updates.
+- `player_availability_states`: persisted post-match fitness/form/morale availability snapshot for quick-sim continuity.

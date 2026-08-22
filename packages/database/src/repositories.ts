@@ -21,12 +21,16 @@ import type {
   DataProvenance,
   FixtureRecord,
   InjuryRecord,
+  InboxItem,
   LeagueStanding,
+  ManagerContract,
+  ManagerProfile,
   Match,
   MatchEvent,
   PlayerAttributeSet,
   PlayerSeasonStat,
   SuspensionRecord,
+  TacticalSetup,
   TeamSeasonStat,
 } from "@nepal-football-sim/shared-types";
 import type { EntityId } from "@nepal-football-sim/shared-types";
@@ -303,8 +307,8 @@ export class WorldRepository {
       .prepare(
         `INSERT INTO career_characters
         (id, person_id, preferred_display_name, starting_age, football_background, education, playing_experience,
-          coaching_licences_json, business_background, starting_reputation_profile)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          coaching_experience, coaching_licences_json, business_background, starting_reputation_profile)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         character.id,
@@ -314,10 +318,30 @@ export class WorldRepository {
         character.footballBackground ?? null,
         character.education ?? null,
         character.playingExperience ?? null,
+        character.coachingExperience ?? null,
         json.stringify(character.coachingLicences),
         character.businessBackground ?? null,
         character.startingReputationProfile ?? null,
       );
+  }
+
+  getCareerCharacter(id: EntityId): CareerCharacter | undefined {
+    const row = this.db.prepare("SELECT * FROM career_characters WHERE id = ?").get(id) as any;
+    return row
+      ? {
+          id: row.id,
+          personId: row.person_id,
+          preferredDisplayName: row.preferred_display_name ?? undefined,
+          startingAge: row.starting_age ?? undefined,
+          footballBackground: row.football_background ?? undefined,
+          education: row.education ?? undefined,
+          playingExperience: row.playing_experience ?? undefined,
+          coachingExperience: row.coaching_experience ?? undefined,
+          coachingLicences: json.parse(row.coaching_licences_json, []),
+          businessBackground: row.business_background ?? undefined,
+          startingReputationProfile: row.starting_reputation_profile ?? undefined,
+        }
+      : undefined;
   }
 
   inspectWorld(): WorldInspection {
@@ -338,6 +362,161 @@ export class WorldRepository {
       teamPersonAssignments: scalar("team_person_assignments"),
       entityProvenance: scalar("entity_provenance"),
     };
+  }
+}
+
+export class ManagerRepository {
+  constructor(private readonly db: GameDatabase) {}
+
+  insertProfile(profile: ManagerProfile): void {
+    this.db
+      .prepare(
+        `INSERT INTO manager_profiles
+        (id, person_id, attributes_json, preferred_style, reputation_profile, created_on)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          attributes_json = excluded.attributes_json,
+          preferred_style = excluded.preferred_style,
+          reputation_profile = excluded.reputation_profile`,
+      )
+      .run(
+        profile.id,
+        profile.personId,
+        json.stringify(profile.attributes),
+        profile.preferredStyle ?? null,
+        profile.reputationProfile,
+        profile.createdOn,
+      );
+  }
+
+  getProfile(id: EntityId): ManagerProfile | undefined {
+    const row = this.db.prepare("SELECT * FROM manager_profiles WHERE id = ?").get(id) as any;
+    return row ? mapManagerProfile(row) : undefined;
+  }
+
+  getProfileByPerson(personId: EntityId): ManagerProfile | undefined {
+    const row = this.db
+      .prepare(
+        "SELECT * FROM manager_profiles WHERE person_id = ? ORDER BY created_on DESC LIMIT 1",
+      )
+      .get(personId) as any;
+    return row ? mapManagerProfile(row) : undefined;
+  }
+
+  insertContract(contract: ManagerContract): void {
+    this.db
+      .prepare(
+        `INSERT INTO manager_contracts
+        (id, manager_profile_id, person_id, team_id, club_id, job_title, contract_start, contract_end,
+          salary_amount_minor, currency, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          team_id = excluded.team_id,
+          club_id = excluded.club_id,
+          job_title = excluded.job_title,
+          contract_end = excluded.contract_end,
+          salary_amount_minor = excluded.salary_amount_minor,
+          currency = excluded.currency,
+          status = excluded.status`,
+      )
+      .run(
+        contract.id,
+        contract.managerProfileId,
+        contract.personId,
+        contract.teamId ?? null,
+        contract.clubId ?? null,
+        contract.jobTitle,
+        contract.contractStart,
+        contract.contractEnd ?? null,
+        contract.salaryAmountMinor,
+        contract.currency,
+        contract.status,
+      );
+  }
+
+  activeContract(managerProfileId: EntityId): ManagerContract | undefined {
+    const row = this.db
+      .prepare(
+        "SELECT * FROM manager_contracts WHERE manager_profile_id = ? AND status = 'ACTIVE' ORDER BY contract_start DESC LIMIT 1",
+      )
+      .get(managerProfileId) as any;
+    return row ? mapManagerContract(row) : undefined;
+  }
+
+  insertTacticalSetup(setup: TacticalSetup): void {
+    this.db
+      .prepare(
+        `INSERT INTO tactical_setups
+        (id, manager_profile_id, team_id, name, formation_json, style, instructions_json, familiarity_json,
+          assignments_json, bench_json, set_pieces_json, created_on, updated_on)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          name = excluded.name,
+          formation_json = excluded.formation_json,
+          style = excluded.style,
+          instructions_json = excluded.instructions_json,
+          familiarity_json = excluded.familiarity_json,
+          assignments_json = excluded.assignments_json,
+          bench_json = excluded.bench_json,
+          set_pieces_json = excluded.set_pieces_json,
+          updated_on = excluded.updated_on`,
+      )
+      .run(
+        setup.id,
+        setup.managerProfileId ?? null,
+        setup.teamId,
+        setup.name,
+        json.stringify(setup.formation),
+        setup.style,
+        json.stringify(setup.instructions),
+        json.stringify(setup.familiarity),
+        json.stringify(setup.assignments),
+        json.stringify(setup.bench),
+        json.stringify(setup.setPieces),
+        setup.createdOn,
+        setup.updatedOn,
+      );
+  }
+
+  tacticalSetups(teamId: EntityId): TacticalSetup[] {
+    return this.db
+      .prepare("SELECT * FROM tactical_setups WHERE team_id = ? ORDER BY updated_on DESC")
+      .all(teamId)
+      .map(mapTacticalSetup);
+  }
+
+  insertInboxItem(item: InboxItem): void {
+    this.db
+      .prepare(
+        `INSERT INTO inbox_items
+        (id, created_on, type, title, body, related_entity_json, read)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET read = excluded.read`,
+      )
+      .run(
+        item.id,
+        item.createdOn,
+        item.type,
+        item.title,
+        item.body,
+        item.relatedEntity ? json.stringify(item.relatedEntity) : null,
+        item.read ? 1 : 0,
+      );
+  }
+
+  inboxItems(): InboxItem[] {
+    return this.db
+      .prepare("SELECT * FROM inbox_items ORDER BY created_on DESC, id DESC")
+      .all()
+      .map((row: any) => ({
+        id: row.id,
+        createdOn: row.created_on,
+        type: row.type,
+        title: row.title,
+        body: row.body,
+        relatedEntity: json.parse(row.related_entity_json, undefined),
+        read: Boolean(row.read),
+      }));
   }
 }
 
@@ -704,6 +883,62 @@ export class PlayerRepository {
       );
   }
 
+  upsertAvailabilityState(input: {
+    personId: EntityId;
+    teamId?: EntityId;
+    fitness: number;
+    moraleModifier: number;
+    formModifier: number;
+    availability: string;
+    updatedOn: string;
+  }): void {
+    this.db
+      .prepare(
+        `INSERT INTO player_availability_states
+        (person_id, team_id, fitness, morale_modifier, form_modifier, availability, updated_on)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(person_id) DO UPDATE SET
+          team_id = excluded.team_id,
+          fitness = excluded.fitness,
+          morale_modifier = excluded.morale_modifier,
+          form_modifier = excluded.form_modifier,
+          availability = excluded.availability,
+          updated_on = excluded.updated_on`,
+      )
+      .run(
+        input.personId,
+        input.teamId ?? null,
+        input.fitness,
+        input.moraleModifier,
+        input.formModifier,
+        input.availability,
+        input.updatedOn,
+      );
+  }
+
+  availabilityStates(teamId: EntityId): Array<{
+    personId: EntityId;
+    teamId?: EntityId;
+    fitness: number;
+    moraleModifier: number;
+    formModifier: number;
+    availability: string;
+    updatedOn: string;
+  }> {
+    return this.db
+      .prepare("SELECT * FROM player_availability_states WHERE team_id = ? ORDER BY person_id")
+      .all(teamId)
+      .map((row: any) => ({
+        personId: row.person_id,
+        teamId: row.team_id ?? undefined,
+        fitness: row.fitness,
+        moraleModifier: row.morale_modifier,
+        formModifier: row.form_modifier,
+        availability: row.availability,
+        updatedOn: row.updated_on,
+      }));
+  }
+
   activeSuspensions(competitionSeasonId: EntityId): SuspensionRecord[] {
     return this.db
       .prepare(
@@ -729,6 +964,45 @@ const mapAttributes = (row: any): PlayerAttributeSet => ({
   mental: json.parse(row.mental_json, {}) as PlayerAttributeSet["mental"],
   physical: json.parse(row.physical_json, {}) as PlayerAttributeSet["physical"],
   goalkeeping: json.parse(row.goalkeeping_json, {}) as PlayerAttributeSet["goalkeeping"],
+});
+
+const mapManagerProfile = (row: any): ManagerProfile => ({
+  id: row.id,
+  personId: row.person_id,
+  attributes: json.parse(row.attributes_json, {}) as ManagerProfile["attributes"],
+  preferredStyle: row.preferred_style ?? undefined,
+  reputationProfile: row.reputation_profile,
+  createdOn: row.created_on,
+});
+
+const mapManagerContract = (row: any): ManagerContract => ({
+  id: row.id,
+  managerProfileId: row.manager_profile_id,
+  personId: row.person_id,
+  teamId: row.team_id ?? undefined,
+  clubId: row.club_id ?? undefined,
+  jobTitle: row.job_title,
+  contractStart: row.contract_start,
+  contractEnd: row.contract_end ?? undefined,
+  salaryAmountMinor: row.salary_amount_minor,
+  currency: row.currency,
+  status: row.status,
+});
+
+const mapTacticalSetup = (row: any): TacticalSetup => ({
+  id: row.id,
+  managerProfileId: row.manager_profile_id ?? undefined,
+  teamId: row.team_id,
+  name: row.name,
+  formation: json.parse(row.formation_json, {}) as TacticalSetup["formation"],
+  style: row.style,
+  instructions: json.parse(row.instructions_json, {}) as TacticalSetup["instructions"],
+  familiarity: json.parse(row.familiarity_json, {}) as TacticalSetup["familiarity"],
+  assignments: json.parse(row.assignments_json, []) as TacticalSetup["assignments"],
+  bench: json.parse(row.bench_json, []) as TacticalSetup["bench"],
+  setPieces: json.parse(row.set_pieces_json, {}) as TacticalSetup["setPieces"],
+  createdOn: row.created_on,
+  updatedOn: row.updated_on,
 });
 
 export type WorldInspection = {

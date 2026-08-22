@@ -86,8 +86,13 @@ export const createTestWorld = (
     personId: person.id,
     preferredDisplayName: "Test Character",
     startingAge: 34,
+    footballBackground: "OTHER",
+    education: "SECONDARY",
+    playingExperience: "NO_PLAYING_EXPERIENCE",
+    coachingExperience: "NONE",
     coachingLicences: [],
-    businessBackground: "Testing-only",
+    businessBackground: "NONE",
+    startingReputationProfile: "Testing-only",
   };
   const personalAccount: FinanceAccount = {
     id: createEntityId(),

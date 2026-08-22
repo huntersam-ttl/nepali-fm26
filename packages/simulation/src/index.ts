@@ -1,6 +1,8 @@
 export * from "./clock.js";
 export * from "./demo-league.js";
 export * from "./fixture-generation.js";
+export * from "./manager-career.js";
+export * from "./manager-flow.js";
 export * from "./match-engine.js";
 export * from "./nepal-save.js";
 export * from "./rng.js";
@@ -8,4 +10,5 @@ export * from "./season-engine.js";
 export * from "./standings.js";
 export * from "./strength.js";
 export * from "./team-selection.js";
+export * from "./tactics.js";
 export * from "./world.js";

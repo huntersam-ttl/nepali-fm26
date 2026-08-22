@@ -51,3 +51,15 @@ Stage 3 uses a minute-based event engine rather than selecting a final score and
 ## ADR-013: Derived standings with persisted snapshots
 
 Standings and season statistics are calculated from match results and then persisted as snapshots. This gives reliable reconstruction from fixtures/results while keeping save inspection fast.
+
+## ADR-014: Manager commands own tactical simulation input
+
+Stage 4 routes manager decisions through simulation/application services instead of React components. Tactical setups are domain records containing formation slots, role assignments, instructions, familiarity, bench, and set-piece choices. The match engine consumes those records as context and applies bounded modifiers with trade-offs, so no tactical preset is a universal best choice.
+
+## ADR-015: Flexible tactical slots before free-form visual editing
+
+Preset formations are not labels only. They are stored as tactical slots with coordinates and zones. Custom formations use the same structure and validate duplicate slot IDs and coordinate bounds. Stage 4 does not yet ship a full drag editor, but the data model supports it.
+
+## ADR-016: Stage 4 desktop uses a testing-mode read model
+
+The current Tauri shell has no save-command bridge. Stage 4 therefore adds a desktop testing-mode manager flow that mirrors the domain concepts without importing SQLite into React. Future desktop work should expose save-backed manager commands from the application layer and keep the database adapter replaceable.

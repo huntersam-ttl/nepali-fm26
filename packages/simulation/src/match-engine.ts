@@ -1,5 +1,6 @@
 import {
   createEntityId,
+  createStableEntityId,
   type EntityId,
   type FixtureRecord,
   type InjuryRecord,
@@ -7,11 +8,18 @@ import {
   type MatchResult,
   type PlayerAttributeSet,
   type PlayerMatchState,
+  type TacticalSetup,
   type TeamMatchStats,
 } from "@nepal-football-sim/shared-types";
 import { SeededRandom } from "./rng.js";
 import { calculateTeamStrength, type TeamStrength } from "./strength.js";
-import { createInitialPlayerState, selectTeam, type SelectedPlayer } from "./team-selection.js";
+import {
+  createInitialPlayerState,
+  selectTeam,
+  selectTeamFromTacticalSetup,
+  type SelectedPlayer,
+} from "./team-selection.js";
+import { calculateTacticalModifiers, type TacticalMatchModifiers } from "./tactics.js";
 
 export type SimulateMatchInput = {
   fixture: FixtureRecord;
@@ -19,6 +27,8 @@ export type SimulateMatchInput = {
   awayPlayers: readonly PlayerAttributeSet[];
   seed: string;
   environment?: Partial<MatchEnvironment>;
+  homeTacticalSetup?: TacticalSetup;
+  awayTacticalSetup?: TacticalSetup;
 };
 
 export type MatchEnvironment = {
@@ -47,33 +57,49 @@ type RuntimeTeam = {
   teamId: EntityId;
   selection: SelectedPlayer[];
   strength: TeamStrength;
+  tactical: TacticalMatchModifiers;
   stats: TeamMatchStats;
   states: PlayerMatchState[];
+  substitutionsUsed: number;
 };
 
 export const simulateMatch = (input: SimulateMatchInput): MatchResult => {
   const rng = new SeededRandom(input.seed);
   const environment = { ...DEFAULT_MATCH_ENVIRONMENT, ...input.environment };
-  const matchId = createEntityId();
-  const homeSelection = selectTeam({
-    teamId: input.fixture.homeTeamId,
-    players: input.homePlayers,
-  });
-  const awaySelection = selectTeam({
-    teamId: input.fixture.awayTeamId,
-    players: input.awayPlayers,
-  });
+  const matchId = createStableEntityId("match", `${input.fixture.id}:${input.seed}`);
+  const homeSelection = input.homeTacticalSetup
+    ? selectTeamFromTacticalSetup({
+        teamId: input.fixture.homeTeamId,
+        players: input.homePlayers,
+        setup: input.homeTacticalSetup,
+      })
+    : selectTeam({
+        teamId: input.fixture.homeTeamId,
+        players: input.homePlayers,
+      });
+  const awaySelection = input.awayTacticalSetup
+    ? selectTeamFromTacticalSetup({
+        teamId: input.fixture.awayTeamId,
+        players: input.awayPlayers,
+        setup: input.awayTacticalSetup,
+      })
+    : selectTeam({
+        teamId: input.fixture.awayTeamId,
+        players: input.awayPlayers,
+      });
   const home: RuntimeTeam = createRuntimeTeam(
     input.fixture.homeTeamId,
     homeSelection,
     true,
     environment,
+    input.homeTacticalSetup,
   );
   const away: RuntimeTeam = createRuntimeTeam(
     input.fixture.awayTeamId,
     awaySelection,
     false,
     environment,
+    input.awayTacticalSetup,
   );
   const events: MatchEvent[] = [
     event(matchId, 0, "KICK_OFF", input.fixture.homeTeamId),
@@ -86,9 +112,11 @@ export const simulateMatch = (input: SimulateMatchInput): MatchResult => {
   for (let minute = 1; minute <= 90; minute += 1) {
     const attacking = chooseAttackingTeam(rng, home, away);
     const defending = attacking === home ? away : home;
-    tickFatigue(attacking.states, minute);
-    tickFatigue(defending.states, minute);
+    tickFatigue(attacking.states, minute, attacking.tactical.fatigue);
+    tickFatigue(defending.states, minute, defending.tactical.fatigue);
     addPassingStats(rng, attacking);
+    maybeSubstitute(rng, matchId, minute, attacking, input, events);
+    maybeSubstitute(rng, matchId, minute, defending, input, events);
 
     if (rng.next() < attackingSequenceChance(attacking, defending, environment)) {
       const shooter = chooseShooter(rng, attacking.selection);
@@ -100,6 +128,8 @@ export const simulateMatch = (input: SimulateMatchInput): MatchResult => {
         defending.strength,
         rng,
         environment,
+        attacking.tactical,
+        defending.tactical,
       );
       attacking.stats.shots += 1;
       attacking.stats.xg += xg;
@@ -112,7 +142,8 @@ export const simulateMatch = (input: SimulateMatchInput): MatchResult => {
       );
 
       const onTargetChance = clamp(
-        0.31 + xg + shooter.attributes.technical.finishing / 76,
+        (0.31 + xg + shooter.attributes.technical.finishing / 76) *
+          attacking.tactical.chanceCreation,
         0.15,
         0.84,
       );
@@ -126,7 +157,7 @@ export const simulateMatch = (input: SimulateMatchInput): MatchResult => {
         );
         const goalChance = clamp(
           xg * (1.32 + shooter.attributes.mental.composure / 55) -
-            defending.strength.goalkeeping / 460,
+            (defending.strength.goalkeeping * defending.tactical.defense) / 460,
           0.03,
           0.68,
         );
@@ -185,12 +216,12 @@ export const simulateMatch = (input: SimulateMatchInput): MatchResult => {
       const fouler = rng.pick(fouling.selection);
       fouling.stats.fouls += 1;
       events.push(event(matchId, minute, "FOUL", fouling.teamId, fouler.personId));
-      if (rng.next() < 0.105) {
+      if (rng.next() < 0.105 * fouling.tactical.discipline) {
         fouling.stats.yellowCards += 1;
         playerState(fouling, fouler.personId).yellowCards += 1;
         events.push(event(matchId, minute, "YELLOW_CARD", fouling.teamId, fouler.personId));
       }
-      if (rng.next() < 0.006) {
+      if (rng.next() < 0.006 * fouling.tactical.discipline) {
         fouling.stats.redCards += 1;
         playerState(fouling, fouler.personId).redCard = true;
         events.push(event(matchId, minute, "RED_CARD", fouling.teamId, fouler.personId));
@@ -217,8 +248,10 @@ export const simulateMatch = (input: SimulateMatchInput): MatchResult => {
 
   finalizeStates(home.states, homeGoals, awayGoals);
   finalizeStates(away.states, awayGoals, homeGoals);
-  const totalStrength = home.strength.midfield + away.strength.midfield;
-  home.stats.possession = Math.round((home.strength.midfield / totalStrength) * 100);
+  const homePossessionWeight = home.strength.midfield * home.tactical.possession;
+  const awayPossessionWeight = away.strength.midfield * away.tactical.possession;
+  const totalStrength = homePossessionWeight + awayPossessionWeight;
+  home.stats.possession = Math.round((homePossessionWeight / totalStrength) * 100);
   away.stats.possession = 100 - home.stats.possession;
   events.push(event(matchId, 90, "FULL_TIME", input.fixture.homeTeamId));
 
@@ -244,14 +277,30 @@ const createRuntimeTeam = (
   selection: SelectedPlayer[],
   homeAdvantage: boolean,
   environment: MatchEnvironment,
+  tacticalSetup?: TacticalSetup,
 ): RuntimeTeam => ({
   teamId,
   selection,
-  strength: applyEnvironmentToStrength(
-    calculateTeamStrength({ selection, homeAdvantage }),
-    homeAdvantage,
-    environment,
+  strength: applyTacticalStrength(
+    applyEnvironmentToStrength(
+      calculateTeamStrength({
+        selection,
+        homeAdvantage,
+        managerQuality: tacticalSetup
+          ? calculateTacticalModifiers({ setup: tacticalSetup }).managerQuality
+          : undefined,
+      }),
+      homeAdvantage,
+      environment,
+    ),
+    tacticalSetup,
   ),
+  tactical: tacticalSetup
+    ? calculateTacticalModifiers({
+        setup: tacticalSetup,
+        averageRoleFit: average(selection.map((player) => player.roleFit ?? 70)),
+      })
+    : neutralTacticalModifiers(),
   stats: {
     teamId,
     possession: 50,
@@ -264,6 +313,7 @@ const createRuntimeTeam = (
     redCards: 0,
   },
   states: selection.map(createInitialPlayerState),
+  substitutionsUsed: 0,
 });
 
 const chooseAttackingTeam = (
@@ -271,8 +321,10 @@ const chooseAttackingTeam = (
   home: RuntimeTeam,
   away: RuntimeTeam,
 ): RuntimeTeam => {
-  const homeControl = home.strength.midfield + home.strength.attack * 0.35;
-  const awayControl = away.strength.midfield + away.strength.attack * 0.35;
+  const homeControl =
+    (home.strength.midfield + home.strength.attack * 0.35) * home.tactical.control;
+  const awayControl =
+    (away.strength.midfield + away.strength.attack * 0.35) * away.tactical.control;
   return rng.next() < homeControl / (homeControl + awayControl) ? home : away;
 };
 
@@ -284,7 +336,12 @@ const attackingSequenceChance = (
   const tempo = clamp(environment.matchTempo, 0.8, 1.18);
   const pitch = clamp(environment.pitchQuality, 0.85, 1.12);
   return clamp(
-    (0.14 + (attacking.strength.attack - defending.strength.defense) / 980) * tempo * pitch,
+    (0.14 +
+      (attacking.strength.attack * attacking.tactical.chanceCreation -
+        defending.strength.defense * defending.tactical.transitionDefense) /
+        980) *
+      tempo *
+      pitch,
     0.098,
     0.192,
   );
@@ -297,19 +354,21 @@ const calculateShotXg = (
   defending: TeamStrength,
   rng: SeededRandom,
   environment: MatchEnvironment,
+  attackingTactic: TacticalMatchModifiers,
+  defendingTactic: TacticalMatchModifiers,
 ): number => {
   const chanceBase = rng.next() < 0.18 ? 0.22 : rng.next() < 0.48 ? 0.115 : 0.055;
   const finisher = shooter.attributes.technical.finishing + shooter.attributes.mental.composure;
   const creation = assister
     ? assister.attributes.mental.vision + assister.attributes.technical.passing
     : 18;
-  const pressure = defending.defense + defending.goalkeeping * 0.45;
+  const pressure = defending.defense * defendingTactic.defense + defending.goalkeeping * 0.45;
   const environmentalDrag = environment.weatherImpact * 0.018 + environment.heatImpact * 0.012;
   return clamp(
     chanceBase +
       finisher / 420 +
       creation / 625 +
-      attacking.attack / 850 -
+      (attacking.attack * attackingTactic.xg) / 850 -
       pressure / 1100 -
       environmentalDrag,
     0.015,
@@ -338,6 +397,41 @@ const chooseAssister = (
   return rng.pick(creators);
 };
 
+const maybeSubstitute = (
+  rng: SeededRandom,
+  matchId: EntityId,
+  minute: number,
+  team: RuntimeTeam,
+  input: SimulateMatchInput,
+  events: MatchEvent[],
+): void => {
+  if (![60, 72, 82].includes(minute) || team.substitutionsUsed >= 3 || rng.next() > 0.72) {
+    return;
+  }
+  const setup =
+    team.teamId === input.fixture.homeTeamId ? input.homeTacticalSetup : input.awayTacticalSetup;
+  const benchPersonId = setup?.bench[team.substitutionsUsed];
+  if (!benchPersonId) {
+    return;
+  }
+  const outgoing = [...team.states].sort((a, b) => b.fatigue - a.fatigue || a.rating - b.rating)[0];
+  if (!outgoing || outgoing.personId === benchPersonId) {
+    return;
+  }
+  team.substitutionsUsed += 1;
+  outgoing.currentFitness = Math.min(100, outgoing.currentFitness + 3);
+  events.push(
+    event(matchId, minute, "SUBSTITUTION", team.teamId, benchPersonId, outgoing.personId, {
+      reason: outgoing.injuryDuringMatch
+        ? "injury"
+        : outgoing.rating < 5.8
+          ? "performance"
+          : "fitness",
+      substitutionsUsed: team.substitutionsUsed,
+    }),
+  );
+};
+
 const playerState = (team: RuntimeTeam, personId: EntityId): PlayerMatchState => {
   const state = team.states.find((candidate) => candidate.personId === personId);
   if (!state) {
@@ -362,14 +456,18 @@ const addPassingStats = (rng: SeededRandom, team: RuntimeTeam): void => {
   }
 };
 
-const tickFatigue = (states: PlayerMatchState[], minute: number): void => {
+const tickFatigue = (
+  states: PlayerMatchState[],
+  minute: number,
+  fatigueMultiplier: number,
+): void => {
   if (minute % 5 !== 0) {
     return;
   }
   for (const state of states) {
     state.minutesPlayed += 5;
-    state.fatigue += 2.2;
-    state.currentFitness = Math.max(10, state.currentFitness - 1.7);
+    state.fatigue += 2.2 * fatigueMultiplier;
+    state.currentFitness = Math.max(10, state.currentFitness - 1.7 * fatigueMultiplier);
   }
 };
 
@@ -473,3 +571,37 @@ const applyEnvironmentToStrength = (
     overall: strength.overall + home * 0.22 - travelDrag,
   };
 };
+
+const applyTacticalStrength = (
+  strength: TeamStrength,
+  tacticalSetup?: TacticalSetup,
+): TeamStrength => {
+  if (!tacticalSetup) {
+    return strength;
+  }
+  const modifiers = calculateTacticalModifiers({ setup: tacticalSetup });
+  return {
+    attack: strength.attack * modifiers.chanceCreation,
+    midfield: strength.midfield * modifiers.control,
+    defense: strength.defense * modifiers.defense,
+    goalkeeping: strength.goalkeeping,
+    setPieces: strength.setPieces * (1 + (modifiers.managerQuality - 10) / 220),
+    cohesion: strength.cohesion * (average(Object.values(tacticalSetup.familiarity)) / 70),
+    overall: strength.overall,
+  };
+};
+
+const neutralTacticalModifiers = (): TacticalMatchModifiers => ({
+  control: 1,
+  chanceCreation: 1,
+  xg: 1,
+  defense: 1,
+  transitionDefense: 1,
+  fatigue: 1,
+  possession: 1,
+  discipline: 1,
+  managerQuality: 10,
+});
+
+const average = (values: readonly number[]): number =>
+  values.reduce((total, value) => total + value, 0) / values.length;
