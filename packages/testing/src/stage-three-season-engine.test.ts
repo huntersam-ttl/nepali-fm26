@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   completionReport,
   createDemoLeagueInput,
+  createPlayer,
   generateLeagueFixtures,
   simulateMatch,
   simulateSeason,
@@ -21,8 +22,10 @@ import {
 } from "@nepal-football-sim/database";
 import {
   createStableEntityId,
+  type EntityId,
   type Country,
   type LeagueStanding,
+  type PlayerAttributeSet,
 } from "@nepal-football-sim/shared-types";
 
 const tempDirs: string[] = [];
@@ -151,6 +154,30 @@ describe("stage three competition and season engine", () => {
     expect(injuries).toBeGreaterThan(0);
   });
 
+  it("keeps Stage 3.1 balance regressions in broad believable ranges", () => {
+    const equal = sampleBalance("stage-3-1-equal", 12, 12, 600);
+    expect(equal.homeWins).toBeGreaterThan(equal.awayWins);
+    expect(equal.draws).toBeGreaterThan(120);
+    expect(equal.goalsPerMatch).toBeGreaterThan(2);
+    expect(equal.goalsPerMatch).toBeLessThan(3.1);
+    expect(equal.zeroGoalMatches).toBeGreaterThan(20);
+    expect(equal.fivePlusGoalMatches / 600).toBeLessThan(0.18);
+
+    const strong = sampleBalance("stage-3-1-strong", 16, 8, 600);
+    expect(strong.homeWins / 600).toBeGreaterThan(0.65);
+    expect(strong.homeWins / 600).toBeLessThan(0.9);
+    expect(strong.awayWins).toBeGreaterThan(10);
+    expect(strong.draws).toBeGreaterThan(40);
+
+    const slight = sampleBalance("stage-3-1-slight", 13, 11, 600);
+    expect(slight.homeWins / 600).toBeGreaterThan(0.38);
+    expect(slight.homeWins / 600).toBeLessThan(0.62);
+    expect(slight.awayWins).toBeGreaterThan(60);
+
+    expect(equal.redCardsPerMatch).toBeLessThan(0.22);
+    expect(equal.injuriesPerMatch).toBeLessThan(0.22);
+  });
+
   it("completes a season, rolls forward and summarizes player/team stats from results", () => {
     const input = createDemoLeagueInput("season");
     const result = simulateSeason(input);
@@ -245,6 +272,76 @@ describe("stage three competition and season engine", () => {
     reloaded.close();
   });
 });
+
+const sampleBalance = (
+  seed: string,
+  homeAbility: number,
+  awayAbility: number,
+  samples: number,
+): {
+  homeWins: number;
+  draws: number;
+  awayWins: number;
+  goalsPerMatch: number;
+  zeroGoalMatches: number;
+  fivePlusGoalMatches: number;
+  redCardsPerMatch: number;
+  injuriesPerMatch: number;
+} => {
+  const input = createDemoLeagueInput(seed);
+  const fixture = generateLeagueFixtures({
+    competitionSeasonId: input.competitionSeason.id,
+    teamIds: input.teamIds.slice(0, 2),
+    ruleSet: { ...input.ruleSet, homeAwayStructure: "single" },
+    seed,
+  })[0]!;
+  const homePlayers = createFlatSquad(fixture.homeTeamId, homeAbility);
+  const awayPlayers = createFlatSquad(fixture.awayTeamId, awayAbility);
+  let homeWins = 0;
+  let draws = 0;
+  let awayWins = 0;
+  let goals = 0;
+  let zeroGoalMatches = 0;
+  let fivePlusGoalMatches = 0;
+  let redCards = 0;
+  let injuries = 0;
+
+  for (let index = 0; index < samples; index += 1) {
+    const result = simulateMatch({
+      fixture,
+      homePlayers,
+      awayPlayers,
+      seed: `${seed}:${index}`,
+    });
+    const homeGoals = result.match.homeGoals ?? 0;
+    const awayGoals = result.match.awayGoals ?? 0;
+    const totalGoals = homeGoals + awayGoals;
+    homeWins += Number(homeGoals > awayGoals);
+    draws += Number(homeGoals === awayGoals);
+    awayWins += Number(homeGoals < awayGoals);
+    goals += totalGoals;
+    zeroGoalMatches += Number(totalGoals === 0);
+    fivePlusGoalMatches += Number(totalGoals >= 5);
+    redCards += result.homeStats.redCards + result.awayStats.redCards;
+    injuries += result.events.filter((event) => event.type === "INJURY").length;
+  }
+
+  return {
+    homeWins,
+    draws,
+    awayWins,
+    goalsPerMatch: goals / samples,
+    zeroGoalMatches,
+    fivePlusGoalMatches,
+    redCardsPerMatch: redCards / samples,
+    injuriesPerMatch: injuries / samples,
+  };
+};
+
+const createFlatSquad = (teamId: EntityId, ability: number): PlayerAttributeSet[] =>
+  ["GK", "RB", "CB", "CB", "LB", "CM", "CM", "AM", "RW", "LW", "ST"].map((position, index) =>
+    createPlayer(teamId, position as PlayerAttributeSet["primaryPosition"], index, ability),
+  );
 
 const standing = (
   seasonId: ReturnType<typeof createStableEntityId>,
