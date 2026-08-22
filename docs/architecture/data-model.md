@@ -38,8 +38,16 @@
 ## Competitions and Matches
 
 - `Competition`: domestic, local, continental, or international competition.
+- Competition records may carry a Nepal-specific category such as `PYRAMID_LEAGUE`,
+  `FRANCHISE_LEAGUE`, `SPECIAL_NATIONAL_LEAGUE`, `QUALIFICATION_LEAGUE`, `CUP`,
+  `WOMENS_LEAGUE`, or `YOUTH_COMPETITION`.
 - `CompetitionSeason`: dated edition of a competition.
-- `CompetitionRuleSet`: dataset-driven rules for type, points, tiebreakers, fixture structure, dates, and slot counts.
+- `CompetitionRuleSet`: dataset-driven rules for type, points, tiebreakers, fixture structure, dates,
+  slot counts, promotion/relegation enablement, and exceptional season flags.
+- `CompetitionRelationship`: configurable movement edge between competitions for promotion,
+  relegation, and qualification.
+- `CompetitionMovement`: persisted season-closure movement record for clubs moving or qualifying
+  between competition seasons.
 - `Fixture`: scheduled match between teams.
 - `Match`: result record for a played fixture.
 - `MatchEvent`: future quick-sim, key-event, or text-live event record.

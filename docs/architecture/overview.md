@@ -86,6 +86,13 @@ separate concepts.
 
 Stage 3 adds a headless competition layer. Competition rule sets are dataset-driven and define season type, points, tiebreakers, home/away structure, round spacing, and promotion/relegation/continental slots. The engine supports deterministic single and double round-robin fixture generation.
 
+The Nepal pyramid layer keeps competition identity separate from season policy. Clubs move by creating
+new `ClubMembership` records for the next competition season, while `CompetitionMovement` and
+historical events preserve the promotion, relegation, qualification, suspension, or expansion decision
+that caused the new membership. NSL is modeled as a `FRANCHISE_LEAGUE` with promotion and relegation
+disabled; ANFA National League is modeled as a `SPECIAL_NATIONAL_LEAGUE` with qualification
+membership rather than permanent tier identity.
+
 Matches are event-based, not graphical. The minute engine produces shots, shots on target, goals, assists, saves, corners, fouls, cards, injuries, half-time/full-time events, xG, team stats, and player match states. Scores emerge from generated chances/events.
 
 Headless commands:

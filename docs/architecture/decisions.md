@@ -79,3 +79,10 @@ competition memberships as separate import records. Canonical external IDs from 
 are preserved, but league/division membership is season-specific data rather than a permanent property
 of the club. This keeps NSL franchises distinct from ANFA pyramid clubs and prevents future promotion,
 relegation, or restructuring work from changing stable club identities.
+
+## ADR-020: Pyramid progression is data-driven season policy
+
+Promotion, relegation, qualification, expansion, and suspended movement are resolved from
+competition-season rules plus competition relationship records. Slot counts and exceptional flags live
+in data, not simulation constants, so federation-mode policy changes can later alter league size,
+format, and movement rules without changing club identity or rewriting the engine.

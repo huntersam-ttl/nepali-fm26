@@ -526,7 +526,8 @@
         "confidence": 0.65,
         "confidenceLevel": "MEDIUM",
         "status": "REPORTED"
-      }
+      },
+      "category": "FRANCHISE_LEAGUE"
     },
     {
       "key": "martyrs-memorial-a-division-league",
@@ -543,7 +544,8 @@
         "confidence": 0.65,
         "confidenceLevel": "MEDIUM",
         "status": "REPORTED"
-      }
+      },
+      "category": "PYRAMID_LEAGUE"
     },
     {
       "key": "martyrs-memorial-b-division-league",
@@ -560,7 +562,8 @@
         "confidence": 0.65,
         "confidenceLevel": "MEDIUM",
         "status": "REPORTED"
-      }
+      },
+      "category": "PYRAMID_LEAGUE"
     },
     {
       "key": "martyrs-memorial-c-division-league",
@@ -570,6 +573,25 @@
       },
       "name": "Martyr's Memorial C-Division League",
       "scope": "domestic",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      },
+      "category": "PYRAMID_LEAGUE"
+    },
+    {
+      "key": "anfa-national-league",
+      "federationKey": {
+        "value": "anfa",
+        "status": "REPORTED"
+      },
+      "name": "ANFA National League",
+      "scope": "domestic",
+      "category": "SPECIAL_NATIONAL_LEAGUE",
       "provenance": {
         "sourceId": "supplied-nepal-club-master-registry",
         "sourceName": "Supplied Nepal club master registry",
@@ -640,9 +662,162 @@
         "confidenceLevel": "MEDIUM",
         "status": "REPORTED"
       }
+    },
+    {
+      "key": "anfa-national-league-2026",
+      "competitionKey": "anfa-national-league",
+      "name": "ANFA National League 2026",
+      "startDate": "2026-08-01",
+      "endDate": "2027-07-31",
+      "provenance": {
+        "sourceId": "supplied-nepal-club-master-registry",
+        "sourceName": "Supplied Nepal club master registry",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 0.65,
+        "confidenceLevel": "MEDIUM",
+        "status": "REPORTED"
+      }
     }
   ],
-  "competitionRules": [],
+  "competitionRules": [
+    {
+      "key": "rules-nepal-super-league-2026",
+      "competitionSeasonKey": "nepal-super-league-2026",
+      "competitionType": "ROUND_ROBIN",
+      "pointsForWin": 3,
+      "pointsForDraw": 1,
+      "pointsForLoss": 0,
+      "tiebreakers": ["points", "goalDifference", "goalsScored", "wins"],
+      "numberOfRounds": 1,
+      "homeAwayStructure": "single",
+      "seasonStartDate": "2026-08-01",
+      "seasonEndDate": "2027-07-31",
+      "roundSpacingDays": 7,
+      "promotionSlots": 0,
+      "relegationSlots": 0,
+      "continentalQualificationSlots": 0,
+      "promotionEnabled": false,
+      "relegationEnabled": false,
+      "provenance": {
+        "sourceId": "stage-competition-pyramid-dev-rules",
+        "sourceName": "Development fallback competition rules pending verified ANFA regulation",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 1,
+        "confidenceLevel": "HIGH",
+        "status": "SIMULATION_ONLY",
+        "notes": "Simulation-only starter rule to exercise pyramid progression until researched regulations are imported."
+      }
+    },
+    {
+      "key": "rules-martyrs-memorial-a-division-2026",
+      "competitionSeasonKey": "martyrs-memorial-a-division-2026",
+      "competitionType": "DOUBLE_ROUND_ROBIN",
+      "pointsForWin": 3,
+      "pointsForDraw": 1,
+      "pointsForLoss": 0,
+      "tiebreakers": ["points", "goalDifference", "goalsScored", "wins"],
+      "numberOfRounds": 2,
+      "homeAwayStructure": "double",
+      "seasonStartDate": "2026-08-01",
+      "seasonEndDate": "2027-07-31",
+      "roundSpacingDays": 7,
+      "promotionSlots": 0,
+      "relegationSlots": 2,
+      "continentalQualificationSlots": 0,
+      "provenance": {
+        "sourceId": "stage-competition-pyramid-dev-rules",
+        "sourceName": "Development fallback competition rules pending verified ANFA regulation",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 1,
+        "confidenceLevel": "HIGH",
+        "status": "SIMULATION_ONLY",
+        "notes": "Simulation-only starter rule to exercise pyramid progression until researched regulations are imported."
+      }
+    },
+    {
+      "key": "rules-martyrs-memorial-b-division-2026",
+      "competitionSeasonKey": "martyrs-memorial-b-division-2026",
+      "competitionType": "DOUBLE_ROUND_ROBIN",
+      "pointsForWin": 3,
+      "pointsForDraw": 1,
+      "pointsForLoss": 0,
+      "tiebreakers": ["points", "goalDifference", "goalsScored", "wins"],
+      "numberOfRounds": 2,
+      "homeAwayStructure": "double",
+      "seasonStartDate": "2026-08-01",
+      "seasonEndDate": "2027-07-31",
+      "roundSpacingDays": 7,
+      "promotionSlots": 2,
+      "relegationSlots": 2,
+      "continentalQualificationSlots": 0,
+      "provenance": {
+        "sourceId": "stage-competition-pyramid-dev-rules",
+        "sourceName": "Development fallback competition rules pending verified ANFA regulation",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 1,
+        "confidenceLevel": "HIGH",
+        "status": "SIMULATION_ONLY",
+        "notes": "Simulation-only starter rule to exercise pyramid progression until researched regulations are imported."
+      }
+    },
+    {
+      "key": "rules-martyrs-memorial-c-division-2026",
+      "competitionSeasonKey": "martyrs-memorial-c-division-2026",
+      "competitionType": "DOUBLE_ROUND_ROBIN",
+      "pointsForWin": 3,
+      "pointsForDraw": 1,
+      "pointsForLoss": 0,
+      "tiebreakers": ["points", "goalDifference", "goalsScored", "wins"],
+      "numberOfRounds": 2,
+      "homeAwayStructure": "double",
+      "seasonStartDate": "2026-08-01",
+      "seasonEndDate": "2027-07-31",
+      "roundSpacingDays": 7,
+      "promotionSlots": 2,
+      "relegationSlots": 0,
+      "continentalQualificationSlots": 0,
+      "provenance": {
+        "sourceId": "stage-competition-pyramid-dev-rules",
+        "sourceName": "Development fallback competition rules pending verified ANFA regulation",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 1,
+        "confidenceLevel": "HIGH",
+        "status": "SIMULATION_ONLY",
+        "notes": "Simulation-only starter rule to exercise pyramid progression until researched regulations are imported."
+      }
+    },
+    {
+      "key": "rules-anfa-national-league-2026",
+      "competitionSeasonKey": "anfa-national-league-2026",
+      "competitionType": "CUSTOM_FUTURE",
+      "pointsForWin": 3,
+      "pointsForDraw": 1,
+      "pointsForLoss": 0,
+      "tiebreakers": ["points", "goalDifference", "goalsScored", "wins"],
+      "numberOfRounds": 1,
+      "homeAwayStructure": "custom",
+      "seasonStartDate": "2026-08-01",
+      "seasonEndDate": "2027-07-31",
+      "roundSpacingDays": 7,
+      "promotionSlots": 0,
+      "relegationSlots": 0,
+      "continentalQualificationSlots": 0,
+      "promotionEnabled": false,
+      "relegationEnabled": false,
+      "specialRules": {
+        "specialQualificationPath": true
+      },
+      "provenance": {
+        "sourceId": "stage-competition-pyramid-dev-rules",
+        "sourceName": "Development fallback competition rules pending verified ANFA regulation",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 1,
+        "confidenceLevel": "HIGH",
+        "status": "SIMULATION_ONLY",
+        "notes": "Simulation-only starter rule to exercise pyramid progression until researched regulations are imported."
+      }
+    }
+  ],
   "clubs": [
     {
       "key": "NEP-NSL-KTM",
@@ -5966,5 +6141,92 @@
   "persons": [],
   "personRoles": [],
   "teamPersonAssignments": [],
-  "playerAttributes": []
+  "playerAttributes": [],
+  "competitionRelationships": [
+    {
+      "key": "rel-a-relegation-b",
+      "fromCompetitionKey": "martyrs-memorial-a-division-league",
+      "toCompetitionKey": "martyrs-memorial-b-division-league",
+      "movementType": "RELEGATION",
+      "numberOfTeams": 2,
+      "selectionMethod": "BOTTOM_TABLE",
+      "provenance": {
+        "sourceId": "stage-competition-pyramid-dev-rules",
+        "sourceName": "Development fallback competition rules pending verified ANFA regulation",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 1,
+        "confidenceLevel": "HIGH",
+        "status": "SIMULATION_ONLY",
+        "notes": "Simulation-only starter rule to exercise pyramid progression until researched regulations are imported."
+      }
+    },
+    {
+      "key": "rel-b-promotion-a",
+      "fromCompetitionKey": "martyrs-memorial-b-division-league",
+      "toCompetitionKey": "martyrs-memorial-a-division-league",
+      "movementType": "PROMOTION",
+      "numberOfTeams": 2,
+      "selectionMethod": "TOP_TABLE",
+      "provenance": {
+        "sourceId": "stage-competition-pyramid-dev-rules",
+        "sourceName": "Development fallback competition rules pending verified ANFA regulation",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 1,
+        "confidenceLevel": "HIGH",
+        "status": "SIMULATION_ONLY",
+        "notes": "Simulation-only starter rule to exercise pyramid progression until researched regulations are imported."
+      }
+    },
+    {
+      "key": "rel-b-relegation-c",
+      "fromCompetitionKey": "martyrs-memorial-b-division-league",
+      "toCompetitionKey": "martyrs-memorial-c-division-league",
+      "movementType": "RELEGATION",
+      "numberOfTeams": 2,
+      "selectionMethod": "BOTTOM_TABLE",
+      "provenance": {
+        "sourceId": "stage-competition-pyramid-dev-rules",
+        "sourceName": "Development fallback competition rules pending verified ANFA regulation",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 1,
+        "confidenceLevel": "HIGH",
+        "status": "SIMULATION_ONLY",
+        "notes": "Simulation-only starter rule to exercise pyramid progression until researched regulations are imported."
+      }
+    },
+    {
+      "key": "rel-c-promotion-b",
+      "fromCompetitionKey": "martyrs-memorial-c-division-league",
+      "toCompetitionKey": "martyrs-memorial-b-division-league",
+      "movementType": "PROMOTION",
+      "numberOfTeams": 2,
+      "selectionMethod": "TOP_TABLE",
+      "provenance": {
+        "sourceId": "stage-competition-pyramid-dev-rules",
+        "sourceName": "Development fallback competition rules pending verified ANFA regulation",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 1,
+        "confidenceLevel": "HIGH",
+        "status": "SIMULATION_ONLY",
+        "notes": "Simulation-only starter rule to exercise pyramid progression until researched regulations are imported."
+      }
+    },
+    {
+      "key": "rel-a-qualification-national",
+      "fromCompetitionKey": "martyrs-memorial-a-division-league",
+      "toCompetitionKey": "anfa-national-league",
+      "movementType": "QUALIFICATION",
+      "numberOfTeams": 4,
+      "selectionMethod": "TOP_TABLE",
+      "provenance": {
+        "sourceId": "stage-competition-pyramid-dev-rules",
+        "sourceName": "Development fallback competition rules pending verified ANFA regulation",
+        "retrievedAt": "2026-08-22T00:00:00.000Z",
+        "confidence": 1,
+        "confidenceLevel": "HIGH",
+        "status": "SIMULATION_ONLY",
+        "notes": "Simulation-only starter rule to exercise pyramid progression until researched regulations are imported."
+      }
+    }
+  ]
 }

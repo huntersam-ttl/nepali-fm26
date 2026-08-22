@@ -121,7 +121,17 @@ export type ClubMembership = {
   competitionId: EntityId;
   competitionSeasonId?: EntityId;
   membershipType: "FRANCHISE" | "LEAGUE_MEMBER" | "CUP_PARTICIPANT" | "WOMENS_COMPETITION";
-  status: "ACTIVE" | "INACTIVE" | "REPORTED" | "UNKNOWN";
+  status:
+    | "ACTIVE"
+    | "INACTIVE"
+    | "REPORTED"
+    | "UNKNOWN"
+    | "QUALIFIED"
+    | "PROMOTED"
+    | "RELEGATED"
+    | "WITHDRAWN"
+    | "SUSPENDED"
+    | "INELIGIBLE";
 };
 
 export type AcademyType =
@@ -304,6 +314,7 @@ export type Competition = {
   federationId?: EntityId;
   name: string;
   scope: "domestic" | "continental" | "international" | "local";
+  category?: CompetitionCategory;
 };
 
 export type CompetitionSeason = {
@@ -316,6 +327,23 @@ export type CompetitionSeason = {
 
 export type CompetitionType =
   "LEAGUE" | "CUP" | "GROUP_AND_KNOCKOUT" | "ROUND_ROBIN" | "DOUBLE_ROUND_ROBIN" | "CUSTOM_FUTURE";
+
+export type CompetitionCategory =
+  | "PYRAMID_LEAGUE"
+  | "FRANCHISE_LEAGUE"
+  | "QUALIFICATION_LEAGUE"
+  | "CUP"
+  | "SPECIAL_NATIONAL_LEAGUE"
+  | "WOMENS_LEAGUE"
+  | "YOUTH_COMPETITION";
+
+export type SeasonSpecialRuleFlag =
+  | "relegationSuspended"
+  | "promotionSuspended"
+  | "temporaryExpandedLeague"
+  | "specialQualificationPath"
+  | "competitionPostponed"
+  | "competitionSuspended";
 
 export type TableTiebreaker =
   | "points"
@@ -345,6 +373,37 @@ export type CompetitionRuleSet = {
   promotionSlots: number;
   relegationSlots: number;
   continentalQualificationSlots: number;
+  promotionEnabled?: boolean;
+  relegationEnabled?: boolean;
+  specialRules?: Partial<Record<SeasonSpecialRuleFlag, boolean>>;
+};
+
+export type CompetitionMovementType = "PROMOTION" | "RELEGATION" | "QUALIFICATION";
+
+export type CompetitionMovementSelectionMethod =
+  "TOP_TABLE" | "BOTTOM_TABLE" | "QUALIFIER_RESULT" | "FEDERATION_DECISION" | "MANUAL";
+
+export type CompetitionRelationship = {
+  id: EntityId;
+  fromCompetitionId: EntityId;
+  toCompetitionId: EntityId;
+  movementType: CompetitionMovementType;
+  numberOfTeams: number;
+  selectionMethod: CompetitionMovementSelectionMethod;
+  effectiveSeasonId?: EntityId;
+};
+
+export type CompetitionMovement = {
+  id: EntityId;
+  clubId: EntityId;
+  teamId?: EntityId;
+  fromCompetitionId: EntityId;
+  toCompetitionId: EntityId;
+  fromCompetitionSeasonId: EntityId;
+  toCompetitionSeasonId: EntityId;
+  movementType: CompetitionMovementType;
+  status: "PLANNED" | "APPLIED" | "SUSPENDED" | "INELIGIBLE";
+  reason?: string;
 };
 
 export type Fixture = {

@@ -46,6 +46,7 @@ type EntityMaps = {
   competitions: Map<string, EntityId>;
   competitionSeasons: Map<string, EntityId>;
   competitionRules: Map<string, EntityId>;
+  competitionRelationships: Map<string, EntityId>;
   clubs: Map<string, EntityId>;
   clubAliases: Map<string, EntityId>;
   teams: Map<string, EntityId>;
@@ -173,6 +174,7 @@ const importNepalWorld = (db: GameDatabase, dataset: NepalWorldDataset): void =>
       federationId: mapFact(competition.federationKey, maps.federations),
       name: competition.name,
       scope: competition.scope,
+      category: competition.category,
     });
     persistImport(imports, "competition", id, competition, competition.provenance, importedAt);
   }
@@ -208,8 +210,32 @@ const importNepalWorld = (db: GameDatabase, dataset: NepalWorldDataset): void =>
       promotionSlots: rules.promotionSlots,
       relegationSlots: rules.relegationSlots,
       continentalQualificationSlots: rules.continentalQualificationSlots,
+      promotionEnabled: rules.promotionEnabled,
+      relegationEnabled: rules.relegationEnabled,
+      specialRules: rules.specialRules,
     });
     persistImport(imports, "competitionRule", id, rules, rules.provenance, importedAt);
+  }
+
+  for (const relationship of dataset.competitionRelationships) {
+    const id = maps.competitionRelationships.get(relationship.key)!;
+    competitions.insertRelationship({
+      id,
+      fromCompetitionId: maps.competitions.get(relationship.fromCompetitionKey)!,
+      toCompetitionId: maps.competitions.get(relationship.toCompetitionKey)!,
+      movementType: relationship.movementType,
+      numberOfTeams: relationship.numberOfTeams,
+      selectionMethod: relationship.selectionMethod,
+      effectiveSeasonId: mapFact(relationship.effectiveSeasonKey, maps.competitionSeasons),
+    });
+    persistImport(
+      imports,
+      "competitionRelationship",
+      id,
+      relationship,
+      relationship.provenance,
+      importedAt,
+    );
   }
 
   for (const club of dataset.clubs) {
@@ -397,6 +423,7 @@ const buildEntityMaps = (dataset: NepalWorldDataset): EntityMaps => ({
   competitions: mapKeys("competition", dataset.competitions),
   competitionSeasons: mapKeys("competition-season", dataset.competitionSeasons),
   competitionRules: mapKeys("competition-rule", dataset.competitionRules),
+  competitionRelationships: mapKeys("competition-relationship", dataset.competitionRelationships),
   clubs: mapKeys("club", dataset.clubs),
   clubAliases: mapKeys("club-alias", dataset.clubAliases),
   teams: mapKeys("team", dataset.teams),

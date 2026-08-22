@@ -42,7 +42,7 @@ describe("stage two Nepal world data pipeline", () => {
         WHERE type = 'table'
           AND name IN ('venues', 'team_person_assignments', 'entity_provenance',
             'club_aliases', 'club_memberships', 'club_relationships', 'academies',
-            'venue_relationships')
+            'venue_relationships', 'competition_relationships', 'competition_movements')
         ORDER BY name`,
       )
       .all()
@@ -53,6 +53,8 @@ describe("stage two Nepal world data pipeline", () => {
       "club_aliases",
       "club_memberships",
       "club_relationships",
+      "competition_movements",
+      "competition_relationships",
       "entity_provenance",
       "team_person_assignments",
       "venue_relationships",
@@ -129,6 +131,9 @@ describe("stage two Nepal world data pipeline", () => {
     expect(dataset.clubs).toHaveLength(53);
     expect(dataset.clubs.filter((club) => club.key.startsWith("NEP-NSL-"))).toHaveLength(9);
     expect(dataset.clubs.filter((club) => club.key.startsWith("NEP-DEP-"))).toHaveLength(3);
+    expect(dataset.competitions).toHaveLength(5);
+    expect(dataset.competitionRules).toHaveLength(5);
+    expect(dataset.competitionRelationships).toHaveLength(5);
     expect(dataset.clubMemberships).toHaveLength(51);
     expect(dataset.teams.filter((team) => team.gender === "women")).toHaveLength(10);
     expect(dataset.academies).toHaveLength(8);
@@ -156,8 +161,10 @@ describe("stage two Nepal world data pipeline", () => {
       locations: 20,
       venues: 7,
       federations: 1,
-      competitions: 4,
-      competitionSeasons: 4,
+      competitions: 5,
+      competitionSeasons: 5,
+      competitionRelationships: 5,
+      competitionMovements: 0,
       clubs: 53,
       clubAliases: 18,
       clubMemberships: 51,

@@ -103,6 +103,17 @@ const competitionRecordSchema = z.object({
   federationKey: nullableKeyFactSchema,
   name: z.string().min(1),
   scope: z.enum(["domestic", "continental", "international", "local"]),
+  category: z
+    .enum([
+      "PYRAMID_LEAGUE",
+      "FRANCHISE_LEAGUE",
+      "QUALIFICATION_LEAGUE",
+      "CUP",
+      "SPECIAL_NATIONAL_LEAGUE",
+      "WOMENS_LEAGUE",
+      "YOUTH_COMPETITION",
+    ])
+    .optional(),
   provenance: provenanceSchema,
 });
 
@@ -151,6 +162,35 @@ const competitionRuleRecordSchema = z.object({
   promotionSlots: z.number().int().min(0),
   relegationSlots: z.number().int().min(0),
   continentalQualificationSlots: z.number().int().min(0),
+  promotionEnabled: z.boolean().optional(),
+  relegationEnabled: z.boolean().optional(),
+  specialRules: z
+    .object({
+      relegationSuspended: z.boolean().optional(),
+      promotionSuspended: z.boolean().optional(),
+      temporaryExpandedLeague: z.boolean().optional(),
+      specialQualificationPath: z.boolean().optional(),
+      competitionPostponed: z.boolean().optional(),
+      competitionSuspended: z.boolean().optional(),
+    })
+    .optional(),
+  provenance: provenanceSchema,
+});
+
+const competitionRelationshipRecordSchema = z.object({
+  key: keySchema,
+  fromCompetitionKey: keySchema,
+  toCompetitionKey: keySchema,
+  movementType: z.enum(["PROMOTION", "RELEGATION", "QUALIFICATION"]),
+  numberOfTeams: z.number().int().min(0),
+  selectionMethod: z.enum([
+    "TOP_TABLE",
+    "BOTTOM_TABLE",
+    "QUALIFIER_RESULT",
+    "FEDERATION_DECISION",
+    "MANUAL",
+  ]),
+  effectiveSeasonKey: nullableKeyFactSchema.optional(),
   provenance: provenanceSchema,
 });
 
@@ -243,7 +283,18 @@ const clubMembershipRecordSchema = z.object({
   competitionKey: keySchema,
   competitionSeasonKey: nullableKeyFactSchema.optional(),
   membershipType: z.enum(["FRANCHISE", "LEAGUE_MEMBER", "CUP_PARTICIPANT", "WOMENS_COMPETITION"]),
-  status: z.enum(["ACTIVE", "INACTIVE", "REPORTED", "UNKNOWN"]),
+  status: z.enum([
+    "ACTIVE",
+    "INACTIVE",
+    "REPORTED",
+    "UNKNOWN",
+    "QUALIFIED",
+    "PROMOTED",
+    "RELEGATED",
+    "WITHDRAWN",
+    "SUSPENDED",
+    "INELIGIBLE",
+  ]),
   provenance: provenanceSchema,
 });
 
@@ -394,6 +445,7 @@ export const nepalWorldDatasetSchema = z.object({
   competitions: z.array(competitionRecordSchema),
   competitionSeasons: z.array(competitionSeasonRecordSchema),
   competitionRules: z.array(competitionRuleRecordSchema).default([]),
+  competitionRelationships: z.array(competitionRelationshipRecordSchema).default([]),
   clubs: z.array(clubRecordSchema),
   clubAliases: z.array(clubAliasRecordSchema).default([]),
   teams: z.array(teamRecordSchema),
@@ -442,6 +494,7 @@ export const validateNepalWorldReferences = (
   requireUniqueKeys(issues, "federations", dataset.federations);
   requireUniqueKeys(issues, "competitions", dataset.competitions);
   requireUniqueKeys(issues, "competitionSeasons", dataset.competitionSeasons);
+  requireUniqueKeys(issues, "competitionRelationships", dataset.competitionRelationships);
   requireUniqueKeys(issues, "clubs", dataset.clubs);
   requireUniqueKeys(issues, "teams", dataset.teams);
   requireUniqueCanonicalExternalIds(issues, dataset.clubs);
@@ -485,6 +538,26 @@ export const validateNepalWorldReferences = (
       issues,
       `competitionRules.${index}.competitionSeasonKey`,
       rules.competitionSeasonKey,
+      competitionSeasons,
+    );
+  }
+  for (const [index, relationship] of dataset.competitionRelationships.entries()) {
+    requireRef(
+      issues,
+      `competitionRelationships.${index}.fromCompetitionKey`,
+      relationship.fromCompetitionKey,
+      competitions,
+    );
+    requireRef(
+      issues,
+      `competitionRelationships.${index}.toCompetitionKey`,
+      relationship.toCompetitionKey,
+      competitions,
+    );
+    requireOptionalFactRef(
+      issues,
+      `competitionRelationships.${index}.effectiveSeasonKey`,
+      relationship.effectiveSeasonKey,
       competitionSeasons,
     );
   }

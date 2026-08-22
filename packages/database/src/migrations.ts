@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 5;
+export const CURRENT_DATABASE_VERSION = 6;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -514,6 +514,48 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
         ON club_relationships(parent_club_id);
       CREATE INDEX IF NOT EXISTS idx_venue_relationships_venue
         ON venue_relationships(venue_id);
+    `,
+  },
+  {
+    version: 6,
+    sql: `
+      ALTER TABLE competitions ADD COLUMN category TEXT;
+
+      ALTER TABLE competition_rules ADD COLUMN promotion_enabled INTEGER NOT NULL DEFAULT 1;
+      ALTER TABLE competition_rules ADD COLUMN relegation_enabled INTEGER NOT NULL DEFAULT 1;
+      ALTER TABLE competition_rules ADD COLUMN special_rules_json TEXT NOT NULL DEFAULT '{}';
+
+      CREATE TABLE IF NOT EXISTS competition_relationships (
+        id TEXT PRIMARY KEY,
+        from_competition_id TEXT NOT NULL REFERENCES competitions(id),
+        to_competition_id TEXT NOT NULL REFERENCES competitions(id),
+        movement_type TEXT NOT NULL,
+        number_of_teams INTEGER NOT NULL,
+        selection_method TEXT NOT NULL,
+        effective_season_id TEXT REFERENCES competition_seasons(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS competition_movements (
+        id TEXT PRIMARY KEY,
+        club_id TEXT NOT NULL REFERENCES clubs(id),
+        team_id TEXT REFERENCES teams(id),
+        from_competition_id TEXT NOT NULL REFERENCES competitions(id),
+        to_competition_id TEXT NOT NULL REFERENCES competitions(id),
+        from_competition_season_id TEXT NOT NULL REFERENCES competition_seasons(id),
+        to_competition_season_id TEXT NOT NULL REFERENCES competition_seasons(id),
+        movement_type TEXT NOT NULL,
+        status TEXT NOT NULL,
+        reason TEXT
+      );
+
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_club_memberships_unique_active_season
+        ON club_memberships(club_id, competition_season_id)
+        WHERE competition_season_id IS NOT NULL;
+
+      CREATE INDEX IF NOT EXISTS idx_competition_relationships_from
+        ON competition_relationships(from_competition_id, movement_type);
+      CREATE INDEX IF NOT EXISTS idx_competition_movements_season
+        ON competition_movements(from_competition_season_id, to_competition_season_id);
     `,
   },
 ];

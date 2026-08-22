@@ -27,3 +27,8 @@ founded year, and similar unavailable facts remain explicit `UNKNOWN` values.
 
 Candidate venue relationships are supported by the schema, but this first registry file leaves them
 empty where the supplied task text did not provide a specific club/team-to-venue mapping.
+
+The competition section includes semantic competition categories, 2026 competition seasons, and
+starter pyramid links for A-Division, B-Division, C-Division, Nepal Super League, and ANFA National
+League. Promotion/relegation slot counts and fixture-rule details are marked `SIMULATION_ONLY` until
+the research process imports verified ANFA competition regulations.

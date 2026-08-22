@@ -6,6 +6,7 @@ export * from "./manager-career.js";
 export * from "./manager-flow.js";
 export * from "./match-engine.js";
 export * from "./nepal-save.js";
+export * from "./pyramid-progression.js";
 export * from "./rng.js";
 export * from "./season-engine.js";
 export * from "./standings.js";

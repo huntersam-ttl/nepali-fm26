@@ -5,6 +5,8 @@ import type {
   ClubMembership,
   ClubRelationship,
   Club,
+  CompetitionMovement,
+  CompetitionRelationship,
   Country,
   Federation,
   FinanceAccount,
@@ -196,7 +198,7 @@ export class WorldRepository {
   insertClubMembership(membership: ClubMembership): void {
     this.db
       .prepare(
-        `INSERT INTO club_memberships
+        `INSERT OR IGNORE INTO club_memberships
         (id, club_id, team_id, competition_id, competition_season_id, membership_type, status)
         VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
@@ -209,6 +211,15 @@ export class WorldRepository {
         membership.membershipType,
         membership.status,
       );
+  }
+
+  clubMembershipsForCompetitionSeason(competitionSeasonId: EntityId): ClubMembership[] {
+    return this.db
+      .prepare(
+        "SELECT * FROM club_memberships WHERE competition_season_id = ? ORDER BY club_id, team_id",
+      )
+      .all(competitionSeasonId)
+      .map(mapClubMembership);
   }
 
   insertAcademy(academy: Academy): void {
@@ -266,8 +277,16 @@ export class WorldRepository {
 
   insertCompetition(competition: Competition): void {
     this.db
-      .prepare("INSERT INTO competitions (id, federation_id, name, scope) VALUES (?, ?, ?, ?)")
-      .run(competition.id, competition.federationId ?? null, competition.name, competition.scope);
+      .prepare(
+        "INSERT INTO competitions (id, federation_id, name, scope, category) VALUES (?, ?, ?, ?, ?)",
+      )
+      .run(
+        competition.id,
+        competition.federationId ?? null,
+        competition.name,
+        competition.scope,
+        competition.category ?? null,
+      );
   }
 
   insertCompetitionSeason(season: CompetitionSeason): void {
@@ -455,6 +474,8 @@ export class WorldRepository {
       federations: scalar("federations"),
       competitions: scalar("competitions"),
       competitionSeasons: scalar("competition_seasons"),
+      competitionRelationships: scalar("competition_relationships"),
+      competitionMovements: scalar("competition_movements"),
       clubs: scalar("clubs"),
       clubAliases: scalar("club_aliases"),
       clubRelationships: scalar("club_relationships"),
@@ -635,8 +656,9 @@ export class CompetitionRepository {
         `INSERT INTO competition_rules
         (id, competition_season_id, competition_type, points_for_win, points_for_draw, points_for_loss,
           tiebreakers_json, number_of_rounds, home_away_structure, fixture_count, season_start_date,
-          season_end_date, round_spacing_days, promotion_slots, relegation_slots, continental_qualification_slots)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          season_end_date, round_spacing_days, promotion_slots, relegation_slots,
+          continental_qualification_slots, promotion_enabled, relegation_enabled, special_rules_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           competition_type = excluded.competition_type,
           points_for_win = excluded.points_for_win,
@@ -651,7 +673,10 @@ export class CompetitionRepository {
           round_spacing_days = excluded.round_spacing_days,
           promotion_slots = excluded.promotion_slots,
           relegation_slots = excluded.relegation_slots,
-          continental_qualification_slots = excluded.continental_qualification_slots`,
+          continental_qualification_slots = excluded.continental_qualification_slots,
+          promotion_enabled = excluded.promotion_enabled,
+          relegation_enabled = excluded.relegation_enabled,
+          special_rules_json = excluded.special_rules_json`,
       )
       .run(
         ruleSet.id,
@@ -670,6 +695,9 @@ export class CompetitionRepository {
         ruleSet.promotionSlots,
         ruleSet.relegationSlots,
         ruleSet.continentalQualificationSlots,
+        ruleSet.promotionEnabled === false ? 0 : 1,
+        ruleSet.relegationEnabled === false ? 0 : 1,
+        json.stringify(ruleSet.specialRules ?? {}),
       );
   }
 
@@ -695,8 +723,86 @@ export class CompetitionRepository {
           promotionSlots: row.promotion_slots,
           relegationSlots: row.relegation_slots,
           continentalQualificationSlots: row.continental_qualification_slots,
+          promotionEnabled: Boolean(row.promotion_enabled),
+          relegationEnabled: Boolean(row.relegation_enabled),
+          specialRules: json.parse(row.special_rules_json, {}),
         }
       : undefined;
+  }
+
+  insertRelationship(relationship: CompetitionRelationship): void {
+    this.db
+      .prepare(
+        `INSERT INTO competition_relationships
+        (id, from_competition_id, to_competition_id, movement_type, number_of_teams,
+          selection_method, effective_season_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          from_competition_id = excluded.from_competition_id,
+          to_competition_id = excluded.to_competition_id,
+          movement_type = excluded.movement_type,
+          number_of_teams = excluded.number_of_teams,
+          selection_method = excluded.selection_method,
+          effective_season_id = excluded.effective_season_id`,
+      )
+      .run(
+        relationship.id,
+        relationship.fromCompetitionId,
+        relationship.toCompetitionId,
+        relationship.movementType,
+        relationship.numberOfTeams,
+        relationship.selectionMethod,
+        relationship.effectiveSeasonId ?? null,
+      );
+  }
+
+  relationshipsFrom(
+    competitionId: EntityId,
+    movementType?: CompetitionRelationship["movementType"],
+  ): CompetitionRelationship[] {
+    const rows =
+      movementType === undefined
+        ? this.db
+            .prepare("SELECT * FROM competition_relationships WHERE from_competition_id = ?")
+            .all(competitionId)
+        : this.db
+            .prepare(
+              "SELECT * FROM competition_relationships WHERE from_competition_id = ? AND movement_type = ?",
+            )
+            .all(competitionId, movementType);
+    return rows.map(mapCompetitionRelationship);
+  }
+
+  insertMovement(movement: CompetitionMovement): void {
+    this.db
+      .prepare(
+        `INSERT INTO competition_movements
+        (id, club_id, team_id, from_competition_id, to_competition_id, from_competition_season_id,
+          to_competition_season_id, movement_type, status, reason)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          status = excluded.status,
+          reason = excluded.reason`,
+      )
+      .run(
+        movement.id,
+        movement.clubId,
+        movement.teamId ?? null,
+        movement.fromCompetitionId,
+        movement.toCompetitionId,
+        movement.fromCompetitionSeasonId,
+        movement.toCompetitionSeasonId,
+        movement.movementType,
+        movement.status,
+        movement.reason ?? null,
+      );
+  }
+
+  movements(fromCompetitionSeasonId: EntityId): CompetitionMovement[] {
+    return this.db
+      .prepare("SELECT * FROM competition_movements WHERE from_competition_season_id = ?")
+      .all(fromCompetitionSeasonId)
+      .map(mapCompetitionMovement);
   }
 
   insertFixture(fixture: FixtureRecord): void {
@@ -1111,6 +1217,39 @@ const mapTacticalSetup = (row: any): TacticalSetup => ({
   updatedOn: row.updated_on,
 });
 
+const mapClubMembership = (row: any): ClubMembership => ({
+  id: row.id,
+  clubId: row.club_id,
+  teamId: row.team_id ?? undefined,
+  competitionId: row.competition_id,
+  competitionSeasonId: row.competition_season_id ?? undefined,
+  membershipType: row.membership_type,
+  status: row.status,
+});
+
+const mapCompetitionRelationship = (row: any): CompetitionRelationship => ({
+  id: row.id,
+  fromCompetitionId: row.from_competition_id,
+  toCompetitionId: row.to_competition_id,
+  movementType: row.movement_type,
+  numberOfTeams: row.number_of_teams,
+  selectionMethod: row.selection_method,
+  effectiveSeasonId: row.effective_season_id ?? undefined,
+});
+
+const mapCompetitionMovement = (row: any): CompetitionMovement => ({
+  id: row.id,
+  clubId: row.club_id,
+  teamId: row.team_id ?? undefined,
+  fromCompetitionId: row.from_competition_id,
+  toCompetitionId: row.to_competition_id,
+  fromCompetitionSeasonId: row.from_competition_season_id,
+  toCompetitionSeasonId: row.to_competition_season_id,
+  movementType: row.movement_type,
+  status: row.status,
+  reason: row.reason ?? undefined,
+});
+
 export type WorldInspection = {
   countries: number;
   locations: number;
@@ -1118,6 +1257,8 @@ export type WorldInspection = {
   federations: number;
   competitions: number;
   competitionSeasons: number;
+  competitionRelationships: number;
+  competitionMovements: number;
   clubs: number;
   clubAliases: number;
   clubRelationships: number;
