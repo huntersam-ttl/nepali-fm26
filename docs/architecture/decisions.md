@@ -232,3 +232,17 @@ can end, the person remains in the database, and a seeded subset of retirees may
 role and staff appointment using the existing workforce architecture. Goalkeepers receive a slightly
 later retirement curve, while age, ability, contract status, position, professionalism, leadership,
 and seeded variation affect decisions.
+
+## ADR-029: Club economy is ledger-first and separate from personal wealth
+
+Club money, personal wealth, and future federation finances must remain separate. A chairman or owner
+can invest personal funds into a club only through an explicit owner-investment transaction, which
+debits the personal profile and credits the club ledger. Club cash never becomes personal wallet cash
+without a future lawful distribution transaction.
+
+The club economy layer posts every club cash movement through `ClubLedgerEntry` before account
+balances change. Starting Nepal club finances, supporters, sponsorships, facilities, ownership stakes,
+budgets, valuations, and board policies are deterministic `SIMULATION_ONLY` game data because real
+club financial accounts are not reliably sourced. Departmental clubs use restricted ownership models
+and institutional-funding assumptions so Army, Police, and APF do not behave like buyable private
+companies. Facility investment is project-based and time-based rather than an instant generic upgrade.

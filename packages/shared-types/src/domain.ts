@@ -1560,6 +1560,339 @@ export type ClubEmploymentProfile = {
   status: "SIMULATION_ONLY";
 };
 
+export type ClubEconomicType =
+  | "COMMUNITY_CLUB"
+  | "DEPARTMENTAL_CLUB"
+  | "PRIVATE_CLUB"
+  | "FRANCHISE_CLUB"
+  | "ACADEMY_CLUB"
+  | "MUNICIPALITY_BACKED"
+  | "NON_PROFIT"
+  | "UNKNOWN";
+
+export type ClubFinancialHealth =
+  "EXCELLENT" | "HEALTHY" | "STABLE" | "TIGHT" | "DISTRESSED" | "INSOLVENT";
+
+export type ClubFinancialAccount = {
+  clubId: EntityId;
+  currency: string;
+  cashBalance: number;
+  restrictedCash: number;
+  receivables: number;
+  payables: number;
+  debtBalance: number;
+  equityBalance: number;
+  seasonRevenue: number;
+  seasonExpenses: number;
+  seasonProfitLoss: number;
+  financialHealth: ClubFinancialHealth;
+  lastUpdatedAt: ISODate;
+  status: "SIMULATION_ONLY" | "VERIFIED" | "REPORTED" | "ESTIMATED" | "UNKNOWN";
+};
+
+export type ClubLedgerCategory =
+  | "MATCHDAY_REVENUE"
+  | "SPONSORSHIP"
+  | "BROADCASTING"
+  | "PRIZE_MONEY"
+  | "TRANSFER_INCOME"
+  | "TRANSFER_EXPENSE"
+  | "PLAYER_WAGES"
+  | "STAFF_WAGES"
+  | "FACILITY_COST"
+  | "TRAVEL"
+  | "ACADEMY"
+  | "MEDICAL"
+  | "ADMIN"
+  | "MARKETING"
+  | "LOAN_PAYMENT"
+  | "DEBT_INTEREST"
+  | "OWNER_INVESTMENT"
+  | "EQUITY_INVESTMENT"
+  | "GRANT"
+  | "FINE"
+  | "OTHER";
+
+export type ClubLedgerDirection = "CREDIT" | "DEBIT";
+
+export type ClubLedgerEntry = {
+  id: EntityId;
+  clubId: EntityId;
+  date: ISODate;
+  category: ClubLedgerCategory;
+  direction: ClubLedgerDirection;
+  amount: number;
+  currency: string;
+  description: string;
+  relatedEntityId?: EntityId;
+  status: "SIMULATION_ONLY" | "VERIFIED" | "REPORTED" | "ESTIMATED" | "UNKNOWN";
+};
+
+export type ClubBudgetCategory =
+  | "WAGE_BUDGET"
+  | "TRANSFER_BUDGET"
+  | "STAFF_BUDGET"
+  | "ACADEMY_BUDGET"
+  | "FACILITY_BUDGET"
+  | "SCOUTING_BUDGET"
+  | "MARKETING_BUDGET";
+
+export type ClubBudget = {
+  id: EntityId;
+  clubId: EntityId;
+  seasonLabel: string;
+  category: ClubBudgetCategory;
+  amount: number;
+  usedAmount: number;
+  currency: string;
+  status: "ACTIVE" | "CLOSED";
+  provenanceStatus: "SIMULATION_ONLY" | "VERIFIED" | "REPORTED" | "ESTIMATED" | "UNKNOWN";
+};
+
+export type OwnershipHolderType =
+  "PERSON" | "ORGANISATION" | "GOVERNMENT_BODY" | "COMMUNITY" | "UNKNOWN";
+
+export type ClubOwnershipRole =
+  | "OWNER"
+  | "MAJORITY_OWNER"
+  | "MINORITY_OWNER"
+  | "CHAIRMAN"
+  | "PRESIDENT"
+  | "BOARD_MEMBER"
+  | "INVESTOR";
+
+export type ClubOwnershipStatus = "ACTIVE" | "FORMER" | "UNKNOWN";
+
+export type ClubOwnershipModel =
+  | "BUYABLE"
+  | "PARTIALLY_BUYABLE"
+  | "COMMUNITY_CONTROLLED"
+  | "DEPARTMENTAL"
+  | "STATE_CONTROLLED"
+  | "FRANCHISE"
+  | "UNKNOWN";
+
+export type ClubOwnershipStake = {
+  id: EntityId;
+  clubId: EntityId;
+  holderType: OwnershipHolderType;
+  holderId?: EntityId;
+  holderName: string;
+  role: ClubOwnershipRole;
+  percentage?: number;
+  votingPercentage?: number;
+  startDate: ISODate;
+  endDate?: ISODate;
+  status: ClubOwnershipStatus;
+  ownershipModel: ClubOwnershipModel;
+  provenanceStatus: "SIMULATION_ONLY" | "VERIFIED" | "REPORTED" | "ESTIMATED" | "UNKNOWN";
+};
+
+export type PersonalFinancialProfile = {
+  personId: EntityId;
+  cash: number;
+  investments: number;
+  assets: number;
+  liabilities: number;
+  netWorth: number;
+  currency: string;
+  lastUpdatedAt: ISODate;
+  status: "SIMULATION_ONLY" | "VERIFIED" | "REPORTED" | "ESTIMATED" | "UNKNOWN";
+};
+
+export type OwnerInvestmentForm = "EQUITY" | "SHAREHOLDER_LOAN" | "DONATION" | "CAPITAL_INJECTION";
+
+export type OwnerInvestmentTransaction = {
+  id: EntityId;
+  personId: EntityId;
+  clubId: EntityId;
+  date: ISODate;
+  amount: number;
+  currency: string;
+  form: OwnerInvestmentForm;
+  personalLedgerEntryId: EntityId;
+  clubLedgerEntryId: EntityId;
+  status: "POSTED" | "VOID";
+  provenanceStatus: "SIMULATION_ONLY" | "VERIFIED" | "REPORTED" | "ESTIMATED" | "UNKNOWN";
+};
+
+export type ClubDebt = {
+  id: EntityId;
+  clubId: EntityId;
+  lenderType: "BANK" | "FINANCE_COMPANY" | "SHAREHOLDER" | "SHORT_TERM" | "OTHER";
+  principal: number;
+  outstandingPrincipal: number;
+  interestRate: number;
+  currency: string;
+  startDate: ISODate;
+  maturityDate: ISODate;
+  repaymentSchedule: "MONTHLY" | "QUARTERLY" | "SEASONAL" | "BULLET";
+  status: "ACTIVE" | "REPAID" | "DEFAULTED";
+  provenanceStatus: "SIMULATION_ONLY" | "VERIFIED" | "REPORTED" | "ESTIMATED" | "UNKNOWN";
+};
+
+export type SponsorOrganisation = {
+  id: EntityId;
+  name: string;
+  industry: string;
+  countryId?: EntityId;
+  reputation: number;
+  budgetTier: "LOCAL" | "REGIONAL" | "NATIONAL" | "PREMIUM";
+  status: "SIMULATION_ONLY" | "VERIFIED" | "REPORTED" | "ESTIMATED" | "UNKNOWN";
+};
+
+export type SponsorshipType =
+  | "SHIRT_MAIN"
+  | "SHIRT_SECONDARY"
+  | "SLEEVE"
+  | "TRAINING_KIT"
+  | "STADIUM"
+  | "ACADEMY"
+  | "OFFICIAL_PARTNER"
+  | "LOCAL_PARTNER";
+
+export type SponsorshipContract = {
+  id: EntityId;
+  clubId: EntityId;
+  sponsorId: EntityId;
+  type: SponsorshipType;
+  startDate: ISODate;
+  endDate: ISODate;
+  annualValue: number;
+  bonuses: Record<string, number>;
+  currency: string;
+  status: "OFFERED" | "ACTIVE" | "EXPIRED" | "REJECTED";
+  provenanceStatus: "SIMULATION_ONLY" | "VERIFIED" | "REPORTED" | "ESTIMATED" | "UNKNOWN";
+};
+
+export type SupporterSentiment =
+  "VERY_POSITIVE" | "POSITIVE" | "NEUTRAL" | "NEGATIVE" | "VERY_NEGATIVE";
+
+export type ClubSupporterProfile = {
+  clubId: EntityId;
+  coreSupporters: number;
+  casualSupporters: number;
+  regionalSupport: number;
+  diasporaSupport: number;
+  activeSupport: number;
+  familySupport: number;
+  youthSupport: number;
+  clubPopularity: number;
+  footballReputation: number;
+  commercialReputation: number;
+  sentiment: SupporterSentiment;
+  standardTicketPrice: number;
+  currency: string;
+  status: "SIMULATION_ONLY" | "VERIFIED" | "REPORTED" | "ESTIMATED" | "UNKNOWN";
+};
+
+export type ClubFacilityProfile = {
+  clubId: EntityId;
+  trainingFacilityQuality: number;
+  youthFacilityQuality: number;
+  medicalFacilityQuality: number;
+  analyticsFacilityQuality: number;
+  academyCapacity: number;
+  monthlyOperatingCost: number;
+  currency: string;
+  status: "SIMULATION_ONLY" | "VERIFIED" | "REPORTED" | "ESTIMATED" | "UNKNOWN";
+};
+
+export type InfrastructureProjectType =
+  | "TRAINING_GROUND"
+  | "GYM"
+  | "MEDICAL_ROOM"
+  | "RECOVERY_CENTRE"
+  | "ACADEMY"
+  | "OFFICE"
+  | "SCOUTING_DEPARTMENT"
+  | "ANALYSIS_ROOM"
+  | "STADIUM"
+  | "STAND"
+  | "FLOODLIGHTS"
+  | "PITCH"
+  | "DRAINAGE";
+
+export type InfrastructureProjectStatus =
+  "IDEA" | "PLANNING" | "APPROVED" | "FINANCING" | "CONSTRUCTION" | "COMPLETED" | "CANCELLED";
+
+export type InfrastructureProject = {
+  id: EntityId;
+  clubId: EntityId;
+  projectType: InfrastructureProjectType;
+  locationId?: EntityId;
+  venueId?: EntityId;
+  planningStart: ISODate;
+  constructionStart?: ISODate;
+  expectedCompletion: ISODate;
+  completedAt?: ISODate;
+  capitalCost: number;
+  ongoingCost: number;
+  currency: string;
+  status: InfrastructureProjectStatus;
+  financingJson: Record<string, number>;
+  provenanceStatus: "SIMULATION_ONLY" | "VERIFIED" | "REPORTED" | "ESTIMATED" | "UNKNOWN";
+};
+
+export type ClubAsset = {
+  id: EntityId;
+  clubId: EntityId;
+  assetType: "LAND" | "BUILDING" | "VENUE" | "TRAINING_GROUND" | "EQUIPMENT" | "OTHER";
+  ownership: "OWNED" | "LEASED" | "USED_BY_PERMISSION" | "UNKNOWN";
+  locationId?: EntityId;
+  venueId?: EntityId;
+  estimatedValue: number;
+  currency: string;
+  status: "SIMULATION_ONLY" | "VERIFIED" | "REPORTED" | "ESTIMATED" | "UNKNOWN";
+};
+
+export type ClubValuation = {
+  clubId: EntityId;
+  valuation: number;
+  currency: string;
+  calculatedAt: ISODate;
+  method: "SIMULATION_FOUNDATION";
+  status: "SIMULATION_ONLY";
+};
+
+export type ClubBoardPolicy = {
+  clubId: EntityId;
+  financialRiskTolerance: "LOW" | "BALANCED" | "HIGH";
+  transferPhilosophy: "CONSERVATIVE" | "BALANCED" | "AGGRESSIVE" | "PLAYER_TRADING";
+  youthPriority: number;
+  commercialPriority: number;
+  infrastructurePriority: number;
+  strategicObjective:
+    | "SURVIVE"
+    | "PROMOTION"
+    | "TITLE_CHALLENGE"
+    | "YOUTH_DEVELOPMENT"
+    | "FINANCIAL_STABILITY"
+    | "COMMERCIAL_GROWTH"
+    | "INFRASTRUCTURE"
+    | "PLAYER_TRADING";
+  chairmanPersonId?: EntityId;
+  updatedAt: ISODate;
+  status: "SIMULATION_ONLY" | "VERIFIED" | "REPORTED" | "ESTIMATED" | "UNKNOWN";
+};
+
+export type ClubFinancialStatement = {
+  id: EntityId;
+  clubId: EntityId;
+  seasonLabel: string;
+  openingCash: number;
+  revenueByCategory: Record<string, number>;
+  expensesByCategory: Record<string, number>;
+  operatingProfit: number;
+  transferProfitLoss: number;
+  netProfitLoss: number;
+  closingCash: number;
+  debt: number;
+  currency: string;
+  closedAt: ISODate;
+  status: "SIMULATION_ONLY" | "VERIFIED" | "REPORTED" | "ESTIMATED" | "UNKNOWN";
+};
+
 export type AgentNegotiationStyle = "BALANCED" | "AGGRESSIVE" | "LOYAL" | "CAREER_FIRST";
 
 export type AgentProfile = {

@@ -1,19 +1,19 @@
 import { existsSync, readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { openGameDatabase } from "@nepal-football-sim/database";
-import type { EntityId } from "@nepal-football-sim/shared-types";
 import { createNepalSave } from "./nepal-save.js";
-import { simulateNepalCareer } from "./career-world.js";
+import { runChairmanDemo, runEconomyDiagnostic } from "./club-economy.js";
 
 const invocationCwd = process.env.INIT_CWD ?? process.cwd();
 const args = parseArgs(process.argv.slice(2));
-const seasons = Number(args.seasons ?? "3");
-const seed = args.seed ?? "nepal-career-default";
+const seed = args.seed ?? "nepal-economy-diagnostic";
+const seasons = Number(args.seasons ?? "5");
+const startDate = args["start-date"] ?? "2026-08-01";
 const datasetPath = resolve(invocationCwd, args.dataset ?? "data/nepal/2026-08/club-registry.json");
 const savePath = resolve(
   invocationCwd,
-  args["save-path"] ?? join(tmpdir(), `nepal-career-${seed}-${seasons}.sqlite`),
+  args["save-path"] ?? join(tmpdir(), `nepal-economy-${seed}-${process.pid}.sqlite`),
 );
 
 if (!Number.isInteger(seasons) || seasons < 1) {
@@ -24,26 +24,20 @@ if (!existsSync(savePath)) {
   createNepalSave({
     databasePath: savePath,
     dataset: JSON.parse(readFileSync(datasetPath, "utf8")) as unknown,
-    saveName: `Nepal Career ${seasons} seasons`,
+    saveName: "Nepal Economy Diagnostic",
     gameVersion: "0.2.0",
     randomSeed: seed,
   });
 }
 
 const db = openGameDatabase(savePath);
-const report = simulateNepalCareer({
-  db,
-  seasons,
-  seed,
-  competitionSeasonId: args.competition as EntityId | undefined,
-  savePath,
-  transfersEnabled: args.transfers !== "false",
-  youthEnabled: args.youth !== "false",
-  economyEnabled: args.economy !== "false",
-});
+const report =
+  args.demo === "chairman"
+    ? runChairmanDemo({ db, seed, worldDate: startDate, clubId: args.club as any })
+    : runEconomyDiagnostic({ db, seed, startDate, seasons });
 db.close();
 
-console.log(JSON.stringify(report, null, 2));
+console.log(JSON.stringify({ savePath, ...report }, null, 2));
 
 function parseArgs(values: string[]): Record<string, string | undefined> {
   const parsed: Record<string, string | undefined> = {};

@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 14;
+export const CURRENT_DATABASE_VERSION = 15;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -1330,6 +1330,243 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
         ON youth_player_statuses(club_id, youth_status);
       CREATE INDEX IF NOT EXISTS idx_retirement_state
         ON player_retirement_states(state, retirement_date);
+    `,
+  },
+  {
+    version: 15,
+    sql: `
+      CREATE TABLE IF NOT EXISTS club_financial_accounts (
+        club_id TEXT PRIMARY KEY REFERENCES clubs(id),
+        currency TEXT NOT NULL,
+        cash_balance INTEGER NOT NULL,
+        restricted_cash INTEGER NOT NULL,
+        receivables INTEGER NOT NULL,
+        payables INTEGER NOT NULL,
+        debt_balance INTEGER NOT NULL,
+        equity_balance INTEGER NOT NULL,
+        season_revenue INTEGER NOT NULL,
+        season_expenses INTEGER NOT NULL,
+        season_profit_loss INTEGER NOT NULL,
+        financial_health TEXT NOT NULL,
+        last_updated_at TEXT NOT NULL,
+        status TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS club_ledger_entries (
+        id TEXT PRIMARY KEY,
+        club_id TEXT NOT NULL REFERENCES clubs(id),
+        entry_date TEXT NOT NULL,
+        category TEXT NOT NULL,
+        direction TEXT NOT NULL,
+        amount INTEGER NOT NULL,
+        currency TEXT NOT NULL,
+        description TEXT NOT NULL,
+        related_entity_id TEXT,
+        status TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_club_ledger_club_date
+        ON club_ledger_entries(club_id, entry_date);
+
+      CREATE TABLE IF NOT EXISTS club_budgets (
+        id TEXT PRIMARY KEY,
+        club_id TEXT NOT NULL REFERENCES clubs(id),
+        season_label TEXT NOT NULL,
+        category TEXT NOT NULL,
+        amount INTEGER NOT NULL,
+        used_amount INTEGER NOT NULL,
+        currency TEXT NOT NULL,
+        status TEXT NOT NULL,
+        provenance_status TEXT NOT NULL,
+        UNIQUE(club_id, season_label, category)
+      );
+
+      CREATE TABLE IF NOT EXISTS club_ownership_stakes (
+        id TEXT PRIMARY KEY,
+        club_id TEXT NOT NULL REFERENCES clubs(id),
+        holder_type TEXT NOT NULL,
+        holder_id TEXT,
+        holder_name TEXT NOT NULL,
+        role TEXT NOT NULL,
+        percentage REAL,
+        voting_percentage REAL,
+        start_date TEXT NOT NULL,
+        end_date TEXT,
+        status TEXT NOT NULL,
+        ownership_model TEXT NOT NULL,
+        provenance_status TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS personal_financial_profiles (
+        person_id TEXT PRIMARY KEY REFERENCES persons(id),
+        cash INTEGER NOT NULL,
+        investments INTEGER NOT NULL,
+        assets INTEGER NOT NULL,
+        liabilities INTEGER NOT NULL,
+        net_worth INTEGER NOT NULL,
+        currency TEXT NOT NULL,
+        last_updated_at TEXT NOT NULL,
+        status TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS owner_investment_transactions (
+        id TEXT PRIMARY KEY,
+        person_id TEXT NOT NULL REFERENCES persons(id),
+        club_id TEXT NOT NULL REFERENCES clubs(id),
+        transaction_date TEXT NOT NULL,
+        amount INTEGER NOT NULL,
+        currency TEXT NOT NULL,
+        form TEXT NOT NULL,
+        personal_ledger_entry_id TEXT NOT NULL,
+        club_ledger_entry_id TEXT NOT NULL REFERENCES club_ledger_entries(id),
+        status TEXT NOT NULL,
+        provenance_status TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS club_debts (
+        id TEXT PRIMARY KEY,
+        club_id TEXT NOT NULL REFERENCES clubs(id),
+        lender_type TEXT NOT NULL,
+        principal INTEGER NOT NULL,
+        outstanding_principal INTEGER NOT NULL,
+        interest_rate REAL NOT NULL,
+        currency TEXT NOT NULL,
+        start_date TEXT NOT NULL,
+        maturity_date TEXT NOT NULL,
+        repayment_schedule TEXT NOT NULL,
+        status TEXT NOT NULL,
+        provenance_status TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS sponsor_organisations (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        industry TEXT NOT NULL,
+        country_id TEXT REFERENCES countries(id),
+        reputation REAL NOT NULL,
+        budget_tier TEXT NOT NULL,
+        status TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS sponsorship_contracts (
+        id TEXT PRIMARY KEY,
+        club_id TEXT NOT NULL REFERENCES clubs(id),
+        sponsor_id TEXT NOT NULL REFERENCES sponsor_organisations(id),
+        sponsorship_type TEXT NOT NULL,
+        start_date TEXT NOT NULL,
+        end_date TEXT NOT NULL,
+        annual_value INTEGER NOT NULL,
+        bonuses_json TEXT NOT NULL,
+        currency TEXT NOT NULL,
+        status TEXT NOT NULL,
+        provenance_status TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_sponsorship_club_status
+        ON sponsorship_contracts(club_id, status);
+
+      CREATE TABLE IF NOT EXISTS club_supporter_profiles (
+        club_id TEXT PRIMARY KEY REFERENCES clubs(id),
+        core_supporters INTEGER NOT NULL,
+        casual_supporters INTEGER NOT NULL,
+        regional_support INTEGER NOT NULL,
+        diaspora_support INTEGER NOT NULL,
+        active_support INTEGER NOT NULL,
+        family_support INTEGER NOT NULL,
+        youth_support INTEGER NOT NULL,
+        club_popularity REAL NOT NULL,
+        football_reputation REAL NOT NULL,
+        commercial_reputation REAL NOT NULL,
+        sentiment TEXT NOT NULL,
+        standard_ticket_price INTEGER NOT NULL,
+        currency TEXT NOT NULL,
+        status TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS club_facility_profiles (
+        club_id TEXT PRIMARY KEY REFERENCES clubs(id),
+        training_facility_quality REAL NOT NULL,
+        youth_facility_quality REAL NOT NULL,
+        medical_facility_quality REAL NOT NULL,
+        analytics_facility_quality REAL NOT NULL,
+        academy_capacity INTEGER NOT NULL,
+        monthly_operating_cost INTEGER NOT NULL,
+        currency TEXT NOT NULL,
+        status TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS infrastructure_projects (
+        id TEXT PRIMARY KEY,
+        club_id TEXT NOT NULL REFERENCES clubs(id),
+        project_type TEXT NOT NULL,
+        location_id TEXT REFERENCES locations(id),
+        venue_id TEXT REFERENCES venues(id),
+        planning_start TEXT NOT NULL,
+        construction_start TEXT,
+        expected_completion TEXT NOT NULL,
+        completed_at TEXT,
+        capital_cost INTEGER NOT NULL,
+        ongoing_cost INTEGER NOT NULL,
+        currency TEXT NOT NULL,
+        status TEXT NOT NULL,
+        financing_json TEXT NOT NULL,
+        provenance_status TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_infrastructure_projects_club_status
+        ON infrastructure_projects(club_id, status);
+
+      CREATE TABLE IF NOT EXISTS club_assets (
+        id TEXT PRIMARY KEY,
+        club_id TEXT NOT NULL REFERENCES clubs(id),
+        asset_type TEXT NOT NULL,
+        ownership TEXT NOT NULL,
+        location_id TEXT REFERENCES locations(id),
+        venue_id TEXT REFERENCES venues(id),
+        estimated_value INTEGER NOT NULL,
+        currency TEXT NOT NULL,
+        status TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS club_valuations (
+        club_id TEXT PRIMARY KEY REFERENCES clubs(id),
+        valuation INTEGER NOT NULL,
+        currency TEXT NOT NULL,
+        calculated_at TEXT NOT NULL,
+        method TEXT NOT NULL,
+        status TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS club_board_policies (
+        club_id TEXT PRIMARY KEY REFERENCES clubs(id),
+        financial_risk_tolerance TEXT NOT NULL,
+        transfer_philosophy TEXT NOT NULL,
+        youth_priority REAL NOT NULL,
+        commercial_priority REAL NOT NULL,
+        infrastructure_priority REAL NOT NULL,
+        strategic_objective TEXT NOT NULL,
+        chairman_person_id TEXT REFERENCES persons(id),
+        updated_at TEXT NOT NULL,
+        status TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS club_financial_statements (
+        id TEXT PRIMARY KEY,
+        club_id TEXT NOT NULL REFERENCES clubs(id),
+        season_label TEXT NOT NULL,
+        opening_cash INTEGER NOT NULL,
+        revenue_by_category_json TEXT NOT NULL,
+        expenses_by_category_json TEXT NOT NULL,
+        operating_profit INTEGER NOT NULL,
+        transfer_profit_loss INTEGER NOT NULL,
+        net_profit_loss INTEGER NOT NULL,
+        closing_cash INTEGER NOT NULL,
+        debt INTEGER NOT NULL,
+        currency TEXT NOT NULL,
+        closed_at TEXT NOT NULL,
+        status TEXT NOT NULL,
+        UNIQUE(club_id, season_label)
+      );
     `,
   },
 ];

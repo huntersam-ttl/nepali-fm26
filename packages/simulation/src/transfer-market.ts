@@ -21,6 +21,7 @@ import {
   TransferMarketRepository,
   type GameDatabase,
 } from "@nepal-football-sim/database";
+import { clubCanAffordTransfer, clubCanAffordWage, recordTransferEconomy } from "./club-economy.js";
 import { SeededRandom } from "./rng.js";
 import { initializeRecruitmentForSave, searchPlayersForClub } from "./scouting.js";
 
@@ -181,7 +182,15 @@ export const simulateTransferWindow = (input: {
     );
     if (offer && completedTransfers < 5) {
       const evaluation = evaluateTransferOffer(input.db, offer, input.worldDate, input.seed);
-      if (evaluation.accepted) {
+      if (
+        evaluation.accepted &&
+        clubCanAffordTransfer(
+          input.db,
+          offer.buyingClubId,
+          offer.transferFee + offer.installments + offer.addOns + offer.agentFee + offer.signingFee,
+          input.worldDate,
+        )
+      ) {
         accepted += 1;
         completePermanentTransfer(input.db, offer, input.worldDate, input.seed);
         completedTransfers += 1;
@@ -466,11 +475,15 @@ export const completePermanentTransfer = (
   seed: string,
 ): void => {
   const market = new TransferMarketRepository(db);
+  const contract = negotiatePlayerContract(db, offer, worldDate, seed);
+  if (!clubCanAffordWage(db, offer.buyingClubId, contract.salary, worldDate)) {
+    market.updateOfferStatus(offer.id, "REJECTED");
+    return;
+  }
   const oldContract = market.activeContract(offer.playerId, worldDate);
   if (oldContract) {
     market.markContractStatus(oldContract.id, "TERMINATED");
   }
-  const contract = negotiatePlayerContract(db, offer, worldDate, seed);
   market.upsertPlayerContract(contract);
   movePlayerAssignment(db, offer.playerId, offer.buyingClubId, worldDate);
   market.updatePlayerClub(offer.playerId, offer.buyingClubId);
@@ -496,6 +509,7 @@ export const completePermanentTransfer = (
     occurredOn: worldDate,
     data: { transferFee: offer.transferFee, currency: offer.currency },
   });
+  recordTransferEconomy(db, offer, worldDate);
 };
 
 export const startLoan = (

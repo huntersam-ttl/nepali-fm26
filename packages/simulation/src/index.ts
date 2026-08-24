@@ -1,5 +1,6 @@
 export * from "./clock.js";
 export * from "./career-world.js";
+export * from "./club-economy.js";
 export * from "./demo-league.js";
 export * from "./desktop-application.js";
 export * from "./fixture-generation.js";

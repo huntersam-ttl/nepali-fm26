@@ -120,6 +120,21 @@ contract, loan, registration, and transfer systems. Retirement ends the player r
 the person, and a small seeded subset of retired players can continue as staff through the existing
 workforce appointment model.
 
+The club economy layer turns clubs into save-backed institutions without merging personal, club, and
+future federation money. `ClubFinancialAccount` records club cash, restricted cash, receivables,
+payables, debt, equity, season revenue/expenses, and financial health. Every club cash movement is
+posted through `ClubLedgerEntry`, so balances remain auditable. Starting Nepal club economy values,
+supporters, sponsorships, budgets, ownership models, facilities, assets, board policy, and valuations
+are deterministic `SIMULATION_ONLY` gameplay data until research supplies source-backed figures.
+
+Chairman/owner mode uses the same `Person` identity model as manager and staff careers.
+`PersonalFinancialProfile` is separate from club accounts, and owner investment must be posted as an
+explicit transaction before personal cash can become club cash. Departmental clubs such as Army,
+Police, and APF use restricted ownership/economic models rather than private-company assumptions.
+Infrastructure is project-based with planning/construction/completion states, capital costs, ongoing
+costs, financing mixes, and eventual facility/asset effects; there is no generic instant `+1`
+facility upgrade.
+
 ## Competition and Match Simulation
 
 Stage 3 adds a headless competition layer. Competition rule sets are dataset-driven and define season type, points, tiebreakers, home/away structure, round spacing, and promotion/relegation/continental slots. The engine supports deterministic single and double round-robin fixture generation.

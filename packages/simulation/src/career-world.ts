@@ -18,6 +18,13 @@ import {
   updateSaveWorldDate,
   type GameDatabase,
 } from "@nepal-football-sim/database";
+import {
+  closeClubFinancialSeason,
+  initializeClubEconomyForSave,
+  postCompetitionPrizeMoney,
+  postMatchdayEconomy,
+  processClubEconomyMonth,
+} from "./club-economy.js";
 import { generateLeagueFixtures } from "./fixture-generation.js";
 import { simulateMatch } from "./match-engine.js";
 import {
@@ -135,14 +142,19 @@ export const simulateNepalCareer = (input: {
   maxFixturesPerSeason?: number;
   transfersEnabled?: boolean;
   youthEnabled?: boolean;
+  economyEnabled?: boolean;
 }): CareerSimulationReport => {
   const save = loadSave(input.db);
   const reports: CareerSeasonReport[] = [];
   const youthReports: YouthAnnualReport[] = [];
   const preseasonReports: PreseasonContinuityReport[] = [];
   const skippedCompetitions: CareerSimulationReport["skippedCompetitions"] = [];
+  const economyEnabled = input.economyEnabled !== false;
 
   ensureRecruitmentFoundation(input.db, save.worldDate, input.seed);
+  if (economyEnabled) {
+    initializeClubEconomyForSave({ db: input.db, worldDate: save.worldDate, seed: input.seed });
+  }
   if (input.youthEnabled) {
     initializeYouthSystemForSave({ db: input.db, worldDate: save.worldDate, seed: input.seed });
   }
@@ -176,6 +188,7 @@ export const simulateNepalCareer = (input: {
         ...season,
         seed: `${input.seed}:season:${index}:${season.season.id}`,
         maxFixtures: input.maxFixturesPerSeason,
+        economyEnabled,
       });
       reports.push(report);
       const standings = new CompetitionRepository(input.db).standings(season.season.id);
@@ -223,6 +236,12 @@ export const simulateNepalCareer = (input: {
       );
       entityCache.delete(input.db);
     }
+    if (economyEnabled) {
+      processEconomyForSeasonPeriod(input.db, {
+        seasonEndDate: latestSeasonEnd(activeSeasons),
+        seed: `${input.seed}:economy:${index}`,
+      });
+    }
     preseasonReports.push(
       ...repairPreseasonContinuity({
         db: input.db,
@@ -266,9 +285,33 @@ const latestSeasonEnd = (seasons: readonly RunnableSeason[]): string =>
     .sort()
     .at(-1) ?? "2026-08-01";
 
+const processEconomyForSeasonPeriod = (
+  db: GameDatabase,
+  input: { seasonEndDate: string; seed: string },
+): void => {
+  const endYear = Number(input.seasonEndDate.slice(0, 4));
+  const startYear = endYear - 1;
+  for (const month of [8, 9, 10, 11, 12]) {
+    processClubEconomyMonth(db, {
+      date: `${startYear}-${String(month).padStart(2, "0")}-28`,
+      seed: `${input.seed}:${month}`,
+    });
+  }
+  for (const month of [1, 2, 3, 4, 5, 6, 7]) {
+    processClubEconomyMonth(db, {
+      date: `${endYear}-${String(month).padStart(2, "0")}-28`,
+      seed: `${input.seed}:${month}`,
+    });
+  }
+  closeClubFinancialSeason(db, {
+    seasonLabel: String(endYear),
+    date: input.seasonEndDate,
+  });
+};
+
 const simulateCompetitionSeason = (
   db: GameDatabase,
-  input: RunnableSeason & { seed: string; maxFixtures?: number },
+  input: RunnableSeason & { seed: string; maxFixtures?: number; economyEnabled?: boolean },
 ): CareerSeasonReport => {
   const competitions = new CompetitionRepository(db);
   const players = new PlayerRepository(db);
@@ -306,6 +349,9 @@ const simulateCompetitionSeason = (
     });
     allResults.push(result);
     persistMatchResult(db, result, input.season.id, fixture.scheduledDate);
+    if (input.economyEnabled) {
+      postMatchdayEconomy(db, fixture, fixture.scheduledDate, input.seed);
+    }
     recordMatchKnowledge(db, fixture, result, fixture.scheduledDate, input.seed);
     simulateScoutingDay({ db, worldDate: fixture.scheduledDate, seed: input.seed });
     playedThisRun += 1;
@@ -335,6 +381,12 @@ const simulateCompetitionSeason = (
       championClubId: champion ? clubIdForTeam(db, champion.teamId) : undefined,
       completedAt: input.ruleSet.seasonEndDate,
     });
+    if (input.economyEnabled) {
+      postCompetitionPrizeMoney(db, {
+        competitionSeasonId: input.season.id,
+        date: input.ruleSet.seasonEndDate,
+      });
+    }
   }
 
   const goals = results.reduce(

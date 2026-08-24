@@ -4,12 +4,23 @@ import type {
   AcademySimulationProfile,
   AgentClient,
   AgentProfile,
+  ClubAsset,
   ClubAlias,
+  ClubBoardPolicy,
+  ClubBudget,
+  ClubDebt,
   ClubEmploymentProfile,
+  ClubFacilityProfile,
+  ClubFinancialAccount,
   ClubFinancialProfile,
+  ClubFinancialStatement,
+  ClubLedgerEntry,
   ClubRecruitmentProfile,
   ClubShortlistItem,
   ClubMembership,
+  ClubOwnershipStake,
+  ClubSupporterProfile,
+  ClubValuation,
   ClubRelationship,
   Club,
   CompetitionMovement,
@@ -22,6 +33,7 @@ import type {
   FinancialTransaction,
   HistoricalEvent,
   IndividualDevelopmentPlan,
+  InfrastructureProject,
   Location,
   LocationTravelContext,
   Person,
@@ -54,6 +66,8 @@ import type {
   ManagerProfile,
   Match,
   MatchEvent,
+  OwnerInvestmentTransaction,
+  PersonalFinancialProfile,
   PlayerAttributeSet,
   PlayerContractRecord,
   PlayerDevelopmentState,
@@ -76,6 +90,8 @@ import type {
   PlayerTransferStatusRecord,
   GeneratedPlayerOrigin,
   SquadNeedReport,
+  SponsorOrganisation,
+  SponsorshipContract,
   TrainingFacilityProfile,
   TrainingHistoryEvent,
   TrainingPlan,
@@ -3156,6 +3172,228 @@ const mapClubEmploymentProfile = (row: any): ClubEmploymentProfile => ({
   status: row.status,
 });
 
+const mapClubFinancialAccount = (row: any): ClubFinancialAccount => ({
+  clubId: row.club_id,
+  currency: row.currency,
+  cashBalance: row.cash_balance,
+  restrictedCash: row.restricted_cash,
+  receivables: row.receivables,
+  payables: row.payables,
+  debtBalance: row.debt_balance,
+  equityBalance: row.equity_balance,
+  seasonRevenue: row.season_revenue,
+  seasonExpenses: row.season_expenses,
+  seasonProfitLoss: row.season_profit_loss,
+  financialHealth: row.financial_health,
+  lastUpdatedAt: row.last_updated_at,
+  status: row.status,
+});
+
+const mapClubLedgerEntry = (row: any): ClubLedgerEntry => ({
+  id: row.id,
+  clubId: row.club_id,
+  date: row.entry_date,
+  category: row.category,
+  direction: row.direction,
+  amount: row.amount,
+  currency: row.currency,
+  description: row.description,
+  relatedEntityId: row.related_entity_id ?? undefined,
+  status: row.status,
+});
+
+const mapClubBudget = (row: any): ClubBudget => ({
+  id: row.id,
+  clubId: row.club_id,
+  seasonLabel: row.season_label,
+  category: row.category,
+  amount: row.amount,
+  usedAmount: row.used_amount,
+  currency: row.currency,
+  status: row.status,
+  provenanceStatus: row.provenance_status,
+});
+
+const mapClubOwnershipStake = (row: any): ClubOwnershipStake => ({
+  id: row.id,
+  clubId: row.club_id,
+  holderType: row.holder_type,
+  holderId: row.holder_id ?? undefined,
+  holderName: row.holder_name,
+  role: row.role,
+  percentage: row.percentage ?? undefined,
+  votingPercentage: row.voting_percentage ?? undefined,
+  startDate: row.start_date,
+  endDate: row.end_date ?? undefined,
+  status: row.status,
+  ownershipModel: row.ownership_model,
+  provenanceStatus: row.provenance_status,
+});
+
+const mapPersonalFinancialProfile = (row: any): PersonalFinancialProfile => ({
+  personId: row.person_id,
+  cash: row.cash,
+  investments: row.investments,
+  assets: row.assets,
+  liabilities: row.liabilities,
+  netWorth: row.net_worth,
+  currency: row.currency,
+  lastUpdatedAt: row.last_updated_at,
+  status: row.status,
+});
+
+const mapOwnerInvestment = (row: any): OwnerInvestmentTransaction => ({
+  id: row.id,
+  personId: row.person_id,
+  clubId: row.club_id,
+  date: row.transaction_date,
+  amount: row.amount,
+  currency: row.currency,
+  form: row.form,
+  personalLedgerEntryId: row.personal_ledger_entry_id,
+  clubLedgerEntryId: row.club_ledger_entry_id,
+  status: row.status,
+  provenanceStatus: row.provenance_status,
+});
+
+const mapClubDebt = (row: any): ClubDebt => ({
+  id: row.id,
+  clubId: row.club_id,
+  lenderType: row.lender_type,
+  principal: row.principal,
+  outstandingPrincipal: row.outstanding_principal,
+  interestRate: row.interest_rate,
+  currency: row.currency,
+  startDate: row.start_date,
+  maturityDate: row.maturity_date,
+  repaymentSchedule: row.repayment_schedule,
+  status: row.status,
+  provenanceStatus: row.provenance_status,
+});
+
+const mapSponsorOrganisation = (row: any): SponsorOrganisation => ({
+  id: row.id,
+  name: row.name,
+  industry: row.industry,
+  countryId: row.country_id ?? undefined,
+  reputation: row.reputation,
+  budgetTier: row.budget_tier,
+  status: row.status,
+});
+
+const mapSponsorshipContract = (row: any): SponsorshipContract => ({
+  id: row.id,
+  clubId: row.club_id,
+  sponsorId: row.sponsor_id,
+  type: row.sponsorship_type,
+  startDate: row.start_date,
+  endDate: row.end_date,
+  annualValue: row.annual_value,
+  bonuses: json.parse(row.bonuses_json, {}),
+  currency: row.currency,
+  status: row.status,
+  provenanceStatus: row.provenance_status,
+});
+
+const mapClubSupporterProfile = (row: any): ClubSupporterProfile => ({
+  clubId: row.club_id,
+  coreSupporters: row.core_supporters,
+  casualSupporters: row.casual_supporters,
+  regionalSupport: row.regional_support,
+  diasporaSupport: row.diaspora_support,
+  activeSupport: row.active_support,
+  familySupport: row.family_support,
+  youthSupport: row.youth_support,
+  clubPopularity: row.club_popularity,
+  footballReputation: row.football_reputation,
+  commercialReputation: row.commercial_reputation,
+  sentiment: row.sentiment,
+  standardTicketPrice: row.standard_ticket_price,
+  currency: row.currency,
+  status: row.status,
+});
+
+const mapClubFacilityProfile = (row: any): ClubFacilityProfile => ({
+  clubId: row.club_id,
+  trainingFacilityQuality: row.training_facility_quality,
+  youthFacilityQuality: row.youth_facility_quality,
+  medicalFacilityQuality: row.medical_facility_quality,
+  analyticsFacilityQuality: row.analytics_facility_quality,
+  academyCapacity: row.academy_capacity,
+  monthlyOperatingCost: row.monthly_operating_cost,
+  currency: row.currency,
+  status: row.status,
+});
+
+const mapInfrastructureProject = (row: any): InfrastructureProject => ({
+  id: row.id,
+  clubId: row.club_id,
+  projectType: row.project_type,
+  locationId: row.location_id ?? undefined,
+  venueId: row.venue_id ?? undefined,
+  planningStart: row.planning_start,
+  constructionStart: row.construction_start ?? undefined,
+  expectedCompletion: row.expected_completion,
+  completedAt: row.completed_at ?? undefined,
+  capitalCost: row.capital_cost,
+  ongoingCost: row.ongoing_cost,
+  currency: row.currency,
+  status: row.status,
+  financingJson: json.parse(row.financing_json, {}),
+  provenanceStatus: row.provenance_status,
+});
+
+const mapClubAsset = (row: any): ClubAsset => ({
+  id: row.id,
+  clubId: row.club_id,
+  assetType: row.asset_type,
+  ownership: row.ownership,
+  locationId: row.location_id ?? undefined,
+  venueId: row.venue_id ?? undefined,
+  estimatedValue: row.estimated_value,
+  currency: row.currency,
+  status: row.status,
+});
+
+const mapClubValuation = (row: any): ClubValuation => ({
+  clubId: row.club_id,
+  valuation: row.valuation,
+  currency: row.currency,
+  calculatedAt: row.calculated_at,
+  method: row.method,
+  status: row.status,
+});
+
+const mapClubBoardPolicy = (row: any): ClubBoardPolicy => ({
+  clubId: row.club_id,
+  financialRiskTolerance: row.financial_risk_tolerance,
+  transferPhilosophy: row.transfer_philosophy,
+  youthPriority: row.youth_priority,
+  commercialPriority: row.commercial_priority,
+  infrastructurePriority: row.infrastructure_priority,
+  strategicObjective: row.strategic_objective,
+  chairmanPersonId: row.chairman_person_id ?? undefined,
+  updatedAt: row.updated_at,
+  status: row.status,
+});
+
+const mapClubFinancialStatement = (row: any): ClubFinancialStatement => ({
+  id: row.id,
+  clubId: row.club_id,
+  seasonLabel: row.season_label,
+  openingCash: row.opening_cash,
+  revenueByCategory: json.parse(row.revenue_by_category_json, {}),
+  expensesByCategory: json.parse(row.expenses_by_category_json, {}),
+  operatingProfit: row.operating_profit,
+  transferProfitLoss: row.transfer_profit_loss,
+  netProfitLoss: row.net_profit_loss,
+  closingCash: row.closing_cash,
+  debt: row.debt,
+  currency: row.currency,
+  closedAt: row.closed_at,
+  status: row.status,
+});
+
 const mapPlayerTransferStatus = (row: any): PlayerTransferStatusRecord => ({
   id: row.id,
   playerId: row.player_id,
@@ -3413,6 +3651,697 @@ export class FinanceRepository {
         transaction.description ?? null,
         transaction.relatedEntity ? json.stringify(transaction.relatedEntity) : null,
       );
+  }
+}
+
+export class ClubEconomyRepository {
+  constructor(private readonly db: GameDatabase) {}
+
+  upsertFinancialAccount(account: ClubFinancialAccount): void {
+    this.db
+      .prepare(
+        `INSERT INTO club_financial_accounts
+        (club_id, currency, cash_balance, restricted_cash, receivables, payables, debt_balance,
+          equity_balance, season_revenue, season_expenses, season_profit_loss, financial_health,
+          last_updated_at, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(club_id) DO UPDATE SET
+          currency = excluded.currency,
+          cash_balance = excluded.cash_balance,
+          restricted_cash = excluded.restricted_cash,
+          receivables = excluded.receivables,
+          payables = excluded.payables,
+          debt_balance = excluded.debt_balance,
+          equity_balance = excluded.equity_balance,
+          season_revenue = excluded.season_revenue,
+          season_expenses = excluded.season_expenses,
+          season_profit_loss = excluded.season_profit_loss,
+          financial_health = excluded.financial_health,
+          last_updated_at = excluded.last_updated_at,
+          status = excluded.status`,
+      )
+      .run(
+        account.clubId,
+        account.currency,
+        account.cashBalance,
+        account.restrictedCash,
+        account.receivables,
+        account.payables,
+        account.debtBalance,
+        account.equityBalance,
+        account.seasonRevenue,
+        account.seasonExpenses,
+        account.seasonProfitLoss,
+        account.financialHealth,
+        account.lastUpdatedAt,
+        account.status,
+      );
+  }
+
+  financialAccount(clubId: EntityId): ClubFinancialAccount | undefined {
+    const row = this.db
+      .prepare("SELECT * FROM club_financial_accounts WHERE club_id = ?")
+      .get(clubId) as any;
+    return row ? mapClubFinancialAccount(row) : undefined;
+  }
+
+  financialAccounts(): ClubFinancialAccount[] {
+    return this.db
+      .prepare("SELECT * FROM club_financial_accounts ORDER BY club_id")
+      .all()
+      .map(mapClubFinancialAccount);
+  }
+
+  postLedgerEntry(entry: ClubLedgerEntry): void {
+    this.db
+      .prepare(
+        `INSERT INTO club_ledger_entries
+        (id, club_id, entry_date, category, direction, amount, currency, description,
+          related_entity_id, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO NOTHING`,
+      )
+      .run(
+        entry.id,
+        entry.clubId,
+        entry.date,
+        entry.category,
+        entry.direction,
+        entry.amount,
+        entry.currency,
+        entry.description,
+        entry.relatedEntityId ?? null,
+        entry.status,
+      );
+    const changes = Number((this.db.prepare("SELECT changes() AS changes").get() as any).changes);
+    if (changes === 0) return;
+    const sign = entry.direction === "CREDIT" ? 1 : -1;
+    this.db
+      .prepare(
+        `UPDATE club_financial_accounts
+        SET cash_balance = cash_balance + ?,
+          season_revenue = season_revenue + ?,
+          season_expenses = season_expenses + ?,
+          season_profit_loss = season_profit_loss + ?,
+          last_updated_at = ?,
+          financial_health = CASE
+            WHEN cash_balance + ? < 0 THEN 'INSOLVENT'
+            WHEN cash_balance + ? < 500000 THEN 'DISTRESSED'
+            WHEN cash_balance + ? < 1500000 THEN 'TIGHT'
+            WHEN cash_balance + ? < 6000000 THEN 'STABLE'
+            WHEN cash_balance + ? < 15000000 THEN 'HEALTHY'
+            ELSE 'EXCELLENT'
+          END
+        WHERE club_id = ?`,
+      )
+      .run(
+        sign * entry.amount,
+        entry.direction === "CREDIT" ? entry.amount : 0,
+        entry.direction === "DEBIT" ? entry.amount : 0,
+        sign * entry.amount,
+        entry.date,
+        sign * entry.amount,
+        sign * entry.amount,
+        sign * entry.amount,
+        sign * entry.amount,
+        sign * entry.amount,
+        entry.clubId,
+      );
+  }
+
+  ledgerEntries(clubId?: EntityId): ClubLedgerEntry[] {
+    const rows = clubId
+      ? this.db
+          .prepare("SELECT * FROM club_ledger_entries WHERE club_id = ? ORDER BY entry_date, id")
+          .all(clubId)
+      : this.db.prepare("SELECT * FROM club_ledger_entries ORDER BY entry_date, id").all();
+    return rows.map(mapClubLedgerEntry);
+  }
+
+  upsertBudget(budget: ClubBudget): void {
+    this.db
+      .prepare(
+        `INSERT INTO club_budgets
+        (id, club_id, season_label, category, amount, used_amount, currency, status, provenance_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(club_id, season_label, category) DO UPDATE SET
+          amount = excluded.amount,
+          used_amount = excluded.used_amount,
+          currency = excluded.currency,
+          status = excluded.status,
+          provenance_status = excluded.provenance_status`,
+      )
+      .run(
+        budget.id,
+        budget.clubId,
+        budget.seasonLabel,
+        budget.category,
+        budget.amount,
+        budget.usedAmount,
+        budget.currency,
+        budget.status,
+        budget.provenanceStatus,
+      );
+  }
+
+  budgets(clubId?: EntityId): ClubBudget[] {
+    const rows = clubId
+      ? this.db
+          .prepare("SELECT * FROM club_budgets WHERE club_id = ? ORDER BY category")
+          .all(clubId)
+      : this.db.prepare("SELECT * FROM club_budgets ORDER BY club_id, category").all();
+    return rows.map(mapClubBudget);
+  }
+
+  addBudgetUsage(clubId: EntityId, seasonLabel: string, category: string, amount: number): void {
+    this.db
+      .prepare(
+        `UPDATE club_budgets SET used_amount = used_amount + ?
+        WHERE club_id = ? AND season_label = ? AND category = ?`,
+      )
+      .run(amount, clubId, seasonLabel, category);
+  }
+
+  upsertOwnershipStake(stake: ClubOwnershipStake): void {
+    this.db
+      .prepare(
+        `INSERT INTO club_ownership_stakes
+        (id, club_id, holder_type, holder_id, holder_name, role, percentage, voting_percentage,
+          start_date, end_date, status, ownership_model, provenance_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          holder_type = excluded.holder_type,
+          holder_id = excluded.holder_id,
+          holder_name = excluded.holder_name,
+          role = excluded.role,
+          percentage = excluded.percentage,
+          voting_percentage = excluded.voting_percentage,
+          end_date = excluded.end_date,
+          status = excluded.status,
+          ownership_model = excluded.ownership_model,
+          provenance_status = excluded.provenance_status`,
+      )
+      .run(
+        stake.id,
+        stake.clubId,
+        stake.holderType,
+        stake.holderId ?? null,
+        stake.holderName,
+        stake.role,
+        stake.percentage ?? null,
+        stake.votingPercentage ?? null,
+        stake.startDate,
+        stake.endDate ?? null,
+        stake.status,
+        stake.ownershipModel,
+        stake.provenanceStatus,
+      );
+  }
+
+  ownershipStakes(clubId?: EntityId): ClubOwnershipStake[] {
+    const rows = clubId
+      ? this.db
+          .prepare("SELECT * FROM club_ownership_stakes WHERE club_id = ? ORDER BY role, id")
+          .all(clubId)
+      : this.db.prepare("SELECT * FROM club_ownership_stakes ORDER BY club_id, role").all();
+    return rows.map(mapClubOwnershipStake);
+  }
+
+  upsertPersonalFinancialProfile(profile: PersonalFinancialProfile): void {
+    this.db
+      .prepare(
+        `INSERT INTO personal_financial_profiles
+        (person_id, cash, investments, assets, liabilities, net_worth, currency, last_updated_at, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(person_id) DO UPDATE SET
+          cash = excluded.cash,
+          investments = excluded.investments,
+          assets = excluded.assets,
+          liabilities = excluded.liabilities,
+          net_worth = excluded.net_worth,
+          currency = excluded.currency,
+          last_updated_at = excluded.last_updated_at,
+          status = excluded.status`,
+      )
+      .run(
+        profile.personId,
+        profile.cash,
+        profile.investments,
+        profile.assets,
+        profile.liabilities,
+        profile.netWorth,
+        profile.currency,
+        profile.lastUpdatedAt,
+        profile.status,
+      );
+  }
+
+  personalFinancialProfile(personId: EntityId): PersonalFinancialProfile | undefined {
+    const row = this.db
+      .prepare("SELECT * FROM personal_financial_profiles WHERE person_id = ?")
+      .get(personId) as any;
+    return row ? mapPersonalFinancialProfile(row) : undefined;
+  }
+
+  updatePersonalCash(personId: EntityId, delta: number, date: string): void {
+    this.db
+      .prepare(
+        `UPDATE personal_financial_profiles
+        SET cash = cash + ?,
+          net_worth = net_worth + ?,
+          last_updated_at = ?
+        WHERE person_id = ?`,
+      )
+      .run(delta, delta, date, personId);
+  }
+
+  insertOwnerInvestment(transaction: OwnerInvestmentTransaction): void {
+    this.db
+      .prepare(
+        `INSERT INTO owner_investment_transactions
+        (id, person_id, club_id, transaction_date, amount, currency, form,
+          personal_ledger_entry_id, club_ledger_entry_id, status, provenance_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO NOTHING`,
+      )
+      .run(
+        transaction.id,
+        transaction.personId,
+        transaction.clubId,
+        transaction.date,
+        transaction.amount,
+        transaction.currency,
+        transaction.form,
+        transaction.personalLedgerEntryId,
+        transaction.clubLedgerEntryId,
+        transaction.status,
+        transaction.provenanceStatus,
+      );
+  }
+
+  ownerInvestments(): OwnerInvestmentTransaction[] {
+    return this.db
+      .prepare("SELECT * FROM owner_investment_transactions ORDER BY transaction_date, id")
+      .all()
+      .map(mapOwnerInvestment);
+  }
+
+  upsertDebt(debt: ClubDebt): void {
+    this.db
+      .prepare(
+        `INSERT INTO club_debts
+        (id, club_id, lender_type, principal, outstanding_principal, interest_rate, currency,
+          start_date, maturity_date, repayment_schedule, status, provenance_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          outstanding_principal = excluded.outstanding_principal,
+          status = excluded.status`,
+      )
+      .run(
+        debt.id,
+        debt.clubId,
+        debt.lenderType,
+        debt.principal,
+        debt.outstandingPrincipal,
+        debt.interestRate,
+        debt.currency,
+        debt.startDate,
+        debt.maturityDate,
+        debt.repaymentSchedule,
+        debt.status,
+        debt.provenanceStatus,
+      );
+  }
+
+  debts(clubId?: EntityId): ClubDebt[] {
+    const rows = clubId
+      ? this.db
+          .prepare("SELECT * FROM club_debts WHERE club_id = ? ORDER BY start_date")
+          .all(clubId)
+      : this.db.prepare("SELECT * FROM club_debts ORDER BY club_id, start_date").all();
+    return rows.map(mapClubDebt);
+  }
+
+  upsertSponsor(sponsor: SponsorOrganisation): void {
+    this.db
+      .prepare(
+        `INSERT INTO sponsor_organisations
+        (id, name, industry, country_id, reputation, budget_tier, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          name = excluded.name,
+          industry = excluded.industry,
+          country_id = excluded.country_id,
+          reputation = excluded.reputation,
+          budget_tier = excluded.budget_tier,
+          status = excluded.status`,
+      )
+      .run(
+        sponsor.id,
+        sponsor.name,
+        sponsor.industry,
+        sponsor.countryId ?? null,
+        sponsor.reputation,
+        sponsor.budgetTier,
+        sponsor.status,
+      );
+  }
+
+  sponsors(): SponsorOrganisation[] {
+    return this.db
+      .prepare("SELECT * FROM sponsor_organisations ORDER BY name")
+      .all()
+      .map(mapSponsorOrganisation);
+  }
+
+  upsertSponsorship(contract: SponsorshipContract): void {
+    this.db
+      .prepare(
+        `INSERT INTO sponsorship_contracts
+        (id, club_id, sponsor_id, sponsorship_type, start_date, end_date, annual_value,
+          bonuses_json, currency, status, provenance_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          status = excluded.status,
+          annual_value = excluded.annual_value`,
+      )
+      .run(
+        contract.id,
+        contract.clubId,
+        contract.sponsorId,
+        contract.type,
+        contract.startDate,
+        contract.endDate,
+        contract.annualValue,
+        json.stringify(contract.bonuses),
+        contract.currency,
+        contract.status,
+        contract.provenanceStatus,
+      );
+  }
+
+  sponsorships(clubId?: EntityId): SponsorshipContract[] {
+    const rows = clubId
+      ? this.db
+          .prepare("SELECT * FROM sponsorship_contracts WHERE club_id = ? ORDER BY start_date")
+          .all(clubId)
+      : this.db.prepare("SELECT * FROM sponsorship_contracts ORDER BY club_id, start_date").all();
+    return rows.map(mapSponsorshipContract);
+  }
+
+  updateSponsorshipStatus(id: EntityId, status: SponsorshipContract["status"]): void {
+    this.db.prepare("UPDATE sponsorship_contracts SET status = ? WHERE id = ?").run(status, id);
+  }
+
+  upsertSupporterProfile(profile: ClubSupporterProfile): void {
+    this.db
+      .prepare(
+        `INSERT INTO club_supporter_profiles
+        (club_id, core_supporters, casual_supporters, regional_support, diaspora_support,
+          active_support, family_support, youth_support, club_popularity, football_reputation,
+          commercial_reputation, sentiment, standard_ticket_price, currency, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(club_id) DO UPDATE SET
+          core_supporters = excluded.core_supporters,
+          casual_supporters = excluded.casual_supporters,
+          regional_support = excluded.regional_support,
+          diaspora_support = excluded.diaspora_support,
+          active_support = excluded.active_support,
+          family_support = excluded.family_support,
+          youth_support = excluded.youth_support,
+          club_popularity = excluded.club_popularity,
+          football_reputation = excluded.football_reputation,
+          commercial_reputation = excluded.commercial_reputation,
+          sentiment = excluded.sentiment,
+          standard_ticket_price = excluded.standard_ticket_price,
+          currency = excluded.currency,
+          status = excluded.status`,
+      )
+      .run(
+        profile.clubId,
+        profile.coreSupporters,
+        profile.casualSupporters,
+        profile.regionalSupport,
+        profile.diasporaSupport,
+        profile.activeSupport,
+        profile.familySupport,
+        profile.youthSupport,
+        profile.clubPopularity,
+        profile.footballReputation,
+        profile.commercialReputation,
+        profile.sentiment,
+        profile.standardTicketPrice,
+        profile.currency,
+        profile.status,
+      );
+  }
+
+  supporterProfile(clubId: EntityId): ClubSupporterProfile | undefined {
+    const row = this.db
+      .prepare("SELECT * FROM club_supporter_profiles WHERE club_id = ?")
+      .get(clubId) as any;
+    return row ? mapClubSupporterProfile(row) : undefined;
+  }
+
+  supporterProfiles(): ClubSupporterProfile[] {
+    return this.db
+      .prepare("SELECT * FROM club_supporter_profiles ORDER BY club_id")
+      .all()
+      .map(mapClubSupporterProfile);
+  }
+
+  upsertFacilityProfile(profile: ClubFacilityProfile): void {
+    this.db
+      .prepare(
+        `INSERT INTO club_facility_profiles
+        (club_id, training_facility_quality, youth_facility_quality, medical_facility_quality,
+          analytics_facility_quality, academy_capacity, monthly_operating_cost, currency, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(club_id) DO UPDATE SET
+          training_facility_quality = excluded.training_facility_quality,
+          youth_facility_quality = excluded.youth_facility_quality,
+          medical_facility_quality = excluded.medical_facility_quality,
+          analytics_facility_quality = excluded.analytics_facility_quality,
+          academy_capacity = excluded.academy_capacity,
+          monthly_operating_cost = excluded.monthly_operating_cost,
+          currency = excluded.currency,
+          status = excluded.status`,
+      )
+      .run(
+        profile.clubId,
+        profile.trainingFacilityQuality,
+        profile.youthFacilityQuality,
+        profile.medicalFacilityQuality,
+        profile.analyticsFacilityQuality,
+        profile.academyCapacity,
+        profile.monthlyOperatingCost,
+        profile.currency,
+        profile.status,
+      );
+  }
+
+  facilityProfile(clubId: EntityId): ClubFacilityProfile | undefined {
+    const row = this.db
+      .prepare("SELECT * FROM club_facility_profiles WHERE club_id = ?")
+      .get(clubId) as any;
+    return row ? mapClubFacilityProfile(row) : undefined;
+  }
+
+  upsertInfrastructureProject(project: InfrastructureProject): void {
+    this.db
+      .prepare(
+        `INSERT INTO infrastructure_projects
+        (id, club_id, project_type, location_id, venue_id, planning_start, construction_start,
+          expected_completion, completed_at, capital_cost, ongoing_cost, currency, status,
+          financing_json, provenance_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          construction_start = excluded.construction_start,
+          expected_completion = excluded.expected_completion,
+          completed_at = excluded.completed_at,
+          status = excluded.status`,
+      )
+      .run(
+        project.id,
+        project.clubId,
+        project.projectType,
+        project.locationId ?? null,
+        project.venueId ?? null,
+        project.planningStart,
+        project.constructionStart ?? null,
+        project.expectedCompletion,
+        project.completedAt ?? null,
+        project.capitalCost,
+        project.ongoingCost,
+        project.currency,
+        project.status,
+        json.stringify(project.financingJson),
+        project.provenanceStatus,
+      );
+  }
+
+  infrastructureProjects(clubId?: EntityId): InfrastructureProject[] {
+    const rows = clubId
+      ? this.db
+          .prepare(
+            "SELECT * FROM infrastructure_projects WHERE club_id = ? ORDER BY planning_start",
+          )
+          .all(clubId)
+      : this.db
+          .prepare("SELECT * FROM infrastructure_projects ORDER BY club_id, planning_start")
+          .all();
+    return rows.map(mapInfrastructureProject);
+  }
+
+  upsertAsset(asset: ClubAsset): void {
+    this.db
+      .prepare(
+        `INSERT INTO club_assets
+        (id, club_id, asset_type, ownership, location_id, venue_id, estimated_value, currency, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          ownership = excluded.ownership,
+          estimated_value = excluded.estimated_value,
+          status = excluded.status`,
+      )
+      .run(
+        asset.id,
+        asset.clubId,
+        asset.assetType,
+        asset.ownership,
+        asset.locationId ?? null,
+        asset.venueId ?? null,
+        asset.estimatedValue,
+        asset.currency,
+        asset.status,
+      );
+  }
+
+  assets(clubId?: EntityId): ClubAsset[] {
+    const rows = clubId
+      ? this.db
+          .prepare("SELECT * FROM club_assets WHERE club_id = ? ORDER BY asset_type")
+          .all(clubId)
+      : this.db.prepare("SELECT * FROM club_assets ORDER BY club_id, asset_type").all();
+    return rows.map(mapClubAsset);
+  }
+
+  upsertValuation(valuation: ClubValuation): void {
+    this.db
+      .prepare(
+        `INSERT INTO club_valuations
+        (club_id, valuation, currency, calculated_at, method, status)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(club_id) DO UPDATE SET
+          valuation = excluded.valuation,
+          calculated_at = excluded.calculated_at,
+          method = excluded.method,
+          status = excluded.status`,
+      )
+      .run(
+        valuation.clubId,
+        valuation.valuation,
+        valuation.currency,
+        valuation.calculatedAt,
+        valuation.method,
+        valuation.status,
+      );
+  }
+
+  valuation(clubId: EntityId): ClubValuation | undefined {
+    const row = this.db
+      .prepare("SELECT * FROM club_valuations WHERE club_id = ?")
+      .get(clubId) as any;
+    return row ? mapClubValuation(row) : undefined;
+  }
+
+  upsertBoardPolicy(policy: ClubBoardPolicy): void {
+    this.db
+      .prepare(
+        `INSERT INTO club_board_policies
+        (club_id, financial_risk_tolerance, transfer_philosophy, youth_priority,
+          commercial_priority, infrastructure_priority, strategic_objective, chairman_person_id,
+          updated_at, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(club_id) DO UPDATE SET
+          financial_risk_tolerance = excluded.financial_risk_tolerance,
+          transfer_philosophy = excluded.transfer_philosophy,
+          youth_priority = excluded.youth_priority,
+          commercial_priority = excluded.commercial_priority,
+          infrastructure_priority = excluded.infrastructure_priority,
+          strategic_objective = excluded.strategic_objective,
+          chairman_person_id = excluded.chairman_person_id,
+          updated_at = excluded.updated_at,
+          status = excluded.status`,
+      )
+      .run(
+        policy.clubId,
+        policy.financialRiskTolerance,
+        policy.transferPhilosophy,
+        policy.youthPriority,
+        policy.commercialPriority,
+        policy.infrastructurePriority,
+        policy.strategicObjective,
+        policy.chairmanPersonId ?? null,
+        policy.updatedAt,
+        policy.status,
+      );
+  }
+
+  boardPolicy(clubId: EntityId): ClubBoardPolicy | undefined {
+    const row = this.db
+      .prepare("SELECT * FROM club_board_policies WHERE club_id = ?")
+      .get(clubId) as any;
+    return row ? mapClubBoardPolicy(row) : undefined;
+  }
+
+  upsertFinancialStatement(statement: ClubFinancialStatement): void {
+    this.db
+      .prepare(
+        `INSERT INTO club_financial_statements
+        (id, club_id, season_label, opening_cash, revenue_by_category_json, expenses_by_category_json,
+          operating_profit, transfer_profit_loss, net_profit_loss, closing_cash, debt, currency,
+          closed_at, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(club_id, season_label) DO UPDATE SET
+          revenue_by_category_json = excluded.revenue_by_category_json,
+          expenses_by_category_json = excluded.expenses_by_category_json,
+          operating_profit = excluded.operating_profit,
+          transfer_profit_loss = excluded.transfer_profit_loss,
+          net_profit_loss = excluded.net_profit_loss,
+          closing_cash = excluded.closing_cash,
+          debt = excluded.debt,
+          closed_at = excluded.closed_at`,
+      )
+      .run(
+        statement.id,
+        statement.clubId,
+        statement.seasonLabel,
+        statement.openingCash,
+        json.stringify(statement.revenueByCategory),
+        json.stringify(statement.expensesByCategory),
+        statement.operatingProfit,
+        statement.transferProfitLoss,
+        statement.netProfitLoss,
+        statement.closingCash,
+        statement.debt,
+        statement.currency,
+        statement.closedAt,
+        statement.status,
+      );
+  }
+
+  financialStatements(clubId?: EntityId): ClubFinancialStatement[] {
+    const rows = clubId
+      ? this.db
+          .prepare(
+            "SELECT * FROM club_financial_statements WHERE club_id = ? ORDER BY season_label",
+          )
+          .all(clubId)
+      : this.db
+          .prepare("SELECT * FROM club_financial_statements ORDER BY club_id, season_label")
+          .all();
+    return rows.map(mapClubFinancialStatement);
   }
 }
 

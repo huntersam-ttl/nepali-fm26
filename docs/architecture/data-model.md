@@ -118,6 +118,33 @@
 
 - `FinanceAccount`: separate owner account for `PERSON`, `CLUB`, or `FEDERATION`.
 - `FinancialTransaction`: account movement with date, amount, currency, category, optional description, and optional related entity.
+- `ClubFinancialAccount`: club-only institutional account with cash, restricted cash, receivables,
+  payables, debt, equity, current-season revenue/expenses/profit, financial health, and provenance
+  status.
+- `ClubLedgerEntry`: auditable club money movement. Balances are updated from posted credit/debit
+  entries for matchday revenue, sponsorship, prize money, transfers, wages, facilities, travel, owner
+  investment, debt, grants, fines, and other categories.
+- `ClubBudget`: season spending envelope for wages, transfers, staff, academy, facilities, scouting,
+  and marketing. Budgets are board limits, not cash balances.
+- `ClubOwnershipStake`: ownership/board stake for people, organisations, government bodies,
+  communities, or unknown holders. Ownership model controls buyability and prevents departmental or
+  state-controlled clubs from behaving like private companies.
+- `PersonalFinancialProfile`: separate person-level cash, investments, assets, liabilities, and net
+  worth for chairman/owner play.
+- `OwnerInvestmentTransaction`: explicit bridge from personal cash into club cash as equity,
+  shareholder loan, donation, or capital injection.
+- `ClubDebt`: bank/finance/shareholder/short-term debt with principal, outstanding principal,
+  interest rate, maturity, repayment schedule, and status.
+- `SponsorOrganisation` and `SponsorshipContract`: simulation-world sponsors and club deals. Generated
+  sponsor names avoid unlicensed real trademarks and are marked `SIMULATION_ONLY`.
+- `ClubSupporterProfile`: aggregate supporter segments, popularity, commercial reputation, sentiment,
+  and standard ticket price.
+- `ClubFacilityProfile`: simulation-only training, youth, medical, analytics, academy capacity, and
+  monthly operating-cost hooks separate from researched venue facts.
+- `InfrastructureProject`: project-based infrastructure with planning/construction/completion dates,
+  capital/ongoing costs, location/venue links, financing mix, and status.
+- `ClubAsset`, `ClubValuation`, `ClubBoardPolicy`, and `ClubFinancialStatement`: assets, simulation
+  valuation, board priorities, and annual financial close history for chairman mode.
 
 ## Social, Promise, and History
 
