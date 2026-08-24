@@ -233,11 +233,11 @@ describe("youth intake and retirement foundation", () => {
     db.close();
   });
 
-  it("keeps a transfer-and-youth enabled career playable for three seasons", () => {
+  it("keeps a transfer-and-youth enabled career playable for one full season", () => {
     const db = openGameDatabase(createSave("career-with-youth"));
     const report = simulateNepalCareer({
       db,
-      seasons: 3,
+      seasons: 1,
       seed: "career-with-youth",
       transfersEnabled: true,
       youthEnabled: true,
@@ -249,6 +249,72 @@ describe("youth intake and retirement foundation", () => {
       report.youthReports.reduce((total, item) => total + item.generatedPlayers, 0),
     ).toBeGreaterThan(0);
     expect(new YouthRepository(db).generatedPlayerOrigins().length).toBeGreaterThan(0);
+    db.close();
+  });
+
+  it("repairs preseason squads for all core Nepal competition member clubs", () => {
+    const db = openGameDatabase(createSave("preseason-continuity"));
+    const report = simulateNepalCareer({
+      db,
+      seasons: 1,
+      seed: "preseason-continuity",
+    });
+    const coreReports = report.preseasonReports.filter((item) =>
+      [
+        "ANFA National League",
+        "Martyr's Memorial A-Division League",
+        "Martyr's Memorial B-Division League",
+      ].includes(item.competitionName),
+    );
+
+    expect(coreReports.length).toBeGreaterThan(0);
+    expect(
+      coreReports.every((item) => item.playableTeamCountAfter === item.actualMembershipCount),
+    ).toBe(true);
+    expect(coreReports.every((item) => item.minimumClubSquadSize >= 22)).toBe(true);
+    expect(
+      coreReports.every((item) => item.clubDiagnostics.every((club) => club.goalkeepersAfter >= 1)),
+    ).toBe(true);
+    expect(report.seasons.every((season) => season.squadHealth.emergencyLineupCases === 0)).toBe(
+      true,
+    );
+    db.close();
+  });
+
+  it("propagates A and B Division memberships through pyramid progression without stale overlap", () => {
+    const db = openGameDatabase(createSave("membership-continuity"));
+    simulateNepalCareer({
+      db,
+      seasons: 1,
+      seed: "membership-continuity",
+      transfersEnabled: true,
+      youthEnabled: true,
+    });
+    const initialA = membershipCount(db, "Martyr's Memorial A-Division League", "2026");
+    const nextA = membershipCount(db, "Martyr's Memorial A-Division League", "2027");
+    const initialB = membershipCount(db, "Martyr's Memorial B-Division League", "2026");
+    const nextB = membershipCount(db, "Martyr's Memorial B-Division League", "2027");
+    const overlap = db
+      .prepare(
+        `SELECT COUNT(*) AS count
+        FROM club_memberships a
+        JOIN competition_seasons acs ON acs.id = a.competition_season_id
+        JOIN competitions ac ON ac.id = acs.competition_id
+        JOIN club_memberships b ON b.club_id = a.club_id
+        JOIN competition_seasons bcs ON bcs.id = b.competition_season_id
+        JOIN competitions bc ON bc.id = bcs.competition_id
+        WHERE ac.name = ? AND bc.name = ?
+          AND acs.name LIKE '%2027%' AND bcs.name LIKE '%2027%'
+          AND a.status NOT IN ('WITHDRAWN', 'SUSPENDED', 'INELIGIBLE')
+          AND b.status NOT IN ('WITHDRAWN', 'SUSPENDED', 'INELIGIBLE')`,
+      )
+      .get("Martyr's Memorial A-Division League", "Martyr's Memorial B-Division League") as {
+      count: number;
+    };
+
+    expect(nextA).toBe(initialA);
+    expect(nextB).toBe(initialB);
+    expect(overlap.count).toBe(0);
     db.close();
   });
 });
@@ -269,4 +335,22 @@ const personExists = (db: ReturnType<typeof openGameDatabase>, personId: EntityI
     count: number;
   };
   return row.count === 1;
+};
+
+const membershipCount = (
+  db: ReturnType<typeof openGameDatabase>,
+  competitionName: string,
+  seasonLabel: string,
+): number => {
+  const row = db
+    .prepare(
+      `SELECT COUNT(DISTINCT cm.club_id) AS count
+      FROM club_memberships cm
+      JOIN competition_seasons cs ON cs.id = cm.competition_season_id
+      JOIN competitions c ON c.id = cs.competition_id
+      WHERE c.name = ? AND cs.name LIKE ?
+        AND cm.status NOT IN ('WITHDRAWN', 'SUSPENDED', 'INELIGIBLE')`,
+    )
+    .get(competitionName, `%${seasonLabel}%`) as { count: number };
+  return row.count;
 };

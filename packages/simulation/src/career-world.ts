@@ -20,6 +20,10 @@ import {
 } from "@nepal-football-sim/database";
 import { generateLeagueFixtures } from "./fixture-generation.js";
 import { simulateMatch } from "./match-engine.js";
+import {
+  repairPreseasonContinuity,
+  type PreseasonContinuityReport,
+} from "./preseason-continuity.js";
 import { updatePlayerDevelopment } from "./player-development.js";
 import { progressPyramidSeason, persistPyramidProgression } from "./pyramid-progression.js";
 import {
@@ -36,7 +40,14 @@ import {
 } from "./youth-intake.js";
 
 export type CompetitionSeasonLifecycleStatus =
-  "NOT_STARTED" | "SCHEDULED" | "IN_PROGRESS" | "COMPLETED" | "ROLLED_OVER";
+  | "NOT_STARTED"
+  | "READY"
+  | "SCHEDULED"
+  | "IN_PROGRESS"
+  | "COMPLETED"
+  | "ROLLED_OVER"
+  | "INVALID_MEMBERSHIP"
+  | "SUSPENDED";
 
 export type CareerSeasonReport = {
   seasonId: EntityId;
@@ -89,8 +100,21 @@ export type CareerSimulationReport = {
   seasonsRequested: number;
   seasons: CareerSeasonReport[];
   youthReports: YouthAnnualReport[];
+  preseasonReports: PreseasonContinuityReport[];
   runnableCompetitions: string[];
-  skippedCompetitions: Array<{ seasonId: EntityId; seasonName: string; reason: string }>;
+  skippedCompetitions: SkippedCompetitionReport[];
+};
+
+export type SkippedCompetitionReport = {
+  seasonId: EntityId;
+  seasonName: string;
+  competitionName: string;
+  reason: string;
+  membershipTeams: number;
+  playableTeams: number;
+  minimumRequiredTeams: number;
+  clubsBelowMinimumSquad: number;
+  clubsWithoutGoalkeeper: number;
 };
 
 type RunnableSeason = {
@@ -115,6 +139,7 @@ export const simulateNepalCareer = (input: {
   const save = loadSave(input.db);
   const reports: CareerSeasonReport[] = [];
   const youthReports: YouthAnnualReport[] = [];
+  const preseasonReports: PreseasonContinuityReport[] = [];
   const skippedCompetitions: CareerSimulationReport["skippedCompetitions"] = [];
 
   ensureRecruitmentFoundation(input.db, save.worldDate, input.seed);
@@ -124,6 +149,14 @@ export const simulateNepalCareer = (input: {
   if (input.transfersEnabled) {
     initializeTransferMarketForSave({ db: input.db, worldDate: save.worldDate, seed: input.seed });
   }
+  preseasonReports.push(
+    ...repairPreseasonContinuity({
+      db: input.db,
+      competitionSeasonIds: pendingCompetitionSeasonIds(input.db, input.competitionSeasonId),
+      date: save.worldDate,
+      seed: `${input.seed}:preseason:initial`,
+    }),
+  );
 
   let activeSeasons = runnableSeasons(input.db, input.competitionSeasonId, skippedCompetitions);
   const runnableCompetitions = [...new Set(activeSeasons.map((season) => season.competitionName))];
@@ -190,6 +223,14 @@ export const simulateNepalCareer = (input: {
       );
       entityCache.delete(input.db);
     }
+    preseasonReports.push(
+      ...repairPreseasonContinuity({
+        db: input.db,
+        competitionSeasonIds: [...nextSeasons.values()].map((season) => season.id),
+        date: addDays(latestSeasonEnd(activeSeasons), 60),
+        seed: `${input.seed}:preseason:${index}`,
+      }),
+    );
     activeSeasons = runnableSeasons(
       input.db,
       input.competitionSeasonId,
@@ -213,6 +254,7 @@ export const simulateNepalCareer = (input: {
     seasonsRequested: input.seasons,
     seasons: reports,
     youthReports,
+    preseasonReports,
     runnableCompetitions,
     skippedCompetitions,
   };
@@ -481,6 +523,8 @@ const runnableSeasons = (
   skipped: CareerSimulationReport["skippedCompetitions"],
 ): RunnableSeason[] => {
   const competitionRepo = new CompetitionRepository(db);
+  const world = new WorldRepository(db);
+  const players = new PlayerRepository(db);
   const skippedKeys = new Set(skipped.map((item) => item.seasonId));
   const seasons = allCompetitionSeasons(db).filter(
     (season) =>
@@ -493,13 +537,37 @@ const runnableSeasons = (
     if (seasonState(db, season.id)?.status === "ROLLED_OVER") {
       continue;
     }
+    const competition = competitionName(db, season.competitionId);
     const ruleSet = competitionRepo.getRuleSet(season.id);
-    const teamIds = new WorldRepository(db)
-      .teamsForCompetitionSeason(season.id)
-      .map((team) => team.id)
-      .filter((teamId) => new PlayerRepository(db).attributesForTeam(teamId).length >= 11);
+    const membershipTeamIds = world.teamsForCompetitionSeason(season.id).map((team) => team.id);
+    const squadDiagnostics = membershipTeamIds.map((teamId) => {
+      const attributes = players.attributesForTeam(teamId);
+      return {
+        teamId,
+        players: attributes.length,
+        goalkeepers: attributes.filter((player) => player.primaryPosition === "GK").length,
+      };
+    });
+    const teamIds = squadDiagnostics
+      .filter((diagnostic) => diagnostic.players >= 11)
+      .map((diagnostic) => diagnostic.teamId);
     if (!ruleSet) {
-      skipped.push({ seasonId: season.id, seasonName: season.name, reason: "missing rule set" });
+      if (!skippedKeys.has(season.id)) {
+        skipped.push({
+          seasonId: season.id,
+          seasonName: season.name,
+          competitionName: competition,
+          reason: "missing rule set",
+          membershipTeams: membershipTeamIds.length,
+          playableTeams: teamIds.length,
+          minimumRequiredTeams: 2,
+          clubsBelowMinimumSquad: squadDiagnostics.filter((diagnostic) => diagnostic.players < 11)
+            .length,
+          clubsWithoutGoalkeeper: squadDiagnostics.filter(
+            (diagnostic) => diagnostic.goalkeepers === 0,
+          ).length,
+        });
+      }
       continue;
     }
     if (teamIds.length < 2) {
@@ -507,20 +575,46 @@ const runnableSeasons = (
         skipped.push({
           seasonId: season.id,
           seasonName: season.name,
-          reason: "fewer than two teams have imported playable squads",
+          competitionName: competition,
+          reason:
+            membershipTeamIds.length < 2
+              ? "fewer than two active membership teams"
+              : "fewer than two playable squads after preseason repair",
+          membershipTeams: membershipTeamIds.length,
+          playableTeams: teamIds.length,
+          minimumRequiredTeams: 2,
+          clubsBelowMinimumSquad: squadDiagnostics.filter((diagnostic) => diagnostic.players < 11)
+            .length,
+          clubsWithoutGoalkeeper: squadDiagnostics.filter(
+            (diagnostic) => diagnostic.goalkeepers === 0,
+          ).length,
         });
       }
       continue;
     }
     runnable.push({
       season,
-      competitionName: competitionName(db, season.competitionId),
+      competitionName: competition,
       ruleSet,
       teamIds,
     });
   }
   return runnable;
 };
+
+const pendingCompetitionSeasonIds = (
+  db: GameDatabase,
+  requestedSeasonId: EntityId | undefined,
+): EntityId[] =>
+  allCompetitionSeasons(db)
+    .filter(
+      (season) =>
+        requestedSeasonId === undefined ||
+        season.id === requestedSeasonId ||
+        season.id === createStableEntityId("competition-season", requestedSeasonId),
+    )
+    .filter((season) => seasonState(db, season.id)?.status !== "ROLLED_OVER")
+    .map((season) => season.id);
 
 const createNextSeasons = (
   db: GameDatabase,
@@ -541,14 +635,6 @@ const createNextSeasons = (
     if (!world.getCompetitionSeason(nextSeason.id)) {
       world.insertCompetitionSeason(nextSeason);
       copyRuleSet(db, item.ruleSet, nextSeason);
-      for (const membership of world.clubMembershipsForCompetitionSeason(item.season.id)) {
-        world.insertClubMembership({
-          ...membership,
-          id: createStableEntityId("club-membership", `${membership.clubId}:${nextSeason.id}`),
-          competitionSeasonId: nextSeason.id,
-          status: "ACTIVE",
-        });
-      }
       ensureSeasonState(db, nextSeason);
     }
     nextByCompetition.set(item.season.competitionId, nextSeason);
