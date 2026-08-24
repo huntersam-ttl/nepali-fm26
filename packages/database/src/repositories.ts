@@ -28,7 +28,23 @@ import type {
   CompetitionRelationship,
   Country,
   CountryDevelopmentProfile,
+  ClubLicensingAssessment,
+  CoachEducationProgramme,
   Federation,
+  FederationAsset,
+  FederationBudget,
+  FederationCommittee,
+  FederationFinancialAccount,
+  FederationFinancialStatement,
+  FederationGrantDistribution,
+  FederationKPI,
+  FederationLeadershipTenure,
+  FederationLedgerEntry,
+  FederationObjective,
+  FederationProject,
+  FederationSimulationProfile,
+  FederationSponsorshipContract,
+  FederationStrategyPriority,
   FinanceAccount,
   FinancialTransaction,
   HistoricalEvent,
@@ -44,6 +60,7 @@ import type {
   ScoutingAssignment,
   ScoutingStaffSimulationProfile,
   CompetitionRegistration,
+  CompetitionReformProposal,
   StaffAppointment,
   StaffHistoryEvent,
   StaffLicence,
@@ -66,6 +83,10 @@ import type {
   ManagerProfile,
   Match,
   MatchEvent,
+  NationalTeamAppearance,
+  NationalTeamCallup,
+  NationalTeamFixture,
+  OrganisationRelationship,
   OwnerInvestmentTransaction,
   PersonalFinancialProfile,
   PlayerAttributeSet,
@@ -75,7 +96,9 @@ import type {
   PlayerKnowledge,
   PlayerLoanRecord,
   PlayerRetirementRecord,
+  PlayerInternationalEligibility,
   RefereeProfile,
+  RefereeDevelopmentProgramme,
   RetiredStaffTransition,
   PlayerPotential,
   PlayerPlayingTimeSnapshot,
@@ -4344,6 +4367,1288 @@ export class ClubEconomyRepository {
     return rows.map(mapClubFinancialStatement);
   }
 }
+
+export class FederationGovernanceRepository {
+  constructor(private readonly db: GameDatabase) {}
+
+  upsertProfile(profile: FederationSimulationProfile): void {
+    this.db
+      .prepare(
+        `INSERT INTO federation_simulation_profiles
+        (federation_id, country_id, reputation, financial_health, grassroots_development,
+          youth_development, coach_education, referee_development, competition_organisation,
+          commercial_strength, international_relations, governance_stability, infrastructure_level,
+          last_updated_at, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(federation_id) DO UPDATE SET
+          reputation = excluded.reputation,
+          financial_health = excluded.financial_health,
+          grassroots_development = excluded.grassroots_development,
+          youth_development = excluded.youth_development,
+          coach_education = excluded.coach_education,
+          referee_development = excluded.referee_development,
+          competition_organisation = excluded.competition_organisation,
+          commercial_strength = excluded.commercial_strength,
+          international_relations = excluded.international_relations,
+          governance_stability = excluded.governance_stability,
+          infrastructure_level = excluded.infrastructure_level,
+          last_updated_at = excluded.last_updated_at,
+          status = excluded.status`,
+      )
+      .run(
+        profile.federationId,
+        profile.countryId,
+        profile.reputation,
+        profile.financialHealth,
+        profile.grassrootsDevelopment,
+        profile.youthDevelopment,
+        profile.coachEducation,
+        profile.refereeDevelopment,
+        profile.competitionOrganisation,
+        profile.commercialStrength,
+        profile.internationalRelations,
+        profile.governanceStability,
+        profile.infrastructureLevel,
+        profile.lastUpdatedAt,
+        profile.status,
+      );
+  }
+
+  profile(federationId: EntityId): FederationSimulationProfile | undefined {
+    const row = this.db
+      .prepare("SELECT * FROM federation_simulation_profiles WHERE federation_id = ?")
+      .get(federationId) as any;
+    return row ? mapFederationSimulationProfile(row) : undefined;
+  }
+
+  upsertFinancialAccount(account: FederationFinancialAccount): void {
+    this.db
+      .prepare(
+        `INSERT INTO federation_financial_accounts
+        (federation_id, currency, cash_balance, restricted_funds, receivables, payables, debt,
+          season_revenue, season_expenses, season_profit_loss, financial_health, last_updated_at,
+          status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(federation_id) DO UPDATE SET
+          cash_balance = excluded.cash_balance,
+          restricted_funds = excluded.restricted_funds,
+          receivables = excluded.receivables,
+          payables = excluded.payables,
+          debt = excluded.debt,
+          season_revenue = excluded.season_revenue,
+          season_expenses = excluded.season_expenses,
+          season_profit_loss = excluded.season_profit_loss,
+          financial_health = excluded.financial_health,
+          last_updated_at = excluded.last_updated_at,
+          status = excluded.status`,
+      )
+      .run(
+        account.federationId,
+        account.currency,
+        account.cashBalance,
+        account.restrictedFunds,
+        account.receivables,
+        account.payables,
+        account.debt,
+        account.seasonRevenue,
+        account.seasonExpenses,
+        account.seasonProfitLoss,
+        account.financialHealth,
+        account.lastUpdatedAt,
+        account.status,
+      );
+  }
+
+  financialAccount(federationId: EntityId): FederationFinancialAccount | undefined {
+    const row = this.db
+      .prepare("SELECT * FROM federation_financial_accounts WHERE federation_id = ?")
+      .get(federationId) as any;
+    return row ? mapFederationFinancialAccount(row) : undefined;
+  }
+
+  financialAccounts(): FederationFinancialAccount[] {
+    return this.db
+      .prepare("SELECT * FROM federation_financial_accounts ORDER BY federation_id")
+      .all()
+      .map(mapFederationFinancialAccount);
+  }
+
+  postLedgerEntry(entry: FederationLedgerEntry): void {
+    const result = this.db
+      .prepare(
+        `INSERT INTO federation_ledger_entries
+        (id, federation_id, entry_date, category, direction, amount, currency, description,
+          related_entity_id, restriction_tag, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO NOTHING`,
+      )
+      .run(
+        entry.id,
+        entry.federationId,
+        entry.date,
+        entry.category,
+        entry.direction,
+        entry.amount,
+        entry.currency,
+        entry.description,
+        entry.relatedEntityId ?? null,
+        entry.restrictionTag ?? null,
+        entry.status,
+      );
+    if (result.changes === 0) return;
+    const delta = entry.direction === "CREDIT" ? entry.amount : -entry.amount;
+    this.db
+      .prepare(
+        `UPDATE federation_financial_accounts
+        SET cash_balance = cash_balance + ?,
+          season_revenue = season_revenue + ?,
+          season_expenses = season_expenses + ?,
+          season_profit_loss = season_profit_loss + ?,
+          financial_health = CASE
+            WHEN cash_balance + ? - debt < 0 THEN 'INSOLVENT'
+            WHEN cash_balance + ? - debt < 800000 THEN 'DISTRESSED'
+            WHEN cash_balance + ? - debt < 2500000 THEN 'TIGHT'
+            WHEN cash_balance + ? - debt < 9000000 THEN 'STABLE'
+            WHEN cash_balance + ? - debt < 22000000 THEN 'HEALTHY'
+            ELSE 'EXCELLENT'
+          END,
+          last_updated_at = ?
+        WHERE federation_id = ?`,
+      )
+      .run(
+        delta,
+        entry.direction === "CREDIT" ? entry.amount : 0,
+        entry.direction === "DEBIT" ? entry.amount : 0,
+        delta,
+        delta,
+        delta,
+        delta,
+        delta,
+        delta,
+        entry.date,
+        entry.federationId,
+      );
+  }
+
+  ledgerEntries(federationId?: EntityId): FederationLedgerEntry[] {
+    const rows = federationId
+      ? this.db
+          .prepare(
+            "SELECT * FROM federation_ledger_entries WHERE federation_id = ? ORDER BY entry_date, id",
+          )
+          .all(federationId)
+      : this.db
+          .prepare("SELECT * FROM federation_ledger_entries ORDER BY federation_id, entry_date, id")
+          .all();
+    return rows.map(mapFederationLedgerEntry);
+  }
+
+  upsertBudget(budget: FederationBudget): void {
+    this.db
+      .prepare(
+        `INSERT INTO federation_budgets
+        (id, federation_id, season_label, category, amount, used_amount, currency, status,
+          provenance_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(federation_id, season_label, category) DO UPDATE SET
+          amount = excluded.amount,
+          used_amount = excluded.used_amount,
+          status = excluded.status`,
+      )
+      .run(
+        budget.id,
+        budget.federationId,
+        budget.seasonLabel,
+        budget.category,
+        budget.amount,
+        budget.usedAmount,
+        budget.currency,
+        budget.status,
+        budget.provenanceStatus,
+      );
+  }
+
+  budgets(federationId?: EntityId): FederationBudget[] {
+    const rows = federationId
+      ? this.db
+          .prepare("SELECT * FROM federation_budgets WHERE federation_id = ? ORDER BY season_label")
+          .all(federationId)
+      : this.db
+          .prepare("SELECT * FROM federation_budgets ORDER BY federation_id, season_label")
+          .all();
+    return rows.map(mapFederationBudget);
+  }
+
+  addBudgetUsage(
+    federationId: EntityId,
+    seasonLabel: string,
+    category: FederationBudget["category"],
+    amount: number,
+  ): void {
+    this.db
+      .prepare(
+        `UPDATE federation_budgets
+        SET used_amount = used_amount + ?
+        WHERE federation_id = ? AND season_label = ? AND category = ?`,
+      )
+      .run(amount, federationId, seasonLabel, category);
+  }
+
+  upsertLeadershipTenure(tenure: FederationLeadershipTenure): void {
+    this.db
+      .prepare(
+        `INSERT INTO federation_leadership_tenures
+        (id, person_id, federation_id, role, term_start, term_end, status, provenance_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET term_end = excluded.term_end, status = excluded.status`,
+      )
+      .run(
+        tenure.id,
+        tenure.personId,
+        tenure.federationId,
+        tenure.role,
+        tenure.termStart,
+        tenure.termEnd ?? null,
+        tenure.status,
+        tenure.provenanceStatus,
+      );
+  }
+
+  leadershipTenures(federationId?: EntityId): FederationLeadershipTenure[] {
+    const rows = federationId
+      ? this.db
+          .prepare(
+            "SELECT * FROM federation_leadership_tenures WHERE federation_id = ? ORDER BY term_start",
+          )
+          .all(federationId)
+      : this.db
+          .prepare("SELECT * FROM federation_leadership_tenures ORDER BY federation_id, term_start")
+          .all();
+    return rows.map(mapFederationLeadershipTenure);
+  }
+
+  upsertCommittee(committee: FederationCommittee): void {
+    this.db
+      .prepare(
+        `INSERT INTO federation_committees
+        (id, federation_id, committee_type, name, chair_person_id, status, provenance_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(federation_id, committee_type) DO UPDATE SET
+          name = excluded.name,
+          chair_person_id = excluded.chair_person_id,
+          status = excluded.status`,
+      )
+      .run(
+        committee.id,
+        committee.federationId,
+        committee.committeeType,
+        committee.name,
+        committee.chairPersonId ?? null,
+        committee.status,
+        committee.provenanceStatus,
+      );
+  }
+
+  committees(federationId?: EntityId): FederationCommittee[] {
+    const rows = federationId
+      ? this.db
+          .prepare(
+            "SELECT * FROM federation_committees WHERE federation_id = ? ORDER BY committee_type",
+          )
+          .all(federationId)
+      : this.db
+          .prepare("SELECT * FROM federation_committees ORDER BY federation_id, committee_type")
+          .all();
+    return rows.map(mapFederationCommittee);
+  }
+
+  upsertStrategyPriority(priority: FederationStrategyPriority): void {
+    this.db
+      .prepare(
+        `INSERT INTO federation_strategy_priorities
+        (id, federation_id, priority, weight, effective_from, effective_to, status,
+          provenance_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET weight = excluded.weight, effective_to = excluded.effective_to,
+          status = excluded.status`,
+      )
+      .run(
+        priority.id,
+        priority.federationId,
+        priority.priority,
+        priority.weight,
+        priority.effectiveFrom,
+        priority.effectiveTo ?? null,
+        priority.status,
+        priority.provenanceStatus,
+      );
+  }
+
+  strategyPriorities(federationId?: EntityId): FederationStrategyPriority[] {
+    const rows = federationId
+      ? this.db
+          .prepare(
+            "SELECT * FROM federation_strategy_priorities WHERE federation_id = ? ORDER BY effective_from, priority",
+          )
+          .all(federationId)
+      : this.db
+          .prepare(
+            "SELECT * FROM federation_strategy_priorities ORDER BY federation_id, effective_from",
+          )
+          .all();
+    return rows.map(mapFederationStrategyPriority);
+  }
+
+  upsertProject(project: FederationProject): void {
+    this.db
+      .prepare(
+        `INSERT INTO federation_projects
+        (id, federation_id, project_type, name, location_id, target_province_id, target_district_id,
+          academy_id, start_date, expected_completion, completed_at, capital_cost,
+          annual_operating_cost, currency, status, impact_json, funding_json, provenance_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          expected_completion = excluded.expected_completion,
+          completed_at = excluded.completed_at,
+          status = excluded.status,
+          impact_json = excluded.impact_json`,
+      )
+      .run(
+        project.id,
+        project.federationId,
+        project.projectType,
+        project.name,
+        project.locationId ?? null,
+        project.targetProvinceId ?? null,
+        project.targetDistrictId ?? null,
+        project.academyId ?? null,
+        project.startDate,
+        project.expectedCompletion,
+        project.completedAt ?? null,
+        project.capitalCost,
+        project.annualOperatingCost,
+        project.currency,
+        project.status,
+        json.stringify(project.impactJson),
+        json.stringify(project.fundingJson),
+        project.provenanceStatus,
+      );
+  }
+
+  projects(federationId?: EntityId): FederationProject[] {
+    const rows = federationId
+      ? this.db
+          .prepare("SELECT * FROM federation_projects WHERE federation_id = ? ORDER BY start_date")
+          .all(federationId)
+      : this.db
+          .prepare("SELECT * FROM federation_projects ORDER BY federation_id, start_date")
+          .all();
+    return rows.map(mapFederationProject);
+  }
+
+  upsertAsset(asset: FederationAsset): void {
+    this.db
+      .prepare(
+        `INSERT INTO federation_assets
+        (id, federation_id, asset_type, ownership, location_id, academy_id, estimated_value,
+          currency, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET ownership = excluded.ownership,
+          estimated_value = excluded.estimated_value,
+          status = excluded.status`,
+      )
+      .run(
+        asset.id,
+        asset.federationId,
+        asset.assetType,
+        asset.ownership,
+        asset.locationId ?? null,
+        asset.academyId ?? null,
+        asset.estimatedValue,
+        asset.currency,
+        asset.status,
+      );
+  }
+
+  assets(federationId?: EntityId): FederationAsset[] {
+    const rows = federationId
+      ? this.db
+          .prepare("SELECT * FROM federation_assets WHERE federation_id = ? ORDER BY asset_type")
+          .all(federationId)
+      : this.db.prepare("SELECT * FROM federation_assets ORDER BY federation_id, asset_type").all();
+    return rows.map(mapFederationAsset);
+  }
+
+  upsertCompetitionReform(reform: CompetitionReformProposal): void {
+    this.db
+      .prepare(
+        `INSERT INTO competition_reform_proposals
+        (id, federation_id, competition_id, effective_season, changes_json, status, proposed_at,
+          decided_at, provenance_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET changes_json = excluded.changes_json,
+          status = excluded.status,
+          decided_at = excluded.decided_at`,
+      )
+      .run(
+        reform.id,
+        reform.federationId,
+        reform.competitionId,
+        reform.effectiveSeason,
+        json.stringify(reform.changes),
+        reform.status,
+        reform.proposedAt,
+        reform.decidedAt ?? null,
+        reform.provenanceStatus,
+      );
+  }
+
+  competitionReforms(federationId?: EntityId): CompetitionReformProposal[] {
+    const rows = federationId
+      ? this.db
+          .prepare(
+            "SELECT * FROM competition_reform_proposals WHERE federation_id = ? ORDER BY effective_season",
+          )
+          .all(federationId)
+      : this.db
+          .prepare(
+            "SELECT * FROM competition_reform_proposals ORDER BY federation_id, effective_season",
+          )
+          .all();
+    return rows.map(mapCompetitionReformProposal);
+  }
+
+  upsertClubLicensingAssessment(assessment: ClubLicensingAssessment): void {
+    this.db
+      .prepare(
+        `INSERT INTO club_licensing_assessments
+        (id, federation_id, club_id, season_label, financial, stadium, youth, medical,
+          administrative, coaching, legal, overall, assessed_at, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(federation_id, club_id, season_label) DO UPDATE SET
+          financial = excluded.financial,
+          stadium = excluded.stadium,
+          youth = excluded.youth,
+          medical = excluded.medical,
+          administrative = excluded.administrative,
+          coaching = excluded.coaching,
+          legal = excluded.legal,
+          overall = excluded.overall,
+          assessed_at = excluded.assessed_at`,
+      )
+      .run(
+        assessment.id,
+        assessment.federationId,
+        assessment.clubId,
+        assessment.seasonLabel,
+        assessment.financial,
+        assessment.stadium,
+        assessment.youth,
+        assessment.medical,
+        assessment.administrative,
+        assessment.coaching,
+        assessment.legal,
+        assessment.overall,
+        assessment.assessedAt,
+        assessment.status,
+      );
+  }
+
+  licensingAssessments(federationId?: EntityId): ClubLicensingAssessment[] {
+    const rows = federationId
+      ? this.db
+          .prepare(
+            "SELECT * FROM club_licensing_assessments WHERE federation_id = ? ORDER BY season_label, club_id",
+          )
+          .all(federationId)
+      : this.db
+          .prepare(
+            "SELECT * FROM club_licensing_assessments ORDER BY federation_id, season_label, club_id",
+          )
+          .all();
+    return rows.map(mapClubLicensingAssessment);
+  }
+
+  insertGrantDistribution(grant: FederationGrantDistribution): void {
+    this.db
+      .prepare(
+        `INSERT INTO federation_grant_distributions
+        (id, federation_id, club_id, grant_date, grant_type, amount, currency,
+          federation_ledger_entry_id, club_ledger_entry_id, status, provenance_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO NOTHING`,
+      )
+      .run(
+        grant.id,
+        grant.federationId,
+        grant.clubId,
+        grant.date,
+        grant.grantType,
+        grant.amount,
+        grant.currency,
+        grant.federationLedgerEntryId,
+        grant.clubLedgerEntryId,
+        grant.status,
+        grant.provenanceStatus,
+      );
+  }
+
+  grantDistributions(federationId?: EntityId): FederationGrantDistribution[] {
+    const rows = federationId
+      ? this.db
+          .prepare(
+            "SELECT * FROM federation_grant_distributions WHERE federation_id = ? ORDER BY grant_date",
+          )
+          .all(federationId)
+      : this.db
+          .prepare(
+            "SELECT * FROM federation_grant_distributions ORDER BY federation_id, grant_date",
+          )
+          .all();
+    return rows.map(mapFederationGrantDistribution);
+  }
+
+  upsertNationalTeamCallup(callup: NationalTeamCallup): void {
+    this.db
+      .prepare(
+        `INSERT INTO national_team_callups
+        (id, national_team_id, player_id, callup_date, programme, squad_type, status,
+          provenance_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET status = excluded.status, squad_type = excluded.squad_type`,
+      )
+      .run(
+        callup.id,
+        callup.nationalTeamId,
+        callup.playerId,
+        callup.callupDate,
+        callup.programme,
+        callup.squadType,
+        callup.status,
+        callup.provenanceStatus,
+      );
+  }
+
+  nationalTeamCallups(teamId?: EntityId): NationalTeamCallup[] {
+    const rows = teamId
+      ? this.db
+          .prepare(
+            "SELECT * FROM national_team_callups WHERE national_team_id = ? ORDER BY callup_date",
+          )
+          .all(teamId)
+      : this.db
+          .prepare("SELECT * FROM national_team_callups ORDER BY national_team_id, callup_date")
+          .all();
+    return rows.map(mapNationalTeamCallup);
+  }
+
+  insertNationalTeamAppearance(appearance: NationalTeamAppearance): void {
+    this.db
+      .prepare(
+        `INSERT INTO national_team_appearances
+        (id, national_team_id, player_id, match_date, opponent_name, minutes, goals, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO NOTHING`,
+      )
+      .run(
+        appearance.id,
+        appearance.nationalTeamId,
+        appearance.playerId,
+        appearance.matchDate,
+        appearance.opponentName,
+        appearance.minutes,
+        appearance.goals,
+        appearance.status,
+      );
+  }
+
+  nationalTeamAppearances(teamId?: EntityId): NationalTeamAppearance[] {
+    const rows = teamId
+      ? this.db
+          .prepare(
+            "SELECT * FROM national_team_appearances WHERE national_team_id = ? ORDER BY match_date",
+          )
+          .all(teamId)
+      : this.db
+          .prepare("SELECT * FROM national_team_appearances ORDER BY national_team_id, match_date")
+          .all();
+    return rows.map(mapNationalTeamAppearance);
+  }
+
+  upsertNationalTeamFixture(fixture: NationalTeamFixture): void {
+    this.db
+      .prepare(
+        `INSERT INTO national_team_fixtures
+        (id, federation_id, national_team_id, opponent_name, fixture_date, fixture_type, venue_id,
+          status, home_goals, away_goals, estimated_cost, estimated_revenue, currency,
+          provenance_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET status = excluded.status,
+          home_goals = excluded.home_goals,
+          away_goals = excluded.away_goals`,
+      )
+      .run(
+        fixture.id,
+        fixture.federationId,
+        fixture.nationalTeamId,
+        fixture.opponentName,
+        fixture.fixtureDate,
+        fixture.fixtureType,
+        fixture.venueId ?? null,
+        fixture.status,
+        fixture.homeGoals ?? null,
+        fixture.awayGoals ?? null,
+        fixture.estimatedCost,
+        fixture.estimatedRevenue,
+        fixture.currency,
+        fixture.provenanceStatus,
+      );
+  }
+
+  nationalTeamFixtures(teamId?: EntityId): NationalTeamFixture[] {
+    const rows = teamId
+      ? this.db
+          .prepare(
+            "SELECT * FROM national_team_fixtures WHERE national_team_id = ? ORDER BY fixture_date",
+          )
+          .all(teamId)
+      : this.db
+          .prepare("SELECT * FROM national_team_fixtures ORDER BY national_team_id, fixture_date")
+          .all();
+    return rows.map(mapNationalTeamFixture);
+  }
+
+  upsertInternationalEligibility(eligibility: PlayerInternationalEligibility): void {
+    this.db
+      .prepare(
+        `INSERT INTO player_international_eligibilities
+        (id, player_id, federation_id, eligibility_status, documentation_status, discovered_via,
+          last_reviewed_at, provenance_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(player_id, federation_id) DO UPDATE SET
+          eligibility_status = excluded.eligibility_status,
+          documentation_status = excluded.documentation_status,
+          discovered_via = excluded.discovered_via,
+          last_reviewed_at = excluded.last_reviewed_at`,
+      )
+      .run(
+        eligibility.id,
+        eligibility.playerId,
+        eligibility.federationId,
+        eligibility.status,
+        eligibility.documentationStatus,
+        eligibility.discoveredVia,
+        eligibility.lastReviewedAt,
+        eligibility.provenanceStatus,
+      );
+  }
+
+  internationalEligibilities(federationId?: EntityId): PlayerInternationalEligibility[] {
+    const rows = federationId
+      ? this.db
+          .prepare(
+            "SELECT * FROM player_international_eligibilities WHERE federation_id = ? ORDER BY player_id",
+          )
+          .all(federationId)
+      : this.db
+          .prepare(
+            "SELECT * FROM player_international_eligibilities ORDER BY federation_id, player_id",
+          )
+          .all();
+    return rows.map(mapPlayerInternationalEligibility);
+  }
+
+  upsertCoachEducationProgramme(programme: CoachEducationProgramme): void {
+    this.db
+      .prepare(
+        `INSERT INTO coach_education_programmes
+        (id, federation_id, licence_level, start_date, end_date, capacity, cost, graduates,
+          currency, status, provenance_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET graduates = excluded.graduates, status = excluded.status`,
+      )
+      .run(
+        programme.id,
+        programme.federationId,
+        programme.licenceLevel,
+        programme.startDate,
+        programme.endDate,
+        programme.capacity,
+        programme.cost,
+        programme.graduates,
+        programme.currency,
+        programme.status,
+        programme.provenanceStatus,
+      );
+  }
+
+  coachEducationProgrammes(federationId?: EntityId): CoachEducationProgramme[] {
+    const rows = federationId
+      ? this.db
+          .prepare(
+            "SELECT * FROM coach_education_programmes WHERE federation_id = ? ORDER BY start_date",
+          )
+          .all(federationId)
+      : this.db
+          .prepare("SELECT * FROM coach_education_programmes ORDER BY federation_id, start_date")
+          .all();
+    return rows.map(mapCoachEducationProgramme);
+  }
+
+  upsertRefereeDevelopmentProgramme(programme: RefereeDevelopmentProgramme): void {
+    this.db
+      .prepare(
+        `INSERT INTO referee_development_programmes
+        (id, federation_id, programme_type, start_date, end_date, capacity, cost,
+          referees_advanced, currency, status, provenance_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          referees_advanced = excluded.referees_advanced,
+          status = excluded.status`,
+      )
+      .run(
+        programme.id,
+        programme.federationId,
+        programme.programmeType,
+        programme.startDate,
+        programme.endDate,
+        programme.capacity,
+        programme.cost,
+        programme.refereesAdvanced,
+        programme.currency,
+        programme.status,
+        programme.provenanceStatus,
+      );
+  }
+
+  refereeDevelopmentProgrammes(federationId?: EntityId): RefereeDevelopmentProgramme[] {
+    const rows = federationId
+      ? this.db
+          .prepare(
+            "SELECT * FROM referee_development_programmes WHERE federation_id = ? ORDER BY start_date",
+          )
+          .all(federationId)
+      : this.db
+          .prepare(
+            "SELECT * FROM referee_development_programmes ORDER BY federation_id, start_date",
+          )
+          .all();
+    return rows.map(mapRefereeDevelopmentProgramme);
+  }
+
+  upsertOrganisationRelationship(relationship: OrganisationRelationship): void {
+    this.db
+      .prepare(
+        `INSERT INTO organisation_relationships
+        (id, federation_id, organisation_name, relationship_type, support_level, trust,
+          funding_relationship, updated_at, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(federation_id, organisation_name) DO UPDATE SET
+          support_level = excluded.support_level,
+          trust = excluded.trust,
+          funding_relationship = excluded.funding_relationship,
+          updated_at = excluded.updated_at`,
+      )
+      .run(
+        relationship.id,
+        relationship.federationId,
+        relationship.organisationName,
+        relationship.relationshipType,
+        relationship.supportLevel,
+        relationship.trust,
+        relationship.fundingRelationship,
+        relationship.updatedAt,
+        relationship.status,
+      );
+  }
+
+  organisationRelationships(federationId?: EntityId): OrganisationRelationship[] {
+    const rows = federationId
+      ? this.db
+          .prepare(
+            "SELECT * FROM organisation_relationships WHERE federation_id = ? ORDER BY organisation_name",
+          )
+          .all(federationId)
+      : this.db
+          .prepare(
+            "SELECT * FROM organisation_relationships ORDER BY federation_id, organisation_name",
+          )
+          .all();
+    return rows.map(mapOrganisationRelationship);
+  }
+
+  upsertFederationSponsorship(contract: FederationSponsorshipContract): void {
+    this.db
+      .prepare(
+        `INSERT INTO federation_sponsorship_contracts
+        (id, federation_id, sponsor_id, sponsorship_type, start_date, end_date, annual_value,
+          currency, status, provenance_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET annual_value = excluded.annual_value, status = excluded.status`,
+      )
+      .run(
+        contract.id,
+        contract.federationId,
+        contract.sponsorId,
+        contract.type,
+        contract.startDate,
+        contract.endDate,
+        contract.annualValue,
+        contract.currency,
+        contract.status,
+        contract.provenanceStatus,
+      );
+  }
+
+  federationSponsorships(federationId?: EntityId): FederationSponsorshipContract[] {
+    const rows = federationId
+      ? this.db
+          .prepare(
+            "SELECT * FROM federation_sponsorship_contracts WHERE federation_id = ? ORDER BY start_date",
+          )
+          .all(federationId)
+      : this.db
+          .prepare(
+            "SELECT * FROM federation_sponsorship_contracts ORDER BY federation_id, start_date",
+          )
+          .all();
+    return rows.map(mapFederationSponsorshipContract);
+  }
+
+  upsertObjective(objective: FederationObjective): void {
+    this.db
+      .prepare(
+        `INSERT INTO federation_objectives
+        (id, federation_id, objective, cycle_start, cycle_end, progress, status, provenance_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET progress = excluded.progress, status = excluded.status`,
+      )
+      .run(
+        objective.id,
+        objective.federationId,
+        objective.objective,
+        objective.cycleStart,
+        objective.cycleEnd,
+        objective.progress,
+        objective.status,
+        objective.provenanceStatus,
+      );
+  }
+
+  objectives(federationId?: EntityId): FederationObjective[] {
+    const rows = federationId
+      ? this.db
+          .prepare(
+            "SELECT * FROM federation_objectives WHERE federation_id = ? ORDER BY cycle_start",
+          )
+          .all(federationId)
+      : this.db
+          .prepare("SELECT * FROM federation_objectives ORDER BY federation_id, cycle_start")
+          .all();
+    return rows.map(mapFederationObjective);
+  }
+
+  upsertKpi(kpi: FederationKPI): void {
+    this.db
+      .prepare(
+        `INSERT INTO federation_kpis
+        (id, federation_id, season_label, metric, metric_value, measured_at, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(federation_id, season_label, metric) DO UPDATE SET
+          metric_value = excluded.metric_value,
+          measured_at = excluded.measured_at`,
+      )
+      .run(
+        kpi.id,
+        kpi.federationId,
+        kpi.seasonLabel,
+        kpi.metric,
+        kpi.value,
+        kpi.measuredAt,
+        kpi.status,
+      );
+  }
+
+  kpis(federationId?: EntityId): FederationKPI[] {
+    const rows = federationId
+      ? this.db
+          .prepare(
+            "SELECT * FROM federation_kpis WHERE federation_id = ? ORDER BY season_label, metric",
+          )
+          .all(federationId)
+      : this.db
+          .prepare("SELECT * FROM federation_kpis ORDER BY federation_id, season_label, metric")
+          .all();
+    return rows.map(mapFederationKpi);
+  }
+
+  upsertFinancialStatement(statement: FederationFinancialStatement): void {
+    this.db
+      .prepare(
+        `INSERT INTO federation_financial_statements
+        (id, federation_id, season_label, opening_cash, revenue_by_category_json,
+          expenses_by_category_json, programme_spending, national_team_spending,
+          competition_spending, infrastructure_spending, net_profit_loss, closing_cash, debt,
+          currency, closed_at, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(federation_id, season_label) DO UPDATE SET
+          revenue_by_category_json = excluded.revenue_by_category_json,
+          expenses_by_category_json = excluded.expenses_by_category_json,
+          programme_spending = excluded.programme_spending,
+          national_team_spending = excluded.national_team_spending,
+          competition_spending = excluded.competition_spending,
+          infrastructure_spending = excluded.infrastructure_spending,
+          net_profit_loss = excluded.net_profit_loss,
+          closing_cash = excluded.closing_cash,
+          debt = excluded.debt,
+          closed_at = excluded.closed_at`,
+      )
+      .run(
+        statement.id,
+        statement.federationId,
+        statement.seasonLabel,
+        statement.openingCash,
+        json.stringify(statement.revenueByCategory),
+        json.stringify(statement.expensesByCategory),
+        statement.programmeSpending,
+        statement.nationalTeamSpending,
+        statement.competitionSpending,
+        statement.infrastructureSpending,
+        statement.netProfitLoss,
+        statement.closingCash,
+        statement.debt,
+        statement.currency,
+        statement.closedAt,
+        statement.status,
+      );
+  }
+
+  financialStatements(federationId?: EntityId): FederationFinancialStatement[] {
+    const rows = federationId
+      ? this.db
+          .prepare(
+            "SELECT * FROM federation_financial_statements WHERE federation_id = ? ORDER BY season_label",
+          )
+          .all(federationId)
+      : this.db
+          .prepare(
+            "SELECT * FROM federation_financial_statements ORDER BY federation_id, season_label",
+          )
+          .all();
+    return rows.map(mapFederationFinancialStatement);
+  }
+}
+
+const mapFederationSimulationProfile = (row: any): FederationSimulationProfile => ({
+  federationId: row.federation_id,
+  countryId: row.country_id,
+  reputation: row.reputation,
+  financialHealth: row.financial_health,
+  grassrootsDevelopment: row.grassroots_development,
+  youthDevelopment: row.youth_development,
+  coachEducation: row.coach_education,
+  refereeDevelopment: row.referee_development,
+  competitionOrganisation: row.competition_organisation,
+  commercialStrength: row.commercial_strength,
+  internationalRelations: row.international_relations,
+  governanceStability: row.governance_stability,
+  infrastructureLevel: row.infrastructure_level,
+  lastUpdatedAt: row.last_updated_at,
+  status: row.status,
+});
+
+const mapFederationFinancialAccount = (row: any): FederationFinancialAccount => ({
+  federationId: row.federation_id,
+  currency: row.currency,
+  cashBalance: row.cash_balance,
+  restrictedFunds: row.restricted_funds,
+  receivables: row.receivables,
+  payables: row.payables,
+  debt: row.debt,
+  seasonRevenue: row.season_revenue,
+  seasonExpenses: row.season_expenses,
+  seasonProfitLoss: row.season_profit_loss,
+  financialHealth: row.financial_health,
+  lastUpdatedAt: row.last_updated_at,
+  status: row.status,
+});
+
+const mapFederationLedgerEntry = (row: any): FederationLedgerEntry => ({
+  id: row.id,
+  federationId: row.federation_id,
+  date: row.entry_date,
+  category: row.category,
+  direction: row.direction,
+  amount: row.amount,
+  currency: row.currency,
+  description: row.description,
+  relatedEntityId: row.related_entity_id ?? undefined,
+  restrictionTag: row.restriction_tag ?? undefined,
+  status: row.status,
+});
+
+const mapFederationBudget = (row: any): FederationBudget => ({
+  id: row.id,
+  federationId: row.federation_id,
+  seasonLabel: row.season_label,
+  category: row.category,
+  amount: row.amount,
+  usedAmount: row.used_amount,
+  currency: row.currency,
+  status: row.status,
+  provenanceStatus: row.provenance_status,
+});
+
+const mapFederationLeadershipTenure = (row: any): FederationLeadershipTenure => ({
+  id: row.id,
+  personId: row.person_id,
+  federationId: row.federation_id,
+  role: row.role,
+  termStart: row.term_start,
+  termEnd: row.term_end ?? undefined,
+  status: row.status,
+  provenanceStatus: row.provenance_status,
+});
+
+const mapFederationCommittee = (row: any): FederationCommittee => ({
+  id: row.id,
+  federationId: row.federation_id,
+  committeeType: row.committee_type,
+  name: row.name,
+  chairPersonId: row.chair_person_id ?? undefined,
+  status: row.status,
+  provenanceStatus: row.provenance_status,
+});
+
+const mapFederationStrategyPriority = (row: any): FederationStrategyPriority => ({
+  id: row.id,
+  federationId: row.federation_id,
+  priority: row.priority,
+  weight: row.weight,
+  effectiveFrom: row.effective_from,
+  effectiveTo: row.effective_to ?? undefined,
+  status: row.status,
+  provenanceStatus: row.provenance_status,
+});
+
+const mapFederationProject = (row: any): FederationProject => ({
+  id: row.id,
+  federationId: row.federation_id,
+  projectType: row.project_type,
+  name: row.name,
+  locationId: row.location_id ?? undefined,
+  targetProvinceId: row.target_province_id ?? undefined,
+  targetDistrictId: row.target_district_id ?? undefined,
+  academyId: row.academy_id ?? undefined,
+  startDate: row.start_date,
+  expectedCompletion: row.expected_completion,
+  completedAt: row.completed_at ?? undefined,
+  capitalCost: row.capital_cost,
+  annualOperatingCost: row.annual_operating_cost,
+  currency: row.currency,
+  status: row.status,
+  impactJson: json.parse<Record<string, number>>(row.impact_json, {}),
+  fundingJson: json.parse<Record<string, number>>(row.funding_json, {}),
+  provenanceStatus: row.provenance_status,
+});
+
+const mapFederationAsset = (row: any): FederationAsset => ({
+  id: row.id,
+  federationId: row.federation_id,
+  assetType: row.asset_type,
+  ownership: row.ownership,
+  locationId: row.location_id ?? undefined,
+  academyId: row.academy_id ?? undefined,
+  estimatedValue: row.estimated_value,
+  currency: row.currency,
+  status: row.status,
+});
+
+const mapCompetitionReformProposal = (row: any): CompetitionReformProposal => ({
+  id: row.id,
+  federationId: row.federation_id,
+  competitionId: row.competition_id,
+  effectiveSeason: row.effective_season,
+  changes: json.parse(row.changes_json, {}),
+  status: row.status,
+  proposedAt: row.proposed_at,
+  decidedAt: row.decided_at ?? undefined,
+  provenanceStatus: row.provenance_status,
+});
+
+const mapClubLicensingAssessment = (row: any): ClubLicensingAssessment => ({
+  id: row.id,
+  federationId: row.federation_id,
+  clubId: row.club_id,
+  seasonLabel: row.season_label,
+  financial: row.financial,
+  stadium: row.stadium,
+  youth: row.youth,
+  medical: row.medical,
+  administrative: row.administrative,
+  coaching: row.coaching,
+  legal: row.legal,
+  overall: row.overall,
+  assessedAt: row.assessed_at,
+  status: row.status,
+});
+
+const mapFederationGrantDistribution = (row: any): FederationGrantDistribution => ({
+  id: row.id,
+  federationId: row.federation_id,
+  clubId: row.club_id,
+  date: row.grant_date,
+  grantType: row.grant_type,
+  amount: row.amount,
+  currency: row.currency,
+  federationLedgerEntryId: row.federation_ledger_entry_id,
+  clubLedgerEntryId: row.club_ledger_entry_id,
+  status: row.status,
+  provenanceStatus: row.provenance_status,
+});
+
+const mapNationalTeamCallup = (row: any): NationalTeamCallup => ({
+  id: row.id,
+  nationalTeamId: row.national_team_id,
+  playerId: row.player_id,
+  callupDate: row.callup_date,
+  programme: row.programme,
+  squadType: row.squad_type,
+  status: row.status,
+  provenanceStatus: row.provenance_status,
+});
+
+const mapNationalTeamAppearance = (row: any): NationalTeamAppearance => ({
+  id: row.id,
+  nationalTeamId: row.national_team_id,
+  playerId: row.player_id,
+  matchDate: row.match_date,
+  opponentName: row.opponent_name,
+  minutes: row.minutes,
+  goals: row.goals,
+  status: row.status,
+});
+
+const mapNationalTeamFixture = (row: any): NationalTeamFixture => ({
+  id: row.id,
+  federationId: row.federation_id,
+  nationalTeamId: row.national_team_id,
+  opponentName: row.opponent_name,
+  fixtureDate: row.fixture_date,
+  fixtureType: row.fixture_type,
+  venueId: row.venue_id ?? undefined,
+  status: row.status,
+  homeGoals: row.home_goals ?? undefined,
+  awayGoals: row.away_goals ?? undefined,
+  estimatedCost: row.estimated_cost,
+  estimatedRevenue: row.estimated_revenue,
+  currency: row.currency,
+  provenanceStatus: row.provenance_status,
+});
+
+const mapPlayerInternationalEligibility = (row: any): PlayerInternationalEligibility => ({
+  id: row.id,
+  playerId: row.player_id,
+  federationId: row.federation_id,
+  status: row.eligibility_status,
+  documentationStatus: row.documentation_status,
+  discoveredVia: row.discovered_via,
+  lastReviewedAt: row.last_reviewed_at,
+  provenanceStatus: row.provenance_status,
+});
+
+const mapCoachEducationProgramme = (row: any): CoachEducationProgramme => ({
+  id: row.id,
+  federationId: row.federation_id,
+  licenceLevel: row.licence_level,
+  startDate: row.start_date,
+  endDate: row.end_date,
+  capacity: row.capacity,
+  cost: row.cost,
+  graduates: row.graduates,
+  currency: row.currency,
+  status: row.status,
+  provenanceStatus: row.provenance_status,
+});
+
+const mapRefereeDevelopmentProgramme = (row: any): RefereeDevelopmentProgramme => ({
+  id: row.id,
+  federationId: row.federation_id,
+  programmeType: row.programme_type,
+  startDate: row.start_date,
+  endDate: row.end_date,
+  capacity: row.capacity,
+  cost: row.cost,
+  refereesAdvanced: row.referees_advanced,
+  currency: row.currency,
+  status: row.status,
+  provenanceStatus: row.provenance_status,
+});
+
+const mapOrganisationRelationship = (row: any): OrganisationRelationship => ({
+  id: row.id,
+  federationId: row.federation_id,
+  organisationName: row.organisation_name,
+  relationshipType: row.relationship_type,
+  supportLevel: row.support_level,
+  trust: row.trust,
+  fundingRelationship: row.funding_relationship,
+  updatedAt: row.updated_at,
+  status: row.status,
+});
+
+const mapFederationSponsorshipContract = (row: any): FederationSponsorshipContract => ({
+  id: row.id,
+  federationId: row.federation_id,
+  sponsorId: row.sponsor_id,
+  type: row.sponsorship_type,
+  startDate: row.start_date,
+  endDate: row.end_date,
+  annualValue: row.annual_value,
+  currency: row.currency,
+  status: row.status,
+  provenanceStatus: row.provenance_status,
+});
+
+const mapFederationObjective = (row: any): FederationObjective => ({
+  id: row.id,
+  federationId: row.federation_id,
+  objective: row.objective,
+  cycleStart: row.cycle_start,
+  cycleEnd: row.cycle_end,
+  progress: row.progress,
+  status: row.status,
+  provenanceStatus: row.provenance_status,
+});
+
+const mapFederationKpi = (row: any): FederationKPI => ({
+  id: row.id,
+  federationId: row.federation_id,
+  seasonLabel: row.season_label,
+  metric: row.metric,
+  value: row.metric_value,
+  measuredAt: row.measured_at,
+  status: row.status,
+});
+
+const mapFederationFinancialStatement = (row: any): FederationFinancialStatement => ({
+  id: row.id,
+  federationId: row.federation_id,
+  seasonLabel: row.season_label,
+  openingCash: row.opening_cash,
+  revenueByCategory: json.parse(row.revenue_by_category_json, {}),
+  expensesByCategory: json.parse(row.expenses_by_category_json, {}),
+  programmeSpending: row.programme_spending,
+  nationalTeamSpending: row.national_team_spending,
+  competitionSpending: row.competition_spending,
+  infrastructureSpending: row.infrastructure_spending,
+  netProfitLoss: row.net_profit_loss,
+  closingCash: row.closing_cash,
+  debt: row.debt,
+  currency: row.currency,
+  closedAt: row.closed_at,
+  status: row.status,
+});
 
 export class EventRepository {
   constructor(private readonly db: GameDatabase) {}

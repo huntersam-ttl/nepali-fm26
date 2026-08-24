@@ -4,6 +4,7 @@ export * from "./club-economy.js";
 export * from "./demo-league.js";
 export * from "./desktop-application.js";
 export * from "./fixture-generation.js";
+export * from "./federation-governance.js";
 export * from "./manager-career.js";
 export * from "./manager-flow.js";
 export * from "./match-environment.js";

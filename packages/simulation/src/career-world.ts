@@ -26,6 +26,11 @@ import {
   processClubEconomyMonth,
 } from "./club-economy.js";
 import { generateLeagueFixtures } from "./fixture-generation.js";
+import {
+  closeFederationFinancialSeason,
+  initializeFederationGovernanceForSave,
+  processFederationMonth,
+} from "./federation-governance.js";
 import { simulateMatch } from "./match-engine.js";
 import {
   repairPreseasonContinuity,
@@ -143,6 +148,7 @@ export const simulateNepalCareer = (input: {
   transfersEnabled?: boolean;
   youthEnabled?: boolean;
   economyEnabled?: boolean;
+  federationEnabled?: boolean;
 }): CareerSimulationReport => {
   const save = loadSave(input.db);
   const reports: CareerSeasonReport[] = [];
@@ -150,8 +156,16 @@ export const simulateNepalCareer = (input: {
   const preseasonReports: PreseasonContinuityReport[] = [];
   const skippedCompetitions: CareerSimulationReport["skippedCompetitions"] = [];
   const economyEnabled = input.economyEnabled !== false;
+  const federationEnabled = input.federationEnabled !== false;
 
   ensureRecruitmentFoundation(input.db, save.worldDate, input.seed);
+  if (federationEnabled) {
+    initializeFederationGovernanceForSave({
+      db: input.db,
+      worldDate: save.worldDate,
+      seed: input.seed,
+    });
+  }
   if (economyEnabled) {
     initializeClubEconomyForSave({ db: input.db, worldDate: save.worldDate, seed: input.seed });
   }
@@ -242,6 +256,12 @@ export const simulateNepalCareer = (input: {
         seed: `${input.seed}:economy:${index}`,
       });
     }
+    if (federationEnabled) {
+      processFederationForSeasonPeriod(input.db, {
+        seasonEndDate: latestSeasonEnd(activeSeasons),
+        seed: `${input.seed}:federation:${index}`,
+      });
+    }
     preseasonReports.push(
       ...repairPreseasonContinuity({
         db: input.db,
@@ -304,6 +324,30 @@ const processEconomyForSeasonPeriod = (
     });
   }
   closeClubFinancialSeason(db, {
+    seasonLabel: String(endYear),
+    date: input.seasonEndDate,
+  });
+};
+
+const processFederationForSeasonPeriod = (
+  db: GameDatabase,
+  input: { seasonEndDate: string; seed: string },
+): void => {
+  const endYear = Number(input.seasonEndDate.slice(0, 4));
+  const startYear = endYear - 1;
+  for (const month of [8, 9, 10, 11, 12]) {
+    processFederationMonth(db, {
+      date: `${startYear}-${String(month).padStart(2, "0")}-28`,
+      seed: `${input.seed}:${month}`,
+    });
+  }
+  for (const month of [1, 2, 3, 4, 5, 6, 7]) {
+    processFederationMonth(db, {
+      date: `${endYear}-${String(month).padStart(2, "0")}-28`,
+      seed: `${input.seed}:${month}`,
+    });
+  }
+  closeFederationFinancialSeason(db, {
     seasonLabel: String(endYear),
     date: input.seasonEndDate,
   });

@@ -246,3 +246,17 @@ budgets, valuations, and board policies are deterministic `SIMULATION_ONLY` game
 club financial accounts are not reliably sourced. Departmental clubs use restricted ownership models
 and institutional-funding assumptions so Army, Police, and APF do not behave like buyable private
 companies. Facility investment is project-based and time-based rather than an instant generic upgrade.
+
+## ADR-030: Federation mode is a separate institutional authority
+
+Federation president mode controls the national football system through ANFA's federation entity,
+not through club ownership or personal wealth. Federation finances use their own account and ledger.
+Any club support must be represented as two auditable entries: a federation debit and a club credit.
+No federation transaction may credit a personal financial profile.
+
+Federation gameplay changes future policy rather than rewriting history. Competition reforms are
+stored as proposals with effective seasons and are applied through existing competition rule sets and
+pyramid progression data. Played historical seasons are skipped. Development projects, youth
+investment, coach education, referee development, national-team activity, commercial work, and
+relationships produce gradual simulation-world effects through persistent profiles, KPIs, and annual
+financial statements rather than instant one-off boosts.

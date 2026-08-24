@@ -2233,6 +2233,455 @@ export type FinancialTransaction = {
   relatedEntity?: EntityRef;
 };
 
+export type FederationFinancialHealth =
+  "EXCELLENT" | "HEALTHY" | "STABLE" | "TIGHT" | "DISTRESSED" | "INSOLVENT";
+
+export type FederationSimulationProfile = {
+  federationId: EntityId;
+  countryId: EntityId;
+  reputation: number;
+  financialHealth: FederationFinancialHealth;
+  grassrootsDevelopment: number;
+  youthDevelopment: number;
+  coachEducation: number;
+  refereeDevelopment: number;
+  competitionOrganisation: number;
+  commercialStrength: number;
+  internationalRelations: number;
+  governanceStability: number;
+  infrastructureLevel: number;
+  lastUpdatedAt: ISODate;
+  status: "SIMULATION_ONLY";
+};
+
+export type FederationFinancialAccount = {
+  federationId: EntityId;
+  currency: string;
+  cashBalance: number;
+  restrictedFunds: number;
+  receivables: number;
+  payables: number;
+  debt: number;
+  seasonRevenue: number;
+  seasonExpenses: number;
+  seasonProfitLoss: number;
+  financialHealth: FederationFinancialHealth;
+  lastUpdatedAt: ISODate;
+  status: "SIMULATION_ONLY";
+};
+
+export type FederationLedgerCategory =
+  | "FIFA_GRANT"
+  | "AFC_GRANT"
+  | "GOVERNMENT_GRANT"
+  | "SPONSORSHIP"
+  | "BROADCASTING"
+  | "STREAMING"
+  | "MATCH_REVENUE"
+  | "COMPETITION_FEES"
+  | "REGISTRATION_FEES"
+  | "FINES"
+  | "TOURNAMENT_DISTRIBUTION"
+  | "PRIZE_DISTRIBUTION"
+  | "CLUB_GRANTS"
+  | "NATIONAL_TEAM_COST"
+  | "PLAYER_ALLOWANCES"
+  | "TRAVEL"
+  | "STAFF_WAGES"
+  | "YOUTH_DEVELOPMENT"
+  | "GRASSROOTS"
+  | "COACH_EDUCATION"
+  | "REFEREE_DEVELOPMENT"
+  | "INFRASTRUCTURE"
+  | "ACADEMY"
+  | "ADMINISTRATION"
+  | "MARKETING"
+  | "MEDICAL"
+  | "COMMERCIAL"
+  | "OTHER";
+
+export type FederationLedgerDirection = "CREDIT" | "DEBIT";
+
+export type FederationLedgerEntry = {
+  id: EntityId;
+  federationId: EntityId;
+  date: ISODate;
+  category: FederationLedgerCategory;
+  direction: FederationLedgerDirection;
+  amount: number;
+  currency: string;
+  description: string;
+  relatedEntityId?: EntityId;
+  restrictionTag?: string;
+  status: "SIMULATION_ONLY";
+};
+
+export type FederationBudgetCategory =
+  | "NATIONAL_TEAMS"
+  | "YOUTH_DEVELOPMENT"
+  | "GRASSROOTS"
+  | "COACH_EDUCATION"
+  | "REFEREE_DEVELOPMENT"
+  | "COMPETITIONS"
+  | "INFRASTRUCTURE"
+  | "CLUB_SUPPORT"
+  | "COMMERCIAL"
+  | "ADMINISTRATION"
+  | "WOMENS_FOOTBALL";
+
+export type FederationBudget = {
+  id: EntityId;
+  federationId: EntityId;
+  seasonLabel: string;
+  category: FederationBudgetCategory;
+  amount: number;
+  usedAmount: number;
+  currency: string;
+  status: "ACTIVE" | "CLOSED";
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+export type FederationLeadershipRole =
+  "FEDERATION_PRESIDENT" | "VICE_PRESIDENT" | "GENERAL_SECRETARY" | "EXECUTIVE_MEMBER";
+
+export type FederationLeadershipTenure = {
+  id: EntityId;
+  personId: EntityId;
+  federationId: EntityId;
+  role: FederationLeadershipRole;
+  termStart: ISODate;
+  termEnd?: ISODate;
+  status: "ACTIVE" | "FORMER" | "INTERIM";
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+export type FederationCommitteeType =
+  | "COMPETITION_COMMITTEE"
+  | "TECHNICAL_COMMITTEE"
+  | "REFEREE_COMMITTEE"
+  | "WOMENS_FOOTBALL_COMMITTEE"
+  | "YOUTH_COMMITTEE"
+  | "FINANCE_COMMITTEE"
+  | "COMMERCIAL_COMMITTEE";
+
+export type FederationCommittee = {
+  id: EntityId;
+  federationId: EntityId;
+  committeeType: FederationCommitteeType;
+  name: string;
+  chairPersonId?: EntityId;
+  status: "ACTIVE" | "INACTIVE";
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+export type FederationStrategicPriority =
+  | "GRASSROOTS_EXPANSION"
+  | "YOUTH_ELITE_DEVELOPMENT"
+  | "COACH_EDUCATION"
+  | "REFEREE_DEVELOPMENT"
+  | "CLUB_PROFESSIONALISATION"
+  | "NATIONAL_TEAM_PERFORMANCE"
+  | "WOMENS_FOOTBALL"
+  | "INFRASTRUCTURE"
+  | "COMMERCIAL_GROWTH"
+  | "INTERNATIONAL_EXPOSURE";
+
+export type FederationStrategyPriority = {
+  id: EntityId;
+  federationId: EntityId;
+  priority: FederationStrategicPriority;
+  weight: number;
+  effectiveFrom: ISODate;
+  effectiveTo?: ISODate;
+  status: "ACTIVE" | "INACTIVE";
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+export type FederationProjectType =
+  | "GRASSROOTS_PROGRAMME"
+  | "COACH_EDUCATION"
+  | "REFEREE_PROGRAMME"
+  | "ACADEMY_EXPANSION"
+  | "NATIONAL_TRAINING_CENTRE"
+  | "REGIONAL_CENTRE"
+  | "WOMENS_DEVELOPMENT"
+  | "DIGITAL_BROADCAST"
+  | "CLUB_SUPPORT_PROGRAMME";
+
+export type FederationProjectStatus =
+  "IDEA" | "PLANNING" | "FINANCING" | "CONSTRUCTION" | "IMPLEMENTATION" | "COMPLETED" | "CANCELLED";
+
+export type FederationProject = {
+  id: EntityId;
+  federationId: EntityId;
+  projectType: FederationProjectType;
+  name: string;
+  locationId?: EntityId;
+  targetProvinceId?: EntityId;
+  targetDistrictId?: EntityId;
+  academyId?: EntityId;
+  startDate: ISODate;
+  expectedCompletion: ISODate;
+  completedAt?: ISODate;
+  capitalCost: number;
+  annualOperatingCost: number;
+  currency: string;
+  status: FederationProjectStatus;
+  impactJson: Record<string, number>;
+  fundingJson: Record<string, number>;
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+export type FederationAsset = {
+  id: EntityId;
+  federationId: EntityId;
+  assetType:
+    "LAND" | "TRAINING_CENTRE" | "ACADEMY_FACILITY" | "OFFICE" | "TECHNICAL_CENTRE" | "EQUIPMENT";
+  ownership: "OWNED" | "OPERATED" | "LEASED" | "UNKNOWN";
+  locationId?: EntityId;
+  academyId?: EntityId;
+  estimatedValue: number;
+  currency: string;
+  status: "SIMULATION_ONLY";
+};
+
+export type CompetitionReformProposal = {
+  id: EntityId;
+  federationId: EntityId;
+  competitionId: EntityId;
+  effectiveSeason: string;
+  changes: {
+    teamCount?: number;
+    rounds?: number;
+    promotionSlots?: number;
+    relegationSlots?: number;
+    format?: CompetitionType;
+    calendar?: { startDate?: ISODate; endDate?: ISODate };
+    registrationPolicy?: Record<string, unknown>;
+  };
+  status: "PROPOSED" | "APPROVED" | "REJECTED" | "IMPLEMENTED";
+  proposedAt: ISODate;
+  decidedAt?: ISODate;
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+export type ClubLicensingOutcome = "LICENSED" | "CONDITIONAL" | "FAILED" | "EXEMPT" | "UNKNOWN";
+
+export type ClubLicensingAssessment = {
+  id: EntityId;
+  federationId: EntityId;
+  clubId: EntityId;
+  seasonLabel: string;
+  financial: ClubLicensingOutcome;
+  stadium: ClubLicensingOutcome;
+  youth: ClubLicensingOutcome;
+  medical: ClubLicensingOutcome;
+  administrative: ClubLicensingOutcome;
+  coaching: ClubLicensingOutcome;
+  legal: ClubLicensingOutcome;
+  overall: ClubLicensingOutcome;
+  assessedAt: ISODate;
+  status: "SIMULATION_ONLY";
+};
+
+export type FederationGrantDistribution = {
+  id: EntityId;
+  federationId: EntityId;
+  clubId: EntityId;
+  date: ISODate;
+  grantType:
+    | "INFRASTRUCTURE_GRANT"
+    | "ACADEMY_GRANT"
+    | "WOMENS_FOOTBALL_GRANT"
+    | "CLUB_DEVELOPMENT_GRANT"
+    | "TRAVEL_SUPPORT";
+  amount: number;
+  currency: string;
+  federationLedgerEntryId: EntityId;
+  clubLedgerEntryId: EntityId;
+  status: "POSTED";
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+export type NationalTeamCallupStatus =
+  "CALLED_UP" | "WITHDRAWN" | "INJURED" | "DECLINED" | "RELEASED";
+
+export type NationalTeamCallup = {
+  id: EntityId;
+  nationalTeamId: EntityId;
+  playerId: EntityId;
+  callupDate: ISODate;
+  programme: string;
+  squadType: "PRELIMINARY" | "FINAL" | "MATCHDAY";
+  status: NationalTeamCallupStatus;
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+export type NationalTeamAppearance = {
+  id: EntityId;
+  nationalTeamId: EntityId;
+  playerId: EntityId;
+  matchDate: ISODate;
+  opponentName: string;
+  minutes: number;
+  goals: number;
+  status: "SIMULATION_ONLY";
+};
+
+export type NationalTeamFixture = {
+  id: EntityId;
+  federationId: EntityId;
+  nationalTeamId: EntityId;
+  opponentName: string;
+  fixtureDate: ISODate;
+  fixtureType: "FRIENDLY" | "QUALIFIER" | "REGIONAL_TOURNAMENT" | "TRAINING_MATCH";
+  venueId?: EntityId;
+  status: "SCHEDULED" | "PLAYED" | "CANCELLED";
+  homeGoals?: number;
+  awayGoals?: number;
+  estimatedCost: number;
+  estimatedRevenue: number;
+  currency: string;
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+export type PlayerEligibilityStatus =
+  | "ELIGIBLE"
+  | "PROVISIONALLY_ELIGIBLE"
+  | "DOCUMENTATION_REQUIRED"
+  | "CAP_TIED"
+  | "INELIGIBLE"
+  | "UNKNOWN";
+
+export type PlayerInternationalEligibility = {
+  id: EntityId;
+  playerId: EntityId;
+  federationId: EntityId;
+  status: PlayerEligibilityStatus;
+  documentationStatus: "UNKNOWN" | "NOT_STARTED" | "IN_PROGRESS" | "CONFIRMED";
+  discoveredVia: "NATIONALITY" | "DIASPORA_SCOUTING" | "SELF_DECLARED" | "UNKNOWN";
+  lastReviewedAt: ISODate;
+  provenanceStatus: DataProvenanceStatus;
+};
+
+export type CoachEducationProgramme = {
+  id: EntityId;
+  federationId: EntityId;
+  licenceLevel: "AFC C" | "AFC B" | "AFC A" | "AFC Pro";
+  startDate: ISODate;
+  endDate: ISODate;
+  capacity: number;
+  cost: number;
+  graduates: number;
+  currency: string;
+  status: "PLANNED" | "RUNNING" | "COMPLETED";
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+export type RefereeDevelopmentProgramme = {
+  id: EntityId;
+  federationId: EntityId;
+  programmeType:
+    "TRAINING" | "FITNESS" | "VAR_EDUCATION" | "INTERNATIONAL_CERTIFICATION" | "YOUTH_PATHWAY";
+  startDate: ISODate;
+  endDate: ISODate;
+  capacity: number;
+  cost: number;
+  refereesAdvanced: number;
+  currency: string;
+  status: "PLANNED" | "RUNNING" | "COMPLETED";
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+export type OrganisationRelationship = {
+  id: EntityId;
+  federationId: EntityId;
+  organisationName: "GOVERNMENT" | "NATIONAL_SPORTS_COUNCIL" | "FIFA" | "AFC" | "SAFF" | string;
+  relationshipType: "GOVERNMENT" | "SPORTS_COUNCIL" | "INTERNATIONAL_BODY" | "NATIONAL_ASSOCIATION";
+  supportLevel: number;
+  trust: number;
+  fundingRelationship: number;
+  updatedAt: ISODate;
+  status: "SIMULATION_ONLY";
+};
+
+export type FederationSponsorshipContract = {
+  id: EntityId;
+  federationId: EntityId;
+  sponsorId: EntityId;
+  type:
+    | "NATIONAL_TEAM_SHIRT"
+    | "TECHNICAL_PARTNER"
+    | "COMPETITION_TITLE"
+    | "OFFICIAL_PARTNER"
+    | "BROADCAST_PARTNER";
+  startDate: ISODate;
+  endDate: ISODate;
+  annualValue: number;
+  currency: string;
+  status: "OFFERED" | "ACTIVE" | "EXPIRED" | "REJECTED";
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+export type FederationObjective = {
+  id: EntityId;
+  federationId: EntityId;
+  objective:
+    | "QUALIFY_FOR_ASIAN_CUP"
+    | "IMPROVE_YOUTH_PIPELINE"
+    | "PROFESSIONALISE_LEAGUES"
+    | "BUILD_NATIONAL_CENTRE"
+    | "GROW_WOMENS_FOOTBALL"
+    | "IMPROVE_REFEREE_STANDARDS"
+    | "EXPAND_GRASSROOTS"
+    | "INCREASE_COMMERCIAL_REVENUE";
+  cycleStart: ISODate;
+  cycleEnd: ISODate;
+  progress: number;
+  status: "ACTIVE" | "COMPLETED" | "FAILED";
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+export type FederationKPI = {
+  id: EntityId;
+  federationId: EntityId;
+  seasonLabel: string;
+  metric:
+    | "REGISTERED_CLUBS"
+    | "ACTIVE_YOUTH_PLAYERS"
+    | "LICENSED_COACHES"
+    | "REFEREE_POOL"
+    | "ACADEMY_OUTPUT"
+    | "LEAGUE_ATTENDANCE"
+    | "COMMERCIAL_REVENUE"
+    | "NATIONAL_TEAM_REPUTATION"
+    | "INTERNATIONAL_WINS"
+    | "INFRASTRUCTURE_SCORE"
+    | "WOMENS_FOOTBALL_SUPPORT";
+  value: number;
+  measuredAt: ISODate;
+  status: "SIMULATION_ONLY";
+};
+
+export type FederationFinancialStatement = {
+  id: EntityId;
+  federationId: EntityId;
+  seasonLabel: string;
+  openingCash: number;
+  revenueByCategory: Record<string, number>;
+  expensesByCategory: Record<string, number>;
+  programmeSpending: number;
+  nationalTeamSpending: number;
+  competitionSpending: number;
+  infrastructureSpending: number;
+  netProfitLoss: number;
+  closingCash: number;
+  debt: number;
+  currency: string;
+  closedAt: ISODate;
+  status: "SIMULATION_ONLY";
+};
+
 export type Relationship = {
   id: EntityId;
   fromEntity: EntityRef;

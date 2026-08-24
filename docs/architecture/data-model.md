@@ -145,6 +145,28 @@
   capital/ongoing costs, location/venue links, financing mix, and status.
 - `ClubAsset`, `ClubValuation`, `ClubBoardPolicy`, and `ClubFinancialStatement`: assets, simulation
   valuation, board priorities, and annual financial close history for chairman mode.
+- `FederationSimulationProfile`: ANFA governance/development/commercial/infrastructure ratings,
+  marked `SIMULATION_ONLY` unless future research supplies source-backed values.
+- `FederationFinancialAccount` and `FederationLedgerEntry`: federation-only cash, restricted funds,
+  receivables, payables, debt, season totals, health, and auditable revenue/expense entries.
+- `FederationBudget`: annual strategy envelopes for national teams, youth, grassroots, coach
+  education, referees, competitions, infrastructure, club support, commercial work, administration,
+  and women's football.
+- `FederationLeadershipTenure` and `FederationCommittee`: president/executive terms and standing
+  committees using existing `Person` and staff identity.
+- `FederationStrategyPriority`, `FederationObjective`, and `FederationKPI`: multi-year president/AI
+  strategy and measurable simulation-world progress.
+- `FederationProject`, `FederationAsset`, and `OrganisationRelationship`: time-based programmes,
+  national/regional infrastructure, assets, Government/NSC/FIFA/AFC/SAFF relationships, and gradual
+  effects.
+- `CompetitionReformProposal` and `ClubLicensingAssessment`: future-season competition governance
+  and non-destructive club licensing outcomes.
+- `FederationGrantDistribution`: explicit paired federation debit and club credit for club support.
+- `NationalTeamCallup`, `NationalTeamFixture`, `NationalTeamAppearance`, and
+  `PlayerInternationalEligibility`: national-team squad, match, cap/goal, and eligibility hooks that
+  reuse world player identities.
+- `CoachEducationProgramme`, `RefereeDevelopmentProgramme`, `FederationSponsorshipContract`: generic
+  education/referee/commercial foundations separate from club contracts and real-world trademarks.
 
 ## Social, Promise, and History
 

@@ -135,6 +135,21 @@ Infrastructure is project-based with planning/construction/completion states, ca
 costs, financing mixes, and eventual facility/asset effects; there is no generic instant `+1`
 facility upgrade.
 
+The federation governance layer makes ANFA a permanent playable institution without merging it with
+club or personal authority. `FederationSimulationProfile` stores simulation-only governance,
+development, commercial, infrastructure, and international ratings. `FederationFinancialAccount` and
+`FederationLedgerEntry` keep federation money auditable and separate from club accounts and personal
+wealth. Federation spending on clubs uses a posted federation debit plus a posted club grant credit;
+federation funds never become a person's wallet.
+
+Federation president mode reuses `Person`, `PersonRole`, staff appointments, and leadership tenure
+records. The president can manage strategic budgets, competition policy, development strategy,
+senior appointments, infrastructure, international strategy, and club support/licensing, but does not
+control club tactics, club wage budgets, or personal finances. The seasonal federation cycle is:
+financial close, strategy/budget review, competition-rule confirmation, club licensing, development
+projects, national-team programme, season delivery, KPI review. AI federation processing uses the
+same cycle when the player is not president.
+
 ## Competition and Match Simulation
 
 Stage 3 adds a headless competition layer. Competition rule sets are dataset-driven and define season type, points, tiebreakers, home/away structure, round spacing, and promotion/relegation/continental slots. The engine supports deterministic single and double round-robin fixture generation.

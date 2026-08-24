@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 15;
+export const CURRENT_DATABASE_VERSION = 16;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -1566,6 +1566,340 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
         closed_at TEXT NOT NULL,
         status TEXT NOT NULL,
         UNIQUE(club_id, season_label)
+      );
+    `,
+  },
+  {
+    version: 16,
+    sql: `
+      CREATE TABLE IF NOT EXISTS federation_simulation_profiles (
+        federation_id TEXT PRIMARY KEY REFERENCES federations(id),
+        country_id TEXT NOT NULL REFERENCES countries(id),
+        reputation REAL NOT NULL,
+        financial_health TEXT NOT NULL,
+        grassroots_development REAL NOT NULL,
+        youth_development REAL NOT NULL,
+        coach_education REAL NOT NULL,
+        referee_development REAL NOT NULL,
+        competition_organisation REAL NOT NULL,
+        commercial_strength REAL NOT NULL,
+        international_relations REAL NOT NULL,
+        governance_stability REAL NOT NULL,
+        infrastructure_level REAL NOT NULL,
+        last_updated_at TEXT NOT NULL,
+        status TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS federation_financial_accounts (
+        federation_id TEXT PRIMARY KEY REFERENCES federations(id),
+        currency TEXT NOT NULL,
+        cash_balance INTEGER NOT NULL,
+        restricted_funds INTEGER NOT NULL,
+        receivables INTEGER NOT NULL,
+        payables INTEGER NOT NULL,
+        debt INTEGER NOT NULL,
+        season_revenue INTEGER NOT NULL,
+        season_expenses INTEGER NOT NULL,
+        season_profit_loss INTEGER NOT NULL,
+        financial_health TEXT NOT NULL,
+        last_updated_at TEXT NOT NULL,
+        status TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS federation_ledger_entries (
+        id TEXT PRIMARY KEY,
+        federation_id TEXT NOT NULL REFERENCES federations(id),
+        entry_date TEXT NOT NULL,
+        category TEXT NOT NULL,
+        direction TEXT NOT NULL,
+        amount INTEGER NOT NULL,
+        currency TEXT NOT NULL,
+        description TEXT NOT NULL,
+        related_entity_id TEXT,
+        restriction_tag TEXT,
+        status TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_federation_ledger_federation_date
+        ON federation_ledger_entries(federation_id, entry_date);
+
+      CREATE TABLE IF NOT EXISTS federation_budgets (
+        id TEXT PRIMARY KEY,
+        federation_id TEXT NOT NULL REFERENCES federations(id),
+        season_label TEXT NOT NULL,
+        category TEXT NOT NULL,
+        amount INTEGER NOT NULL,
+        used_amount INTEGER NOT NULL,
+        currency TEXT NOT NULL,
+        status TEXT NOT NULL,
+        provenance_status TEXT NOT NULL,
+        UNIQUE(federation_id, season_label, category)
+      );
+
+      CREATE TABLE IF NOT EXISTS federation_leadership_tenures (
+        id TEXT PRIMARY KEY,
+        person_id TEXT NOT NULL REFERENCES persons(id),
+        federation_id TEXT NOT NULL REFERENCES federations(id),
+        role TEXT NOT NULL,
+        term_start TEXT NOT NULL,
+        term_end TEXT,
+        status TEXT NOT NULL,
+        provenance_status TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_federation_leadership_active
+        ON federation_leadership_tenures(federation_id, role, status);
+
+      CREATE TABLE IF NOT EXISTS federation_committees (
+        id TEXT PRIMARY KEY,
+        federation_id TEXT NOT NULL REFERENCES federations(id),
+        committee_type TEXT NOT NULL,
+        name TEXT NOT NULL,
+        chair_person_id TEXT REFERENCES persons(id),
+        status TEXT NOT NULL,
+        provenance_status TEXT NOT NULL,
+        UNIQUE(federation_id, committee_type)
+      );
+
+      CREATE TABLE IF NOT EXISTS federation_strategy_priorities (
+        id TEXT PRIMARY KEY,
+        federation_id TEXT NOT NULL REFERENCES federations(id),
+        priority TEXT NOT NULL,
+        weight REAL NOT NULL,
+        effective_from TEXT NOT NULL,
+        effective_to TEXT,
+        status TEXT NOT NULL,
+        provenance_status TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS federation_projects (
+        id TEXT PRIMARY KEY,
+        federation_id TEXT NOT NULL REFERENCES federations(id),
+        project_type TEXT NOT NULL,
+        name TEXT NOT NULL,
+        location_id TEXT REFERENCES locations(id),
+        target_province_id TEXT REFERENCES locations(id),
+        target_district_id TEXT REFERENCES locations(id),
+        academy_id TEXT REFERENCES academies(id),
+        start_date TEXT NOT NULL,
+        expected_completion TEXT NOT NULL,
+        completed_at TEXT,
+        capital_cost INTEGER NOT NULL,
+        annual_operating_cost INTEGER NOT NULL,
+        currency TEXT NOT NULL,
+        status TEXT NOT NULL,
+        impact_json TEXT NOT NULL,
+        funding_json TEXT NOT NULL,
+        provenance_status TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_federation_projects_federation_status
+        ON federation_projects(federation_id, status);
+
+      CREATE TABLE IF NOT EXISTS federation_assets (
+        id TEXT PRIMARY KEY,
+        federation_id TEXT NOT NULL REFERENCES federations(id),
+        asset_type TEXT NOT NULL,
+        ownership TEXT NOT NULL,
+        location_id TEXT REFERENCES locations(id),
+        academy_id TEXT REFERENCES academies(id),
+        estimated_value INTEGER NOT NULL,
+        currency TEXT NOT NULL,
+        status TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS competition_reform_proposals (
+        id TEXT PRIMARY KEY,
+        federation_id TEXT NOT NULL REFERENCES federations(id),
+        competition_id TEXT NOT NULL REFERENCES competitions(id),
+        effective_season TEXT NOT NULL,
+        changes_json TEXT NOT NULL,
+        status TEXT NOT NULL,
+        proposed_at TEXT NOT NULL,
+        decided_at TEXT,
+        provenance_status TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS club_licensing_assessments (
+        id TEXT PRIMARY KEY,
+        federation_id TEXT NOT NULL REFERENCES federations(id),
+        club_id TEXT NOT NULL REFERENCES clubs(id),
+        season_label TEXT NOT NULL,
+        financial TEXT NOT NULL,
+        stadium TEXT NOT NULL,
+        youth TEXT NOT NULL,
+        medical TEXT NOT NULL,
+        administrative TEXT NOT NULL,
+        coaching TEXT NOT NULL,
+        legal TEXT NOT NULL,
+        overall TEXT NOT NULL,
+        assessed_at TEXT NOT NULL,
+        status TEXT NOT NULL,
+        UNIQUE(federation_id, club_id, season_label)
+      );
+
+      CREATE TABLE IF NOT EXISTS federation_grant_distributions (
+        id TEXT PRIMARY KEY,
+        federation_id TEXT NOT NULL REFERENCES federations(id),
+        club_id TEXT NOT NULL REFERENCES clubs(id),
+        grant_date TEXT NOT NULL,
+        grant_type TEXT NOT NULL,
+        amount INTEGER NOT NULL,
+        currency TEXT NOT NULL,
+        federation_ledger_entry_id TEXT NOT NULL REFERENCES federation_ledger_entries(id),
+        club_ledger_entry_id TEXT NOT NULL REFERENCES club_ledger_entries(id),
+        status TEXT NOT NULL,
+        provenance_status TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS national_team_callups (
+        id TEXT PRIMARY KEY,
+        national_team_id TEXT NOT NULL REFERENCES teams(id),
+        player_id TEXT NOT NULL REFERENCES persons(id),
+        callup_date TEXT NOT NULL,
+        programme TEXT NOT NULL,
+        squad_type TEXT NOT NULL,
+        status TEXT NOT NULL,
+        provenance_status TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_national_callups_team_date
+        ON national_team_callups(national_team_id, callup_date);
+
+      CREATE TABLE IF NOT EXISTS national_team_appearances (
+        id TEXT PRIMARY KEY,
+        national_team_id TEXT NOT NULL REFERENCES teams(id),
+        player_id TEXT NOT NULL REFERENCES persons(id),
+        match_date TEXT NOT NULL,
+        opponent_name TEXT NOT NULL,
+        minutes INTEGER NOT NULL,
+        goals INTEGER NOT NULL,
+        status TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS national_team_fixtures (
+        id TEXT PRIMARY KEY,
+        federation_id TEXT NOT NULL REFERENCES federations(id),
+        national_team_id TEXT NOT NULL REFERENCES teams(id),
+        opponent_name TEXT NOT NULL,
+        fixture_date TEXT NOT NULL,
+        fixture_type TEXT NOT NULL,
+        venue_id TEXT REFERENCES venues(id),
+        status TEXT NOT NULL,
+        home_goals INTEGER,
+        away_goals INTEGER,
+        estimated_cost INTEGER NOT NULL,
+        estimated_revenue INTEGER NOT NULL,
+        currency TEXT NOT NULL,
+        provenance_status TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS player_international_eligibilities (
+        id TEXT PRIMARY KEY,
+        player_id TEXT NOT NULL REFERENCES persons(id),
+        federation_id TEXT NOT NULL REFERENCES federations(id),
+        eligibility_status TEXT NOT NULL,
+        documentation_status TEXT NOT NULL,
+        discovered_via TEXT NOT NULL,
+        last_reviewed_at TEXT NOT NULL,
+        provenance_status TEXT NOT NULL,
+        UNIQUE(player_id, federation_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS coach_education_programmes (
+        id TEXT PRIMARY KEY,
+        federation_id TEXT NOT NULL REFERENCES federations(id),
+        licence_level TEXT NOT NULL,
+        start_date TEXT NOT NULL,
+        end_date TEXT NOT NULL,
+        capacity INTEGER NOT NULL,
+        cost INTEGER NOT NULL,
+        graduates INTEGER NOT NULL,
+        currency TEXT NOT NULL,
+        status TEXT NOT NULL,
+        provenance_status TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS referee_development_programmes (
+        id TEXT PRIMARY KEY,
+        federation_id TEXT NOT NULL REFERENCES federations(id),
+        programme_type TEXT NOT NULL,
+        start_date TEXT NOT NULL,
+        end_date TEXT NOT NULL,
+        capacity INTEGER NOT NULL,
+        cost INTEGER NOT NULL,
+        referees_advanced INTEGER NOT NULL,
+        currency TEXT NOT NULL,
+        status TEXT NOT NULL,
+        provenance_status TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS organisation_relationships (
+        id TEXT PRIMARY KEY,
+        federation_id TEXT NOT NULL REFERENCES federations(id),
+        organisation_name TEXT NOT NULL,
+        relationship_type TEXT NOT NULL,
+        support_level REAL NOT NULL,
+        trust REAL NOT NULL,
+        funding_relationship REAL NOT NULL,
+        updated_at TEXT NOT NULL,
+        status TEXT NOT NULL,
+        UNIQUE(federation_id, organisation_name)
+      );
+
+      CREATE TABLE IF NOT EXISTS federation_sponsorship_contracts (
+        id TEXT PRIMARY KEY,
+        federation_id TEXT NOT NULL REFERENCES federations(id),
+        sponsor_id TEXT NOT NULL REFERENCES sponsor_organisations(id),
+        sponsorship_type TEXT NOT NULL,
+        start_date TEXT NOT NULL,
+        end_date TEXT NOT NULL,
+        annual_value INTEGER NOT NULL,
+        currency TEXT NOT NULL,
+        status TEXT NOT NULL,
+        provenance_status TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS federation_objectives (
+        id TEXT PRIMARY KEY,
+        federation_id TEXT NOT NULL REFERENCES federations(id),
+        objective TEXT NOT NULL,
+        cycle_start TEXT NOT NULL,
+        cycle_end TEXT NOT NULL,
+        progress REAL NOT NULL,
+        status TEXT NOT NULL,
+        provenance_status TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS federation_kpis (
+        id TEXT PRIMARY KEY,
+        federation_id TEXT NOT NULL REFERENCES federations(id),
+        season_label TEXT NOT NULL,
+        metric TEXT NOT NULL,
+        metric_value REAL NOT NULL,
+        measured_at TEXT NOT NULL,
+        status TEXT NOT NULL,
+        UNIQUE(federation_id, season_label, metric)
+      );
+
+      CREATE TABLE IF NOT EXISTS federation_financial_statements (
+        id TEXT PRIMARY KEY,
+        federation_id TEXT NOT NULL REFERENCES federations(id),
+        season_label TEXT NOT NULL,
+        opening_cash INTEGER NOT NULL,
+        revenue_by_category_json TEXT NOT NULL,
+        expenses_by_category_json TEXT NOT NULL,
+        programme_spending INTEGER NOT NULL,
+        national_team_spending INTEGER NOT NULL,
+        competition_spending INTEGER NOT NULL,
+        infrastructure_spending INTEGER NOT NULL,
+        net_profit_loss INTEGER NOT NULL,
+        closing_cash INTEGER NOT NULL,
+        debt INTEGER NOT NULL,
+        currency TEXT NOT NULL,
+        closed_at TEXT NOT NULL,
+        status TEXT NOT NULL,
+        UNIQUE(federation_id, season_label)
       );
     `,
   },
