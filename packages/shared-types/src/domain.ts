@@ -2564,6 +2564,256 @@ export type PlayerInternationalEligibility = {
   provenanceStatus: DataProvenanceStatus;
 };
 
+export type NationalTeamType = "SENIOR_MEN" | "SENIOR_WOMEN" | "U23" | "U20" | "U17";
+
+export type FootballConfederation = "AFC" | "UEFA" | "CAF" | "CONCACAF" | "CONMEBOL" | "OFC";
+
+export type FootballRegion =
+  | "SAFF"
+  | "ASEAN_AFF"
+  | "WAFF"
+  | "CAFA"
+  | "EAFF"
+  | "EUROPE"
+  | "AFRICA"
+  | "AMERICAS"
+  | "OCEANIA"
+  | "GLOBAL";
+
+export type InternationalTeamProfile = {
+  id: EntityId;
+  countryId: EntityId;
+  nationalTeamId?: EntityId;
+  name: string;
+  teamType: NationalTeamType;
+  confederation: FootballConfederation;
+  region: FootballRegion;
+  simulationReputation: number;
+  simulationStrength: number;
+  homeAdvantageProfile: number;
+  developmentLevel: number;
+  formRating: number;
+  lastUpdated: ISODate;
+  provenanceStatus: DataProvenanceStatus;
+};
+
+export type InternationalDevelopmentProfile = {
+  id: EntityId;
+  countryId: EntityId;
+  effectiveFrom: ISODate;
+  footballDevelopment: number;
+  youthPipeline: number;
+  coachQuality: number;
+  infrastructure: number;
+  domesticProfessionalism: number;
+  populationTalentBase: number;
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+export type InternationalCompetitionType =
+  | "FRIENDLY"
+  | "QUALIFIER"
+  | "CONTINENTAL_CHAMPIONSHIP"
+  | "REGIONAL_CHAMPIONSHIP"
+  | "WORLD_QUALIFIER"
+  | "WORLD_CHAMPIONSHIP"
+  | "NATIONS_LEAGUE_STYLE"
+  | "INVITATIONAL";
+
+export type InternationalCompetition = {
+  id: EntityId;
+  name: string;
+  competitionType: InternationalCompetitionType;
+  confederation?: FootballConfederation;
+  region?: FootballRegion;
+  cadenceYears: number;
+  provenanceStatus: DataProvenanceStatus;
+};
+
+export type InternationalCompetitionEditionStatus =
+  "PLANNED" | "DRAWN" | "SCHEDULED" | "IN_PROGRESS" | "COMPLETED";
+
+export type InternationalQualificationCondition =
+  | "GROUP_WINNER"
+  | "GROUP_RUNNER_UP"
+  | "BEST_RUNNER_UP"
+  | "KNOCKOUT_WINNER"
+  | "HOST"
+  | "PLAYOFF_WINNER"
+  | "RANKING_SLOT";
+
+export type InternationalQualificationLink = {
+  fromCompetitionEditionId: EntityId;
+  fromStageId?: EntityId;
+  qualificationCondition: InternationalQualificationCondition;
+  toCompetitionEditionId: EntityId;
+  toStageId?: EntityId;
+  slots: number;
+};
+
+export type InternationalCompetitionEdition = {
+  id: EntityId;
+  competitionId: EntityId;
+  name: string;
+  cycle: string;
+  startDate: ISODate;
+  endDate: ISODate;
+  status: InternationalCompetitionEditionStatus;
+  hostCountryIds: EntityId[];
+  qualificationLinks: InternationalQualificationLink[];
+  ruleProvenanceStatus: DataProvenanceStatus;
+  ruleNotes?: string;
+};
+
+export type InternationalFormatType =
+  | "GROUP_STAGE"
+  | "SINGLE_ELIMINATION"
+  | "DOUBLE_LEG_KNOCKOUT"
+  | "ROUND_ROBIN"
+  | "MULTI_STAGE_QUALIFICATION";
+
+export type InternationalTiebreaker =
+  "POINTS" | "GOAL_DIFFERENCE" | "GOALS_SCORED" | "HEAD_TO_HEAD" | "DISCIPLINE" | "SEEDED_FALLBACK";
+
+export type InternationalCompetitionStage = {
+  id: EntityId;
+  editionId: EntityId;
+  name: string;
+  stageOrder: number;
+  formatType: InternationalFormatType;
+  groupCount: number;
+  groupSize: number;
+  legs: number;
+  teamsToAdvance: number;
+  matchdaySquadSize: number;
+  preliminarySquadSize: number;
+  finalSquadSize: number;
+  tiebreakers: InternationalTiebreaker[];
+  allowExtraTime: boolean;
+  allowPenalties: boolean;
+  awayGoals: boolean;
+  provenanceStatus: DataProvenanceStatus;
+};
+
+export type InternationalCompetitionParticipant = {
+  id: EntityId;
+  editionId: EntityId;
+  teamProfileId: EntityId;
+  entryStatus: "INVITED" | "QUALIFIED" | "HOST" | "ELIMINATED" | "ACTIVE" | "CHAMPION";
+  seedRating: number;
+  pot?: number;
+  groupName?: string;
+  finalPlacement?: number;
+  qualificationSource?: string;
+  provenanceStatus: DataProvenanceStatus;
+};
+
+export type InternationalDrawRecord = {
+  id: EntityId;
+  editionId: EntityId;
+  stageId: EntityId;
+  drawDate: ISODate;
+  seedKey: string;
+  pots: Array<{ pot: number; teamProfileIds: EntityId[] }>;
+  groups: Array<{ name: string; teamProfileIds: EntityId[] }>;
+  restrictions: Record<string, unknown>;
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+export type InternationalMatchImportance =
+  "FRIENDLY" | "REGIONAL" | "QUALIFIER" | "CONTINENTAL" | "WORLD";
+
+export type InternationalMatch = {
+  id: EntityId;
+  editionId?: EntityId;
+  stageId?: EntityId;
+  groupName?: string;
+  matchDate: ISODate;
+  homeTeamProfileId: EntityId;
+  awayTeamProfileId: EntityId;
+  neutralVenue: boolean;
+  venueId?: EntityId;
+  status: "SCHEDULED" | "PLAYED" | "CANCELLED";
+  homeGoals?: number;
+  awayGoals?: number;
+  extraTimePlayed: boolean;
+  penaltiesPlayed: boolean;
+  homePenaltyGoals?: number;
+  awayPenaltyGoals?: number;
+  winnerTeamProfileId?: EntityId;
+  importance: InternationalMatchImportance;
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+export type SimulationWorldRanking = {
+  id: EntityId;
+  teamProfileId: EntityId;
+  rankingDate: ISODate;
+  rank: number;
+  points: number;
+  confederationRank: number;
+  reputation: number;
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+export type NationalTeamDutyStatus =
+  | "AVAILABLE"
+  | "INJURED"
+  | "SUSPENDED"
+  | "DECLINED"
+  | "NOT_RELEASED"
+  | "DOCUMENTATION_PENDING"
+  | "ON_DUTY"
+  | "RETURNED";
+
+export type NationalTeamDuty = {
+  id: EntityId;
+  nationalTeamId: EntityId;
+  playerId: EntityId;
+  competitionEditionId?: EntityId;
+  departureDate: ISODate;
+  returnDate: ISODate;
+  status: NationalTeamDutyStatus;
+  fitnessEffect: number;
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+export type NationalTeamCohesion = {
+  id: EntityId;
+  nationalTeamId: EntityId;
+  playerId: EntityId;
+  familiarity: number;
+  lastUpdated: ISODate;
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+export type NationalTeamCamp = {
+  id: EntityId;
+  federationId: EntityId;
+  nationalTeamId: EntityId;
+  competitionEditionId?: EntityId;
+  startDate: ISODate;
+  endDate: ISODate;
+  focus: "COHESION" | "FITNESS" | "TACTICAL_FAMILIARITY" | "RECOVERY";
+  cost: number;
+  currency: string;
+  status: "PLANNED" | "COMPLETED" | "CANCELLED";
+  cohesionGain: number;
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+export type InternationalRetirementStatus = "ACTIVE" | "CONSIDERING" | "RETIRED_INTERNATIONAL";
+
+export type InternationalRetirement = {
+  id: EntityId;
+  playerId: EntityId;
+  nationalTeamId: EntityId;
+  status: InternationalRetirementStatus;
+  decidedOn: ISODate;
+  reason?: string;
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
 export type CoachEducationProgramme = {
   id: EntityId;
   federationId: EntityId;

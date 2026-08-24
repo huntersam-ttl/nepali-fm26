@@ -168,6 +168,33 @@
 - `CoachEducationProgramme`, `RefereeDevelopmentProgramme`, `FederationSponsorshipContract`: generic
   education/referee/commercial foundations separate from club contracts and real-world trademarks.
 
+## International Football
+
+- `InternationalTeamProfile`: lightweight senior national-team profile for Nepal and external
+  countries. Nepal links to the save-backed national-team `Team`; external countries may remain
+  aggregate-only. Country identity and broad confederation/region labels can be factual, while
+  strength, reputation, home advantage, development, and form are `SIMULATION_ONLY` gameplay values.
+- `InternationalDevelopmentProfile`: country-level international football development environment
+  with football development, youth pipeline, coach quality, infrastructure, domestic professionalism,
+  and population/talent-base hooks. These values evolve over time and are separate from official
+  rankings.
+- `InternationalCompetition` and `InternationalCompetitionEdition`: competition identity and
+  edition-specific rules. Editions own host countries, start/end dates, status, and generic
+  qualification links so future formats can change without mutating history.
+- `InternationalCompetitionStage`: data-driven format definition for group stages, round robins,
+  single-elimination knockouts, double-leg knockouts, and multi-stage qualification, including squad
+  sizes, legs, extra time, penalties, away-goal policy, and tiebreakers.
+- `InternationalCompetitionParticipant` and `InternationalDrawRecord`: edition membership, seed
+  ratings, pots, groups, draw restrictions, final placement, and persisted draw history.
+- `InternationalMatch`: scheduled or played international match row. Nepal matches are mirrored into
+  federation national-team fixtures/appearances; external-vs-external matches can be resolved through
+  a fast aggregate simulation.
+- `SimulationWorldRanking`: internal gameplay ranking points, world rank, confederation rank, and
+  slow-moving reputation. It is not an official FIFA ranking methodology.
+- `NationalTeamDuty`, `NationalTeamCohesion`, `NationalTeamCamp`, and `InternationalRetirement`:
+  callup windows, club-country availability hooks, familiarity, paid training camps, and
+  international-only retirement state.
+
 ## Social, Promise, and History
 
 - `Relationship`: typed relationship between two entity refs.

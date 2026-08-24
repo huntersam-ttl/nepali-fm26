@@ -31,6 +31,10 @@ import {
   initializeFederationGovernanceForSave,
   processFederationMonth,
 } from "./federation-governance.js";
+import {
+  initializeInternationalFootballForSave,
+  processInternationalForSeasonPeriod,
+} from "./international-football.js";
 import { simulateMatch } from "./match-engine.js";
 import {
   repairPreseasonContinuity,
@@ -149,6 +153,7 @@ export const simulateNepalCareer = (input: {
   youthEnabled?: boolean;
   economyEnabled?: boolean;
   federationEnabled?: boolean;
+  internationalEnabled?: boolean;
 }): CareerSimulationReport => {
   const save = loadSave(input.db);
   const reports: CareerSeasonReport[] = [];
@@ -157,10 +162,18 @@ export const simulateNepalCareer = (input: {
   const skippedCompetitions: CareerSimulationReport["skippedCompetitions"] = [];
   const economyEnabled = input.economyEnabled !== false;
   const federationEnabled = input.federationEnabled !== false;
+  const internationalEnabled = input.internationalEnabled !== false;
 
   ensureRecruitmentFoundation(input.db, save.worldDate, input.seed);
   if (federationEnabled) {
     initializeFederationGovernanceForSave({
+      db: input.db,
+      worldDate: save.worldDate,
+      seed: input.seed,
+    });
+  }
+  if (internationalEnabled) {
+    initializeInternationalFootballForSave({
       db: input.db,
       worldDate: save.worldDate,
       seed: input.seed,
@@ -260,6 +273,12 @@ export const simulateNepalCareer = (input: {
       processFederationForSeasonPeriod(input.db, {
         seasonEndDate: latestSeasonEnd(activeSeasons),
         seed: `${input.seed}:federation:${index}`,
+      });
+    }
+    if (internationalEnabled) {
+      processInternationalForSeasonPeriod(input.db, {
+        seasonEndDate: latestSeasonEnd(activeSeasons),
+        seed: `${input.seed}:international:${index}`,
       });
     }
     preseasonReports.push(

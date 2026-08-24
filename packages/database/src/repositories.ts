@@ -49,6 +49,15 @@ import type {
   FinancialTransaction,
   HistoricalEvent,
   IndividualDevelopmentPlan,
+  InternationalCompetition,
+  InternationalCompetitionEdition,
+  InternationalCompetitionParticipant,
+  InternationalCompetitionStage,
+  InternationalDevelopmentProfile,
+  InternationalDrawRecord,
+  InternationalMatch,
+  InternationalRetirement,
+  InternationalTeamProfile,
   InfrastructureProject,
   Location,
   LocationTravelContext,
@@ -59,6 +68,7 @@ import type {
   ScoutReport,
   ScoutingAssignment,
   ScoutingStaffSimulationProfile,
+  SimulationWorldRanking,
   CompetitionRegistration,
   CompetitionReformProposal,
   StaffAppointment,
@@ -84,7 +94,10 @@ import type {
   Match,
   MatchEvent,
   NationalTeamAppearance,
+  NationalTeamCamp,
   NationalTeamCallup,
+  NationalTeamCohesion,
+  NationalTeamDuty,
   NationalTeamFixture,
   OrganisationRelationship,
   OwnerInvestmentTransaction,
@@ -5648,6 +5661,713 @@ const mapFederationFinancialStatement = (row: any): FederationFinancialStatement
   currency: row.currency,
   closedAt: row.closed_at,
   status: row.status,
+});
+
+export class InternationalFootballRepository {
+  constructor(private readonly db: GameDatabase) {}
+
+  upsertTeamProfile(profile: InternationalTeamProfile): void {
+    this.db
+      .prepare(
+        `INSERT INTO international_team_profiles
+        (id, country_id, national_team_id, name, team_type, confederation, region,
+         simulation_reputation, simulation_strength, home_advantage_profile, development_level,
+         form_rating, last_updated, provenance_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          national_team_id = excluded.national_team_id,
+          name = excluded.name,
+          confederation = excluded.confederation,
+          region = excluded.region,
+          simulation_reputation = excluded.simulation_reputation,
+          simulation_strength = excluded.simulation_strength,
+          home_advantage_profile = excluded.home_advantage_profile,
+          development_level = excluded.development_level,
+          form_rating = excluded.form_rating,
+          last_updated = excluded.last_updated,
+          provenance_status = excluded.provenance_status`,
+      )
+      .run(
+        profile.id,
+        profile.countryId,
+        profile.nationalTeamId ?? null,
+        profile.name,
+        profile.teamType,
+        profile.confederation,
+        profile.region,
+        profile.simulationReputation,
+        profile.simulationStrength,
+        profile.homeAdvantageProfile,
+        profile.developmentLevel,
+        profile.formRating,
+        profile.lastUpdated,
+        profile.provenanceStatus,
+      );
+  }
+
+  teamProfiles(): InternationalTeamProfile[] {
+    return (
+      this.db.prepare("SELECT * FROM international_team_profiles ORDER BY name").all() as any[]
+    ).map(mapInternationalTeamProfile);
+  }
+
+  teamProfile(id: EntityId): InternationalTeamProfile | undefined {
+    const row = this.db.prepare("SELECT * FROM international_team_profiles WHERE id = ?").get(id);
+    return row ? mapInternationalTeamProfile(row) : undefined;
+  }
+
+  upsertDevelopmentProfile(profile: InternationalDevelopmentProfile): void {
+    this.db
+      .prepare(
+        `INSERT INTO international_development_profiles
+        (id, country_id, effective_from, football_development, youth_pipeline, coach_quality,
+         infrastructure, domestic_professionalism, population_talent_base, provenance_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          football_development = excluded.football_development,
+          youth_pipeline = excluded.youth_pipeline,
+          coach_quality = excluded.coach_quality,
+          infrastructure = excluded.infrastructure,
+          domestic_professionalism = excluded.domestic_professionalism,
+          population_talent_base = excluded.population_talent_base`,
+      )
+      .run(
+        profile.id,
+        profile.countryId,
+        profile.effectiveFrom,
+        profile.footballDevelopment,
+        profile.youthPipeline,
+        profile.coachQuality,
+        profile.infrastructure,
+        profile.domesticProfessionalism,
+        profile.populationTalentBase,
+        profile.provenanceStatus,
+      );
+  }
+
+  developmentProfiles(): InternationalDevelopmentProfile[] {
+    return (
+      this.db
+        .prepare(
+          "SELECT * FROM international_development_profiles ORDER BY country_id, effective_from",
+        )
+        .all() as any[]
+    ).map(mapInternationalDevelopmentProfile);
+  }
+
+  upsertCompetition(competition: InternationalCompetition): void {
+    this.db
+      .prepare(
+        `INSERT INTO international_competitions
+        (id, name, competition_type, confederation, region, cadence_years, provenance_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          name = excluded.name,
+          competition_type = excluded.competition_type,
+          confederation = excluded.confederation,
+          region = excluded.region,
+          cadence_years = excluded.cadence_years,
+          provenance_status = excluded.provenance_status`,
+      )
+      .run(
+        competition.id,
+        competition.name,
+        competition.competitionType,
+        competition.confederation ?? null,
+        competition.region ?? null,
+        competition.cadenceYears,
+        competition.provenanceStatus,
+      );
+  }
+
+  competitions(): InternationalCompetition[] {
+    return (
+      this.db.prepare("SELECT * FROM international_competitions ORDER BY name").all() as any[]
+    ).map(mapInternationalCompetition);
+  }
+
+  upsertEdition(edition: InternationalCompetitionEdition): void {
+    this.db
+      .prepare(
+        `INSERT INTO international_competition_editions
+        (id, competition_id, name, cycle, start_date, end_date, status, host_country_ids_json,
+         qualification_links_json, rule_provenance_status, rule_notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          name = excluded.name,
+          start_date = excluded.start_date,
+          end_date = excluded.end_date,
+          status = excluded.status,
+          host_country_ids_json = excluded.host_country_ids_json,
+          qualification_links_json = excluded.qualification_links_json,
+          rule_provenance_status = excluded.rule_provenance_status,
+          rule_notes = excluded.rule_notes`,
+      )
+      .run(
+        edition.id,
+        edition.competitionId,
+        edition.name,
+        edition.cycle,
+        edition.startDate,
+        edition.endDate,
+        edition.status,
+        json.stringify(edition.hostCountryIds),
+        json.stringify(edition.qualificationLinks),
+        edition.ruleProvenanceStatus,
+        edition.ruleNotes ?? null,
+      );
+  }
+
+  editions(): InternationalCompetitionEdition[] {
+    return (
+      this.db
+        .prepare("SELECT * FROM international_competition_editions ORDER BY start_date, name")
+        .all() as any[]
+    ).map(mapInternationalCompetitionEdition);
+  }
+
+  upsertStage(stage: InternationalCompetitionStage): void {
+    this.db
+      .prepare(
+        `INSERT INTO international_competition_stages
+        (id, edition_id, name, stage_order, format_type, group_count, group_size, legs,
+         teams_to_advance, matchday_squad_size, preliminary_squad_size, final_squad_size,
+         tiebreakers_json, allow_extra_time, allow_penalties, away_goals, provenance_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          name = excluded.name,
+          format_type = excluded.format_type,
+          group_count = excluded.group_count,
+          group_size = excluded.group_size,
+          legs = excluded.legs,
+          teams_to_advance = excluded.teams_to_advance,
+          matchday_squad_size = excluded.matchday_squad_size,
+          preliminary_squad_size = excluded.preliminary_squad_size,
+          final_squad_size = excluded.final_squad_size,
+          tiebreakers_json = excluded.tiebreakers_json,
+          allow_extra_time = excluded.allow_extra_time,
+          allow_penalties = excluded.allow_penalties,
+          away_goals = excluded.away_goals`,
+      )
+      .run(
+        stage.id,
+        stage.editionId,
+        stage.name,
+        stage.stageOrder,
+        stage.formatType,
+        stage.groupCount,
+        stage.groupSize,
+        stage.legs,
+        stage.teamsToAdvance,
+        stage.matchdaySquadSize,
+        stage.preliminarySquadSize,
+        stage.finalSquadSize,
+        json.stringify(stage.tiebreakers),
+        Number(stage.allowExtraTime),
+        Number(stage.allowPenalties),
+        Number(stage.awayGoals),
+        stage.provenanceStatus,
+      );
+  }
+
+  stages(editionId?: EntityId): InternationalCompetitionStage[] {
+    const rows = editionId
+      ? (this.db
+          .prepare(
+            "SELECT * FROM international_competition_stages WHERE edition_id = ? ORDER BY stage_order",
+          )
+          .all(editionId) as any[])
+      : (this.db
+          .prepare(
+            "SELECT * FROM international_competition_stages ORDER BY edition_id, stage_order",
+          )
+          .all() as any[]);
+    return rows.map(mapInternationalCompetitionStage);
+  }
+
+  upsertParticipant(participant: InternationalCompetitionParticipant): void {
+    this.db
+      .prepare(
+        `INSERT INTO international_competition_participants
+        (id, edition_id, team_profile_id, entry_status, seed_rating, pot, group_name,
+         final_placement, qualification_source, provenance_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          entry_status = excluded.entry_status,
+          seed_rating = excluded.seed_rating,
+          pot = excluded.pot,
+          group_name = excluded.group_name,
+          final_placement = excluded.final_placement,
+          qualification_source = excluded.qualification_source`,
+      )
+      .run(
+        participant.id,
+        participant.editionId,
+        participant.teamProfileId,
+        participant.entryStatus,
+        participant.seedRating,
+        participant.pot ?? null,
+        participant.groupName ?? null,
+        participant.finalPlacement ?? null,
+        participant.qualificationSource ?? null,
+        participant.provenanceStatus,
+      );
+  }
+
+  participants(editionId?: EntityId): InternationalCompetitionParticipant[] {
+    const rows = editionId
+      ? (this.db
+          .prepare(
+            "SELECT * FROM international_competition_participants WHERE edition_id = ? ORDER BY seed_rating DESC",
+          )
+          .all(editionId) as any[])
+      : (this.db
+          .prepare(
+            "SELECT * FROM international_competition_participants ORDER BY edition_id, seed_rating DESC",
+          )
+          .all() as any[]);
+    return rows.map(mapInternationalCompetitionParticipant);
+  }
+
+  upsertDraw(draw: InternationalDrawRecord): void {
+    this.db
+      .prepare(
+        `INSERT INTO international_draw_records
+        (id, edition_id, stage_id, draw_date, seed_key, pots_json, groups_json, restrictions_json,
+         provenance_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          draw_date = excluded.draw_date,
+          seed_key = excluded.seed_key,
+          pots_json = excluded.pots_json,
+          groups_json = excluded.groups_json,
+          restrictions_json = excluded.restrictions_json`,
+      )
+      .run(
+        draw.id,
+        draw.editionId,
+        draw.stageId,
+        draw.drawDate,
+        draw.seedKey,
+        json.stringify(draw.pots),
+        json.stringify(draw.groups),
+        json.stringify(draw.restrictions),
+        draw.provenanceStatus,
+      );
+  }
+
+  draws(editionId?: EntityId): InternationalDrawRecord[] {
+    const rows = editionId
+      ? (this.db
+          .prepare(
+            "SELECT * FROM international_draw_records WHERE edition_id = ? ORDER BY draw_date",
+          )
+          .all(editionId) as any[])
+      : (this.db
+          .prepare("SELECT * FROM international_draw_records ORDER BY draw_date")
+          .all() as any[]);
+    return rows.map(mapInternationalDrawRecord);
+  }
+
+  upsertMatch(match: InternationalMatch): void {
+    this.db
+      .prepare(
+        `INSERT INTO international_matches
+        (id, edition_id, stage_id, group_name, match_date, home_team_profile_id, away_team_profile_id,
+         neutral_venue, venue_id, status, home_goals, away_goals, extra_time_played,
+         penalties_played, home_penalty_goals, away_penalty_goals, winner_team_profile_id,
+         importance, provenance_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          match_date = excluded.match_date,
+          status = excluded.status,
+          home_goals = excluded.home_goals,
+          away_goals = excluded.away_goals,
+          extra_time_played = excluded.extra_time_played,
+          penalties_played = excluded.penalties_played,
+          home_penalty_goals = excluded.home_penalty_goals,
+          away_penalty_goals = excluded.away_penalty_goals,
+          winner_team_profile_id = excluded.winner_team_profile_id`,
+      )
+      .run(
+        match.id,
+        match.editionId ?? null,
+        match.stageId ?? null,
+        match.groupName ?? null,
+        match.matchDate,
+        match.homeTeamProfileId,
+        match.awayTeamProfileId,
+        Number(match.neutralVenue),
+        match.venueId ?? null,
+        match.status,
+        match.homeGoals ?? null,
+        match.awayGoals ?? null,
+        Number(match.extraTimePlayed),
+        Number(match.penaltiesPlayed),
+        match.homePenaltyGoals ?? null,
+        match.awayPenaltyGoals ?? null,
+        match.winnerTeamProfileId ?? null,
+        match.importance,
+        match.provenanceStatus,
+      );
+  }
+
+  matches(editionId?: EntityId): InternationalMatch[] {
+    const rows = editionId
+      ? (this.db
+          .prepare(
+            "SELECT * FROM international_matches WHERE edition_id = ? ORDER BY match_date, id",
+          )
+          .all(editionId) as any[])
+      : (this.db
+          .prepare("SELECT * FROM international_matches ORDER BY match_date, id")
+          .all() as any[]);
+    return rows.map(mapInternationalMatch);
+  }
+
+  upsertRanking(ranking: SimulationWorldRanking): void {
+    this.db
+      .prepare(
+        `INSERT INTO simulation_world_rankings
+        (id, team_profile_id, ranking_date, rank, points, confederation_rank, reputation,
+         provenance_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          rank = excluded.rank,
+          points = excluded.points,
+          confederation_rank = excluded.confederation_rank,
+          reputation = excluded.reputation`,
+      )
+      .run(
+        ranking.id,
+        ranking.teamProfileId,
+        ranking.rankingDate,
+        ranking.rank,
+        ranking.points,
+        ranking.confederationRank,
+        ranking.reputation,
+        ranking.provenanceStatus,
+      );
+  }
+
+  rankings(rankingDate?: string): SimulationWorldRanking[] {
+    const rows = rankingDate
+      ? (this.db
+          .prepare("SELECT * FROM simulation_world_rankings WHERE ranking_date = ? ORDER BY rank")
+          .all(rankingDate) as any[])
+      : (this.db
+          .prepare("SELECT * FROM simulation_world_rankings ORDER BY ranking_date, rank")
+          .all() as any[]);
+    return rows.map(mapSimulationWorldRanking);
+  }
+
+  upsertDuty(duty: NationalTeamDuty): void {
+    this.db
+      .prepare(
+        `INSERT INTO national_team_duties
+        (id, national_team_id, player_id, competition_edition_id, departure_date, return_date,
+         status, fitness_effect, provenance_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          status = excluded.status,
+          return_date = excluded.return_date,
+          fitness_effect = excluded.fitness_effect`,
+      )
+      .run(
+        duty.id,
+        duty.nationalTeamId,
+        duty.playerId,
+        duty.competitionEditionId ?? null,
+        duty.departureDate,
+        duty.returnDate,
+        duty.status,
+        duty.fitnessEffect,
+        duty.provenanceStatus,
+      );
+  }
+
+  duties(): NationalTeamDuty[] {
+    return (
+      this.db.prepare("SELECT * FROM national_team_duties ORDER BY departure_date").all() as any[]
+    ).map(mapNationalTeamDuty);
+  }
+
+  upsertCohesion(cohesion: NationalTeamCohesion): void {
+    this.db
+      .prepare(
+        `INSERT INTO national_team_cohesion
+        (id, national_team_id, player_id, familiarity, last_updated, provenance_status)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          familiarity = excluded.familiarity,
+          last_updated = excluded.last_updated`,
+      )
+      .run(
+        cohesion.id,
+        cohesion.nationalTeamId,
+        cohesion.playerId,
+        cohesion.familiarity,
+        cohesion.lastUpdated,
+        cohesion.provenanceStatus,
+      );
+  }
+
+  cohesion(nationalTeamId: EntityId): NationalTeamCohesion[] {
+    return (
+      this.db
+        .prepare(
+          "SELECT * FROM national_team_cohesion WHERE national_team_id = ? ORDER BY familiarity DESC",
+        )
+        .all(nationalTeamId) as any[]
+    ).map(mapNationalTeamCohesion);
+  }
+
+  upsertCamp(camp: NationalTeamCamp): void {
+    this.db
+      .prepare(
+        `INSERT INTO national_team_camps
+        (id, federation_id, national_team_id, competition_edition_id, start_date, end_date, focus,
+         cost, currency, status, cohesion_gain, provenance_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          status = excluded.status,
+          cost = excluded.cost,
+          cohesion_gain = excluded.cohesion_gain`,
+      )
+      .run(
+        camp.id,
+        camp.federationId,
+        camp.nationalTeamId,
+        camp.competitionEditionId ?? null,
+        camp.startDate,
+        camp.endDate,
+        camp.focus,
+        camp.cost,
+        camp.currency,
+        camp.status,
+        camp.cohesionGain,
+        camp.provenanceStatus,
+      );
+  }
+
+  camps(): NationalTeamCamp[] {
+    return (
+      this.db.prepare("SELECT * FROM national_team_camps ORDER BY start_date").all() as any[]
+    ).map(mapNationalTeamCamp);
+  }
+
+  upsertInternationalRetirement(retirement: InternationalRetirement): void {
+    this.db
+      .prepare(
+        `INSERT INTO international_retirements
+        (id, player_id, national_team_id, status, decided_on, reason, provenance_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          status = excluded.status,
+          decided_on = excluded.decided_on,
+          reason = excluded.reason`,
+      )
+      .run(
+        retirement.id,
+        retirement.playerId,
+        retirement.nationalTeamId,
+        retirement.status,
+        retirement.decidedOn,
+        retirement.reason ?? null,
+        retirement.provenanceStatus,
+      );
+  }
+
+  internationalRetirements(nationalTeamId?: EntityId): InternationalRetirement[] {
+    const rows = nationalTeamId
+      ? (this.db
+          .prepare(
+            "SELECT * FROM international_retirements WHERE national_team_id = ? ORDER BY decided_on",
+          )
+          .all(nationalTeamId) as any[])
+      : (this.db
+          .prepare("SELECT * FROM international_retirements ORDER BY decided_on")
+          .all() as any[]);
+    return rows.map(mapInternationalRetirement);
+  }
+}
+
+const mapInternationalTeamProfile = (row: any): InternationalTeamProfile => ({
+  id: row.id,
+  countryId: row.country_id,
+  nationalTeamId: row.national_team_id ?? undefined,
+  name: row.name,
+  teamType: row.team_type,
+  confederation: row.confederation,
+  region: row.region,
+  simulationReputation: row.simulation_reputation,
+  simulationStrength: row.simulation_strength,
+  homeAdvantageProfile: row.home_advantage_profile,
+  developmentLevel: row.development_level,
+  formRating: row.form_rating,
+  lastUpdated: row.last_updated,
+  provenanceStatus: row.provenance_status,
+});
+
+const mapInternationalDevelopmentProfile = (row: any): InternationalDevelopmentProfile => ({
+  id: row.id,
+  countryId: row.country_id,
+  effectiveFrom: row.effective_from,
+  footballDevelopment: row.football_development,
+  youthPipeline: row.youth_pipeline,
+  coachQuality: row.coach_quality,
+  infrastructure: row.infrastructure,
+  domesticProfessionalism: row.domestic_professionalism,
+  populationTalentBase: row.population_talent_base,
+  provenanceStatus: row.provenance_status,
+});
+
+const mapInternationalCompetition = (row: any): InternationalCompetition => ({
+  id: row.id,
+  name: row.name,
+  competitionType: row.competition_type,
+  confederation: row.confederation ?? undefined,
+  region: row.region ?? undefined,
+  cadenceYears: row.cadence_years,
+  provenanceStatus: row.provenance_status,
+});
+
+const mapInternationalCompetitionEdition = (row: any): InternationalCompetitionEdition => ({
+  id: row.id,
+  competitionId: row.competition_id,
+  name: row.name,
+  cycle: row.cycle,
+  startDate: row.start_date,
+  endDate: row.end_date,
+  status: row.status,
+  hostCountryIds: json.parse(row.host_country_ids_json, []),
+  qualificationLinks: json.parse(row.qualification_links_json, []),
+  ruleProvenanceStatus: row.rule_provenance_status,
+  ruleNotes: row.rule_notes ?? undefined,
+});
+
+const mapInternationalCompetitionStage = (row: any): InternationalCompetitionStage => ({
+  id: row.id,
+  editionId: row.edition_id,
+  name: row.name,
+  stageOrder: row.stage_order,
+  formatType: row.format_type,
+  groupCount: row.group_count,
+  groupSize: row.group_size,
+  legs: row.legs,
+  teamsToAdvance: row.teams_to_advance,
+  matchdaySquadSize: row.matchday_squad_size,
+  preliminarySquadSize: row.preliminary_squad_size,
+  finalSquadSize: row.final_squad_size,
+  tiebreakers: json.parse(row.tiebreakers_json, []),
+  allowExtraTime: Boolean(row.allow_extra_time),
+  allowPenalties: Boolean(row.allow_penalties),
+  awayGoals: Boolean(row.away_goals),
+  provenanceStatus: row.provenance_status,
+});
+
+const mapInternationalCompetitionParticipant = (row: any): InternationalCompetitionParticipant => ({
+  id: row.id,
+  editionId: row.edition_id,
+  teamProfileId: row.team_profile_id,
+  entryStatus: row.entry_status,
+  seedRating: row.seed_rating,
+  pot: row.pot ?? undefined,
+  groupName: row.group_name ?? undefined,
+  finalPlacement: row.final_placement ?? undefined,
+  qualificationSource: row.qualification_source ?? undefined,
+  provenanceStatus: row.provenance_status,
+});
+
+const mapInternationalDrawRecord = (row: any): InternationalDrawRecord => ({
+  id: row.id,
+  editionId: row.edition_id,
+  stageId: row.stage_id,
+  drawDate: row.draw_date,
+  seedKey: row.seed_key,
+  pots: json.parse(row.pots_json, []),
+  groups: json.parse(row.groups_json, []),
+  restrictions: json.parse(row.restrictions_json, {}),
+  provenanceStatus: row.provenance_status,
+});
+
+const mapInternationalMatch = (row: any): InternationalMatch => ({
+  id: row.id,
+  editionId: row.edition_id ?? undefined,
+  stageId: row.stage_id ?? undefined,
+  groupName: row.group_name ?? undefined,
+  matchDate: row.match_date,
+  homeTeamProfileId: row.home_team_profile_id,
+  awayTeamProfileId: row.away_team_profile_id,
+  neutralVenue: Boolean(row.neutral_venue),
+  venueId: row.venue_id ?? undefined,
+  status: row.status,
+  homeGoals: row.home_goals ?? undefined,
+  awayGoals: row.away_goals ?? undefined,
+  extraTimePlayed: Boolean(row.extra_time_played),
+  penaltiesPlayed: Boolean(row.penalties_played),
+  homePenaltyGoals: row.home_penalty_goals ?? undefined,
+  awayPenaltyGoals: row.away_penalty_goals ?? undefined,
+  winnerTeamProfileId: row.winner_team_profile_id ?? undefined,
+  importance: row.importance,
+  provenanceStatus: row.provenance_status,
+});
+
+const mapSimulationWorldRanking = (row: any): SimulationWorldRanking => ({
+  id: row.id,
+  teamProfileId: row.team_profile_id,
+  rankingDate: row.ranking_date,
+  rank: row.rank,
+  points: row.points,
+  confederationRank: row.confederation_rank,
+  reputation: row.reputation,
+  provenanceStatus: row.provenance_status,
+});
+
+const mapNationalTeamDuty = (row: any): NationalTeamDuty => ({
+  id: row.id,
+  nationalTeamId: row.national_team_id,
+  playerId: row.player_id,
+  competitionEditionId: row.competition_edition_id ?? undefined,
+  departureDate: row.departure_date,
+  returnDate: row.return_date,
+  status: row.status,
+  fitnessEffect: row.fitness_effect,
+  provenanceStatus: row.provenance_status,
+});
+
+const mapNationalTeamCohesion = (row: any): NationalTeamCohesion => ({
+  id: row.id,
+  nationalTeamId: row.national_team_id,
+  playerId: row.player_id,
+  familiarity: row.familiarity,
+  lastUpdated: row.last_updated,
+  provenanceStatus: row.provenance_status,
+});
+
+const mapNationalTeamCamp = (row: any): NationalTeamCamp => ({
+  id: row.id,
+  federationId: row.federation_id,
+  nationalTeamId: row.national_team_id,
+  competitionEditionId: row.competition_edition_id ?? undefined,
+  startDate: row.start_date,
+  endDate: row.end_date,
+  focus: row.focus,
+  cost: row.cost,
+  currency: row.currency,
+  status: row.status,
+  cohesionGain: row.cohesion_gain,
+  provenanceStatus: row.provenance_status,
+});
+
+const mapInternationalRetirement = (row: any): InternationalRetirement => ({
+  id: row.id,
+  playerId: row.player_id,
+  nationalTeamId: row.national_team_id,
+  status: row.status,
+  decidedOn: row.decided_on,
+  reason: row.reason ?? undefined,
+  provenanceStatus: row.provenance_status,
 });
 
 export class EventRepository {

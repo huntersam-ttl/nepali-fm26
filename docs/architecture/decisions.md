@@ -260,3 +260,21 @@ pyramid progression data. Played historical seasons are skipped. Development pro
 investment, coach education, referee development, national-team activity, commercial work, and
 relationships produce gradual simulation-world effects through persistent profiles, KPIs, and annual
 financial statements rather than instant one-off boosts.
+
+## ADR-031: International football is Nepal-first with aggregate external teams
+
+International football should make Nepal participate in a believable AFC/SAFF/global ecosystem
+without requiring complete world domestic leagues, full external squads, or a complete FIFA database.
+Nepal senior men's matches use the save-backed national-team player pool, callups, duty windows,
+cohesion, and the existing event-based match engine. External national teams are represented by
+lightweight aggregate profiles that can evolve through development, reputation, form, and results.
+
+International competitions are edition-specific. A SAFF edition, Asian Cup qualification cycle, Asian
+Cup, AFC World Cup qualification cycle, or world championship may each define different stages,
+tiebreakers, squad sizes, hosts, pots, and advancement rules without mutating historical editions.
+Draws, groups, matches, rankings, and final placements are persisted so 50-year saves can inspect
+national-team history.
+
+The simulation world ranking is an internal gameplay ranking, not an official FIFA ranking. Future
+researched tournament formats or ranking formulas should be stored as data/provenance and can replace
+the current `SIMULATION_ONLY` simplified rules without changing the package boundary.

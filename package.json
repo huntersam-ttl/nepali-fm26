@@ -14,6 +14,7 @@
     "development:simulate": "pnpm --filter @nepal-football-sim/simulation development:simulate",
     "economy:simulate": "pnpm --filter @nepal-football-sim/simulation economy:simulate",
     "federation:simulate": "pnpm --filter @nepal-football-sim/simulation federation:simulate",
+    "international:simulate": "pnpm --filter @nepal-football-sim/simulation international:simulate",
     "match:simulate": "pnpm --filter @nepal-football-sim/simulation match:simulate",
     "nepal:create-save": "pnpm --filter @nepal-football-sim/simulation nepal:create-save",
     "players:balance": "pnpm --filter @nepal-football-sim/simulation players:balance",

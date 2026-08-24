@@ -21,6 +21,7 @@
     "development:simulate": "pnpm build && node dist/development-cli.js",
     "economy:simulate": "pnpm build && node dist/economy-cli.js",
     "federation:simulate": "pnpm build && node dist/federation-cli.js",
+    "international:simulate": "pnpm build && node dist/international-cli.js",
     "match:simulate": "pnpm build && node dist/match-cli.js",
     "nepal:create-save": "pnpm build && node dist/nepal-cli.js",
     "players:balance": "pnpm build && node dist/player-balance-cli.js",

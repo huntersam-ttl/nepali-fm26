@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 16;
+export const CURRENT_DATABASE_VERSION = 17;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -1900,6 +1900,205 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
         closed_at TEXT NOT NULL,
         status TEXT NOT NULL,
         UNIQUE(federation_id, season_label)
+      );
+    `,
+  },
+  {
+    version: 17,
+    sql: `
+      CREATE TABLE IF NOT EXISTS international_team_profiles (
+        id TEXT PRIMARY KEY,
+        country_id TEXT NOT NULL REFERENCES countries(id),
+        national_team_id TEXT REFERENCES teams(id),
+        name TEXT NOT NULL,
+        team_type TEXT NOT NULL,
+        confederation TEXT NOT NULL,
+        region TEXT NOT NULL,
+        simulation_reputation REAL NOT NULL,
+        simulation_strength REAL NOT NULL,
+        home_advantage_profile REAL NOT NULL,
+        development_level REAL NOT NULL,
+        form_rating REAL NOT NULL,
+        last_updated TEXT NOT NULL,
+        provenance_status TEXT NOT NULL,
+        UNIQUE(country_id, team_type)
+      );
+
+      CREATE TABLE IF NOT EXISTS international_development_profiles (
+        id TEXT PRIMARY KEY,
+        country_id TEXT NOT NULL REFERENCES countries(id),
+        effective_from TEXT NOT NULL,
+        football_development REAL NOT NULL,
+        youth_pipeline REAL NOT NULL,
+        coach_quality REAL NOT NULL,
+        infrastructure REAL NOT NULL,
+        domestic_professionalism REAL NOT NULL,
+        population_talent_base REAL NOT NULL,
+        provenance_status TEXT NOT NULL,
+        UNIQUE(country_id, effective_from)
+      );
+
+      CREATE TABLE IF NOT EXISTS international_competitions (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        competition_type TEXT NOT NULL,
+        confederation TEXT,
+        region TEXT,
+        cadence_years INTEGER NOT NULL,
+        provenance_status TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS international_competition_editions (
+        id TEXT PRIMARY KEY,
+        competition_id TEXT NOT NULL REFERENCES international_competitions(id),
+        name TEXT NOT NULL,
+        cycle TEXT NOT NULL,
+        start_date TEXT NOT NULL,
+        end_date TEXT NOT NULL,
+        status TEXT NOT NULL,
+        host_country_ids_json TEXT NOT NULL,
+        qualification_links_json TEXT NOT NULL,
+        rule_provenance_status TEXT NOT NULL,
+        rule_notes TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS international_competition_stages (
+        id TEXT PRIMARY KEY,
+        edition_id TEXT NOT NULL REFERENCES international_competition_editions(id),
+        name TEXT NOT NULL,
+        stage_order INTEGER NOT NULL,
+        format_type TEXT NOT NULL,
+        group_count INTEGER NOT NULL,
+        group_size INTEGER NOT NULL,
+        legs INTEGER NOT NULL,
+        teams_to_advance INTEGER NOT NULL,
+        matchday_squad_size INTEGER NOT NULL,
+        preliminary_squad_size INTEGER NOT NULL,
+        final_squad_size INTEGER NOT NULL,
+        tiebreakers_json TEXT NOT NULL,
+        allow_extra_time INTEGER NOT NULL,
+        allow_penalties INTEGER NOT NULL,
+        away_goals INTEGER NOT NULL,
+        provenance_status TEXT NOT NULL,
+        UNIQUE(edition_id, stage_order)
+      );
+
+      CREATE TABLE IF NOT EXISTS international_competition_participants (
+        id TEXT PRIMARY KEY,
+        edition_id TEXT NOT NULL REFERENCES international_competition_editions(id),
+        team_profile_id TEXT NOT NULL REFERENCES international_team_profiles(id),
+        entry_status TEXT NOT NULL,
+        seed_rating REAL NOT NULL,
+        pot INTEGER,
+        group_name TEXT,
+        final_placement INTEGER,
+        qualification_source TEXT,
+        provenance_status TEXT NOT NULL,
+        UNIQUE(edition_id, team_profile_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS international_draw_records (
+        id TEXT PRIMARY KEY,
+        edition_id TEXT NOT NULL REFERENCES international_competition_editions(id),
+        stage_id TEXT NOT NULL REFERENCES international_competition_stages(id),
+        draw_date TEXT NOT NULL,
+        seed_key TEXT NOT NULL,
+        pots_json TEXT NOT NULL,
+        groups_json TEXT NOT NULL,
+        restrictions_json TEXT NOT NULL,
+        provenance_status TEXT NOT NULL,
+        UNIQUE(edition_id, stage_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS international_matches (
+        id TEXT PRIMARY KEY,
+        edition_id TEXT REFERENCES international_competition_editions(id),
+        stage_id TEXT REFERENCES international_competition_stages(id),
+        group_name TEXT,
+        match_date TEXT NOT NULL,
+        home_team_profile_id TEXT NOT NULL REFERENCES international_team_profiles(id),
+        away_team_profile_id TEXT NOT NULL REFERENCES international_team_profiles(id),
+        neutral_venue INTEGER NOT NULL,
+        venue_id TEXT REFERENCES venues(id),
+        status TEXT NOT NULL,
+        home_goals INTEGER,
+        away_goals INTEGER,
+        extra_time_played INTEGER NOT NULL,
+        penalties_played INTEGER NOT NULL,
+        home_penalty_goals INTEGER,
+        away_penalty_goals INTEGER,
+        winner_team_profile_id TEXT REFERENCES international_team_profiles(id),
+        importance TEXT NOT NULL,
+        provenance_status TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_international_matches_date
+        ON international_matches(match_date);
+
+      CREATE INDEX IF NOT EXISTS idx_international_matches_edition
+        ON international_matches(edition_id, stage_id);
+
+      CREATE TABLE IF NOT EXISTS simulation_world_rankings (
+        id TEXT PRIMARY KEY,
+        team_profile_id TEXT NOT NULL REFERENCES international_team_profiles(id),
+        ranking_date TEXT NOT NULL,
+        rank INTEGER NOT NULL,
+        points REAL NOT NULL,
+        confederation_rank INTEGER NOT NULL,
+        reputation REAL NOT NULL,
+        provenance_status TEXT NOT NULL,
+        UNIQUE(team_profile_id, ranking_date)
+      );
+
+      CREATE TABLE IF NOT EXISTS national_team_duties (
+        id TEXT PRIMARY KEY,
+        national_team_id TEXT NOT NULL REFERENCES teams(id),
+        player_id TEXT NOT NULL REFERENCES persons(id),
+        competition_edition_id TEXT REFERENCES international_competition_editions(id),
+        departure_date TEXT NOT NULL,
+        return_date TEXT NOT NULL,
+        status TEXT NOT NULL,
+        fitness_effect REAL NOT NULL,
+        provenance_status TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_national_team_duties_player_window
+        ON national_team_duties(player_id, departure_date, return_date);
+
+      CREATE TABLE IF NOT EXISTS national_team_cohesion (
+        id TEXT PRIMARY KEY,
+        national_team_id TEXT NOT NULL REFERENCES teams(id),
+        player_id TEXT NOT NULL REFERENCES persons(id),
+        familiarity REAL NOT NULL,
+        last_updated TEXT NOT NULL,
+        provenance_status TEXT NOT NULL,
+        UNIQUE(national_team_id, player_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS national_team_camps (
+        id TEXT PRIMARY KEY,
+        federation_id TEXT NOT NULL REFERENCES federations(id),
+        national_team_id TEXT NOT NULL REFERENCES teams(id),
+        competition_edition_id TEXT REFERENCES international_competition_editions(id),
+        start_date TEXT NOT NULL,
+        end_date TEXT NOT NULL,
+        focus TEXT NOT NULL,
+        cost INTEGER NOT NULL,
+        currency TEXT NOT NULL,
+        status TEXT NOT NULL,
+        cohesion_gain REAL NOT NULL,
+        provenance_status TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS international_retirements (
+        id TEXT PRIMARY KEY,
+        player_id TEXT NOT NULL REFERENCES persons(id),
+        national_team_id TEXT NOT NULL REFERENCES teams(id),
+        status TEXT NOT NULL,
+        decided_on TEXT NOT NULL,
+        reason TEXT,
+        provenance_status TEXT NOT NULL,
+        UNIQUE(player_id, national_team_id)
       );
     `,
   },

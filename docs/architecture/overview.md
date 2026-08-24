@@ -150,6 +150,22 @@ financial close, strategy/budget review, competition-rule confirmation, club lic
 projects, national-team programme, season delivery, KPI review. AI federation processing uses the
 same cycle when the player is not president.
 
+The international football layer lets Nepal participate in a lightweight global national-team
+ecosystem without building every domestic league or a complete FIFA database. Nepal's senior men's
+team uses the real save-backed player pool, national-team callups, duty windows, cohesion, and the
+existing match engine. External national teams use aggregate `InternationalTeamProfile` records with
+country identity, confederation, region, simulation strength, reputation, development level, form, and
+home-advantage values. These gameplay ratings are `SIMULATION_ONLY`; future researched data can
+replace datasets without changing tournament logic.
+
+International competitions are split into `InternationalCompetition`,
+`InternationalCompetitionEdition`, edition-specific stages, participants, draw records, matches, and
+qualification links. SAFF, Asian Cup qualification, the Asian Cup, AFC World Cup qualification, and a
+lightweight world championship are represented by the same format engine rather than bespoke
+tournament code. Draws are deterministic, use pots/seeding, and persist groups. External-vs-external
+matches use a fast aggregate resolver, while Nepal matches use selected squads. Simulation world
+rankings are internal gameplay rankings and must not be described as official FIFA rankings.
+
 ## Competition and Match Simulation
 
 Stage 3 adds a headless competition layer. Competition rule sets are dataset-driven and define season type, points, tiebreakers, home/away structure, round spacing, and promotion/relegation/continental slots. The engine supports deterministic single and double round-robin fixture generation.
