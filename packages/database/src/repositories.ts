@@ -1,6 +1,7 @@
 import type {
   CareerCharacter,
   Academy,
+  AcademySimulationProfile,
   AgentClient,
   AgentProfile,
   ClubAlias,
@@ -15,6 +16,7 @@ import type {
   CompetitionDevelopmentMultiplier,
   CompetitionRelationship,
   Country,
+  CountryDevelopmentProfile,
   Federation,
   FinanceAccount,
   FinancialTransaction,
@@ -58,7 +60,9 @@ import type {
   PlayerFactualProfile,
   PlayerKnowledge,
   PlayerLoanRecord,
+  PlayerRetirementRecord,
   RefereeProfile,
+  RetiredStaffTransition,
   PlayerPotential,
   PlayerPlayingTimeSnapshot,
   PlayerSeasonStat,
@@ -70,11 +74,16 @@ import type {
   TransferWindow,
   NegotiationRound,
   PlayerTransferStatusRecord,
+  GeneratedPlayerOrigin,
   SquadNeedReport,
   TrainingFacilityProfile,
   TrainingHistoryEvent,
   TrainingPlan,
   VenueRelationship,
+  YouthDevelopmentActivity,
+  YouthIntakeEvent,
+  YouthPlayerStatus,
+  YouthPlayerStatusRecord,
 } from "@nepal-football-sim/shared-types";
 import type { EntityId } from "@nepal-football-sim/shared-types";
 import type { GameDatabase } from "./connection.js";
@@ -2136,6 +2145,319 @@ export class TransferMarketRepository {
   }
 }
 
+export class YouthRepository {
+  constructor(private readonly db: GameDatabase) {}
+
+  upsertCountryDevelopmentProfile(profile: CountryDevelopmentProfile): void {
+    this.db
+      .prepare(
+        `INSERT INTO country_development_profiles
+        (id, country_id, effective_from, football_popularity, grassroots_reach, coaching_quality,
+          youth_infrastructure, talent_conversion, status, notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(country_id, effective_from) DO UPDATE SET
+          football_popularity = excluded.football_popularity,
+          grassroots_reach = excluded.grassroots_reach,
+          coaching_quality = excluded.coaching_quality,
+          youth_infrastructure = excluded.youth_infrastructure,
+          talent_conversion = excluded.talent_conversion,
+          status = excluded.status,
+          notes = excluded.notes`,
+      )
+      .run(
+        profile.id,
+        profile.countryId,
+        profile.effectiveFrom,
+        profile.footballPopularity,
+        profile.grassrootsReach,
+        profile.coachingQuality,
+        profile.youthInfrastructure,
+        profile.talentConversion,
+        profile.status,
+        profile.notes ?? null,
+      );
+  }
+
+  latestCountryDevelopmentProfile(countryId: EntityId): CountryDevelopmentProfile | undefined {
+    const row = this.db
+      .prepare(
+        `SELECT * FROM country_development_profiles
+        WHERE country_id = ?
+        ORDER BY effective_from DESC LIMIT 1`,
+      )
+      .get(countryId) as any;
+    return row ? mapCountryDevelopmentProfile(row) : undefined;
+  }
+
+  upsertAcademySimulationProfile(profile: AcademySimulationProfile): void {
+    this.db
+      .prepare(
+        `INSERT INTO academy_simulation_profiles
+        (id, academy_id, club_id, country_id, youth_recruitment_quality, academy_coaching_quality,
+          academy_facilities_quality, regional_reach, talent_identification_quality, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          youth_recruitment_quality = excluded.youth_recruitment_quality,
+          academy_coaching_quality = excluded.academy_coaching_quality,
+          academy_facilities_quality = excluded.academy_facilities_quality,
+          regional_reach = excluded.regional_reach,
+          talent_identification_quality = excluded.talent_identification_quality,
+          status = excluded.status`,
+      )
+      .run(
+        profile.id,
+        profile.academyId ?? null,
+        profile.clubId ?? null,
+        profile.countryId,
+        profile.youthRecruitmentQuality,
+        profile.academyCoachingQuality,
+        profile.academyFacilitiesQuality,
+        profile.regionalReach,
+        profile.talentIdentificationQuality,
+        profile.status,
+      );
+  }
+
+  academyProfiles(): AcademySimulationProfile[] {
+    return this.db
+      .prepare("SELECT * FROM academy_simulation_profiles ORDER BY club_id, academy_id, id")
+      .all()
+      .map(mapAcademySimulationProfile);
+  }
+
+  insertYouthIntakeEvent(event: YouthIntakeEvent): void {
+    this.db
+      .prepare(
+        `INSERT INTO youth_intake_events
+        (id, country_id, club_id, academy_id, intake_date, season_label, intake_type,
+          players_generated, average_current_ability, average_potential, highest_potential,
+          status, seed_key, data_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          players_generated = excluded.players_generated,
+          average_current_ability = excluded.average_current_ability,
+          average_potential = excluded.average_potential,
+          highest_potential = excluded.highest_potential,
+          data_json = excluded.data_json`,
+      )
+      .run(
+        event.id,
+        event.countryId,
+        event.clubId ?? null,
+        event.academyId ?? null,
+        event.intakeDate,
+        event.seasonLabel,
+        event.intakeType,
+        event.playersGenerated,
+        event.averageCurrentAbility,
+        event.averagePotential,
+        event.highestPotential,
+        event.status,
+        event.seedKey,
+        event.data ? json.stringify(event.data) : null,
+      );
+  }
+
+  youthIntakeEvents(): YouthIntakeEvent[] {
+    return this.db
+      .prepare("SELECT * FROM youth_intake_events ORDER BY intake_date, id")
+      .all()
+      .map(mapYouthIntakeEvent);
+  }
+
+  hasIntakeForSeason(seasonLabel: string): boolean {
+    const row = this.db
+      .prepare("SELECT COUNT(*) AS count FROM youth_intake_events WHERE season_label = ?")
+      .get(seasonLabel) as any;
+    return Number(row?.count ?? 0) > 0;
+  }
+
+  insertGeneratedPlayerOrigin(origin: GeneratedPlayerOrigin): void {
+    this.db
+      .prepare(
+        `INSERT INTO generated_player_origins
+        (id, player_id, origin_type, origin_data_type, country_id, club_id, academy_id,
+          location_id, district_location_id, intake_event_id, generated_on, name_generation_key,
+          archetype, youth_status, eligibility_json, source_notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(player_id) DO NOTHING`,
+      )
+      .run(
+        origin.id,
+        origin.playerId,
+        origin.originType,
+        origin.originDataType,
+        origin.countryId,
+        origin.clubId ?? null,
+        origin.academyId ?? null,
+        origin.locationId ?? null,
+        origin.districtLocationId ?? null,
+        origin.intakeEventId ?? null,
+        origin.generatedOn,
+        origin.nameGenerationKey,
+        origin.archetype,
+        origin.youthStatus,
+        json.stringify(origin.eligibility),
+        origin.sourceNotes ?? null,
+      );
+  }
+
+  generatedPlayerOrigins(): GeneratedPlayerOrigin[] {
+    return this.db
+      .prepare("SELECT * FROM generated_player_origins ORDER BY generated_on, player_id")
+      .all()
+      .map(mapGeneratedPlayerOrigin);
+  }
+
+  upsertYouthStatus(status: YouthPlayerStatusRecord): void {
+    this.db
+      .prepare(
+        `INSERT INTO youth_player_statuses
+        (player_id, youth_status, club_id, academy_id, status_since, pathway_json)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(player_id) DO UPDATE SET
+          youth_status = excluded.youth_status,
+          club_id = excluded.club_id,
+          academy_id = excluded.academy_id,
+          status_since = excluded.status_since,
+          pathway_json = excluded.pathway_json`,
+      )
+      .run(
+        status.playerId,
+        status.youthStatus,
+        status.clubId ?? null,
+        status.academyId ?? null,
+        status.statusSince,
+        json.stringify(status.pathway),
+      );
+  }
+
+  youthStatuses(): YouthPlayerStatusRecord[] {
+    return this.db
+      .prepare("SELECT * FROM youth_player_statuses ORDER BY club_id, academy_id, player_id")
+      .all()
+      .map(mapYouthPlayerStatus);
+  }
+
+  updateYouthStatus(playerId: EntityId, status: YouthPlayerStatus, date: string): void {
+    this.db
+      .prepare(
+        "UPDATE youth_player_statuses SET youth_status = ?, status_since = ? WHERE player_id = ?",
+      )
+      .run(status, date, playerId);
+  }
+
+  insertYouthDevelopmentActivity(activity: YouthDevelopmentActivity): void {
+    this.db
+      .prepare(
+        `INSERT INTO youth_development_activity
+        (id, player_id, club_id, academy_id, activity_date, activity_type,
+          development_minutes, exposure_level, data_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO NOTHING`,
+      )
+      .run(
+        activity.id,
+        activity.playerId,
+        activity.clubId ?? null,
+        activity.academyId ?? null,
+        activity.activityDate,
+        activity.activityType,
+        activity.developmentMinutes,
+        activity.exposureLevel,
+        activity.data ? json.stringify(activity.data) : null,
+      );
+  }
+
+  upsertRetirementState(record: PlayerRetirementRecord): void {
+    this.db
+      .prepare(
+        `INSERT INTO player_retirement_states
+        (player_id, state, decided_on, announced_on, retirement_date, reason, staff_interest, data_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(player_id) DO UPDATE SET
+          state = excluded.state,
+          decided_on = excluded.decided_on,
+          announced_on = excluded.announced_on,
+          retirement_date = excluded.retirement_date,
+          reason = excluded.reason,
+          staff_interest = excluded.staff_interest,
+          data_json = excluded.data_json`,
+      )
+      .run(
+        record.playerId,
+        record.state,
+        record.decidedOn,
+        record.announcedOn ?? null,
+        record.retirementDate ?? null,
+        record.reason ?? null,
+        record.staffInterest,
+        record.data ? json.stringify(record.data) : null,
+      );
+  }
+
+  retirementStates(): PlayerRetirementRecord[] {
+    return this.db
+      .prepare("SELECT * FROM player_retirement_states ORDER BY decided_on, player_id")
+      .all()
+      .map(mapPlayerRetirementRecord);
+  }
+
+  insertRetiredStaffTransition(transition: RetiredStaffTransition): void {
+    this.db
+      .prepare(
+        `INSERT INTO retired_staff_transitions
+        (id, player_id, staff_role, club_id, academy_id, federation_id, transitioned_on, status, data_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO NOTHING`,
+      )
+      .run(
+        transition.id,
+        transition.playerId,
+        transition.staffRole,
+        transition.clubId ?? null,
+        transition.academyId ?? null,
+        transition.federationId ?? null,
+        transition.transitionedOn,
+        transition.status,
+        transition.data ? json.stringify(transition.data) : null,
+      );
+  }
+
+  staffTransitions(): RetiredStaffTransition[] {
+    return this.db
+      .prepare("SELECT * FROM retired_staff_transitions ORDER BY transitioned_on, id")
+      .all()
+      .map(mapRetiredStaffTransition);
+  }
+
+  playerPopulation(): {
+    totalPlayers: number;
+    realImportedPlayers: number;
+    generatedPlayers: number;
+    activeSeniorAssignments: number;
+    retiredPlayers: number;
+  } {
+    const scalar = (sql: string): number => Number((this.db.prepare(sql).get() as any)?.count ?? 0);
+    return {
+      totalPlayers: scalar(
+        "SELECT COUNT(DISTINCT person_id) AS count FROM person_roles WHERE role = 'PLAYER'",
+      ),
+      realImportedPlayers: scalar("SELECT COUNT(*) AS count FROM player_factual_profiles"),
+      generatedPlayers: scalar("SELECT COUNT(*) AS count FROM generated_player_origins"),
+      activeSeniorAssignments: scalar(
+        `SELECT COUNT(DISTINCT tpa.person_id) AS count
+        FROM team_person_assignments tpa
+        JOIN teams t ON t.id = tpa.team_id
+        WHERE tpa.role = 'PLAYER' AND tpa.ended_on IS NULL AND t.level = 'senior'`,
+      ),
+      retiredPlayers: scalar(
+        "SELECT COUNT(*) AS count FROM player_retirement_states WHERE state = 'RETIRED'",
+      ),
+    };
+  }
+}
+
 export class PlayerRepository {
   constructor(private readonly db: GameDatabase) {}
 
@@ -2425,7 +2747,10 @@ export class PlayerRepository {
   insertSuspension(suspension: SuspensionRecord): void {
     this.db
       .prepare(
-        "INSERT INTO suspensions (id, person_id, competition_season_id, reason, matches_remaining) VALUES (?, ?, ?, ?, ?)",
+        `INSERT INTO suspensions (id, person_id, competition_season_id, reason, matches_remaining)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          matches_remaining = MAX(suspensions.matches_remaining, excluded.matches_remaining)`,
       )
       .run(
         suspension.id,
@@ -2517,6 +2842,104 @@ const mapAttributes = (row: any): PlayerAttributeSet => ({
   mental: json.parse(row.mental_json, {}) as PlayerAttributeSet["mental"],
   physical: json.parse(row.physical_json, {}) as PlayerAttributeSet["physical"],
   goalkeeping: json.parse(row.goalkeeping_json, {}) as PlayerAttributeSet["goalkeeping"],
+});
+
+const mapCountryDevelopmentProfile = (row: any): CountryDevelopmentProfile => ({
+  id: row.id,
+  countryId: row.country_id,
+  effectiveFrom: row.effective_from,
+  footballPopularity: row.football_popularity,
+  grassrootsReach: row.grassroots_reach,
+  coachingQuality: row.coaching_quality,
+  youthInfrastructure: row.youth_infrastructure,
+  talentConversion: row.talent_conversion,
+  status: row.status,
+  notes: row.notes ?? undefined,
+});
+
+const mapAcademySimulationProfile = (row: any): AcademySimulationProfile => ({
+  id: row.id,
+  academyId: row.academy_id ?? undefined,
+  clubId: row.club_id ?? undefined,
+  countryId: row.country_id,
+  youthRecruitmentQuality: row.youth_recruitment_quality,
+  academyCoachingQuality: row.academy_coaching_quality,
+  academyFacilitiesQuality: row.academy_facilities_quality,
+  regionalReach: row.regional_reach,
+  talentIdentificationQuality: row.talent_identification_quality,
+  status: row.status,
+});
+
+const mapYouthIntakeEvent = (row: any): YouthIntakeEvent => ({
+  id: row.id,
+  countryId: row.country_id,
+  clubId: row.club_id ?? undefined,
+  academyId: row.academy_id ?? undefined,
+  intakeDate: row.intake_date,
+  seasonLabel: row.season_label,
+  intakeType: row.intake_type,
+  playersGenerated: row.players_generated,
+  averageCurrentAbility: row.average_current_ability,
+  averagePotential: row.average_potential,
+  highestPotential: row.highest_potential,
+  status: row.status,
+  seedKey: row.seed_key,
+  data: json.parse<Record<string, unknown> | undefined>(row.data_json, undefined),
+});
+
+const mapGeneratedPlayerOrigin = (row: any): GeneratedPlayerOrigin => ({
+  id: row.id,
+  playerId: row.player_id,
+  originType: row.origin_type,
+  originDataType: row.origin_data_type,
+  countryId: row.country_id,
+  clubId: row.club_id ?? undefined,
+  academyId: row.academy_id ?? undefined,
+  locationId: row.location_id ?? undefined,
+  districtLocationId: row.district_location_id ?? undefined,
+  intakeEventId: row.intake_event_id ?? undefined,
+  generatedOn: row.generated_on,
+  nameGenerationKey: row.name_generation_key,
+  archetype: row.archetype,
+  youthStatus: row.youth_status,
+  eligibility: json.parse(row.eligibility_json, {
+    nationalityCountryId: row.country_id,
+    ageGroupEligible: true,
+    diaspora: false,
+  }),
+  sourceNotes: row.source_notes ?? undefined,
+});
+
+const mapYouthPlayerStatus = (row: any): YouthPlayerStatusRecord => ({
+  playerId: row.player_id,
+  youthStatus: row.youth_status,
+  clubId: row.club_id ?? undefined,
+  academyId: row.academy_id ?? undefined,
+  statusSince: row.status_since,
+  pathway: json.parse(row.pathway_json, {}),
+});
+
+const mapPlayerRetirementRecord = (row: any): PlayerRetirementRecord => ({
+  playerId: row.player_id,
+  state: row.state,
+  decidedOn: row.decided_on,
+  announcedOn: row.announced_on ?? undefined,
+  retirementDate: row.retirement_date ?? undefined,
+  reason: row.reason ?? undefined,
+  staffInterest: row.staff_interest,
+  data: json.parse<Record<string, unknown> | undefined>(row.data_json, undefined),
+});
+
+const mapRetiredStaffTransition = (row: any): RetiredStaffTransition => ({
+  id: row.id,
+  playerId: row.player_id,
+  staffRole: row.staff_role,
+  clubId: row.club_id ?? undefined,
+  academyId: row.academy_id ?? undefined,
+  federationId: row.federation_id ?? undefined,
+  transitionedOn: row.transitioned_on,
+  status: row.status,
+  data: json.parse<Record<string, unknown> | undefined>(row.data_json, undefined),
 });
 
 const mapDevelopmentState = (row: any): PlayerDevelopmentState => ({

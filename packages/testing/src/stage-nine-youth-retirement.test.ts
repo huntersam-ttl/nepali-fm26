@@ -1,0 +1,272 @@
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
+import {
+  RecruitmentRepository,
+  TransferMarketRepository,
+  YouthRepository,
+  openGameDatabase,
+} from "@nepal-football-sim/database";
+import type { EntityId } from "@nepal-football-sim/shared-types";
+import {
+  createNepalSave,
+  initializeTransferMarketForSave,
+  runAnnualYouthAndRetirementCycle,
+  runYouthDiagnostic,
+  searchPlayersForClub,
+  simulateNepalCareer,
+} from "@nepal-football-sim/simulation";
+
+const tempDirs: string[] = [];
+const registryPath = resolve(process.cwd(), "data/nepal/2026-08/club-registry.json");
+
+const tempDbPath = (): string => {
+  const dir = mkdtempSync(join(tmpdir(), "nepal-football-youth-"));
+  tempDirs.push(dir);
+  return join(dir, "youth.sqlite");
+};
+
+const createSave = (seed: string): string => {
+  const databasePath = tempDbPath();
+  createNepalSave({
+    databasePath,
+    dataset: JSON.parse(readFileSync(registryPath, "utf8")) as unknown,
+    saveName: `Youth ${seed}`,
+    gameVersion: "0.2.0",
+    randomSeed: seed,
+  });
+  return databasePath;
+};
+
+afterEach(() => {
+  for (const dir of tempDirs.splice(0)) {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+describe("youth intake and retirement foundation", () => {
+  it("generates simulation-only youth from academy, district and grassroots pathways", () => {
+    const db = openGameDatabase(createSave("origin-flags"));
+    const report = runAnnualYouthAndRetirementCycle({
+      db,
+      worldDate: "2026-08-15",
+      seed: "origin-flags",
+    });
+    const youth = new YouthRepository(db);
+    const origins = youth.generatedPlayerOrigins();
+
+    expect(report.generatedPlayers).toBeGreaterThan(40);
+    expect(report.generatedPlayers).toBeLessThan(120);
+    expect(report.academyLinkedPlayers).toBeGreaterThan(0);
+    expect(report.districtPlayers + report.grassrootsPlayers).toBeGreaterThan(0);
+    expect(report.averageCurrentAbility).toBeGreaterThan(3);
+    expect(report.averagePotential).toBeLessThan(13);
+    expect(report.highestPotential).toBeLessThan(16);
+    expect(origins).toHaveLength(report.generatedPlayers);
+    expect(origins.every((origin) => origin.originDataType === "SIMULATION_ONLY")).toBe(true);
+    expect([...new Set(origins.map((origin) => origin.originType))]).toEqual(
+      expect.arrayContaining(["CLUB_ACADEMY", "DISTRICT_FOOTBALL", "GRASSROOTS"]),
+    );
+    db.close();
+  });
+
+  it("creates realistic identities, DOBs, positions, attributes, potentials and youth contracts", () => {
+    const db = openGameDatabase(createSave("identity-contracts"));
+    runAnnualYouthAndRetirementCycle({ db, worldDate: "2026-08-15", seed: "identity-contracts" });
+    const youth = new YouthRepository(db);
+    const origins = youth.generatedPlayerOrigins();
+    const market = new TransferMarketRepository(db);
+    const importedNames = new Set(
+      db
+        .prepare(
+          `SELECT p.full_name
+          FROM player_factual_profiles pfp
+          JOIN persons p ON p.id = pfp.player_id`,
+        )
+        .all()
+        .map((row: any) => row.full_name),
+    );
+    const names = generatedNames(db);
+    const generatedRows = db
+      .prepare(
+        `SELECT p.date_of_birth, pa.primary_position
+        FROM generated_player_origins gpo
+        JOIN persons p ON p.id = gpo.player_id
+        JOIN player_attributes pa ON pa.person_id = p.id`,
+      )
+      .all() as Array<{ date_of_birth: string; primary_position: string }>;
+
+    expect(new Set(names).size).toBe(names.length);
+    expect(names.some((name) => importedNames.has(name))).toBe(false);
+    expect(generatedRows.every((row) => row.date_of_birth >= "2007-01-01")).toBe(true);
+    expect(new Set(generatedRows.map((row) => row.primary_position)).size).toBeGreaterThanOrEqual(
+      6,
+    );
+    expect(generatedRows.some((row) => row.primary_position === "GK")).toBe(true);
+    expect(origins.map((origin) => origin.archetype)).toContain("SHOT_STOPPER");
+    expect(
+      origins.filter((origin) => market.activeContract(origin.playerId, "2026-08-15")).length,
+    ).toBeGreaterThan(40);
+    expect(
+      market
+        .allPlayerContracts()
+        .filter((contract) => origins.some((origin) => origin.playerId === contract.playerId))
+        .every((contract) => ["YOUTH", "AMATEUR", "SEMI_PRO"].includes(contract.contractType)),
+    ).toBe(true);
+    db.close();
+  });
+
+  it("is deterministic for the same save seed and does not regenerate after reload", () => {
+    const firstPath = createSave("deterministic-a");
+    const secondPath = createSave("deterministic-b");
+    const first = openGameDatabase(firstPath);
+    const second = openGameDatabase(secondPath);
+    const firstReport = runAnnualYouthAndRetirementCycle({
+      db: first,
+      worldDate: "2026-08-15",
+      seed: "same-youth-seed",
+    });
+    const secondReport = runAnnualYouthAndRetirementCycle({
+      db: second,
+      worldDate: "2026-08-15",
+      seed: "same-youth-seed",
+    });
+    const firstNames = generatedNames(first);
+    const secondNames = generatedNames(second);
+    first.close();
+    second.close();
+
+    expect(firstReport.generatedPlayers).toBe(secondReport.generatedPlayers);
+    expect(firstNames).toEqual(secondNames);
+
+    const reloaded = openGameDatabase(firstPath);
+    const rerun = runAnnualYouthAndRetirementCycle({
+      db: reloaded,
+      worldDate: "2026-08-15",
+      seed: "same-youth-seed",
+    });
+    expect(rerun.generatedPlayers).toBe(firstReport.generatedPlayers);
+    expect(new YouthRepository(reloaded).generatedPlayerOrigins()).toHaveLength(
+      firstReport.generatedPlayers,
+    );
+    reloaded.close();
+  });
+
+  it("integrates generated youth with scouting knowledge and transfer contracts", () => {
+    const db = openGameDatabase(createSave("scouting-transfer-youth"));
+    initializeTransferMarketForSave({
+      db,
+      worldDate: "2026-08-01",
+      seed: "scouting-transfer-youth",
+    });
+    runAnnualYouthAndRetirementCycle({
+      db,
+      worldDate: "2026-08-15",
+      seed: "scouting-transfer-youth",
+    });
+    const origin = new YouthRepository(db)
+      .generatedPlayerOrigins()
+      .find((candidate) => candidate.clubId)!;
+    const knowledge = new RecruitmentRepository(db).playerKnowledge(
+      origin.clubId!,
+      origin.playerId,
+    );
+    const contract = new TransferMarketRepository(db).activeContract(origin.playerId, "2026-08-15");
+
+    expect(knowledge?.sourceType).toBe("OWN_PLAYER");
+    expect(knowledge?.abilityKnowledge.estimatedAbility).toEqual(
+      expect.objectContaining({ min: expect.any(Number), max: expect.any(Number) }),
+    );
+    expect(
+      searchPlayersForClub(db, origin.clubId!, {}, "2026-08-15").some(
+        (candidate) => "potentialAbility" in (candidate as object),
+      ),
+    ).toBe(false);
+    expect(contract?.provenance.status).toBe("SIMULATION_ONLY");
+    db.close();
+  });
+
+  it("preserves people after retirement and can convert some retirees into staff", () => {
+    const db = openGameDatabase(createSave("retirement-staff"));
+    const report = runYouthDiagnostic({
+      db,
+      startDate: "2026-08-15",
+      seasons: 10,
+      seed: "retirement-staff",
+    });
+    const youth = new YouthRepository(db);
+    const retired = youth.retirementStates().filter((state) => state.state === "RETIRED");
+    const staffTransitions = youth.staffTransitions();
+    const preservedPeople = retired.filter((state) => personExists(db, state.playerId));
+
+    expect(report.totals.retirements).toBeGreaterThan(0);
+    expect(retired.length).toBeGreaterThan(0);
+    expect(preservedPeople).toHaveLength(retired.length);
+    expect(staffTransitions.length).toBeGreaterThan(0);
+    expect(staffTransitions.every((transition) => personExists(db, transition.playerId))).toBe(
+      true,
+    );
+    db.close();
+  });
+
+  it("keeps a 20-season youth population diagnostic within health bounds", () => {
+    const db = openGameDatabase(createSave("twenty-season-population"));
+    const report = runYouthDiagnostic({
+      db,
+      startDate: "2026-08-15",
+      seasons: 20,
+      seed: "twenty-season-population",
+    });
+    const final = report.populationBySeason.at(-1)!;
+
+    expect(report.totals.generatedPlayers).toBeGreaterThan(800);
+    expect(report.totals.generatedPlayers).toBeLessThan(1800);
+    expect(report.totals.highestPotential).toBeLessThan(16);
+    expect(final.averageAge).toBeGreaterThan(17);
+    expect(final.averageAge).toBeLessThan(28);
+    expect(final.generatedPlayers).toBeLessThan(1800);
+    expect(final.clubSquadSizes.every((club) => club.players < 60)).toBe(true);
+    expect(report.seasons.every((season) => Number(season.positionsGenerated.GK ?? 0) > 0)).toBe(
+      true,
+    );
+    db.close();
+  });
+
+  it("keeps a transfer-and-youth enabled career playable for three seasons", () => {
+    const db = openGameDatabase(createSave("career-with-youth"));
+    const report = simulateNepalCareer({
+      db,
+      seasons: 3,
+      seed: "career-with-youth",
+      transfersEnabled: true,
+      youthEnabled: true,
+    });
+
+    expect(report.seasons.length).toBeGreaterThan(0);
+    expect(report.youthReports.length).toBeGreaterThan(0);
+    expect(
+      report.youthReports.reduce((total, item) => total + item.generatedPlayers, 0),
+    ).toBeGreaterThan(0);
+    expect(new YouthRepository(db).generatedPlayerOrigins().length).toBeGreaterThan(0);
+    db.close();
+  });
+});
+
+const generatedNames = (db: ReturnType<typeof openGameDatabase>): string[] =>
+  db
+    .prepare(
+      `SELECT p.full_name
+      FROM generated_player_origins gpo
+      JOIN persons p ON p.id = gpo.player_id
+      ORDER BY gpo.player_id`,
+    )
+    .all()
+    .map((row: any) => row.full_name);
+
+const personExists = (db: ReturnType<typeof openGameDatabase>, personId: EntityId): boolean => {
+  const row = db.prepare("SELECT COUNT(*) AS count FROM persons WHERE id = ?").get(personId) as {
+    count: number;
+  };
+  return row.count === 1;
+};

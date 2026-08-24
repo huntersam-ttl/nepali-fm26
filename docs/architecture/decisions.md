@@ -206,3 +206,29 @@ with ANFA pyramid club belonging without a permanent club identity transfer.
 This stage deliberately uses conservative AI frequency and Nepal-calibrated short/seasonal contract
 lengths. Youth intake and a full economy remain separate future systems; long stress saves may expose
 depth pressure once contracts, injuries, and movement all interact.
+
+## ADR-028: Generated youth are simulation-only people with durable origins
+
+Youth intake creates new `Person` records, not factual player imports. Every generated youth player is
+marked through `GeneratedPlayerOrigin` with `originDataType = SIMULATION_ONLY`, a stable generation
+key, origin pathway, academy/club/location links where applicable, youth status, national eligibility,
+and a generated archetype. These players may use realistic Nepali name structures, but they are game
+world identities and must never be presented as researched real people.
+
+The Nepal starter youth calendar uses a configurable simulation-only annual intake date until
+research supplies a better development calendar. Academy quality, national development environment,
+grassroots reach, facilities, recruitment, coaching, and talent identification are also
+simulation-only calibration values. Future federation or chairman systems can change those values
+without rewriting player generation logic.
+
+Generated players reuse the existing player attributes, potential, development state, scouting,
+contract, registration, loan, and transfer systems. Parent clubs receive stronger knowledge of their
+own academy products, while external clubs must discover them through the normal knowledge layer.
+Youth participation is abstracted through academy/reserve/local activity records rather than a fake
+full youth league pyramid.
+
+Retirement preserves `Person` identity, contracts, career stats, and movement history. A player role
+can end, the person remains in the database, and a seeded subset of retirees may later receive a staff
+role and staff appointment using the existing workforce architecture. Goalkeepers receive a slightly
+later retirement curve, while age, ability, contract status, position, professionalism, leadership,
+and seeded variation affect decisions.

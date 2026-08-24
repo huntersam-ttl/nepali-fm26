@@ -21,6 +21,7 @@
     "match:balance": "pnpm --filter @nepal-football-sim/simulation match:balance",
     "tactics:balance": "pnpm --filter @nepal-football-sim/simulation tactics:balance",
     "transfers:simulate": "pnpm --filter @nepal-football-sim/simulation transfers:simulate",
+    "youth:simulate": "pnpm --filter @nepal-football-sim/simulation youth:simulate",
     "e2e": "playwright test",
     "lint": "eslint .",
     "test": "vitest run",

@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 13;
+export const CURRENT_DATABASE_VERSION = 14;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -1207,6 +1207,129 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
         expected_departures INTEGER NOT NULL,
         UNIQUE(club_id, generated_at)
       );
+    `,
+  },
+  {
+    version: 14,
+    sql: `
+      CREATE TABLE IF NOT EXISTS country_development_profiles (
+        id TEXT PRIMARY KEY,
+        country_id TEXT NOT NULL REFERENCES countries(id),
+        effective_from TEXT NOT NULL,
+        football_popularity REAL NOT NULL,
+        grassroots_reach REAL NOT NULL,
+        coaching_quality REAL NOT NULL,
+        youth_infrastructure REAL NOT NULL,
+        talent_conversion REAL NOT NULL,
+        status TEXT NOT NULL,
+        notes TEXT,
+        UNIQUE(country_id, effective_from)
+      );
+
+      CREATE TABLE IF NOT EXISTS academy_simulation_profiles (
+        id TEXT PRIMARY KEY,
+        academy_id TEXT REFERENCES academies(id),
+        club_id TEXT REFERENCES clubs(id),
+        country_id TEXT NOT NULL REFERENCES countries(id),
+        youth_recruitment_quality REAL NOT NULL,
+        academy_coaching_quality REAL NOT NULL,
+        academy_facilities_quality REAL NOT NULL,
+        regional_reach REAL NOT NULL,
+        talent_identification_quality REAL NOT NULL,
+        status TEXT NOT NULL,
+        CHECK (academy_id IS NOT NULL OR club_id IS NOT NULL)
+      );
+
+      CREATE TABLE IF NOT EXISTS youth_intake_events (
+        id TEXT PRIMARY KEY,
+        country_id TEXT NOT NULL REFERENCES countries(id),
+        club_id TEXT REFERENCES clubs(id),
+        academy_id TEXT REFERENCES academies(id),
+        intake_date TEXT NOT NULL,
+        season_label TEXT NOT NULL,
+        intake_type TEXT NOT NULL,
+        players_generated INTEGER NOT NULL,
+        average_current_ability REAL NOT NULL,
+        average_potential REAL NOT NULL,
+        highest_potential REAL NOT NULL,
+        status TEXT NOT NULL,
+        seed_key TEXT NOT NULL,
+        data_json TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS generated_player_origins (
+        id TEXT PRIMARY KEY,
+        player_id TEXT NOT NULL UNIQUE REFERENCES persons(id),
+        origin_type TEXT NOT NULL,
+        origin_data_type TEXT NOT NULL,
+        country_id TEXT NOT NULL REFERENCES countries(id),
+        club_id TEXT REFERENCES clubs(id),
+        academy_id TEXT REFERENCES academies(id),
+        location_id TEXT REFERENCES locations(id),
+        district_location_id TEXT REFERENCES locations(id),
+        intake_event_id TEXT REFERENCES youth_intake_events(id),
+        generated_on TEXT NOT NULL,
+        name_generation_key TEXT NOT NULL,
+        archetype TEXT NOT NULL,
+        youth_status TEXT NOT NULL,
+        eligibility_json TEXT NOT NULL,
+        source_notes TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS youth_player_statuses (
+        player_id TEXT PRIMARY KEY REFERENCES persons(id),
+        youth_status TEXT NOT NULL,
+        club_id TEXT REFERENCES clubs(id),
+        academy_id TEXT REFERENCES academies(id),
+        status_since TEXT NOT NULL,
+        pathway_json TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS youth_development_activity (
+        id TEXT PRIMARY KEY,
+        player_id TEXT NOT NULL REFERENCES persons(id),
+        club_id TEXT REFERENCES clubs(id),
+        academy_id TEXT REFERENCES academies(id),
+        activity_date TEXT NOT NULL,
+        activity_type TEXT NOT NULL,
+        development_minutes INTEGER NOT NULL,
+        exposure_level REAL NOT NULL,
+        data_json TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS player_retirement_states (
+        player_id TEXT PRIMARY KEY REFERENCES persons(id),
+        state TEXT NOT NULL,
+        decided_on TEXT NOT NULL,
+        announced_on TEXT,
+        retirement_date TEXT,
+        reason TEXT,
+        staff_interest REAL NOT NULL,
+        data_json TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS retired_staff_transitions (
+        id TEXT PRIMARY KEY,
+        player_id TEXT NOT NULL REFERENCES persons(id),
+        staff_role TEXT NOT NULL,
+        club_id TEXT REFERENCES clubs(id),
+        academy_id TEXT REFERENCES academies(id),
+        federation_id TEXT REFERENCES federations(id),
+        transitioned_on TEXT NOT NULL,
+        status TEXT NOT NULL,
+        data_json TEXT
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_generated_player_origins_club
+        ON generated_player_origins(club_id, generated_on);
+      CREATE INDEX IF NOT EXISTS idx_generated_player_origins_academy
+        ON generated_player_origins(academy_id, generated_on);
+      CREATE INDEX IF NOT EXISTS idx_youth_intake_events_date
+        ON youth_intake_events(intake_date, club_id, academy_id);
+      CREATE INDEX IF NOT EXISTS idx_youth_status_club
+        ON youth_player_statuses(club_id, youth_status);
+      CREATE INDEX IF NOT EXISTS idx_retirement_state
+        ON player_retirement_states(state, retirement_date);
     `,
   },
 ];

@@ -30,6 +30,10 @@
 - `TeamPersonAssignment`: links imported players, managers, or staff to a team without turning squad management into gameplay yet.
 - `Academy`: national, regional, club, private, or academy/club hybrid entity linked to a country
   and optionally to a parent club, linked club, federation, and location.
+- `AcademySimulationProfile`: simulation-only youth recruitment, coaching, facilities, regional
+  reach, and talent-identification values for academies or fallback club youth pathways.
+- `CountryDevelopmentProfile`: simulation-only national football development environment consumed
+  by youth generation and future federation investment hooks.
 - `VenueRelationship`: staged venue use/ownership relationships with `OWNER`, `OPERATOR`,
   `PRIMARY_TENANT`, `TENANT`, `TEMPORARY_USER`, `SHARED_USER`, `TRAINING_USER`,
   `ACADEMY_USER`, `NATIONAL_TEAM_USER`, or `UNKNOWN` relationship types. Relationships may link to a
@@ -150,6 +154,19 @@ dataset metadata so source coverage can be audited without becoming simulation l
 - `PlayerFactualProfile`: source-backed player identity and evidence wrapper for imported real
   players. It must not promote generated exact positions, DOBs, heights, feet, reputations, hidden
   traits, abilities, or potentials to factual status.
+- `GeneratedPlayerOrigin`: durable marker for generated youth/newgen people. It stores
+  `SIMULATION_ONLY` origin data, stable generation keys, origin type, academy/club/location links,
+  youth status, archetype, and Nepal or future diaspora eligibility without creating factual claims.
+- `YouthIntakeEvent`: annual/seasonal intake record with country, club/academy source, generated
+  counts, average current ability, average potential, highest potential, and seed key.
+- `YouthPlayerStatus`: current academy/youth/reserve/first-team-prospect state for generated youth
+  without forcing every player into the senior squad.
+- `YouthDevelopmentActivity`: abstract academy training, reserve activity, local competition, or
+  trial exposure so development can progress without simulating a full youth league pyramid.
+- `PlayerRetirementState`: active, considering, announced, or retired status that preserves the
+  original `Person` and career history.
+- `RetiredStaffTransition`: simulation-only bridge from a retired player to coach, assistant coach,
+  scout, academy coach, manager, or director using the existing staff appointment model.
 - `TrainingPlan`: weekly plan for a team, made of sessions such as recovery, physical, technical,
   tactical, set-piece, goalkeeping, video, bonding, match preparation, rest, or future expanded
   categories.

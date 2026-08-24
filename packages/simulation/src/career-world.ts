@@ -29,6 +29,11 @@ import {
 } from "./scouting.js";
 import { calculateStandings, sortStandings, summarizePlayerStats } from "./standings.js";
 import { initializeTransferMarketForSave, simulateTransferWindow } from "./transfer-market.js";
+import {
+  initializeYouthSystemForSave,
+  runAnnualYouthAndRetirementCycle,
+  type YouthAnnualReport,
+} from "./youth-intake.js";
 
 export type CompetitionSeasonLifecycleStatus =
   "NOT_STARTED" | "SCHEDULED" | "IN_PROGRESS" | "COMPLETED" | "ROLLED_OVER";
@@ -83,6 +88,7 @@ export type CareerSimulationReport = {
   worldDate: string;
   seasonsRequested: number;
   seasons: CareerSeasonReport[];
+  youthReports: YouthAnnualReport[];
   runnableCompetitions: string[];
   skippedCompetitions: Array<{ seasonId: EntityId; seasonName: string; reason: string }>;
 };
@@ -104,12 +110,17 @@ export const simulateNepalCareer = (input: {
   savePath?: string;
   maxFixturesPerSeason?: number;
   transfersEnabled?: boolean;
+  youthEnabled?: boolean;
 }): CareerSimulationReport => {
   const save = loadSave(input.db);
   const reports: CareerSeasonReport[] = [];
+  const youthReports: YouthAnnualReport[] = [];
   const skippedCompetitions: CareerSimulationReport["skippedCompetitions"] = [];
 
   ensureRecruitmentFoundation(input.db, save.worldDate, input.seed);
+  if (input.youthEnabled) {
+    initializeYouthSystemForSave({ db: input.db, worldDate: save.worldDate, seed: input.seed });
+  }
   if (input.transfersEnabled) {
     initializeTransferMarketForSave({ db: input.db, worldDate: save.worldDate, seed: input.seed });
   }
@@ -166,6 +177,19 @@ export const simulateNepalCareer = (input: {
         maxClubActions: 10,
       });
     }
+    if (input.youthEnabled) {
+      youthReports.push(
+        runAnnualYouthAndRetirementCycle({
+          db: input.db,
+          worldDate: addDays(latestSeasonEnd(activeSeasons), 45),
+          seed: `${input.seed}:youth:${index}`,
+          seasonLabel: String(
+            new Date(`${latestSeasonEnd(activeSeasons)}T00:00:00.000Z`).getUTCFullYear(),
+          ),
+        }),
+      );
+      entityCache.delete(input.db);
+    }
     activeSeasons = runnableSeasons(
       input.db,
       input.competitionSeasonId,
@@ -188,6 +212,7 @@ export const simulateNepalCareer = (input: {
     worldDate: latestEndDate || save.worldDate,
     seasonsRequested: input.seasons,
     seasons: reports,
+    youthReports,
     runnableCompetitions,
     skippedCompetitions,
   };
@@ -417,10 +442,16 @@ const persistMatchResult = (
   competitions.markFixturePlayed(result.match.fixtureId);
   for (const event of result.events) {
     competitions.insertMatchEvent(event);
-    if (event.type === "INJURY" && event.data) {
+    if (
+      event.type === "INJURY" &&
+      event.data &&
+      typeof event.data === "object" &&
+      "personId" in event.data &&
+      personExists(db, event.data.personId as EntityId)
+    ) {
       players.insertInjury(event.data as any);
     }
-    if (event.type === "RED_CARD" && event.personId) {
+    if (event.type === "RED_CARD" && event.personId && personExists(db, event.personId)) {
       players.insertSuspension({
         id: createStableEntityId(
           "suspension",

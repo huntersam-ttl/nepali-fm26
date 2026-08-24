@@ -37,7 +37,10 @@ export type EntityRef = {
     | "playerDevelopmentState"
     | "playerPotential"
     | "playerFactualProfile"
-    | "trainingHistoryEvent";
+    | "trainingHistoryEvent"
+    | "youthIntakeEvent"
+    | "generatedPlayerOrigin"
+    | "retirementState";
 };
 
 export type RiskLevel = "LOW" | "MEDIUM" | "HIGH" | "UNKNOWN";
@@ -221,6 +224,156 @@ export type Academy = {
   linkedClubId?: EntityId;
   federationId?: EntityId;
   academyType: AcademyType;
+};
+
+export type PlayerOriginType =
+  | "CLUB_ACADEMY"
+  | "NATIONAL_ACADEMY"
+  | "REGIONAL_ACADEMY"
+  | "DISTRICT_FOOTBALL"
+  | "GRASSROOTS"
+  | "PRIVATE_ACADEMY"
+  | "DEPARTMENTAL_RECRUITMENT"
+  | "GENERATED_FREE_PLAYER"
+  | "FOREIGN_YOUTH"
+  | "DIASPORA_YOUTH";
+
+export type YouthPlayerStatus =
+  | "ACADEMY_CANDIDATE"
+  | "YOUTH_PLAYER"
+  | "RESERVE_PLAYER"
+  | "FIRST_TEAM_PROSPECT"
+  | "FIRST_TEAM_PLAYER";
+
+export type PlayerArchetype =
+  | "BALL_PLAYING_CB"
+  | "PHYSICAL_CB"
+  | "ATTACKING_FULLBACK"
+  | "DEFENSIVE_FULLBACK"
+  | "BALL_WINNING_MIDFIELDER"
+  | "DEEP_PLAYMAKER"
+  | "BOX_TO_BOX"
+  | "CREATIVE_MIDFIELDER"
+  | "WINGER"
+  | "INSIDE_FORWARD"
+  | "TARGET_FORWARD"
+  | "MOBILE_STRIKER"
+  | "POACHER"
+  | "SWEEPER_KEEPER"
+  | "SHOT_STOPPER";
+
+export type CountryDevelopmentProfile = {
+  id: EntityId;
+  countryId: EntityId;
+  effectiveFrom: ISODate;
+  footballPopularity: number;
+  grassrootsReach: number;
+  coachingQuality: number;
+  youthInfrastructure: number;
+  talentConversion: number;
+  status: "SIMULATION_ONLY";
+  notes?: string;
+};
+
+export type AcademySimulationProfile = {
+  id: EntityId;
+  academyId?: EntityId;
+  clubId?: EntityId;
+  countryId: EntityId;
+  youthRecruitmentQuality: number;
+  academyCoachingQuality: number;
+  academyFacilitiesQuality: number;
+  regionalReach: number;
+  talentIdentificationQuality: number;
+  status: "SIMULATION_ONLY";
+};
+
+export type YouthIntakeEvent = {
+  id: EntityId;
+  countryId: EntityId;
+  clubId?: EntityId;
+  academyId?: EntityId;
+  intakeDate: ISODate;
+  seasonLabel: string;
+  intakeType: PlayerOriginType;
+  playersGenerated: number;
+  averageCurrentAbility: number;
+  averagePotential: number;
+  highestPotential: number;
+  status: "SIMULATION_ONLY";
+  seedKey: string;
+  data?: Record<string, unknown>;
+};
+
+export type GeneratedPlayerOrigin = {
+  id: EntityId;
+  playerId: EntityId;
+  originType: PlayerOriginType;
+  originDataType: "SIMULATION_ONLY";
+  countryId: EntityId;
+  clubId?: EntityId;
+  academyId?: EntityId;
+  locationId?: EntityId;
+  districtLocationId?: EntityId;
+  intakeEventId?: EntityId;
+  generatedOn: ISODate;
+  nameGenerationKey: string;
+  archetype: PlayerArchetype;
+  youthStatus: YouthPlayerStatus;
+  eligibility: {
+    nationalityCountryId: EntityId;
+    secondNationalityCountryId?: EntityId;
+    ageGroupEligible: boolean;
+    diaspora: boolean;
+  };
+  sourceNotes?: string;
+};
+
+export type YouthPlayerStatusRecord = {
+  playerId: EntityId;
+  youthStatus: YouthPlayerStatus;
+  clubId?: EntityId;
+  academyId?: EntityId;
+  statusSince: ISODate;
+  pathway: Record<string, unknown>;
+};
+
+export type YouthDevelopmentActivity = {
+  id: EntityId;
+  playerId: EntityId;
+  clubId?: EntityId;
+  academyId?: EntityId;
+  activityDate: ISODate;
+  activityType: "ACADEMY_TRAINING" | "RESERVE_ACTIVITY" | "LOCAL_COMPETITION" | "TRIAL";
+  developmentMinutes: number;
+  exposureLevel: number;
+  data?: Record<string, unknown>;
+};
+
+export type RetirementState =
+  "ACTIVE" | "CONSIDERING_RETIREMENT" | "RETIREMENT_ANNOUNCED" | "RETIRED";
+
+export type PlayerRetirementRecord = {
+  playerId: EntityId;
+  state: RetirementState;
+  decidedOn: ISODate;
+  announcedOn?: ISODate;
+  retirementDate?: ISODate;
+  reason?: string;
+  staffInterest: number;
+  data?: Record<string, unknown>;
+};
+
+export type RetiredStaffTransition = {
+  id: EntityId;
+  playerId: EntityId;
+  staffRole: "COACH" | "ASSISTANT_COACH" | "MANAGER" | "SCOUT" | "ACADEMY_COACH" | "DIRECTOR";
+  clubId?: EntityId;
+  academyId?: EntityId;
+  federationId?: EntityId;
+  transitionedOn: ISODate;
+  status: "SIMULATION_ONLY";
+  data?: Record<string, unknown>;
 };
 
 export type VenueRelationship = {

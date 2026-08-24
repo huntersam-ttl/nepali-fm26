@@ -112,6 +112,14 @@ events can be imported and persisted without hard-coding August 2026 claims. Int
 player ratings, and staff training attributes are explicitly `SIMULATION_ONLY` game data, while
 unavailable facility or competition values can remain `UNKNOWN`.
 
+The youth and retirement layer keeps the world populated over long saves. Annual Nepal youth intake
+events generate simulation-only `Person` records through club academies, ANFA/regional academies,
+district football, grassroots pathways, departmental recruitment, free youth, and rare diaspora
+eligibility hooks. Generated youth reuse existing attributes, potential, development, scouting,
+contract, loan, registration, and transfer systems. Retirement ends the player role without deleting
+the person, and a small seeded subset of retired players can continue as staff through the existing
+workforce appointment model.
+
 ## Competition and Match Simulation
 
 Stage 3 adds a headless competition layer. Competition rule sets are dataset-driven and define season type, points, tiebreakers, home/away structure, round spacing, and promotion/relegation/continental slots. The engine supports deterministic single and double round-robin fixture generation.
