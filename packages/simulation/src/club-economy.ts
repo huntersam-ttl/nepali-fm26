@@ -549,15 +549,22 @@ export const clubCanAffordWage = (
   return current + annualWage <= budget.amount * 1.08;
 };
 
+export type MatchdayEconomyResult = {
+  attendance: number;
+  capacity: number;
+  ticketPrice: number;
+  homeShare: number;
+};
+
 export const postMatchdayEconomy = (
   db: GameDatabase,
   fixture: FixtureRecord,
   date: string,
   seed: string,
-): void => {
+): MatchdayEconomyResult | undefined => {
   const homeClubId = clubIdForTeam(db, fixture.homeTeamId);
   const awayClubId = clubIdForTeam(db, fixture.awayTeamId);
-  if (!homeClubId || !awayClubId) return;
+  if (!homeClubId || !awayClubId) return undefined;
   const homeSupport = new ClubEconomyRepository(db).supporterProfile(homeClubId);
   const awaySupport = new ClubEconomyRepository(db).supporterProfile(awayClubId);
   const rng = new SeededRandom(`${seed}:matchday:${fixture.id}`);
@@ -604,6 +611,7 @@ export const postMatchdayEconomy = (
     relatedEntityId: fixture.id,
     idempotencyKey: `matchday-cost-away:${fixture.id}`,
   });
+  return { attendance, capacity, ticketPrice, homeShare };
 };
 
 export const processClubEconomyMonth = (

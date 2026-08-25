@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 17;
+export const CURRENT_DATABASE_VERSION = 18;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -2100,6 +2100,62 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
         provenance_status TEXT NOT NULL,
         UNIQUE(player_id, national_team_id)
       );
+    `,
+  },
+  {
+    version: 18,
+    sql: `
+      -- A match in progress. One row per fixture; the serialised engine state
+      -- is what makes a match resumable after the app closes.
+      CREATE TABLE IF NOT EXISTS match_sessions (
+        id TEXT PRIMARY KEY,
+        fixture_id TEXT NOT NULL REFERENCES fixtures(id),
+        match_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        period TEXT NOT NULL,
+        minute INTEGER NOT NULL,
+        stoppage_time INTEGER NOT NULL DEFAULT 0,
+        home_goals INTEGER NOT NULL DEFAULT 0,
+        away_goals INTEGER NOT NULL DEFAULT 0,
+        seed TEXT NOT NULL,
+        rng_state INTEGER NOT NULL,
+        state_json TEXT NOT NULL,
+        view_mode TEXT,
+        started_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        completed_at TEXT,
+        UNIQUE(fixture_id)
+      );
+
+      -- Per-match player line. Season aggregates stay in player_season_stats.
+      CREATE TABLE IF NOT EXISTS player_match_ratings (
+        match_id TEXT NOT NULL,
+        player_id TEXT NOT NULL REFERENCES persons(id),
+        team_id TEXT NOT NULL REFERENCES teams(id),
+        position TEXT,
+        role TEXT,
+        started INTEGER NOT NULL,
+        subbed_on_minute INTEGER,
+        subbed_off_minute INTEGER,
+        sent_off_minute INTEGER,
+        minutes INTEGER NOT NULL,
+        rating REAL NOT NULL,
+        goals INTEGER NOT NULL,
+        assists INTEGER NOT NULL,
+        shots INTEGER NOT NULL,
+        shots_on_target INTEGER NOT NULL,
+        key_passes INTEGER NOT NULL,
+        passes_attempted INTEGER NOT NULL,
+        passes_completed INTEGER NOT NULL,
+        tackles INTEGER NOT NULL,
+        interceptions INTEGER NOT NULL,
+        saves INTEGER NOT NULL,
+        yellow_cards INTEGER NOT NULL,
+        red_card INTEGER NOT NULL,
+        PRIMARY KEY (match_id, player_id)
+      );
+
+      ALTER TABLE matches ADD COLUMN attendance INTEGER;
     `,
   },
 ];

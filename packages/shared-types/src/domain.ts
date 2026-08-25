@@ -2067,6 +2067,12 @@ export type PlayerMatchState = {
   redCard: boolean;
   injuryDuringMatch?: InjuryRecord;
   minutesPlayed: number;
+  /** Minute the player came on, when they started on the bench. */
+  subbedOnMinute?: number;
+  /** Minute the player was withdrawn. */
+  subbedOffMinute?: number;
+  /** Minute the player was dismissed. */
+  sentOffMinute?: number;
   position: PlayerPosition;
   role?: string;
   rating: number;
@@ -2996,4 +3002,55 @@ export type DataProvenance = {
   confidenceLevel?: "HIGH" | "MEDIUM" | "LOW";
   status: DataProvenanceStatus;
   notes?: string;
+};
+
+/** Persisted live-match session. `stateJson` is the serialised engine state. */
+export type MatchSessionRecord = {
+  id: EntityId;
+  fixtureId: EntityId;
+  matchId: EntityId;
+  status: MatchSessionStatus;
+  period: string;
+  minute: number;
+  stoppageTime: number;
+  homeGoals: number;
+  awayGoals: number;
+  seed: string;
+  rngState: number;
+  stateJson: string;
+  viewMode?: MatchViewMode;
+  startedAt: string;
+  updatedAt: string;
+  completedAt?: string;
+};
+
+export type MatchSessionStatus = "IN_PROGRESS" | "COMPLETED" | "ABANDONED";
+
+export type MatchViewMode = "QUICK_SIM" | "KEY_EVENTS" | "TEXT_LIVE";
+
+/** One player's line from a single match. Season aggregates live elsewhere. */
+export type PlayerMatchRatingRecord = {
+  matchId: EntityId;
+  playerId: EntityId;
+  teamId: EntityId;
+  position?: string;
+  role?: string;
+  started: boolean;
+  subbedOnMinute?: number;
+  subbedOffMinute?: number;
+  sentOffMinute?: number;
+  minutes: number;
+  rating: number;
+  goals: number;
+  assists: number;
+  shots: number;
+  shotsOnTarget: number;
+  keyPasses: number;
+  passesAttempted: number;
+  passesCompleted: number;
+  tackles: number;
+  interceptions: number;
+  saves: number;
+  yellowCards: number;
+  redCard: boolean;
 };

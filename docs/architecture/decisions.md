@@ -324,3 +324,22 @@ reverse.
 Hidden player truth stays hidden: only banded `PlayerKnowledge`/`ScoutReport` values leave the
 service for players outside the squad. Identity facts travel as `Fact<T>` with a provenance status,
 so unknown real-world data renders as "Unknown" instead of being fabricated.
+
+## ADR-022: One resumable match engine, not one per viewing mode
+
+A matchday with Quick Sim, Key Events and Text Live could have been built as three result
+generators. That would guarantee drift: the same fixture would eventually produce different football
+depending on how the player chose to watch it.
+
+Instead the atomic `simulateMatch` was refactored into a state machine over a serialisable
+`LiveMatchState`, stepped one minute at a time. `simulateMatch` remains as run-to-completion over
+that machine. Every viewing mode consumes the same state and the same timeline, so determinism holds
+by construction rather than by discipline.
+
+Resume is exact rather than approximate. The generator is a single-word LCG, so the state carries
+the word itself; a resumed match continues the identical random stream. Replay was rejected as a
+resume strategy because it would make correctness depend on every side effect being replayable.
+
+Finalization is a single transaction with idempotent writes throughout, because a match that is
+committed twice corrupts a league table in ways that are hard to detect later. Re-finalising returns
+`ALREADY_FINALIZED`, and playing a completed fixture returns `MATCH_ALREADY_PLAYED`.

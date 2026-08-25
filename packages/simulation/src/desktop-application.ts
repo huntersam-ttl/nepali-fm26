@@ -67,7 +67,8 @@ import { validateNepalWorldDataset, type NepalWorldDataset } from "@nepal-footba
 import { generateLeagueFixtures } from "./fixture-generation.js";
 import { importNepalWorld } from "./nepal-save.js";
 import { createCareerCharacter, createManagerContract, testLicence } from "./manager-career.js";
-import { nextFixtureForTeam, persistQuickSimResult, quickSimManagerMatch } from "./manager-flow.js";
+import { nextFixtureForTeam, quickSimManagerMatch } from "./manager-flow.js";
+import { MatchAlreadyPlayedError, simulateAndFinalizeMatch } from "./match-session.js";
 import {
   FORMATION_PRESETS,
   TACTICAL_STYLE_PRESETS,
@@ -387,14 +388,31 @@ export class DesktopApplicationService {
         seed: `${save.randomSeed}:${fixture.id}`,
         save,
       };
-      const result = quickSimManagerMatch(input);
-      db.exec("BEGIN;");
-      try {
-        persistQuickSimResult(db, input, result);
-        db.exec("COMMIT;");
-      } catch (error) {
-        db.exec("ROLLBACK;");
-        throw error;
+      // Quick Sim is the same session engine run straight to full time; it does
+      // not bypass match persistence.
+      const validation = quickSimManagerMatch(input);
+      const { outcome } = simulateAndFinalizeMatch(
+        db,
+        {
+          fixture,
+          homePlayers,
+          awayPlayers,
+          homeTacticalSetup: input.homeTacticalSetup,
+          awayTacticalSetup: input.awayTacticalSetup,
+          seed: input.seed,
+          substitutionLimit: substitutionLimitFor(context.ruleSet),
+        },
+        {
+          fixture,
+          competitionTeamIds: input.competitionTeamIds,
+          ruleSet: context.ruleSet,
+          seed: input.seed,
+          save,
+          inboxItems: validation.inboxItems,
+        },
+      );
+      if (outcome.status === "ALREADY_FINALIZED") {
+        throw appError("MATCH_ALREADY_PLAYED", "That fixture has already been played.");
       }
       const state = this.buildState(db, loadSave(db, save.id), filePath);
       this.writeCatalogEntry(state.catalogEntry);
@@ -659,6 +677,7 @@ export class DesktopApplicationService {
       const save = loadSave(session.db, session.saveId);
       return ok(action(session.db, save, session.filePath));
     } catch (error) {
+      if (error instanceof MatchAlreadyPlayedError) return fail(error.code, error.message);
       if (error instanceof ManagerCommandError) return fail(error.code, error.message);
       if (isAppError(error)) return fail(error.code, error.message, error.detail);
       return fail("SIMULATION_ERROR", "The career command failed.", error);
@@ -1298,6 +1317,13 @@ const continueTitle = (reason: string): string => {
   }
 };
 
+/**
+ * Competition substitution allowance. The Nepal rule sets do not yet carry a
+ * researched figure, so this falls back to the engine's long-standing 3.
+ */
+const substitutionLimitFor = (ruleSet: CompetitionRuleSet): number =>
+  Number((ruleSet.specialRules as Record<string, unknown> | undefined)?.substitutionLimit ?? 3);
+
 const today = (): string => new Date().toISOString().slice(0, 10);
 
 const ok = <T>(data: T): AppResult<T> => ({ ok: true, data });
@@ -1331,6 +1357,7 @@ const DESKTOP_ERROR_CODES = new Set<string>([
   "WORLD_DATA_UNAVAILABLE",
   "RUNTIME_UNAVAILABLE",
   "ROLE_NOT_AUTHORIZED",
+  "MATCH_ALREADY_PLAYED",
 ]);
 
 /**

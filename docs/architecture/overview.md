@@ -264,3 +264,11 @@ and staff. Each screen has a targeted read model and a typed runtime command, an
 action persists to SQLite.
 
 See `docs/architecture/manager-desktop.md`.
+
+## Matchday
+
+One resumable match engine backs every viewing mode. Matches run as a state machine over a
+serialisable `LiveMatchState`, persist to `match_sessions`, and finalise in a single idempotent
+transaction that also writes per-match ratings, attendance and suspensions.
+
+See `docs/architecture/match-engine.md`.

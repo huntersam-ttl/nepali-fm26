@@ -33,7 +33,9 @@ export type DesktopErrorCode =
   | "WORLD_DATA_UNAVAILABLE"
   | "RUNTIME_UNAVAILABLE"
   /** The active career role may not perform the requested action. */
-  | "ROLE_NOT_AUTHORIZED";
+  | "ROLE_NOT_AUTHORIZED"
+  /** The fixture already has a result and cannot be played again. */
+  | "MATCH_ALREADY_PLAYED";
 
 export type DesktopAppError = {
   code: DesktopErrorCode;

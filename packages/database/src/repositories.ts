@@ -136,6 +136,8 @@ import type {
   YouthIntakeEvent,
   YouthPlayerStatus,
   YouthPlayerStatusRecord,
+  MatchSessionRecord,
+  PlayerMatchRatingRecord,
 } from "@nepal-football-sim/shared-types";
 import type { EntityId } from "@nepal-football-sim/shared-types";
 import type { GameDatabase } from "./connection.js";
@@ -1277,10 +1279,16 @@ export class CompetitionRepository {
     this.db.prepare("UPDATE fixtures SET status = 'played' WHERE id = ?").run(fixtureId);
   }
 
-  insertMatch(match: Match): void {
+  /**
+   * Idempotent by match id, so re-finalising a completed match is a no-op
+   * rather than a primary-key error.
+   */
+  insertMatch(match: Match, attendance?: number): void {
     this.db
       .prepare(
-        "INSERT INTO matches (id, fixture_id, played_date, home_goals, away_goals) VALUES (?, ?, ?, ?, ?)",
+        `INSERT INTO matches (id, fixture_id, played_date, home_goals, away_goals, attendance)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO NOTHING`,
       )
       .run(
         match.id,
@@ -1288,6 +1296,7 @@ export class CompetitionRepository {
         match.playedDate ?? null,
         match.homeGoals ?? null,
         match.awayGoals ?? null,
+        attendance ?? null,
       );
   }
 
@@ -1300,7 +1309,8 @@ export class CompetitionRepository {
       .prepare(
         `INSERT INTO match_events
         (id, match_id, minute, stoppage_time, type, person_id, team_id, primary_person_id, secondary_person_id, data_json)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO NOTHING`,
       )
       .run(
         event.id,
@@ -1444,6 +1454,175 @@ export class CompetitionRepository {
       .run(winner.id, winner.competitionSeasonId, winner.teamId, winner.decidedOn);
   }
 }
+
+/** Live match sessions and per-match player lines. */
+export class MatchSessionRepository {
+  constructor(private readonly db: GameDatabase) {}
+
+  upsertSession(session: MatchSessionRecord): void {
+    this.db
+      .prepare(
+        `INSERT INTO match_sessions
+        (id, fixture_id, match_id, status, period, minute, stoppage_time, home_goals, away_goals,
+          seed, rng_state, state_json, view_mode, started_at, updated_at, completed_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(fixture_id) DO UPDATE SET
+          status = excluded.status,
+          period = excluded.period,
+          minute = excluded.minute,
+          stoppage_time = excluded.stoppage_time,
+          home_goals = excluded.home_goals,
+          away_goals = excluded.away_goals,
+          rng_state = excluded.rng_state,
+          state_json = excluded.state_json,
+          view_mode = excluded.view_mode,
+          updated_at = excluded.updated_at,
+          completed_at = excluded.completed_at`,
+      )
+      .run(
+        session.id,
+        session.fixtureId,
+        session.matchId,
+        session.status,
+        session.period,
+        session.minute,
+        session.stoppageTime,
+        session.homeGoals,
+        session.awayGoals,
+        session.seed,
+        session.rngState,
+        session.stateJson,
+        session.viewMode ?? null,
+        session.startedAt,
+        session.updatedAt,
+        session.completedAt ?? null,
+      );
+  }
+
+  sessionForFixture(fixtureId: EntityId): MatchSessionRecord | undefined {
+    const row = this.db
+      .prepare("SELECT * FROM match_sessions WHERE fixture_id = ?")
+      .get(fixtureId) as any;
+    return row ? mapMatchSession(row) : undefined;
+  }
+
+  activeSessions(): MatchSessionRecord[] {
+    return this.db
+      .prepare("SELECT * FROM match_sessions WHERE status != 'COMPLETED' ORDER BY started_at")
+      .all()
+      .map(mapMatchSession);
+  }
+
+  deleteSession(fixtureId: EntityId): void {
+    this.db.prepare("DELETE FROM match_sessions WHERE fixture_id = ?").run(fixtureId);
+  }
+
+  upsertRating(rating: PlayerMatchRatingRecord): void {
+    this.db
+      .prepare(
+        `INSERT INTO player_match_ratings
+        (match_id, player_id, team_id, position, role, started, subbed_on_minute, subbed_off_minute,
+          sent_off_minute, minutes, rating, goals, assists, shots, shots_on_target, key_passes,
+          passes_attempted, passes_completed, tackles, interceptions, saves, yellow_cards, red_card)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(match_id, player_id) DO UPDATE SET
+          minutes = excluded.minutes,
+          rating = excluded.rating,
+          goals = excluded.goals,
+          assists = excluded.assists,
+          shots = excluded.shots,
+          shots_on_target = excluded.shots_on_target,
+          key_passes = excluded.key_passes,
+          passes_attempted = excluded.passes_attempted,
+          passes_completed = excluded.passes_completed,
+          tackles = excluded.tackles,
+          interceptions = excluded.interceptions,
+          saves = excluded.saves,
+          yellow_cards = excluded.yellow_cards,
+          red_card = excluded.red_card,
+          subbed_on_minute = excluded.subbed_on_minute,
+          subbed_off_minute = excluded.subbed_off_minute,
+          sent_off_minute = excluded.sent_off_minute`,
+      )
+      .run(
+        rating.matchId,
+        rating.playerId,
+        rating.teamId,
+        rating.position ?? null,
+        rating.role ?? null,
+        rating.started ? 1 : 0,
+        rating.subbedOnMinute ?? null,
+        rating.subbedOffMinute ?? null,
+        rating.sentOffMinute ?? null,
+        rating.minutes,
+        rating.rating,
+        rating.goals,
+        rating.assists,
+        rating.shots,
+        rating.shotsOnTarget,
+        rating.keyPasses,
+        rating.passesAttempted,
+        rating.passesCompleted,
+        rating.tackles,
+        rating.interceptions,
+        rating.saves,
+        rating.yellowCards,
+        rating.redCard ? 1 : 0,
+      );
+  }
+
+  ratingsForMatch(matchId: EntityId): PlayerMatchRatingRecord[] {
+    return this.db
+      .prepare("SELECT * FROM player_match_ratings WHERE match_id = ? ORDER BY rating DESC")
+      .all(matchId)
+      .map(mapPlayerMatchRating);
+  }
+}
+
+const mapMatchSession = (row: any): MatchSessionRecord => ({
+  id: row.id,
+  fixtureId: row.fixture_id,
+  matchId: row.match_id,
+  status: row.status,
+  period: row.period,
+  minute: row.minute,
+  stoppageTime: row.stoppage_time,
+  homeGoals: row.home_goals,
+  awayGoals: row.away_goals,
+  seed: row.seed,
+  rngState: row.rng_state,
+  stateJson: row.state_json,
+  viewMode: row.view_mode ?? undefined,
+  startedAt: row.started_at,
+  updatedAt: row.updated_at,
+  completedAt: row.completed_at ?? undefined,
+});
+
+const mapPlayerMatchRating = (row: any): PlayerMatchRatingRecord => ({
+  matchId: row.match_id,
+  playerId: row.player_id,
+  teamId: row.team_id,
+  position: row.position ?? undefined,
+  role: row.role ?? undefined,
+  started: Boolean(row.started),
+  subbedOnMinute: row.subbed_on_minute ?? undefined,
+  subbedOffMinute: row.subbed_off_minute ?? undefined,
+  sentOffMinute: row.sent_off_minute ?? undefined,
+  minutes: row.minutes,
+  rating: row.rating,
+  goals: row.goals,
+  assists: row.assists,
+  shots: row.shots,
+  shotsOnTarget: row.shots_on_target,
+  keyPasses: row.key_passes,
+  passesAttempted: row.passes_attempted,
+  passesCompleted: row.passes_completed,
+  tackles: row.tackles,
+  interceptions: row.interceptions,
+  saves: row.saves,
+  yellowCards: row.yellow_cards,
+  redCard: Boolean(row.red_card),
+});
 
 export class RecruitmentRepository {
   constructor(private readonly db: GameDatabase) {}

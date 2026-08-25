@@ -1,5 +1,4 @@
 import {
-  createEntityId,
   createStableEntityId,
   type EntityId,
   type FixtureRecord,
@@ -29,6 +28,8 @@ export type SimulateMatchInput = {
   environment?: Partial<MatchEnvironment>;
   homeTacticalSetup?: TacticalSetup;
   awayTacticalSetup?: TacticalSetup;
+  /** Competition substitution allowance. Defaults to the engine's original 3. */
+  substitutionLimit?: number;
 };
 
 export type MatchEnvironment = {
@@ -61,10 +62,50 @@ type RuntimeTeam = {
   stats: TeamMatchStats;
   states: PlayerMatchState[];
   substitutionsUsed: number;
+  /** Minutes in which this side was the attacking team, for live possession. */
+  controlTicks: number;
+  /** Person ids named on the bench, in order. */
+  benchIds: EntityId[];
+  /** Attribute sets for bench players, so a substitute can actually come on. */
+  benchPlayers: SelectedPlayer[];
 };
 
-export const simulateMatch = (input: SimulateMatchInput): MatchResult => {
-  const rng = new SeededRandom(input.seed);
+export type MatchPeriod = "NOT_STARTED" | "FIRST_HALF" | "HALF_TIME" | "SECOND_HALF" | "FULL_TIME";
+
+/**
+ * Everything needed to resume a match exactly where it stopped.
+ *
+ * This is the single source of match truth: Quick Sim, Key Events and Text Live
+ * all drive the same state through the same `stepMatch`. Only the RNG word and
+ * the mutable runtime teams are carried — nothing derived is stored.
+ */
+export type LiveMatchState = {
+  matchId: EntityId;
+  fixtureId: EntityId;
+  seed: string;
+  /** LCG word. Restoring this reproduces the exact future of the match. */
+  rngState: number;
+  minute: number;
+  stoppageTime: number;
+  period: MatchPeriod;
+  homeTeamId: EntityId;
+  awayTeamId: EntityId;
+  homeGoals: number;
+  awayGoals: number;
+  home: RuntimeTeam;
+  away: RuntimeTeam;
+  events: MatchEvent[];
+  eventSequence: number;
+  environment: MatchEnvironment;
+  scheduledDate: string;
+  substitutionLimit: number;
+  attendance?: number;
+};
+
+const REGULATION_MINUTES = 90;
+const HALF_TIME_MINUTE = 45;
+
+export const createMatchState = (input: SimulateMatchInput): LiveMatchState => {
   const environment = { ...DEFAULT_MATCH_ENVIRONMENT, ...input.environment };
   const matchId = createStableEntityId("match", `${input.fixture.id}:${input.seed}`);
   const homeSelection = input.homeTacticalSetup
@@ -87,189 +128,264 @@ export const simulateMatch = (input: SimulateMatchInput): MatchResult => {
         teamId: input.fixture.awayTeamId,
         players: input.awayPlayers,
       });
-  const home: RuntimeTeam = createRuntimeTeam(
-    input.fixture.homeTeamId,
-    homeSelection,
-    true,
+  const state: LiveMatchState = {
+    matchId,
+    fixtureId: input.fixture.id,
+    seed: input.seed,
+    rngState: new SeededRandom(input.seed).snapshot(),
+    minute: 0,
+    stoppageTime: 0,
+    period: "NOT_STARTED",
+    homeTeamId: input.fixture.homeTeamId,
+    awayTeamId: input.fixture.awayTeamId,
+    homeGoals: 0,
+    awayGoals: 0,
+    home: createRuntimeTeam(
+      input.fixture.homeTeamId,
+      homeSelection,
+      true,
+      environment,
+      input.homeTacticalSetup,
+    ),
+    away: createRuntimeTeam(
+      input.fixture.awayTeamId,
+      awaySelection,
+      false,
+      environment,
+      input.awayTacticalSetup,
+    ),
+    events: [],
+    eventSequence: 0,
     environment,
-    input.homeTacticalSetup,
-  );
-  const away: RuntimeTeam = createRuntimeTeam(
-    input.fixture.awayTeamId,
-    awaySelection,
-    false,
-    environment,
-    input.awayTacticalSetup,
-  );
-  const events: MatchEvent[] = [
-    event(matchId, 0, "KICK_OFF", input.fixture.homeTeamId),
-    event(matchId, 45, "HALF_TIME", input.fixture.homeTeamId),
-    event(matchId, 46, "SECOND_HALF", input.fixture.awayTeamId),
-  ];
-  let homeGoals = 0;
-  let awayGoals = 0;
+    scheduledDate: input.fixture.scheduledDate,
+    substitutionLimit: input.substitutionLimit ?? 3,
+  };
+  // Bench membership drives substitutions; it is not part of the pitch selection.
+  state.home.benchIds = [...(input.homeTacticalSetup?.bench ?? [])];
+  state.away.benchIds = [...(input.awayTacticalSetup?.bench ?? [])];
+  state.home.benchPlayers = benchPlayers(input.homePlayers, state.home.benchIds, homeSelection);
+  state.away.benchPlayers = benchPlayers(input.awayPlayers, state.away.benchIds, awaySelection);
+  return state;
+};
 
-  for (let minute = 1; minute <= 90; minute += 1) {
-    const attacking = chooseAttackingTeam(rng, home, away);
-    const defending = attacking === home ? away : home;
-    tickFatigue(attacking.states, minute, attacking.tactical.fatigue);
-    tickFatigue(defending.states, minute, defending.tactical.fatigue);
-    addPassingStats(rng, attacking);
-    maybeSubstitute(rng, matchId, minute, attacking, input, events);
-    maybeSubstitute(rng, matchId, minute, defending, input, events);
+/**
+ * Advances the match by one bounded unit of work: a period transition or a
+ * single minute. Returns the same state object, mutated, so callers can loop
+ * cheaply; persistence is the caller's decision, not the engine's.
+ */
+export const stepMatch = (state: LiveMatchState): LiveMatchState => {
+  if (state.period === "FULL_TIME") {
+    return state;
+  }
+  const rng = SeededRandom.restore(state.rngState);
 
-    if (rng.next() < attackingSequenceChance(attacking, defending, environment)) {
-      const shooter = chooseShooter(rng, attacking.selection);
-      const assister = chooseAssister(rng, attacking.selection, shooter.personId);
-      const xg = calculateShotXg(
-        shooter,
-        assister,
-        attacking.strength,
-        defending.strength,
-        rng,
-        environment,
-        attacking.tactical,
-        defending.tactical,
-      );
-      attacking.stats.shots += 1;
-      attacking.stats.xg += xg;
-      playerState(attacking, shooter.personId).shots += 1;
-      events.push(
-        event(matchId, minute, "SHOT", attacking.teamId, shooter.personId, undefined, {
-          xg,
-          chanceType: xg > 0.22 ? "clear" : xg > 0.1 ? "good" : "low",
-        }),
-      );
+  if (state.period === "NOT_STARTED") {
+    state.period = "FIRST_HALF";
+    pushEvent(state, 0, "KICK_OFF", state.homeTeamId);
+    state.rngState = rng.snapshot();
+    return state;
+  }
 
-      const onTargetChance = clamp(
-        (0.31 + xg + shooter.attributes.technical.finishing / 76) *
-          attacking.tactical.chanceCreation,
-        0.15,
-        0.84,
+  if (state.period === "HALF_TIME") {
+    state.period = "SECOND_HALF";
+    pushEvent(state, HALF_TIME_MINUTE + 1, "SECOND_HALF", state.awayTeamId);
+    state.rngState = rng.snapshot();
+    return state;
+  }
+
+  simulateMinute(state, rng, state.minute + 1);
+  state.minute += 1;
+  state.rngState = rng.snapshot();
+
+  if (state.minute === HALF_TIME_MINUTE) {
+    state.period = "HALF_TIME";
+    pushEvent(state, HALF_TIME_MINUTE, "HALF_TIME", state.homeTeamId);
+    return state;
+  }
+  if (state.minute >= REGULATION_MINUTES) {
+    completeMatch(state);
+  }
+  return state;
+};
+
+/** Runs the state machine until full time. Bounded by the regulation clock. */
+export const runMatchToCompletion = (state: LiveMatchState): LiveMatchState => {
+  let guard = 0;
+  while (state.period !== "FULL_TIME") {
+    stepMatch(state);
+    guard += 1;
+    if (guard > REGULATION_MINUTES + 16) {
+      throw new Error("Match state machine failed to reach full time");
+    }
+  }
+  return state;
+};
+
+export const toMatchResult = (state: LiveMatchState): MatchResult => ({
+  match: {
+    id: state.matchId,
+    fixtureId: state.fixtureId,
+    playedDate: state.scheduledDate,
+    homeGoals: state.homeGoals,
+    awayGoals: state.awayGoals,
+  },
+  events: orderedEvents(state),
+  homeStats: roundStats(state.home.stats),
+  awayStats: roundStats(state.away.stats),
+  playerStates: [...state.home.states, ...state.away.states],
+  attendance: state.attendance,
+  weather: "not-modeled",
+  pitch: "not-modeled",
+});
+
+/** Run-to-completion convenience API. Unchanged signature and semantics. */
+export const simulateMatch = (input: SimulateMatchInput): MatchResult =>
+  toMatchResult(runMatchToCompletion(createMatchState(input)));
+
+/**
+ * One simulated minute. The order of random draws here is load-bearing: it
+ * defines the match, so it must not be reordered without regenerating the
+ * engine regression baseline.
+ */
+const simulateMinute = (state: LiveMatchState, rng: SeededRandom, minute: number): void => {
+  const { home, away, environment, matchId } = state;
+  const attacking = chooseAttackingTeam(rng, home, away);
+  const defending = attacking === home ? away : home;
+  attacking.controlTicks += 1;
+  tickFatigue(attacking.states, minute, attacking.tactical.fatigue);
+  tickFatigue(defending.states, minute, defending.tactical.fatigue);
+  addPassingStats(rng, attacking);
+  maybeSubstitute(rng, state, minute, attacking);
+  maybeSubstitute(rng, state, minute, defending);
+
+  if (rng.next() < attackingSequenceChance(attacking, defending, environment)) {
+    const shooter = chooseShooter(rng, attacking.selection);
+    const assister = chooseAssister(rng, attacking.selection, shooter.personId);
+    const xg = calculateShotXg(
+      shooter,
+      assister,
+      attacking.strength,
+      defending.strength,
+      rng,
+      environment,
+      attacking.tactical,
+      defending.tactical,
+    );
+    attacking.stats.shots += 1;
+    attacking.stats.xg += xg;
+    playerState(attacking, shooter.personId).shots += 1;
+    pushEvent(state, minute, "SHOT", attacking.teamId, shooter.personId, undefined, {
+      xg,
+      chanceType: xg > 0.22 ? "clear" : xg > 0.1 ? "good" : "low",
+    });
+
+    const onTargetChance = clamp(
+      (0.31 + xg + shooter.attributes.technical.finishing / 76) * attacking.tactical.chanceCreation,
+      0.15,
+      0.84,
+    );
+    if (rng.next() < onTargetChance) {
+      attacking.stats.shotsOnTarget += 1;
+      playerState(attacking, shooter.personId).shotsOnTarget += 1;
+      pushEvent(state, minute, "SHOT_ON_TARGET", attacking.teamId, shooter.personId, undefined, {
+        xg,
+      });
+      const goalChance = clamp(
+        xg * (1.32 + shooter.attributes.mental.composure / 55) -
+          (defending.strength.goalkeeping * defending.tactical.defense) / 460,
+        0.03,
+        0.68,
       );
-      if (rng.next() < onTargetChance) {
-        attacking.stats.shotsOnTarget += 1;
-        playerState(attacking, shooter.personId).shotsOnTarget += 1;
-        events.push(
-          event(matchId, minute, "SHOT_ON_TARGET", attacking.teamId, shooter.personId, undefined, {
-            xg,
-          }),
-        );
-        const goalChance = clamp(
-          xg * (1.32 + shooter.attributes.mental.composure / 55) -
-            (defending.strength.goalkeeping * defending.tactical.defense) / 460,
-          0.03,
-          0.68,
-        );
-        if (rng.next() < goalChance) {
-          if (attacking === home) {
-            homeGoals += 1;
-          } else {
-            awayGoals += 1;
-          }
-          const shooterState = playerState(attacking, shooter.personId);
-          shooterState.goals += 1;
-          shooterState.rating += 0.55;
-          if (assister) {
-            const assisterState = playerState(attacking, assister.personId);
-            assisterState.assists += 1;
-            assisterState.keyPasses += 1;
-            assisterState.rating += 0.25;
-          }
-          events.push(
-            event(matchId, minute, "GOAL", attacking.teamId, shooter.personId, assister?.personId, {
-              xg,
-            }),
-          );
-          if (assister) {
-            events.push(
-              event(
-                matchId,
-                minute,
-                "ASSIST",
-                attacking.teamId,
-                assister.personId,
-                shooter.personId,
-              ),
-            );
-          }
+      if (rng.next() < goalChance) {
+        if (attacking === home) {
+          state.homeGoals += 1;
         } else {
-          const keeper = defending.selection.find((player) => player.position === "GK");
-          if (keeper) {
-            playerState(defending, keeper.personId).saves += 1;
-          }
-          defending.stats.xg += 0;
-          events.push(
-            event(matchId, minute, "SAVE", defending.teamId, keeper?.personId, shooter.personId, {
-              xg,
-            }),
-          );
+          state.awayGoals += 1;
         }
-      } else if (rng.next() < 0.22) {
-        attacking.stats.corners += 1;
-        events.push(event(matchId, minute, "CORNER", attacking.teamId));
+        const shooterState = playerState(attacking, shooter.personId);
+        shooterState.goals += 1;
+        shooterState.rating += 0.55;
+        if (assister) {
+          const assisterState = playerState(attacking, assister.personId);
+          assisterState.assists += 1;
+          assisterState.keyPasses += 1;
+          assisterState.rating += 0.25;
+        }
+        pushEvent(state, minute, "GOAL", attacking.teamId, shooter.personId, assister?.personId, {
+          xg,
+        });
+        if (assister) {
+          pushEvent(state, minute, "ASSIST", attacking.teamId, assister.personId, shooter.personId);
+        }
+      } else {
+        const keeper = defending.selection.find((player) => player.position === "GK");
+        if (keeper) {
+          playerState(defending, keeper.personId).saves += 1;
+        }
+        defending.stats.xg += 0;
+        pushEvent(state, minute, "SAVE", defending.teamId, keeper?.personId, shooter.personId, {
+          xg,
+        });
       }
-    }
-
-    if (rng.next() < foulChance(home, away, environment)) {
-      const fouling = rng.next() < 0.5 ? home : away;
-      const fouler = rng.pick(fouling.selection);
-      fouling.stats.fouls += 1;
-      events.push(event(matchId, minute, "FOUL", fouling.teamId, fouler.personId));
-      if (rng.next() < 0.105 * fouling.tactical.discipline) {
-        fouling.stats.yellowCards += 1;
-        playerState(fouling, fouler.personId).yellowCards += 1;
-        events.push(event(matchId, minute, "YELLOW_CARD", fouling.teamId, fouler.personId));
-      }
-      if (rng.next() < 0.006 * fouling.tactical.discipline) {
-        fouling.stats.redCards += 1;
-        playerState(fouling, fouler.personId).redCard = true;
-        events.push(event(matchId, minute, "RED_CARD", fouling.teamId, fouler.personId));
-      }
-    }
-
-    if (rng.next() < injuryChance(home, away, environment)) {
-      const injuredTeam = rng.next() < 0.5 ? home : away;
-      const injured = rng.pick(injuredTeam.selection);
-      const injury: InjuryRecord = {
-        id: createEntityId(),
-        personId: injured.personId,
-        injuryType: "match knock",
-        dateOccurred: input.fixture.scheduledDate,
-        expectedRecoveryDate: recoveryDate(input.fixture.scheduledDate, rng.integer(7, 35)),
-        severity: rng.next() < 0.72 ? "minor" : rng.next() < 0.9 ? "moderate" : "major",
-      };
-      playerState(injuredTeam, injured.personId).injuryDuringMatch = injury;
-      events.push(
-        event(matchId, minute, "INJURY", injuredTeam.teamId, injured.personId, undefined, injury),
-      );
+    } else if (rng.next() < 0.22) {
+      attacking.stats.corners += 1;
+      pushEvent(state, minute, "CORNER", attacking.teamId);
     }
   }
 
-  finalizeStates(home.states, homeGoals, awayGoals);
-  finalizeStates(away.states, awayGoals, homeGoals);
-  const homePossessionWeight = home.strength.midfield * home.tactical.possession;
-  const awayPossessionWeight = away.strength.midfield * away.tactical.possession;
-  const totalStrength = homePossessionWeight + awayPossessionWeight;
-  home.stats.possession = Math.round((homePossessionWeight / totalStrength) * 100);
-  away.stats.possession = 100 - home.stats.possession;
-  events.push(event(matchId, 90, "FULL_TIME", input.fixture.homeTeamId));
+  if (rng.next() < foulChance(home, away, environment)) {
+    const fouling = rng.next() < 0.5 ? home : away;
+    const fouler = rng.pick(fouling.selection);
+    fouling.stats.fouls += 1;
+    pushEvent(state, minute, "FOUL", fouling.teamId, fouler.personId);
+    if (rng.next() < 0.105 * fouling.tactical.discipline) {
+      bookPlayer(state, fouling, fouler.personId, minute);
+    }
+    if (rng.next() < 0.006 * fouling.tactical.discipline) {
+      dismissPlayer(state, fouling, fouler.personId, minute, "RED_CARD");
+    }
+  }
 
-  return {
-    match: {
-      id: matchId,
-      fixtureId: input.fixture.id,
-      playedDate: input.fixture.scheduledDate,
-      homeGoals,
-      awayGoals,
-    },
-    events,
-    homeStats: roundStats(home.stats),
-    awayStats: roundStats(away.stats),
-    playerStates: [...home.states, ...away.states],
-    weather: "not-modeled",
-    pitch: "not-modeled",
-  };
+  if (rng.next() < injuryChance(home, away, environment)) {
+    const injuredTeam = rng.next() < 0.5 ? home : away;
+    const injured = rng.pick(injuredTeam.selection);
+    const injury: InjuryRecord = {
+      id: createStableEntityId("injury", `${matchId}:${injured.personId}:${minute}`),
+      personId: injured.personId,
+      injuryType: "match knock",
+      dateOccurred: state.scheduledDate,
+      expectedRecoveryDate: recoveryDate(state.scheduledDate, rng.integer(7, 35)),
+      severity: rng.next() < 0.72 ? "minor" : rng.next() < 0.9 ? "moderate" : "major",
+    };
+    playerState(injuredTeam, injured.personId).injuryDuringMatch = injury;
+    pushEvent(state, minute, "INJURY", injuredTeam.teamId, injured.personId, undefined, injury);
+  }
+};
+
+const completeMatch = (state: LiveMatchState): void => {
+  finalizeStates(state.home.states, state.homeGoals, state.awayGoals);
+  finalizeStates(state.away.states, state.awayGoals, state.homeGoals);
+  applyPossession(state);
+  state.period = "FULL_TIME";
+  pushEvent(state, REGULATION_MINUTES, "FULL_TIME", state.homeTeamId);
+};
+
+/**
+ * Possession is the engine's existing midfield-and-style weighting. It is now
+ * blended with how often each side actually had the ball during the match so it
+ * can be read live, and it still totals 100.
+ */
+export const applyPossession = (state: LiveMatchState): void => {
+  const { home, away } = state;
+  const homeWeight = home.strength.midfield * home.tactical.possession;
+  const awayWeight = away.strength.midfield * away.tactical.possession;
+  const totalWeight = homeWeight + awayWeight;
+  const modelShare = totalWeight > 0 ? homeWeight / totalWeight : 0.5;
+  const ticks = home.controlTicks + away.controlTicks;
+  const observedShare = ticks > 0 ? home.controlTicks / ticks : modelShare;
+  const share = clamp(modelShare * 0.6 + observedShare * 0.4, 0.2, 0.8);
+  home.stats.possession = Math.round(share * 100);
+  away.stats.possession = 100 - home.stats.possession;
 };
 
 const createRuntimeTeam = (
@@ -314,6 +430,9 @@ const createRuntimeTeam = (
   },
   states: selection.map(createInitialPlayerState),
   substitutionsUsed: 0,
+  controlTicks: 0,
+  benchIds: [],
+  benchPlayers: [],
 });
 
 const chooseAttackingTeam = (
@@ -399,18 +518,18 @@ const chooseAssister = (
 
 const maybeSubstitute = (
   rng: SeededRandom,
-  matchId: EntityId,
+  state: LiveMatchState,
   minute: number,
   team: RuntimeTeam,
-  input: SimulateMatchInput,
-  events: MatchEvent[],
 ): void => {
-  if (![60, 72, 82].includes(minute) || team.substitutionsUsed >= 3 || rng.next() > 0.72) {
+  if (
+    ![60, 72, 82].includes(minute) ||
+    team.substitutionsUsed >= state.substitutionLimit ||
+    rng.next() > 0.72
+  ) {
     return;
   }
-  const setup =
-    team.teamId === input.fixture.homeTeamId ? input.homeTacticalSetup : input.awayTacticalSetup;
-  const benchPersonId = setup?.bench[team.substitutionsUsed];
+  const benchPersonId = team.benchIds[team.substitutionsUsed];
   if (!benchPersonId) {
     return;
   }
@@ -418,18 +537,61 @@ const maybeSubstitute = (
   if (!outgoing || outgoing.personId === benchPersonId) {
     return;
   }
+  applySubstitution(state, team, outgoing.personId, benchPersonId, minute, {
+    reason: outgoing.injuryDuringMatch
+      ? "injury"
+      : outgoing.rating < 5.8
+        ? "performance"
+        : "fitness",
+  });
+};
+
+/**
+ * Puts a substitution into effect. Unlike the original engine this actually
+ * swaps the players on the pitch, so the replacement can influence the rest of
+ * the match and minutes are attributed correctly.
+ */
+export const applySubstitution = (
+  state: LiveMatchState,
+  team: RuntimeTeam,
+  outgoingId: EntityId,
+  incomingId: EntityId,
+  minute: number,
+  data: Record<string, unknown> = {},
+): void => {
+  const outgoingIndex = team.selection.findIndex((player) => player.personId === outgoingId);
+  const incoming = team.benchPlayers.find((player) => player.personId === incomingId);
+  const outgoingState = team.states.find((candidate) => candidate.personId === outgoingId);
+  if (outgoingIndex < 0 || !incoming || !outgoingState) {
+    return;
+  }
   team.substitutionsUsed += 1;
-  outgoing.currentFitness = Math.min(100, outgoing.currentFitness + 3);
-  events.push(
-    event(matchId, minute, "SUBSTITUTION", team.teamId, benchPersonId, outgoing.personId, {
-      reason: outgoing.injuryDuringMatch
-        ? "injury"
-        : outgoing.rating < 5.8
-          ? "performance"
-          : "fitness",
-      substitutionsUsed: team.substitutionsUsed,
-    }),
-  );
+  outgoingState.currentFitness = Math.min(100, outgoingState.currentFitness + 3);
+  outgoingState.subbedOffMinute = minute;
+  outgoingState.minutesPlayed = minute;
+
+  // The replacement inherits the vacated tactical slot so shape is preserved.
+  const vacated = team.selection[outgoingIndex]!;
+  const replacement: SelectedPlayer = {
+    ...incoming,
+    teamId: team.teamId,
+    position: vacated.position,
+    role: vacated.role,
+    roleFit: vacated.roleFit,
+    tacticalSlotId: vacated.tacticalSlotId,
+  };
+  team.selection[outgoingIndex] = replacement;
+  team.benchPlayers = team.benchPlayers.filter((player) => player.personId !== incomingId);
+
+  const incomingState = createInitialPlayerState(replacement);
+  incomingState.subbedOnMinute = minute;
+  incomingState.minutesPlayed = 0;
+  team.states.push(incomingState);
+
+  pushEvent(state, minute, "SUBSTITUTION", team.teamId, incomingId, outgoingId, {
+    ...data,
+    substitutionsUsed: team.substitutionsUsed,
+  });
 };
 
 const playerState = (team: RuntimeTeam, personId: EntityId): PlayerMatchState => {
@@ -471,13 +633,19 @@ const tickFatigue = (
   }
 };
 
+/**
+ * Attributes minutes honestly (a substitute does not get 90) and applies the
+ * engine's existing rating adjustments. The rating formula itself is unchanged.
+ */
 const finalizeStates = (
   states: PlayerMatchState[],
   goalsFor: number,
   goalsAgainst: number,
 ): void => {
   for (const state of states) {
-    state.minutesPlayed = 90;
+    const leftAt = state.subbedOffMinute ?? state.sentOffMinute;
+    const cameOn = state.subbedOnMinute ?? 0;
+    state.minutesPlayed = leftAt !== undefined ? leftAt - cameOn : REGULATION_MINUTES - cameOn;
     state.rating = clamp(
       state.rating +
         state.goals * 0.7 +
@@ -524,25 +692,170 @@ const recoveryDate = (date: string, days: number): string => {
   return parsed.toISOString().slice(0, 10);
 };
 
-const event = (
-  matchId: EntityId,
+/**
+ * Event importance drives Key Events filtering. It is derived from the event
+ * type and its context, never stored by the caller.
+ */
+export type MatchEventImportance = "MINOR" | "NOTABLE" | "MAJOR" | "CRITICAL";
+
+const IMPORTANCE: Record<string, MatchEventImportance> = {
+  KICK_OFF: "NOTABLE",
+  HALF_TIME: "MAJOR",
+  SECOND_HALF: "NOTABLE",
+  FULL_TIME: "CRITICAL",
+  GOAL: "CRITICAL",
+  OWN_GOAL: "CRITICAL",
+  PENALTY_SCORED: "CRITICAL",
+  PENALTY_MISSED: "CRITICAL",
+  PENALTY_AWARDED: "MAJOR",
+  RED_CARD: "CRITICAL",
+  SECOND_YELLOW: "CRITICAL",
+  INJURY: "MAJOR",
+  SUBSTITUTION: "MAJOR",
+  TACTICAL_CHANGE: "MAJOR",
+  YELLOW_CARD: "NOTABLE",
+  SAVE: "NOTABLE",
+  SHOT_ON_TARGET: "NOTABLE",
+  ASSIST: "NOTABLE",
+  SHOT: "MINOR",
+  CORNER: "MINOR",
+  FOUL: "MINOR",
+};
+
+export const matchEventImportance = (event: MatchEvent): MatchEventImportance => {
+  if (event.type === "SHOT") {
+    // A clear-cut chance matters even though most shots do not.
+    return event.data?.chanceType === "clear" ? "NOTABLE" : "MINOR";
+  }
+  return IMPORTANCE[event.type] ?? "MINOR";
+};
+
+/** Events the Key Events view shows. */
+export const isKeyEvent = (event: MatchEvent): boolean =>
+  matchEventImportance(event) === "MAJOR" || matchEventImportance(event) === "CRITICAL";
+
+/**
+ * Appends an event and stamps it with a monotonic sequence, so a timeline can
+ * be restored in the exact order it happened even within a single minute.
+ */
+const pushEvent = (
+  state: LiveMatchState,
   minute: number,
   type: string,
   teamId: EntityId,
   primaryPersonId?: EntityId,
   secondaryPersonId?: EntityId,
   data?: Record<string, unknown>,
-): MatchEvent => ({
-  id: createEntityId(),
-  matchId,
-  minute,
-  type,
-  teamId,
-  primaryPersonId,
-  secondaryPersonId,
-  personId: primaryPersonId,
-  data,
-});
+): MatchEvent => {
+  const sequence = state.eventSequence;
+  state.eventSequence += 1;
+  const built: MatchEvent = {
+    id: createStableEntityId("match-event", `${state.matchId}:${sequence}`),
+    matchId: state.matchId,
+    minute,
+    stoppageTime: state.stoppageTime > 0 ? state.stoppageTime : undefined,
+    type,
+    teamId,
+    primaryPersonId,
+    secondaryPersonId,
+    personId: primaryPersonId,
+    data: { ...(data ?? {}), sequence, importance: "MINOR" },
+  };
+  built.data!.importance = matchEventImportance(built);
+  state.events.push(built);
+  return built;
+};
+
+/** Chronological order: minute, then stoppage, then the order it happened in. */
+export const orderedEvents = (state: LiveMatchState): MatchEvent[] =>
+  [...state.events].sort(compareMatchEvents);
+
+export const compareMatchEvents = (a: MatchEvent, b: MatchEvent): number =>
+  (a.minute ?? 0) - (b.minute ?? 0) ||
+  (a.stoppageTime ?? 0) - (b.stoppageTime ?? 0) ||
+  Number(a.data?.sequence ?? 0) - Number(b.data?.sequence ?? 0);
+
+/**
+ * A booking. A player already on a yellow is dismissed for a second, which the
+ * original engine did not model.
+ */
+const bookPlayer = (
+  state: LiveMatchState,
+  team: RuntimeTeam,
+  personId: EntityId,
+  minute: number,
+): void => {
+  const player = playerState(team, personId);
+  if (player.redCard) {
+    return;
+  }
+  player.yellowCards += 1;
+  team.stats.yellowCards += 1;
+  if (player.yellowCards >= 2) {
+    pushEvent(state, minute, "SECOND_YELLOW", team.teamId, personId);
+    dismissPlayer(state, team, personId, minute, "SECOND_YELLOW_DISMISSAL");
+    return;
+  }
+  pushEvent(state, minute, "YELLOW_CARD", team.teamId, personId);
+};
+
+/**
+ * Sends a player off. The team plays on a man short: the dismissed player is
+ * removed from the pitch and is never automatically replaced.
+ */
+const dismissPlayer = (
+  state: LiveMatchState,
+  team: RuntimeTeam,
+  personId: EntityId,
+  minute: number,
+  type: string,
+): void => {
+  const player = playerState(team, personId);
+  if (player.redCard) {
+    return;
+  }
+  player.redCard = true;
+  player.minutesPlayed = minute;
+  player.sentOffMinute = minute;
+  // Counted once, whether it came straight or from a second booking.
+  team.stats.redCards += 1;
+  team.selection = team.selection.filter((candidate) => candidate.personId !== personId);
+  if (type === "RED_CARD") {
+    pushEvent(state, minute, "RED_CARD", team.teamId, personId);
+  } else {
+    pushEvent(state, minute, "RED_CARD", team.teamId, personId, undefined, {
+      secondYellow: true,
+    });
+  }
+};
+
+/** Bench players resolved to selectable form, excluding anyone already starting. */
+const benchPlayers = (
+  players: readonly PlayerAttributeSet[],
+  benchIds: readonly EntityId[],
+  selection: readonly SelectedPlayer[],
+): SelectedPlayer[] => {
+  const starting = new Set(selection.map((player) => player.personId));
+  return benchIds.flatMap((id) => {
+    if (starting.has(id)) return [];
+    const attributes = players.find((player) => player.personId === id);
+    if (!attributes) return [];
+    return [
+      {
+        personId: attributes.personId,
+        teamId: selection[0]?.teamId ?? ("" as EntityId),
+        position: attributes.primaryPosition,
+        attributes,
+        availability: {
+          personId: attributes.personId,
+          fitness: 100,
+          moraleModifier: 0,
+          formModifier: 0,
+        },
+      } satisfies SelectedPlayer,
+    ];
+  });
+};
 
 const roundStats = (stats: TeamMatchStats): TeamMatchStats => ({
   ...stats,
