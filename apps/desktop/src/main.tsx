@@ -4,14 +4,16 @@ import {
   createAppBridge,
   type AppError,
   type DesktopApplicationState,
-  type SaveListItem,
+  type EntityId,
+  type SaveCatalogEntry,
   type SquadRow,
+  type StartingClubOption,
   type TacticalSetup,
 } from "./appBridge.js";
 import "./styles.css";
 
 type Screen = "home" | "squad" | "tactics" | "fixtures" | "competition" | "profile";
-type Entry = "start" | "new" | "load" | "manager";
+type Entry = "start" | "new" | "load" | "career";
 
 const bridge = createAppBridge();
 
@@ -19,17 +21,15 @@ const App = (): React.ReactElement => {
   const [entry, setEntry] = useState<Entry>("start");
   const [screen, setScreen] = useState<Screen>("home");
   const [state, setState] = useState<DesktopApplicationState | null>(null);
-  const [saves, setSaves] = useState<SaveListItem[]>([]);
+  const [saves, setSaves] = useState<SaveCatalogEntry[]>([]);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | undefined>();
   const [error, setError] = useState<AppError | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const refreshSaves = async (): Promise<void> => {
     const result = await bridge.listSaves();
-    if (result.ok) {
-      setSaves(result.data);
-    } else {
-      setError(result.error);
-    }
+    if (result.ok) setSaves(result.data);
+    else setError(result.error);
   };
 
   useEffect(() => {
@@ -39,15 +39,41 @@ const App = (): React.ReactElement => {
   const applyState = (next: DesktopApplicationState): void => {
     setState(next);
     setSelectedPlayerId(next.squad[0]?.personId);
-    setEntry("manager");
+    setEntry("career");
     setScreen("home");
     setError(null);
     void refreshSaves();
   };
 
+  const run = async (
+    action: () => Promise<
+      { ok: true; data: DesktopApplicationState } | { ok: false; error: AppError }
+    >,
+  ): Promise<void> => {
+    setBusy(true);
+    const result = await action();
+    setBusy(false);
+    if (result.ok) applyState(result.data);
+    else setError(result.error);
+  };
+
+  const backToMenu = async (): Promise<void> => {
+    setBusy(true);
+    await bridge.closeCareer();
+    setBusy(false);
+    setState(null);
+    setEntry("start");
+    void refreshSaves();
+  };
+
   if (entry === "new") {
     return (
-      <NewCareer onCancel={() => setEntry("start")} onCreated={applyState} onError={setError} />
+      <NewCareer
+        onCancel={() => setEntry("start")}
+        onCreated={applyState}
+        onError={setError}
+        error={error}
+      />
     );
   }
 
@@ -60,24 +86,30 @@ const App = (): React.ReactElement => {
           <div className="club-choice">
             {saves.length === 0 && <p>No saves found.</p>}
             {saves.map((save) => (
-              <button
-                className="club-row"
-                key={save.saveId}
-                onClick={async () => {
-                  const result = await bridge.loadSave(save.saveId);
-                  if (result.ok) {
-                    applyState(result.data);
-                  } else {
-                    setError(result.error);
-                  }
-                }}
-              >
-                <strong>{save.displayName}</strong>
-                <span>
-                  {save.characterName ?? "Unknown manager"} · {save.currentClub ?? "Unemployed"} ·{" "}
-                  {save.worldDate}
-                </span>
-              </button>
+              <div className="club-row-group" key={save.saveId}>
+                <button
+                  className="club-row"
+                  disabled={busy}
+                  onClick={() => void run(() => bridge.loadCareer(save.saveId))}
+                >
+                  <strong>{save.saveName}</strong>
+                  <span>
+                    {save.characterName ?? "Unknown"} · {save.organisation ?? "Unemployed"} ·{" "}
+                    {save.worldDate}
+                  </span>
+                </button>
+                <button
+                  className="ghost"
+                  disabled={busy}
+                  onClick={async () => {
+                    const result = await bridge.deleteSave(save.saveId);
+                    if (!result.ok) setError(result.error);
+                    void refreshSaves();
+                  }}
+                >
+                  Delete
+                </button>
+              </div>
             ))}
             <button className="ghost" onClick={() => setEntry("start")}>
               Back
@@ -89,17 +121,30 @@ const App = (): React.ReactElement => {
   }
 
   if (!state || entry === "start") {
+    const mostRecent = saves[0];
     return (
       <StartShell error={error}>
         <section className="career-panel">
           <p className="eyebrow">Nepal Football Universe</p>
           <h1>Career Saves</h1>
           <div className="club-choice">
-            <button className="club-row" onClick={() => setEntry("new")}>
+            <button className="club-row" disabled={busy} onClick={() => setEntry("new")}>
               <strong>New Career</strong>
-              <span>Create a persisted testing-world manager save.</span>
+              <span>Start a manager career in the real Nepal football world.</span>
             </button>
-            <button className="club-row" onClick={() => setEntry("load")}>
+            {mostRecent && (
+              <button
+                className="club-row"
+                disabled={busy}
+                onClick={() => void run(() => bridge.loadCareer(mostRecent.saveId))}
+              >
+                <strong>Continue</strong>
+                <span>
+                  {mostRecent.saveName} · {mostRecent.worldDate}
+                </span>
+              </button>
+            )}
+            <button className="club-row" disabled={busy} onClick={() => setEntry("load")}>
               <strong>Load Career</strong>
               <span>
                 {saves.length} save{saves.length === 1 ? "" : "s"} available.
@@ -118,7 +163,7 @@ const App = (): React.ReactElement => {
     <main className="manager-shell">
       <aside className="sidebar">
         <div>
-          <p className="eyebrow">Manager Mode</p>
+          <p className="eyebrow">{title(state.header.activeRole)} Mode</p>
           <h1>Nepal Football</h1>
         </div>
         <nav>
@@ -134,19 +179,32 @@ const App = (): React.ReactElement => {
             ),
           )}
         </nav>
-        <button className="ghost" onClick={() => setEntry("start")}>
-          Saves
-        </button>
+        <div className="button-row">
+          <button
+            className="ghost"
+            disabled={busy}
+            onClick={async () => {
+              const result = await bridge.saveCareer();
+              if (result.ok) void refreshSaves();
+              else setError(result.error);
+            }}
+          >
+            Save
+          </button>
+          <button className="ghost" disabled={busy} onClick={() => void backToMenu()}>
+            Main Menu
+          </button>
+        </div>
       </aside>
       <section className="workspace">
         {error && <ErrorBanner error={error} />}
         <header className="topbar">
           <div>
-            <strong>{state.home.managerName}</strong>
-            <span>{state.home.clubName ?? "Unemployed"}</span>
+            <strong>{state.header.characterName}</strong>
+            <span>{state.header.clubName ?? "Unemployed"}</span>
           </div>
           <div>
-            <strong>{state.save.worldDate}</strong>
+            <strong>{state.header.worldDate}</strong>
             <span>
               {state.home.nextFixture
                 ? `Next: ${state.home.nextFixture.opponent}`
@@ -167,6 +225,10 @@ const App = (): React.ReactElement => {
             <Panel title="Dashboard">
               <dl className="metrics">
                 <div>
+                  <dt>Competition</dt>
+                  <dd>{state.header.competitionName ?? "-"}</dd>
+                </div>
+                <div>
                   <dt>Position</dt>
                   <dd>{state.home.position ?? "-"}</dd>
                 </div>
@@ -181,14 +243,8 @@ const App = (): React.ReactElement => {
               </dl>
               <button
                 className="primary"
-                onClick={async () => {
-                  const result = await bridge.continueToNextFixture(state.save.id);
-                  if (result.ok) {
-                    applyState(result.data);
-                  } else {
-                    setError(result.error);
-                  }
-                }}
+                disabled={busy}
+                onClick={() => void run(() => bridge.continueCareer())}
               >
                 Continue
               </button>
@@ -215,7 +271,7 @@ const App = (): React.ReactElement => {
             squad={state.squad}
             tactic={state.activeTactic}
             onSave={async (tactic) => {
-              const result = await bridge.saveTactic(state.save.id, tactic);
+              const result = await bridge.saveTactic(tactic);
               if (result.ok) {
                 setState({ ...state, activeTactic: result.data, tactics: [result.data] });
                 setError(null);
@@ -252,17 +308,8 @@ const App = (): React.ReactElement => {
               </table>
               <button
                 className="primary"
-                onClick={async () => {
-                  const result = await bridge.quickSimMatch(
-                    state.save.id,
-                    state.home.nextFixture?.id,
-                  );
-                  if (result.ok) {
-                    applyState(result.data);
-                  } else {
-                    setError(result.error);
-                  }
-                }}
+                disabled={busy}
+                onClick={() => void run(() => bridge.quickSimMatch(state.home.nextFixture?.id))}
               >
                 Quick Sim
               </button>
@@ -297,23 +344,27 @@ const App = (): React.ReactElement => {
           </Panel>
         )}
         {screen === "profile" && (
-          <Panel title="Manager Profile">
+          <Panel title="Career Profile">
             <dl className="profile-grid">
               <div>
                 <dt>Name</dt>
-                <dd>{state.home.managerName}</dd>
+                <dd>{state.header.characterName}</dd>
               </div>
               <div>
                 <dt>Role</dt>
-                <dd>{state.saveListItem.currentRole ?? "Manager"}</dd>
+                <dd>{title(state.header.activeRole)}</dd>
               </div>
               <div>
                 <dt>Club</dt>
-                <dd>{state.home.clubName ?? "Unemployed"}</dd>
+                <dd>{state.header.clubName ?? "Unemployed"}</dd>
               </div>
               <div>
                 <dt>Save</dt>
-                <dd>{state.save.name}</dd>
+                <dd>{state.header.saveName}</dd>
+              </div>
+              <div>
+                <dt>Save file</dt>
+                <dd>{state.catalogEntry.filePath}</dd>
               </div>
             </dl>
           </Panel>
@@ -327,20 +378,40 @@ const NewCareer = (props: {
   onCancel: () => void;
   onCreated: (state: DesktopApplicationState) => void;
   onError: (error: AppError) => void;
+  error: AppError | null;
 }): React.ReactElement => {
-  const [saveName, setSaveName] = useState("Maya Manager Save");
+  const [saveName, setSaveName] = useState("Nepal Manager Career");
   const [fullName, setFullName] = useState("Maya Adhikari");
   const [displayName, setDisplayName] = useState("Maya");
   const [dateOfBirth, setDateOfBirth] = useState("1993-05-12");
   const [startingAge, setStartingAge] = useState(33);
+  const [playingExperience, setPlayingExperience] = useState("AMATEUR_PLAYER");
+  const [coachingExperience, setCoachingExperience] = useState("YOUTH_COACH");
+  const [education, setEducation] = useState("SPORTS_RELATED_DEGREE");
+  const [clubs, setClubs] = useState<StartingClubOption[]>([]);
+  const [teamId, setTeamId] = useState<EntityId | "">("");
   const [step, setStep] = useState(1);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    void (async () => {
+      const result = await bridge.listStartingClubs();
+      if (result.ok) {
+        setClubs(result.data);
+        setTeamId((current) => current || (result.data[0]?.teamId ?? ""));
+      } else {
+        props.onError(result.error);
+      }
+    })();
+  }, []);
+
+  const selectedClub = clubs.find((club) => club.teamId === teamId);
+
   return (
-    <StartShell>
+    <StartShell error={props.error}>
       <section className="career-panel">
         <p className="eyebrow">New Career</p>
-        <h1>
-          {["Character", "Background", "Career Role", "Starting World", "Confirmation"][step - 1]}
-        </h1>
+        <h1>{["Character", "Background", "Starting Club", "Confirmation"][step - 1]}</h1>
         {step === 1 && (
           <div className="form-grid">
             <label>
@@ -379,7 +450,10 @@ const NewCareer = (props: {
           <div className="form-grid">
             <label>
               Playing experience
-              <select defaultValue="AMATEUR_PLAYER">
+              <select
+                value={playingExperience}
+                onChange={(event) => setPlayingExperience(event.target.value)}
+              >
                 <option value="NO_PLAYING_EXPERIENCE">No Playing Experience</option>
                 <option value="AMATEUR_PLAYER">Amateur Player</option>
                 <option value="SEMI_PROFESSIONAL_PLAYER">Semi-Professional Player</option>
@@ -387,7 +461,10 @@ const NewCareer = (props: {
             </label>
             <label>
               Coaching experience
-              <select defaultValue="YOUTH_COACH">
+              <select
+                value={coachingExperience}
+                onChange={(event) => setCoachingExperience(event.target.value)}
+              >
                 <option value="NONE">None</option>
                 <option value="GRASSROOTS">Grassroots</option>
                 <option value="YOUTH_COACH">Youth Coach</option>
@@ -395,7 +472,7 @@ const NewCareer = (props: {
             </label>
             <label>
               Education
-              <select defaultValue="SPORTS_RELATED_DEGREE">
+              <select value={education} onChange={(event) => setEducation(event.target.value)}>
                 <option value="SECONDARY">Secondary</option>
                 <option value="UNIVERSITY">University</option>
                 <option value="SPORTS_RELATED_DEGREE">Sports-related Degree</option>
@@ -403,22 +480,51 @@ const NewCareer = (props: {
             </label>
           </div>
         )}
-        {step === 3 && <p>Manager career is available for Stage 4.1.</p>}
-        {step === 4 && <p>Starting world: Testing-only Nepal League 2026.</p>}
-        {step === 5 && <p>Join Kathmandu Testing Club as manager and create a persisted save.</p>}
+        {step === 3 && (
+          <div className="form-grid">
+            <label>
+              Starting club
+              <select
+                value={teamId}
+                onChange={(event) => setTeamId(event.target.value as EntityId)}
+              >
+                {clubs.map((club) => (
+                  <option key={club.teamId} value={club.teamId}>
+                    {club.clubName} ({club.squadSize} players)
+                  </option>
+                ))}
+              </select>
+            </label>
+            {clubs.length === 0 && <p>Loading Nepal clubs…</p>}
+            {selectedClub && <p>{selectedClub.competitionName}</p>}
+          </div>
+        )}
+        {step === 4 && (
+          <p>
+            Join {selectedClub?.clubName ?? "your club"} as manager in the{" "}
+            {selectedClub?.competitionName ?? "Nepal league"} and create a SQLite career save.
+          </p>
+        )}
         <div className="button-row">
-          <button className="ghost" onClick={step === 1 ? props.onCancel : () => setStep(step - 1)}>
+          <button
+            className="ghost"
+            disabled={busy}
+            onClick={step === 1 ? props.onCancel : () => setStep(step - 1)}
+          >
             Back
           </button>
           <button
             className="primary"
+            disabled={busy || (step === 3 && !teamId)}
             onClick={async () => {
-              if (step < 5) {
+              if (step < 4) {
                 setStep(step + 1);
                 return;
               }
+              setBusy(true);
               const result = await bridge.createCareer({
                 saveName,
+                joinTeamId: teamId || undefined,
                 character: {
                   fullName,
                   preferredDisplayName: displayName,
@@ -426,21 +532,19 @@ const NewCareer = (props: {
                   startingAge,
                   languages: ["ne", "en"],
                   footballBackground: "COMMUNITY_COACHING",
-                  education: "SPORTS_RELATED_DEGREE",
-                  playingExperience: "AMATEUR_PLAYER",
-                  coachingExperience: "YOUTH_COACH",
+                  education,
+                  playingExperience,
+                  coachingExperience,
                   businessBackground: "SMALL_BUSINESS",
                   startingReputationProfile: "LOCAL_RESPECTED",
                 },
               });
-              if (result.ok) {
-                props.onCreated(result.data);
-              } else {
-                props.onError(result.error);
-              }
+              setBusy(false);
+              if (result.ok) props.onCreated(result.data);
+              else props.onError(result.error);
             }}
           >
-            {step < 5 ? "Continue" : "Create Save"}
+            {step < 4 ? "Continue" : busy ? "Creating…" : "Create Save"}
           </button>
         </div>
       </section>
@@ -554,7 +658,9 @@ const TacticsScreen = (props: {
             Style
             <select
               value={draft.style}
-              onChange={(event) => setDraft({ ...draft, style: event.target.value })}
+              onChange={(event) =>
+                setDraft({ ...draft, style: event.target.value as TacticalSetup["style"] })
+              }
             >
               {["BALANCED", "POSSESSION", "HIGH_PRESS", "DIRECT", "LOW_BLOCK", "VERTICAL"].map(
                 (style) => (
@@ -703,12 +809,12 @@ const StartShell = (props: {
 
 const ErrorBanner = ({ error }: { error: AppError }): React.ReactElement => (
   <div className="warning">
-    <strong>{error.code}</strong> {error.message} {error.detail}
+    <strong>{error.code}</strong> {error.message}
   </div>
 );
 
 function title(value: string): string {
-  return value.charAt(0).toUpperCase() + value.slice(1);
+  return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
 }
 
 const root = document.getElementById("root");

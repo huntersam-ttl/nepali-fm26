@@ -130,7 +130,7 @@ export const inspectNepalSave = (databasePath: string): NepalSaveResult => {
   };
 };
 
-const importNepalWorld = (db: GameDatabase, dataset: NepalWorldDataset): void => {
+export const importNepalWorld = (db: GameDatabase, dataset: NepalWorldDataset): void => {
   const world = new WorldRepository(db);
   const competitions = new CompetitionRepository(db);
   const players = new PlayerRepository(db);

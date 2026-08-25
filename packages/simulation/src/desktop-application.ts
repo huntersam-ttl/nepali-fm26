@@ -1,5 +1,5 @@
-import { mkdirSync, readdirSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 import {
   CompetitionRepository,
   ManagerRepository,
@@ -15,407 +15,433 @@ import {
 import {
   createEntityId,
   createStableEntityId,
+  type AppResult,
+  type CareerCreationCommand,
+  type CareerHeader,
   type Club,
-  type Competition,
   type CompetitionRuleSet,
   type CompetitionSeason,
-  type Country,
+  type CompetitionView,
+  type DesktopAppError,
+  type DesktopApplicationState,
+  type DesktopErrorCode,
   type EntityId,
-  type FixtureRecord,
-  type InboxItem,
-  type ISODate,
-  type ManagerContract,
-  type ManagerProfile,
+  type FixtureReadModel,
   type MatchEvent,
-  type MatchResult,
   type Person,
   type PlayerAttributeSet,
-  type PlayerPosition,
+  type PostMatchReadModel,
+  type SaveCatalogEntry,
   type SaveMetadata,
+  type SquadRow,
+  type StartingClubOption,
   type TacticalAssignment,
   type TacticalSetup,
   type Team,
 } from "@nepal-football-sim/shared-types";
+import { validateNepalWorldDataset, type NepalWorldDataset } from "@nepal-football-sim/data-import";
 import { generateLeagueFixtures } from "./fixture-generation.js";
-import {
-  createCareerCharacter,
-  createManagerContract,
-  testLicence,
-  type CreateCareerCharacterInput,
-} from "./manager-career.js";
+import { importNepalWorld } from "./nepal-save.js";
+import { createCareerCharacter, createManagerContract, testLicence } from "./manager-career.js";
 import {
   continueToNextFixtureDate,
+  nextFixtureForTeam,
   persistQuickSimResult,
   quickSimManagerMatch,
 } from "./manager-flow.js";
 import { FORMATION_PRESETS, TACTICAL_STYLE_PRESETS, createTacticalSetup } from "./tactics.js";
 
-export type DesktopAppError = {
-  code:
-    | "SAVE_MISSING"
-    | "SAVE_CORRUPTED"
-    | "MIGRATION_FAILED"
-    | "FIXTURE_MISSING"
-    | "PLAYER_MISSING"
-    | "INVALID_SELECTION"
-    | "DATABASE_UNAVAILABLE"
-    | "SIMULATION_ERROR";
-  message: string;
-  detail?: string;
+export type { DesktopAppError, AppResult };
+
+export const GAME_VERSION = "0.2.0";
+
+/** A starting club must be able to field a legal XI plus cover. */
+const MINIMUM_STARTING_SQUAD = 14;
+
+export type DesktopRuntimeOptions = {
+  savesDirectory: string;
+  worldDatasetPath: string;
+  gameVersion?: string;
 };
 
-export type AppResult<T> = { ok: true; data: T } | { ok: false; error: DesktopAppError };
+/** Raw sqlite row. Column access is unchecked, exactly as in the repositories. */
+type SqlRow = Record<string, any>;
 
-export type SaveListItem = {
+type CareerSession = {
   saveId: EntityId;
-  displayName: string;
-  databasePath: string;
-  createdAt: string;
-  lastPlayedAt: string;
-  worldDate: string;
-  characterName?: string;
-  currentClub?: string;
-  currentRole?: string;
+  filePath: string;
+  db: GameDatabase;
 };
 
-export type CareerCreationCommand = {
-  saveName: string;
-  character: Omit<
-    CreateCareerCharacterInput,
-    "nationalityCountryId" | "coachingLicences" | "careerStartDate"
-  > & {
-    careerStartDate?: ISODate;
-  };
-  joinTeamId?: EntityId;
-};
+type ManagerContext = ReturnType<typeof managerContext>;
 
-export type SquadRow = {
-  personId: EntityId;
-  name: string;
-  age?: number;
-  nationality: string;
-  positions: string[];
-  preferredFoot: "Left" | "Right";
-  fitness: number;
-  form: number;
-  morale: string;
-  overall: number;
-  roleSuitability: string;
-  appearances: number;
-  goals: number;
-  assists: number;
-  averageRating: number;
-  availability: string;
-};
-
-export type PlayerProfileReadModel = SquadRow & {
-  attributes: PlayerAttributeSet;
-  provenanceStatus?: string;
-  matchStats: {
-    minutes: number;
-    yellowCards: number;
-    redCards: number;
-  };
-};
-
-export type FixtureReadModel = {
-  id: EntityId;
-  date: string;
-  opponent: string;
-  homeAway: "home" | "away";
-  competition: string;
-  status: FixtureRecord["status"];
-  score?: string;
-};
-
-export type CompetitionView = {
-  name: string;
-  table: Array<{
-    teamId: EntityId;
-    teamName: string;
-    played: number;
-    goalDifference: number;
-    points: number;
-  }>;
-};
-
-export type PostMatchReadModel = {
-  match: MatchResult["match"];
-  homeTeam: string;
-  awayTeam: string;
-  events: MatchEvent[];
-  score: string;
-  homeStats: MatchResult["homeStats"];
-  awayStats: MatchResult["awayStats"];
-  playerRatings: Array<{ personId: EntityId; name: string; rating: number; minutes: number }>;
-};
-
-export type ManagerHomeReadModel = {
-  save: SaveMetadata;
-  manager: ManagerProfile;
-  managerName: string;
-  contract?: ManagerContract;
-  clubName?: string;
-  teamName?: string;
-  nextFixture?: FixtureReadModel;
-  previousResult?: PostMatchReadModel;
-  inbox: InboxItem[];
-  unavailablePlayers: SquadRow[];
-  position?: string;
-};
-
-export type DesktopApplicationState = {
-  save: SaveMetadata;
-  saveListItem: SaveListItem;
-  home: ManagerHomeReadModel;
-  squad: SquadRow[];
-  tactics: TacticalSetup[];
-  activeTactic?: TacticalSetup;
-  fixtures: FixtureReadModel[];
-  competition: CompetitionView;
-};
-
-type TestingWorld = {
-  country: Country;
-  competition: Competition;
-  season: CompetitionSeason;
-  ruleSet: CompetitionRuleSet;
-  clubs: Club[];
-  teams: Team[];
-  fixtures: FixtureRecord[];
-  playersByTeam: Map<EntityId, PlayerAttributeSet[]>;
-  peopleById: Map<EntityId, Person>;
-};
-
+/**
+ * Authoritative desktop runtime. Owns the SQLite career session and is the only
+ * place that turns UI commands into simulation + repository work.
+ */
 export class DesktopApplicationService {
-  constructor(private readonly savesDirectory: string) {}
+  private readonly savesDirectory: string;
+  private readonly worldDatasetPath: string;
+  private readonly gameVersion: string;
+  private dataset?: NepalWorldDataset;
+  private session?: CareerSession;
 
-  listSaves(): AppResult<SaveListItem[]> {
+  constructor(options: DesktopRuntimeOptions) {
+    this.savesDirectory = options.savesDirectory;
+    this.worldDatasetPath = options.worldDatasetPath;
+    this.gameVersion = options.gameVersion ?? GAME_VERSION;
+  }
+
+  listSaves(): AppResult<SaveCatalogEntry[]> {
     try {
       mkdirSync(this.savesDirectory, { recursive: true });
-      const items = readdirSync(this.savesDirectory)
+      const entries = readdirSync(this.savesDirectory)
         .filter((file) => file.endsWith(".sqlite"))
         .flatMap((file) => {
-          const databasePath = join(this.savesDirectory, file);
-          let db: GameDatabase | undefined;
-          try {
-            db = openGameDatabase(databasePath);
-            migrateDatabase(db);
-            const save = new SaveRepository(db).first();
-            return save ? [this.saveListItem(db, save, databasePath)] : [];
-          } catch {
-            return [];
-          } finally {
-            db?.close();
-          }
+          const entry = this.readCatalogEntry(join(this.savesDirectory, file));
+          return entry ? [entry] : [];
         })
-        .sort((a, b) => b.lastPlayedAt.localeCompare(a.lastPlayedAt));
-      return ok(items);
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+      return ok(entries);
     } catch (error) {
-      return fail("DATABASE_UNAVAILABLE", "Could not list saves.", error);
+      return fail("DATABASE_ERROR", "Could not list saves.", error);
+    }
+  }
+
+  listStartingClubs(): AppResult<StartingClubOption[]> {
+    try {
+      return ok(startingClubOptions(this.worldDataset()));
+    } catch (error) {
+      return fail("WORLD_DATA_UNAVAILABLE", "Could not read the Nepal world dataset.", error);
     }
   }
 
   createCareer(command: CareerCreationCommand): AppResult<DesktopApplicationState> {
-    const databasePath = join(
-      this.savesDirectory,
-      `${slug(command.saveName)}-${Date.now().toString(36)}.sqlite`,
-    );
+    let filePath: string;
+    let dataset: NepalWorldDataset;
     try {
-      mkdirSync(dirname(databasePath), { recursive: true });
-      const db = openGameDatabase(databasePath);
+      dataset = this.worldDataset();
+    } catch (error) {
+      return fail("WORLD_DATA_UNAVAILABLE", "Could not read the Nepal world dataset.", error);
+    }
+
+    const options = startingClubOptions(dataset);
+    const target = command.joinTeamId
+      ? options.find((option) => option.teamId === command.joinTeamId)
+      : options[0];
+    if (!target) {
+      return fail(
+        "INVALID_SELECTION",
+        "The selected starting club is not a playable Nepal club in this world.",
+      );
+    }
+
+    try {
+      mkdirSync(this.savesDirectory, { recursive: true });
+      filePath = join(
+        this.savesDirectory,
+        `${slug(command.saveName)}-${Date.now().toString(36)}.sqlite`,
+      );
+    } catch (error) {
+      return fail("DATABASE_ERROR", "Could not prepare the saves directory.", error);
+    }
+
+    this.closeSession();
+    let db: GameDatabase | undefined;
+    try {
+      db = openGameDatabase(filePath);
+      migrateDatabase(db);
+      db.exec("BEGIN;");
       try {
-        migrateDatabase(db);
-        const world = seedTestingWorld(db);
-        const careerStartDate = command.character.careerStartDate ?? world.season.startDate;
+        importNepalWorld(db, dataset);
+        const season = seasonForTeam(db, target.teamId);
+        const ruleSet = new CompetitionRepository(db).getRuleSet(season.id);
+        if (!ruleSet) {
+          throw appError("SAVE_CORRUPT", `Competition ${season.name} has no rule set.`);
+        }
+        scheduleSeasonFixtures(db, season, ruleSet);
+
+        const careerStartDate = command.character.careerStartDate ?? season.startDate;
+        const country = firstCountry(db);
         const career = createCareerCharacter({
           ...command.character,
-          nationalityCountryId: world.country.id,
-          coachingLicences: [testLicence("Testing C Licence")],
+          footballBackground: command.character.footballBackground as never,
+          education: command.character.education as never,
+          playingExperience: command.character.playingExperience as never,
+          coachingExperience: command.character.coachingExperience as never,
+          businessBackground: command.character.businessBackground as never,
+          startingReputationProfile: command.character.startingReputationProfile as never,
+          nationalityCountryId: country.id,
+          coachingLicences: [testLicence("AFC C Licence")],
           careerStartDate,
         });
-        const save = createNewSave(db, {
+
+        createNewSave(db, {
           name: command.saveName,
           worldDate: careerStartDate,
-          gameVersion: "0.1.0",
+          gameVersion: this.gameVersion,
           randomSeed: `desktop:${command.saveName}:${career.person.id}`,
           playerCharacterId: career.character.id,
         });
-        const worldRepo = new WorldRepository(db);
+
+        const world = new WorldRepository(db);
         const managers = new ManagerRepository(db);
-        worldRepo.insertPerson(career.person);
-        worldRepo.insertPersonRole(career.managerRole);
-        worldRepo.insertCareerCharacter(career.character);
+        world.insertPerson(career.person);
+        world.insertPersonRole(career.managerRole);
+        world.insertCareerCharacter(career.character);
         managers.insertProfile(career.managerProfile);
-        const joinedTeamId = command.joinTeamId ?? world.teams[0]!.id;
-        const joinedTeam = world.teams.find((team) => team.id === joinedTeamId);
-        if (joinedTeam) {
-          managers.insertContract(
-            createManagerContract({
-              managerProfileId: career.managerProfile.id,
-              personId: career.person.id,
-              teamId: joinedTeam.id,
-              clubId: joinedTeam.clubId,
-              contractStart: careerStartDate,
-              contractEnd: "2027-05-31",
-              salaryAmountMinor: 9_000_000,
-            }),
-          );
-          const players = new PlayerRepository(db).attributesForTeam(joinedTeam.id);
-          managers.insertTacticalSetup(
-            defaultSetup(joinedTeam.id, players, career.managerProfile.id),
-          );
-          managers.insertInboxItem({
-            id: createEntityId(),
-            createdOn: careerStartDate,
-            type: "FIXTURE_UPCOMING",
-            title: "Welcome to manager mode",
-            body: "Your testing-world manager career has been created and saved.",
-            relatedEntity: { type: "team", id: joinedTeam.id },
-            read: false,
-          });
-        }
-        const loadedSave = loadSave(db, save.id);
-        return ok(this.loadStateFromOpenDb(db, loadedSave, databasePath));
-      } finally {
-        db.close();
+
+        const team = getTeam(db, target.teamId);
+        managers.insertContract(
+          createManagerContract({
+            managerProfileId: career.managerProfile.id,
+            personId: career.person.id,
+            teamId: team.id,
+            clubId: team.clubId,
+            contractStart: careerStartDate,
+            contractEnd: ruleSet.seasonEndDate,
+            salaryAmountMinor: 9_000_000,
+          }),
+        );
+        const players = new PlayerRepository(db).attributesForTeam(team.id);
+        managers.insertTacticalSetup(defaultSetup(team.id, players, career.managerProfile.id));
+        managers.insertInboxItem({
+          id: createEntityId(),
+          createdOn: careerStartDate,
+          type: "FIXTURE_UPCOMING",
+          title: `Welcome to ${target.clubName}`,
+          body: `You have taken charge of ${target.teamName} in the ${target.competitionName}.`,
+          relatedEntity: { type: "team", id: team.id },
+          read: false,
+        });
+        db.exec("COMMIT;");
+      } catch (error) {
+        db.exec("ROLLBACK;");
+        throw error;
       }
+
+      const opened = loadSave(db);
+      this.session = { saveId: opened.id, filePath, db };
+      const state = this.buildState(db, opened, filePath);
+      this.writeCatalogEntry(state.catalogEntry);
+      return ok(state);
     } catch (error) {
-      return fail("DATABASE_UNAVAILABLE", "Could not create career save.", error);
+      db?.close();
+      discardFile(filePath);
+      if (isAppError(error)) return fail(error.code, error.message, error.detail);
+      return fail("CAREER_CREATION_FAILED", "Could not create the career save.", error);
     }
   }
 
-  loadSave(saveId: EntityId): AppResult<DesktopApplicationState> {
+  loadCareer(saveId: EntityId): AppResult<DesktopApplicationState> {
     const listed = this.listSaves();
     if (!listed.ok) return listed;
-    const item = listed.data.find((candidate) => candidate.saveId === saveId);
-    if (!item) return fail("SAVE_MISSING", `Save ${saveId} was not found.`);
-    return this.loadSaveByPath(item.databasePath);
+    const entry = listed.data.find((candidate) => candidate.saveId === saveId);
+    if (!entry) return fail("SAVE_NOT_FOUND", `Save ${saveId} was not found.`);
+    return this.loadCareerByPath(entry.filePath);
   }
 
-  loadSaveByPath(databasePath: string): AppResult<DesktopApplicationState> {
+  loadCareerByPath(filePath: string): AppResult<DesktopApplicationState> {
+    this.closeSession();
+    let db: GameDatabase | undefined;
     try {
-      const db = openGameDatabase(databasePath);
-      try {
-        migrateDatabase(db);
-        const save = loadSave(db);
-        return ok(this.loadStateFromOpenDb(db, save, databasePath));
-      } finally {
-        db.close();
-      }
+      db = openGameDatabase(filePath);
+      migrateDatabase(db);
+      const save = loadSave(db);
+      this.session = { saveId: save.id, filePath, db };
+      const state = this.buildState(db, save, filePath);
+      this.writeCatalogEntry(state.catalogEntry);
+      return ok(state);
     } catch (error) {
-      return fail("SAVE_CORRUPTED", "Could not load save.", error);
+      db?.close();
+      this.session = undefined;
+      if (isAppError(error)) return fail(error.code, error.message, error.detail);
+      return fail("SAVE_CORRUPT", "Could not load the save.", error);
     }
   }
 
-  saveTactic(saveId: EntityId, tactic: TacticalSetup): AppResult<TacticalSetup> {
-    return this.withSave(saveId, (db) => {
+  closeCareer(): AppResult<{ closed: boolean }> {
+    const wasOpen = this.session !== undefined;
+    try {
+      if (this.session) {
+        const { db, filePath } = this.session;
+        const save = new SaveRepository(db).get(this.session.saveId);
+        if (save) this.writeCatalogEntry(this.catalogEntry(db, save, filePath));
+      }
+    } catch {
+      // Metadata refresh is best-effort; closing the handle still has to happen.
+    }
+    this.closeSession();
+    return ok({ closed: wasOpen });
+  }
+
+  getCareerHeader(): AppResult<CareerHeader> {
+    return this.withSession((db, save) => careerHeader(db, save));
+  }
+
+  getHomeDashboard(): AppResult<DesktopApplicationState> {
+    return this.withSession((db, save, filePath) => this.buildState(db, save, filePath));
+  }
+
+  saveTactic(tactic: TacticalSetup): AppResult<TacticalSetup> {
+    return this.withSession((db) => {
       new ManagerRepository(db).insertTacticalSetup({ ...tactic, updatedOn: today() });
       return tactic;
     });
   }
 
-  quickSimMatch(saveId: EntityId, fixtureId?: EntityId): AppResult<DesktopApplicationState> {
-    return this.withSave(saveId, (db, save, databasePath) => {
+  quickSimMatch(fixtureId?: EntityId): AppResult<DesktopApplicationState> {
+    return this.withSession((db, save, filePath) => {
       const context = managerContext(db, save);
-      const fixture =
-        (fixtureId
-          ? context.fixtures.find((candidate) => candidate.id === fixtureId)
-          : context.fixtures.find(
-              (candidate) =>
-                candidate.status === "scheduled" &&
-                (candidate.homeTeamId === context.team.id ||
-                  candidate.awayTeamId === context.team.id),
-            )) ?? undefined;
+      const fixture = fixtureId
+        ? context.fixtures.find((candidate) => candidate.id === fixtureId)
+        : context.fixtures.find(
+            (candidate) =>
+              candidate.status === "scheduled" &&
+              (candidate.homeTeamId === context.team.id ||
+                candidate.awayTeamId === context.team.id),
+          );
       if (!fixture) {
-        throw appError("FIXTURE_MISSING", "No upcoming manager fixture is available.");
+        throw appError("FIXTURE_MISSING", "No upcoming fixture is available.");
       }
-      const homePlayers = new PlayerRepository(db).attributesForTeam(fixture.homeTeamId);
-      const awayPlayers = new PlayerRepository(db).attributesForTeam(fixture.awayTeamId);
+      const players = new PlayerRepository(db);
+      const homePlayers = players.attributesForTeam(fixture.homeTeamId);
+      const awayPlayers = players.attributesForTeam(fixture.awayTeamId);
       const managers = new ManagerRepository(db);
       const tactic = managers.tacticalSetups(context.team.id)[0];
       if (!tactic) {
-        throw appError("INVALID_SELECTION", "No saved tactic exists for the manager team.");
+        throw appError("INVALID_SELECTION", "No saved tactic exists for your team.");
       }
+      const managerIsHome = fixture.homeTeamId === context.team.id;
       const opponentTactic = defaultSetup(
-        fixture.homeTeamId === context.team.id ? fixture.awayTeamId : fixture.homeTeamId,
-        fixture.homeTeamId === context.team.id ? awayPlayers : homePlayers,
+        managerIsHome ? fixture.awayTeamId : fixture.homeTeamId,
+        managerIsHome ? awayPlayers : homePlayers,
       );
-      const result = quickSimManagerMatch({
+      const input = {
         fixture,
         competitionTeamIds: context.teams.map((team) => team.id),
         ruleSet: context.ruleSet,
         homePlayers,
         awayPlayers,
-        homeTacticalSetup: fixture.homeTeamId === context.team.id ? tactic : opponentTactic,
-        awayTacticalSetup: fixture.awayTeamId === context.team.id ? tactic : opponentTactic,
+        homeTacticalSetup: managerIsHome ? tactic : opponentTactic,
+        awayTacticalSetup: managerIsHome ? opponentTactic : tactic,
         seed: `${save.randomSeed}:${fixture.id}`,
         save,
-      });
-      persistQuickSimResult(
-        db,
-        {
-          fixture,
-          competitionTeamIds: context.teams.map((team) => team.id),
-          ruleSet: context.ruleSet,
-          homePlayers,
-          awayPlayers,
-          homeTacticalSetup: fixture.homeTeamId === context.team.id ? tactic : opponentTactic,
-          awayTacticalSetup: fixture.awayTeamId === context.team.id ? tactic : opponentTactic,
-          seed: `${save.randomSeed}:${fixture.id}`,
-          save,
-        },
-        result,
-      );
-      return this.loadStateFromOpenDb(db, loadSave(db, save.id), databasePath);
+      };
+      const result = quickSimManagerMatch(input);
+      db.exec("BEGIN;");
+      try {
+        persistQuickSimResult(db, input, result);
+        db.exec("COMMIT;");
+      } catch (error) {
+        db.exec("ROLLBACK;");
+        throw error;
+      }
+      const state = this.buildState(db, loadSave(db, save.id), filePath);
+      this.writeCatalogEntry(state.catalogEntry);
+      return state;
     });
   }
 
-  continueToNextFixture(saveId: EntityId): AppResult<DesktopApplicationState> {
-    return this.withSave(saveId, (db, save, databasePath) => {
+  continueCareer(): AppResult<DesktopApplicationState> {
+    return this.withSession((db, save, filePath) => {
       const context = managerContext(db, save);
+      if (!nextFixtureForTeam(context.fixtures, context.team.id, save.worldDate)) {
+        throw appError("FIXTURE_MISSING", "There is no further fixture to advance to.");
+      }
       const updated = continueToNextFixtureDate(save, context.fixtures, context.team.id);
-      new SaveRepository(db).upsert(updated);
-      new ManagerRepository(db).insertInboxItem({
-        id: createEntityId(),
-        createdOn: updated.worldDate,
-        type: "FIXTURE_UPCOMING",
-        title: "Continue stopped at next fixture",
-        body: "Your next manager-controlled fixture is ready for selection.",
-        relatedEntity: { type: "fixture", id: context.fixtures[0]!.id },
-        read: false,
-      });
-      return this.loadStateFromOpenDb(db, updated, databasePath);
+      db.exec("BEGIN;");
+      try {
+        new SaveRepository(db).upsert(updated);
+        new ManagerRepository(db).insertInboxItem({
+          id: createEntityId(),
+          createdOn: updated.worldDate,
+          type: "FIXTURE_UPCOMING",
+          title: "Next fixture reached",
+          body: "Your next fixture is ready for team selection.",
+          relatedEntity: { type: "team", id: context.team.id },
+          read: false,
+        });
+        db.exec("COMMIT;");
+      } catch (error) {
+        db.exec("ROLLBACK;");
+        throw error;
+      }
+      const state = this.buildState(db, updated, filePath);
+      this.writeCatalogEntry(state.catalogEntry);
+      return state;
     });
   }
 
-  private withSave<T>(
-    saveId: EntityId,
-    action: (db: GameDatabase, save: SaveMetadata, databasePath: string) => T,
-  ): AppResult<T> {
+  /**
+   * Explicit checkpoint: stamp lastSavedAt, force a WAL checkpoint so the .sqlite
+   * file alone is complete, and refresh the catalog entry.
+   */
+  saveCareer(): AppResult<SaveCatalogEntry> {
+    return this.withSession((db, save, filePath) => {
+      const stamped = { ...save, lastSavedAt: new Date().toISOString() };
+      new SaveRepository(db).upsert(stamped);
+      db.exec("PRAGMA wal_checkpoint(TRUNCATE);");
+      const entry = this.catalogEntry(db, stamped, filePath);
+      this.writeCatalogEntry(entry);
+      return entry;
+    });
+  }
+
+  deleteSave(saveId: EntityId): AppResult<{ deleted: boolean }> {
     const listed = this.listSaves();
     if (!listed.ok) return listed;
-    const item = listed.data.find((candidate) => candidate.saveId === saveId);
-    if (!item) return fail("SAVE_MISSING", `Save ${saveId} was not found.`);
+    const entry = listed.data.find((candidate) => candidate.saveId === saveId);
+    if (!entry) return fail("SAVE_NOT_FOUND", `Save ${saveId} was not found.`);
+    if (this.session?.saveId === saveId) this.closeSession();
     try {
-      const db = openGameDatabase(item.databasePath);
-      try {
-        migrateDatabase(db);
-        const save = loadSave(db, saveId);
-        return ok(action(db, save, item.databasePath));
-      } finally {
-        db.close();
-      }
+      discardFile(entry.filePath);
+      return ok({ deleted: true });
     } catch (error) {
-      if (isAppError(error)) return fail(error.code, error.message, error.detail);
-      return fail("DATABASE_UNAVAILABLE", "Save operation failed.", error);
+      return fail("DATABASE_ERROR", "Could not delete the save.", error);
     }
   }
 
-  private loadStateFromOpenDb(
+  private withSession<T>(
+    action: (db: GameDatabase, save: SaveMetadata, filePath: string) => T,
+  ): AppResult<T> {
+    const session = this.session;
+    if (!session) return fail("SESSION_NOT_OPEN", "No career is currently open.");
+    try {
+      const save = loadSave(session.db, session.saveId);
+      return ok(action(session.db, save, session.filePath));
+    } catch (error) {
+      if (isAppError(error)) return fail(error.code, error.message, error.detail);
+      return fail("SIMULATION_ERROR", "The career command failed.", error);
+    }
+  }
+
+  private closeSession(): void {
+    if (!this.session) return;
+    try {
+      this.session.db.exec("PRAGMA wal_checkpoint(TRUNCATE);");
+    } catch {
+      // A checkpoint failure must not prevent releasing the handle.
+    }
+    try {
+      this.session.db.close();
+    } finally {
+      this.session = undefined;
+    }
+  }
+
+  private worldDataset(): NepalWorldDataset {
+    if (!this.dataset) {
+      const raw = JSON.parse(readFileSync(this.worldDatasetPath, "utf8")) as unknown;
+      this.dataset = validateNepalWorldDataset(raw);
+    }
+    return this.dataset;
+  }
+
+  private buildState(
     db: GameDatabase,
     save: SaveMetadata,
-    databasePath: string,
+    filePath: string,
   ): DesktopApplicationState {
     const context = managerContext(db, save);
     const squad = squadReadModel(db, context.team.id, save.worldDate);
@@ -424,11 +450,12 @@ export class DesktopApplicationService {
     const fixtures = fixtureReadModels(db, context, save);
     return {
       save,
-      saveListItem: this.saveListItem(db, save, databasePath),
+      header: careerHeaderFromContext(save, context),
+      catalogEntry: this.catalogEntry(db, save, filePath),
       home: {
         save,
         manager: context.manager,
-        managerName: context.managerPerson.displayName ?? context.managerPerson.fullName,
+        managerName: displayName(context.managerPerson),
         contract: context.contract,
         clubName: context.club?.name,
         teamName: context.team.name,
@@ -446,174 +473,170 @@ export class DesktopApplicationService {
     };
   }
 
-  private saveListItem(db: GameDatabase, save: SaveMetadata, databasePath: string): SaveListItem {
+  private catalogEntry(db: GameDatabase, save: SaveMetadata, filePath: string): SaveCatalogEntry {
+    const base: SaveCatalogEntry = {
+      saveId: save.id,
+      saveName: save.name,
+      filePath,
+      createdAt: save.createdAt,
+      updatedAt: save.lastSavedAt,
+      worldDate: save.worldDate,
+      gameVersion: save.gameVersion,
+      schemaVersion: save.databaseVersion,
+    };
     try {
       const context = managerContext(db, save);
       return {
-        saveId: save.id,
-        displayName: save.name,
-        databasePath,
-        createdAt: save.createdAt,
-        lastPlayedAt: save.lastSavedAt,
-        worldDate: save.worldDate,
-        characterName: context.managerPerson.displayName ?? context.managerPerson.fullName,
-        currentClub: context.club?.name,
-        currentRole: context.contract?.jobTitle,
+        ...base,
+        characterName: displayName(context.managerPerson),
+        activeRole: "MANAGER",
+        organisation: context.club?.name ?? context.team.name,
       };
     } catch {
-      return {
-        saveId: save.id,
-        displayName: save.name,
-        databasePath,
-        createdAt: save.createdAt,
-        lastPlayedAt: save.lastSavedAt,
-        worldDate: save.worldDate,
-      };
+      return base;
+    }
+  }
+
+  private catalogPath(filePath: string): string {
+    return join(dirname(filePath), `${basename(filePath, ".sqlite")}.meta.json`);
+  }
+
+  private writeCatalogEntry(entry: SaveCatalogEntry): void {
+    try {
+      writeFileSync(this.catalogPath(entry.filePath), JSON.stringify(entry, null, 2));
+    } catch {
+      // The sqlite file stays authoritative; the sidecar is only a listing cache.
+    }
+  }
+
+  /**
+   * Reads the sidecar first so the main menu does not have to open every world.
+   * Falls back to the save file itself when the sidecar is missing or stale.
+   */
+  private readCatalogEntry(filePath: string): SaveCatalogEntry | undefined {
+    try {
+      const raw = readFileSync(this.catalogPath(filePath), "utf8");
+      const parsed = JSON.parse(raw) as SaveCatalogEntry;
+      if (parsed.saveId && parsed.worldDate) return { ...parsed, filePath };
+    } catch {
+      // Fall through to reading the save file.
+    }
+    if (this.session?.filePath === filePath) {
+      const save = new SaveRepository(this.session.db).first();
+      return save ? this.catalogEntry(this.session.db, save, filePath) : undefined;
+    }
+    let db: GameDatabase | undefined;
+    try {
+      db = openGameDatabase(filePath);
+      migrateDatabase(db);
+      const save = new SaveRepository(db).first();
+      if (!save) return undefined;
+      const entry = this.catalogEntry(db, save, filePath);
+      this.writeCatalogEntry(entry);
+      return entry;
+    } catch {
+      return undefined;
+    } finally {
+      db?.close();
     }
   }
 }
 
-const seedTestingWorld = (db: GameDatabase): TestingWorld => {
-  const worldRepo = new WorldRepository(db);
-  const competitionRepo = new CompetitionRepository(db);
-  const playerRepo = new PlayerRepository(db);
-  const country: Country = {
-    id: createStableEntityId("country", "stage-4-1-testing-np"),
-    name: "Testing-only Nepal",
-    isoCode: "NP",
-  };
-  const competition: Competition = {
-    id: createStableEntityId("competition", "stage-4-1-testing-league"),
-    name: "Testing-only Nepal League",
-    scope: "domestic",
-  };
-  const season: CompetitionSeason = {
-    id: createStableEntityId("competition-season", "stage-4-1-testing-league-2026"),
-    competitionId: competition.id,
-    name: "Testing-only Nepal League 2026",
-    startDate: "2026-08-01",
-    endDate: "2027-05-31",
-  };
-  const ruleSet: CompetitionRuleSet = {
-    id: createStableEntityId("competition-rule", "stage-4-1-testing-league-2026"),
-    competitionSeasonId: season.id,
-    competitionType: "DOUBLE_ROUND_ROBIN",
-    pointsForWin: 3,
-    pointsForDraw: 1,
-    pointsForLoss: 0,
-    tiebreakers: ["points", "goalDifference", "goalsScored", "wins"],
-    numberOfRounds: 2,
-    homeAwayStructure: "double",
-    seasonStartDate: season.startDate,
-    seasonEndDate: season.endDate,
-    roundSpacingDays: 7,
-    promotionSlots: 0,
-    relegationSlots: 1,
-    continentalQualificationSlots: 1,
-  };
-  const clubs: Club[] = [
-    "Kathmandu Testing Club",
-    "Lalitpur Test XI",
-    "Pokhara Sample Club",
-    "Biratnagar Demo",
-  ].map((name) => ({
-    id: createStableEntityId("club", `stage-4-1:${name}`),
-    name,
-    countryId: country.id,
-    ownershipType: "COMMUNITY",
-  }));
-  const teams: Team[] = clubs.map((club) => ({
-    id: createStableEntityId("team", `stage-4-1:${club.name}:senior`),
-    clubId: club.id,
-    name: club.name,
-    level: "senior",
-    gender: "men",
-  }));
-  worldRepo.insertCountry(country);
-  worldRepo.insertCompetition(competition);
-  worldRepo.insertCompetitionSeason(season);
-  competitionRepo.insertRuleSet(ruleSet);
-  for (const club of clubs) worldRepo.insertClub(club);
-  for (const team of teams) worldRepo.insertTeam(team);
-  const peopleById = new Map<EntityId, Person>();
-  const playersByTeam = new Map<EntityId, PlayerAttributeSet[]>();
-  teams.forEach((team, teamIndex) => {
-    const squad = createSquad(team.id, 9 + teamIndex * 2);
-    playersByTeam.set(team.id, squad);
-    squad.forEach((player, index) => {
-      const person: Person = {
-        id: player.personId,
-        fullName: playerName(team.name, index),
-        displayName: playerName(team.name, index).split(" ").slice(0, 2).join(" "),
-        dateOfBirth: birthDate(index),
-        nationalityCountryId: country.id,
-        languages: ["ne"],
+const startingClubOptions = (dataset: NepalWorldDataset): StartingClubOption[] => {
+  const squadSizes = new Map<string, number>();
+  for (const assignment of dataset.teamPersonAssignments) {
+    if (assignment.role !== "PLAYER") continue;
+    squadSizes.set(assignment.teamKey, (squadSizes.get(assignment.teamKey) ?? 0) + 1);
+  }
+  const competitionNames = new Map(
+    dataset.competitions.map((competition) => [competition.key, competition.name]),
+  );
+  const clubNames = new Map(dataset.clubs.map((club) => [club.key, club.name]));
+  const membershipByTeam = new Map<string, string>();
+  for (const membership of dataset.clubMemberships ?? []) {
+    const teamKey = membership.teamKey?.value;
+    if (teamKey) membershipByTeam.set(teamKey, membership.competitionKey);
+  }
+
+  return dataset.teams
+    .filter((team) => (squadSizes.get(team.key) ?? 0) >= MINIMUM_STARTING_SQUAD)
+    .map((team) => {
+      const clubKey = team.clubKey?.value;
+      const competitionKey = membershipByTeam.get(team.key);
+      return {
+        teamId: createStableEntityId("team", team.key),
+        clubId: clubKey ? createStableEntityId("club", clubKey) : undefined,
+        clubName: (clubKey ? clubNames.get(clubKey) : undefined) ?? team.name,
+        teamName: team.name,
+        competitionName:
+          (competitionKey ? competitionNames.get(competitionKey) : undefined) ?? "Nepal football",
+        squadSize: squadSizes.get(team.key) ?? 0,
       };
-      peopleById.set(person.id, person);
-      worldRepo.insertPerson(person);
-      worldRepo.insertPersonRole({
-        id: createStableEntityId("role", `${person.id}:player`),
-        personId: person.id,
-        role: "PLAYER",
-        activeFrom: season.startDate,
-      });
-      worldRepo.insertTeamPersonAssignment({
-        id: createStableEntityId("team-person-assignment", `${team.id}:${person.id}`),
-        personId: person.id,
-        teamId: team.id,
-        role: "PLAYER",
-        startedOn: season.startDate,
-      });
-      playerRepo.insertAttributes(player);
-      playerRepo.upsertAvailabilityState({
-        personId: player.personId,
-        teamId: team.id,
-        fitness: 84 + (index % 5) * 2,
-        moraleModifier: 0,
-        formModifier: index % 3,
-        availability: "AVAILABLE",
-        updatedOn: season.startDate,
-      });
-    });
-  });
+    })
+    .sort((a, b) => a.clubName.localeCompare(b.clubName));
+};
+
+const scheduleSeasonFixtures = (
+  db: GameDatabase,
+  season: CompetitionSeason,
+  ruleSet: CompetitionRuleSet,
+): void => {
+  const competitions = new CompetitionRepository(db);
+  if (competitions.fixtures(season.id).length > 0) return;
+  const teams = new WorldRepository(db).teamsForCompetitionSeason(season.id);
   const fixtures = generateLeagueFixtures({
     competitionSeasonId: season.id,
     teamIds: teams.map((team) => team.id),
-    ruleSet,
-    seed: "stage-4-1-testing-fixtures",
+    // The career opens on the season start date; matchday one follows a week later
+    // so preseason has a day to advance from.
+    ruleSet: {
+      ...ruleSet,
+      seasonStartDate: addDays(ruleSet.seasonStartDate, ruleSet.roundSpacingDays),
+    },
+    seed: `nepal:${season.id}`,
   });
-  fixtures.forEach((fixture) => competitionRepo.insertFixture(fixture));
+  for (const fixture of fixtures) competitions.insertFixture(fixture);
+};
+
+const seasonForTeam = (db: GameDatabase, teamId: EntityId): CompetitionSeason => {
+  const row = db
+    .prepare(
+      `SELECT cs.* FROM club_memberships cm
+      JOIN competition_seasons cs ON cs.id = cm.competition_season_id
+      WHERE cm.team_id = ? AND cm.status = 'ACTIVE'
+      ORDER BY cs.start_date LIMIT 1`,
+    )
+    .get(teamId) as Record<string, string> | undefined;
+  if (!row) {
+    throw appError("SAVE_CORRUPT", "The selected team has no active competition membership.");
+  }
   return {
-    country,
-    competition,
-    season,
-    ruleSet,
-    clubs,
-    teams,
-    fixtures,
-    playersByTeam,
-    peopleById,
+    id: row.id as EntityId,
+    competitionId: row.competition_id as EntityId,
+    name: row.name!,
+    startDate: row.start_date!,
+    endDate: row.end_date!,
   };
 };
 
 const managerContext = (db: GameDatabase, save: SaveMetadata) => {
-  if (!save.playerCharacterId) throw appError("SAVE_CORRUPTED", "Save has no player character.");
+  if (!save.playerCharacterId) throw appError("SAVE_CORRUPT", "Save has no player character.");
   const world = new WorldRepository(db);
   const managers = new ManagerRepository(db);
   const character = world.getCareerCharacter(save.playerCharacterId);
-  if (!character) throw appError("SAVE_CORRUPTED", "Career character record is missing.");
+  if (!character) throw appError("SAVE_CORRUPT", "Career character record is missing.");
   const manager = managers.getProfileByPerson(character.personId);
-  if (!manager) throw appError("SAVE_CORRUPTED", "Manager profile record is missing.");
+  if (!manager) throw appError("SAVE_CORRUPT", "Manager profile record is missing.");
   const managerPerson = world.getPerson(character.personId);
-  if (!managerPerson) throw appError("SAVE_CORRUPTED", "Manager person record is missing.");
+  if (!managerPerson) throw appError("SAVE_CORRUPT", "Manager person record is missing.");
   const contract = managers.activeContract(manager.id);
-  if (!contract?.teamId) throw appError("SAVE_CORRUPTED", "Manager has no active team.");
+  if (!contract?.teamId) throw appError("SAVE_CORRUPT", "Manager has no active team.");
   const team = getTeam(db, contract.teamId);
   const club = team.clubId ? getClub(db, team.clubId) : undefined;
-  const season = firstSeason(db);
+  const season = seasonForTeam(db, team.id);
   const ruleSet = new CompetitionRepository(db).getRuleSet(season.id);
-  if (!ruleSet) throw appError("SAVE_CORRUPTED", "Competition rule set is missing.");
-  const teams = allTeams(db);
+  if (!ruleSet) throw appError("SAVE_CORRUPT", "Competition rule set is missing.");
+  const teams = world.teamsForCompetitionSeason(season.id);
   const fixtures = new CompetitionRepository(db).fixtures(season.id);
   return {
     character,
@@ -629,6 +652,20 @@ const managerContext = (db: GameDatabase, save: SaveMetadata) => {
   };
 };
 
+const careerHeader = (db: GameDatabase, save: SaveMetadata): CareerHeader =>
+  careerHeaderFromContext(save, managerContext(db, save));
+
+const careerHeaderFromContext = (save: SaveMetadata, context: ManagerContext): CareerHeader => ({
+  saveId: save.id,
+  saveName: save.name,
+  worldDate: save.worldDate,
+  characterName: displayName(context.managerPerson),
+  activeRole: "MANAGER",
+  clubName: context.club?.name,
+  teamName: context.team.name,
+  competitionName: context.season.name,
+});
+
 const squadReadModel = (db: GameDatabase, teamId: EntityId, worldDate: string): SquadRow[] => {
   const playerRepo = new PlayerRepository(db);
   const attributes = playerRepo.attributesForTeam(teamId);
@@ -643,7 +680,7 @@ const squadReadModel = (db: GameDatabase, teamId: EntityId, worldDate: string): 
     const overall = playerOverall(player);
     return {
       personId: player.personId,
-      name: person.displayName ?? person.fullName,
+      name: displayName(person),
       age: person.dateOfBirth ? ageOn(person.dateOfBirth, worldDate) : undefined,
       nationality: "NEP",
       positions: [player.primaryPosition, ...player.secondaryPositions],
@@ -669,7 +706,7 @@ const squadReadModel = (db: GameDatabase, teamId: EntityId, worldDate: string): 
 
 const fixtureReadModels = (
   db: GameDatabase,
-  context: ReturnType<typeof managerContext>,
+  context: ManagerContext,
   save: SaveMetadata,
 ): FixtureReadModel[] =>
   context.fixtures
@@ -694,26 +731,29 @@ const fixtureReadModels = (
 
 const previousResultReadModel = (
   db: GameDatabase,
-  context: ReturnType<typeof managerContext>,
+  context: ManagerContext,
 ): PostMatchReadModel | undefined => {
   const row = db
     .prepare(
-      `SELECT m.* FROM matches m
+      `SELECT m.id FROM matches m
       JOIN fixtures f ON f.id = m.fixture_id
       WHERE f.home_team_id = ? OR f.away_team_id = ?
       ORDER BY m.played_date DESC, m.id DESC LIMIT 1`,
     )
-    .get(context.team.id, context.team.id) as any;
+    .get(context.team.id, context.team.id) as { id: EntityId } | undefined;
   return row ? postMatchReadModel(db, row.id) : undefined;
 };
 
 const postMatchReadModel = (db: GameDatabase, matchId: EntityId): PostMatchReadModel => {
-  const match = db.prepare("SELECT * FROM matches WHERE id = ?").get(matchId) as any;
-  const fixture = db.prepare("SELECT * FROM fixtures WHERE id = ?").get(match.fixture_id) as any;
+  const match = db.prepare("SELECT * FROM matches WHERE id = ?").get(matchId) as Record<
+    string,
+    never
+  >;
+  const fixture = db.prepare("SELECT * FROM fixtures WHERE id = ?").get(match.fixture_id) as SqlRow;
   const events = db
     .prepare("SELECT * FROM match_events WHERE match_id = ? ORDER BY minute, id")
     .all(matchId)
-    .map((row: any) => ({
+    .map((row: SqlRow) => ({
       id: row.id,
       matchId: row.match_id,
       minute: row.minute ?? undefined,
@@ -724,7 +764,7 @@ const postMatchReadModel = (db: GameDatabase, matchId: EntityId): PostMatchReadM
       primaryPersonId: row.primary_person_id ?? undefined,
       secondaryPersonId: row.secondary_person_id ?? undefined,
       data: row.data_json ? JSON.parse(row.data_json) : undefined,
-    })) as MatchEvent[];
+    })) as unknown as MatchEvent[];
   const homeTeam = getTeam(db, fixture.home_team_id);
   const awayTeam = getTeam(db, fixture.away_team_id);
   const stats = teamStatsFromEvents(events, homeTeam.id, awayTeam.id);
@@ -755,7 +795,7 @@ const defaultSetup = (
   const setup = createTacticalSetup({
     teamId,
     managerProfileId,
-    name: "Saved 4-3-3",
+    name: "4-3-3",
     formation,
     style: "BALANCED",
     assignments: formation.slots.map<TacticalAssignment>((slot, index) => ({
@@ -784,10 +824,7 @@ const defaultSetup = (
   };
 };
 
-const competitionView = (
-  db: GameDatabase,
-  context: ReturnType<typeof managerContext>,
-): CompetitionView => {
+const competitionView = (db: GameDatabase, context: ManagerContext): CompetitionView => {
   const standings = new CompetitionRepository(db).standings(context.season.id);
   return {
     name: context.season.name,
@@ -815,102 +852,15 @@ const competitionView = (
   };
 };
 
-const competitionPosition = (
-  db: GameDatabase,
-  context: ReturnType<typeof managerContext>,
-): string | undefined => {
+const competitionPosition = (db: GameDatabase, context: ManagerContext): string | undefined => {
   const table = competitionView(db, context).table;
   const index = table.findIndex((row) => row.teamId === context.team.id);
   return index >= 0 ? String(index + 1) : undefined;
 };
 
-const createSquad = (teamId: EntityId, baseAbility: number): PlayerAttributeSet[] => {
-  const positions: PlayerPosition[] = [
-    "GK",
-    "RB",
-    "CB",
-    "CB",
-    "LB",
-    "CM",
-    "CM",
-    "AM",
-    "RW",
-    "LW",
-    "ST",
-    "GK",
-    "CB",
-    "CM",
-    "RW",
-    "ST",
-    "LB",
-    "CM",
-  ];
-  return positions.map((position, index) => createPlayer(teamId, position, index, baseAbility));
-};
-
-const createPlayer = (
-  teamId: EntityId,
-  position: PlayerPosition,
-  index: number,
-  baseAbility: number,
-): PlayerAttributeSet => {
-  const rating = (delta = 0) =>
-    Math.max(1, Math.min(20, Math.round(baseAbility + (index % 4) - 1 + delta)));
-  return {
-    id: createStableEntityId("player-attribute", `stage-4-1:${teamId}:${index}`),
-    personId: createStableEntityId("person", `stage-4-1:${teamId}:${index}`),
-    primaryPosition: position,
-    secondaryPositions: position === "CB" ? ["LB", "RB"] : position === "CM" ? ["DM", "AM"] : [],
-    technical: {
-      firstTouch: rating(),
-      passing: rating(position === "CM" || position === "AM" ? 2 : 0),
-      crossing: rating(position === "RW" || position === "LW" ? 2 : 0),
-      dribbling: rating(position === "RW" || position === "LW" || position === "AM" ? 2 : 0),
-      finishing: rating(position === "ST" ? 3 : -1),
-      heading: rating(position === "CB" || position === "ST" ? 2 : 0),
-      tackling: rating(["CB", "RB", "LB", "CM"].includes(position) ? 2 : -1),
-      technique: rating(),
-      longShots: rating(),
-      setPieces: rating(index === 7 ? 2 : 0),
-    },
-    mental: {
-      decisions: rating(),
-      vision: rating(position === "AM" || position === "CM" ? 2 : 0),
-      composure: rating(),
-      positioning: rating(),
-      anticipation: rating(),
-      workRate: rating(),
-      teamwork: rating(),
-      leadership: rating(index === 5 ? 2 : 0),
-      aggression: rating(),
-      determination: rating(),
-      professionalism: rating(),
-    },
-    physical: {
-      pace: rating(position === "RW" || position === "LW" ? 2 : 0),
-      acceleration: rating(),
-      strength: rating(position === "CB" || position === "ST" ? 2 : 0),
-      stamina: rating(),
-      agility: rating(),
-      balance: rating(),
-      jumping: rating(position === "CB" || position === "ST" ? 2 : 0),
-      naturalFitness: rating(),
-    },
-    goalkeeping: {
-      handling: rating(position === "GK" ? 4 : -6),
-      reflexes: rating(position === "GK" ? 4 : -6),
-      oneOnOnes: rating(position === "GK" ? 4 : -6),
-      aerialReach: rating(position === "GK" ? 4 : -6),
-      kicking: rating(position === "GK" ? 2 : -6),
-      distribution: rating(position === "GK" ? 2 : -6),
-      commandOfArea: rating(position === "GK" ? 4 : -6),
-    },
-  };
-};
-
 const getTeam = (db: GameDatabase, id: EntityId): Team => {
-  const row = db.prepare("SELECT * FROM teams WHERE id = ?").get(id) as any;
-  if (!row) throw appError("SAVE_CORRUPTED", `Team ${id} is missing.`);
+  const row = db.prepare("SELECT * FROM teams WHERE id = ?").get(id) as SqlRow | undefined;
+  if (!row) throw appError("SAVE_CORRUPT", `Team ${id} is missing.`);
   return {
     id: row.id,
     clubId: row.club_id ?? undefined,
@@ -922,8 +872,8 @@ const getTeam = (db: GameDatabase, id: EntityId): Team => {
 };
 
 const getClub = (db: GameDatabase, id: EntityId): Club => {
-  const row = db.prepare("SELECT * FROM clubs WHERE id = ?").get(id) as any;
-  if (!row) throw appError("SAVE_CORRUPTED", `Club ${id} is missing.`);
+  const row = db.prepare("SELECT * FROM clubs WHERE id = ?").get(id) as SqlRow | undefined;
+  if (!row) throw appError("SAVE_CORRUPT", `Club ${id} is missing.`);
   return {
     id: row.id,
     name: row.name,
@@ -940,52 +890,43 @@ const getPerson = (db: GameDatabase, id: EntityId): Person => {
   return person;
 };
 
-const allTeams = (db: GameDatabase): Team[] =>
-  db
-    .prepare("SELECT * FROM teams ORDER BY name")
-    .all()
-    .map((row: any) => ({
-      id: row.id,
-      clubId: row.club_id ?? undefined,
-      federationId: row.federation_id ?? undefined,
-      name: row.name,
-      level: row.level,
-      gender: row.gender,
-    }));
-
-const firstSeason = (db: GameDatabase): CompetitionSeason => {
-  const row = db
-    .prepare("SELECT * FROM competition_seasons ORDER BY start_date LIMIT 1")
-    .get() as any;
-  if (!row) throw appError("SAVE_CORRUPTED", "No competition season exists.");
-  return {
-    id: row.id,
-    competitionId: row.competition_id,
-    name: row.name,
-    startDate: row.start_date,
-    endDate: row.end_date,
-  };
+const firstCountry = (db: GameDatabase): { id: EntityId } => {
+  const row = db.prepare("SELECT id FROM countries ORDER BY name LIMIT 1").get() as
+    { id: EntityId } | undefined;
+  if (!row) throw appError("SAVE_CORRUPT", "The world has no country records.");
+  return row;
 };
 
-const matchForFixture = (db: GameDatabase, fixtureId: EntityId): any =>
-  db.prepare("SELECT * FROM matches WHERE fixture_id = ? LIMIT 1").get(fixtureId);
+const matchForFixture = (db: GameDatabase, fixtureId: EntityId): SqlRow | undefined =>
+  db.prepare("SELECT * FROM matches WHERE fixture_id = ? LIMIT 1").get(fixtureId) as
+    SqlRow | undefined;
 
-const seasonStatsForTeam = (db: GameDatabase, teamId: EntityId): Map<EntityId, any> =>
+type SeasonStat = {
+  appearances: number;
+  goals: number;
+  assists: number;
+  averageRating: number;
+  minutes: number;
+  yellowCards: number;
+  redCards: number;
+};
+
+const seasonStatsForTeam = (db: GameDatabase, teamId: EntityId): Map<EntityId, SeasonStat> =>
   new Map(
-    (db.prepare("SELECT * FROM player_season_stats WHERE team_id = ?").all(teamId) as any[]).map(
-      (row) => [
-        row.person_id,
-        {
-          appearances: row.appearances,
-          goals: row.goals,
-          assists: row.assists,
-          averageRating: row.average_rating,
-          minutes: row.minutes,
-          yellowCards: row.yellow_cards,
-          redCards: row.red_cards,
-        },
-      ],
-    ),
+    (
+      db.prepare("SELECT * FROM player_season_stats WHERE team_id = ?").all(teamId) as Array<SqlRow>
+    ).map((row) => [
+      row.person_id as EntityId,
+      {
+        appearances: row.appearances,
+        goals: row.goals,
+        assists: row.assists,
+        averageRating: row.average_rating,
+        minutes: row.minutes,
+        yellowCards: row.yellow_cards,
+        redCards: row.red_cards,
+      },
+    ]),
   );
 
 const teamStatsFromEvents = (
@@ -1031,11 +972,7 @@ const roleSuitabilityLabel = (overall: number): string => {
   return "Weak";
 };
 
-const playerName = (teamName: string, index: number): string =>
-  `${["Kiran", "Suman", "Anil", "Bikash", "Nabin", "Rohit", "Aakash", "Sanjay", "Prakash", "Milan", "Dinesh", "Ramesh", "Ashim", "Manish", "Sagar", "Bimal", "Hari", "Deepak"][index]} ${teamName.split(" ")[0]}`;
-
-const birthDate = (index: number): string =>
-  `${1992 + (index % 12)}-${String((index % 9) + 1).padStart(2, "0")}-12`;
+const displayName = (person: Person): string => person.displayName ?? person.fullName;
 
 const ageOn = (dateOfBirth: string, onDate: string): number => {
   const birth = new Date(`${dateOfBirth}T00:00:00Z`);
@@ -1050,6 +987,20 @@ const ageOn = (dateOfBirth: string, onDate: string): number => {
   return age;
 };
 
+const addDays = (date: string, days: number): string => {
+  const parsed = new Date(`${date}T00:00:00.000Z`);
+  parsed.setUTCDate(parsed.getUTCDate() + days);
+  return parsed.toISOString().slice(0, 10);
+};
+
+const discardFile = (filePath: string): void => {
+  for (const suffix of ["", "-wal", "-shm"]) {
+    rmSync(`${filePath}${suffix}`, { force: true });
+  }
+  const meta = join(dirname(filePath), `${basename(filePath, ".sqlite")}.meta.json`);
+  if (existsSync(meta)) rmSync(meta, { force: true });
+};
+
 const slug = (value: string): string =>
   value
     .toLowerCase()
@@ -1061,11 +1012,7 @@ const today = (): string => new Date().toISOString().slice(0, 10);
 
 const ok = <T>(data: T): AppResult<T> => ({ ok: true, data });
 
-const fail = (
-  code: DesktopAppError["code"],
-  message: string,
-  error?: unknown,
-): AppResult<never> => ({
+const fail = (code: DesktopErrorCode, message: string, error?: unknown): AppResult<never> => ({
   ok: false,
   error: {
     code,
@@ -1074,11 +1021,14 @@ const fail = (
   },
 });
 
-const appError = (
-  code: DesktopAppError["code"],
-  message: string,
-  detail?: string,
-): DesktopAppError => ({ code, message, detail });
+const appError = (code: DesktopErrorCode, message: string, detail?: string): DesktopAppError => ({
+  code,
+  message,
+  detail,
+});
 
 const isAppError = (error: unknown): error is DesktopAppError =>
-  typeof error === "object" && error !== null && "code" in error && "message" in error;
+  typeof error === "object" &&
+  error !== null &&
+  "code" in error &&
+  typeof (error as { code: unknown }).code === "string";

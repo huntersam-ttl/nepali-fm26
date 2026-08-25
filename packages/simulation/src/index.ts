@@ -3,6 +3,7 @@ export * from "./career-world.js";
 export * from "./club-economy.js";
 export * from "./demo-league.js";
 export * from "./desktop-application.js";
+export * from "./desktop-server.js";
 export * from "./fixture-generation.js";
 export * from "./federation-governance.js";
 export * from "./international-football.js";

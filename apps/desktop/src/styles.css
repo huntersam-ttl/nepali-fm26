@@ -203,6 +203,13 @@ select {
   text-align: left;
 }
 
+.club-row-group {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
 .panel,
 .player-profile {
   padding: 16px;

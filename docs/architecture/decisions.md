@@ -60,17 +60,45 @@ Stage 4 routes manager decisions through simulation/application services instead
 
 Preset formations are not labels only. They are stored as tactical slots with coordinates and zones. Custom formations use the same structure and validate duplicate slot IDs and coordinate bounds. Stage 4 does not yet ship a full drag editor, but the data model supports it.
 
-## ADR-016: Stage 4 desktop uses a testing-mode read model
+## ADR-016: Stage 4 desktop uses a testing-mode read model (superseded by ADR-019)
 
-The current Tauri shell has no save-command bridge. Stage 4 therefore adds a desktop testing-mode manager flow that mirrors the domain concepts without importing SQLite into React. Future desktop work should expose save-backed manager commands from the application layer and keep the database adapter replaceable.
+Stage 4 shipped a desktop testing-mode manager flow because the Tauri shell had no save-command bridge. That mode has been removed; see ADR-019.
 
 ## ADR-017: Desktop commands are the persistence boundary
 
 Stage 4.1 introduces a desktop bridge contract between React and save-backed application services. React may cache presentation state but the save remains source of truth. Manager actions such as career creation, tactic saving, quick sim, and continue flow are command calls that reload read models from persistence.
 
-## ADR-018: Native desktop SQLite must sit behind the command/service boundary
+## ADR-018: Native desktop SQLite must sit behind the command/service boundary (revised by ADR-019)
 
-Headless tooling may continue using the `node:sqlite` adapter in `packages/database`. Production Tauri should use a Tauri-compatible SQLite mechanism behind the same command contracts and schema semantics so desktop does not require a Node runtime. Stage 4.1 isolates that adapter decision and verifies the real persisted path through the Node application service while keeping UI free of database access.
+Headless tooling continues to use the `node:sqlite` adapter in `packages/database`. ADR-019 resolves
+the open production question by keeping that adapter authoritative on desktop too, rather than
+introducing a second Rust SQLite implementation.
+
+## ADR-019: The desktop runtime is a managed Node sidecar, not a Rust port
+
+The engine, database layer, and every football system are TypeScript. Reimplementing them in Rust to
+satisfy Tauri would duplicate the entire simulation and create two sources of football truth, which
+is the failure mode ADR-018 was written to avoid. Instead, `DesktopApplicationService` stays
+authoritative and runs in a Node sidecar that Tauri supervises.
+
+The sidecar listens on loopback only, on an OS-assigned port, behind a token generated per launch,
+and it exposes no game logic of its own — every route is a direct service call. Rust holds one
+passthrough command and models no game payloads, so the typed contract in
+`packages/shared-types/src/desktop-contract.ts` remains the only definition of the wire format.
+
+The cost is that a packaged desktop build must ship a Node runtime alongside the Tauri binary. That
+is a packaging concern with known solutions, and it is cheaper than maintaining a parallel Rust
+simulation. If the engine is ever ported to Rust, the command contract is the seam that lets the
+transport change without touching the UI.
+
+## ADR-020: No mock persistence in desktop runtime paths
+
+The desktop app previously fell back to a localStorage adapter with fabricated squads and fixtures
+whenever it was not running under Tauri. Because the fallback was silent and the flows looked
+correct, it hid the fact that the shipped UI was not connected to the engine while six major world
+systems were built. Development mode now runs the same sidecar and the same SQLite saves as
+production, and an unreachable runtime produces a visible `RUNTIME_UNAVAILABLE` error instead of a
+plausible-looking fake world. Browser storage may hold UI preferences only, never career state.
 
 ## ADR-019: Club registry identity is separate from competition state
 

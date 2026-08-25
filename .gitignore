@@ -7,3 +7,5 @@ dist/
 *.sqlite-wal
 *.tsbuildinfo
 apps/desktop/src-tauri/target/
+test-results/
+playwright-report/

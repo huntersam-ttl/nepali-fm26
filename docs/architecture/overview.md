@@ -6,11 +6,11 @@ Stage 1 established the permanent technical foundation for a Nepal-first footbal
 
 ## Boundaries
 
-- `apps/desktop` is a React/Tauri shell. It must not contain football simulation business logic.
+- `apps/desktop` is a React/Tauri shell. It must not contain football simulation business logic, open save files, or hold authoritative game state.
 - `packages/simulation` owns the headless world clock, deterministic random service, scheduled event execution, and future simulation services.
 - `packages/database` owns SQLite connections, migrations, save metadata, repositories, and persistence.
 - `packages/rules` owns football/business rules that should be shared by simulation and UI.
-- `packages/shared-types` owns domain models and stable ID helpers.
+- `packages/shared-types` owns domain models, stable ID helpers, and the desktop application contract.
 - `packages/data-import` owns validation for researched datasets and provenance metadata.
 - `packages/testing` owns cross-package integration tests and testing-only fixtures.
 
@@ -210,7 +210,7 @@ UI read model
 
 Manager careers extend the existing `Person` identity model through `CareerCharacter`, `ManagerProfile`, and `ManagerContract`. Tactical setups are saved as structured formations, slot assignments, role choices, team instructions, familiarity values, bench selections, and set-piece assignments. The match engine accepts tactical setup context for each team and applies modest trade-offs to control, chance creation, xG, defense, transition defense, fatigue, possession, and discipline.
 
-The desktop app currently uses a testing-mode manager flow read model. Production save-backed desktop commands should bridge to the database package through Tauri/application services rather than importing SQLite into React.
+The desktop app runs these flows against real SQLite career saves through `DesktopApplicationService`. React holds no game state and never opens the database.
 
 Additional headless command:
 
@@ -241,8 +241,17 @@ Additional headless command:
 
 ## Desktop Save Integration
 
-Stage 4.1 adds a save-backed desktop application service and bridge contract for manager careers. The core persisted flow is tested through `DesktopApplicationService`, which creates SQLite save files outside the repository, seeds a testing-only Nepal world, persists character/manager/tactic data, runs the real quick-sim manager flow, and reloads read models from the saved database.
+`DesktopApplicationService` owns desktop careers end to end: it creates one SQLite save file per
+career in the OS application data directory, imports the canonical Nepal world through
+`importNepalWorld`, persists character/manager/tactic data, runs the real quick-sim and continue
+flows, and rebuilds every read model from the saved database.
 
-The React app talks to `apps/desktop/src/appBridge.ts`. In native Tauri it calls command names such as `create_career`, `load_save`, `save_tactic`, and `quick_sim_match`. In browser/E2E development it uses a local persisted adapter with the same UI contract so the flow can be tested without native automation.
+The UI reaches it through a managed Node sidecar that hosts the service on loopback. Tauri spawns
+that sidecar and forwards a single `runtime_command`; Vite dev spawns the same sidecar and proxies
+`/runtime/*`. Both paths run identical service code against identical save files, and there is no
+mock fallback — an unreachable runtime surfaces as an error.
+
+The desktop wire format lives in `packages/shared-types/src/desktop-contract.ts` and is imported by
+both the service and the UI.
 
 See `docs/architecture/desktop-save-integration.md`.

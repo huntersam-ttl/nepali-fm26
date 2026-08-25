@@ -9,6 +9,11 @@
     "devUrl": "http://127.0.0.1:1420",
     "frontendDist": "../dist"
   },
+  "bundle": {
+    "resources": {
+      "../../../data/nepal/2026-08/club-registry.json": "data/nepal/2026-08/club-registry.json"
+    }
+  },
   "app": {
     "windows": [
       {

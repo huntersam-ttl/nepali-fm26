@@ -12,10 +12,12 @@
   },
   "bin": {
     "nepal-football-headless": "./dist/cli.js",
-    "nepal-football-create-save": "./dist/nepal-cli.js"
+    "nepal-football-create-save": "./dist/nepal-cli.js",
+    "nepal-football-desktop-runtime": "./dist/desktop-server-cli.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "desktop:runtime": "pnpm build && node dist/desktop-server-cli.js",
     "career:simulate": "pnpm build && node dist/career-cli.js",
     "headless:sim": "pnpm build && node dist/cli.js",
     "development:simulate": "pnpm build && node dist/development-cli.js",
