@@ -40,9 +40,12 @@ test("creates, advances, reopens and deletes a real SQLite manager career", asyn
   await page.getByRole("button", { name: "Squad" }).click();
   await expect(page.locator("tbody tr").first()).toBeVisible();
 
+  // Tactics persist on change in the Step 3 UI; the style is the cheapest
+  // durable edit to make here. Full tactical coverage lives in
+  // manager-gameplay.spec.ts.
   await page.getByRole("button", { name: "Tactics" }).click();
-  await page.getByLabel("Tactic name").fill("E2E Saved Tactic");
-  await page.getByRole("button", { name: "Save Tactic" }).click();
+  await page.getByLabel("Style").selectOption("HIGH_PRESS");
+  await expect(page.getByLabel("Style")).toHaveValue("HIGH_PRESS");
 
   await page.getByRole("button", { name: "Home / Inbox" }).click();
   const startDate = await page.locator(".topbar strong").nth(1).textContent();
@@ -65,7 +68,7 @@ test("creates, advances, reopens and deletes a real SQLite manager career", asyn
   });
   await expect(page.getByText(clubName).first()).toBeVisible();
   await page.getByRole("button", { name: "Tactics" }).click();
-  await expect(page.locator('input[value="E2E Saved Tactic"]')).toBeVisible();
+  await expect(page.getByLabel("Style")).toHaveValue("HIGH_PRESS");
 
   await page.getByRole("button", { name: "Main Menu" }).click();
   await page.getByRole("button", { name: /Load Career/ }).click();

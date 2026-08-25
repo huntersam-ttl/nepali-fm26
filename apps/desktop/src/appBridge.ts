@@ -37,46 +37,65 @@ export const createAppBridge = (): DesktopRuntimeApi => {
   return tauri ? tauriBridge() : httpBridge();
 };
 
-const tauriBridge = (): DesktopRuntimeApi => {
-  const call = async <T>(command: string, args: Record<string, unknown> = {}) => {
-    try {
-      const { invoke } = await import("@tauri-apps/api/core");
-      return await invoke<AppResult<T>>("runtime_command", { command, args });
-    } catch (error) {
-      return runtimeUnavailable<T>(error);
-    }
-  };
-  return bindCommands(call);
+/**
+ * Raw command escape hatch, used by mode-specific bridges (Manager, and later
+ * other roles) so they do not each re-implement transport selection.
+ */
+export const runtimeCall = <T>(
+  command: string,
+  args: Record<string, unknown> = {},
+): Promise<AppResult<T>> => {
+  const tauri = (window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
+  return tauri ? tauriCall<T>(command, args) : httpCall<T>(command, args);
 };
 
-const httpBridge = (): DesktopRuntimeApi => {
-  const call = async <T>(
-    command: string,
-    args: Record<string, unknown> = {},
-  ): Promise<AppResult<T>> => {
-    try {
-      const response = await fetch(`/runtime/command/${command}`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(args),
-      });
-      if (!response.ok) {
-        return {
-          ok: false,
-          error: {
-            code: "RUNTIME_UNAVAILABLE",
-            message: "The game runtime rejected the command.",
-            detail: `HTTP ${response.status}`,
-          },
-        };
-      }
-      return (await response.json()) as AppResult<T>;
-    } catch (error) {
-      return runtimeUnavailable<T>(error);
-    }
-  };
-  return bindCommands(call);
+const tauriCall = async <T>(
+  command: string,
+  args: Record<string, unknown>,
+): Promise<AppResult<T>> => {
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return await invoke<AppResult<T>>("runtime_command", { command, args });
+  } catch (error) {
+    return runtimeUnavailable<T>(error);
+  }
 };
+
+const httpCall = async <T>(
+  command: string,
+  args: Record<string, unknown>,
+): Promise<AppResult<T>> => {
+  try {
+    const response = await fetch(`/runtime/command/${command}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(args),
+    });
+    if (!response.ok) {
+      return {
+        ok: false,
+        error: {
+          code: "RUNTIME_UNAVAILABLE",
+          message: "The game runtime rejected the command.",
+          detail: `HTTP ${response.status}`,
+        },
+      };
+    }
+    return (await response.json()) as AppResult<T>;
+  } catch (error) {
+    return runtimeUnavailable<T>(error);
+  }
+};
+
+const tauriBridge = (): DesktopRuntimeApi =>
+  bindCommands(<T>(command: string, args: Record<string, unknown> = {}) =>
+    tauriCall<T>(command, args),
+  );
+
+const httpBridge = (): DesktopRuntimeApi =>
+  bindCommands(<T>(command: string, args: Record<string, unknown> = {}) =>
+    httpCall<T>(command, args),
+  );
 
 type CommandCaller = <T>(command: string, args?: Record<string, unknown>) => Promise<AppResult<T>>;
 

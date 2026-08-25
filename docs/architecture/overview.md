@@ -255,3 +255,12 @@ The desktop wire format lives in `packages/shared-types/src/desktop-contract.ts`
 both the service and the UI.
 
 See `docs/architecture/desktop-save-integration.md`.
+
+## Manager Gameplay
+
+Manager mode is playable end to end on real saves: home dashboard, squad, player profiles, tactics,
+training, fixtures, match preparation, quick sim, competition tables, scouting, transfers, contracts
+and staff. Each screen has a targeted read model and a typed runtime command, and every gameplay
+action persists to SQLite.
+
+See `docs/architecture/manager-desktop.md`.

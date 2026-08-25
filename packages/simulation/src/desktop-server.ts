@@ -3,8 +3,16 @@ import type { AddressInfo } from "node:net";
 import type {
   AppResult,
   CareerCreationCommand,
+  ContractRenewalCommand,
   EntityId,
+  RecruitmentSearchCommand,
+  ScoutingAssignmentCommand,
   TacticalSetup,
+  TacticsUpdateCommand,
+  TrainingUpdateCommand,
+  TransferListCommand,
+  TransferOfferCommand,
+  TransferResponseCommand,
 } from "@nepal-football-sim/shared-types";
 import { DesktopApplicationService, type DesktopRuntimeOptions } from "./desktop-application.js";
 
@@ -103,6 +111,7 @@ const handle = async (
   }
 
   const command = url.pathname.slice("/command/".length);
+  if (process.env.NEPAL_RUNTIME_TRACE) process.stderr.write(`[trace] ${command}\n`);
   const result = dispatch(service, command, body);
   return send(response, 200, result);
 };
@@ -137,6 +146,55 @@ const dispatch = (
       return service.saveCareer();
     case "deleteSave":
       return service.deleteSave(body.saveId as EntityId);
+    // Manager gameplay (Step 3).
+    case "getManagerDashboard":
+      return service.getManagerDashboard();
+    case "getSquad":
+      return service.getSquad();
+    case "getPlayerProfile":
+      return service.getPlayerProfile(body.playerId as EntityId);
+    case "getTactics":
+      return service.getTactics();
+    case "updateTactics":
+      return service.updateTactics(body.command as TacticsUpdateCommand);
+    case "getTraining":
+      return service.getTraining();
+    case "updateTraining":
+      return service.updateTraining(body.command as TrainingUpdateCommand);
+    case "getFixtures":
+      return service.getFixtures();
+    case "getFixture":
+      return service.getFixture(body.fixtureId as EntityId);
+    case "getCompetition":
+      return service.getCompetition();
+    case "getCalendar":
+      return service.getCalendar();
+    case "getScoutingDashboard":
+      return service.getScoutingDashboard();
+    case "createScoutingAssignment":
+      return service.createScoutingAssignment(body.command as ScoutingAssignmentCommand);
+    case "getScoutingReport":
+      return service.getScoutingReport(body.playerId as EntityId);
+    case "toggleShortlist":
+      return service.toggleShortlist(body.playerId as EntityId);
+    case "searchRecruitment":
+      return service.searchRecruitment(body.command as RecruitmentSearchCommand);
+    case "getTransferCentre":
+      return service.getTransferCentre();
+    case "makeTransferOffer":
+      return service.makeTransferOffer(body.command as TransferOfferCommand);
+    case "respondTransferOffer":
+      return service.respondTransferOffer(body.command as TransferResponseCommand);
+    case "setTransferStatus":
+      return service.setTransferStatus(body.command as TransferListCommand);
+    case "getContracts":
+      return service.getContracts();
+    case "renewContract":
+      return service.renewContract(body.command as ContractRenewalCommand);
+    case "getMatchSummary":
+      return service.getMatchSummary(body.fixtureId as EntityId);
+    case "getStaff":
+      return service.getStaff(body.clubId as EntityId | undefined);
     default:
       return {
         ok: false,

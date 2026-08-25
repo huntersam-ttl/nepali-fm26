@@ -416,3 +416,282 @@ dd {
     flex-direction: column;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Manager gameplay screens
+   Information-dense tables, status badges and honest "unknown" styling.
+   --------------------------------------------------------------------------- */
+
+.panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.panel-head h2 {
+  margin: 0;
+}
+
+.tab-row {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.tab-row button {
+  padding: 4px 10px;
+  border: 1px solid #cdd6d0;
+  border-radius: 999px;
+  background: #fff;
+  font-size: 12px;
+  text-transform: capitalize;
+}
+
+.tab-row button.active {
+  background: #1f3d2b;
+  border-color: #1f3d2b;
+  color: #fff;
+}
+
+.table-scroll {
+  overflow-x: auto;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.table-scroll thead th {
+  position: sticky;
+  top: 0;
+  background: #f1f4f0;
+  z-index: 1;
+}
+
+tbody tr[tabindex]:hover,
+tbody tr[tabindex]:focus-visible {
+  background: #eef3ec;
+  cursor: pointer;
+  outline: 2px solid #1f3d2b;
+  outline-offset: -2px;
+}
+
+.row-highlight {
+  background: #e6f0e8;
+  font-weight: 600;
+}
+
+.badge {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  text-transform: capitalize;
+  margin-right: 4px;
+}
+
+.badge-ok {
+  background: #dcefe0;
+  color: #1f5130;
+}
+
+.badge-warn {
+  background: #fdf0d5;
+  color: #7a5410;
+}
+
+.badge-bad {
+  background: #fadfdf;
+  color: #7d2020;
+}
+
+.badge-info {
+  background: #e2e8f0;
+  color: #33415c;
+}
+
+.unknown {
+  color: #8a948d;
+  font-style: italic;
+}
+
+.sim-tag {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: #6b7a70;
+  border: 1px solid #cdd6d0;
+  border-radius: 3px;
+  padding: 0 3px;
+}
+
+.subtle,
+.muted {
+  color: #61706a;
+  font-size: 12px;
+}
+
+.empty-state {
+  color: #61706a;
+  font-style: italic;
+  padding: 10px 0;
+}
+
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  background: #fdf6e3;
+  border: 1px solid #e6d5a8;
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+}
+
+.form-run {
+  display: inline-flex;
+  gap: 3px;
+  vertical-align: middle;
+}
+
+.form-pip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.form-W {
+  background: #2f7a45;
+}
+
+.form-D {
+  background: #8a948d;
+}
+
+.form-L {
+  background: #a83232;
+}
+
+.attribute-bar {
+  display: inline-block;
+  flex: 1;
+  height: 6px;
+  margin: 0 8px;
+  background: #e4eae5;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.attribute-fill {
+  display: block;
+  height: 100%;
+  background: #2f7a45;
+}
+
+.attribute {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 12px;
+  padding: 2px 0;
+}
+
+.slot-active {
+  outline: 2px solid #1f3d2b;
+}
+
+.slot-fit {
+  display: block;
+  font-size: 10px;
+  color: #61706a;
+  font-style: normal;
+}
+
+.bench-list,
+.xi-list,
+.report-list {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0;
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.xi-list {
+  list-style: decimal inside;
+}
+
+.bench-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+button.small {
+  padding: 2px 8px;
+  font-size: 11px;
+}
+
+button.link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #1f3d2b;
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  font-size: 12px;
+}
+
+.sr-label {
+  display: grid;
+  gap: 2px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #61706a;
+}
+
+.player-detail {
+  display: grid;
+  gap: 12px;
+}
+
+.player-detail .attribute-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+:focus-visible {
+  outline: 2px solid #1f3d2b;
+  outline-offset: 2px;
+}
+
+/* Formation slots sit on their coordinate rather than hanging off it, so the
+   three central midfield positions stay readable. */
+.pitch .slot {
+  width: 78px;
+  margin-left: -39px;
+  margin-top: -20px;
+  padding: 3px 2px;
+  font-size: 11px;
+  line-height: 1.25;
+}

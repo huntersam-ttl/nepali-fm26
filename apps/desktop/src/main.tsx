@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   createAppBridge,
@@ -6,23 +6,19 @@ import {
   type DesktopApplicationState,
   type EntityId,
   type SaveCatalogEntry,
-  type SquadRow,
   type StartingClubOption,
-  type TacticalSetup,
 } from "./appBridge.js";
+import { ManagerCareer } from "./manager/ManagerCareer.js";
 import "./styles.css";
 
-type Screen = "home" | "squad" | "tactics" | "fixtures" | "competition" | "profile";
 type Entry = "start" | "new" | "load" | "career";
 
 const bridge = createAppBridge();
 
 const App = (): React.ReactElement => {
   const [entry, setEntry] = useState<Entry>("start");
-  const [screen, setScreen] = useState<Screen>("home");
   const [state, setState] = useState<DesktopApplicationState | null>(null);
   const [saves, setSaves] = useState<SaveCatalogEntry[]>([]);
-  const [selectedPlayerId, setSelectedPlayerId] = useState<string | undefined>();
   const [error, setError] = useState<AppError | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -38,9 +34,7 @@ const App = (): React.ReactElement => {
 
   const applyState = (next: DesktopApplicationState): void => {
     setState(next);
-    setSelectedPlayerId(next.squad[0]?.personId);
     setEntry("career");
-    setScreen("home");
     setError(null);
     void refreshSaves();
   };
@@ -156,221 +150,18 @@ const App = (): React.ReactElement => {
     );
   }
 
-  const selectedPlayer =
-    state.squad.find((candidate) => candidate.personId === selectedPlayerId) ?? state.squad[0];
-
   return (
-    <main className="manager-shell">
-      <aside className="sidebar">
-        <div>
-          <p className="eyebrow">{title(state.header.activeRole)} Mode</p>
-          <h1>Nepal Football</h1>
-        </div>
-        <nav>
-          {(["home", "squad", "tactics", "fixtures", "competition", "profile"] as Screen[]).map(
-            (item) => (
-              <button
-                key={item}
-                className={screen === item ? "active" : ""}
-                onClick={() => setScreen(item)}
-              >
-                {item === "home" ? "Home / Inbox" : title(item)}
-              </button>
-            ),
-          )}
-        </nav>
-        <div className="button-row">
-          <button
-            className="ghost"
-            disabled={busy}
-            onClick={async () => {
-              const result = await bridge.saveCareer();
-              if (result.ok) void refreshSaves();
-              else setError(result.error);
-            }}
-          >
-            Save
-          </button>
-          <button className="ghost" disabled={busy} onClick={() => void backToMenu()}>
-            Main Menu
-          </button>
-        </div>
-      </aside>
-      <section className="workspace">
-        {error && <ErrorBanner error={error} />}
-        <header className="topbar">
-          <div>
-            <strong>{state.header.characterName}</strong>
-            <span>{state.header.clubName ?? "Unemployed"}</span>
-          </div>
-          <div>
-            <strong>{state.header.worldDate}</strong>
-            <span>
-              {state.home.nextFixture
-                ? `Next: ${state.home.nextFixture.opponent}`
-                : "No fixture pending"}
-            </span>
-          </div>
-        </header>
-        {screen === "home" && (
-          <section className="dashboard">
-            <Panel title="Inbox">
-              {state.home.inbox.map((item) => (
-                <div className="inbox-item" key={item.id}>
-                  <strong>{item.title}</strong>
-                  <span>{item.body}</span>
-                </div>
-              ))}
-            </Panel>
-            <Panel title="Dashboard">
-              <dl className="metrics">
-                <div>
-                  <dt>Competition</dt>
-                  <dd>{state.header.competitionName ?? "-"}</dd>
-                </div>
-                <div>
-                  <dt>Position</dt>
-                  <dd>{state.home.position ?? "-"}</dd>
-                </div>
-                <div>
-                  <dt>Unavailable</dt>
-                  <dd>{state.home.unavailablePlayers.length}</dd>
-                </div>
-                <div>
-                  <dt>Tactic</dt>
-                  <dd>{state.activeTactic?.name ?? "None"}</dd>
-                </div>
-              </dl>
-              <button
-                className="primary"
-                disabled={busy}
-                onClick={() => void run(() => bridge.continueCareer())}
-              >
-                Continue
-              </button>
-            </Panel>
-            {state.home.previousResult && (
-              <Panel title="Previous Result">
-                <h2>{state.home.previousResult.score}</h2>
-                <p>
-                  {state.home.previousResult.homeTeam} vs {state.home.previousResult.awayTeam}
-                </p>
-              </Panel>
-            )}
-          </section>
-        )}
-        {screen === "squad" && (
-          <SquadScreen
-            rows={state.squad}
-            selectedPlayer={selectedPlayer}
-            onSelect={setSelectedPlayerId}
-          />
-        )}
-        {screen === "tactics" && (
-          <TacticsScreen
-            squad={state.squad}
-            tactic={state.activeTactic}
-            onSave={async (tactic) => {
-              const result = await bridge.saveTactic(tactic);
-              if (result.ok) {
-                setState({ ...state, activeTactic: result.data, tactics: [result.data] });
-                setError(null);
-              } else {
-                setError(result.error);
-              }
-            }}
-          />
-        )}
-        {screen === "fixtures" && (
-          <section className="dashboard">
-            <Panel title="Fixtures">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Opponent</th>
-                    <th>H/A</th>
-                    <th>Status</th>
-                    <th>Score</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {state.fixtures.map((fixture) => (
-                    <tr key={fixture.id}>
-                      <td>{fixture.date}</td>
-                      <td>{fixture.opponent}</td>
-                      <td>{fixture.homeAway}</td>
-                      <td>{fixture.status}</td>
-                      <td>{fixture.score ?? "-"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <button
-                className="primary"
-                disabled={busy}
-                onClick={() => void run(() => bridge.quickSimMatch(state.home.nextFixture?.id))}
-              >
-                Quick Sim
-              </button>
-            </Panel>
-            {state.home.previousResult && <PostMatch result={state.home.previousResult} />}
-          </section>
-        )}
-        {screen === "competition" && (
-          <Panel title={state.competition.name}>
-            <table>
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Team</th>
-                  <th>P</th>
-                  <th>GD</th>
-                  <th>Pts</th>
-                </tr>
-              </thead>
-              <tbody>
-                {state.competition.table.map((row, index) => (
-                  <tr key={row.teamId}>
-                    <td>{index + 1}</td>
-                    <td>{row.teamName}</td>
-                    <td>{row.played}</td>
-                    <td>{row.goalDifference}</td>
-                    <td>{row.points}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Panel>
-        )}
-        {screen === "profile" && (
-          <Panel title="Career Profile">
-            <dl className="profile-grid">
-              <div>
-                <dt>Name</dt>
-                <dd>{state.header.characterName}</dd>
-              </div>
-              <div>
-                <dt>Role</dt>
-                <dd>{title(state.header.activeRole)}</dd>
-              </div>
-              <div>
-                <dt>Club</dt>
-                <dd>{state.header.clubName ?? "Unemployed"}</dd>
-              </div>
-              <div>
-                <dt>Save</dt>
-                <dd>{state.header.saveName}</dd>
-              </div>
-              <div>
-                <dt>Save file</dt>
-                <dd>{state.catalogEntry.filePath}</dd>
-              </div>
-            </dl>
-          </Panel>
-        )}
-      </section>
-    </main>
+    <ManagerCareer
+      header={state.header}
+      bridge={bridge}
+      onHeaderChange={(header) => setState({ ...state, header })}
+      onSave={async () => {
+        const result = await bridge.saveCareer();
+        if (result.ok) void refreshSaves();
+        else setError(result.error);
+      }}
+      onExit={() => void backToMenu()}
+    />
   );
 };
 
@@ -552,251 +343,6 @@ const NewCareer = (props: {
   );
 };
 
-const SquadScreen = (props: {
-  rows: SquadRow[];
-  selectedPlayer?: SquadRow;
-  onSelect: (id: string) => void;
-}): React.ReactElement => {
-  const [filter, setFilter] = useState("");
-  const [sortKey, setSortKey] = useState<"overall" | "fitness" | "rating">("overall");
-  const rows = useMemo(
-    () =>
-      [...props.rows]
-        .filter((row) => row.name.toLowerCase().includes(filter.toLowerCase()))
-        .sort((a, b) =>
-          sortKey === "rating"
-            ? b.averageRating - a.averageRating
-            : sortKey === "fitness"
-              ? b.fitness - a.fitness
-              : b.overall - a.overall,
-        ),
-    [filter, props.rows, sortKey],
-  );
-  return (
-    <section className="split">
-      <div>
-        <div className="table-tools">
-          <input
-            placeholder="Filter squad"
-            value={filter}
-            onChange={(event) => setFilter(event.target.value)}
-          />
-          <select
-            value={sortKey}
-            onChange={(event) => setSortKey(event.target.value as typeof sortKey)}
-          >
-            <option value="overall">Overall</option>
-            <option value="fitness">Fitness</option>
-            <option value="rating">Average rating</option>
-          </select>
-        </div>
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Age</th>
-              <th>Nat</th>
-              <th>Positions</th>
-              <th>Fit</th>
-              <th>Role</th>
-              <th>Apps</th>
-              <th>G</th>
-              <th>A</th>
-              <th>AvR</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.personId} onClick={() => props.onSelect(row.personId)}>
-                <td>{row.name}</td>
-                <td>{row.age ?? "-"}</td>
-                <td>{row.nationality}</td>
-                <td>{row.positions.join(", ")}</td>
-                <td>{row.fitness}</td>
-                <td>{row.roleSuitability}</td>
-                <td>{row.appearances}</td>
-                <td>{row.goals}</td>
-                <td>{row.assists}</td>
-                <td>{row.averageRating ? row.averageRating.toFixed(2) : "-"}</td>
-                <td>{row.availability}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {props.selectedPlayer && <PlayerProfile player={props.selectedPlayer} />}
-    </section>
-  );
-};
-
-const TacticsScreen = (props: {
-  squad: SquadRow[];
-  tactic?: TacticalSetup;
-  onSave: (tactic: TacticalSetup) => Promise<void>;
-}): React.ReactElement => {
-  const [draft, setDraft] = useState<TacticalSetup | undefined>(props.tactic);
-  useEffect(() => setDraft(props.tactic), [props.tactic]);
-  if (!draft) return <Panel title="Tactics">No tactic loaded.</Panel>;
-  const starters = draft.assignments.flatMap((assignment) =>
-    assignment.playerId
-      ? [props.squad.find((player) => player.personId === assignment.playerId)]
-      : [],
-  );
-  return (
-    <section className="tactics-layout">
-      <Panel title="Team Instructions">
-        <div className="controls">
-          <label>
-            Tactic name
-            <input
-              value={draft.name}
-              onChange={(event) => setDraft({ ...draft, name: event.target.value })}
-            />
-          </label>
-          <label>
-            Style
-            <select
-              value={draft.style}
-              onChange={(event) =>
-                setDraft({ ...draft, style: event.target.value as TacticalSetup["style"] })
-              }
-            >
-              {["BALANCED", "POSSESSION", "HIGH_PRESS", "DIRECT", "LOW_BLOCK", "VERTICAL"].map(
-                (style) => (
-                  <option key={style}>{style}</option>
-                ),
-              )}
-            </select>
-          </label>
-          <label>
-            Tempo
-            <input
-              type="range"
-              min="0"
-              max="100"
-              value={draft.instructions.inPossession.tempo}
-              onChange={(event) =>
-                setDraft({
-                  ...draft,
-                  instructions: {
-                    ...draft.instructions,
-                    inPossession: {
-                      ...draft.instructions.inPossession,
-                      tempo: Number(event.target.value),
-                    },
-                  },
-                })
-              }
-            />
-          </label>
-          <button className="primary" onClick={() => props.onSave(draft)}>
-            Save Tactic
-          </button>
-        </div>
-      </Panel>
-      <div className="pitch">
-        {draft.formation.slots.map((slot) => {
-          const assignment = draft.assignments.find((candidate) => candidate.slotId === slot.id);
-          const player = props.squad.find(
-            (candidate) => candidate.personId === assignment?.playerId,
-          );
-          return (
-            <button
-              key={slot.id}
-              className="slot"
-              style={{ left: `${slot.x}%`, top: `${100 - slot.y}%` }}
-            >
-              <strong>{slot.label}</strong>
-              <span>{player?.name.split(" ").at(0) ?? "-"}</span>
-            </button>
-          );
-        })}
-      </div>
-      <Panel title="Selection">
-        <div className="ok">Starters: {starters.length}</div>
-        <p>
-          Bench:{" "}
-          {draft.bench
-            .map((id) => props.squad.find((player) => player.personId === id)?.name)
-            .join(", ")}
-        </p>
-        <p>Set pieces: penalty, free-kick, and corners are saved with this tactic.</p>
-      </Panel>
-    </section>
-  );
-};
-
-const PlayerProfile = ({ player }: { player: SquadRow }): React.ReactElement => (
-  <aside className="player-profile">
-    <h2>{player.name}</h2>
-    <p>
-      {player.positions.join(" / ")} · {player.age ?? "-"} · {player.preferredFoot} foot
-    </p>
-    <div className="attribute-groups">
-      {["Overview", "Attributes", "Form", "Match Stats"].map((group) => (
-        <section key={group}>
-          <h3>{group}</h3>
-          <div className="attribute">
-            <span>Overall assessment</span>
-            <strong>{player.overall}</strong>
-          </div>
-          <div className="attribute">
-            <span>Fitness</span>
-            <strong>{player.fitness}</strong>
-          </div>
-          <div className="attribute">
-            <span>Average rating</span>
-            <strong>{player.averageRating ? player.averageRating.toFixed(2) : "-"}</strong>
-          </div>
-        </section>
-      ))}
-    </div>
-  </aside>
-);
-
-const PostMatch = ({
-  result,
-}: {
-  result: NonNullable<DesktopApplicationState["home"]["previousResult"]>;
-}) => (
-  <Panel title="Post Match">
-    <h2>{result.score}</h2>
-    <dl className="metrics">
-      <div>
-        <dt>Shots</dt>
-        <dd>
-          {result.homeStats.shots}-{result.awayStats.shots}
-        </dd>
-      </div>
-      <div>
-        <dt>xG</dt>
-        <dd>
-          {result.homeStats.xg}-{result.awayStats.xg}
-        </dd>
-      </div>
-      <div>
-        <dt>Possession</dt>
-        <dd>
-          {result.homeStats.possession}-{result.awayStats.possession}
-        </dd>
-      </div>
-    </dl>
-    {result.events.slice(0, 8).map((event) => (
-      <div className="event" key={event.id}>
-        {event.minute}' {event.type}
-      </div>
-    ))}
-  </Panel>
-);
-
-const Panel = (props: { title: string; children: React.ReactNode }): React.ReactElement => (
-  <article className="panel">
-    <h2>{props.title}</h2>
-    {props.children}
-  </article>
-);
-
 const StartShell = (props: {
   children: React.ReactNode;
   error?: AppError | null;
@@ -812,10 +358,6 @@ const ErrorBanner = ({ error }: { error: AppError }): React.ReactElement => (
     <strong>{error.code}</strong> {error.message}
   </div>
 );
-
-function title(value: string): string {
-  return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
-}
 
 const root = document.getElementById("root");
 

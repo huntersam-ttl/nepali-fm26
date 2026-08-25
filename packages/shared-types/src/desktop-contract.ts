@@ -31,7 +31,9 @@ export type DesktopErrorCode =
   | "PLAYER_MISSING"
   | "INVALID_SELECTION"
   | "WORLD_DATA_UNAVAILABLE"
-  | "RUNTIME_UNAVAILABLE";
+  | "RUNTIME_UNAVAILABLE"
+  /** The active career role may not perform the requested action. */
+  | "ROLE_NOT_AUTHORIZED";
 
 export type DesktopAppError = {
   code: DesktopErrorCode;

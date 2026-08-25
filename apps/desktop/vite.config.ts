@@ -21,7 +21,11 @@ const desktopRuntime = (): Plugin => {
   const start = (): Promise<Handshake> => {
     child = spawn("node", [runtimeEntry], {
       cwd: repoRoot,
-      env: { ...process.env, NEPAL_SAVES_DIR: process.env.NEPAL_SAVES_DIR ?? "" },
+      env: {
+        ...process.env,
+        NEPAL_SAVES_DIR: process.env.NEPAL_SAVES_DIR ?? "",
+        NEPAL_RUNTIME_TRACE: process.env.NEPAL_RUNTIME_TRACE ?? "",
+      },
       stdio: ["ignore", "pipe", "inherit"],
     }) as ChildProcessWithoutNullStreams;
 
@@ -69,6 +73,9 @@ const desktopRuntime = (): Plugin => {
             response.writeHead(upstream.status, { "content-type": "application/json" });
             response.end(body);
           } catch (error) {
+            server.config.logger.error(
+              `[nepal] runtime proxy failed: ${error instanceof Error ? error.stack : String(error)}`,
+            );
             response.writeHead(503, { "content-type": "application/json" });
             response.end(
               JSON.stringify({

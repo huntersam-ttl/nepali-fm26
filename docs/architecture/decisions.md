@@ -306,3 +306,21 @@ national-team history.
 The simulation world ranking is an internal gameplay ranking, not an official FIFA ranking. Future
 researched tournament formats or ranking formulas should be stored as data/provenance and can replace
 the current `SIMULATION_ONLY` simplified rules without changing the package boundary.
+
+## ADR-021: Manager mode exposes existing engines behind targeted read models
+
+Manager gameplay adds no football logic. Every screen maps to a read model in
+`packages/shared-types/src/manager-contract.ts` and a command that delegates to the existing
+tactics, training, scouting, transfer, economy, and match engines. React may render, collect input,
+and validate form shape; it may not decide transfer acceptance, compute ability, simulate matches,
+calculate standings, or process scouting knowledge.
+
+Authority is checked in the service, not implied by navigation. `assertManagerAuthority` gates every
+command against the club on the manager's active contract, and returns `ROLE_NOT_AUTHORIZED`
+otherwise. Ownership, board finance, and federation governance sit outside `ManagerPermission` so
+that adding Chairman and Federation roles later cannot accidentally inherit manager access, or the
+reverse.
+
+Hidden player truth stays hidden: only banded `PlayerKnowledge`/`ScoutReport` values leave the
+service for players outside the squad. Identity facts travel as `Fact<T>` with a provenance status,
+so unknown real-world data renders as "Unknown" instead of being fabricated.

@@ -1,0 +1,156 @@
+import React, { useCallback, useEffect, useState } from "react";
+import type { AppResult, Fact } from "@nepal-football-sim/shared-types";
+import type { AppError } from "../appBridge.js";
+
+/**
+ * Every save-backed screen goes through this: one place that handles the
+ * loading / error / empty / success states the runtime can return.
+ */
+export type Async<T> =
+  { status: "loading" } | { status: "error"; error: AppError } | { status: "ready"; data: T };
+
+export const useRuntimeData = <T,>(
+  load: () => Promise<AppResult<T>>,
+  deps: React.DependencyList = [],
+): [Async<T>, () => void, (data: T) => void] => {
+  const [state, setState] = useState<Async<T>>({ status: "loading" });
+
+  const refresh = useCallback(() => {
+    let cancelled = false;
+    setState({ status: "loading" });
+    void load().then((result) => {
+      if (cancelled) return;
+      setState(
+        result.ok
+          ? { status: "ready", data: result.data }
+          : { status: "error", error: result.error },
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+    // `deps` is the caller-supplied dependency list for the loader.
+  }, deps);
+
+  useEffect(() => refresh(), [refresh]);
+
+  const replace = useCallback((data: T) => setState({ status: "ready", data }), []);
+  return [state, refresh, replace];
+};
+
+export const AsyncPanel = <T,>({
+  state,
+  children,
+  empty,
+  isEmpty,
+}: {
+  state: Async<T>;
+  children: (data: T) => React.ReactNode;
+  empty?: React.ReactNode;
+  isEmpty?: (data: T) => boolean;
+}): React.ReactElement => {
+  if (state.status === "loading") return <p className="muted">Loading…</p>;
+  if (state.status === "error") return <ErrorBanner error={state.error} />;
+  if (isEmpty?.(state.data)) return <EmptyState>{empty ?? "Nothing to show."}</EmptyState>;
+  return <>{children(state.data)}</>;
+};
+
+export const ErrorBanner = ({ error }: { error: AppError }): React.ReactElement => (
+  <div className="warning" role="alert">
+    <strong>{error.code}</strong> {error.message}
+  </div>
+);
+
+export const EmptyState = ({ children }: { children: React.ReactNode }): React.ReactElement => (
+  <p className="empty-state">{children}</p>
+);
+
+export const Panel = ({
+  title,
+  actions,
+  children,
+}: {
+  title: string;
+  actions?: React.ReactNode;
+  children: React.ReactNode;
+}): React.ReactElement => (
+  <article className="panel">
+    <header className="panel-head">
+      <h2>{title}</h2>
+      {actions}
+    </header>
+    {children}
+  </article>
+);
+
+/** Renders an unknown fact honestly instead of inventing a value. */
+export const FactValue = <T,>({
+  fact,
+  render,
+}: {
+  fact: Fact<T>;
+  render?: (value: T) => React.ReactNode;
+}): React.ReactElement => {
+  if (fact.value === undefined) return <span className="unknown">Unknown</span>;
+  const body = render ? render(fact.value) : String(fact.value);
+  return fact.status === "SIMULATION_ONLY" ? (
+    <span title="Simulated value, not a researched real-world fact">
+      {body} <span className="sim-tag">sim</span>
+    </span>
+  ) : (
+    <span>{body}</span>
+  );
+};
+
+export const Badge = ({
+  tone,
+  children,
+}: {
+  tone: "ok" | "warn" | "bad" | "info";
+  children: React.ReactNode;
+}): React.ReactElement => <span className={`badge badge-${tone}`}>{children}</span>;
+
+export const availabilityTone = (availability: string): "ok" | "warn" | "bad" | "info" => {
+  switch (availability) {
+    case "AVAILABLE":
+      return "ok";
+    case "INJURED":
+      return "bad";
+    case "SUSPENDED":
+      return "warn";
+    default:
+      return "info";
+  }
+};
+
+export const Metrics = ({
+  items,
+}: {
+  items: Array<{ label: string; value: React.ReactNode }>;
+}): React.ReactElement => (
+  <dl className="metrics">
+    {items.map((item) => (
+      <div key={item.label}>
+        <dt>{item.label}</dt>
+        <dd>{item.value}</dd>
+      </div>
+    ))}
+  </dl>
+);
+
+export const FormRun = ({ form }: { form: string[] }): React.ReactElement => (
+  <span className="form-run">
+    {form.length === 0 ? (
+      <span className="muted">No results yet</span>
+    ) : (
+      form.map((result, index) => (
+        <span key={`${result}-${index}`} className={`form-pip form-${result}`}>
+          {result}
+        </span>
+      ))
+    )}
+  </span>
+);
+
+export const money = (amount?: number, currency = "NPR"): string =>
+  amount === undefined ? "—" : `${currency} ${Math.round(amount).toLocaleString("en-US")}`;

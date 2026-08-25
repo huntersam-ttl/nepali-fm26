@@ -21,35 +21,89 @@ import {
   type Club,
   type CompetitionRuleSet,
   type CompetitionSeason,
+  type CalendarEntry,
   type CompetitionView,
+  type ContractList,
+  type ContractRenewalCommand,
   type DesktopAppError,
   type DesktopApplicationState,
   type DesktopErrorCode,
   type EntityId,
+  type FixtureDetail,
+  type FixtureList,
   type FixtureReadModel,
+  type ManagerCompetitionView,
+  type ManagerDashboard,
   type MatchEvent,
   type Person,
   type PlayerAttributeSet,
+  type PlayerProfile,
   type PostMatchReadModel,
+  type QuickSimSummary,
+  type RecruitmentSearchCommand,
+  type RecruitmentSearchPage,
   type SaveCatalogEntry,
   type SaveMetadata,
+  type ScoutingAssignmentCommand,
+  type ScoutingDashboard,
+  type ScoutingReportView,
+  type SquadList,
   type SquadRow,
+  type StaffList,
   type StartingClubOption,
   type TacticalAssignment,
   type TacticalSetup,
+  type TacticsUpdateCommand,
+  type TacticsView,
   type Team,
+  type TrainingUpdateCommand,
+  type TrainingView,
+  type TransferCentre,
+  type TransferListCommand,
+  type TransferOfferCommand,
+  type TransferResponseCommand,
 } from "@nepal-football-sim/shared-types";
 import { validateNepalWorldDataset, type NepalWorldDataset } from "@nepal-football-sim/data-import";
 import { generateLeagueFixtures } from "./fixture-generation.js";
 import { importNepalWorld } from "./nepal-save.js";
 import { createCareerCharacter, createManagerContract, testLicence } from "./manager-career.js";
+import { nextFixtureForTeam, persistQuickSimResult, quickSimManagerMatch } from "./manager-flow.js";
 import {
-  continueToNextFixtureDate,
-  nextFixtureForTeam,
-  persistQuickSimResult,
-  quickSimManagerMatch,
-} from "./manager-flow.js";
-import { FORMATION_PRESETS, TACTICAL_STYLE_PRESETS, createTacticalSetup } from "./tactics.js";
+  FORMATION_PRESETS,
+  TACTICAL_STYLE_PRESETS,
+  createTacticalSetup,
+  tacticalPositionToPlayerPosition,
+} from "./tactics.js";
+import { suitability } from "./team-selection.js";
+import {
+  ManagerCommandError,
+  advanceManagerCareer,
+  applyTacticsUpdate,
+  applyTrainingUpdate,
+  buildCalendar,
+  buildCompetitionView,
+  buildContractList,
+  buildFixtureDetail,
+  buildFixtureList,
+  buildManagerDashboard,
+  buildPlayerProfile,
+  buildQuickSimSummary,
+  buildScoutingDashboard,
+  buildScoutingReport,
+  buildSquadList,
+  buildStaffList,
+  buildTacticsView,
+  buildTrainingView,
+  buildTransferCentre,
+  createManagerScoutingAssignment,
+  ensureManagerSystems,
+  makeManagerTransferOffer,
+  renewManagerContract,
+  respondToTransferOffer,
+  searchManagerRecruitment,
+  setManagerTransferStatus,
+  toggleManagerShortlist,
+} from "./manager-desktop.js";
 
 export type { DesktopAppError, AppResult };
 
@@ -73,7 +127,10 @@ type CareerSession = {
   db: GameDatabase;
 };
 
-type ManagerContext = ReturnType<typeof managerContext>;
+/** Resolved manager working set. Exported so Manager-mode modules can reuse it. */
+export type ManagerContext = ReturnType<typeof managerContext>;
+
+export { managerContext };
 
 /**
  * Authoritative desktop runtime. Owns the SQLite career session and is the only
@@ -222,6 +279,7 @@ export class DesktopApplicationService {
 
       const opened = loadSave(db);
       this.session = { saveId: opened.id, filePath, db };
+      this.warmManagerSystems(db, opened);
       const state = this.buildState(db, opened, filePath);
       this.writeCatalogEntry(state.catalogEntry);
       return ok(state);
@@ -249,6 +307,7 @@ export class DesktopApplicationService {
       migrateDatabase(db);
       const save = loadSave(db);
       this.session = { saveId: save.id, filePath, db };
+      this.warmManagerSystems(db, save);
       const state = this.buildState(db, save, filePath);
       this.writeCatalogEntry(state.catalogEntry);
       return ok(state);
@@ -349,16 +408,21 @@ export class DesktopApplicationService {
       if (!nextFixtureForTeam(context.fixtures, context.team.id, save.worldDate)) {
         throw appError("FIXTURE_MISSING", "There is no further fixture to advance to.");
       }
-      const updated = continueToNextFixtureDate(save, context.fixtures, context.team.id);
+      ensureManagerSystems(db, save, context);
       db.exec("BEGIN;");
+      let updated: SaveMetadata;
       try {
+        // Day-by-day advance that runs scouting and training and stops at the
+        // first meaningful decision, rather than jumping blindly to the fixture.
+        const outcome = advanceManagerCareer(db, save, context);
+        updated = { ...save, worldDate: outcome.worldDate, lastSavedAt: new Date().toISOString() };
         new SaveRepository(db).upsert(updated);
         new ManagerRepository(db).insertInboxItem({
           id: createEntityId(),
           createdOn: updated.worldDate,
-          type: "FIXTURE_UPCOMING",
-          title: "Next fixture reached",
-          body: "Your next fixture is ready for team selection.",
+          type: outcome.stopReason === "NEXT_FIXTURE" ? "FIXTURE_UPCOMING" : "COMPETITION_UPDATE",
+          title: continueTitle(outcome.stopReason),
+          body: outcome.message,
           relatedEntity: { type: "team", id: context.team.id },
           read: false,
         });
@@ -402,6 +466,190 @@ export class DesktopApplicationService {
     }
   }
 
+  // -------------------------------------------------------------------------
+  // Manager gameplay commands (Step 3).
+  //
+  // Each one is a thin delegation: the read models and rules live in
+  // `manager-desktop.ts`, and every command re-checks manager authority there.
+  // -------------------------------------------------------------------------
+
+  /**
+   * Recruitment, transfer, economy, and training records are created once per
+   * save. It is several seconds of work, so it runs while the career is being
+   * opened rather than inside the first gameplay request. A career without a
+   * manager appointment simply skips it.
+   */
+  private warmManagerSystems(db: GameDatabase, save: SaveMetadata): void {
+    try {
+      const context = managerContext(db, save);
+      db.exec("BEGIN;");
+      try {
+        ensureManagerSystems(db, save, context);
+        db.exec("COMMIT;");
+      } catch (error) {
+        db.exec("ROLLBACK;");
+        throw error;
+      }
+    } catch {
+      // Not a manager career, or the world cannot support manager systems yet.
+    }
+  }
+
+  private managerCommand<T>(
+    action: (db: GameDatabase, save: SaveMetadata, context: ManagerContext) => T,
+    mutates = false,
+  ): AppResult<T> {
+    return this.withSession((db, save, filePath) => {
+      const context = managerContext(db, save);
+      ensureManagerSystems(db, save, context);
+      if (!mutates) return action(db, save, context);
+      db.exec("BEGIN;");
+      let result: T;
+      try {
+        result = action(db, save, context);
+        db.exec("COMMIT;");
+      } catch (error) {
+        db.exec("ROLLBACK;");
+        throw error;
+      }
+      const stamped = loadSave(db, save.id);
+      this.writeCatalogEntry(this.catalogEntry(db, stamped, filePath));
+      return result;
+    });
+  }
+
+  getManagerDashboard(): AppResult<ManagerDashboard> {
+    return this.managerCommand(buildManagerDashboard);
+  }
+
+  getSquad(): AppResult<SquadList> {
+    return this.managerCommand(buildSquadList);
+  }
+
+  getPlayerProfile(playerId: EntityId): AppResult<PlayerProfile> {
+    return this.managerCommand((db, save, context) =>
+      buildPlayerProfile(db, save, context, playerId),
+    );
+  }
+
+  getTactics(): AppResult<TacticsView> {
+    return this.managerCommand(buildTacticsView);
+  }
+
+  updateTactics(command: TacticsUpdateCommand): AppResult<TacticsView> {
+    return this.managerCommand((db, save, context) => {
+      applyTacticsUpdate(db, save, context, command);
+      return buildTacticsView(db, save, context);
+    }, true);
+  }
+
+  getTraining(): AppResult<TrainingView> {
+    return this.managerCommand(buildTrainingView);
+  }
+
+  updateTraining(command: TrainingUpdateCommand): AppResult<TrainingView> {
+    return this.managerCommand((db, save, context) => {
+      applyTrainingUpdate(db, save, context, command);
+      return buildTrainingView(db, save, context);
+    }, true);
+  }
+
+  getFixtures(): AppResult<FixtureList> {
+    return this.managerCommand(buildFixtureList);
+  }
+
+  getFixture(fixtureId: EntityId): AppResult<FixtureDetail> {
+    return this.managerCommand((db, save, context) =>
+      buildFixtureDetail(db, save, context, fixtureId),
+    );
+  }
+
+  getCompetition(): AppResult<ManagerCompetitionView> {
+    return this.managerCommand(buildCompetitionView);
+  }
+
+  getCalendar(): AppResult<CalendarEntry[]> {
+    return this.managerCommand(buildCalendar);
+  }
+
+  getScoutingDashboard(): AppResult<ScoutingDashboard> {
+    return this.managerCommand(buildScoutingDashboard);
+  }
+
+  createScoutingAssignment(command: ScoutingAssignmentCommand): AppResult<ScoutingDashboard> {
+    return this.managerCommand(
+      (db, save, context) => createManagerScoutingAssignment(db, save, context, command),
+      true,
+    );
+  }
+
+  getScoutingReport(playerId: EntityId): AppResult<ScoutingReportView> {
+    return this.managerCommand(
+      (db, save, context) => buildScoutingReport(db, save, context, playerId),
+      true,
+    );
+  }
+
+  toggleShortlist(playerId: EntityId): AppResult<ScoutingDashboard> {
+    return this.managerCommand(
+      (db, save, context) => toggleManagerShortlist(db, save, context, playerId),
+      true,
+    );
+  }
+
+  searchRecruitment(command: RecruitmentSearchCommand): AppResult<RecruitmentSearchPage> {
+    return this.managerCommand((db, save, context) =>
+      searchManagerRecruitment(db, save, context, command),
+    );
+  }
+
+  getTransferCentre(): AppResult<TransferCentre> {
+    return this.managerCommand(buildTransferCentre);
+  }
+
+  makeTransferOffer(command: TransferOfferCommand): AppResult<TransferCentre> {
+    return this.managerCommand(
+      (db, save, context) => makeManagerTransferOffer(db, save, context, command),
+      true,
+    );
+  }
+
+  respondTransferOffer(command: TransferResponseCommand): AppResult<TransferCentre> {
+    return this.managerCommand(
+      (db, save, context) => respondToTransferOffer(db, save, context, command),
+      true,
+    );
+  }
+
+  setTransferStatus(command: TransferListCommand): AppResult<TransferCentre> {
+    return this.managerCommand(
+      (db, save, context) => setManagerTransferStatus(db, save, context, command),
+      true,
+    );
+  }
+
+  getContracts(): AppResult<ContractList> {
+    return this.managerCommand(buildContractList);
+  }
+
+  renewContract(command: ContractRenewalCommand): AppResult<ContractList> {
+    return this.managerCommand(
+      (db, save, context) => renewManagerContract(db, save, context, command),
+      true,
+    );
+  }
+
+  /** Post-match summary for a played fixture, built from persisted match state. */
+  getMatchSummary(fixtureId: EntityId): AppResult<QuickSimSummary | undefined> {
+    return this.managerCommand((db, _save, context) =>
+      buildQuickSimSummary(db, context, fixtureId),
+    );
+  }
+
+  getStaff(clubId?: EntityId): AppResult<StaffList> {
+    return this.managerCommand((db, save, context) => buildStaffList(db, save, context, clubId));
+  }
+
   private withSession<T>(
     action: (db: GameDatabase, save: SaveMetadata, filePath: string) => T,
   ): AppResult<T> {
@@ -411,6 +659,7 @@ export class DesktopApplicationService {
       const save = loadSave(session.db, session.saveId);
       return ok(action(session.db, save, session.filePath));
     } catch (error) {
+      if (error instanceof ManagerCommandError) return fail(error.code, error.message);
       if (isAppError(error)) return fail(error.code, error.message, error.detail);
       return fail("SIMULATION_ERROR", "The career command failed.", error);
     }
@@ -786,40 +1035,66 @@ const postMatchReadModel = (db: GameDatabase, matchId: EntityId): PostMatchReadM
   };
 };
 
+/**
+ * Picks the best available player for each slot using the engine's own
+ * `suitability` scoring, so a new career starts with a goalkeeper in goal
+ * rather than whoever happened to sort first.
+ */
 const defaultSetup = (
   teamId: EntityId,
   players: readonly PlayerAttributeSet[],
   managerProfileId?: EntityId,
 ): TacticalSetup => {
   const formation = FORMATION_PRESETS[0]!;
+  const taken = new Set<EntityId>();
+  const pickFor = (position: string): PlayerAttributeSet | undefined => {
+    const candidate = players
+      .filter((player) => !taken.has(player.personId))
+      .map((player) => ({
+        player,
+        score: suitability(player, tacticalPositionToPlayerPosition(position as never)),
+      }))
+      .sort((a, b) => b.score - a.score)[0]?.player;
+    if (candidate) taken.add(candidate.personId);
+    return candidate;
+  };
+
+  const assignments = formation.slots.map<TacticalAssignment>((slot) => ({
+    slotId: slot.id,
+    playerId: pickFor(slot.position)?.personId,
+    roleId:
+      slot.position === "GK"
+        ? "GOALKEEPER"
+        : slot.zone === "forward"
+          ? "PRESSING_FORWARD"
+          : slot.zone === "defense"
+            ? "BALL_PLAYING_DEFENDER"
+            : "CENTRAL_MIDFIELDER",
+  }));
+
   const setup = createTacticalSetup({
     teamId,
     managerProfileId,
     name: "4-3-3",
     formation,
     style: "BALANCED",
-    assignments: formation.slots.map<TacticalAssignment>((slot, index) => ({
-      slotId: slot.id,
-      playerId: players[index]?.personId,
-      roleId:
-        slot.position === "GK"
-          ? "GOALKEEPER"
-          : slot.zone === "forward"
-            ? "PRESSING_FORWARD"
-            : slot.zone === "defense"
-              ? "BALL_PLAYING_DEFENDER"
-              : "CENTRAL_MIDFIELDER",
-    })),
-    bench: players.slice(11, 18).map((player) => player.personId),
+    assignments,
+    bench: players
+      .filter((player) => !taken.has(player.personId))
+      .slice(0, 7)
+      .map((player) => player.personId),
   });
+  const outfield = assignments
+    .filter((assignment) => assignment.slotId !== "GK")
+    .flatMap((assignment) => (assignment.playerId ? [assignment.playerId] : []));
   return {
     ...setup,
     instructions: TACTICAL_STYLE_PRESETS.BALANCED,
     setPieces: {
-      penaltyTaker: players[10]?.personId,
-      directFreeKickTaker: players[7]?.personId,
-      leftCornerTaker: players[9]?.personId,
-      rightCornerTaker: players[8]?.personId,
+      penaltyTaker: outfield.at(-1),
+      directFreeKickTaker: outfield.at(-4),
+      leftCornerTaker: outfield.at(-2),
+      rightCornerTaker: outfield.at(-3),
     },
   };
 };
@@ -1008,6 +1283,21 @@ const slug = (value: string): string =>
     .replace(/^-|-$/g, "")
     .slice(0, 48) || "save";
 
+const continueTitle = (reason: string): string => {
+  switch (reason) {
+    case "NEXT_FIXTURE":
+      return "Next fixture reached";
+    case "SCOUT_REPORT":
+      return "Scouting report ready";
+    case "TRANSFER_RESPONSE":
+      return "Transfer negotiation update";
+    case "CONTRACT_EXPIRY":
+      return "Contract needs attention";
+    default:
+      return "World advanced";
+  }
+};
+
 const today = (): string => new Date().toISOString().slice(0, 10);
 
 const ok = <T>(data: T): AppResult<T> => ({ ok: true, data });
@@ -1027,8 +1317,30 @@ const appError = (code: DesktopErrorCode, message: string, detail?: string): Des
   detail,
 });
 
+const DESKTOP_ERROR_CODES = new Set<string>([
+  "SAVE_NOT_FOUND",
+  "SAVE_CORRUPT",
+  "MIGRATION_FAILED",
+  "CAREER_CREATION_FAILED",
+  "DATABASE_ERROR",
+  "SESSION_NOT_OPEN",
+  "SIMULATION_ERROR",
+  "FIXTURE_MISSING",
+  "PLAYER_MISSING",
+  "INVALID_SELECTION",
+  "WORLD_DATA_UNAVAILABLE",
+  "RUNTIME_UNAVAILABLE",
+  "ROLE_NOT_AUTHORIZED",
+]);
+
+/**
+ * Only our own structured errors pass through. Driver errors also carry a
+ * string `code` (for example ERR_SQLITE_ERROR) and must not reach the UI as if
+ * they were part of the contract.
+ */
 const isAppError = (error: unknown): error is DesktopAppError =>
   typeof error === "object" &&
   error !== null &&
   "code" in error &&
-  typeof (error as { code: unknown }).code === "string";
+  typeof (error as { code: unknown }).code === "string" &&
+  DESKTOP_ERROR_CODES.has((error as { code: string }).code);
