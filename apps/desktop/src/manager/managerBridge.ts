@@ -30,6 +30,8 @@ import type {
   SquadMeetingCommand,
   SquadMeetingResult,
   SquadList,
+  CreateDevelopmentPlanCommand,
+  PlayerDevelopmentView,
   StaffHierarchyView,
   StaffList,
   StaffMarketView,
@@ -69,6 +71,11 @@ export const managerBridge = {
   getTraining: () => runtimeCall<TrainingView>("getTraining"),
   updateTraining: (command: TrainingUpdateCommand) =>
     runtimeCall<TrainingView>("updateTraining", { command }),
+  getPlayerDevelopment: () => runtimeCall<PlayerDevelopmentView>("getPlayerDevelopment"),
+  createPlayerDevelopmentPlan: (command: CreateDevelopmentPlanCommand) =>
+    runtimeCall<PlayerDevelopmentView>("createPlayerDevelopmentPlan", { command }),
+  setPlayerDevelopmentPlanStatus: (planId: EntityId, status: string) =>
+    runtimeCall<PlayerDevelopmentView>("setPlayerDevelopmentPlanStatus", { planId, status }),
   getFixtures: () => runtimeCall<FixtureList>("getFixtures"),
   getFixture: (fixtureId: EntityId) => runtimeCall<FixtureDetail>("getFixture", { fixtureId }),
   getCompetition: () => runtimeCall<ManagerCompetitionView>("getCompetition"),

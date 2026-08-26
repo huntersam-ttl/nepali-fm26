@@ -1,11 +1,17 @@
 import React, { useState } from "react";
-import type { TrainingView } from "@nepal-football-sim/shared-types";
+import type {
+  CreateDevelopmentPlanCommand,
+  EntityId,
+  PlayerDevelopmentView,
+  TrainingView,
+} from "@nepal-football-sim/shared-types";
 import { managerBridge } from "../managerBridge.js";
-import { AsyncPanel, ErrorBanner, Metrics, Panel, useRuntimeData } from "../ui.js";
+import { AsyncPanel, Badge, ErrorBanner, Metrics, Panel, useRuntimeData } from "../ui.js";
 import type { AppError } from "../../appBridge.js";
 
 export const TrainingScreen = (): React.ReactElement => {
   const [state, , replace] = useRuntimeData(() => managerBridge.getTraining());
+  const [devState, , replaceDev] = useRuntimeData(() => managerBridge.getPlayerDevelopment());
   const [error, setError] = useState<AppError | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -21,11 +27,40 @@ export const TrainingScreen = (): React.ReactElement => {
     }
   };
 
+  const applyPlan = async (command: CreateDevelopmentPlanCommand) => {
+    setBusy(true);
+    const result = await managerBridge.createPlayerDevelopmentPlan(command);
+    setBusy(false);
+    if (result.ok) {
+      replaceDev(result.data);
+      setError(null);
+    } else {
+      setError(result.error);
+    }
+  };
+
+  const setPlanStatus = async (planId: EntityId, status: string) => {
+    setBusy(true);
+    const result = await managerBridge.setPlayerDevelopmentPlanStatus(planId, status);
+    setBusy(false);
+    if (result.ok) {
+      replaceDev(result.data);
+      setError(null);
+    } else {
+      setError(result.error);
+    }
+  };
+
   return (
     <>
       {error && <ErrorBanner error={error} />}
       <AsyncPanel state={state}>
         {(view) => <TrainingBoard view={view} busy={busy} onApply={apply} />}
+      </AsyncPanel>
+      <AsyncPanel state={devState}>
+        {(view) => (
+          <PlayerDevelopmentBoard view={view} busy={busy} onCreatePlan={applyPlan} onSetStatus={setPlanStatus} />
+        )}
       </AsyncPanel>
     </>
   );
@@ -202,6 +237,185 @@ const TrainingBoard = ({
                     <td>{player.fitness}</td>
                     <td>{player.fatigue}</td>
                     <td>{player.matchSharpness}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
+    </section>
+  );
+};
+
+const PlayerDevelopmentBoard = ({
+  view,
+  busy,
+  onCreatePlan,
+  onSetStatus,
+}: {
+  view: PlayerDevelopmentView;
+  busy: boolean;
+  onCreatePlan: (command: CreateDevelopmentPlanCommand) => Promise<void>;
+  onSetStatus: (planId: EntityId, status: string) => Promise<void>;
+}): React.ReactElement => {
+  const [focusType, setFocusType] = useState<string>("BALANCED");
+  const [targetPosition, setTargetPosition] = useState<string>(view.positionOptions[0] ?? "ST");
+  const [targetRole, setTargetRole] = useState<string>("");
+  const [targetAttributeGroup, setTargetAttributeGroup] = useState<string>(view.attributeGroupOptions[0] ?? "technical");
+  const [intensity, setIntensity] = useState<string>("NORMAL");
+  const [selectedPersonId, setSelectedPersonId] = useState<string>(view.players[0]?.personId ?? "");
+
+  return (
+    <section className="dashboard">
+      {view.environment && (
+        <Panel title="Development environment">
+          <Metrics
+            items={[
+              { label: "Coaching quality", value: view.environment.coachingQuality?.toFixed(2) ?? "Unknown" },
+              { label: "Facilities effect", value: view.environment.facilitiesEffect?.toFixed(2) ?? "Unknown" },
+            ]}
+          />
+        </Panel>
+      )}
+
+      <Panel title="Set individual focus">
+        <div className="controls">
+          <label>
+            Player
+            <select value={selectedPersonId} onChange={(e) => setSelectedPersonId(e.target.value)}>
+              {view.players.map((player) => (
+                <option key={player.personId} value={player.personId}>
+                  {player.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Focus
+            <select value={focusType} onChange={(e) => setFocusType(e.target.value)}>
+              {view.focusTypeOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option.replace(/_/g, " ").toLowerCase()}
+                </option>
+              ))}
+            </select>
+          </label>
+          {focusType === "POSITION" && (
+            <label>
+              Target position
+              <select value={targetPosition} onChange={(e) => setTargetPosition(e.target.value)}>
+                {view.positionOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {focusType === "ROLE" && (
+            <label>
+              Target role
+              <input value={targetRole} onChange={(e) => setTargetRole(e.target.value)} placeholder="e.g. wing-back" />
+            </label>
+          )}
+          {focusType === "ATTRIBUTE" && (
+            <label>
+              Attribute group
+              <select value={targetAttributeGroup} onChange={(e) => setTargetAttributeGroup(e.target.value)}>
+                {view.attributeGroupOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <label>
+            Intensity
+            <select value={intensity} onChange={(e) => setIntensity(e.target.value)}>
+              {view.intensityOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option.replace(/_/g, " ")}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            className="primary"
+            disabled={busy || !selectedPersonId}
+            onClick={() =>
+              void onCreatePlan({
+                personId: selectedPersonId as never,
+                focusType,
+                targetPosition: focusType === "POSITION" ? targetPosition : undefined,
+                targetRole: focusType === "ROLE" ? targetRole : undefined,
+                targetAttributeGroup: focusType === "ATTRIBUTE" ? targetAttributeGroup : undefined,
+                intensity: intensity as never,
+              })
+            }
+          >
+            Set focus
+          </button>
+        </div>
+      </Panel>
+
+      <Panel title="Player progress">
+        {view.players.length === 0 ? (
+          <p className="empty-state">No players to develop yet.</p>
+        ) : (
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Player</th>
+                  <th>Age</th>
+                  <th>Position</th>
+                  <th>Phase</th>
+                  <th>Trend</th>
+                  <th>Ability</th>
+                  <th>Fitness</th>
+                  <th>Injury risk</th>
+                  <th>Active focus</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {view.players.map((player) => (
+                  <tr key={player.personId}>
+                    <td>{player.name}</td>
+                    <td>{player.age ?? "—"}</td>
+                    <td>{player.primaryPosition}</td>
+                    <td>{player.phase.replace(/_/g, " ").toLowerCase()}</td>
+                    <td>
+                      <Badge tone={player.trend === "IMPROVING" ? "ok" : player.trend === "DECLINING" ? "bad" : "info"}>
+                        {player.trend.toLowerCase()}
+                      </Badge>
+                    </td>
+                    <td>{player.currentAbility}</td>
+                    <td>
+                      {player.fitness}
+                      {player.currentlyInjured && <Badge tone="bad">injured</Badge>}
+                    </td>
+                    <td>{Math.round(player.injuryRisk * 100)}%</td>
+                    <td>
+                      {player.activePlan
+                        ? `${player.activePlan.focusType.toLowerCase()}${
+                            player.activePlan.targetPosition ? ` → ${player.activePlan.targetPosition}` : ""
+                          }`
+                        : "—"}
+                    </td>
+                    <td>
+                      {player.activePlan && (
+                        <button
+                          className="ghost small"
+                          disabled={busy}
+                          onClick={() => void onSetStatus(player.activePlan!.id, "PAUSED")}
+                        >
+                          Pause
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

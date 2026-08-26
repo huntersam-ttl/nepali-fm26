@@ -11,6 +11,7 @@ import type {
   LiveTacticsCommand,
   RecruitmentSearchCommand,
   ScoutingAssignmentCommand,
+  CreateDevelopmentPlanCommand,
   StaffResponsibilityDomain,
   StaffResponsibilityOwnerType,
   StartMatchCommand,
@@ -178,6 +179,12 @@ const dispatch = (
       return service.getTraining();
     case "updateTraining":
       return service.updateTraining(body.command as TrainingUpdateCommand);
+    case "getPlayerDevelopment":
+      return service.getPlayerDevelopment();
+    case "createPlayerDevelopmentPlan":
+      return service.createPlayerDevelopmentPlan(body.command as CreateDevelopmentPlanCommand);
+    case "setPlayerDevelopmentPlanStatus":
+      return service.setPlayerDevelopmentPlanStatus(body.planId as EntityId, body.status as string);
     case "getFixtures":
       return service.getFixtures();
     case "getFixture":

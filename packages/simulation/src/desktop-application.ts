@@ -31,6 +31,7 @@ import {
   type ConcernResponseResult,
   type ContractList,
   type ContractRenewalCommand,
+  type CreateDevelopmentPlanCommand,
   type DesktopAppError,
   type DesktopApplicationState,
   type DesktopErrorCode,
@@ -97,6 +98,7 @@ import {
   type TacticsView,
   type Team,
   type TeamCohesionView,
+  type PlayerDevelopmentView,
   type TrainingUpdateCommand,
   type TrainingView,
   type TransferCentre,
@@ -205,6 +207,7 @@ import {
   buildFixtureDetail,
   buildFixtureList,
   buildManagerDashboard,
+  buildPlayerDevelopmentView,
   buildPlayerProfile,
   buildQuickSimSummary,
   buildScoutingDashboard,
@@ -214,7 +217,10 @@ import {
   buildTacticsView,
   buildTrainingView,
   buildTransferCentre,
+  createDevelopmentPlan,
   createManagerScoutingAssignment,
+  DevelopmentPlanError,
+  setDevelopmentPlanStatus,
   assertManagerAuthority,
   ensureManagerSystems,
   makeManagerTransferOffer,
@@ -892,6 +898,31 @@ export class DesktopApplicationService {
       requireDomainPermission(db, save, context, "TRAINING", "updateTraining");
       applyTrainingUpdate(db, save, context, command);
       return buildTrainingView(db, save, context);
+    }, true);
+  }
+
+  getPlayerDevelopment(): AppResult<PlayerDevelopmentView> {
+    return this.managerCommand(buildPlayerDevelopmentView);
+  }
+
+  createPlayerDevelopmentPlan(command: CreateDevelopmentPlanCommand): AppResult<PlayerDevelopmentView> {
+    return this.managerCommand((db, save, context) => {
+      requireDomainPermission(db, save, context, "TRAINING", "createPlayerDevelopmentPlan");
+      try {
+        createDevelopmentPlan(db, save, context, command);
+      } catch (error) {
+        if (error instanceof DevelopmentPlanError) throw appError("INVALID_SELECTION", error.message);
+        throw error;
+      }
+      return buildPlayerDevelopmentView(db, save, context);
+    }, true);
+  }
+
+  setPlayerDevelopmentPlanStatus(planId: EntityId, status: string): AppResult<PlayerDevelopmentView> {
+    return this.managerCommand((db, save, context) => {
+      requireDomainPermission(db, save, context, "TRAINING", "setPlayerDevelopmentPlanStatus");
+      setDevelopmentPlanStatus(db, save, planId, status as "ACTIVE" | "PAUSED" | "COMPLETED");
+      return buildPlayerDevelopmentView(db, save, context);
     }, true);
   }
 

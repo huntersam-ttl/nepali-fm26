@@ -6,12 +6,14 @@ import {
   PlayerRepository,
   RecruitmentRepository,
   SquadDynamicsRepository,
+  StaffMarketRepository,
   TransferMarketRepository,
   WorldRepository,
   type GameDatabase,
 } from "@nepal-football-sim/database";
 import {
   ATTRIBUTE_GROUPS,
+  createEntityId,
   createStableEntityId,
   type AttributeGroupView,
   type CalendarEntry,
@@ -22,18 +24,25 @@ import {
   type ContractList,
   type ContractRenewalCommand,
   type ContractRow,
+  type CreateDevelopmentPlanCommand,
+  type DevelopmentFocusType,
   type EntityId,
   type Fact,
   type FixtureDetail,
   type FixtureList,
   type FixtureRow,
+  type IndividualDevelopmentPlan,
+  type InjuryRecord,
   type ISODate,
   type KnowledgeRange,
   type ManagerDashboard,
   type ManagerPermission,
   type PlayerAttributeSet,
+  type PlayerDevelopmentEntry,
+  type PlayerDevelopmentView,
   type SquadAvailability,
   type PlayerKnowledgeLevel,
+  type PlayerPosition,
   type PlayerProfile,
   type ProvenanceStatus,
   type QuickSimSummary,
@@ -75,7 +84,10 @@ import {
   createInitialDevelopmentState,
   developmentPhaseForAge,
   simulateTrainingDay,
+  trainingInjuryRiskSignal,
+  type DevelopmentEnvironment,
 } from "./player-development.js";
+import { SeededRandom } from "./rng.js";
 import {
   addPlayerToShortlist,
   createScoutingAssignment,
@@ -776,6 +788,7 @@ export const buildTrainingView = (
     dayOptions: ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"],
     squadDevelopment: players.attributesForTeam(context.team.id).map((player) => {
       const state = players.developmentState(player.personId);
+      const activePlan = new WorldRepository(db).activeIndividualDevelopmentPlan(player.personId);
       return {
         personId: player.personId,
         name: personName(db, player.personId),
@@ -784,6 +797,7 @@ export const buildTrainingView = (
         fitness: Math.round(state?.fitness ?? 85),
         fatigue: Math.round(state?.fatigue ?? 0),
         matchSharpness: Math.round(state?.matchSharpness ?? 0),
+        focus: activePlan?.focusType,
       };
     }),
     facility: facility
@@ -2084,6 +2098,85 @@ const continueMessage = (reason: ContinueStopReason, opponent?: string): string 
   }
 };
 
+// ---------------------------------------------------------------------------
+// Player development (Phase A) — environment, injury risk, individual plans
+// ---------------------------------------------------------------------------
+
+const clampEnv = (value: number, min: number, max: number): number =>
+  Math.max(min, Math.min(max, value));
+
+/**
+ * Coaching and facility signal for `updatePlayerDevelopment`'s environment
+ * multipliers, derived from the club's real head coach and real facility
+ * profile — never an invented number. Training quality itself is not a
+ * separate knob here: it is already represented by the team's actual
+ * `TrainingPlan` (session load feeds the engine directly).
+ */
+export const computeDevelopmentEnvironment = (
+  db: GameDatabase,
+  clubId: EntityId | undefined,
+): DevelopmentEnvironment => {
+  if (!clubId) return {};
+  const coach = new StaffMarketRepository(db)
+    .activeAppointmentsForClub(clubId)
+    .find((appointment) => appointment.role === "HEAD_COACH") ??
+    new StaffMarketRepository(db)
+      .activeAppointmentsForClub(clubId)
+      .find((appointment) => appointment.role === "ASSISTANT_COACH");
+  const profile = coach ? new StaffMarketRepository(db).staffSimulationProfile(coach.personId) : undefined;
+  const coachingQuality = profile
+    ? clampEnv(
+        (profile.coachingTechnical + profile.coachingTactical + profile.coachingPhysical + profile.coachingMental) /
+          40,
+        0.7,
+        1.3,
+      )
+    : 1;
+  const facility = new ClubEconomyRepository(db).facilityProfile(clubId);
+  const facilitiesEffect = facility
+    ? clampEnv(0.75 + facility.trainingFacilityQuality / 16, 0.75, 1.25)
+    : 1;
+  return { coachingQuality, facilitiesEffect };
+};
+
+/** Injury risk rolled from the same training-load signal the engine already computes — no new medical engine. */
+const rollTrainingInjury = (
+  db: GameDatabase,
+  players: PlayerRepository,
+  personId: EntityId,
+  teamId: EntityId,
+  risk: number,
+  fitness: number,
+  date: string,
+  seed: string,
+): void => {
+  const alreadyInjured = players.activeInjuries(date).some((injury) => injury.personId === personId);
+  if (alreadyInjured) return;
+  const random = new SeededRandom(`${seed}:injury:${personId}:${date}`);
+  if (random.next() >= risk) return;
+  const severity: InjuryRecord["severity"] = risk >= 0.15 ? "major" : risk >= 0.08 ? "moderate" : "minor";
+  const recoveryDays = severity === "major" ? 45 : severity === "moderate" ? 21 : 7;
+  const recovery = new Date(`${date}T00:00:00.000Z`);
+  recovery.setUTCDate(recovery.getUTCDate() + recoveryDays);
+  players.insertInjury({
+    id: createStableEntityId("injury", `training:${personId}:${date}`),
+    personId,
+    injuryType: "Training overload",
+    dateOccurred: date,
+    expectedRecoveryDate: recovery.toISOString().slice(0, 10),
+    severity,
+  });
+  players.upsertAvailabilityState({
+    personId,
+    teamId,
+    fitness,
+    moraleModifier: 0,
+    formModifier: 0,
+    availability: "INJURED",
+    updatedOn: date,
+  });
+};
+
 /** Runs the existing per-day development model for the manager's squad. */
 const applyDailyTraining = (
   db: GameDatabase,
@@ -2094,6 +2187,8 @@ const applyDailyTraining = (
   date: string,
 ): void => {
   if (!plan) return;
+  const environment = computeDevelopmentEnvironment(db, context.club?.id);
+  const world = new WorldRepository(db);
   for (const attributes of players.attributesForTeam(context.team.id)) {
     const potential = players.potential(attributes.personId);
     if (!potential) continue;
@@ -2103,6 +2198,8 @@ const applyDailyTraining = (
     const state =
       players.developmentState(attributes.personId) ??
       createInitialDevelopmentState(attributes, age, date);
+    const individualPlan = world.activeIndividualDevelopmentPlan(attributes.personId);
+    const playingTime = players.latestPlayingTime(attributes.personId);
     const output = simulateTrainingDay({
       attributes,
       state: { ...state, developmentPhase: developmentPhaseForAge(age) },
@@ -2111,10 +2208,175 @@ const applyDailyTraining = (
       date,
       seed: `${save.randomSeed}:training:${attributes.personId}:${date}`,
       plan,
+      individualPlan,
+      playingTime,
+      environment,
     });
     players.upsertDevelopmentState(output.updatedState);
     players.upsertAttributes(output.updatedAttributes);
+    for (const event of output.historyEvents) {
+      players.insertTrainingHistoryEvent({ ...event, teamId: context.team.id });
+    }
+    rollTrainingInjury(
+      db,
+      players,
+      attributes.personId,
+      context.team.id,
+      output.injuryRiskSignal.risk,
+      output.updatedState.fitness,
+      date,
+      save.randomSeed,
+    );
   }
+};
+
+const developmentTrend = (momentum: number): "IMPROVING" | "STABLE" | "DECLINING" => {
+  if (momentum >= 1.5) return "IMPROVING";
+  if (momentum <= -1.5) return "DECLINING";
+  return "STABLE";
+};
+
+/** Manager-facing read model: real per-player progress, trend, active plan and recent history. */
+export const buildPlayerDevelopmentView = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  context: ManagerContext,
+): PlayerDevelopmentView => {
+  assertManagerAuthority(context, undefined, "SET_TRAINING");
+  const players = new PlayerRepository(db);
+  const world = new WorldRepository(db);
+  const environment = computeDevelopmentEnvironment(db, context.club?.id);
+
+  const entries: PlayerDevelopmentEntry[] = players.attributesForTeam(context.team.id).map((attributes) => {
+    const person = personRow(db, attributes.personId);
+    const dob = person?.date_of_birth as string | undefined;
+    const age = dob ? ageOn(dob, save.worldDate) : undefined;
+    const state = players.developmentState(attributes.personId);
+    const plan = world.activeIndividualDevelopmentPlan(attributes.personId);
+    const injured = players.activeInjuries(save.worldDate).some((injury) => injury.personId === attributes.personId);
+    const risk = state ? trainingInjuryRiskSignal(state).risk : 0;
+    return {
+      personId: attributes.personId,
+      name: personName(db, attributes.personId),
+      age,
+      primaryPosition: attributes.primaryPosition,
+      phase: state?.developmentPhase ?? developmentPhaseForAge(age ?? 25),
+      trend: developmentTrend(state?.developmentMomentum ?? 0),
+      momentum: state?.developmentMomentum ?? 0,
+      currentAbility: playerAbility(attributes),
+      fitness: Math.round(state?.fitness ?? 85),
+      fatigue: Math.round(state?.fatigue ?? 0),
+      recovery: Math.round(state?.recovery ?? 80),
+      injuryRisk: risk,
+      currentlyInjured: injured,
+      activePlan: plan
+        ? {
+            id: plan.id,
+            focusType: plan.focusType,
+            targetPosition: plan.targetPosition,
+            targetRole: plan.targetRole,
+            targetAttributeGroup: plan.targetAttributeGroup,
+            intensity: plan.intensity,
+            startDate: plan.startDate,
+            endDate: plan.endDate,
+            status: plan.status,
+          }
+        : undefined,
+      recentHistory: players.trainingHistoryForPlayer(attributes.personId, 5).map((event) => ({
+        eventType: event.eventType,
+        occurredOn: event.occurredOn,
+        data: event.data,
+      })),
+    };
+  });
+
+  return {
+    players: entries,
+    focusTypeOptions: ["ATTRIBUTE", "POSITION", "ROLE", "PHYSICAL", "TECHNICAL", "MENTAL", "BALANCED"],
+    attributeGroupOptions: ["technical", "mental", "physical", "goalkeeping"],
+    positionOptions: ["GK", "RB", "CB", "LB", "DM", "CM", "AM", "RW", "LW", "ST"],
+    intensityOptions: ["LOW", "NORMAL", "HIGH", "VERY_HIGH"],
+    environment: { coachingQuality: environment.coachingQuality, facilitiesEffect: environment.facilitiesEffect },
+  };
+};
+
+export class DevelopmentPlanError extends Error {
+  constructor(
+    readonly code: "NOT_ON_ROSTER" | "MISSING_TARGET",
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+/**
+ * Sets the club's single individual focus for a player — reassigning always
+ * supersedes any prior active plan for that player, so a player is never
+ * being trained toward two focuses at once.
+ */
+export const createDevelopmentPlan = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  context: ManagerContext,
+  command: CreateDevelopmentPlanCommand,
+): IndividualDevelopmentPlan => {
+  assertManagerAuthority(context, undefined, "SET_TRAINING");
+  const players = new PlayerRepository(db);
+  if (!players.attributesForTeam(context.team.id).some((attributes) => attributes.personId === command.personId)) {
+    throw new DevelopmentPlanError("NOT_ON_ROSTER", "That player is not part of this squad.");
+  }
+  const focusType = command.focusType as DevelopmentFocusType;
+  if (focusType === "POSITION" && !command.targetPosition) {
+    throw new DevelopmentPlanError("MISSING_TARGET", "Select a target position for position retraining.");
+  }
+  if (focusType === "ROLE" && !command.targetRole) {
+    throw new DevelopmentPlanError("MISSING_TARGET", "Select a target role.");
+  }
+  if (focusType === "ATTRIBUTE" && !command.targetAttributeGroup) {
+    throw new DevelopmentPlanError("MISSING_TARGET", "Select a target attribute group.");
+  }
+  const world = new WorldRepository(db);
+  const previous = world.activeIndividualDevelopmentPlan(command.personId);
+  if (previous) {
+    world.upsertIndividualDevelopmentPlan({ ...previous, status: "COMPLETED", endDate: save.worldDate });
+  }
+  const plan: IndividualDevelopmentPlan = {
+    id: createEntityId(),
+    playerId: command.personId,
+    focusType,
+    targetPosition: command.targetPosition as PlayerPosition | undefined,
+    targetRole: command.targetRole,
+    targetAttributeGroup: command.targetAttributeGroup as IndividualDevelopmentPlan["targetAttributeGroup"],
+    intensity: command.intensity,
+    startDate: save.worldDate,
+    status: "ACTIVE",
+  };
+  world.upsertIndividualDevelopmentPlan(plan);
+  return plan;
+};
+
+export const setDevelopmentPlanStatus = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  planId: EntityId,
+  status: "ACTIVE" | "PAUSED" | "COMPLETED",
+): void => {
+  const plan = db
+    .prepare("SELECT * FROM individual_development_plans WHERE id = ?")
+    .get(planId) as SqlRow | undefined;
+  if (!plan) return;
+  new WorldRepository(db).upsertIndividualDevelopmentPlan({
+    id: plan.id,
+    playerId: plan.player_id,
+    focusType: plan.focus_type,
+    targetPosition: plan.target_position ?? undefined,
+    targetRole: plan.target_role ?? undefined,
+    targetAttributeGroup: plan.target_attribute_group ?? undefined,
+    intensity: plan.intensity,
+    startDate: plan.start_date,
+    endDate: status === "ACTIVE" ? undefined : (plan.end_date ?? save.worldDate),
+    status,
+  });
 };
 
 // ---------------------------------------------------------------------------

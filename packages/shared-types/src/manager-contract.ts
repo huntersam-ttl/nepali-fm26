@@ -278,6 +278,67 @@ export type TrainingUpdateCommand = {
 };
 
 // ---------------------------------------------------------------------------
+// Player development (Phase A)
+// ---------------------------------------------------------------------------
+
+export type IndividualDevelopmentPlanView = {
+  id: EntityId;
+  focusType: string;
+  targetPosition?: string;
+  targetRole?: string;
+  targetAttributeGroup?: string;
+  intensity: TrainingIntensity;
+  startDate: ISODate;
+  endDate?: ISODate;
+  status: string;
+};
+
+export type DevelopmentHistoryEntryView = {
+  eventType: string;
+  occurredOn: ISODate;
+  data?: Record<string, unknown>;
+};
+
+export type PlayerDevelopmentEntry = {
+  personId: EntityId;
+  name: string;
+  age?: number;
+  primaryPosition: string;
+  phase: string;
+  trend: "IMPROVING" | "STABLE" | "DECLINING";
+  momentum: number;
+  currentAbility: number;
+  fitness: number;
+  fatigue: number;
+  recovery: number;
+  injuryRisk: number;
+  currentlyInjured: boolean;
+  activePlan?: IndividualDevelopmentPlanView;
+  recentHistory: DevelopmentHistoryEntryView[];
+};
+
+export type PlayerDevelopmentView = {
+  players: PlayerDevelopmentEntry[];
+  focusTypeOptions: string[];
+  attributeGroupOptions: string[];
+  positionOptions: string[];
+  intensityOptions: TrainingIntensity[];
+  environment?: {
+    coachingQuality?: number;
+    facilitiesEffect?: number;
+  };
+};
+
+export type CreateDevelopmentPlanCommand = {
+  personId: EntityId;
+  focusType: string;
+  targetPosition?: string;
+  targetRole?: string;
+  targetAttributeGroup?: string;
+  intensity: TrainingIntensity;
+};
+
+// ---------------------------------------------------------------------------
 // Fixtures and competitions
 // ---------------------------------------------------------------------------
 
@@ -917,6 +978,9 @@ export type ManagerRuntimeApi = {
   updateTactics(command: TacticsUpdateCommand): Promise<unknown>;
   getTraining(): Promise<unknown>;
   updateTraining(command: TrainingUpdateCommand): Promise<unknown>;
+  getPlayerDevelopment(): Promise<unknown>;
+  createPlayerDevelopmentPlan(command: CreateDevelopmentPlanCommand): Promise<unknown>;
+  setPlayerDevelopmentPlanStatus(planId: EntityId, status: string): Promise<unknown>;
   getFixtures(): Promise<unknown>;
   getFixture(fixtureId: EntityId): Promise<unknown>;
   getCompetition(): Promise<unknown>;

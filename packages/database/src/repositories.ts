@@ -776,7 +776,16 @@ export class WorldRepository {
         `INSERT INTO individual_development_plans
         (id, player_id, focus_type, target_position, target_role, target_attribute_group,
           intensity, start_date, end_date, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          focus_type = excluded.focus_type,
+          target_position = excluded.target_position,
+          target_role = excluded.target_role,
+          target_attribute_group = excluded.target_attribute_group,
+          intensity = excluded.intensity,
+          start_date = excluded.start_date,
+          end_date = excluded.end_date,
+          status = excluded.status`,
       )
       .run(
         plan.id,
@@ -790,6 +799,32 @@ export class WorldRepository {
         plan.endDate ?? null,
         plan.status,
       );
+  }
+
+  upsertIndividualDevelopmentPlan(plan: IndividualDevelopmentPlan): void {
+    this.insertIndividualDevelopmentPlan(plan);
+  }
+
+  activeIndividualDevelopmentPlan(playerId: EntityId): IndividualDevelopmentPlan | undefined {
+    const row = this.db
+      .prepare(
+        `SELECT * FROM individual_development_plans
+        WHERE player_id = ? AND status = 'ACTIVE'
+        ORDER BY start_date DESC, id DESC LIMIT 1`,
+      )
+      .get(playerId) as any;
+    return row ? mapIndividualDevelopmentPlan(row) : undefined;
+  }
+
+  individualDevelopmentPlansForPlayer(playerId: EntityId): IndividualDevelopmentPlan[] {
+    return this.db
+      .prepare(
+        `SELECT * FROM individual_development_plans
+        WHERE player_id = ?
+        ORDER BY start_date DESC, id DESC`,
+      )
+      .all(playerId)
+      .map(mapIndividualDevelopmentPlan);
   }
 
   insertCompetitionDevelopmentMultiplier(multiplier: CompetitionDevelopmentMultiplier): void {
@@ -4548,6 +4583,25 @@ export class PlayerRepository {
       );
   }
 
+  trainingHistoryForPlayer(playerId: EntityId, limit = 20): TrainingHistoryEvent[] {
+    return this.db
+      .prepare(
+        `SELECT * FROM training_history_events
+        WHERE player_id = ?
+        ORDER BY occurred_on DESC, id DESC
+        LIMIT ?`,
+      )
+      .all(playerId, limit)
+      .map((row: any) => ({
+        id: row.id,
+        playerId: row.player_id ?? undefined,
+        teamId: row.team_id ?? undefined,
+        eventType: row.event_type,
+        occurredOn: row.occurred_on,
+        data: row.data_json ? json.parse(row.data_json, undefined) : undefined,
+      }));
+  }
+
   insertInjury(injury: InjuryRecord): void {
     this.db
       .prepare(
@@ -4789,6 +4843,19 @@ const mapDevelopmentState = (row: any): PlayerDevelopmentState => ({
   roleFamiliarity: json.parse(row.role_familiarity_json, {}),
   lastTrainingDate: row.last_training_date ?? undefined,
   lastDevelopmentUpdate: row.last_development_update ?? undefined,
+});
+
+const mapIndividualDevelopmentPlan = (row: any): IndividualDevelopmentPlan => ({
+  id: row.id,
+  playerId: row.player_id,
+  focusType: row.focus_type,
+  targetPosition: row.target_position ?? undefined,
+  targetRole: row.target_role ?? undefined,
+  targetAttributeGroup: row.target_attribute_group ?? undefined,
+  intensity: row.intensity,
+  startDate: row.start_date,
+  endDate: row.end_date ?? undefined,
+  status: row.status,
 });
 
 const mapManagerProfile = (row: any): ManagerProfile => ({
