@@ -12,4 +12,5 @@ export * from "./club-creation-repository.js";
 export * from "./ownership-repository.js";
 export * from "./investor-repository.js";
 export * from "./licensing-repository.js";
+export * from "./career-identity-repository.js";
 export * from "./save-system.js";
