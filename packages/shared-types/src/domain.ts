@@ -1278,7 +1278,7 @@ export type TrainingPlan = {
 };
 
 export type DevelopmentFocusType =
-  "ATTRIBUTE" | "POSITION" | "ROLE" | "PHYSICAL" | "TECHNICAL" | "MENTAL" | "BALANCED";
+  "ATTRIBUTE" | "POSITION" | "ROLE" | "PHYSICAL" | "TECHNICAL" | "MENTAL" | "BALANCED" | "MAINTENANCE";
 
 export type IndividualDevelopmentPlan = {
   id: EntityId;
@@ -1453,7 +1453,13 @@ export type TrainingHistoryEvent = {
     | "ATTRIBUTE_IMPROVED"
     | "ATTRIBUTE_DECLINED"
     | "PLAYER_OVERTRAINED"
-    | "PLAYER_RETURNED_TO_FULL_TRAINING";
+    | "PLAYER_RETURNED_TO_FULL_TRAINING"
+    | "ROLE_FAMILIARITY_INCREASED"
+    | "RETRAINING_MILESTONE_REACHED"
+    | "DEVELOPMENT_PLATEAU_DETECTED"
+    | "DEVELOPMENT_PLAN_REVIEWED"
+    | "TRAINING_SETBACK_INJURY"
+    | "RETURNED_FROM_INJURY_RAMP_UP";
   occurredOn: ISODate;
   data?: Record<string, unknown>;
 };
@@ -1527,7 +1533,7 @@ export type ScoutingStaffSimulationProfile = {
 
 export type ScoutingAssignmentType =
   "PLAYER" | "CLUB" | "COMPETITION" | "REGION" | "POSITION" | "SHORTLIST";
-export type ScoutingAssignmentStatus = "QUEUED" | "ACTIVE" | "COMPLETED" | "CANCELLED";
+export type ScoutingAssignmentStatus = "PLANNED" | "QUEUED" | "ACTIVE" | "COMPLETED" | "CANCELLED";
 export type ScoutingAssignmentPriority = "LOW" | "NORMAL" | "HIGH";
 
 export type ScoutingAssignment = {
@@ -2507,6 +2513,43 @@ export type MedicalAssessment = {
   workloadFlag: "NORMAL" | "ELEVATED" | "OVERLOADED";
   availabilityRecommendation: MedicalAvailabilityRecommendation;
   clearanceStatus: "NOT_CLEARED" | "TRAINING_CLEARANCE" | "MATCH_CLEARANCE";
+  rationale: string;
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+// ---------------------------------------------------------------------------
+// Medical Phase B — staged rehabilitation and return-to-play decisions
+// ---------------------------------------------------------------------------
+
+/** A distinct, staged rehab track — protection through match-ready — separate from the coarser MedicalRehabStage used by the standing assessment. */
+export type RehabStage = "PROTECTION_REST" | "REHABILITATION" | "PARTIAL_TRAINING" | "FULL_TRAINING" | "MATCH_READY";
+
+export type RehabilitationPlan = {
+  id: EntityId;
+  injuryId: EntityId;
+  personId: EntityId;
+  clubId?: EntityId;
+  stage: RehabStage;
+  stageStartedOn: ISODate;
+  startedOn: ISODate;
+  targetReturnDate: ISODate;
+  status: "ACTIVE" | "COMPLETED" | "ABANDONED";
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+/** Follow medical advice, hold a player out longer than advised, or push them back early against advice. */
+export type ReturnToPlayDecision = "FOLLOW_ADVICE" | "DELAY" | "ACCEPT_RISK";
+
+export type RehabDecisionOutcome = "ADVANCED" | "SETBACK" | "HELD" | "NO_CHANGE";
+
+export type RehabDecisionRecord = {
+  id: EntityId;
+  planId: EntityId;
+  personId: EntityId;
+  decidedOn: ISODate;
+  decision: ReturnToPlayDecision;
+  medicalRecommendation: MedicalAvailabilityRecommendation;
+  outcome: RehabDecisionOutcome;
   rationale: string;
   provenanceStatus: "SIMULATION_ONLY";
 };

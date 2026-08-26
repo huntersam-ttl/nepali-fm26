@@ -12,6 +12,7 @@ import type {
   RecruitmentSearchCommand,
   ScoutingAssignmentCommand,
   CreateDevelopmentPlanCommand,
+  ReturnToPlayDecisionCommand,
   StaffResponsibilityDomain,
   StaffResponsibilityOwnerType,
   StartMatchCommand,
@@ -185,6 +186,10 @@ const dispatch = (
       return service.createPlayerDevelopmentPlan(body.command as CreateDevelopmentPlanCommand);
     case "setPlayerDevelopmentPlanStatus":
       return service.setPlayerDevelopmentPlanStatus(body.planId as EntityId, body.status as string);
+    case "getMedicalCentre":
+      return service.getMedicalCentre();
+    case "decideReturnToPlay":
+      return service.decideReturnToPlay(body.command as ReturnToPlayDecisionCommand);
     case "getFixtures":
       return service.getFixtures();
     case "getFixture":

@@ -3012,6 +3012,24 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
     version: 56,
     sql: `ALTER TABLE club_licence_cases ADD COLUMN history_json TEXT NOT NULL DEFAULT '[]';`,
   },
+  {
+    version: 57,
+    sql: `
+      CREATE TABLE IF NOT EXISTS rehabilitation_plans (
+        id TEXT PRIMARY KEY, injury_id TEXT NOT NULL REFERENCES injuries(id), person_id TEXT NOT NULL REFERENCES persons(id),
+        club_id TEXT REFERENCES clubs(id), stage TEXT NOT NULL, stage_started_on TEXT NOT NULL, started_on TEXT NOT NULL,
+        target_return_date TEXT NOT NULL, status TEXT NOT NULL, provenance_status TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS rehab_decisions (
+        id TEXT PRIMARY KEY, plan_id TEXT NOT NULL REFERENCES rehabilitation_plans(id), person_id TEXT NOT NULL REFERENCES persons(id),
+        decided_on TEXT NOT NULL, decision TEXT NOT NULL, medical_recommendation TEXT NOT NULL, outcome TEXT NOT NULL,
+        rationale TEXT NOT NULL, provenance_status TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_rehab_plans_person ON rehabilitation_plans(person_id, status);
+      CREATE INDEX IF NOT EXISTS idx_rehab_plans_injury ON rehabilitation_plans(injury_id);
+      CREATE INDEX IF NOT EXISTS idx_rehab_decisions_person ON rehab_decisions(person_id, decided_on);
+    `,
+  },
 ];
 
 export const migrateDatabase = (db: GameDatabase): number => {

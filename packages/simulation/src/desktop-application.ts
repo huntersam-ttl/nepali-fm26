@@ -5,6 +5,7 @@ import {
   CompetitionRepository,
   ManagerRepository,
   MatchSessionRepository,
+  MedicalRepository,
   PlayerRepository,
   SaveRepository,
   SquadDynamicsRepository,
@@ -74,6 +75,9 @@ import {
   type SquadMeetingResult,
   type SquadGroupMemberView,
   type SquadList,
+  type MedicalCentreEntryView,
+  type MedicalCentreView,
+  type ReturnToPlayDecisionCommand,
   type SquadPromiseView,
   type SquadRow,
   type StaffApplicationView,
@@ -233,6 +237,12 @@ import {
   setManagerTransferStatus,
   toggleManagerShortlist,
 } from "./manager-desktop.js";
+import {
+  advanceAllRehabilitationPlans,
+  buildMedicalCentreEntry,
+  MedicalDecisionError,
+  recordReturnToPlayDecision,
+} from "./medical-rehab.js";
 
 export type { DesktopAppError, AppResult };
 
@@ -615,6 +625,36 @@ export class DesktopApplicationService {
           evaluateSuccessionNeeds(db, updated, context.club.id);
         }
 
+        // Medical: every club's active rehab plans progress on the natural
+        // staged schedule (protection -> rehab -> partial -> full ->
+        // match-ready). Absent an explicit manager decision this IS
+        // "follow medical advice" — the sensible default AI clubs use.
+        // Only the player's own squad gets inbox notifications since only
+        // they read one.
+        const medicalRepo = new MedicalRepository(db);
+        const beforeReady = new Set(
+          new PlayerRepository(db)
+            .attributesForTeam(context.team.id)
+            .filter((attributes) => medicalRepo.activeRehabilitationPlan(attributes.personId)?.stage === "MATCH_READY")
+            .map((attributes) => attributes.personId),
+        );
+        advanceAllRehabilitationPlans(db, updated);
+        for (const attributes of new PlayerRepository(db).attributesForTeam(context.team.id)) {
+          const plan = medicalRepo.activeRehabilitationPlan(attributes.personId);
+          if (plan?.stage === "MATCH_READY" && !beforeReady.has(attributes.personId)) {
+            const player = getPerson(db, attributes.personId);
+            new ManagerRepository(db).insertInboxItem({
+              id: createEntityId(),
+              createdOn: updated.worldDate,
+              type: "INJURY",
+              title: `${displayName(player)} is match-ready`,
+              body: `${displayName(player)} has completed rehabilitation and is available for selection.`,
+              relatedEntity: { type: "person", id: attributes.personId },
+              read: false,
+            });
+          }
+        }
+
         // Squad dynamics: only the player's own squad, since only they read
         // an inbox — raised/escalated concerns become inbox items, resolved
         // ones do not, so the inbox reacts to real change, not every tick.
@@ -923,6 +963,26 @@ export class DesktopApplicationService {
       requireDomainPermission(db, save, context, "TRAINING", "setPlayerDevelopmentPlanStatus");
       setDevelopmentPlanStatus(db, save, planId, status as "ACTIVE" | "PAUSED" | "COMPLETED");
       return buildPlayerDevelopmentView(db, save, context);
+    }, true);
+  }
+
+  getMedicalCentre(): AppResult<MedicalCentreView> {
+    return this.managerCommand((db, save, context) => buildMedicalCentreView(db, save, context));
+  }
+
+  decideReturnToPlay(command: ReturnToPlayDecisionCommand): AppResult<MedicalCentreView> {
+    return this.managerCommand((db, save, context) => {
+      requireDomainPermission(db, save, context, "MEDICAL", "decideReturnToPlay");
+      try {
+        recordReturnToPlayDecision(db, save, {
+          personId: command.personId,
+          decision: command.decision as "FOLLOW_ADVICE" | "DELAY" | "ACCEPT_RISK",
+        });
+      } catch (error) {
+        if (error instanceof MedicalDecisionError) throw appError("INVALID_SELECTION", error.message);
+        throw error;
+      }
+      return buildMedicalCentreView(db, save, context);
     }, true);
   }
 
@@ -1786,6 +1846,57 @@ const buildStaffHierarchyView = (db: GameDatabase, clubId: EntityId): StaffHiera
   }));
 
   return { hierarchy, responsibilities, developmentPlans, successionPlans };
+};
+
+const buildMedicalCentreView = (db: GameDatabase, save: SaveMetadata, context: ManagerContext): MedicalCentreView => {
+  const players = new PlayerRepository(db).attributesForTeam(context.team.id).map((attributes) => attributes.personId);
+  const entries: MedicalCentreEntryView[] = players.map((personId) => {
+    const entry = buildMedicalCentreEntry(
+      db,
+      { clubId: context.club?.id ?? ("" as EntityId), personId, date: save.worldDate },
+      context.fixtures,
+      context.team.id,
+    );
+    return {
+      personId,
+      name: displayName(getPerson(db, personId)),
+      stage: entry.assessment.stage,
+      estimatedReturnStart: entry.assessment.estimatedReturnStart,
+      estimatedReturnEnd: entry.assessment.estimatedReturnEnd,
+      confidence: entry.assessment.confidence,
+      recurrenceRisk: entry.assessment.recurrenceRisk,
+      fatigue: entry.assessment.fatigue,
+      workloadFlag: entry.assessment.workloadFlag,
+      availabilityRecommendation: entry.assessment.availabilityRecommendation,
+      clearanceStatus: entry.assessment.clearanceStatus,
+      rationale: entry.assessment.rationale,
+      chronicRisk: entry.chronicRisk,
+      trainingAvailability: entry.trainingAvailability,
+      congestionMultiplier: entry.congestionMultiplier,
+      rehabPlan: entry.plan
+        ? {
+            id: entry.plan.id,
+            stage: entry.plan.stage,
+            stageStartedOn: entry.plan.stageStartedOn,
+            startedOn: entry.plan.startedOn,
+            targetReturnDate: entry.plan.targetReturnDate,
+            status: entry.plan.status,
+          }
+        : undefined,
+      decisionHistory: entry.decisionHistory.map((record) => ({
+        id: record.id,
+        decidedOn: record.decidedOn,
+        decision: record.decision,
+        medicalRecommendation: record.medicalRecommendation,
+        outcome: record.outcome,
+        rationale: record.rationale,
+      })),
+    };
+  });
+  return {
+    players: entries.filter((entry) => entry.rehabPlan || entry.trainingAvailability !== "FULL" || entry.chronicRisk),
+    decisionOptions: ["FOLLOW_ADVICE", "DELAY", "ACCEPT_RISK"],
+  };
 };
 
 const buildSquadDynamicsView = (db: GameDatabase, teamId: EntityId): SquadDynamicsView => {

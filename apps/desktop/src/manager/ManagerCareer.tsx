@@ -14,6 +14,7 @@ import { ScoutingScreen } from "./screens/ScoutingScreen.js";
 import { TransfersScreen } from "./screens/TransfersScreen.js";
 import { ContractsScreen } from "./screens/ContractsScreen.js";
 import { StaffScreen } from "./screens/StaffScreen.js";
+import { MedicalScreen } from "./screens/MedicalScreen.js";
 import { MatchdayScreen } from "./matchday/MatchdayScreen.js";
 
 const SCREENS = [
@@ -27,6 +28,7 @@ const SCREENS = [
   "transfers",
   "contracts",
   "staff",
+  "medical",
 ] as const;
 
 type Screen = (typeof SCREENS)[number];
@@ -42,6 +44,7 @@ const LABELS: Record<Screen, string> = {
   transfers: "Transfers",
   contracts: "Contracts",
   staff: "Staff",
+  medical: "Medical",
 };
 
 /**
@@ -236,6 +239,7 @@ export const ManagerCareer = ({
         {screen === "transfers" && <TransfersScreen onSelectPlayer={openPlayer} />}
         {screen === "contracts" && <ContractsScreen />}
         {screen === "staff" && <StaffScreen />}
+        {screen === "medical" && <MedicalScreen />}
       </section>
     </main>
   );

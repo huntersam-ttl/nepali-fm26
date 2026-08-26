@@ -31,7 +31,9 @@ import type {
   SquadMeetingResult,
   SquadList,
   CreateDevelopmentPlanCommand,
+  MedicalCentreView,
   PlayerDevelopmentView,
+  ReturnToPlayDecisionCommand,
   StaffHierarchyView,
   StaffList,
   StaffMarketView,
@@ -76,6 +78,9 @@ export const managerBridge = {
     runtimeCall<PlayerDevelopmentView>("createPlayerDevelopmentPlan", { command }),
   setPlayerDevelopmentPlanStatus: (planId: EntityId, status: string) =>
     runtimeCall<PlayerDevelopmentView>("setPlayerDevelopmentPlanStatus", { planId, status }),
+  getMedicalCentre: () => runtimeCall<MedicalCentreView>("getMedicalCentre"),
+  decideReturnToPlay: (command: ReturnToPlayDecisionCommand) =>
+    runtimeCall<MedicalCentreView>("decideReturnToPlay", { command }),
   getFixtures: () => runtimeCall<FixtureList>("getFixtures"),
   getFixture: (fixtureId: EntityId) => runtimeCall<FixtureDetail>("getFixture", { fixtureId }),
   getCompetition: () => runtimeCall<ManagerCompetitionView>("getCompetition"),

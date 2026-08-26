@@ -342,6 +342,58 @@ export type CreateDevelopmentPlanCommand = {
 };
 
 // ---------------------------------------------------------------------------
+// Medical, fitness & injury management (Phase B)
+// ---------------------------------------------------------------------------
+
+export type RehabilitationPlanView = {
+  id: EntityId;
+  stage: string;
+  stageStartedOn: ISODate;
+  startedOn: ISODate;
+  targetReturnDate: ISODate;
+  status: string;
+};
+
+export type RehabDecisionView = {
+  id: EntityId;
+  decidedOn: ISODate;
+  decision: string;
+  medicalRecommendation: string;
+  outcome: string;
+  rationale: string;
+};
+
+export type MedicalCentreEntryView = {
+  personId: EntityId;
+  name: string;
+  stage: string;
+  estimatedReturnStart: ISODate;
+  estimatedReturnEnd: ISODate;
+  confidence: number;
+  recurrenceRisk: number;
+  fatigue: number;
+  workloadFlag: "NORMAL" | "ELEVATED" | "OVERLOADED";
+  availabilityRecommendation: string;
+  clearanceStatus: string;
+  rationale: string;
+  chronicRisk: boolean;
+  trainingAvailability: "FULL" | "INJURED" | "RETURNING";
+  congestionMultiplier: number;
+  rehabPlan?: RehabilitationPlanView;
+  decisionHistory: RehabDecisionView[];
+};
+
+export type MedicalCentreView = {
+  players: MedicalCentreEntryView[];
+  decisionOptions: string[];
+};
+
+export type ReturnToPlayDecisionCommand = {
+  personId: EntityId;
+  decision: string;
+};
+
+// ---------------------------------------------------------------------------
 // Fixtures and competitions
 // ---------------------------------------------------------------------------
 
@@ -984,6 +1036,8 @@ export type ManagerRuntimeApi = {
   getPlayerDevelopment(): Promise<unknown>;
   createPlayerDevelopmentPlan(command: CreateDevelopmentPlanCommand): Promise<unknown>;
   setPlayerDevelopmentPlanStatus(planId: EntityId, status: string): Promise<unknown>;
+  getMedicalCentre(): Promise<unknown>;
+  decideReturnToPlay(command: ReturnToPlayDecisionCommand): Promise<unknown>;
   getFixtures(): Promise<unknown>;
   getFixture(fixtureId: EntityId): Promise<unknown>;
   getCompetition(): Promise<unknown>;
