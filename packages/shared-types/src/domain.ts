@@ -2040,6 +2040,18 @@ export type ClubBoardPolicy = {
   status: "SIMULATION_ONLY" | "VERIFIED" | "REPORTED" | "ESTIMATED" | "UNKNOWN";
 };
 
+export type ClubAiDecision = {
+  id: EntityId;
+  clubId: EntityId;
+  date: ISODate;
+  seasonLabel: string;
+  objective: ClubBoardPolicy["strategicObjective"];
+  priorities: Record<string, number>;
+  actions: string[];
+  context: Record<string, string | number>;
+  status: "SIMULATION_ONLY";
+};
+
 export type ClubFinancialStatement = {
   id: EntityId;
   clubId: EntityId;

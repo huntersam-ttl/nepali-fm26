@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 33;
+export const CURRENT_DATABASE_VERSION = 35;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -2517,6 +2517,24 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       ALTER TABLE federation_projects ADD COLUMN maintenance_status TEXT NOT NULL DEFAULT 'FUNDED';
       ALTER TABLE federation_projects ADD COLUMN delay_days INTEGER NOT NULL DEFAULT 0;
       ALTER TABLE federation_projects ADD COLUMN funding_status TEXT NOT NULL DEFAULT 'FUNDED';
+    `,
+  },
+  {
+    version: 35,
+    sql: `
+      CREATE TABLE IF NOT EXISTS club_ai_decision_history (
+        id TEXT PRIMARY KEY,
+        club_id TEXT NOT NULL REFERENCES clubs(id),
+        decision_date TEXT NOT NULL,
+        season_label TEXT NOT NULL,
+        objective TEXT NOT NULL,
+        priorities_json TEXT NOT NULL,
+        actions_json TEXT NOT NULL,
+        context_json TEXT NOT NULL,
+        status TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_club_ai_decision_history_club_date
+        ON club_ai_decision_history(club_id, decision_date);
     `,
   },
 ];

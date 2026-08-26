@@ -5574,6 +5574,26 @@ export class ClubEconomyRepository {
     return row ? mapClubBoardPolicy(row) : undefined;
   }
 
+  upsertAiDecision(decision: ClubAiDecision): void {
+    this.db.prepare(`INSERT INTO club_ai_decision_history
+      (id, club_id, decision_date, season_label, objective, priorities_json, actions_json, context_json, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING`).run(
+      decision.id, decision.clubId, decision.date, decision.seasonLabel, decision.objective,
+      json.stringify(decision.priorities), json.stringify(decision.actions), json.stringify(decision.context), decision.status,
+    );
+  }
+
+  aiDecisions(clubId?: EntityId): ClubAiDecision[] {
+    const rows = (clubId
+      ? this.db.prepare("SELECT * FROM club_ai_decision_history WHERE club_id = ? ORDER BY decision_date, id").all(clubId)
+      : this.db.prepare("SELECT * FROM club_ai_decision_history ORDER BY club_id, decision_date, id").all()) as any[];
+    return rows.map((row) => ({
+      id: row.id, clubId: row.club_id, date: row.decision_date, seasonLabel: row.season_label,
+      objective: row.objective, priorities: json.parse(row.priorities_json, {}), actions: json.parse(row.actions_json, []),
+      context: json.parse(row.context_json, {}), status: row.status,
+    }));
+  }
+
   upsertFinancialStatement(statement: ClubFinancialStatement): void {
     this.db
       .prepare(
