@@ -39,6 +39,7 @@ import {
   type GameDatabase,
 } from "@nepal-football-sim/database";
 import { SeededRandom } from "./rng.js";
+import { adjustForMacro, macroEconomyForCountry } from "./macro-economy.js";
 
 export type ClubFinancialSummary = {
   account: ClubFinancialAccount;
@@ -350,6 +351,8 @@ export const generateSponsorOffers = (
   const sponsors = economy.sponsors();
   const supporter = economy.supporterProfile(input.clubId);
   const commercial = economy.commercialProfile(input.clubId);
+  const clubCountry = db.prepare("SELECT country_id FROM clubs WHERE id = ?").get(input.clubId) as { country_id?: EntityId } | undefined;
+  const macro = clubCountry?.country_id ? macroEconomyForCountry(db, clubCountry.country_id, Number(input.date.slice(0, 4))) : undefined;
   const team = db.prepare(`SELECT t.id FROM teams t WHERE t.club_id = ? AND t.level = 'senior' ORDER BY t.id LIMIT 1`).get(input.clubId) as { id: EntityId } | undefined;
   const standing = team ? db.prepare("SELECT points FROM league_standings WHERE team_id = ? ORDER BY points DESC LIMIT 1").get(team.id) as { points?: number } | undefined : undefined;
   const rng = new SeededRandom(`${input.seed}:sponsor-offers:${input.clubId}:${input.date}`);
@@ -363,8 +366,11 @@ export const generateSponsorOffers = (
       const resultsFactor = 1 + Math.min(0.18, (standing?.points ?? 0) / 500);
       const reputationFactor = (supporter?.footballReputation ?? 5) + (commercial?.brandStrength ?? 4) + (commercial?.digitalReach ?? 3);
       const tierFactor = { LOCAL: 0.65, REGIONAL: 1, NATIONAL: 1.35, PREMIUM: 1.8 }[sponsor.budgetTier];
-      const value =
-        (160000 + audience * 110 + reputationFactor * 70000 + sponsor.reputation * 50000) * tierFactor * resultsFactor + rng.integer(0, 90000);
+      const value = adjustForMacro(
+        (160000 + audience * 110 + reputationFactor * 70000 + sponsor.reputation * 50000) * tierFactor * resultsFactor + rng.integer(0, 90000),
+        macro,
+        "sponsorMarketStrength",
+      );
       const type = (index === 0 ? "SHIRT_MAIN" : index === 1 ? "OFFICIAL_PARTNER" : index === 2 ? "SLEEVE" : "LOCAL_PARTNER") as SponsorshipType;
       const contract: SponsorshipContract = {
         id: createStableEntityId(
@@ -474,7 +480,9 @@ export const createInfrastructureProject = (
   const rng = new SeededRandom(
     `${input.seed}:project:${input.clubId}:${input.projectType}:${input.date}`,
   );
-  const baseCost = projectBaseCost(input.projectType);
+  const clubCountry = db.prepare("SELECT country_id FROM clubs WHERE id = ?").get(input.clubId) as { country_id?: EntityId } | undefined;
+  const macro = clubCountry?.country_id ? macroEconomyForCountry(db, clubCountry.country_id, Number(input.date.slice(0, 4))) : undefined;
+  const baseCost = adjustForMacro(projectBaseCost(input.projectType), macro, "constructionCostIndex");
   const economy = new ClubEconomyRepository(db);
   const prerequisites = projectPrerequisites(input.projectType);
   const completedTypes = new Set(economy.infrastructureProjects(input.clubId).filter((project) => project.status === "COMPLETED").map((project) => project.projectType));
@@ -895,7 +903,9 @@ export const generateCompetitionMediaRightsOffer = (
     return total + (support?.coreSupporters ?? 0) + (support?.diasporaSupport ?? 0) * 1.4 + (commercial?.broadcastAppeal ?? 0) * 120;
   }, 0);
   const rng = new SeededRandom(`${input.seed}:media-offer:${input.competitionSeasonId}`);
-  const annualValue = Math.round(Math.min(4200000, 280000 + audience * 90 + rng.integer(0, 180000)));
+  const firstClubCountry = clubs[0] ? (db.prepare("SELECT country_id FROM clubs WHERE id = ?").get(clubs[0].club_id) as { country_id?: EntityId } | undefined)?.country_id : undefined;
+  const macro = firstClubCountry ? macroEconomyForCountry(db, firstClubCountry, Number(input.date.slice(0, 4))) : undefined;
+  const annualValue = Math.min(4200000, adjustForMacro(280000 + audience * 90 + rng.integer(0, 180000), macro, "broadcastMarketStrength"));
   const rights: CompetitionMediaRights = {
     id: createStableEntityId("competition-media-rights", input.competitionSeasonId),
     competitionSeasonId: input.competitionSeasonId,
