@@ -14,10 +14,10 @@ import {
   type ScoutReportRecommendation,
   type ScoutingAssignment,
   type ScoutingAssignmentPriority,
-  type ScoutingCoverage,
 } from "@nepal-football-sim/shared-types";
 import { RecruitmentRepository, type GameDatabase } from "@nepal-football-sim/database";
 import { SeededRandom } from "./rng.js";
+type ScoutingCoverage = { clubId: EntityId; reachable: boolean; effectiveQuality: number; budgetAvailable: number; rationale: string };
 
 type TruePlayer = {
   playerId: EntityId;
