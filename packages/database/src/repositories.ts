@@ -101,6 +101,8 @@ import type {
   ManagerPromise,
   SquadGroupMembership,
   TeamCohesion,
+  ClubCommercialProfile,
+  CompetitionMediaRights,
   SquadDispute,
   SquadMeeting,
   LeagueStanding,
@@ -4385,6 +4387,27 @@ const mapSponsorOrganisation = (row: any): SponsorOrganisation => ({
   status: row.status,
 });
 
+const mapClubCommercialProfile = (row: any): ClubCommercialProfile => ({
+  clubId: row.club_id,
+  brandStrength: row.brand_strength,
+  digitalReach: row.digital_reach,
+  broadcastAppeal: row.broadcast_appeal,
+  merchandiseAppeal: row.merchandise_appeal,
+  ticketPriceElasticity: row.ticket_price_elasticity,
+  updatedOn: row.updated_on,
+  status: row.status,
+});
+
+const mapCompetitionMediaRights = (row: any): CompetitionMediaRights => ({
+  id: row.id,
+  competitionSeasonId: row.competition_season_id,
+  rightsPartner: row.rights_partner,
+  annualValue: row.annual_value,
+  streamingShare: row.streaming_share,
+  currency: row.currency,
+  status: row.status,
+});
+
 const mapSponsorshipContract = (row: any): SponsorshipContract => ({
   id: row.id,
   clubId: row.club_id,
@@ -5200,6 +5223,39 @@ export class ClubEconomyRepository {
           .all(clubId)
       : this.db.prepare("SELECT * FROM sponsorship_contracts ORDER BY club_id, start_date").all();
     return rows.map(mapSponsorshipContract);
+  }
+
+  upsertCommercialProfile(profile: ClubCommercialProfile): void {
+    this.db.prepare(`INSERT INTO club_commercial_profiles
+      (club_id, brand_strength, digital_reach, broadcast_appeal, merchandise_appeal, ticket_price_elasticity, updated_on, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(club_id) DO UPDATE SET brand_strength=excluded.brand_strength, digital_reach=excluded.digital_reach,
+      broadcast_appeal=excluded.broadcast_appeal, merchandise_appeal=excluded.merchandise_appeal,
+      ticket_price_elasticity=excluded.ticket_price_elasticity, updated_on=excluded.updated_on, status=excluded.status`).run(
+      profile.clubId, profile.brandStrength, profile.digitalReach, profile.broadcastAppeal, profile.merchandiseAppeal,
+      profile.ticketPriceElasticity, profile.updatedOn, profile.status);
+  }
+
+  commercialProfile(clubId: EntityId): ClubCommercialProfile | undefined {
+    const row = this.db.prepare("SELECT * FROM club_commercial_profiles WHERE club_id = ?").get(clubId) as any;
+    return row ? mapClubCommercialProfile(row) : undefined;
+  }
+
+  upsertMediaRights(rights: CompetitionMediaRights): void {
+    this.db.prepare(`INSERT INTO competition_media_rights
+      (id, competition_season_id, rights_partner, annual_value, streaming_share, currency, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(competition_season_id) DO UPDATE SET rights_partner=excluded.rights_partner,
+      annual_value=excluded.annual_value, streaming_share=excluded.streaming_share, currency=excluded.currency, status=excluded.status`).run(
+      rights.id, rights.competitionSeasonId, rights.rightsPartner, rights.annualValue, rights.streamingShare,
+      rights.currency, rights.status);
+  }
+
+  mediaRights(competitionSeasonId?: EntityId): CompetitionMediaRights[] {
+    const rows = competitionSeasonId
+      ? this.db.prepare("SELECT * FROM competition_media_rights WHERE competition_season_id = ?").all(competitionSeasonId)
+      : this.db.prepare("SELECT * FROM competition_media_rights ORDER BY competition_season_id").all();
+    return rows.map(mapCompetitionMediaRights);
   }
 
   updateSponsorshipStatus(id: EntityId, status: SponsorshipContract["status"]): void {

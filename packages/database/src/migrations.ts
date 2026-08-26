@@ -2430,6 +2430,31 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
         ON squad_meetings(team_id, type, person_id, occurred_on);
     `,
   },
+  {
+    version: 28,
+    sql: `
+      CREATE TABLE IF NOT EXISTS club_commercial_profiles (
+        club_id TEXT PRIMARY KEY REFERENCES clubs(id),
+        brand_strength REAL NOT NULL,
+        digital_reach REAL NOT NULL,
+        broadcast_appeal REAL NOT NULL,
+        merchandise_appeal REAL NOT NULL,
+        ticket_price_elasticity REAL NOT NULL,
+        updated_on TEXT NOT NULL,
+        status TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS competition_media_rights (
+        id TEXT PRIMARY KEY,
+        competition_season_id TEXT NOT NULL REFERENCES competition_seasons(id),
+        rights_partner TEXT NOT NULL,
+        annual_value INTEGER NOT NULL,
+        streaming_share REAL NOT NULL,
+        currency TEXT NOT NULL,
+        status TEXT NOT NULL,
+        UNIQUE(competition_season_id)
+      );
+    `,
+  },
 ];
 
 export const migrateDatabase = (db: GameDatabase): number => {

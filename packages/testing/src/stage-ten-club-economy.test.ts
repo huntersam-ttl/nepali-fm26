@@ -18,8 +18,10 @@ import {
   getClubFinancialSummary,
   initializeClubEconomyForSave,
   initializeTransferMarketForSave,
+  postCompetitionMediaRights,
   runChairmanDemo,
   runEconomyDiagnostic,
+  setClubTicketPrice,
   simulateNepalCareer,
 } from "@nepal-football-sim/simulation";
 
@@ -210,6 +212,21 @@ describe("club economy and chairman foundation", () => {
     expect(stripVolatile(firstReport)).toEqual(stripVolatile(secondReport));
     first.close();
     second.close();
+  });
+
+  it("persists commercial profiles, ticket pricing and competition media rights deterministically", () => {
+    const first = openGameDatabase(createSave("commercial-phase-a"));
+    initializeClubEconomyForSave({ db: first, worldDate: "2026-08-01", seed: "commercial-phase-a" });
+    const clubId = clubIdByName(first, "Machhindra FC");
+    const season = first.prepare("SELECT competition_season_id AS id FROM club_memberships WHERE status = 'ACTIVE' ORDER BY competition_season_id LIMIT 1").get() as { id: EntityId };
+    const profile = new ClubEconomyRepository(first).commercialProfile(clubId)!;
+    expect(profile.brandStrength).toBeGreaterThan(0);
+    setClubTicketPrice(first, clubId, 375);
+    const rights = postCompetitionMediaRights(first, { competitionSeasonId: season.id, date: "2026-08-01", seed: "commercial-phase-a" });
+    expect(new ClubEconomyRepository(first).supporterProfile(clubId)?.standardTicketPrice).toBe(375);
+    expect(new ClubEconomyRepository(first).mediaRights(season.id)[0]).toEqual(rights);
+    expect(new ClubEconomyRepository(first).ledgerEntries().some((entry) => entry.category === "BROADCASTING")).toBe(true);
+    first.close();
   });
 });
 

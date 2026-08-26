@@ -1833,6 +1833,27 @@ export type SponsorOrganisation = {
   status: "SIMULATION_ONLY" | "VERIFIED" | "REPORTED" | "ESTIMATED" | "UNKNOWN";
 };
 
+export type ClubCommercialProfile = {
+  clubId: EntityId;
+  brandStrength: number;
+  digitalReach: number;
+  broadcastAppeal: number;
+  merchandiseAppeal: number;
+  ticketPriceElasticity: number;
+  updatedOn: ISODate;
+  status: "SIMULATION_ONLY" | "VERIFIED" | "REPORTED" | "ESTIMATED" | "UNKNOWN";
+};
+
+export type CompetitionMediaRights = {
+  id: EntityId;
+  competitionSeasonId: EntityId;
+  rightsPartner: string;
+  annualValue: number;
+  streamingShare: number;
+  currency: string;
+  status: "SIMULATION_ONLY" | "VERIFIED" | "REPORTED" | "ESTIMATED" | "UNKNOWN";
+};
+
 export type SponsorshipType =
   | "SHIRT_MAIN"
   | "SHIRT_SECONDARY"

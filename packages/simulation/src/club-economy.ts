@@ -16,6 +16,8 @@ import {
   type ClubOwnershipModel,
   type ClubOwnershipStake,
   type ClubSupporterProfile,
+  type ClubCommercialProfile,
+  type CompetitionMediaRights,
   type ClubValuation,
   type EntityId,
   type FixtureRecord,
@@ -118,6 +120,7 @@ export const initializeClubEconomyForSave = (input: {
     }
     economy.upsertOwnershipStake(generatedOwnershipStake(club, input.worldDate));
     economy.upsertSupporterProfile(generatedSupporterProfile(club, profile, input.seed));
+    economy.upsertCommercialProfile(generatedCommercialProfile(club, profile, input.seed, input.worldDate));
     economy.upsertFacilityProfile(generatedFacilityProfile(club, profile, input.seed));
     economy.upsertBoardPolicy(generatedBoardPolicy(club, input.worldDate));
     economy.upsertValuation(calculateClubValuation(input.db, club.id, input.worldDate));
@@ -169,6 +172,15 @@ export const getClubFinancialSummary = (
     valuation: economy.valuation(clubId),
     ledgerEntries: economy.ledgerEntries(clubId),
   };
+};
+
+export const setClubTicketPrice = (db: GameDatabase, clubId: EntityId, price: number): ClubSupporterProfile => {
+  const economy = new ClubEconomyRepository(db);
+  const profile = economy.supporterProfile(clubId);
+  if (!profile) throw new Error(`Supporter profile is not initialized for club ${clubId}`);
+  const updated = { ...profile, standardTicketPrice: Math.max(1, Math.round(price)) };
+  economy.upsertSupporterProfile(updated);
+  return updated;
 };
 
 export const postClubTransaction = (
@@ -567,15 +579,20 @@ export const postMatchdayEconomy = (
   if (!homeClubId || !awayClubId) return undefined;
   const homeSupport = new ClubEconomyRepository(db).supporterProfile(homeClubId);
   const awaySupport = new ClubEconomyRepository(db).supporterProfile(awayClubId);
+  const homeCommercial = new ClubEconomyRepository(db).commercialProfile(homeClubId);
+  const awayCommercial = new ClubEconomyRepository(db).commercialProfile(awayClubId);
   const rng = new SeededRandom(`${seed}:matchday:${fixture.id}`);
   const capacity = venueCapacity(db, fixture.venueId) ?? 4000;
+  const fixtureImportance = fixture.round <= 2 || fixture.round >= 20 ? 1.12 : 1;
+  const reputationFactor = 1 + ((homeSupport?.footballReputation ?? 5) + (awaySupport?.footballReputation ?? 5)) / 100;
+  const audienceFactor = 1 + ((homeSupport?.diasporaSupport ?? 0) / Math.max(1, homeSupport?.coreSupporters ?? 1)) * 0.08 + ((homeCommercial?.digitalReach ?? 0) + (awayCommercial?.digitalReach ?? 0)) / 100;
   const baseDemand =
     (homeSupport?.coreSupporters ?? 800) * 0.18 +
     (homeSupport?.casualSupporters ?? 1000) * 0.04 +
     (awaySupport?.coreSupporters ?? 600) * 0.04;
   const attendance = Math.max(
     120,
-    Math.min(capacity, Math.round(baseDemand * (0.8 + rng.next() * 0.4))),
+    Math.min(capacity, Math.round(baseDemand * fixtureImportance * reputationFactor * audienceFactor * (0.8 + rng.next() * 0.4))),
   );
   const ticketPrice = homeSupport?.standardTicketPrice ?? 250;
   const gross = attendance * ticketPrice;
@@ -682,6 +699,36 @@ export const processClubEconomyMonth = (
     }
   }
   advanceInfrastructureProjects(db, input);
+};
+
+export const postCompetitionMediaRights = (
+  db: GameDatabase,
+  input: { competitionSeasonId: EntityId; date: string; seed: string },
+): CompetitionMediaRights => {
+  const economy = new ClubEconomyRepository(db);
+  const existing = economy.mediaRights(input.competitionSeasonId)[0];
+  if (existing) return existing;
+  const season = db.prepare(`SELECT c.name FROM competition_seasons cs JOIN competitions c ON c.id = cs.competition_id WHERE cs.id = ?`).get(input.competitionSeasonId) as { name?: string } | undefined;
+  const name = season?.name ?? "Domestic competition";
+  const annualValue = Math.round((name.toLowerCase().includes("a") ? 1800000 : 900000) + new SeededRandom(`${input.seed}:media:${input.competitionSeasonId}`).integer(0, 400000));
+  const rights: CompetitionMediaRights = {
+    id: createStableEntityId("competition-media-rights", input.competitionSeasonId),
+    competitionSeasonId: input.competitionSeasonId,
+    rightsPartner: name.toLowerCase().includes("league") ? "Nepal Football Broadcast Network" : "Nepal Football Streaming Pool",
+    annualValue,
+    streamingShare: 0.35,
+    currency,
+    status: simulationStatus,
+  };
+  economy.upsertMediaRights(rights);
+  const clubs = db.prepare("SELECT club_id FROM club_memberships WHERE competition_season_id = ? AND status = 'ACTIVE' ORDER BY club_id").all(input.competitionSeasonId) as Array<{ club_id: EntityId }>;
+  const share = clubs.length ? Math.round(annualValue / clubs.length) : 0;
+  for (const club of clubs) {
+    const clubId = club.club_id;
+    if (share <= 0) continue;
+    postClubTransaction(db, { clubId, date: input.date, category: "BROADCASTING", direction: "CREDIT", amount: share, description: `${name} media-rights distribution`, relatedEntityId: rights.id, idempotencyKey: `media-rights:${rights.id}:${clubId}` });
+  }
+  return rights;
 };
 
 export const postCompetitionPrizeMoney = (
@@ -1020,6 +1067,26 @@ const generatedSupporterProfile = (
     sentiment: "NEUTRAL",
     standardTicketPrice: Math.round((180 + rng.integer(0, 120)) * profile.scale),
     currency,
+    status: simulationStatus,
+  };
+};
+
+const generatedCommercialProfile = (
+  club: Club,
+  profile: ReturnType<typeof generatedClubEconomy>,
+  seed: string,
+  date: string,
+): ClubCommercialProfile => {
+  const rng = new SeededRandom(`${seed}:commercial:${club.id}`);
+  const brandStrength = round(2.5 + profile.scale * 1.5 + rng.next() * 2.5);
+  return {
+    clubId: club.id,
+    brandStrength,
+    digitalReach: round(1.5 + brandStrength * 0.7 + rng.next() * 2),
+    broadcastAppeal: round(1.5 + brandStrength * 0.6 + rng.next() * 2),
+    merchandiseAppeal: round(1.5 + brandStrength * 0.65 + rng.next() * 2),
+    ticketPriceElasticity: round(0.7 + rng.next() * 0.5),
+    updatedOn: date,
     status: simulationStatus,
   };
 };
