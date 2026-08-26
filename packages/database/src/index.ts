@@ -21,3 +21,4 @@ export * from "./media-rights-repository.js";
 export * from "./commercial-rights-repository.js";
 export * from "./competition-distribution-repository.js";
 export * from "./referee-development-repository.js";
+export * from "./insurance-repository.js";

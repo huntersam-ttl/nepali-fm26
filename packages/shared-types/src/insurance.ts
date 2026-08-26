@@ -1,0 +1,6 @@
+import type { EntityId } from "./ids.js";
+
+export type InsuranceOwnerType = "CLUB" | "FEDERATION";
+export type InsurancePolicy = { id: EntityId; ownerType: InsuranceOwnerType; ownerId: EntityId; insurerId: EntityId; coverage: { matchInjury: boolean; trainingInjury: boolean; rehabilitation: boolean; majorTreatment: boolean; travel: boolean; nationalTeamDuty: boolean; careerEnding: boolean }; premium: number; deductible: number; coverageCap: number; startDate: string; endDate: string; status: "QUOTED" | "NEGOTIATED" | "ACTIVE" | "EXPIRED" | "RENEWED" | "CANCELLED"; provenanceStatus: "SIMULATION_ONLY" };
+export type InsurerProfile = { id: EntityId; name: string; financialStrength: number; reliability: number; premiumLevel: number; coverageQuality: number; exclusions: string[]; claimReputation: number; provenanceStatus: "SIMULATION_ONLY" };
+export type InsuranceClaim = { id: EntityId; policyId: EntityId; injuryId: EntityId; personId: EntityId; eventType: "MATCH_INJURY" | "TRAINING_INJURY" | "REHABILITATION" | "MAJOR_TREATMENT" | "TRAVEL" | "NATIONAL_TEAM_DUTY" | "CAREER_ENDING"; incurredCost: number; eligibleAmount: number; status: "OPENED" | "REVIEWED" | "APPROVED" | "PARTIALLY_APPROVED" | "REJECTED" | "PAID"; openedOn: string; reviewedOn?: string; paidOn?: string; decisionReason?: string; ledgerEntryId?: EntityId; provenanceStatus: "SIMULATION_ONLY" };
