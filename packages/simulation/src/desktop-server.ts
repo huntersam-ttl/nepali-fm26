@@ -6,6 +6,7 @@ import type {
   AdvanceMatchCommand,
   ConcernResponseAction,
   ContractRenewalCommand,
+  SquadMeetingCommand,
   EntityId,
   LiveTacticsCommand,
   RecruitmentSearchCommand,
@@ -163,6 +164,8 @@ const dispatch = (
       return service.getSquadConcerns();
     case "respondToConcern":
       return service.respondToConcern(body as { concernId: EntityId; action: ConcernResponseAction });
+    case "holdSquadMeeting":
+      return service.holdSquadMeeting(body.command as SquadMeetingCommand);
     case "getPlayerProfile":
       return service.getPlayerProfile(body.playerId as EntityId);
     case "getTactics":

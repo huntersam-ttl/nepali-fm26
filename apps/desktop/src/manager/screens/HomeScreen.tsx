@@ -50,6 +50,23 @@ const groupLabel = (groupType: string): string => {
   }
 };
 
+const meetingTypeLabel = (type: string): string => {
+  switch (type) {
+    case "ONE_TO_ONE":
+      return "One-to-one";
+    case "MEDIATE_DISPUTE":
+      return "Mediation";
+    case "ADDRESS_MANAGER_DISPUTE":
+      return "Cleared the air";
+    case "CAPTAIN_CONSULTATION":
+      return "Captain consultation";
+    case "SQUAD_MEETING":
+      return "Squad meeting";
+    default:
+      return type;
+  }
+};
+
 export const HomeScreen = ({
   onContinue,
   busy,
@@ -297,6 +314,109 @@ export const HomeScreen = ({
                           );
                         })}
                       </ul>
+
+                      <div className="button-row">
+                        <button
+                          className="ghost small"
+                          disabled={actionBusy !== null}
+                          onClick={() =>
+                            void runAction("meeting-captain", async () => {
+                              const result = await managerBridge.holdSquadMeeting({
+                                type: "CAPTAIN_CONSULTATION",
+                              });
+                              if (result.ok) refreshConcerns();
+                              return result;
+                            })
+                          }
+                        >
+                          {actionBusy === "meeting-captain" ? "…" : "Consult captain"}
+                        </button>
+                        <button
+                          className="ghost small"
+                          disabled={actionBusy !== null}
+                          onClick={() =>
+                            void runAction("meeting-squad", async () => {
+                              const result = await managerBridge.holdSquadMeeting({ type: "SQUAD_MEETING" });
+                              if (result.ok) refreshConcerns();
+                              return result;
+                            })
+                          }
+                        >
+                          {actionBusy === "meeting-squad" ? "…" : "Hold squad meeting"}
+                        </button>
+                      </div>
+
+                      {view.disputes.length > 0 && (
+                        <>
+                          <h3>Open disputes</h3>
+                          <ul className="report-list">
+                            {view.disputes.map((dispute) => (
+                              <li key={dispute.id}>
+                                {dispute.kind === "PLAYER_VS_PLAYER" ? (
+                                  <>
+                                    <strong>{dispute.playerName}</strong> vs{" "}
+                                    <strong>{dispute.withPlayerName}</strong>
+                                  </>
+                                ) : (
+                                  <strong>{dispute.playerName}</strong>
+                                )}{" "}
+                                <span className="subtle">({concernLabel(dispute.concernType)})</span>
+                                <div className="button-row">
+                                  <button
+                                    className="ghost small"
+                                    disabled={actionBusy !== null}
+                                    onClick={() =>
+                                      void runAction(`meeting-dispute-${dispute.id}`, async () => {
+                                        const result = await managerBridge.holdSquadMeeting({
+                                          type:
+                                            dispute.kind === "PLAYER_VS_PLAYER"
+                                              ? "MEDIATE_DISPUTE"
+                                              : "ADDRESS_MANAGER_DISPUTE",
+                                          disputeId: dispute.kind === "PLAYER_VS_PLAYER" ? dispute.id : undefined,
+                                          personId: dispute.kind === "PLAYER_VS_MANAGER" ? dispute.personId : undefined,
+                                        });
+                                        if (result.ok) refreshConcerns();
+                                        return result;
+                                      })
+                                    }
+                                  >
+                                    {actionBusy === `meeting-dispute-${dispute.id}`
+                                      ? "…"
+                                      : dispute.kind === "PLAYER_VS_PLAYER"
+                                        ? "Mediate"
+                                        : "Address"}
+                                  </button>
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        </>
+                      )}
+
+                      {view.meetings.length > 0 && (
+                        <>
+                          <h3>Recent meetings</h3>
+                          <ul className="report-list">
+                            {view.meetings.slice(0, 5).map((meeting) => (
+                              <li key={meeting.id}>
+                                {meeting.occurredOn} · {meetingTypeLabel(meeting.type)} ·{" "}
+                                <Badge
+                                  tone={
+                                    meeting.outcome === "POSITIVE"
+                                      ? "ok"
+                                      : meeting.outcome === "NEUTRAL"
+                                        ? "info"
+                                        : "bad"
+                                  }
+                                >
+                                  {meeting.outcome}
+                                </Badge>
+                                <div className="subtle">{meeting.summary}</div>
+                              </li>
+                            ))}
+                          </ul>
+                        </>
+                      )}
                     </>
                   )}
                 </AsyncPanel>

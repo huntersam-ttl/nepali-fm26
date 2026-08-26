@@ -795,10 +795,11 @@ const recordMeeting = (
     ...extra,
   };
   new SquadDynamicsRepository(db).insertMeeting(meeting);
-  logEvent(db, extra.personId ?? managerProfileId, teamId, managerProfileId, "MEETING_HELD", worldDate, {
-    type,
-    outcome,
-  });
+  // Team-wide meetings (no single subject player) aren't attached to any
+  // one person's history — the squad_meetings row already records them.
+  if (extra.personId) {
+    logEvent(db, extra.personId, teamId, managerProfileId, "MEETING_HELD", worldDate, { type, outcome });
+  }
   return meeting;
 };
 

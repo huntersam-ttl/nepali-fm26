@@ -157,6 +157,15 @@ export const ensureAiManagersAssigned = (
   const world = new WorldRepository(db);
   let countryId: EntityId | undefined;
 
+  // The player is never a candidate for the AI free-agent pool — being
+  // unemployed must never silently auto-hire them at some other club.
+  const playerCharacter = save.playerCharacterId
+    ? world.getCareerCharacter(save.playerCharacterId)
+    : undefined;
+  const playerManagerProfileId = playerCharacter
+    ? managers.getProfileByPerson(playerCharacter.personId)?.id
+    : undefined;
+
   for (const team of teams) {
     if (team.id === playerTeamId) continue;
     if (managers.activeContractForTeam(team.id)) continue;
@@ -168,7 +177,9 @@ export const ensureAiManagersAssigned = (
       continue;
     }
 
-    const freeAgent = managers.unemployedManagerProfiles()[0];
+    const freeAgent = managers
+      .unemployedManagerProfiles()
+      .find((profile) => profile.id !== playerManagerProfileId);
     let personId: EntityId;
     let profileId: EntityId;
     if (freeAgent) {

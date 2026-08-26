@@ -783,7 +783,9 @@ export class DesktopApplicationService {
       try {
         outcome = respondToConcernCommand(db, save, context.manager.id, command.concernId, command.action).outcome;
       } catch (error) {
-        if (error instanceof ConcernActionError) throw appError("INVALID_SELECTION", error.message);
+        if (error instanceof ConcernActionError || error instanceof MeetingActionError) {
+          throw appError("INVALID_SELECTION", error.message);
+        }
         throw error;
       }
       return { outcome, squad: buildSquadDynamicsView(db, context.team.id) };
