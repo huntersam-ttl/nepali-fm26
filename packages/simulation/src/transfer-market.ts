@@ -1,6 +1,8 @@
 import {
   createStableEntityId,
+  type AgentApproachRecord,
   type AgentProfile,
+  type AgentNetworkScope,
   type ClubEmploymentModel,
   type ClubEmploymentProfile,
   type ClubFinancialProfile,
@@ -362,6 +364,7 @@ export const createTransferOffer = (
       requestedBy: "BUYING_CLUB",
     }),
   );
+  const representative = new TransferMarketRepository(db).agentForPlayer(input.playerId);
   const offer: TransferOffer = {
     id: createStableEntityId(
       "transfer-offer",
@@ -380,7 +383,7 @@ export const createTransferOffer = (
     status: "SUBMITTED",
     currency,
     askingRange: input.sellingClubId ? valuation.askingRange : undefined,
-    agentFee: Math.round(fee * 0.04),
+    agentFee: representative ? Math.round(fee * (0.025 + representative.feeExpectation / 500)) : 0,
     signingFee: Math.round(fee * 0.08),
     buyerPerceivedValue: valuation.scoutEstimate,
     sellerInternalValue: valuation.internalValue,
@@ -693,6 +696,177 @@ export const calculateTransferPackageValue = (offer: TransferOffer): number =>
       ),
   );
 
+export type AgentInterestAssessment = {
+  playerId: EntityId;
+  score: number;
+  shouldApproach: boolean;
+  recommendedNetwork: AgentNetworkScope;
+  factors: {
+    clubLevel: number;
+    reputation: number;
+    seniorCallups: number;
+    seniorAppearances: number;
+    youthInternationalExposure: number;
+    foreignInterest: number;
+    foreignBased: number;
+    potentialAge: number;
+    marketActivity: number;
+    playerAmbition: number;
+  };
+};
+
+export const assessAgentInterest = (
+  db: GameDatabase,
+  input: {
+    playerId: EntityId;
+    worldDate: string;
+    foreignInterest?: boolean;
+    foreignBased?: boolean;
+    youthInternationalExposure?: boolean;
+    competitionExposure?: "NONE" | "SAFF" | "ASIAN_CUP" | "FOREIGN_MOVE";
+    playerAmbition?: number;
+  },
+): AgentInterestAssessment => {
+  const player = marketPlayer(db, input.playerId);
+  const market = new TransferMarketRepository(db);
+  const contract = market.activeContract(input.playerId, input.worldDate);
+  const club = contract?.clubId
+    ? marketClubs(db).find((item) => item.id === contract.clubId)
+    : undefined;
+  const clubLevel = club ? Math.round(clubSalaryMultiplier(club) * 12) : 3;
+  const seniorCallups = seniorCallupCount(db, input.playerId, input.worldDate);
+  const seniorAppearances = seniorAppearanceCount(db, input.playerId, input.worldDate);
+  const youthInternationalExposure =
+    input.youthInternationalExposure || youthCallupCount(db, input.playerId, input.worldDate) > 0
+      ? 1
+      : 0;
+  const foreignInterest =
+    input.foreignInterest || foreignInterestCount(db, input.playerId, input.worldDate) > 0 ? 1 : 0;
+  const foreignBased = input.foreignBased || isForeignBased(db, player?.currentClubId) ? 1 : 0;
+  const marketActivity = Math.min(
+    12,
+    market.transferOffers().filter((offer) => offer.playerId === input.playerId).length * 3,
+  );
+  const playerAmbition =
+    input.playerAmbition ?? 4 + (Math.abs(hashCode(String(input.playerId))) % 9);
+  const potentialAge =
+    (player?.age ?? 25) <= 23 ? Math.max(0, (player?.potentialAbility ?? 8) - 7) * 1.8 : 0;
+  const competitionBoost =
+    input.competitionExposure === "FOREIGN_MOVE"
+      ? 16
+      : input.competitionExposure === "ASIAN_CUP"
+        ? 13
+        : input.competitionExposure === "SAFF"
+          ? 8
+          : 0;
+  const score =
+    clubLevel +
+    (player?.reputation ?? 4) * 0.45 +
+    seniorCallups * 18 +
+    seniorAppearances * 5 +
+    youthInternationalExposure * 7 +
+    foreignInterest * 16 +
+    foreignBased * 24 +
+    potentialAge +
+    marketActivity +
+    playerAmbition * 1.6 +
+    competitionBoost;
+  const recommendedNetwork = recommendedAgentNetwork({
+    score,
+    seniorAppearances,
+    foreignInterest,
+    foreignBased,
+    competitionExposure: input.competitionExposure,
+  });
+  return {
+    playerId: input.playerId,
+    score,
+    shouldApproach: score >= 52,
+    recommendedNetwork,
+    factors: {
+      clubLevel,
+      reputation: player?.reputation ?? 4,
+      seniorCallups,
+      seniorAppearances,
+      youthInternationalExposure,
+      foreignInterest,
+      foreignBased,
+      potentialAge,
+      marketActivity,
+      playerAmbition,
+    },
+  };
+};
+
+export const processAgentRepresentation = (
+  db: GameDatabase,
+  input: {
+    playerId: EntityId;
+    worldDate: string;
+    seed: string;
+    trigger: AgentApproachRecord["trigger"];
+    decision?: AgentApproachRecord["decision"];
+    foreignInterest?: boolean;
+    foreignBased?: boolean;
+    youthInternationalExposure?: boolean;
+    competitionExposure?: "NONE" | "SAFF" | "ASIAN_CUP" | "FOREIGN_MOVE";
+    playerAmbition?: number;
+  },
+): AgentApproachRecord | undefined => {
+  const market = new TransferMarketRepository(db);
+  const assessment = assessAgentInterest(db, input);
+  if (!assessment.shouldApproach) {
+    return undefined;
+  }
+  const currentAgent = market.agentForPlayer(input.playerId);
+  const agent = selectAgentForPlayer(
+    db,
+    assessment.recommendedNetwork,
+    input.seed,
+    currentAgent?.id,
+  );
+  if (!agent) {
+    return undefined;
+  }
+  const rng = new SeededRandom(`${input.seed}:agent-decision:${input.playerId}:${agent.id}`);
+  const decision =
+    input.decision ??
+    (assessment.score +
+      agent.reputation +
+      agent.negotiationSkill -
+      agent.feeExpectation +
+      rng.next() * 18 >
+    76
+      ? "SIGNED"
+      : "DECLINED");
+  const approach: AgentApproachRecord = {
+    id: createStableEntityId(
+      "agent-approach",
+      `${agent.id}:${input.playerId}:${input.worldDate}:${input.trigger}`,
+    ),
+    agentId: agent.id,
+    playerId: input.playerId,
+    approachedAt: input.worldDate,
+    trigger: input.trigger,
+    interestScore: Math.round(assessment.score * 100) / 100,
+    networkScope: agent.networkScope,
+    decision,
+    decidedAt: decision === "APPROACHED" ? undefined : input.worldDate,
+  };
+  market.insertAgentApproach(approach);
+  if (decision === "SIGNED") {
+    market.endActiveAgentClient(input.playerId);
+    market.upsertAgentClient({
+      id: createStableEntityId("agent-client", `${agent.id}:${input.playerId}:${input.worldDate}`),
+      agentId: agent.id,
+      playerId: input.playerId,
+      startedAt: input.worldDate,
+      status: "ACTIVE",
+    });
+  }
+  return approach;
+};
+
 export const negotiatePlayerContract = (
   db: GameDatabase,
   offer: TransferOffer,
@@ -703,10 +877,17 @@ export const negotiatePlayerContract = (
   const agent = new TransferMarketRepository(db).agentForPlayer(offer.playerId);
   const current = new TransferMarketRepository(db).activeContract(offer.playerId, worldDate);
   const rng = new SeededRandom(`${seed}:player-negotiation:${offer.id}`);
+  const representationMultiplier = agent
+    ? 1.04 + agent.negotiationSkill / 220 + agent.aggressiveness / 260
+    : 0.94;
+  const currentSalaryFloor = agent
+    ? Math.round((current?.salary ?? 0) * 1.03)
+    : (current?.salary ?? 0);
   const salary = Math.max(
-    current?.salary ?? 0,
+    currentSalaryFloor,
     Math.round(
       ((player?.currentAbility ?? 7) * 18000 + (agent?.feeExpectation ?? 8) * 2500) *
+        representationMultiplier *
         (1 + rng.next() * 0.12),
     ),
   );
@@ -722,9 +903,11 @@ export const negotiatePlayerContract = (
     salary,
     squadRole: role,
     contractLengthMonths: length,
-    agentFee: offer.agentFee,
+    agentFee: agent ? offer.agentFee : 0,
     signingFee: offer.signingFee,
-    message: `${agent?.negotiationStyle ?? "BALANCED"} agent seeks role and fee guarantees`,
+    message: agent
+      ? `${agent.negotiationStyle} ${agent.networkScope} agent seeks role and fee guarantees`
+      : "Self-represented player negotiates direct salary and signing terms",
     createdAt: worldDate,
   });
   market.insertNegotiationRound({
@@ -736,7 +919,7 @@ export const negotiatePlayerContract = (
     salary,
     squadRole: role,
     contractLengthMonths: length,
-    agentFee: offer.agentFee,
+    agentFee: agent ? offer.agentFee : 0,
     signingFee: offer.signingFee,
     message: "Buying club accepts within wage budget envelope",
     createdAt: worldDate,
@@ -1225,30 +1408,27 @@ const seedAgents = (db: GameDatabase, seed: string, worldDate: string): void => 
         "LOYAL",
         "CAREER_FIRST",
       ];
+      const networkScopes: AgentNetworkScope[] = [
+        "NEPAL_DOMESTIC",
+        "SOUTH_ASIA",
+        "WIDER_ASIA",
+        "EUROPE_GLOBAL",
+      ];
+      const networkScope = networkScopes[index % networkScopes.length]!;
       market.upsertAgent({
         id: createStableEntityId("agent", personId),
         personId,
-        agencyName: index % 2 === 0 ? `Kathmandu Football Advisory ${index + 1}` : undefined,
+        agencyName: agencyNameForNetwork(networkScope, index),
         reputation: 5 + Math.floor(rng.next() * 11),
+        negotiationSkill: 6 + Math.floor(rng.next() * 12),
         negotiationStyle: styles[index % styles.length]!,
         aggressiveness: 5 + Math.floor(rng.next() * 11),
         loyaltyPreference: 5 + Math.floor(rng.next() * 11),
         feeExpectation: 5 + Math.floor(rng.next() * 11),
         careerAmbition: 5 + Math.floor(rng.next() * 11),
+        networkScope,
+        preferredMarkets: preferredMarketsForNetwork(networkScope),
         status: "SIMULATION_ONLY",
-      });
-    }
-  }
-  const agents = market.agents();
-  for (const player of marketPlayers(db)) {
-    const agent = agents[Math.abs(hashCode(String(player.playerId))) % agents.length];
-    if (agent) {
-      market.upsertAgentClient({
-        id: createStableEntityId("agent-client", `${agent.id}:${player.playerId}`),
-        agentId: agent.id,
-        playerId: player.playerId,
-        startedAt: worldDate,
-        status: "ACTIVE",
       });
     }
   }
@@ -1622,6 +1802,148 @@ const buildPlayerExchange = (
     valuation: valuation.scoutEstimate,
     requestedBy: input.requestedBy,
   };
+};
+
+const agentNetworkRank = (scope: AgentNetworkScope): number =>
+  ({
+    NEPAL_DOMESTIC: 1,
+    SOUTH_ASIA: 2,
+    WIDER_ASIA: 3,
+    EUROPE_GLOBAL: 4,
+  })[scope];
+
+const preferredMarketsForNetwork = (scope: AgentNetworkScope): string[] =>
+  ({
+    NEPAL_DOMESTIC: ["NP"],
+    SOUTH_ASIA: ["NP", "IN", "BD", "BT", "LK"],
+    WIDER_ASIA: ["NP", "IN", "BD", "TH", "MY", "JP", "KR"],
+    EUROPE_GLOBAL: ["NP", "IN", "JP", "KR", "GB", "DE", "ES", "PT"],
+  })[scope];
+
+const agencyNameForNetwork = (scope: AgentNetworkScope, index: number): string => {
+  const names: Record<AgentNetworkScope, string> = {
+    NEPAL_DOMESTIC: "Kathmandu Football Advisory",
+    SOUTH_ASIA: "South Asia Sports Counsel",
+    WIDER_ASIA: "AFC Pathway Management",
+    EUROPE_GLOBAL: "Global Football Partners",
+  };
+  return `${names[scope]} ${index + 1}`;
+};
+
+const recommendedAgentNetwork = (input: {
+  score: number;
+  seniorAppearances: number;
+  foreignInterest: number;
+  foreignBased: number;
+  competitionExposure?: "NONE" | "SAFF" | "ASIAN_CUP" | "FOREIGN_MOVE";
+}): AgentNetworkScope => {
+  if (
+    input.foreignBased ||
+    input.competitionExposure === "FOREIGN_MOVE" ||
+    (input.foreignInterest && input.score >= 78)
+  ) {
+    return "EUROPE_GLOBAL";
+  }
+  if (input.competitionExposure === "ASIAN_CUP" || input.seniorAppearances >= 5) {
+    return "WIDER_ASIA";
+  }
+  if (
+    input.foreignInterest ||
+    input.competitionExposure === "SAFF" ||
+    input.seniorAppearances > 0
+  ) {
+    return "SOUTH_ASIA";
+  }
+  return "NEPAL_DOMESTIC";
+};
+
+const selectAgentForPlayer = (
+  db: GameDatabase,
+  minimumNetwork: AgentNetworkScope,
+  seed: string,
+  excludedAgentId?: EntityId,
+): AgentProfile | undefined => {
+  const agents = new TransferMarketRepository(db)
+    .agents()
+    .filter((agent) => agent.id !== excludedAgentId)
+    .filter((agent) => agentNetworkRank(agent.networkScope) >= agentNetworkRank(minimumNetwork))
+    .sort(
+      (a, b) =>
+        b.reputation +
+          b.negotiationSkill / 2 -
+          b.feeExpectation -
+          (a.reputation + a.negotiationSkill / 2 - a.feeExpectation) ||
+        String(a.id).localeCompare(String(b.id)),
+    );
+  if (agents.length === 0) return undefined;
+  const rng = new SeededRandom(`${seed}:agent-selection:${minimumNetwork}`);
+  return agents[Math.floor(rng.next() * Math.min(agents.length, 2))];
+};
+
+const seniorCallupCount = (db: GameDatabase, playerId: EntityId, worldDate: string): number =>
+  (
+    db
+      .prepare(
+        `SELECT COUNT(*) AS count
+        FROM national_team_callups ntc
+        JOIN teams t ON t.id = ntc.national_team_id
+        WHERE ntc.player_id = ? AND ntc.callup_date <= ?
+          AND t.level = 'senior' AND ntc.status = 'CALLED_UP'`,
+      )
+      .get(playerId, worldDate) as { count: number }
+  ).count;
+
+const youthCallupCount = (db: GameDatabase, playerId: EntityId, worldDate: string): number =>
+  (
+    db
+      .prepare(
+        `SELECT COUNT(*) AS count
+        FROM national_team_callups ntc
+        JOIN teams t ON t.id = ntc.national_team_id
+        WHERE ntc.player_id = ? AND ntc.callup_date <= ?
+          AND t.level IN ('u23', 'u20', 'u17') AND ntc.status = 'CALLED_UP'`,
+      )
+      .get(playerId, worldDate) as { count: number }
+  ).count;
+
+const seniorAppearanceCount = (db: GameDatabase, playerId: EntityId, worldDate: string): number =>
+  (
+    db
+      .prepare(
+        `SELECT COUNT(*) AS count
+        FROM national_team_appearances nta
+        JOIN teams t ON t.id = nta.national_team_id
+        WHERE nta.player_id = ? AND nta.match_date <= ?
+          AND t.level = 'senior' AND nta.minutes > 0`,
+      )
+      .get(playerId, worldDate) as { count: number }
+  ).count;
+
+const foreignInterestCount = (db: GameDatabase, playerId: EntityId, worldDate: string): number =>
+  (
+    db
+      .prepare(
+        `SELECT COUNT(*) AS count
+        FROM transfer_offers offer
+        JOIN clubs buyer ON buyer.id = offer.buying_club_id
+        JOIN countries country ON country.id = buyer.country_id
+        WHERE offer.player_id = ? AND offer.submitted_at <= ?
+          AND country.iso_code NOT IN ('NP', 'NPL')`,
+      )
+      .get(playerId, worldDate) as { count: number }
+  ).count;
+
+const isForeignBased = (db: GameDatabase, clubId?: EntityId): boolean => {
+  if (!clubId) return false;
+  const row = db
+    .prepare(
+      `SELECT country.iso_code AS isoCode
+      FROM clubs club
+      JOIN countries country ON country.id = club.country_id
+      WHERE club.id = ?`,
+    )
+    .get(clubId) as { isoCode?: string } | undefined;
+  return Boolean(row?.isoCode && !["NP", "NPL"].includes(row.isoCode));
 };
 
 const positionGroup = (position: string): string => {

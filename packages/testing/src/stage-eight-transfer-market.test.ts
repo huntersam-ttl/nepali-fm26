@@ -7,9 +7,10 @@ import {
   WorldRepository,
   openGameDatabase,
 } from "@nepal-football-sim/database";
-import type { EntityId } from "@nepal-football-sim/shared-types";
+import { createStableEntityId, type EntityId } from "@nepal-football-sim/shared-types";
 import {
   analyzeSquadNeeds,
+  assessAgentInterest,
   calculateTransferPackageValue,
   calculateTransferValuation,
   counterTransferOffer,
@@ -18,6 +19,8 @@ import {
   createTransferOffer,
   evaluateTransferOffer,
   initializeTransferMarketForSave,
+  negotiatePlayerContract,
+  processAgentRepresentation,
   respondToTransferEnquiry,
   runTransferDiagnostic,
   searchPlayersForClub,
@@ -72,7 +75,8 @@ describe("transfer and contract market", () => {
     expect(inspection.clubFinancialProfiles).toBeGreaterThan(0);
     expect(inspection.clubEmploymentProfiles).toBeGreaterThan(0);
     expect(inspection.agents).toBeGreaterThan(0);
-    expect(inspection.agentClients).toBeGreaterThan(0);
+    expect(inspection.agents).toBeGreaterThan(0);
+    expect(inspection.agentClients).toBe(0);
     expect(
       market.competitionRegistrations().some((item) => item.registrationType === "TEMPORARY_NSL"),
     ).toBe(true);
@@ -294,6 +298,178 @@ describe("transfer and contract market", () => {
     reloaded.close();
   });
 
+  it("keeps low-exposure players self-represented until agent interest is earned", () => {
+    const db = openGameDatabase(createSave("self-represented"));
+    const market = new TransferMarketRepository(db);
+    const playerId = lowExposurePlayer(db);
+    const assessment = assessAgentInterest(db, {
+      playerId,
+      worldDate: "2026-08-01",
+      playerAmbition: 1,
+    });
+
+    expect(market.agentForPlayer(playerId)).toBeUndefined();
+    expect(assessment.shouldApproach).toBe(false);
+    expect(
+      processAgentRepresentation(db, {
+        playerId,
+        worldDate: "2026-08-01",
+        seed: "self-represented",
+        trigger: "CAREER_EXPOSURE",
+        playerAmbition: 1,
+      }),
+    ).toBeUndefined();
+    db.close();
+  });
+
+  it("creates an agent approach after first senior Nepal call-up and can sign or decline", () => {
+    const db = openGameDatabase(createSave("callup-agent"));
+    const market = new TransferMarketRepository(db);
+    const playerId = playerForClub(db, clubIdByCanonical(db, "NEP-DIVA-MAC"));
+    insertNationalTeamExposure(db, playerId, { seniorCallup: true });
+
+    const signed = processAgentRepresentation(db, {
+      playerId,
+      worldDate: "2026-08-10",
+      seed: "callup-agent",
+      trigger: "SENIOR_NEPAL_CALLUP",
+      decision: "SIGNED",
+    })!;
+
+    expect(signed.decision).toBe("SIGNED");
+    expect(signed.interestScore).toBeGreaterThanOrEqual(52);
+    expect(market.agentForPlayer(playerId)).toBeDefined();
+
+    const decliningPlayerId = playerForClub(db, clubIdByCanonical(db, "NEP-DIVA-FRN"));
+    insertNationalTeamExposure(db, decliningPlayerId, { seniorCallup: true });
+    const declined = processAgentRepresentation(db, {
+      playerId: decliningPlayerId,
+      worldDate: "2026-08-10",
+      seed: "callup-agent-decline",
+      trigger: "SENIOR_NEPAL_CALLUP",
+      decision: "DECLINED",
+    })!;
+
+    expect(declined.decision).toBe("DECLINED");
+    expect(market.agentForPlayer(decliningPlayerId)).toBeUndefined();
+    db.close();
+  });
+
+  it("uses foreign interest and exposure to choose suitable broader agent networks", () => {
+    const db = openGameDatabase(createSave("foreign-network-agent"));
+    const playerId = playerForClub(db, clubIdByCanonical(db, "NEP-DIVA-MAC"));
+    const assessment = assessAgentInterest(db, {
+      playerId,
+      worldDate: "2026-08-01",
+      foreignInterest: true,
+      foreignBased: true,
+      competitionExposure: "ASIAN_CUP",
+      playerAmbition: 12,
+    });
+    const approach = processAgentRepresentation(db, {
+      playerId,
+      worldDate: "2026-08-01",
+      seed: "foreign-network-agent",
+      trigger: "FOREIGN_INTEREST",
+      foreignInterest: true,
+      foreignBased: true,
+      competitionExposure: "ASIAN_CUP",
+      playerAmbition: 12,
+      decision: "SIGNED",
+    })!;
+
+    expect(assessment.recommendedNetwork).toBe("EUROPE_GLOBAL");
+    expect(approach.networkScope).toBe("EUROPE_GLOBAL");
+    db.close();
+  });
+
+  it("allows players to switch agents over time and persists representation after reload", () => {
+    const databasePath = createSave("agent-switch-reload");
+    const db = openGameDatabase(databasePath);
+    const playerId = playerForClub(db, clubIdByCanonical(db, "NEP-DIVA-MAC"));
+    insertNationalTeamExposure(db, playerId, { seniorCallup: true, seniorAppearances: 6 });
+    const first = processAgentRepresentation(db, {
+      playerId,
+      worldDate: "2026-08-10",
+      seed: "agent-switch-one",
+      trigger: "SENIOR_NEPAL_CALLUP",
+      decision: "SIGNED",
+    })!;
+    const second = processAgentRepresentation(db, {
+      playerId,
+      worldDate: "2026-09-10",
+      seed: "agent-switch-two",
+      trigger: "SENIOR_INTERNATIONAL_APPEARANCE",
+      competitionExposure: "ASIAN_CUP",
+      decision: "SIGNED",
+    })!;
+    db.close();
+
+    const reloaded = openGameDatabase(databasePath);
+    const market = new TransferMarketRepository(reloaded);
+    const active = market.agentForPlayer(playerId)!;
+    const clients = market.agentClients(playerId);
+    const approaches = market.agentApproaches(playerId);
+
+    expect(first.agentId).not.toBe(second.agentId);
+    expect(active.id).toBe(second.agentId);
+    expect(clients.filter((client) => client.status === "ACTIVE")).toHaveLength(1);
+    expect(clients.some((client) => client.status === "ENDED")).toBe(true);
+    expect(approaches).toHaveLength(2);
+    reloaded.close();
+  });
+
+  it("makes represented negotiation more assertive while self-represented talks remain valid", () => {
+    const db = openGameDatabase(createSave("represented-negotiation"));
+    const buyingClubId = clubIdByCanonical(db, "NEP-DIVA-MAC");
+    const representedTarget = transferTargetForClub(db, buyingClubId);
+    insertNationalTeamExposure(db, representedTarget.playerId, { seniorCallup: true });
+    processAgentRepresentation(db, {
+      playerId: representedTarget.playerId,
+      worldDate: "2026-08-01",
+      seed: "represented-negotiation",
+      trigger: "SENIOR_NEPAL_CALLUP",
+      decision: "SIGNED",
+      foreignInterest: true,
+      competitionExposure: "SAFF",
+      playerAmbition: 12,
+    });
+    const representedOffer = createTransferOffer(db, {
+      buyingClubId,
+      sellingClubId: representedTarget.clubId,
+      playerId: representedTarget.playerId,
+      submittedAt: "2026-08-02",
+      fee: 700_000,
+    });
+    const representedContract = negotiatePlayerContract(
+      db,
+      representedOffer,
+      "2026-08-03",
+      "represented-negotiation",
+    );
+    new TransferMarketRepository(db).endActiveAgentClient(representedTarget.playerId);
+    const selfOffer = createTransferOffer(db, {
+      buyingClubId,
+      sellingClubId: representedTarget.clubId,
+      playerId: representedTarget.playerId,
+      submittedAt: "2026-08-04",
+      fee: 700_000,
+    });
+
+    const selfContract = negotiatePlayerContract(
+      db,
+      selfOffer,
+      "2026-08-03",
+      "represented-negotiation",
+    );
+
+    expect(representedOffer.agentFee).toBeGreaterThan(0);
+    expect(selfOffer.agentFee).toBe(0);
+    expect(representedContract.salary).toBeGreaterThan(selfContract.salary);
+    expect(selfContract.salary).toBeGreaterThan(0);
+    db.close();
+  });
+
   it("supports temporary loans without terminating parent contracts", () => {
     const db = openGameDatabase(createSave("loan-return"));
     const parentClubId = clubIdByCanonical(db, "NEP-DIVA-MAC");
@@ -378,6 +554,38 @@ function playerForClub(db: ReturnType<typeof openGameDatabase>, clubId: EntityId
   ).id;
 }
 
+function lowExposurePlayer(db: ReturnType<typeof openGameDatabase>): EntityId {
+  const rows = db
+    .prepare(
+      `SELECT pfp.player_id AS id
+      FROM player_factual_profiles pfp
+      JOIN clubs c ON c.id = pfp.current_club_id
+      WHERE c.canonical_external_id LIKE 'NEP-DIVB-%'
+         OR c.canonical_external_id LIKE 'NEP-DIVC-%'
+      ORDER BY c.canonical_external_id, pfp.player_id`,
+    )
+    .all() as Array<{ id: EntityId }>;
+  const candidate = rows.find(
+    (row) =>
+      !assessAgentInterest(db, {
+        playerId: row.id,
+        worldDate: "2026-08-01",
+        playerAmbition: 1,
+      }).shouldApproach,
+  );
+  return (
+    candidate ??
+    (db
+      .prepare(
+        `SELECT pfp.player_id AS id
+        FROM player_factual_profiles pfp
+        ORDER BY pfp.player_id
+        LIMIT 1`,
+      )
+      .get() as { id: EntityId })
+  ).id;
+}
+
 function transferTargetForClub(
   db: ReturnType<typeof openGameDatabase>,
   buyingClubId: EntityId,
@@ -389,4 +597,42 @@ function transferTargetForClub(
     throw new Error("Expected a transfer target with a current club");
   }
   return { playerId: target.playerId, clubId: target.clubId };
+}
+
+function insertNationalTeamExposure(
+  db: ReturnType<typeof openGameDatabase>,
+  playerId: EntityId,
+  input: { seniorCallup?: boolean; seniorAppearances?: number },
+): void {
+  const federation = db.prepare("SELECT id FROM federations ORDER BY id LIMIT 1").get() as {
+    id: EntityId;
+  };
+  const teamId = createStableEntityId("team", "phase-b-nepal-senior-men");
+  db.prepare(
+    `INSERT OR IGNORE INTO teams
+    (id, club_id, federation_id, name, level, gender)
+    VALUES (?, NULL, ?, 'Nepal Senior Men', 'senior', 'men')`,
+  ).run(teamId, federation.id);
+
+  if (input.seniorCallup) {
+    db.prepare(
+      `INSERT OR IGNORE INTO national_team_callups
+      (id, national_team_id, player_id, callup_date, programme, squad_type, status,
+        provenance_status)
+      VALUES (?, ?, ?, '2026-08-05', 'SENIOR_MEN', 'SENIOR', 'CALLED_UP', 'SIMULATION_ONLY')`,
+    ).run(createStableEntityId("national-team-callup", `${teamId}:${playerId}`), teamId, playerId);
+  }
+
+  for (let index = 0; index < (input.seniorAppearances ?? 0); index += 1) {
+    db.prepare(
+      `INSERT OR IGNORE INTO national_team_appearances
+      (id, national_team_id, player_id, match_date, opponent_name, minutes, goals, status)
+      VALUES (?, ?, ?, ?, 'Test Opponent', 70, 0, 'RECORDED')`,
+    ).run(
+      createStableEntityId("national-team-appearance", `${teamId}:${playerId}:${index}`),
+      teamId,
+      playerId,
+      `2026-08-${String(6 + index).padStart(2, "0")}`,
+    );
+  }
 }
