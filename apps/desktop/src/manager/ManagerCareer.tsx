@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import type { CareerHeader, EntityId, QuickSimSummary } from "@nepal-football-sim/shared-types";
+import React, { useEffect, useState } from "react";
+import type { CareerHeader, EntityId } from "@nepal-football-sim/shared-types";
 import type { AppError, DesktopRuntimeApi } from "../appBridge.js";
 import { managerBridge } from "./managerBridge.js";
 import { ErrorBanner } from "./ui.js";
@@ -14,6 +14,7 @@ import { ScoutingScreen } from "./screens/ScoutingScreen.js";
 import { TransfersScreen } from "./screens/TransfersScreen.js";
 import { ContractsScreen } from "./screens/ContractsScreen.js";
 import { StaffScreen } from "./screens/StaffScreen.js";
+import { MatchdayScreen } from "./matchday/MatchdayScreen.js";
 
 const SCREENS = [
   "home",
@@ -65,10 +66,24 @@ export const ManagerCareer = ({
 }): React.ReactElement => {
   const [screen, setScreen] = useState<Screen>("home");
   const [playerId, setPlayerId] = useState<EntityId | null>(null);
+  const [matchFixtureId, setMatchFixtureId] = useState<EntityId | null>(null);
+  const [resumingMatch, setResumingMatch] = useState(false);
   const [error, setError] = useState<AppError | null>(null);
   const [busy, setBusy] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
+
+  // An interrupted match must be resumed, never restarted.
+  const [pendingMatch, setPendingMatch] = useState<EntityId | null>(null);
+  useEffect(() => {
+    void managerBridge.resumeMatch().then((result) => {
+      if (result.ok && result.data && result.data.period !== "FULL_TIME") {
+        setPendingMatch(result.data.fixtureId);
+      } else {
+        setPendingMatch(null);
+      }
+    });
+  }, [refreshKey]);
 
   const refreshHeader = async (): Promise<void> => {
     const result = await bridge.getCareerHeader();
@@ -95,17 +110,23 @@ export const ManagerCareer = ({
     setRefreshKey((key) => key + 1);
   };
 
-  const quickSim = async (fixtureId: EntityId): Promise<QuickSimSummary | undefined> => {
-    const simulated = await bridge.quickSimMatch(fixtureId);
-    if (!simulated.ok) {
-      setError(simulated.error);
-      return undefined;
-    }
-    setError(null);
+  const openMatch = (fixtureId: EntityId, resume = false): void => {
+    setMatchFixtureId(fixtureId);
+    setResumingMatch(resume);
+    setScreen("fixtures");
+  };
+
+  const leaveMatch = async (): Promise<void> => {
+    setMatchFixtureId(null);
+    setResumingMatch(false);
     await refreshHeader();
     setRefreshKey((key) => key + 1);
-    const summary = await managerBridge.getMatchSummary(fixtureId);
-    return summary.ok ? summary.data : undefined;
+  };
+
+  // A finished match changes the table, squad and finances.
+  const onMatchComplete = async (): Promise<void> => {
+    await refreshHeader();
+    setRefreshKey((key) => key + 1);
   };
 
   return (
@@ -123,6 +144,9 @@ export const ManagerCareer = ({
               onClick={() => {
                 setScreen(item);
                 if (item !== "squad") setPlayerId(null);
+                // Leaving a live match is safe: the session is persisted and
+                // can be resumed from the fixtures screen.
+                if (item !== "fixtures") setMatchFixtureId(null);
               }}
             >
               {LABELS[item]}
@@ -150,6 +174,14 @@ export const ManagerCareer = ({
 
       <section className="workspace">
         {error && <ErrorBanner error={error} />}
+        {pendingMatch && !matchFixtureId && (
+          <div className="notice" role="status">
+            A match is in progress.
+            <button className="primary small" onClick={() => openMatch(pendingMatch, true)}>
+              Resume match
+            </button>
+          </div>
+        )}
         {notice && (
           <div className="notice" role="status">
             {notice}
@@ -180,7 +212,17 @@ export const ManagerCareer = ({
           ))}
         {screen === "tactics" && <TacticsScreen />}
         {screen === "training" && <TrainingScreen />}
-        {screen === "fixtures" && <FixturesScreen onQuickSim={quickSim} />}
+        {screen === "fixtures" &&
+          (matchFixtureId ? (
+            <MatchdayScreen
+              fixtureId={matchFixtureId}
+              resume={resumingMatch}
+              onExit={() => void leaveMatch()}
+              onMatchComplete={() => void onMatchComplete()}
+            />
+          ) : (
+            <FixturesScreen onOpenMatch={(fixtureId) => openMatch(fixtureId)} />
+          ))}
         {screen === "competition" && <CompetitionScreen />}
         {screen === "scouting" && <ScoutingScreen onSelectPlayer={openPlayer} />}
         {screen === "transfers" && <TransfersScreen onSelectPlayer={openPlayer} />}

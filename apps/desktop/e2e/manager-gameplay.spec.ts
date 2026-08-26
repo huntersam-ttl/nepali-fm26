@@ -106,13 +106,16 @@ test("plays a manager career through every gameplay screen and persists it", asy
   await expect(page.getByRole("heading", { name: "Match preparation" })).toBeVisible();
   await expect(page.locator(".workspace")).toContainText("Selected XI");
 
-  await page.getByRole("button", { name: /Quick Sim/ }).click();
-  await expect(page.getByRole("heading", { name: "Match result" })).toBeVisible({
+  // Step 4D routes matches through the matchday flow; Quick Sim is a match view
+  // chosen before kick-off. Full matchday coverage lives in matchday.spec.ts.
+  await page.getByRole("radio", { name: /Quick Sim/ }).click();
+  await page.getByRole("button", { name: "Kick Off" }).click();
+  await expect(page.getByRole("heading", { name: "Full time" })).toBeVisible({
     timeout: CAREER_TIMEOUT,
   });
-  const resultPanel = page.locator(".panel").filter({ hasText: "Match result" });
-  await expect(resultPanel.locator("h2").nth(1)).toContainText(/\d+-\d+/);
+  await expect(page.locator(".report-score")).toContainText(/\d+ – \d+/);
 
+  await page.getByRole("button", { name: "Return to career" }).click();
   // The fixture must leave the upcoming list exactly once.
   await expect(page.locator("tbody tr")).toHaveCount(upcomingBefore - 1);
 

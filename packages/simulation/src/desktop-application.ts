@@ -83,6 +83,7 @@ import {
   MatchCommandError,
   advanceMatch,
   continueFromHalfTime,
+  finalizeMatch,
   loadMatchSession,
   makeSubstitution,
   quickSimFromCurrentState,
@@ -736,7 +737,8 @@ export class DesktopApplicationService {
     return this.matchCommand((db, save, context, helpers) => {
       const { state, record } = helpers.requireSession(fixtureId);
       advanceMatch(db, state, advanceTargetFor(command));
-      return helpers.view(state, record.viewMode ?? "TEXT_LIVE", command.since);
+      const finalized = helpers.finalizeIfComplete(state);
+      return helpers.view(state, record.viewMode ?? "TEXT_LIVE", command.since, finalized);
     });
   }
 
@@ -744,7 +746,8 @@ export class DesktopApplicationService {
     return this.matchCommand((db, save, context, helpers) => {
       const { state, record } = helpers.requireSession(fixtureId);
       continueFromHalfTime(db, state);
-      return helpers.view(state, record.viewMode ?? "TEXT_LIVE");
+      const finalized = helpers.finalizeIfComplete(state);
+      return helpers.view(state, record.viewMode ?? "TEXT_LIVE", undefined, finalized);
     });
   }
 
@@ -1477,6 +1480,8 @@ type MatchCommandHelpers = {
   simulateInput(fixture: FixtureRecord): SimulateMatchInput;
   finalizationContext(fixture: FixtureRecord): MatchFinalizationContext;
   requireSession(fixtureId?: EntityId): { state: LiveMatchState; record: MatchSessionRecord };
+  /** Commits the match if it has reached full time. Safe to call repeatedly. */
+  finalizeIfComplete(state: LiveMatchState): boolean;
   view(
     state: LiveMatchState,
     viewMode: MatchViewMode,
@@ -1550,6 +1555,18 @@ const matchHelpers = (
       const session = loadMatchSession(db, fixture.id);
       if (!session) throw appError("FIXTURE_MISSING", "That match has not been started.");
       return session;
+    },
+    finalizeIfComplete: (state) => {
+      if (state.period !== "FULL_TIME") return false;
+      const fixture = managerFixture(state.fixtureId);
+      const outcome = finalizeMatch(db, state, {
+        fixture,
+        competitionTeamIds: context.teams.map((team) => team.id),
+        ruleSet: context.ruleSet,
+        seed: `${save.randomSeed}:${fixture.id}`,
+        save,
+      });
+      return outcome.status === "FINALIZED" || outcome.status === "ALREADY_FINALIZED";
     },
     view: (state, viewMode, since, finalized) =>
       buildLiveMatchView(db, state, {

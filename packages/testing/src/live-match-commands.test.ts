@@ -355,6 +355,39 @@ describe("interactive matchday", () => {
     }
   }, 180_000);
 
+  it("commits the match when full time is reached through live play", () => {
+    // Regression: only Quick Sim used to finalise, so a Text Live match played
+    // to ninety minutes never committed its result to the world.
+    const fixtureId = nextFixture();
+    let view = start(fixtureId, "TEXT_LIVE");
+    let guard = 0;
+    while (view.period !== "FULL_TIME" && guard < 40) {
+      view =
+        view.period === "HALF_TIME"
+          ? (service.continueFromHalfTime(fixtureId) as { ok: true; data: LiveMatchView }).data
+          : advance({ minutes: 15 }, fixtureId);
+      guard += 1;
+    }
+
+    expect(view.period).toBe("FULL_TIME");
+    expect(view.finalized).toBe(true);
+
+    // The world reflects it: the fixture has a result and left the upcoming list.
+    const fixtures = service.getFixtures();
+    expect(fixtures.ok).toBe(true);
+    if (!fixtures.ok) return;
+    expect(fixtures.data.upcoming.some((row) => row.id === fixtureId)).toBe(false);
+    expect(fixtures.data.results.some((row) => row.id === fixtureId)).toBe(true);
+
+    // And a report exists without needing a separate Quick Sim.
+    const report = service.getPostMatchReport(fixtureId);
+    expect(report.ok).toBe(true);
+    if (report.ok) {
+      expect(report.data?.ratings.length).toBeGreaterThanOrEqual(22);
+      expect(report.data?.attendance).toBeGreaterThan(0);
+    }
+  }, 180_000);
+
   it("produces a post-match report from persisted state", () => {
     const fixtures = service.getFixtures();
     expect(fixtures.ok).toBe(true);
@@ -386,7 +419,8 @@ describe("interactive matchday", () => {
   it("keeps a dismissed player off the pitch and unreplaceable", () => {
     // Play matches until one produces a dismissal.
     let redCardView: LiveMatchView | undefined;
-    for (let attempt = 0; attempt < 6 && !redCardView; attempt += 1) {
+    // Bounded: the manager only has so many fixtures in a season.
+    for (let attempt = 0; attempt < 3 && !redCardView; attempt += 1) {
       const fixtureId = nextFixture();
       const view = playOut(start(fixtureId), fixtureId);
       const sentOff = [...view.home.playersOff, ...view.away.playersOff].filter(
@@ -415,8 +449,10 @@ describe("interactive matchday", () => {
   it("refuses match commands when no session exists", () => {
     const fixtures = service.getFixtures();
     if (!fixtures.ok) return;
-    const unstarted = fixtures.data.upcoming.at(-1)!;
-    expect(service.getLiveMatch(unstarted.id)).toMatchObject({
+    void fixtures;
+    // A fixture nobody has claimed, so it definitely has no session.
+    const unstarted = nextFixture();
+    expect(service.getLiveMatch(unstarted)).toMatchObject({
       ok: false,
       error: { code: "FIXTURE_MISSING" },
     });

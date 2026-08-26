@@ -1,4 +1,5 @@
 import type {
+  AdvanceMatchCommand,
   AppResult,
   CalendarEntry,
   ContractList,
@@ -6,14 +7,19 @@ import type {
   EntityId,
   FixtureDetail,
   FixtureList,
+  LiveMatchView,
+  LiveTacticsCommand,
   ManagerCompetitionView,
   ManagerDashboard,
+  PostMatchReport,
   PlayerProfile,
   QuickSimSummary,
   RecruitmentSearchCommand,
   RecruitmentSearchPage,
   ScoutingAssignmentCommand,
   ScoutingDashboard,
+  StartMatchCommand,
+  SubstitutionCommand,
   ScoutingReportView,
   SquadList,
   StaffList,
@@ -69,6 +75,25 @@ export const managerBridge = {
   getStaff: (clubId?: EntityId) => runtimeCall<StaffList>("getStaff", { clubId }),
   getMatchSummary: (fixtureId: EntityId) =>
     runtimeCall<QuickSimSummary | undefined>("getMatchSummary", { fixtureId }),
+
+  // --- Interactive matchday -------------------------------------------------
+  startMatch: (command: StartMatchCommand) => runtimeCall<LiveMatchView>("startMatch", { command }),
+  getLiveMatch: (fixtureId?: EntityId, since?: number) =>
+    runtimeCall<LiveMatchView>("getLiveMatch", { fixtureId, since }),
+  advanceMatch: (command: AdvanceMatchCommand, fixtureId?: EntityId) =>
+    runtimeCall<LiveMatchView>("advanceMatch", { command, fixtureId }),
+  continueFromHalfTime: (fixtureId?: EntityId) =>
+    runtimeCall<LiveMatchView>("continueFromHalfTime", { fixtureId }),
+  makeSubstitution: (command: SubstitutionCommand, fixtureId?: EntityId) =>
+    runtimeCall<LiveMatchView>("makeSubstitution", { command, fixtureId }),
+  updateLiveTactics: (command: LiveTacticsCommand, fixtureId?: EntityId) =>
+    runtimeCall<LiveMatchView>("updateLiveTactics", { command, fixtureId }),
+  quickSimCurrentMatch: (fixtureId?: EntityId) =>
+    runtimeCall<LiveMatchView>("quickSimCurrentMatch", { fixtureId }),
+  resumeMatch: (fixtureId?: EntityId) =>
+    runtimeCall<LiveMatchView | undefined>("resumeMatch", { fixtureId }),
+  getPostMatchReport: (fixtureId: EntityId) =>
+    runtimeCall<PostMatchReport | undefined>("getPostMatchReport", { fixtureId }),
 };
 
 export type ManagerBridge = typeof managerBridge;

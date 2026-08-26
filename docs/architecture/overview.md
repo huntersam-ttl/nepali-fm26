@@ -272,3 +272,6 @@ serialisable `LiveMatchState`, persist to `match_sessions`, and finalise in a si
 transaction that also writes per-match ratings, attendance and suspensions.
 
 See `docs/architecture/match-engine.md`.
+
+The player-facing matchday — pre-match, Quick Sim / Key Events / Text Live, half time, and the
+post-match report — is documented in `docs/architecture/matchday-ui.md`.
