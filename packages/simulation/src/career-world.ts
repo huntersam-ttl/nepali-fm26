@@ -32,6 +32,10 @@ import {
   processFederationMonth,
 } from "./federation-governance.js";
 import {
+  initializeFederationComplianceForSave,
+  runFederationComplianceAiForAllFederations,
+} from "./federation-compliance.js";
+import {
   initializeInternationalFootballForSave,
   processInternationalForSeasonPeriod,
 } from "./international-football.js";
@@ -178,6 +182,7 @@ export const simulateNepalCareer = (input: {
       worldDate: save.worldDate,
       seed: input.seed,
     });
+    initializeFederationComplianceForSave(input.db, save.worldDate);
   }
   if (internationalEnabled) {
     initializeInternationalFootballForSave({
@@ -366,16 +371,14 @@ const processFederationForSeasonPeriod = (
   const endYear = Number(input.seasonEndDate.slice(0, 4));
   const startYear = endYear - 1;
   for (const month of [8, 9, 10, 11, 12]) {
-    processFederationMonth(db, {
-      date: `${startYear}-${String(month).padStart(2, "0")}-28`,
-      seed: `${input.seed}:${month}`,
-    });
+    const date = `${startYear}-${String(month).padStart(2, "0")}-28`;
+    processFederationMonth(db, { date, seed: `${input.seed}:${month}` });
+    runFederationComplianceAiForAllFederations(db, date);
   }
   for (const month of [1, 2, 3, 4, 5, 6, 7]) {
-    processFederationMonth(db, {
-      date: `${endYear}-${String(month).padStart(2, "0")}-28`,
-      seed: `${input.seed}:${month}`,
-    });
+    const date = `${endYear}-${String(month).padStart(2, "0")}-28`;
+    processFederationMonth(db, { date, seed: `${input.seed}:${month}` });
+    runFederationComplianceAiForAllFederations(db, date);
   }
   closeFederationFinancialSeason(db, {
     seasonLabel: String(endYear),

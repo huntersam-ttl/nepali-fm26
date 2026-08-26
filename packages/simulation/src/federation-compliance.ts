@@ -1,4 +1,4 @@
-import { createStableEntityId, type EntityId, type FederationComplianceDimensions, type FederationComplianceProfile, type FederationCorrectiveAction, type FederationGrant, type FederationGrantExpenditure, type FederationGrantHistoryEvent, type FederationGrantStatus, type FederationRestrictionPurpose, type FederationSanction } from "@nepal-football-sim/shared-types";
+import { createStableEntityId, type EntityId, type FederationComplianceDimensions, type FederationComplianceProfile, type FederationComplianceSnapshotSeed, type FederationCorrectiveAction, type FederationGrant, type FederationGrantExpenditure, type FederationGrantHistoryEvent, type FederationGrantStatus, type FederationRestrictionPurpose, type FederationSanction } from "@nepal-football-sim/shared-types";
 import { FederationComplianceRepository, FederationGovernanceRepository, type GameDatabase } from "@nepal-football-sim/database";
 import { postFederationTransaction } from "./federation-governance.js";
 
@@ -88,4 +88,123 @@ export const reviewComplianceAndIssueSanction = (db: GameDatabase, input: Parame
   const profile = reviewFederationCompliance(db, input); if (profile.status === "NORMAL" || profile.status === "WARNING") return { profile };
   const consequence: FederationSanction["consequences"] = profile.status === "SUSPENDED" ? ["FUNDING_FROZEN", "NEW_GRANTS_BLOCKED", "NATIONAL_TEAM_PARTICIPATION_BLOCKED", "CLUB_CONTINENTAL_PARTICIPATION_BLOCKED", "DEVELOPMENT_PROGRAMMES_UNAVAILABLE", "REPUTATION_DAMAGE"] : profile.status === "COMPETITION_RESTRICTED" ? ["NATIONAL_TEAM_PARTICIPATION_BLOCKED", "CLUB_CONTINENTAL_PARTICIPATION_BLOCKED", "REPUTATION_DAMAGE"] : ["FUNDING_FROZEN", "NEW_GRANTS_BLOCKED"];
   return { profile, sanction: issueComplianceSanction(db, { federationId: input.federationId, date: input.date, authority: input.authority, category: profile.status, reason: `Persisted compliance review reached ${profile.status}`, requirementsForResolution: ["Complete corrective actions", "Submit evidence and reporting", "Pass external review"], affectedProgrammes: ["FEDERATION_OPERATIONS"], consequences: consequence }) };
+};
+
+const DEFAULT_COMPLIANCE_DIMENSIONS: FederationComplianceDimensions = { autonomy: 70, statutoryCompliance: 70, electionLegitimacy: 70, financialControls: 65, auditQuality: 60, transparencyReporting: 65, safeguarding: 70, projectDelivery: 65 };
+
+/** Creates a default (unverified) compliance profile for any federation that does not yet have one — save-init foundation, never overwrites an existing profile. */
+export const initializeFederationComplianceForSave = (db: GameDatabase, worldDate: string): void => {
+  const repo = new FederationComplianceRepository(db);
+  const federationIds = (db.prepare("SELECT id FROM federations").all() as Array<{ id: EntityId }>).map((row) => row.id);
+  for (const federationId of federationIds) {
+    if (repo.complianceProfile(federationId)) continue;
+    repo.upsertComplianceProfile({
+      federationId,
+      status: "NORMAL",
+      dimensions: { ...DEFAULT_COMPLIANCE_DIMENSIONS },
+      lastReviewedOn: worldDate,
+      history: [{ date: worldDate, action: "INITIALIZED", note: "Default compliance profile created; no verified starting compliance data was supplied.", status: "NORMAL" }],
+      provenanceStatus: "UNKNOWN",
+    });
+  }
+};
+
+/**
+ * Nepal 2026 starting-state hook (requirement 8): seeds a real,
+ * provenance-tagged compliance snapshot (and any verified sanctions) for one
+ * federation, from data the import dataset actually supplies. Never called
+ * with an invented status — see FederationComplianceSnapshotSeed.
+ */
+export const applyFederationComplianceSnapshot = (
+  db: GameDatabase,
+  federationId: EntityId,
+  snapshot: FederationComplianceSnapshotSeed,
+): void => {
+  const repo = new FederationComplianceRepository(db);
+  repo.upsertComplianceProfile({
+    federationId,
+    status: snapshot.status,
+    dimensions: { ...DEFAULT_COMPLIANCE_DIMENSIONS, ...snapshot.dimensions },
+    lastReviewedOn: snapshot.effectiveDate,
+    history: [{ date: snapshot.effectiveDate, action: "SEEDED_FROM_DATA", note: `Starting compliance status seeded from ${snapshot.provenanceStatus} data.`, status: snapshot.status }],
+    provenanceStatus: snapshot.provenanceStatus,
+  });
+  for (const sanctionSeed of snapshot.sanctions ?? []) {
+    issueComplianceSanction(db, {
+      federationId,
+      date: sanctionSeed.startDate,
+      authority: sanctionSeed.authority,
+      category: sanctionSeed.category,
+      reason: sanctionSeed.reason,
+      requirementsForResolution: sanctionSeed.requirementsForResolution,
+      affectedProgrammes: sanctionSeed.affectedProgrammes,
+      consequences: sanctionSeed.consequences,
+      provenanceStatus: sanctionSeed.provenanceStatus,
+    });
+  }
+};
+
+/**
+ * Bounded, deterministic AI federation behaviour (requirement 10): advances
+ * pending grants, applies for a new one when unrestricted cash is thin,
+ * and starts corrective action under any active sanction. Every step
+ * reuses the lifecycle functions above — no separate AI-only logic path.
+ */
+export const runFederationComplianceAiForAllFederations = (db: GameDatabase, date: string): void => {
+  const repo = new FederationComplianceRepository(db);
+  const financeRepo = new FederationGovernanceRepository(db);
+  const federationIds = (db.prepare("SELECT id FROM federations").all() as Array<{ id: EntityId }>).map((row) => row.id);
+
+  for (const federationId of federationIds) {
+    for (const grant of repo.grantsForFederation(federationId)) {
+      if (grant.status === "PROPOSED") {
+        approveFederationGrant(db, grant.id, { date, approvedAmount: grant.approvedAmount });
+      } else if ((grant.status === "ACTIVE" || grant.status === "PARTIALLY_DISBURSED") && date >= grant.fundingPeriodEnd) {
+        transitionFederationGrant(db, grant.id, "REPORTING_DUE", date, "Periodic report is due.");
+      } else if (grant.status === "REPORTING_DUE") {
+        recordFederationGrantReport(db, grant.id, { date, accepted: true, note: "Routine report submitted on schedule." });
+      }
+    }
+
+    const account = financeRepo.financialAccount(federationId);
+    if (
+      account &&
+      (account.financialHealth === "TIGHT" || account.financialHealth === "DISTRESSED") &&
+      federationAccessAllowed(db, federationId, "NEW_GRANTS_BLOCKED")
+    ) {
+      const pending = repo
+        .grantsForFederation(federationId)
+        .some((grant) => !["COMPLETED", "REJECTED", "CANCELLED"].includes(grant.status));
+      if (!pending) {
+        createFederationGrant(db, {
+          federationId,
+          sourceInstitution: "AFC_DEVELOPMENT",
+          currency: "NPR",
+          approvedAmount: 500000,
+          fundingPeriodStart: date,
+          fundingPeriodEnd: date,
+          purpose: "Grassroots development",
+          restrictionType: "GRASSROOTS",
+          reportingRequirements: ["annual report"],
+          auditRequired: false,
+          milestones: [],
+          conditions: [],
+          seed: date,
+        });
+      }
+    }
+
+    for (const sanction of repo.sanctionsForFederation(federationId).filter((s) => s.reviewState !== "RESOLVED")) {
+      if (repo.correctiveActionsForSanction(sanction.id).length === 0) {
+        createFederationCorrectiveAction(db, {
+          federationId,
+          sanctionId: sanction.id,
+          description: `Address ${sanction.category}`,
+          category: sanction.category,
+          startedOn: date,
+          targetCompletionOn: date,
+        });
+      }
+    }
+  }
 };

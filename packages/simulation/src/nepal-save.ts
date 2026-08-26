@@ -20,7 +20,9 @@ import {
   createStableEntityId,
   type DataProvenance,
   type EntityId,
+  type FederationComplianceSnapshotSeed,
 } from "@nepal-football-sim/shared-types";
+import { applyFederationComplianceSnapshot } from "./federation-compliance.js";
 
 export type CreateNepalSaveInput = {
   databasePath: string;
@@ -215,6 +217,24 @@ export const importNepalWorld = (db: GameDatabase, dataset: NepalWorldDataset): 
       foundedYear: valueOf(federation.foundedYear),
     });
     persistImport(imports, "federation", id, federation, federation.provenance, importedAt);
+  }
+
+  // FIFA/AFC starting-state hook (requirement 8): only ever seeds a
+  // compliance snapshot the dataset actually supplies with real provenance.
+  // Absent that, federations get the generic default profile later, tagged
+  // provenanceStatus "UNKNOWN" rather than any hardcoded claim.
+  for (const snapshot of dataset.federationComplianceSnapshots) {
+    const federationId = maps.federations.get(snapshot.federationKey);
+    if (!federationId) continue;
+    const seed: FederationComplianceSnapshotSeed = {
+      federationKey: snapshot.federationKey,
+      status: snapshot.status,
+      dimensions: snapshot.dimensions,
+      effectiveDate: snapshot.effectiveDate,
+      provenanceStatus: snapshot.provenanceStatus,
+      sanctions: snapshot.sanctions,
+    };
+    applyFederationComplianceSnapshot(db, federationId, seed);
   }
 
   for (const competition of dataset.competitions) {

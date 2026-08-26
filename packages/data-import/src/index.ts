@@ -231,6 +231,61 @@ const federationRecordSchema = z.object({
   provenance: provenanceSchema,
 });
 
+/**
+ * FIFA/AFC starting-state hook (requirement 8). Only ever populated by
+ * verified research — never a hardcoded gameplay assumption. Absent entirely
+ * from a dataset, the federation gets a default NORMAL profile tagged
+ * provenanceStatus "UNKNOWN" rather than any factual claim.
+ */
+const federationComplianceSanctionSeedSchema = z.object({
+  authority: z.enum(["FIFA", "AFC", "DOMESTIC"]),
+  reason: z.string().min(1),
+  category: z.string().min(1),
+  startDate: isoDateSchema,
+  requirementsForResolution: z.array(z.string().min(1)).default([]),
+  affectedProgrammes: z.array(z.string().min(1)).default([]),
+  consequences: z.array(
+    z.enum([
+      "FUNDING_FROZEN",
+      "NEW_GRANTS_BLOCKED",
+      "NATIONAL_TEAM_PARTICIPATION_BLOCKED",
+      "CLUB_CONTINENTAL_PARTICIPATION_BLOCKED",
+      "DEVELOPMENT_PROGRAMMES_UNAVAILABLE",
+      "REPUTATION_DAMAGE",
+    ]),
+  ),
+  provenanceStatus: provenanceStatusSchema,
+});
+
+const federationComplianceSnapshotRecordSchema = z.object({
+  federationKey: keySchema,
+  status: z.enum([
+    "NORMAL",
+    "WARNING",
+    "FORMAL_REVIEW",
+    "FUNDING_RESTRICTED",
+    "COMPETITION_RESTRICTED",
+    "SUSPENDED",
+    "REINSTATEMENT_REVIEW",
+  ]),
+  dimensions: z
+    .object({
+      autonomy: z.number().min(0).max(100),
+      statutoryCompliance: z.number().min(0).max(100),
+      electionLegitimacy: z.number().min(0).max(100),
+      financialControls: z.number().min(0).max(100),
+      auditQuality: z.number().min(0).max(100),
+      transparencyReporting: z.number().min(0).max(100),
+      safeguarding: z.number().min(0).max(100),
+      projectDelivery: z.number().min(0).max(100),
+    })
+    .partial()
+    .optional(),
+  effectiveDate: isoDateSchema,
+  provenanceStatus: provenanceStatusSchema,
+  sanctions: z.array(federationComplianceSanctionSeedSchema).default([]),
+});
+
 const competitionRecordSchema = z.object({
   key: keySchema,
   federationKey: nullableKeyFactSchema,
@@ -973,6 +1028,7 @@ export const nepalWorldDatasetSchema = z.object({
   locations: z.array(locationRecordSchema),
   venues: z.array(venueRecordSchema),
   federations: z.array(federationRecordSchema),
+  federationComplianceSnapshots: z.array(federationComplianceSnapshotRecordSchema).default([]),
   competitions: z.array(competitionRecordSchema),
   competitionSeasons: z.array(competitionSeasonRecordSchema),
   competitionRules: z.array(competitionRuleRecordSchema).default([]),

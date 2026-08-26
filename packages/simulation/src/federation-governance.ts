@@ -36,6 +36,7 @@ import {
 import {
   ClubEconomyRepository,
   CompetitionRepository,
+  FederationComplianceRepository,
   FederationGovernanceRepository,
   WorldRepository,
   YouthRepository,
@@ -992,7 +993,12 @@ export const processFederationMonth = (
         idempotencyKey: `federation-sponsor:${sponsorship.id}:${input.date}`,
       });
     }
-    if (input.date.endsWith("-02-28")) {
+    // A sanction that blocks funding (new grants / funding frozen) must
+    // actually stop this recurring inflow, not just exist on paper.
+    const fundingBlocked = new FederationComplianceRepository(db)
+      .activeSanctionsForFederation(federation.id)
+      .some((sanction) => sanction.consequences.includes("FUNDING_FROZEN") || sanction.consequences.includes("NEW_GRANTS_BLOCKED"));
+    if (!fundingBlocked && input.date.endsWith("-02-28")) {
       receiveFederationGrant(db, {
         federationId: federation.id,
         date: input.date,
@@ -1001,7 +1007,7 @@ export const processFederationMonth = (
         restrictionTag: "development",
       });
     }
-    if (input.date.endsWith("-05-28")) {
+    if (!fundingBlocked && input.date.endsWith("-05-28")) {
       receiveFederationGrant(db, {
         federationId: federation.id,
         date: input.date,
