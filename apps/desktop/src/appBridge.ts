@@ -1,5 +1,6 @@
 import type {
   AppResult,
+  AutosaveStatusView,
   CareerCreationCommand,
   CareerHeader,
   DesktopApplicationState,
@@ -15,6 +16,7 @@ export type {
   EntityId,
   SquadRow,
   AppResult,
+  AutosaveStatusView,
   CareerCreationCommand,
   CareerHeader,
   DesktopApplicationState,
@@ -113,7 +115,10 @@ const bindCommands = (call: CommandCaller): DesktopRuntimeApi => ({
     call<DesktopApplicationState>("quickSimMatch", { fixtureId }),
   saveTactic: (tactic: TacticalSetup) => call<TacticalSetup>("saveTactic", { tactic }),
   saveCareer: () => call<SaveCatalogEntry>("saveCareer"),
+  saveCareerAs: (saveName: string) => call<SaveCatalogEntry>("saveCareerAs", { saveName }),
   deleteSave: (saveId: EntityId) => call<{ deleted: boolean }>("deleteSave", { saveId }),
+  getAutosaveStatus: () => call<AutosaveStatusView>("getAutosaveStatus"),
+  loadAutosaveSlot: (slotIndex: number) => call<DesktopApplicationState>("loadAutosaveSlot", { slotIndex }),
 });
 
 const runtimeUnavailable = <T>(error: unknown): AppResult<T> => ({

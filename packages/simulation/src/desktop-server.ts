@@ -157,8 +157,14 @@ const dispatch = (
       return service.saveTactic(body.tactic as TacticalSetup);
     case "saveCareer":
       return service.saveCareer();
+    case "saveCareerAs":
+      return service.saveCareerAs(body.saveName as string);
     case "deleteSave":
       return service.deleteSave(body.saveId as EntityId);
+    case "getAutosaveStatus":
+      return service.getAutosaveStatus();
+    case "loadAutosaveSlot":
+      return service.loadAutosaveSlot(body.slotIndex as number);
     // Manager gameplay (Step 3).
     case "getManagerDashboard":
       return service.getManagerDashboard();

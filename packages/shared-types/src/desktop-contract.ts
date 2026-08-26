@@ -22,6 +22,7 @@ import type {
 export type DesktopErrorCode =
   | "SAVE_NOT_FOUND"
   | "SAVE_CORRUPT"
+  | "SCHEMA_TOO_NEW"
   | "MIGRATION_FAILED"
   | "CAREER_CREATION_FAILED"
   | "DATABASE_ERROR"
@@ -69,6 +70,22 @@ export type SaveCatalogEntry = {
   organisation?: string;
   gameVersion: string;
   schemaVersion: number;
+  lastAutosaveAt?: string;
+  lastAutosaveWorldDate?: string;
+};
+
+export type AutosaveSlotView = {
+  slotIndex: number;
+  savedAt: string;
+};
+
+export type AutosaveStatusView = {
+  enabled: boolean;
+  intervalDays: number;
+  lastAutosaveAt?: string;
+  lastAutosaveWorldDate?: string;
+  slots: AutosaveSlotView[];
+  slotCount: number;
 };
 
 export type StartingClubOption = {
@@ -210,5 +227,8 @@ export type DesktopRuntimeApi = {
   quickSimMatch(fixtureId?: EntityId): Promise<AppResult<DesktopApplicationState>>;
   saveTactic(tactic: TacticalSetup): Promise<AppResult<TacticalSetup>>;
   saveCareer(): Promise<AppResult<SaveCatalogEntry>>;
+  saveCareerAs(saveName: string): Promise<AppResult<SaveCatalogEntry>>;
   deleteSave(saveId: EntityId): Promise<AppResult<{ deleted: boolean }>>;
+  getAutosaveStatus(): Promise<AppResult<AutosaveStatusView>>;
+  loadAutosaveSlot(slotIndex: number): Promise<AppResult<DesktopApplicationState>>;
 };

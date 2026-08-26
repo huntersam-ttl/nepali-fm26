@@ -3624,6 +3624,8 @@ export type SaveMetadata = {
   createdAt: ISODateTime;
   lastSavedAt: ISODateTime;
   playerCharacterId?: EntityId;
+  lastAutosaveWorldDate?: ISODate;
+  lastAutosaveAt?: ISODateTime;
 };
 
 export type DataProvenanceStatus =

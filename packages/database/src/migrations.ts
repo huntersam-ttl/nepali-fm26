@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 54;
+export const CURRENT_DATABASE_VERSION = 58;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -3030,6 +3030,13 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       CREATE INDEX IF NOT EXISTS idx_rehab_decisions_person ON rehab_decisions(person_id, decided_on);
     `,
   },
+  {
+    version: 58,
+    sql: `
+      ALTER TABLE saves ADD COLUMN last_autosave_world_date TEXT;
+      ALTER TABLE saves ADD COLUMN last_autosave_at TEXT;
+    `,
+  },
 ];
 
 export const migrateDatabase = (db: GameDatabase): number => {
@@ -3057,4 +3064,25 @@ export const migrateDatabase = (db: GameDatabase): number => {
     }
   }
   return CURRENT_DATABASE_VERSION;
+};
+
+/** The highest schema version this build knows how to create — used to detect a save written by a newer build. */
+export const HIGHEST_KNOWN_SCHEMA_VERSION = migrations[migrations.length - 1]!.version;
+
+/** How many migrations this database has not yet applied, without applying them. */
+export const pendingMigrationCount = (db: GameDatabase): number => {
+  db.exec(
+    "CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL);",
+  );
+  const rows = db.prepare("SELECT version FROM schema_migrations").all() as Array<{ version: number }>;
+  const applied = new Set(rows.map((row) => row.version));
+  return migrations.filter((migration) => !applied.has(migration.version)).length;
+};
+
+/** The highest migration version this database has actually applied, or 0 for a schema with no migrations table yet. */
+export const maxAppliedSchemaVersion = (db: GameDatabase): number => {
+  const row = db.prepare("SELECT MAX(version) AS maxVersion FROM schema_migrations").get() as
+    | { maxVersion: number | null }
+    | undefined;
+  return row?.maxVersion ?? 0;
 };

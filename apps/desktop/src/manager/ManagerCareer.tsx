@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import type { CareerHeader, EntityId } from "@nepal-football-sim/shared-types";
+import type { AutosaveStatusView, CareerHeader, EntityId } from "@nepal-football-sim/shared-types";
 import type { AppError, DesktopRuntimeApi } from "../appBridge.js";
 import { managerBridge } from "./managerBridge.js";
 import { ErrorBanner } from "./ui.js";
@@ -75,6 +75,16 @@ export const ManagerCareer = ({
   const [busy, setBusy] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
+  const [autosave, setAutosave] = useState<AutosaveStatusView | null>(null);
+
+  const refreshAutosave = async (): Promise<void> => {
+    const result = await bridge.getAutosaveStatus();
+    if (result.ok) setAutosave(result.data);
+  };
+
+  useEffect(() => {
+    void refreshAutosave();
+  }, [refreshKey]);
 
   // An interrupted match must be resumed, never restarted.
   const [pendingMatch, setPendingMatch] = useState<EntityId | null>(null);
@@ -165,13 +175,63 @@ export const ManagerCareer = ({
               await onSave();
               setBusy(false);
               setNotice("Career saved.");
+              void refreshAutosave();
             }}
           >
             Save
           </button>
+          <button
+            className="ghost"
+            disabled={busy}
+            onClick={async () => {
+              const name = window.prompt("Save as new slot named:");
+              if (!name) return;
+              setBusy(true);
+              const result = await bridge.saveCareerAs(name);
+              setBusy(false);
+              if (result.ok) {
+                setNotice(`Saved as new slot "${result.data.saveName}".`);
+                void refreshAutosave();
+              } else {
+                setError(result.error);
+              }
+            }}
+          >
+            Save As
+          </button>
           <button className="ghost" disabled={busy} onClick={onExit}>
             Main Menu
           </button>
+        </div>
+        <div className="subtle" style={{ fontSize: "0.8em", marginTop: "0.5em" }}>
+          {header.worldDate && <div>World date: {header.worldDate}</div>}
+          {autosave && (
+            <div>
+              Autosave: {autosave.enabled ? `every ${autosave.intervalDays}d` : "off"}
+              {autosave.lastAutosaveWorldDate && ` · last ${autosave.lastAutosaveWorldDate}`}
+              {autosave.slots.length > 0 && ` · ${autosave.slots.length}/${autosave.slotCount} slots`}
+            </div>
+          )}
+          {autosave && autosave.slots.length > 0 && (
+            <button
+              className="ghost small"
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true);
+                const result = await bridge.loadAutosaveSlot(autosave.slots[0]!.slotIndex);
+                setBusy(false);
+                if (result.ok) {
+                  onHeaderChange(result.data.header);
+                  setNotice("Restored the most recent autosave.");
+                  setRefreshKey((key) => key + 1);
+                } else {
+                  setError(result.error);
+                }
+              }}
+            >
+              Restore latest autosave
+            </button>
+          )}
         </div>
       </aside>
 

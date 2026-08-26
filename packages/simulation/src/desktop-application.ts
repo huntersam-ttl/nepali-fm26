@@ -18,9 +18,24 @@ import {
   type GameDatabase,
 } from "@nepal-football-sim/database";
 import {
+  assertSchemaCompatible,
+  atomicCopyDatabase,
+  AUTOSAVE_SLOT_COUNT,
+  backupBeforeMigrationIfNeeded,
+  checkSaveIntegrity,
+  DEFAULT_AUTOSAVE_INTERVAL_DAYS,
+  isAutosaveDue,
+  listAutosaveSlots,
+  performAutosave,
+  SaveIncompatibleError,
+  withAutosaveStamp,
+} from "./save-management.js";
+import {
   createEntityId,
   createStableEntityId,
   type AppResult,
+  type AutosaveSlotView,
+  type AutosaveStatusView,
   type CareerCreationCommand,
   type CareerHeader,
   type Club,
@@ -255,6 +270,9 @@ export type DesktopRuntimeOptions = {
   savesDirectory: string;
   worldDatasetPath: string;
   gameVersion?: string;
+  /** Configurable autosave cadence, in in-game days. Also autosaves on season transitions regardless. */
+  autosaveIntervalDays?: number;
+  autosaveEnabled?: boolean;
 };
 
 /** Raw sqlite row. Column access is unchecked, exactly as in the repositories. */
@@ -279,6 +297,8 @@ export class DesktopApplicationService {
   private readonly savesDirectory: string;
   private readonly worldDatasetPath: string;
   private readonly gameVersion: string;
+  private readonly autosaveIntervalDays: number;
+  private readonly autosaveEnabled: boolean;
   private dataset?: NepalWorldDataset;
   private session?: CareerSession;
 
@@ -286,6 +306,8 @@ export class DesktopApplicationService {
     this.savesDirectory = options.savesDirectory;
     this.worldDatasetPath = options.worldDatasetPath;
     this.gameVersion = options.gameVersion ?? GAME_VERSION;
+    this.autosaveIntervalDays = options.autosaveIntervalDays ?? DEFAULT_AUTOSAVE_INTERVAL_DAYS;
+    this.autosaveEnabled = options.autosaveEnabled ?? true;
   }
 
   listSaves(): AppResult<SaveCatalogEntry[]> {
@@ -443,6 +465,12 @@ export class DesktopApplicationService {
     let db: GameDatabase | undefined;
     try {
       db = openGameDatabase(filePath);
+      const integrity = checkSaveIntegrity(db);
+      if (!integrity.ok) {
+        throw new SaveIncompatibleError("SAVE_CORRUPT", `This save file is corrupt: ${integrity.detail}`);
+      }
+      assertSchemaCompatible(db);
+      backupBeforeMigrationIfNeeded(db, filePath);
       migrateDatabase(db);
       const save = loadSave(db);
       this.session = { saveId: save.id, filePath, db };
@@ -453,6 +481,7 @@ export class DesktopApplicationService {
     } catch (error) {
       db?.close();
       this.session = undefined;
+      if (error instanceof SaveIncompatibleError) return fail(error.code, error.message);
       if (isAppError(error)) return fail(error.code, error.message, error.detail);
       return fail("SAVE_CORRUPT", "Could not load the save.", error);
     }
@@ -562,6 +591,7 @@ export class DesktopApplicationService {
     return this.withSession((db, save, filePath) => {
       const context = tryManagerContext(db, save);
       let updated: SaveMetadata;
+      let stopReason: string | undefined;
 
       if (!context) {
         // No club to advance fixtures for — let the wider world (AI managers,
@@ -587,6 +617,7 @@ export class DesktopApplicationService {
           // Day-by-day advance that runs scouting and training and stops at the
           // first meaningful decision, rather than jumping blindly to the fixture.
           const outcome = advanceManagerCareer(db, save, context);
+          stopReason = outcome.stopReason;
           updated = { ...save, worldDate: outcome.worldDate, lastSavedAt: new Date().toISOString() };
           new SaveRepository(db).upsert(updated);
           new ManagerRepository(db).insertInboxItem({
@@ -694,6 +725,28 @@ export class DesktopApplicationService {
         }
       }
 
+      // Autosave foundation: after a configurable number of in-game days, or
+      // at a major season transition, into a rotating ring of slot files
+      // that never touches the primary save file itself.
+      if (
+        this.autosaveEnabled &&
+        isAutosaveDue({
+          lastAutosaveWorldDate: updated.lastAutosaveWorldDate,
+          createdAt: updated.createdAt,
+          currentWorldDate: updated.worldDate,
+          stopReason,
+          intervalDays: this.autosaveIntervalDays,
+        })
+      ) {
+        try {
+          performAutosave(db, this.savesDirectory, updated.id, AUTOSAVE_SLOT_COUNT);
+          updated = withAutosaveStamp(updated, updated.worldDate);
+          new SaveRepository(db).upsert(updated);
+        } catch {
+          // An autosave failure must never interrupt play or the manual save path.
+        }
+      }
+
       const state = this.buildState(db, updated, filePath);
       this.writeCatalogEntry(state.catalogEntry);
       return state;
@@ -707,11 +760,71 @@ export class DesktopApplicationService {
   saveCareer(): AppResult<SaveCatalogEntry> {
     return this.withSession((db, save, filePath) => {
       const stamped = { ...save, lastSavedAt: new Date().toISOString() };
+      // The metadata write below is the save; a checkpoint failure afterward
+      // must not be reported as a failed save when the data already committed.
       new SaveRepository(db).upsert(stamped);
-      db.exec("PRAGMA wal_checkpoint(TRUNCATE);");
+      try {
+        db.exec("PRAGMA wal_checkpoint(TRUNCATE);");
+      } catch {
+        // Non-fatal: the WAL still holds the committed write.
+      }
       const entry = this.catalogEntry(db, stamped, filePath);
       this.writeCatalogEntry(entry);
       return entry;
+    });
+  }
+
+  /**
+   * Save-as / new slot: copies the live world into a brand-new file via
+   * VACUUM INTO (atomic — fully written or not at all) and only switches the
+   * active session to it once the new slot is verified, so a failure here
+   * never disturbs the still-open original save.
+   */
+  saveCareerAs(saveName: string): AppResult<SaveCatalogEntry> {
+    return this.withSession((db, save, filePath) => {
+      mkdirSync(this.savesDirectory, { recursive: true });
+      const newFilePath = join(this.savesDirectory, `${slug(saveName)}-${Date.now().toString(36)}.sqlite`);
+      try {
+        db.exec("PRAGMA wal_checkpoint(TRUNCATE);");
+      } catch {
+        // Non-fatal: VACUUM INTO below reads the live database regardless.
+      }
+      atomicCopyDatabase(db, newFilePath);
+
+      let newDb: GameDatabase | undefined;
+      try {
+        newDb = openGameDatabase(newFilePath);
+        const integrity = checkSaveIntegrity(newDb);
+        if (!integrity.ok) throw appError("DATABASE_ERROR", `New save slot failed an integrity check: ${integrity.detail}`);
+        const now = new Date().toISOString();
+        const newSave: SaveMetadata = {
+          ...save,
+          id: createEntityId(),
+          name: saveName,
+          createdAt: now,
+          lastSavedAt: now,
+          lastAutosaveAt: undefined,
+          lastAutosaveWorldDate: undefined,
+        };
+        new SaveRepository(newDb).upsert(newSave);
+        newDb.exec("PRAGMA wal_checkpoint(TRUNCATE);");
+        const entry = this.catalogEntry(newDb, newSave, newFilePath);
+
+        // Everything above succeeded — only now do we retire the old session.
+        this.session!.db.close();
+        this.session = { saveId: newSave.id, filePath: newFilePath, db: newDb };
+        this.writeCatalogEntry(entry);
+        return entry;
+      } catch (error) {
+        newDb?.close();
+        discardFile(newFilePath);
+        if (isAppError(error)) throw error;
+        throw appError(
+          "DATABASE_ERROR",
+          "Could not create the new save slot.",
+          error instanceof Error ? error.message : String(error),
+        );
+      }
     });
   }
 
@@ -727,6 +840,37 @@ export class DesktopApplicationService {
     } catch (error) {
       return fail("DATABASE_ERROR", "Could not delete the save.", error);
     }
+  }
+
+  getAutosaveStatus(): AppResult<AutosaveStatusView> {
+    return this.withSession((_db, save) => {
+      const slots = listAutosaveSlots(this.savesDirectory, save.id)
+        .map((slot): AutosaveSlotView => ({ slotIndex: slot.slotIndex, savedAt: slot.savedAt }))
+        .sort((a, b) => b.savedAt.localeCompare(a.savedAt));
+      return {
+        enabled: this.autosaveEnabled,
+        intervalDays: this.autosaveIntervalDays,
+        lastAutosaveAt: save.lastAutosaveAt,
+        lastAutosaveWorldDate: save.lastAutosaveWorldDate,
+        slots,
+        slotCount: AUTOSAVE_SLOT_COUNT,
+      };
+    });
+  }
+
+  /**
+   * Restores an autosave slot as the active session. The slot file itself is
+   * left untouched (read-only source for the copy), so this is safe to
+   * retry and never destroys the autosave being restored from.
+   */
+  loadAutosaveSlot(slotIndex: number): AppResult<DesktopApplicationState> {
+    const listResult = this.withSession((_db, save) => {
+      const slot = listAutosaveSlots(this.savesDirectory, save.id).find((candidate) => candidate.slotIndex === slotIndex);
+      if (!slot) throw appError("SAVE_NOT_FOUND", `Autosave slot ${slotIndex} was not found.`);
+      return slot.filePath;
+    });
+    if (!listResult.ok) return listResult;
+    return this.loadCareerByPath(listResult.data);
   }
 
   // -------------------------------------------------------------------------

@@ -194,8 +194,8 @@ export class SaveRepository {
     this.db
       .prepare(
         `INSERT INTO saves
-        (id, name, world_date, database_version, game_version, random_seed, created_at, last_saved_at, player_character_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (id, name, world_date, database_version, game_version, random_seed, created_at, last_saved_at, player_character_id, last_autosave_world_date, last_autosave_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           name = excluded.name,
           world_date = excluded.world_date,
@@ -203,7 +203,9 @@ export class SaveRepository {
           game_version = excluded.game_version,
           random_seed = excluded.random_seed,
           last_saved_at = excluded.last_saved_at,
-          player_character_id = excluded.player_character_id`,
+          player_character_id = excluded.player_character_id,
+          last_autosave_world_date = excluded.last_autosave_world_date,
+          last_autosave_at = excluded.last_autosave_at`,
       )
       .run(
         save.id,
@@ -215,6 +217,8 @@ export class SaveRepository {
         save.createdAt,
         save.lastSavedAt,
         save.playerCharacterId ?? null,
+        save.lastAutosaveWorldDate ?? null,
+        save.lastAutosaveAt ?? null,
       );
   }
 
@@ -231,6 +235,8 @@ export class SaveRepository {
           createdAt: row.created_at,
           lastSavedAt: row.last_saved_at,
           playerCharacterId: row.player_character_id ?? undefined,
+          lastAutosaveWorldDate: row.last_autosave_world_date ?? undefined,
+          lastAutosaveAt: row.last_autosave_at ?? undefined,
         }
       : undefined;
   }
