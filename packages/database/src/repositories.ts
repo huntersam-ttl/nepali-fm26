@@ -4405,6 +4405,11 @@ const mapCompetitionMediaRights = (row: any): CompetitionMediaRights => ({
   annualValue: row.annual_value,
   streamingShare: row.streaming_share,
   currency: row.currency,
+  rightsType: row.rights_type ?? "DOMESTIC_AND_STREAMING",
+  startDate: row.start_date ?? undefined,
+  endDate: row.end_date ?? undefined,
+  contractStatus: row.contract_status ?? "ACTIVE",
+  exclusive: row.exclusive === undefined ? true : Boolean(row.exclusive),
   status: row.status,
 });
 
@@ -4419,6 +4424,8 @@ const mapSponsorshipContract = (row: any): SponsorshipContract => ({
   bonuses: json.parse(row.bonuses_json, {}),
   currency: row.currency,
   status: row.status,
+  exclusivityGroup: row.exclusivity_group ?? undefined,
+  expectations: json.parse(row.expectations_json, {}),
   provenanceStatus: row.provenance_status,
 });
 
@@ -5195,11 +5202,16 @@ export class ClubEconomyRepository {
       .prepare(
         `INSERT INTO sponsorship_contracts
         (id, club_id, sponsor_id, sponsorship_type, start_date, end_date, annual_value,
-          bonuses_json, currency, status, provenance_status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          bonuses_json, currency, status, exclusivity_group, expectations_json, provenance_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           status = excluded.status,
-          annual_value = excluded.annual_value`,
+          annual_value = excluded.annual_value,
+          start_date = excluded.start_date,
+          end_date = excluded.end_date,
+          bonuses_json = excluded.bonuses_json,
+          exclusivity_group = excluded.exclusivity_group,
+          expectations_json = excluded.expectations_json`,
       )
       .run(
         contract.id,
@@ -5212,6 +5224,8 @@ export class ClubEconomyRepository {
         json.stringify(contract.bonuses),
         contract.currency,
         contract.status,
+        contract.exclusivityGroup ?? null,
+        json.stringify(contract.expectations ?? {}),
         contract.provenanceStatus,
       );
   }
@@ -5243,12 +5257,15 @@ export class ClubEconomyRepository {
 
   upsertMediaRights(rights: CompetitionMediaRights): void {
     this.db.prepare(`INSERT INTO competition_media_rights
-      (id, competition_season_id, rights_partner, annual_value, streaming_share, currency, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      (id, competition_season_id, rights_partner, annual_value, streaming_share, currency, rights_type, start_date, end_date, contract_status, exclusive, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(competition_season_id) DO UPDATE SET rights_partner=excluded.rights_partner,
-      annual_value=excluded.annual_value, streaming_share=excluded.streaming_share, currency=excluded.currency, status=excluded.status`).run(
+      annual_value=excluded.annual_value, streaming_share=excluded.streaming_share, currency=excluded.currency,
+      rights_type=excluded.rights_type, start_date=excluded.start_date, end_date=excluded.end_date,
+      contract_status=excluded.contract_status, exclusive=excluded.exclusive, status=excluded.status`).run(
       rights.id, rights.competitionSeasonId, rights.rightsPartner, rights.annualValue, rights.streamingShare,
-      rights.currency, rights.status);
+      rights.currency, rights.rightsType ?? "DOMESTIC_AND_STREAMING", rights.startDate ?? null, rights.endDate ?? null,
+      rights.contractStatus ?? "ACTIVE", rights.exclusive === false ? 0 : 1, rights.status);
   }
 
   mediaRights(competitionSeasonId?: EntityId): CompetitionMediaRights[] {

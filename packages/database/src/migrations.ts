@@ -2455,6 +2455,18 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       );
     `,
   },
+  {
+    version: 29,
+    sql: `
+      ALTER TABLE sponsorship_contracts ADD COLUMN exclusivity_group TEXT;
+      ALTER TABLE sponsorship_contracts ADD COLUMN expectations_json TEXT NOT NULL DEFAULT '{}';
+      ALTER TABLE competition_media_rights ADD COLUMN rights_type TEXT NOT NULL DEFAULT 'DOMESTIC_AND_STREAMING';
+      ALTER TABLE competition_media_rights ADD COLUMN start_date TEXT;
+      ALTER TABLE competition_media_rights ADD COLUMN end_date TEXT;
+      ALTER TABLE competition_media_rights ADD COLUMN contract_status TEXT NOT NULL DEFAULT 'ACTIVE';
+      ALTER TABLE competition_media_rights ADD COLUMN exclusive INTEGER NOT NULL DEFAULT 1;
+    `,
+  },
 ];
 
 export const migrateDatabase = (db: GameDatabase): number => {

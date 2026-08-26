@@ -1851,6 +1851,11 @@ export type CompetitionMediaRights = {
   annualValue: number;
   streamingShare: number;
   currency: string;
+  rightsType?: "DOMESTIC_BROADCAST" | "STREAMING" | "DOMESTIC_AND_STREAMING";
+  startDate?: ISODate;
+  endDate?: ISODate;
+  contractStatus?: "OFFERED" | "ACTIVE" | "EXPIRED" | "REJECTED";
+  exclusive?: boolean;
   status: "SIMULATION_ONLY" | "VERIFIED" | "REPORTED" | "ESTIMATED" | "UNKNOWN";
 };
 
@@ -1875,6 +1880,8 @@ export type SponsorshipContract = {
   bonuses: Record<string, number>;
   currency: string;
   status: "OFFERED" | "ACTIVE" | "EXPIRED" | "REJECTED";
+  exclusivityGroup?: string;
+  expectations?: Record<string, number>;
   provenanceStatus: "SIMULATION_ONLY" | "VERIFIED" | "REPORTED" | "ESTIMATED" | "UNKNOWN";
 };
 

@@ -305,17 +305,23 @@ export const generateSponsorOffers = (
   const economy = new ClubEconomyRepository(db);
   const sponsors = economy.sponsors();
   const supporter = economy.supporterProfile(input.clubId);
+  const commercial = economy.commercialProfile(input.clubId);
+  const team = db.prepare(`SELECT t.id FROM teams t WHERE t.club_id = ? AND t.level = 'senior' ORDER BY t.id LIMIT 1`).get(input.clubId) as { id: EntityId } | undefined;
+  const standing = team ? db.prepare("SELECT points FROM league_standings WHERE team_id = ? ORDER BY points DESC LIMIT 1").get(team.id) as { points?: number } | undefined : undefined;
   const rng = new SeededRandom(`${input.seed}:sponsor-offers:${input.clubId}:${input.date}`);
   const count = input.count ?? 3;
   return sponsors
-    .slice(0, Math.max(count, 1) * 3)
+    .filter((sponsor) => sponsor.status !== "UNKNOWN")
+    .slice(0, Math.max(count, 1) * 4)
     .slice(0, count)
     .map((sponsor, index) => {
+      const audience = (supporter?.coreSupporters ?? 800) + (supporter?.casualSupporters ?? 1000) * 0.35 + (supporter?.diasporaSupport ?? 0) * 1.4;
+      const resultsFactor = 1 + Math.min(0.18, (standing?.points ?? 0) / 500);
+      const reputationFactor = (supporter?.footballReputation ?? 5) + (commercial?.brandStrength ?? 4) + (commercial?.digitalReach ?? 3);
+      const tierFactor = { LOCAL: 0.65, REGIONAL: 1, NATIONAL: 1.35, PREMIUM: 1.8 }[sponsor.budgetTier];
       const value =
-        420000 +
-        (supporter?.commercialReputation ?? 5) * 85000 +
-        sponsor.reputation * 65000 +
-        rng.integer(0, 180000);
+        (160000 + audience * 110 + reputationFactor * 70000 + sponsor.reputation * 50000) * tierFactor * resultsFactor + rng.integer(0, 90000);
+      const type = (index === 0 ? "SHIRT_MAIN" : index === 1 ? "OFFICIAL_PARTNER" : index === 2 ? "SLEEVE" : "LOCAL_PARTNER") as SponsorshipType;
       const contract: SponsorshipContract = {
         id: createStableEntityId(
           "sponsorship-contract",
@@ -323,17 +329,15 @@ export const generateSponsorOffers = (
         ),
         clubId: input.clubId,
         sponsorId: sponsor.id,
-        type: (index === 0
-          ? "SHIRT_MAIN"
-          : index === 1
-            ? "OFFICIAL_PARTNER"
-            : "LOCAL_PARTNER") as SponsorshipType,
+        type,
         startDate: input.date,
-        endDate: addYears(input.date, 1),
+        endDate: addYears(input.date, index === 0 ? 2 : 1),
         annualValue: Math.round(value),
         bonuses: { champion: Math.round(value * 0.12), promotion: Math.round(value * 0.08) },
         currency,
         status: "OFFERED",
+        exclusivityGroup: type === "LOCAL_PARTNER" ? "LOCAL_SERVICES" : type,
+        expectations: { appearances: Math.round(4 + sponsor.reputation), socialReach: Math.round((commercial?.digitalReach ?? 3) * 10) },
         provenanceStatus: simulationStatus,
       };
       economy.upsertSponsorship(contract);
@@ -349,6 +353,9 @@ export const acceptSponsorOffer = (
   const economy = new ClubEconomyRepository(db);
   const contract = economy.sponsorships().find((item) => item.id === sponsorshipId);
   if (!contract) throw new Error(`Sponsorship offer ${sponsorshipId} not found`);
+  if (contract.status !== "OFFERED") throw new Error(`Sponsorship ${sponsorshipId} is not available`);
+  const exclusiveConflict = economy.sponsorships(contract.clubId).some((item) => item.id !== contract.id && item.status === "ACTIVE" && item.exclusivityGroup && item.exclusivityGroup === contract.exclusivityGroup && item.endDate >= date);
+  if (exclusiveConflict) throw new Error(`An active ${contract.exclusivityGroup} sponsorship already exists`);
   economy.updateSponsorshipStatus(sponsorshipId, "ACTIVE");
   postClubTransaction(db, {
     clubId: contract.clubId,
@@ -361,6 +368,50 @@ export const acceptSponsorOffer = (
     idempotencyKey: `sponsor-initial:${sponsorshipId}`,
   });
   return { ...contract, status: "ACTIVE" };
+};
+
+export const rejectSponsorOffer = (db: GameDatabase, sponsorshipId: EntityId): SponsorshipContract => {
+  const economy = new ClubEconomyRepository(db);
+  const contract = economy.sponsorships().find((item) => item.id === sponsorshipId);
+  if (!contract) throw new Error(`Sponsorship offer ${sponsorshipId} not found`);
+  economy.updateSponsorshipStatus(sponsorshipId, "REJECTED");
+  return { ...contract, status: "REJECTED" };
+};
+
+export const counterSponsorOffer = (
+  db: GameDatabase,
+  input: { sponsorshipId: EntityId; annualValue: number; endDate?: string; date: string; seed: string },
+): SponsorshipContract => {
+  const economy = new ClubEconomyRepository(db);
+  const offer = economy.sponsorships().find((item) => item.id === input.sponsorshipId);
+  if (!offer || offer.status !== "OFFERED") throw new Error("That sponsorship offer is no longer available");
+  const sponsor = economy.sponsors().find((item) => item.id === offer.sponsorId);
+  const ceiling = offer.annualValue * ({ LOCAL: 1.08, REGIONAL: 1.14, NATIONAL: 1.2, PREMIUM: 1.26 }[sponsor?.budgetTier ?? "LOCAL"]);
+  const rng = new SeededRandom(`${input.seed}:sponsor-counter:${offer.id}:${input.annualValue}:${input.date}`);
+  if (input.annualValue > ceiling || rng.next() > 0.78) {
+    return rejectSponsorOffer(db, offer.id);
+  }
+  const revised = { ...offer, annualValue: Math.max(1, Math.round(input.annualValue)), endDate: input.endDate ?? offer.endDate };
+  economy.upsertSponsorship(revised);
+  return acceptSponsorOffer(db, offer.id, input.date);
+};
+
+export const renewSponsorship = (db: GameDatabase, input: { sponsorshipId: EntityId; date: string; seed: string }): SponsorshipContract => {
+  const economy = new ClubEconomyRepository(db);
+  const previous = economy.sponsorships().find((item) => item.id === input.sponsorshipId);
+  if (!previous || (previous.status !== "ACTIVE" && previous.status !== "EXPIRED")) throw new Error("That sponsorship cannot be renewed");
+  const rng = new SeededRandom(`${input.seed}:sponsor-renewal:${previous.id}:${input.date}`);
+  const value = Math.round(previous.annualValue * (0.9 + rng.next() * 0.25));
+  const renewed: SponsorshipContract = { ...previous, id: createStableEntityId("sponsorship-contract-renewal", `${previous.id}:${input.date}`), startDate: input.date, endDate: addYears(input.date, 1), annualValue: value, status: "OFFERED" };
+  economy.upsertSponsorship(renewed);
+  return renewed;
+};
+
+export const expireSponsorships = (db: GameDatabase, date: string): SponsorshipContract[] => {
+  const economy = new ClubEconomyRepository(db);
+  const expired = economy.sponsorships().filter((item) => item.status === "ACTIVE" && item.endDate < date);
+  for (const contract of expired) economy.updateSponsorshipStatus(contract.id, "EXPIRED");
+  return expired.map((contract) => ({ ...contract, status: "EXPIRED" }));
 };
 
 export const createInfrastructureProject = (
@@ -635,6 +686,8 @@ export const processClubEconomyMonth = (
   db: GameDatabase,
   input: { date: string; seed: string },
 ): void => {
+  expireSponsorships(db, input.date);
+  expireCompetitionMediaRights(db, input.date);
   const economy = new ClubEconomyRepository(db);
   for (const account of economy.financialAccounts()) {
     const contracts = new TransferMarketRepository(db).activeContractsForClub(
@@ -699,6 +752,59 @@ export const processClubEconomyMonth = (
     }
   }
   advanceInfrastructureProjects(db, input);
+};
+
+export const generateCompetitionMediaRightsOffer = (
+  db: GameDatabase,
+  input: { competitionSeasonId: EntityId; date: string; seed: string },
+): CompetitionMediaRights => {
+  const economy = new ClubEconomyRepository(db);
+  const existing = economy.mediaRights(input.competitionSeasonId)[0];
+  if (existing) return existing;
+  const season = db.prepare(`SELECT c.name FROM competition_seasons cs JOIN competitions c ON c.id = cs.competition_id WHERE cs.id = ?`).get(input.competitionSeasonId) as { name?: string } | undefined;
+  const clubs = db.prepare("SELECT club_id FROM club_memberships WHERE competition_season_id = ? AND status = 'ACTIVE'").all(input.competitionSeasonId) as Array<{ club_id: EntityId }>;
+  const audience = clubs.reduce((total, row) => {
+    const support = economy.supporterProfile(row.club_id);
+    const commercial = economy.commercialProfile(row.club_id);
+    return total + (support?.coreSupporters ?? 0) + (support?.diasporaSupport ?? 0) * 1.4 + (commercial?.broadcastAppeal ?? 0) * 120;
+  }, 0);
+  const rng = new SeededRandom(`${input.seed}:media-offer:${input.competitionSeasonId}`);
+  const annualValue = Math.round(Math.min(4200000, 280000 + audience * 90 + rng.integer(0, 180000)));
+  const rights: CompetitionMediaRights = {
+    id: createStableEntityId("competition-media-rights", input.competitionSeasonId),
+    competitionSeasonId: input.competitionSeasonId,
+    rightsPartner: (season?.name ?? "Domestic competition").toLowerCase().includes("league") ? "Nepal Football Broadcast Network" : "Nepal Football Streaming Pool",
+    annualValue,
+    streamingShare: 0.35,
+    currency,
+    rightsType: (season?.name ?? "").toLowerCase().includes("league") ? "DOMESTIC_AND_STREAMING" : "STREAMING",
+    startDate: input.date,
+    endDate: addYears(input.date, 1),
+    contractStatus: "OFFERED",
+    exclusive: true,
+    status: simulationStatus,
+  };
+  economy.upsertMediaRights(rights);
+  return rights;
+};
+
+export const acceptCompetitionMediaRights = (db: GameDatabase, rightsId: EntityId, date: string): CompetitionMediaRights => {
+  const economy = new ClubEconomyRepository(db);
+  const rights = economy.mediaRights().find((item) => item.id === rightsId);
+  if (!rights || rights.contractStatus !== "OFFERED") throw new Error("That media-rights offer is no longer available");
+  const active = { ...rights, contractStatus: "ACTIVE" as const };
+  economy.upsertMediaRights(active);
+  const clubs = db.prepare("SELECT club_id FROM club_memberships WHERE competition_season_id = ? AND status = 'ACTIVE' ORDER BY club_id").all(rights.competitionSeasonId) as Array<{ club_id: EntityId }>;
+  const share = clubs.length ? Math.round(rights.annualValue / clubs.length) : 0;
+  for (const club of clubs) postClubTransaction(db, { clubId: club.club_id, date, category: rights.rightsType === "STREAMING" ? "BROADCASTING" : "BROADCASTING", direction: "CREDIT", amount: share, description: `${rights.rightsPartner} media-rights distribution`, relatedEntityId: rights.id, idempotencyKey: `media-rights:${rights.id}:${club.club_id}` });
+  return active;
+};
+
+export const expireCompetitionMediaRights = (db: GameDatabase, date: string): CompetitionMediaRights[] => {
+  const economy = new ClubEconomyRepository(db);
+  const expired = economy.mediaRights().filter((rights) => rights.contractStatus === "ACTIVE" && rights.endDate && rights.endDate < date);
+  for (const rights of expired) economy.upsertMediaRights({ ...rights, contractStatus: "EXPIRED" });
+  return expired.map((rights) => ({ ...rights, contractStatus: "EXPIRED" as const }));
 };
 
 export const postCompetitionMediaRights = (
