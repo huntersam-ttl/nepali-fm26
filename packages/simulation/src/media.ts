@@ -1,5 +1,5 @@
-import { createStableEntityId, type EntityId, type HistoricalEvent, type InboxItem, type MediaOutlet, type MediaStory } from "@nepal-football-sim/shared-types";
-import { EventRepository, ManagerRepository, MediaRepository, type GameDatabase } from "@nepal-football-sim/database";
+import { createStableEntityId, type EntityId, type HistoricalEvent, type InboxItem, type MediaInterview, type MediaJournalist, type MediaJournalistRelationship, type MediaOutlet, type MediaStory } from "@nepal-football-sim/shared-types";
+import { EventRepository, ManagerRepository, MediaPhaseBRepository, MediaRepository, type GameDatabase } from "@nepal-football-sim/database";
 
 const status = "SIMULATION_ONLY" as const;
 const outlets: Array<Omit<MediaOutlet, "id">> = [
@@ -29,3 +29,25 @@ export const publishMediaForDate = (db: GameDatabase, input: { date: string; min
 };
 
 export const getMediaArchive = (db: GameDatabase, publishedOn?: string): MediaStory[] => new MediaRepository(db).stories(publishedOn);
+
+const journalists: Array<Omit<MediaJournalist, "id" | "outletId">> = [
+  { name: "Asha Shrestha", beat: "Domestic football", temperament: "NEUTRAL", reputation: 6.5, status },
+  { name: "Rijan Gurung", beat: "National teams", temperament: "SCEPTICAL", reputation: 7.2, status },
+  { name: "Mina Rai", beat: "Player development", temperament: "FRIENDLY", reputation: 6.8, status },
+];
+
+export const initializeMediaJournalists = (db: GameDatabase): MediaJournalist[] => { const outletsRepo = new MediaRepository(db); const repo = new MediaPhaseBRepository(db); initializeMediaForSave(db); const all = outletsRepo.outlets(); for (const [index, profile] of journalists.entries()) { const outlet = all[index % all.length]; repo.upsertJournalist({ ...profile, id: createStableEntityId("media-journalist", profile.name), outletId: outlet.id }); } return repo.journalists(); };
+
+const questionsFor = (story: MediaStory): string[] => { const questions: Record<MediaStory["eventType"], string> = { MATCH_RESULT: "What did this result show about the team's current level?", TRANSFER: "How does this move fit the club's sporting plan?", STAFF_CHANGE: "What is the priority after this football change?", INJURY: "What is the responsible plan for the player's recovery?", COMPETITION: "What is the target for the next stage of this competition?", MILESTONE: "What does this milestone mean for the next phase?", NATIONAL_TEAM: "What did this international event reveal?" }; return [questions[story.eventType]]; };
+
+export const createMediaInterview = (db: GameDatabase, input: { storyId: EntityId; managerPersonId?: EntityId; date: string; context: MediaInterview["context"]; minimumImportance?: number }): MediaInterview => {
+  const story = new MediaRepository(db).stories().find((item) => item.id === input.storyId); if (!story || story.importance < (input.minimumImportance ?? 6)) throw new Error("Media event is not important enough for an interview"); initializeMediaJournalists(db); const journalist = new MediaPhaseBRepository(db).journalists().find((item) => item.outletId === story.outletId) ?? new MediaPhaseBRepository(db).journalists()[0]; if (!journalist) throw new Error("No journalist is available");
+  const interview: MediaInterview = { id: createStableEntityId("media-interview", `${story.id}:${input.context}:${input.date}`), outletId: story.outletId, journalistId: journalist.id, sourceEntityId: story.sourceEntityId, managerPersonId: input.managerPersonId, interviewDate: input.date, context: input.context, importance: story.importance, questions: questionsFor(story), responses: [], summary: `Interview opened from ${story.headline}`, managerReputationEffect: 0, clubSupportEffect: 0, status: "OPEN", provenanceStatus: status }; new MediaPhaseBRepository(db).upsertInterview(interview); return interview;
+};
+
+export type MediaResponseStance = "CALM" | "AMBITIOUS" | "PROTECTIVE" | "CONCILIATORY";
+export const answerMediaInterview = (db: GameDatabase, input: { interviewId: EntityId; stance: MediaResponseStance; response: string }): MediaInterview => {
+  const repo = new MediaPhaseBRepository(db); const interview = repo.interviews().find((item) => item.id === input.interviewId); if (!interview || interview.status !== "OPEN") throw new Error("Media interview is unavailable"); const journalist = repo.journalists().find((item) => item.id === interview.journalistId); const previous = repo.relationships(interview.journalistId).find((item) => item.managerPersonId === interview.managerPersonId); const temperamentAdjustment = journalist?.temperament === "FRIENDLY" && input.stance !== "PROTECTIVE" ? 0.06 : journalist?.temperament === "SCEPTICAL" && input.stance === "AMBITIOUS" ? -0.04 : 0.02; const trust = Math.max(0, Math.min(1, (previous?.trust ?? 0.5) + temperamentAdjustment)); const next: MediaInterview = { ...interview, responses: [input.response], summary: `${interview.summary}; manager responded ${input.stance.toLowerCase()}.`, managerReputationEffect: input.stance === "AMBITIOUS" ? 0.04 : input.stance === "CONCILIATORY" ? 0.02 : 0, clubSupportEffect: input.stance === "PROTECTIVE" ? 0.03 : input.stance === "AMBITIOUS" ? 0.01 : 0, status: "COMPLETED" }; repo.upsertInterview(next); const relationship: MediaJournalistRelationship = { id: previous?.id ?? createStableEntityId("media-journalist-relationship", `${interview.journalistId}:${interview.managerPersonId ?? "general"}`), journalistId: interview.journalistId, managerPersonId: interview.managerPersonId, trust, lastInteraction: interview.interviewDate, status }; repo.upsertRelationship(relationship); return next;
+};
+
+export const answerMediaInterviewAsAi = (db: GameDatabase, input: { interviewId: EntityId; seed: string }): MediaInterview => { const interview = new MediaPhaseBRepository(db).interviews().find((item) => item.id === input.interviewId); if (!interview) throw new Error("Media interview not found"); const stance: MediaResponseStance = interview.context === "POST_MATCH" ? "CALM" : interview.importance >= 8 ? "PROTECTIVE" : "CONCILIATORY"; return answerMediaInterview(db, { interviewId: input.interviewId, stance, response: `We will focus on the next football task and the facts available to us (${input.seed.slice(0, 8)}).` }); };

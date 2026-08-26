@@ -3319,6 +3319,9 @@ export type NationalTeamInternationalForm = { id: EntityId; nationalTeamId: Enti
 
 export type MediaOutlet = { id: EntityId; name: string; scope: "LOCAL" | "NATIONAL" | "REGIONAL_INTERNATIONAL"; reputation: number; reach: number; bias: "NEUTRAL" | "CLUB_FOCUSED" | "NATIONAL_FOCUS" | "DEVELOPMENT_FOCUS"; style: "WIRE" | "ANALYSIS" | "TABLOID" | "TRADE"; status: "SIMULATION_ONLY" };
 export type MediaStory = { id: EntityId; outletId: EntityId; eventType: "MATCH_RESULT" | "TRANSFER" | "STAFF_CHANGE" | "INJURY" | "COMPETITION" | "MILESTONE" | "NATIONAL_TEAM"; sourceEntityId: EntityId; publishedOn: ISODate; importance: number; headline: string; summary: string; subjectIds: EntityId[]; reputationEffect: number; status: "PUBLISHED" | "ARCHIVED"; provenanceStatus: "SIMULATION_ONLY" };
+export type MediaJournalist = { id: EntityId; outletId: EntityId; name: string; beat: string; temperament: "FRIENDLY" | "NEUTRAL" | "SCEPTICAL"; reputation: number; status: "SIMULATION_ONLY" };
+export type MediaJournalistRelationship = { id: EntityId; journalistId: EntityId; managerPersonId?: EntityId; trust: number; lastInteraction?: ISODate; status: "SIMULATION_ONLY" };
+export type MediaInterview = { id: EntityId; outletId: EntityId; journalistId: EntityId; sourceEntityId: EntityId; managerPersonId?: EntityId; interviewDate: ISODate; context: "PRE_MATCH" | "POST_MATCH" | "EVENT"; importance: number; questions: string[]; responses: string[]; summary: string; managerReputationEffect: number; clubSupportEffect: number; status: "OPEN" | "COMPLETED"; provenanceStatus: "SIMULATION_ONLY" };
 
 export type InternationalRetirementStatus = "ACTIVE" | "CONSIDERING" | "RETIRED_INTERNATIONAL";
 

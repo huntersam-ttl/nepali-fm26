@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 47;
+export const CURRENT_DATABASE_VERSION = 48;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -2903,6 +2903,23 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
         importance REAL NOT NULL, headline TEXT NOT NULL, summary TEXT NOT NULL, subject_ids_json TEXT NOT NULL, reputation_effect REAL NOT NULL, status TEXT NOT NULL, provenance_status TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_media_stories_date ON media_stories(published_on, importance DESC);
+    `,
+  },
+  {
+    version: 48,
+    sql: `
+      CREATE TABLE IF NOT EXISTS media_journalists (
+        id TEXT PRIMARY KEY, outlet_id TEXT NOT NULL REFERENCES media_outlets(id), name TEXT NOT NULL, beat TEXT NOT NULL, temperament TEXT NOT NULL, reputation REAL NOT NULL, status TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS media_journalist_relationships (
+        id TEXT PRIMARY KEY, journalist_id TEXT NOT NULL REFERENCES media_journalists(id), manager_person_id TEXT REFERENCES persons(id), trust REAL NOT NULL, last_interaction TEXT, status TEXT NOT NULL,
+        UNIQUE(journalist_id, manager_person_id)
+      );
+      CREATE TABLE IF NOT EXISTS media_interviews (
+        id TEXT PRIMARY KEY, outlet_id TEXT NOT NULL REFERENCES media_outlets(id), journalist_id TEXT NOT NULL REFERENCES media_journalists(id), source_entity_id TEXT NOT NULL, manager_person_id TEXT REFERENCES persons(id),
+        interview_date TEXT NOT NULL, context TEXT NOT NULL, importance REAL NOT NULL, questions_json TEXT NOT NULL, responses_json TEXT NOT NULL, summary TEXT NOT NULL, manager_reputation_effect REAL NOT NULL, club_support_effect REAL NOT NULL, status TEXT NOT NULL, provenance_status TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_media_interviews_date ON media_interviews(interview_date, importance DESC);
     `,
   },
 ];
