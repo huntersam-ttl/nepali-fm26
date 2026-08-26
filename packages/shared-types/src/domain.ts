@@ -564,6 +564,61 @@ export type ManagerContract = {
   status: ManagerContractStatus;
 };
 
+/**
+ * Reason a manager job opened up at a club. Kept separate from
+ * `ManagerContractStatus` because "NEW_CLUB" vacancies (freshly promoted or
+ * newly imported teams) never had a prior contract to end.
+ */
+export type JobVacancyReason = "SACKED" | "RESIGNED" | "EXPIRED" | "NEW_CLUB";
+
+export type JobVacancyStatus = "OPEN" | "FILLED" | "WITHDRAWN";
+
+/**
+ * A club/team without an active manager contract. `countryId` is carried
+ * even though every vacancy today is domestic (Nepal), so filtering by
+ * country is a query change, not a schema change, once foreign jobs exist.
+ */
+export type JobVacancy = {
+  id: EntityId;
+  clubId?: EntityId;
+  teamId: EntityId;
+  countryId?: EntityId;
+  openedOn: ISODate;
+  reason: JobVacancyReason;
+  boardExpectation: string;
+  status: JobVacancyStatus;
+  filledOn?: ISODate;
+  filledByContractId?: EntityId;
+};
+
+export type JobApplicationStatus =
+  "PENDING" | "OFFERED" | "ACCEPTED" | "DECLINED" | "REJECTED" | "WITHDRAWN";
+
+export type JobApplication = {
+  id: EntityId;
+  vacancyId: EntityId;
+  managerProfileId: EntityId;
+  personId: EntityId;
+  status: JobApplicationStatus;
+  createdOn: ISODate;
+  decidedOn?: ISODate;
+  offeredSalaryMinor?: number;
+  offeredContractEnd?: ISODate;
+};
+
+/**
+ * The board's running trust in the current manager. One row per club;
+ * `contractId` lets a fresh appointment start from a neutral confidence
+ * rather than inheriting the previous manager's score.
+ */
+export type ClubBoardConfidence = {
+  clubId: EntityId;
+  contractId?: EntityId;
+  confidence: number;
+  expectation: string;
+  lastEvaluatedOn: ISODate;
+};
+
 export type FootballStaffRole =
   | "HEAD_COACH"
   | "ASSISTANT_COACH"
@@ -1945,11 +2000,55 @@ export type TransferOfferStatus =
   | "DRAFT"
   | "SUBMITTED"
   | "NEGOTIATING"
+  | "COUNTERED"
   | "ACCEPTED"
   | "REJECTED"
   | "WITHDRAWN"
   | "EXPIRED"
   | "COMPLETED";
+
+export type TransferConditionalClauseType = "APPEARANCE" | "PERFORMANCE";
+
+export type TransferConditionalClause = {
+  type: TransferConditionalClauseType;
+  threshold: number;
+  amount: number;
+  description: string;
+};
+
+export type TransferPlayerExchange = {
+  playerId: EntityId;
+  fromClubId: EntityId;
+  toClubId: EntityId;
+  valuation: KnowledgeRange;
+  requestedBy: "BUYING_CLUB" | "SELLING_CLUB";
+};
+
+export type TransferValuationSnapshot = {
+  playerId: EntityId;
+  buyingClubId?: EntityId;
+  sellingClubId?: EntityId;
+  internalValue: KnowledgeRange;
+  scoutEstimate: KnowledgeRange;
+  askingRange: KnowledgeRange;
+  confidence: number;
+  playerDesireToMove: number;
+  factors: {
+    contractExpiryLeverage: number;
+    agePotentialUncertainty: number;
+    sportingLevel: number;
+    reputationForm: number;
+    leagueEconomicLevel: number;
+    internationalExposure: number;
+    positionalScarcity: number;
+    sellerFinancePressure: number;
+    playerImportance: number;
+    replacementDifficulty: number;
+    windowTiming: number;
+    buyerWealthPerception: number;
+    playerDesire: number;
+  };
+};
 
 export type TransferOffer = {
   id: EntityId;
@@ -1968,6 +2067,12 @@ export type TransferOffer = {
   askingRange?: KnowledgeRange;
   agentFee: number;
   signingFee: number;
+  buyerPerceivedValue?: KnowledgeRange;
+  sellerInternalValue?: KnowledgeRange;
+  playerDesireToMove?: number;
+  conditionals?: TransferConditionalClause[];
+  playerExchanges?: TransferPlayerExchange[];
+  sellerRequestedPlayerId?: EntityId;
 };
 
 export type NegotiationRound = {
@@ -1975,7 +2080,15 @@ export type NegotiationRound = {
   offerId: EntityId;
   roundNumber: number;
   actor: "BUYING_CLUB" | "SELLING_CLUB" | "PLAYER_AGENT" | "SYSTEM";
-  action: "OFFER" | "DEMAND" | "COUNTER" | "ACCEPT" | "REJECT";
+  action:
+    | "ENQUIRY"
+    | "AVAILABILITY_RESPONSE"
+    | "OPENING_OFFER"
+    | "OFFER"
+    | "DEMAND"
+    | "COUNTER"
+    | "ACCEPT"
+    | "REJECT";
   salary?: number;
   squadRole?: PlayerSquadRole;
   contractLengthMonths?: number;

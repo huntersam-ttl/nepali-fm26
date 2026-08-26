@@ -4,11 +4,14 @@ import type {
   CalendarEntry,
   ContractList,
   ContractRenewalCommand,
+  DesktopApplicationState,
   EntityId,
   FixtureDetail,
   FixtureList,
+  JobCentreView,
   LiveMatchView,
   LiveTacticsCommand,
+  ManagerCareerHistoryView,
   ManagerCompetitionView,
   ManagerDashboard,
   PostMatchReport,
@@ -73,6 +76,16 @@ export const managerBridge = {
   renewContract: (command: ContractRenewalCommand) =>
     runtimeCall<ContractList>("renewContract", { command }),
   getStaff: (clubId?: EntityId) => runtimeCall<StaffList>("getStaff", { clubId }),
+
+  // --- Manager Career World --------------------------------------------
+  getJobCentre: () => runtimeCall<JobCentreView>("getJobCentre"),
+  applyForJob: (vacancyId: EntityId) => runtimeCall<JobCentreView>("applyForJob", { vacancyId }),
+  declineJobOffer: (applicationId: EntityId) =>
+    runtimeCall<JobCentreView>("declineJobOffer", { applicationId }),
+  acceptJobOffer: (applicationId: EntityId) =>
+    runtimeCall<DesktopApplicationState>("acceptJobOffer", { applicationId }),
+  resignFromClub: () => runtimeCall<DesktopApplicationState>("resignFromClub"),
+  getCareerHistory: () => runtimeCall<ManagerCareerHistoryView>("getCareerHistory"),
   getMatchSummary: (fixtureId: EntityId) =>
     runtimeCall<QuickSimSummary | undefined>("getMatchSummary", { fixtureId }),
 

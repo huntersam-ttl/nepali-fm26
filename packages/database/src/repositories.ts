@@ -88,6 +88,9 @@ import type {
   FixtureRecord,
   InjuryRecord,
   InboxItem,
+  JobApplication,
+  JobVacancy,
+  ClubBoardConfidence,
   LeagueStanding,
   ManagerContract,
   ManagerProfile,
@@ -1002,6 +1005,44 @@ export class ManagerRepository {
     return row ? mapManagerContract(row) : undefined;
   }
 
+  activeContractForTeam(teamId: EntityId): ManagerContract | undefined {
+    const row = this.db
+      .prepare(
+        "SELECT * FROM manager_contracts WHERE team_id = ? AND status = 'ACTIVE' ORDER BY contract_start DESC LIMIT 1",
+      )
+      .get(teamId) as any;
+    return row ? mapManagerContract(row) : undefined;
+  }
+
+  allActiveContracts(): ManagerContract[] {
+    return this.db
+      .prepare("SELECT * FROM manager_contracts WHERE status = 'ACTIVE'")
+      .all()
+      .map(mapManagerContract);
+  }
+
+  /** Full employment history for a person, most recent first — career history. */
+  contractsForPerson(personId: EntityId): ManagerContract[] {
+    return this.db
+      .prepare("SELECT * FROM manager_contracts WHERE person_id = ? ORDER BY contract_start DESC")
+      .all(personId)
+      .map(mapManagerContract);
+  }
+
+  /** Free agents: managers whose most recent contract already ended. */
+  unemployedManagerProfiles(): ManagerProfile[] {
+    return this.db
+      .prepare(
+        `SELECT mp.* FROM manager_profiles mp
+        WHERE NOT EXISTS (
+          SELECT 1 FROM manager_contracts mc
+          WHERE mc.manager_profile_id = mp.id AND mc.status = 'ACTIVE'
+        )`,
+      )
+      .all()
+      .map(mapManagerProfile);
+  }
+
   insertTacticalSetup(setup: TacticalSetup): void {
     this.db
       .prepare(
@@ -1078,6 +1119,168 @@ export class ManagerRepository {
       }));
   }
 }
+
+/** Vacancies, applications and board trust — the Manager Career World. */
+export class CareerWorldRepository {
+  constructor(private readonly db: GameDatabase) {}
+
+  insertVacancy(vacancy: JobVacancy): void {
+    this.db
+      .prepare(
+        `INSERT INTO manager_job_vacancies
+        (id, club_id, team_id, country_id, opened_on, reason, board_expectation, status,
+          filled_on, filled_by_contract_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          status = excluded.status,
+          filled_on = excluded.filled_on,
+          filled_by_contract_id = excluded.filled_by_contract_id`,
+      )
+      .run(
+        vacancy.id,
+        vacancy.clubId ?? null,
+        vacancy.teamId,
+        vacancy.countryId ?? null,
+        vacancy.openedOn,
+        vacancy.reason,
+        vacancy.boardExpectation,
+        vacancy.status,
+        vacancy.filledOn ?? null,
+        vacancy.filledByContractId ?? null,
+      );
+  }
+
+  openVacancies(): JobVacancy[] {
+    return this.db
+      .prepare("SELECT * FROM manager_job_vacancies WHERE status = 'OPEN' ORDER BY opened_on")
+      .all()
+      .map(mapJobVacancy);
+  }
+
+  openVacancyForTeam(teamId: EntityId): JobVacancy | undefined {
+    const row = this.db
+      .prepare(
+        "SELECT * FROM manager_job_vacancies WHERE team_id = ? AND status = 'OPEN' ORDER BY opened_on DESC LIMIT 1",
+      )
+      .get(teamId) as any;
+    return row ? mapJobVacancy(row) : undefined;
+  }
+
+  vacancy(id: EntityId): JobVacancy | undefined {
+    const row = this.db.prepare("SELECT * FROM manager_job_vacancies WHERE id = ?").get(id) as any;
+    return row ? mapJobVacancy(row) : undefined;
+  }
+
+  fillVacancy(id: EntityId, filledOn: string, contractId: EntityId): void {
+    this.db
+      .prepare(
+        "UPDATE manager_job_vacancies SET status = 'FILLED', filled_on = ?, filled_by_contract_id = ? WHERE id = ?",
+      )
+      .run(filledOn, contractId, id);
+  }
+
+  insertApplication(application: JobApplication): void {
+    this.db
+      .prepare(
+        `INSERT INTO manager_job_applications
+        (id, vacancy_id, manager_profile_id, person_id, status, created_on, decided_on,
+          offered_salary_minor, offered_contract_end)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          status = excluded.status,
+          decided_on = excluded.decided_on,
+          offered_salary_minor = excluded.offered_salary_minor,
+          offered_contract_end = excluded.offered_contract_end`,
+      )
+      .run(
+        application.id,
+        application.vacancyId,
+        application.managerProfileId,
+        application.personId,
+        application.status,
+        application.createdOn,
+        application.decidedOn ?? null,
+        application.offeredSalaryMinor ?? null,
+        application.offeredContractEnd ?? null,
+      );
+  }
+
+  application(id: EntityId): JobApplication | undefined {
+    const row = this.db
+      .prepare("SELECT * FROM manager_job_applications WHERE id = ?")
+      .get(id) as any;
+    return row ? mapJobApplication(row) : undefined;
+  }
+
+  applicationsForManager(managerProfileId: EntityId): JobApplication[] {
+    return this.db
+      .prepare(
+        "SELECT * FROM manager_job_applications WHERE manager_profile_id = ? ORDER BY created_on DESC",
+      )
+      .all(managerProfileId)
+      .map(mapJobApplication);
+  }
+
+  boardConfidence(clubId: EntityId): ClubBoardConfidence | undefined {
+    const row = this.db
+      .prepare("SELECT * FROM club_board_confidence WHERE club_id = ?")
+      .get(clubId) as any;
+    return row ? mapBoardConfidence(row) : undefined;
+  }
+
+  upsertBoardConfidence(confidence: ClubBoardConfidence): void {
+    this.db
+      .prepare(
+        `INSERT INTO club_board_confidence (club_id, contract_id, confidence, expectation, last_evaluated_on)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(club_id) DO UPDATE SET
+          contract_id = excluded.contract_id,
+          confidence = excluded.confidence,
+          expectation = excluded.expectation,
+          last_evaluated_on = excluded.last_evaluated_on`,
+      )
+      .run(
+        confidence.clubId,
+        confidence.contractId ?? null,
+        confidence.confidence,
+        confidence.expectation,
+        confidence.lastEvaluatedOn,
+      );
+  }
+}
+
+const mapJobVacancy = (row: any): JobVacancy => ({
+  id: row.id,
+  clubId: row.club_id ?? undefined,
+  teamId: row.team_id,
+  countryId: row.country_id ?? undefined,
+  openedOn: row.opened_on,
+  reason: row.reason,
+  boardExpectation: row.board_expectation,
+  status: row.status,
+  filledOn: row.filled_on ?? undefined,
+  filledByContractId: row.filled_by_contract_id ?? undefined,
+});
+
+const mapJobApplication = (row: any): JobApplication => ({
+  id: row.id,
+  vacancyId: row.vacancy_id,
+  managerProfileId: row.manager_profile_id,
+  personId: row.person_id,
+  status: row.status,
+  createdOn: row.created_on,
+  decidedOn: row.decided_on ?? undefined,
+  offeredSalaryMinor: row.offered_salary_minor ?? undefined,
+  offeredContractEnd: row.offered_contract_end ?? undefined,
+});
+
+const mapBoardConfidence = (row: any): ClubBoardConfidence => ({
+  clubId: row.club_id,
+  contractId: row.contract_id ?? undefined,
+  confidence: row.confidence,
+  expectation: row.expectation,
+  lastEvaluatedOn: row.last_evaluated_on,
+});
 
 export class CompetitionRepository {
   constructor(private readonly db: GameDatabase) {}
@@ -1459,6 +1662,18 @@ export class CompetitionRepository {
         "INSERT INTO competition_winners (id, competition_season_id, team_id, decided_on) VALUES (?, ?, ?, ?)",
       )
       .run(winner.id, winner.competitionSeasonId, winner.teamId, winner.decidedOn);
+  }
+
+  winnersForTeam(teamId: EntityId): CompetitionWinner[] {
+    return this.db
+      .prepare("SELECT * FROM competition_winners WHERE team_id = ? ORDER BY decided_on DESC")
+      .all(teamId)
+      .map((row: any) => ({
+        id: row.id,
+        competitionSeasonId: row.competition_season_id,
+        teamId: row.team_id,
+        decidedOn: row.decided_on,
+      }));
   }
 }
 
@@ -2165,9 +2380,24 @@ export class TransferMarketRepository {
         `INSERT INTO transfer_offers
         (id, buying_club_id, selling_club_id, player_id, offer_type, transfer_fee,
           installments, addons, sell_on_percentage, submitted_at, expires_at, status,
-          currency, asking_range_json, agent_fee, signing_fee)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET status = excluded.status`,
+          currency, asking_range_json, agent_fee, signing_fee, buyer_perceived_value_json,
+          seller_internal_value_json, player_desire_to_move, conditionals_json,
+          player_exchanges_json, seller_requested_player_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          status = excluded.status,
+          transfer_fee = excluded.transfer_fee,
+          installments = excluded.installments,
+          addons = excluded.addons,
+          sell_on_percentage = excluded.sell_on_percentage,
+          expires_at = excluded.expires_at,
+          asking_range_json = excluded.asking_range_json,
+          buyer_perceived_value_json = excluded.buyer_perceived_value_json,
+          seller_internal_value_json = excluded.seller_internal_value_json,
+          player_desire_to_move = excluded.player_desire_to_move,
+          conditionals_json = excluded.conditionals_json,
+          player_exchanges_json = excluded.player_exchanges_json,
+          seller_requested_player_id = excluded.seller_requested_player_id`,
       )
       .run(
         offer.id,
@@ -2186,6 +2416,12 @@ export class TransferMarketRepository {
         offer.askingRange ? json.stringify(offer.askingRange) : null,
         offer.agentFee,
         offer.signingFee,
+        offer.buyerPerceivedValue ? json.stringify(offer.buyerPerceivedValue) : null,
+        offer.sellerInternalValue ? json.stringify(offer.sellerInternalValue) : null,
+        offer.playerDesireToMove ?? null,
+        offer.conditionals ? json.stringify(offer.conditionals) : null,
+        offer.playerExchanges ? json.stringify(offer.playerExchanges) : null,
+        offer.sellerRequestedPlayerId ?? null,
       );
   }
 
@@ -3656,6 +3892,18 @@ const mapTransferOffer = (row: any): TransferOffer => ({
   askingRange: row.asking_range_json ? json.parse(row.asking_range_json, undefined) : undefined,
   agentFee: row.agent_fee,
   signingFee: row.signing_fee,
+  buyerPerceivedValue: row.buyer_perceived_value_json
+    ? json.parse(row.buyer_perceived_value_json, undefined)
+    : undefined,
+  sellerInternalValue: row.seller_internal_value_json
+    ? json.parse(row.seller_internal_value_json, undefined)
+    : undefined,
+  playerDesireToMove: row.player_desire_to_move ?? undefined,
+  conditionals: row.conditionals_json ? json.parse(row.conditionals_json, []) : undefined,
+  playerExchanges: row.player_exchanges_json
+    ? json.parse(row.player_exchanges_json, [])
+    : undefined,
+  sellerRequestedPlayerId: row.seller_requested_player_id ?? undefined,
 });
 
 const mapNegotiationRound = (row: any): NegotiationRound => ({

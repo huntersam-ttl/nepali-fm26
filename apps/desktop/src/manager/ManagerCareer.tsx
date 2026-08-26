@@ -202,7 +202,15 @@ export const ManagerCareer = ({
         </header>
 
         {screen === "home" && (
-          <HomeScreen onContinue={() => void advance()} busy={busy} refreshKey={refreshKey} />
+          <HomeScreen
+            onContinue={() => void advance()}
+            busy={busy}
+            refreshKey={refreshKey}
+            onAction={async () => {
+              await refreshHeader();
+              setRefreshKey((key) => key + 1);
+            }}
+          />
         )}
         {screen === "squad" &&
           (playerId ? (

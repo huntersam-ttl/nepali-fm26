@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 19;
+export const CURRENT_DATABASE_VERSION = 21;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -2171,6 +2171,56 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       -- Two-leg tie pairing. Unused by any current fixture generator.
       ALTER TABLE fixtures ADD COLUMN tie_id TEXT;
       ALTER TABLE fixtures ADD COLUMN leg INTEGER;
+    `,
+  },
+  {
+    version: 20,
+    sql: `
+      -- Manager Career World: vacancies, applications and board trust.
+      CREATE TABLE IF NOT EXISTS manager_job_vacancies (
+        id TEXT PRIMARY KEY,
+        club_id TEXT REFERENCES clubs(id),
+        team_id TEXT NOT NULL REFERENCES teams(id),
+        country_id TEXT REFERENCES countries(id),
+        opened_on TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        board_expectation TEXT NOT NULL,
+        status TEXT NOT NULL,
+        filled_on TEXT,
+        filled_by_contract_id TEXT REFERENCES manager_contracts(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS manager_job_applications (
+        id TEXT PRIMARY KEY,
+        vacancy_id TEXT NOT NULL REFERENCES manager_job_vacancies(id),
+        manager_profile_id TEXT NOT NULL REFERENCES manager_profiles(id),
+        person_id TEXT NOT NULL REFERENCES persons(id),
+        status TEXT NOT NULL,
+        created_on TEXT NOT NULL,
+        decided_on TEXT,
+        offered_salary_minor INTEGER,
+        offered_contract_end TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS club_board_confidence (
+        club_id TEXT PRIMARY KEY REFERENCES clubs(id),
+        contract_id TEXT REFERENCES manager_contracts(id),
+        confidence INTEGER NOT NULL,
+        expectation TEXT NOT NULL,
+        last_evaluated_on TEXT NOT NULL
+      );
+    `,
+  },
+  {
+    version: 21,
+    sql: `
+      -- Deep Transfer Market Phase A: contextual valuation and exchange clauses.
+      ALTER TABLE transfer_offers ADD COLUMN buyer_perceived_value_json TEXT;
+      ALTER TABLE transfer_offers ADD COLUMN seller_internal_value_json TEXT;
+      ALTER TABLE transfer_offers ADD COLUMN player_desire_to_move REAL;
+      ALTER TABLE transfer_offers ADD COLUMN conditionals_json TEXT;
+      ALTER TABLE transfer_offers ADD COLUMN player_exchanges_json TEXT;
+      ALTER TABLE transfer_offers ADD COLUMN seller_requested_player_id TEXT REFERENCES persons(id);
     `,
   },
 ];

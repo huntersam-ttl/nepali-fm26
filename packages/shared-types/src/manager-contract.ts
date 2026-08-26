@@ -553,7 +553,63 @@ export type StaffList = {
 // Dashboard, calendar and continue
 // ---------------------------------------------------------------------------
 
+/** Vacancy the manager could apply for. Domestic-only today; see JobVacancy. */
+export type JobVacancyView = {
+  id: EntityId;
+  clubName: string;
+  teamName: string;
+  competitionName: string;
+  openedOn: ISODate;
+  reason: string;
+  boardExpectation: string;
+  eligible: boolean;
+  eligibilityNote?: string;
+};
+
+export type JobApplicationView = {
+  id: EntityId;
+  vacancyId: EntityId;
+  clubName: string;
+  teamName: string;
+  status: string;
+  createdOn: ISODate;
+  decidedOn?: ISODate;
+  offeredSalaryMinor?: number;
+  offeredContractEnd?: ISODate;
+};
+
+export type JobCentreView = {
+  reputationProfile: string;
+  vacancies: JobVacancyView[];
+  applications: JobApplicationView[];
+};
+
+export type ManagerCareerHistoryEntry = {
+  contractId: EntityId;
+  clubName?: string;
+  teamName?: string;
+  jobTitle: string;
+  start: ISODate;
+  end?: ISODate;
+  outcome: string;
+};
+
+export type ManagerTrophyEntry = {
+  competitionName: string;
+  teamName: string;
+  wonOn: ISODate;
+};
+
+export type ManagerCareerHistoryView = {
+  managerName: string;
+  reputationProfile: string;
+  jobsHeld: number;
+  history: ManagerCareerHistoryEntry[];
+  trophies: ManagerTrophyEntry[];
+};
+
 export type ManagerDashboard = {
+  employmentStatus: "EMPLOYED" | "UNEMPLOYED";
   clubName?: string;
   teamName: string;
   competitionName: string;
@@ -564,6 +620,9 @@ export type ManagerDashboard = {
   form: string[];
   nextFixture?: FixtureRow;
   recentResults: FixtureRow[];
+  boardConfidence?: number;
+  boardExpectation?: string;
+  jobCentre?: JobCentreView;
   squadAvailability: {
     total: number;
     available: number;
@@ -639,6 +698,13 @@ export type ManagerRuntimeApi = {
   renewContract(command: ContractRenewalCommand): Promise<unknown>;
   getStaff(clubId?: EntityId): Promise<unknown>;
   getCalendar(): Promise<unknown>;
+  // Manager Career World (Step 5).
+  getJobCentre(): Promise<unknown>;
+  applyForJob(vacancyId: EntityId): Promise<unknown>;
+  declineJobOffer(applicationId: EntityId): Promise<unknown>;
+  acceptJobOffer(applicationId: EntityId): Promise<unknown>;
+  resignFromClub(): Promise<unknown>;
+  getCareerHistory(): Promise<unknown>;
 };
 
 /** Attribute keys grouped for presentation. Values stay on the engine's 1-20 scale. */

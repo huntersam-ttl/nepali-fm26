@@ -230,6 +230,19 @@ const dispatch = (
       return service.getMatchSummary(body.fixtureId as EntityId);
     case "getStaff":
       return service.getStaff(body.clubId as EntityId | undefined);
+    // Manager Career World (Step 5).
+    case "getJobCentre":
+      return service.getJobCentre();
+    case "applyForJob":
+      return service.applyForJob(body.vacancyId as EntityId);
+    case "declineJobOffer":
+      return service.declineJobOffer(body.applicationId as EntityId);
+    case "acceptJobOffer":
+      return service.acceptJobOffer(body.applicationId as EntityId);
+    case "resignFromClub":
+      return service.resignFromClub();
+    case "getCareerHistory":
+      return service.getCareerHistory();
     default:
       return {
         ok: false,

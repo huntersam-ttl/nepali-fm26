@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import {
+  CareerWorldRepository,
   CompetitionRepository,
   ManagerRepository,
   MatchSessionRepository,
@@ -35,10 +36,16 @@ import {
   type FixtureList,
   type FixtureReadModel,
   type FixtureRecord,
+  type JobApplicationView,
+  type JobCentreView,
+  type JobVacancyView,
   type LiveMatchView,
   type LiveTacticsCommand,
+  type ManagerCareerHistoryView,
   type ManagerCompetitionView,
+  type ManagerContract,
   type ManagerDashboard,
+  type ManagerProfile,
   type MatchEvent,
   type MatchSessionRecord,
   type MatchViewMode,
@@ -77,6 +84,19 @@ import { validateNepalWorldDataset, type NepalWorldDataset } from "@nepal-footba
 import { generateLeagueFixtures } from "./fixture-generation.js";
 import { importNepalWorld } from "./nepal-save.js";
 import { createCareerCharacter, createManagerContract, testLicence } from "./manager-career.js";
+import {
+  acceptJobOffer as acceptJobOfferCommand,
+  applyForJob as applyForJobCommand,
+  careerHistory,
+  declineJobOffer as declineJobOfferCommand,
+  ensureAiManagersAssigned,
+  evaluateBoardConfidence,
+  JobApplicationError,
+  JobOfferError,
+  listVacancies,
+  resignFromClub as resignFromClubCommand,
+  advanceUnemployedCareer,
+} from "./manager-career-world.js";
 import { nextFixtureForTeam, quickSimManagerMatch } from "./manager-flow.js";
 import {
   MatchAlreadyPlayedError,
@@ -453,33 +473,56 @@ export class DesktopApplicationService {
 
   continueCareer(): AppResult<DesktopApplicationState> {
     return this.withSession((db, save, filePath) => {
-      const context = managerContext(db, save);
-      if (!nextFixtureForTeam(context.fixtures, context.team.id, save.worldDate)) {
-        throw appError("FIXTURE_MISSING", "There is no further fixture to advance to.");
-      }
-      ensureManagerSystems(db, save, context);
-      db.exec("BEGIN;");
+      const context = tryManagerContext(db, save);
       let updated: SaveMetadata;
-      try {
-        // Day-by-day advance that runs scouting and training and stops at the
-        // first meaningful decision, rather than jumping blindly to the fixture.
-        const outcome = advanceManagerCareer(db, save, context);
+
+      if (!context) {
+        // No club to advance fixtures for — let the wider world (AI managers,
+        // board confidence, vacancies) move on until something new appears.
+        const outcome = advanceUnemployedCareer(db, save);
         updated = { ...save, worldDate: outcome.worldDate, lastSavedAt: new Date().toISOString() };
         new SaveRepository(db).upsert(updated);
         new ManagerRepository(db).insertInboxItem({
           id: createEntityId(),
           createdOn: updated.worldDate,
-          type: outcome.stopReason === "NEXT_FIXTURE" ? "FIXTURE_UPCOMING" : "COMPETITION_UPDATE",
-          title: continueTitle(outcome.stopReason),
+          type: "COMPETITION_UPDATE",
+          title: outcome.newVacancies > 0 ? "New vacancies available" : "Time passes",
           body: outcome.message,
-          relatedEntity: { type: "team", id: context.team.id },
           read: false,
         });
-        db.exec("COMMIT;");
-      } catch (error) {
-        db.exec("ROLLBACK;");
-        throw error;
+      } else {
+        if (!nextFixtureForTeam(context.fixtures, context.team.id, save.worldDate)) {
+          throw appError("FIXTURE_MISSING", "There is no further fixture to advance to.");
+        }
+        ensureManagerSystems(db, save, context);
+        db.exec("BEGIN;");
+        try {
+          // Day-by-day advance that runs scouting and training and stops at the
+          // first meaningful decision, rather than jumping blindly to the fixture.
+          const outcome = advanceManagerCareer(db, save, context);
+          updated = { ...save, worldDate: outcome.worldDate, lastSavedAt: new Date().toISOString() };
+          new SaveRepository(db).upsert(updated);
+          new ManagerRepository(db).insertInboxItem({
+            id: createEntityId(),
+            createdOn: updated.worldDate,
+            type: outcome.stopReason === "NEXT_FIXTURE" ? "FIXTURE_UPCOMING" : "COMPETITION_UPDATE",
+            title: continueTitle(outcome.stopReason),
+            body: outcome.message,
+            relatedEntity: { type: "team", id: context.team.id },
+            read: false,
+          });
+          db.exec("COMMIT;");
+        } catch (error) {
+          db.exec("ROLLBACK;");
+          throw error;
+        }
+        // World-level tick: AI clubs fill vacancies, boards judge every
+        // manager (including the player) on results. May end the player's
+        // own contract — `buildState` below picks that up automatically.
+        ensureAiManagersAssigned(db, updated, context.team.id);
+        evaluateBoardConfidence(db, updated);
       }
+
       const state = this.buildState(db, updated, filePath);
       this.writeCatalogEntry(state.catalogEntry);
       return state;
@@ -568,7 +611,99 @@ export class DesktopApplicationService {
   }
 
   getManagerDashboard(): AppResult<ManagerDashboard> {
-    return this.managerCommand(buildManagerDashboard);
+    return this.withSession((db, save) => {
+      const context = tryManagerContext(db, save);
+      if (!context) return buildUnemployedDashboard(db, save);
+      ensureManagerSystems(db, save, context);
+      return buildManagerDashboard(db, save, context);
+    });
+  }
+
+  getJobCentre(): AppResult<JobCentreView> {
+    return this.withSession((db, save) => buildJobCentreView(db, requirePlayerManagerProfile(db, save)));
+  }
+
+  applyForJob(vacancyId: EntityId): AppResult<JobCentreView> {
+    return this.withSession((db, save) => {
+      const managerProfile = requirePlayerManagerProfile(db, save);
+      try {
+        applyForJobCommand(db, save, managerProfile, vacancyId);
+      } catch (error) {
+        if (error instanceof JobApplicationError) throw appError("INVALID_SELECTION", error.message);
+        throw error;
+      }
+      return buildJobCentreView(db, managerProfile);
+    });
+  }
+
+  declineJobOffer(applicationId: EntityId): AppResult<JobCentreView> {
+    return this.withSession((db, save) => {
+      const managerProfile = requirePlayerManagerProfile(db, save);
+      try {
+        declineJobOfferCommand(db, save, applicationId);
+      } catch (error) {
+        if (error instanceof JobOfferError) throw appError("INVALID_SELECTION", error.message);
+        throw error;
+      }
+      return buildJobCentreView(db, managerProfile);
+    });
+  }
+
+  acceptJobOffer(applicationId: EntityId): AppResult<DesktopApplicationState> {
+    return this.withSession((db, save, filePath) => {
+      const managerProfile = requirePlayerManagerProfile(db, save);
+      try {
+        acceptJobOfferCommand(db, save, managerProfile, applicationId);
+      } catch (error) {
+        if (error instanceof JobOfferError) throw appError("INVALID_SELECTION", error.message);
+        throw error;
+      }
+      const state = this.buildState(db, save, filePath);
+      this.writeCatalogEntry(state.catalogEntry);
+      return state;
+    });
+  }
+
+  resignFromClub(): AppResult<DesktopApplicationState> {
+    return this.withSession((db, save, filePath) => {
+      const context = managerContext(db, save);
+      resignFromClubCommand(db, save, context.contract);
+      const updated = { ...save, lastSavedAt: new Date().toISOString() };
+      new SaveRepository(db).upsert(updated);
+      const state = this.buildState(db, updated, filePath);
+      this.writeCatalogEntry(state.catalogEntry);
+      return state;
+    });
+  }
+
+  getCareerHistory(): AppResult<ManagerCareerHistoryView> {
+    return this.withSession((db, save) => {
+      if (!save.playerCharacterId) throw appError("SAVE_CORRUPT", "Save has no player character.");
+      const character = new WorldRepository(db).getCareerCharacter(save.playerCharacterId);
+      if (!character) throw appError("SAVE_CORRUPT", "Career character record is missing.");
+      const managerProfile = requirePlayerManagerProfile(db, save);
+      const person = getPerson(db, character.personId);
+      const { history, trophies } = careerHistory(db, character.personId);
+      return {
+        managerName: displayName(person),
+        reputationProfile: managerProfile.reputationProfile,
+        jobsHeld: history.length,
+        history: history.map((entry) => ({
+          contractId: entry.contract.id,
+          clubName: entry.clubName,
+          teamName: entry.teamName,
+          jobTitle: entry.contract.jobTitle,
+          start: entry.contract.contractStart,
+          end: entry.contract.contractEnd,
+          outcome: entry.contract.status,
+        })),
+        trophies: trophies.map((trophy) => ({
+          competitionName: trophy.competitionName,
+          teamName: trophy.teamName,
+          wonOn: trophy.wonOn,
+        })),
+      };
+    });
   }
 
   getSquad(): AppResult<SquadList> {
@@ -618,7 +753,12 @@ export class DesktopApplicationService {
   }
 
   getCalendar(): AppResult<CalendarEntry[]> {
-    return this.managerCommand(buildCalendar);
+    return this.withSession((db, save) => {
+      const context = tryManagerContext(db, save);
+      if (!context) return [];
+      ensureManagerSystems(db, save, context);
+      return buildCalendar(db, save, context);
+    });
   }
 
   getScoutingDashboard(): AppResult<ScoutingDashboard> {
@@ -864,7 +1004,8 @@ export class DesktopApplicationService {
     save: SaveMetadata,
     filePath: string,
   ): DesktopApplicationState {
-    const context = managerContext(db, save);
+    const context = tryManagerContext(db, save);
+    if (!context) return this.buildUnemployedState(db, save, filePath);
     const squad = squadReadModel(db, context.team.id, save.worldDate);
     const managers = new ManagerRepository(db);
     const tactics = managers.tacticalSetups(context.team.id);
@@ -894,6 +1035,33 @@ export class DesktopApplicationService {
     };
   }
 
+  private buildUnemployedState(
+    db: GameDatabase,
+    save: SaveMetadata,
+    filePath: string,
+  ): DesktopApplicationState {
+    const managerProfile = requirePlayerManagerProfile(db, save);
+    const character = new WorldRepository(db).getCareerCharacter(save.playerCharacterId!)!;
+    const person = getPerson(db, character.personId);
+    const managers = new ManagerRepository(db);
+    return {
+      save,
+      header: unemployedCareerHeader(db, save),
+      catalogEntry: this.catalogEntry(db, save, filePath),
+      home: {
+        save,
+        manager: managerProfile,
+        managerName: displayName(person),
+        inbox: managers.inboxItems(),
+        unavailablePlayers: [],
+      },
+      squad: [],
+      tactics: [],
+      fixtures: [],
+      competition: { name: "Unemployed", table: [] },
+    };
+  }
+
   private catalogEntry(db: GameDatabase, save: SaveMetadata, filePath: string): SaveCatalogEntry {
     const base: SaveCatalogEntry = {
       saveId: save.id,
@@ -906,13 +1074,23 @@ export class DesktopApplicationService {
       schemaVersion: save.databaseVersion,
     };
     try {
-      const context = managerContext(db, save);
-      return {
-        ...base,
-        characterName: displayName(context.managerPerson),
-        activeRole: "MANAGER",
-        organisation: context.club?.name ?? context.team.name,
-      };
+      const context = tryManagerContext(db, save);
+      if (context) {
+        return {
+          ...base,
+          characterName: displayName(context.managerPerson),
+          activeRole: "MANAGER",
+          organisation: context.club?.name ?? context.team.name,
+        };
+      }
+      if (save.playerCharacterId) {
+        const character = new WorldRepository(db).getCareerCharacter(save.playerCharacterId);
+        const person = character ? getPerson(db, character.personId) : undefined;
+        if (person) {
+          return { ...base, characterName: displayName(person), activeRole: "MANAGER", organisation: "Unemployed" };
+        }
+      }
+      return base;
     } catch {
       return base;
     }
@@ -1073,8 +1251,111 @@ const managerContext = (db: GameDatabase, save: SaveMetadata) => {
   };
 };
 
-const careerHeader = (db: GameDatabase, save: SaveMetadata): CareerHeader =>
-  careerHeaderFromContext(save, managerContext(db, save));
+/**
+ * Same lookups as `managerContext`, but returns `undefined` instead of
+ * throwing when the manager simply has no active contract — the normal,
+ * expected shape of an unemployed career rather than a corrupt save.
+ */
+const tryManagerContext = (db: GameDatabase, save: SaveMetadata): ManagerContext | undefined => {
+  if (!save.playerCharacterId) return undefined;
+  const world = new WorldRepository(db);
+  const managers = new ManagerRepository(db);
+  const character = world.getCareerCharacter(save.playerCharacterId);
+  if (!character) return undefined;
+  const manager = managers.getProfileByPerson(character.personId);
+  if (!manager) return undefined;
+  const contract = managers.activeContract(manager.id);
+  if (!contract?.teamId) return undefined;
+  return managerContext(db, save);
+};
+
+const requirePlayerManagerProfile = (db: GameDatabase, save: SaveMetadata): ManagerProfile => {
+  if (!save.playerCharacterId) throw appError("SAVE_CORRUPT", "Save has no player character.");
+  const character = new WorldRepository(db).getCareerCharacter(save.playerCharacterId);
+  if (!character) throw appError("SAVE_CORRUPT", "Career character record is missing.");
+  const manager = new ManagerRepository(db).getProfileByPerson(character.personId);
+  if (!manager) throw appError("SAVE_CORRUPT", "Manager profile record is missing.");
+  return manager;
+};
+
+const buildJobCentreView = (
+  db: GameDatabase,
+  managerProfile: ManagerProfile,
+): JobCentreView => {
+  const careerWorld = new CareerWorldRepository(db);
+  const vacancies: JobVacancyView[] = listVacancies(db, managerProfile).map((listing) => ({
+    id: listing.vacancy.id,
+    clubName: listing.clubName,
+    teamName: listing.teamName,
+    competitionName: listing.competitionName,
+    openedOn: listing.vacancy.openedOn,
+    reason: listing.vacancy.reason,
+    boardExpectation: listing.vacancy.boardExpectation,
+    eligible: listing.eligible,
+    eligibilityNote: listing.eligibilityNote,
+  }));
+  const applications: JobApplicationView[] = careerWorld
+    .applicationsForManager(managerProfile.id)
+    .map((application) => {
+      const vacancy = careerWorld.vacancy(application.vacancyId);
+      const team = vacancy ? getTeam(db, vacancy.teamId) : undefined;
+      const club = vacancy?.clubId ? getClub(db, vacancy.clubId) : undefined;
+      return {
+        id: application.id,
+        vacancyId: application.vacancyId,
+        clubName: club?.name ?? team?.name ?? "Unknown club",
+        teamName: team?.name ?? "Unknown team",
+        status: application.status,
+        createdOn: application.createdOn,
+        decidedOn: application.decidedOn,
+        offeredSalaryMinor: application.offeredSalaryMinor,
+        offeredContractEnd: application.offeredContractEnd,
+      };
+    });
+  return { reputationProfile: managerProfile.reputationProfile, vacancies, applications };
+};
+
+const unemployedCareerHeader = (db: GameDatabase, save: SaveMetadata): CareerHeader => {
+  const character = save.playerCharacterId
+    ? new WorldRepository(db).getCareerCharacter(save.playerCharacterId)
+    : undefined;
+  const person = character ? getPerson(db, character.personId) : undefined;
+  return {
+    saveId: save.id,
+    saveName: save.name,
+    worldDate: save.worldDate,
+    characterName: person ? displayName(person) : "Manager",
+    activeRole: "MANAGER",
+  };
+};
+
+const buildUnemployedDashboard = (db: GameDatabase, save: SaveMetadata): ManagerDashboard => {
+  const managerProfile = requirePlayerManagerProfile(db, save);
+  return {
+    employmentStatus: "UNEMPLOYED",
+    teamName: "Unemployed",
+    competitionName: "Nepal football",
+    worldDate: save.worldDate as ManagerDashboard["worldDate"],
+    played: 0,
+    points: 0,
+    form: [],
+    recentResults: [],
+    jobCentre: buildJobCentreView(db, managerProfile),
+    squadAvailability: { total: 0, available: 0, injured: 0, suspended: 0, unavailable: 0 },
+    moraleSummary: "No club",
+    trainingSummary: "No club",
+    scoutingUpdates: 0,
+    transferActivity: 0,
+    contractIssues: 0,
+    staffIssues: 0,
+    inbox: new ManagerRepository(db).inboxItems().slice(0, 12),
+  };
+};
+
+const careerHeader = (db: GameDatabase, save: SaveMetadata): CareerHeader => {
+  const context = tryManagerContext(db, save);
+  return context ? careerHeaderFromContext(save, context) : unemployedCareerHeader(db, save);
+};
 
 const careerHeaderFromContext = (save: SaveMetadata, context: ManagerContext): CareerHeader => ({
   saveId: save.id,
