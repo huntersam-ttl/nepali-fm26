@@ -35,6 +35,7 @@ export * from "./pyramid-progression.js";
 export * from "./rng.js";
 export * from "./season-engine.js";
 export * from "./scouting.js";
+export * from "./scouting-phase-b.js";
 export * from "./squad-dynamics.js";
 export * from "./staff-market.js";
 export * from "./standings.js";
