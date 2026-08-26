@@ -1,0 +1,345 @@
+import { beforeAll, describe, expect, it } from "vitest";
+import {
+  CompetitionRepository,
+  ManagerRepository,
+  PlayerRepository,
+  SquadDynamicsRepository,
+  TransferMarketRepository,
+  WorldRepository,
+  migrateDatabase,
+  openGameDatabase,
+} from "@nepal-football-sim/database";
+import { activeConcernCount, createCareerCharacter, evaluateSquadDynamics, testLicence } from "@nepal-football-sim/simulation";
+import {
+  createStableEntityId,
+  type Club,
+  type EntityId,
+  type PlayerAttributeSet,
+  type Team,
+} from "@nepal-football-sim/shared-types";
+
+const attributesFor = (personId: EntityId, mentalBoost: number): PlayerAttributeSet => ({
+  id: createStableEntityId("attributes", personId),
+  personId,
+  primaryPosition: "CM",
+  secondaryPositions: [],
+  technical: {
+    firstTouch: 10,
+    passing: 10,
+    crossing: 10,
+    dribbling: 10,
+    finishing: 10,
+    heading: 10,
+    tackling: 10,
+    technique: 10,
+    longShots: 10,
+    setPieces: 10,
+  },
+  mental: {
+    decisions: 10,
+    vision: 10,
+    composure: 10,
+    positioning: 10,
+    anticipation: 10,
+    workRate: 10,
+    teamwork: 10,
+    leadership: 10 + mentalBoost,
+    aggression: 10,
+    determination: 10 + mentalBoost,
+    professionalism: 10 + mentalBoost,
+  },
+  physical: {
+    pace: 10,
+    acceleration: 10,
+    strength: 10,
+    stamina: 10,
+    agility: 10,
+    balance: 10,
+    jumping: 10,
+    naturalFitness: 10,
+  },
+  goalkeeping: {
+    handling: 1,
+    reflexes: 1,
+    oneOnOnes: 1,
+    aerialReach: 1,
+    kicking: 1,
+    distribution: 1,
+    commandOfArea: 1,
+  },
+});
+
+describe("squad dynamics: hierarchy, relationships, concerns and morale", () => {
+  const db = openGameDatabase(":memory:");
+  migrateDatabase(db);
+
+  const country = { id: createStableEntityId("country", "NP"), name: "Nepal", isoCode: "NP" };
+  const club: Club = {
+    id: createStableEntityId("club", "sd-club"),
+    name: "Squad Dynamics FC",
+    countryId: country.id,
+    ownershipType: "PRIVATE",
+  };
+  const team: Team = {
+    id: createStableEntityId("team", "sd-club-senior"),
+    clubId: club.id,
+    name: "Squad Dynamics FC",
+    level: "senior",
+    gender: "men",
+  };
+  const competitionId = createStableEntityId("competition", "sd-league");
+  const seasonId = createStableEntityId("season", "sd-league-2026");
+
+  const keyPlayerId = createStableEntityId("person", "sd-key-player");
+  const backupId = createStableEntityId("person", "sd-backup");
+  const captainCandidateId = createStableEntityId("person", "sd-captain");
+
+  let managerProfileId: EntityId;
+
+  beforeAll(() => {
+    const world = new WorldRepository(db);
+    world.insertCountry(country);
+    world.insertClub(club);
+    world.insertTeam(team);
+    world.insertCompetition({ id: competitionId, name: "Test League", scope: "domestic" });
+    world.insertCompetitionSeason({
+      id: seasonId,
+      competitionId,
+      name: "2026 Test League",
+      startDate: "2026-08-01",
+      endDate: "2027-05-31",
+    });
+    world.insertClubMembership({
+      id: createStableEntityId("membership", "sd-club"),
+      clubId: club.id,
+      teamId: team.id,
+      competitionId,
+      competitionSeasonId: seasonId,
+      membershipType: "LEAGUE_MEMBER",
+      status: "ACTIVE",
+    });
+
+    for (const [id, boost] of [
+      [captainCandidateId, 6],
+      [keyPlayerId, 2],
+      [backupId, 0],
+    ] as const) {
+      world.insertPerson({ id, fullName: `Player ${id}`, nationalityCountryId: country.id, languages: ["ne"] });
+      world.insertPersonRole({
+        id: createStableEntityId("role", `${id}:player`),
+        personId: id,
+        role: "PLAYER",
+        activeFrom: "2026-08-01",
+      });
+      world.insertTeamPersonAssignment({
+        id: createStableEntityId("assignment", `${id}:player`),
+        personId: id,
+        teamId: team.id,
+        role: "PLAYER",
+        startedOn: "2026-08-01",
+      });
+      new PlayerRepository(db).insertAttributes(attributesFor(id, boost));
+    }
+
+    const transfers = new TransferMarketRepository(db);
+    transfers.upsertPlayerContract({
+      id: createStableEntityId("contract", "key-player"),
+      playerId: keyPlayerId,
+      clubId: club.id,
+      startDate: "2026-08-01",
+      endDate: "2027-02-01", // inside the 6-month contract-concern window as of 2026-10-15
+      contractType: "PROFESSIONAL",
+      salary: 100_000,
+      appearanceFee: 0,
+      goalBonus: 0,
+      cleanSheetBonus: 0,
+      signingBonus: 0,
+      loyaltyBonus: 0,
+      currency: "NPR",
+      squadRole: "KEY_PLAYER",
+      status: "ACTIVE",
+      provenance: { sourceName: "test", confidence: 1, status: "SIMULATION_ONLY" },
+    });
+    transfers.upsertPlayerContract({
+      id: createStableEntityId("contract", "backup"),
+      playerId: backupId,
+      clubId: club.id,
+      startDate: "2026-08-01",
+      endDate: "2028-05-31",
+      contractType: "PROFESSIONAL",
+      salary: 20_000,
+      appearanceFee: 0,
+      goalBonus: 0,
+      cleanSheetBonus: 0,
+      signingBonus: 0,
+      loyaltyBonus: 0,
+      currency: "NPR",
+      squadRole: "BACKUP",
+      status: "ACTIVE",
+      provenance: { sourceName: "test", confidence: 1, status: "SIMULATION_ONLY" },
+    });
+
+    // Key player has started almost none of the team's games.
+    new CompetitionRepository(db).upsertPlayerSeasonStat({
+      competitionSeasonId: seasonId,
+      personId: keyPlayerId,
+      teamId: team.id,
+      appearances: 1,
+      starts: 1,
+      minutes: 90,
+      goals: 0,
+      assists: 0,
+      yellowCards: 0,
+      redCards: 0,
+      averageRating: 6.5,
+      cleanSheets: 0,
+    });
+    new CompetitionRepository(db).upsertStanding({
+      competitionSeasonId: seasonId,
+      teamId: team.id,
+      played: 10,
+      won: 4,
+      drawn: 3,
+      lost: 3,
+      goalsFor: 12,
+      goalsAgainst: 10,
+      goalDifference: 2,
+      points: 15,
+    });
+
+    const character = createCareerCharacter({
+      fullName: "Test Manager",
+      dateOfBirth: "1980-01-01",
+      startingAge: 46,
+      nationalityCountryId: country.id,
+      languages: ["ne"],
+      footballBackground: "LOCAL_FOOTBALL",
+      education: "UNIVERSITY",
+      playingExperience: "PROFESSIONAL_PLAYER",
+      coachingExperience: "SENIOR_COACH",
+      coachingLicences: [testLicence("Testing A Licence", 3)],
+      businessBackground: "NONE",
+      startingReputationProfile: "FORMER_PLAYER",
+      careerStartDate: "2026-08-01",
+    });
+    world.insertPerson(character.person);
+    new ManagerRepository(db).insertProfile(character.managerProfile);
+    managerProfileId = character.managerProfile.id;
+  });
+
+  const saveAt = (worldDate: string) => ({
+    id: createStableEntityId("save", "squad-dynamics-test"),
+    name: "Squad Dynamics Test",
+    worldDate,
+    databaseVersion: 23,
+    gameVersion: "test",
+    randomSeed: "squad-dynamics-test",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    lastSavedAt: "2026-01-01T00:00:00.000Z",
+  });
+
+  it("ranks the highest-leadership player as captain", () => {
+    evaluateSquadDynamics(db, saveAt("2026-10-15"), team.id, club.id, managerProfileId);
+    const hierarchy = new SquadDynamicsRepository(db).hierarchyForTeam(team.id);
+    const captain = hierarchy.find((entry) => entry.role === "CAPTAIN");
+    expect(captain?.personId).toBe(captainCandidateId);
+  });
+
+  it("raises playing-time and contract concerns from real state, and hits the manager's inbox count", () => {
+    const dynamics = new SquadDynamicsRepository(db);
+    const playingTime = dynamics.concern(keyPlayerId, team.id, "PLAYING_TIME");
+    expect(playingTime?.status).toBe("RAISED");
+    const contract = dynamics.concern(keyPlayerId, team.id, "CONTRACT");
+    expect(contract?.status).toBe("RAISED");
+
+    expect(activeConcernCount(db, team.id)).toBeGreaterThanOrEqual(2);
+
+    const backupConcerns = dynamics.concernsForPerson(backupId, team.id);
+    expect(backupConcerns.every((concern) => concern.status !== "RAISED")).toBe(true);
+  });
+
+  it("worsens the manager relationship and applies a morale penalty for the concerned player", () => {
+    const relationship = new SquadDynamicsRepository(db).relationship(managerProfileId, keyPlayerId);
+    expect(relationship?.score).toBeLessThan(0);
+
+    const state = new PlayerRepository(db)
+      .availabilityStates(team.id)
+      .find((entry) => entry.personId === keyPlayerId);
+    expect(state?.moraleModifier).toBeLessThan(0);
+  });
+
+  it("logs a history event for the raised concern", () => {
+    const history = new SquadDynamicsRepository(db).historyForPerson(keyPlayerId);
+    expect(history.some((event) => event.eventType === "CONCERN_RAISED")).toBe(true);
+  });
+
+  it("resolves the playing-time concern once appearances recover, and improves the relationship", () => {
+    new CompetitionRepository(db).upsertPlayerSeasonStat({
+      competitionSeasonId: seasonId,
+      personId: keyPlayerId,
+      teamId: team.id,
+      appearances: 8,
+      starts: 8,
+      minutes: 720,
+      goals: 2,
+      assists: 1,
+      yellowCards: 0,
+      redCards: 0,
+      averageRating: 7.1,
+      cleanSheets: 0,
+    });
+    // Renew the contract so the contract concern also clears.
+    new TransferMarketRepository(db).upsertPlayerContract({
+      id: createStableEntityId("contract", "key-player"),
+      playerId: keyPlayerId,
+      clubId: club.id,
+      startDate: "2026-08-01",
+      endDate: "2029-05-31",
+      contractType: "PROFESSIONAL",
+      salary: 120_000,
+      appearanceFee: 0,
+      goalBonus: 0,
+      cleanSheetBonus: 0,
+      signingBonus: 0,
+      loyaltyBonus: 0,
+      currency: "NPR",
+      squadRole: "KEY_PLAYER",
+      status: "ACTIVE",
+      provenance: { sourceName: "test", confidence: 1, status: "SIMULATION_ONLY" },
+    });
+
+    const before = new SquadDynamicsRepository(db).relationship(managerProfileId, keyPlayerId)?.score ?? 0;
+    evaluateSquadDynamics(db, saveAt("2026-10-20"), team.id, club.id, managerProfileId);
+
+    const dynamics = new SquadDynamicsRepository(db);
+    expect(dynamics.concern(keyPlayerId, team.id, "PLAYING_TIME")?.status).toBe("RESOLVED");
+    expect(dynamics.concern(keyPlayerId, team.id, "CONTRACT")?.status).toBe("RESOLVED");
+    const after = dynamics.relationship(managerProfileId, keyPlayerId)?.score ?? 0;
+    expect(after).toBeGreaterThan(before);
+
+    const history = dynamics.historyForPerson(keyPlayerId);
+    expect(history.some((event) => event.eventType === "CONCERN_RESOLVED")).toBe(true);
+  });
+
+  it("escalates a concern that stays unresolved past the grace window", () => {
+    new TransferMarketRepository(db).upsertTransferStatus({
+      id: createStableEntityId("transfer-status", "backup"),
+      playerId: backupId,
+      clubId: club.id,
+      status: "INTERESTED_IN_MOVE",
+      reason: "Wants regular football",
+      setBy: "PLAYER",
+      updatedAt: "2026-10-20",
+    });
+
+    evaluateSquadDynamics(db, saveAt("2026-10-20"), team.id, club.id, managerProfileId);
+    const dynamics = new SquadDynamicsRepository(db);
+    expect(dynamics.concern(backupId, team.id, "TRANSFER_INTEREST")?.status).toBe("RAISED");
+
+    evaluateSquadDynamics(db, saveAt("2026-12-05"), team.id, club.id, managerProfileId); // > 30 days later
+    expect(dynamics.concern(backupId, team.id, "TRANSFER_INTEREST")?.status).toBe("ESCALATED");
+
+    const history = dynamics.historyForPerson(backupId);
+    expect(history.some((event) => event.eventType === "CONCERN_ESCALATED")).toBe(true);
+  });
+});

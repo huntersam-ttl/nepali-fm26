@@ -622,6 +622,7 @@ export type ManagerDashboard = {
   recentResults: FixtureRow[];
   boardConfidence?: number;
   boardExpectation?: string;
+  concernCount?: number;
   jobCentre?: JobCentreView;
   squadAvailability: {
     total: number;

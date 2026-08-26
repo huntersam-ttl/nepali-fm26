@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 21;
+export const CURRENT_DATABASE_VERSION = 23;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -2221,6 +2221,92 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       ALTER TABLE transfer_offers ADD COLUMN conditionals_json TEXT;
       ALTER TABLE transfer_offers ADD COLUMN player_exchanges_json TEXT;
       ALTER TABLE transfer_offers ADD COLUMN seller_requested_player_id TEXT REFERENCES persons(id);
+    `,
+  },
+  {
+    version: 22,
+    sql: `
+      -- Deep Transfer Market Phase B: earned representation and agent approaches.
+      ALTER TABLE agents ADD COLUMN negotiation_skill INTEGER NOT NULL DEFAULT 8;
+      ALTER TABLE agents ADD COLUMN network_scope TEXT NOT NULL DEFAULT 'NEPAL_DOMESTIC';
+      ALTER TABLE agents ADD COLUMN preferred_markets_json TEXT NOT NULL DEFAULT '["NP"]';
+
+      CREATE TABLE IF NOT EXISTS agent_approaches (
+        id TEXT PRIMARY KEY,
+        agent_id TEXT NOT NULL REFERENCES agents(id),
+        player_id TEXT NOT NULL REFERENCES persons(id),
+        approached_at TEXT NOT NULL,
+        trigger TEXT NOT NULL,
+        interest_score REAL NOT NULL,
+        network_scope TEXT NOT NULL,
+        decision TEXT NOT NULL,
+        decided_at TEXT
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_agent_approaches_player
+        ON agent_approaches(player_id, approached_at);
+    `,
+  },
+  {
+    version: 23,
+    sql: `
+      -- Manager Relationships & Squad Dynamics: Phase A foundation.
+      CREATE TABLE IF NOT EXISTS manager_player_relationships (
+        id TEXT PRIMARY KEY,
+        manager_profile_id TEXT NOT NULL REFERENCES manager_profiles(id),
+        person_id TEXT NOT NULL REFERENCES persons(id),
+        score INTEGER NOT NULL,
+        level TEXT NOT NULL,
+        updated_on TEXT NOT NULL,
+        UNIQUE(manager_profile_id, person_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS player_club_satisfaction (
+        id TEXT PRIMARY KEY,
+        person_id TEXT NOT NULL REFERENCES persons(id),
+        team_id TEXT NOT NULL REFERENCES teams(id),
+        score INTEGER NOT NULL,
+        level TEXT NOT NULL,
+        updated_on TEXT NOT NULL,
+        UNIQUE(person_id, team_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS squad_hierarchy (
+        id TEXT PRIMARY KEY,
+        team_id TEXT NOT NULL REFERENCES teams(id),
+        person_id TEXT NOT NULL REFERENCES persons(id),
+        influence INTEGER NOT NULL,
+        role TEXT NOT NULL,
+        updated_on TEXT NOT NULL,
+        UNIQUE(team_id, person_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS player_concerns (
+        id TEXT PRIMARY KEY,
+        person_id TEXT NOT NULL REFERENCES persons(id),
+        team_id TEXT NOT NULL REFERENCES teams(id),
+        type TEXT NOT NULL,
+        status TEXT NOT NULL,
+        severity INTEGER NOT NULL,
+        raised_on TEXT NOT NULL,
+        updated_on TEXT NOT NULL,
+        resolved_on TEXT,
+        note TEXT,
+        UNIQUE(person_id, team_id, type)
+      );
+
+      CREATE TABLE IF NOT EXISTS relationship_history_events (
+        id TEXT PRIMARY KEY,
+        person_id TEXT NOT NULL REFERENCES persons(id),
+        team_id TEXT REFERENCES teams(id),
+        manager_profile_id TEXT REFERENCES manager_profiles(id),
+        event_type TEXT NOT NULL,
+        occurred_on TEXT NOT NULL,
+        data_json TEXT
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_relationship_history_person
+        ON relationship_history_events(person_id, occurred_on);
     `,
   },
 ];

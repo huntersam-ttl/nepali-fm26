@@ -1972,17 +1972,21 @@ export type ClubFinancialStatement = {
 };
 
 export type AgentNegotiationStyle = "BALANCED" | "AGGRESSIVE" | "LOYAL" | "CAREER_FIRST";
+export type AgentNetworkScope = "NEPAL_DOMESTIC" | "SOUTH_ASIA" | "WIDER_ASIA" | "EUROPE_GLOBAL";
 
 export type AgentProfile = {
   id: EntityId;
   personId: EntityId;
   agencyName?: string;
   reputation: number;
+  negotiationSkill: number;
   negotiationStyle: AgentNegotiationStyle;
   aggressiveness: number;
   loyaltyPreference: number;
   feeExpectation: number;
   careerAmbition: number;
+  networkScope: AgentNetworkScope;
+  preferredMarkets: string[];
   status: "SIMULATION_ONLY";
 };
 
@@ -1992,6 +1996,27 @@ export type AgentClient = {
   playerId: EntityId;
   startedAt: ISODate;
   status: "ACTIVE" | "ENDED";
+};
+
+export type AgentApproachDecision = "APPROACHED" | "SIGNED" | "DECLINED" | "SELF_REPRESENTED";
+
+export type AgentApproachRecord = {
+  id: EntityId;
+  agentId: EntityId;
+  playerId: EntityId;
+  approachedAt: ISODate;
+  trigger:
+    | "CAREER_EXPOSURE"
+    | "SENIOR_NEPAL_CALLUP"
+    | "SENIOR_INTERNATIONAL_APPEARANCE"
+    | "YOUTH_INTERNATIONAL_EXPOSURE"
+    | "FOREIGN_INTEREST"
+    | "FOREIGN_BASED"
+    | "MARKET_ACTIVITY";
+  interestScore: number;
+  networkScope: AgentNetworkScope;
+  decision: AgentApproachDecision;
+  decidedAt?: ISODate;
 };
 
 export type TransferOfferType =
@@ -3189,4 +3214,81 @@ export type PlayerMatchRatingRecord = {
   saves: number;
   yellowCards: number;
   redCard: boolean;
+};
+
+// ---------------------------------------------------------------------------
+// Manager Relationships & Squad Dynamics — Phase A
+// ---------------------------------------------------------------------------
+
+export type ManagerPlayerRelationshipLevel = "POOR" | "COOL" | "NEUTRAL" | "GOOD" | "STRONG";
+
+/** One row per (manager, player) pair. Score drifts with concern lifecycle events. */
+export type ManagerPlayerRelationship = {
+  id: EntityId;
+  managerProfileId: EntityId;
+  personId: EntityId;
+  score: number;
+  level: ManagerPlayerRelationshipLevel;
+  updatedOn: ISODate;
+};
+
+export type ClubSatisfactionLevel = "VERY_UNHAPPY" | "UNHAPPY" | "CONTENT" | "HAPPY" | "VERY_HAPPY";
+
+/** How content a player is at their current club, independent of the manager relationship. */
+export type PlayerClubSatisfaction = {
+  id: EntityId;
+  personId: EntityId;
+  teamId: EntityId;
+  score: number;
+  level: ClubSatisfactionLevel;
+  updatedOn: ISODate;
+};
+
+export type SquadHierarchyRole =
+  "CAPTAIN" | "VICE_CAPTAIN" | "SENIOR_PLAYER" | "SQUAD_PLAYER" | "FRINGE_PLAYER";
+
+/** Derived leadership/influence standing within a squad; recomputed each evaluation tick. */
+export type SquadHierarchyEntry = {
+  id: EntityId;
+  teamId: EntityId;
+  personId: EntityId;
+  influence: number;
+  role: SquadHierarchyRole;
+  updatedOn: ISODate;
+};
+
+export type PlayerConcernType = "PLAYING_TIME" | "CONTRACT" | "ROLE_STATUS" | "TRANSFER_INTEREST";
+export type PlayerConcernStatus = "RAISED" | "ACTIVE" | "RESOLVED" | "ESCALATED";
+
+/** One row per (person, team, concern type) — a concern is re-raised, not duplicated. */
+export type PlayerConcern = {
+  id: EntityId;
+  personId: EntityId;
+  teamId: EntityId;
+  type: PlayerConcernType;
+  status: PlayerConcernStatus;
+  severity: number;
+  raisedOn: ISODate;
+  updatedOn: ISODate;
+  resolvedOn?: ISODate;
+  note?: string;
+};
+
+export type RelationshipEventType =
+  | "CONCERN_RAISED"
+  | "CONCERN_ESCALATED"
+  | "CONCERN_RESOLVED"
+  | "RELATIONSHIP_IMPROVED"
+  | "RELATIONSHIP_WORSENED"
+  | "SQUAD_ROLE_CHANGED";
+
+/** Append-only log of relationship/concern state transitions, mirroring TransferHistoryEvent. */
+export type RelationshipHistoryEvent = {
+  id: EntityId;
+  personId: EntityId;
+  teamId?: EntityId;
+  managerProfileId?: EntityId;
+  eventType: RelationshipEventType;
+  occurredOn: ISODate;
+  data?: Record<string, unknown>;
 };

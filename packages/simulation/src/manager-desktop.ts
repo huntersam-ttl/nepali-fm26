@@ -63,6 +63,7 @@ import {
   type TransferResponseCommand,
 } from "@nepal-football-sim/shared-types";
 import { initializeClubEconomyForSave } from "./club-economy.js";
+import { activeConcernCount } from "./squad-dynamics.js";
 import {
   createDefaultTrainingPlan,
   createInitialDevelopmentState,
@@ -1757,11 +1758,13 @@ export const buildManagerDashboard = (
     Object.entries(moraleCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "Unknown";
 
   const boardConfidence = clubId ? new CareerWorldRepository(db).boardConfidence(clubId) : undefined;
+  const concernCount = activeConcernCount(db, context.team.id);
 
   return {
     employmentStatus: "EMPLOYED",
     boardConfidence: boardConfidence?.confidence,
     boardExpectation: boardConfidence?.expectation,
+    concernCount,
     clubName: context.club?.name,
     teamName: context.team.name,
     competitionName: context.season.name,

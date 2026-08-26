@@ -98,6 +98,7 @@ import {
   advanceUnemployedCareer,
 } from "./manager-career-world.js";
 import { nextFixtureForTeam, quickSimManagerMatch } from "./manager-flow.js";
+import { evaluateSquadDynamics } from "./squad-dynamics.js";
 import {
   MatchAlreadyPlayedError,
   MatchCommandError,
@@ -521,6 +522,29 @@ export class DesktopApplicationService {
         // own contract — `buildState` below picks that up automatically.
         ensureAiManagersAssigned(db, updated, context.team.id);
         evaluateBoardConfidence(db, updated);
+
+        // Squad dynamics: only the player's own squad, since only they read
+        // an inbox — raised/escalated concerns become inbox items, resolved
+        // ones do not, so the inbox reacts to real change, not every tick.
+        const dynamicsOutcome = evaluateSquadDynamics(
+          db,
+          updated,
+          context.team.id,
+          context.club?.id,
+          context.manager.id,
+        );
+        for (const concern of [...dynamicsOutcome.raisedConcerns, ...dynamicsOutcome.escalatedConcerns]) {
+          const player = getPerson(db, concern.personId);
+          new ManagerRepository(db).insertInboxItem({
+            id: createEntityId(),
+            createdOn: updated.worldDate,
+            type: "COMPETITION_UPDATE",
+            title: `${displayName(player)}: ${concernTitle(concern.type)}`,
+            body: concern.note ?? "A squad concern needs your attention.",
+            relatedEntity: { type: "person", id: concern.personId },
+            read: false,
+          });
+        }
       }
 
       const state = this.buildState(db, updated, filePath);
@@ -1748,6 +1772,21 @@ const continueTitle = (reason: string): string => {
       return "Contract needs attention";
     default:
       return "World advanced";
+  }
+};
+
+const concernTitle = (type: string): string => {
+  switch (type) {
+    case "PLAYING_TIME":
+      return "Unhappy with playing time";
+    case "CONTRACT":
+      return "Wants to discuss their contract";
+    case "ROLE_STATUS":
+      return "Unhappy with their squad status";
+    case "TRANSFER_INTEREST":
+      return "Attracting transfer interest";
+    default:
+      return "Squad concern";
   }
 };
 

@@ -214,6 +214,7 @@ export const HomeScreen = ({
                     { label: "Active transfers", value: dashboard.transferActivity },
                     { label: "Contracts expiring", value: dashboard.contractIssues },
                     { label: "Staff vacancies", value: dashboard.staffIssues },
+                    { label: "Player concerns", value: dashboard.concernCount ?? 0 },
                   ]}
                 />
               </Panel>

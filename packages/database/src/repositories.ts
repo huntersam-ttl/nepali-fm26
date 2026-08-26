@@ -2,6 +2,7 @@ import type {
   CareerCharacter,
   Academy,
   AcademySimulationProfile,
+  AgentApproachRecord,
   AgentClient,
   AgentProfile,
   ClubAsset,
@@ -91,6 +92,11 @@ import type {
   JobApplication,
   JobVacancy,
   ClubBoardConfidence,
+  ManagerPlayerRelationship,
+  PlayerClubSatisfaction,
+  SquadHierarchyEntry,
+  PlayerConcern,
+  RelationshipHistoryEvent,
   LeagueStanding,
   ManagerContract,
   ManagerProfile,
@@ -1282,6 +1288,231 @@ const mapBoardConfidence = (row: any): ClubBoardConfidence => ({
   lastEvaluatedOn: row.last_evaluated_on,
 });
 
+/** Manager Relationships & Squad Dynamics — Phase A. */
+export class SquadDynamicsRepository {
+  constructor(private readonly db: GameDatabase) {}
+
+  upsertRelationship(relationship: ManagerPlayerRelationship): void {
+    this.db
+      .prepare(
+        `INSERT INTO manager_player_relationships
+        (id, manager_profile_id, person_id, score, level, updated_on)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(manager_profile_id, person_id) DO UPDATE SET
+          score = excluded.score,
+          level = excluded.level,
+          updated_on = excluded.updated_on`,
+      )
+      .run(
+        relationship.id,
+        relationship.managerProfileId,
+        relationship.personId,
+        relationship.score,
+        relationship.level,
+        relationship.updatedOn,
+      );
+  }
+
+  relationship(
+    managerProfileId: EntityId,
+    personId: EntityId,
+  ): ManagerPlayerRelationship | undefined {
+    const row = this.db
+      .prepare(
+        "SELECT * FROM manager_player_relationships WHERE manager_profile_id = ? AND person_id = ?",
+      )
+      .get(managerProfileId, personId) as any;
+    return row ? mapRelationship(row) : undefined;
+  }
+
+  relationshipsForManager(managerProfileId: EntityId): ManagerPlayerRelationship[] {
+    return this.db
+      .prepare("SELECT * FROM manager_player_relationships WHERE manager_profile_id = ?")
+      .all(managerProfileId)
+      .map(mapRelationship);
+  }
+
+  upsertSatisfaction(satisfaction: PlayerClubSatisfaction): void {
+    this.db
+      .prepare(
+        `INSERT INTO player_club_satisfaction (id, person_id, team_id, score, level, updated_on)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(person_id, team_id) DO UPDATE SET
+          score = excluded.score,
+          level = excluded.level,
+          updated_on = excluded.updated_on`,
+      )
+      .run(
+        satisfaction.id,
+        satisfaction.personId,
+        satisfaction.teamId,
+        satisfaction.score,
+        satisfaction.level,
+        satisfaction.updatedOn,
+      );
+  }
+
+  satisfactionForTeam(teamId: EntityId): PlayerClubSatisfaction[] {
+    return this.db
+      .prepare("SELECT * FROM player_club_satisfaction WHERE team_id = ?")
+      .all(teamId)
+      .map(mapSatisfaction);
+  }
+
+  upsertHierarchyEntry(entry: SquadHierarchyEntry): void {
+    this.db
+      .prepare(
+        `INSERT INTO squad_hierarchy (id, team_id, person_id, influence, role, updated_on)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(team_id, person_id) DO UPDATE SET
+          influence = excluded.influence,
+          role = excluded.role,
+          updated_on = excluded.updated_on`,
+      )
+      .run(entry.id, entry.teamId, entry.personId, entry.influence, entry.role, entry.updatedOn);
+  }
+
+  hierarchyForTeam(teamId: EntityId): SquadHierarchyEntry[] {
+    return this.db
+      .prepare("SELECT * FROM squad_hierarchy WHERE team_id = ? ORDER BY influence DESC")
+      .all(teamId)
+      .map(mapHierarchyEntry);
+  }
+
+  /** Inserts a concern the first time, and re-raises/updates it on later ticks. */
+  upsertConcern(concern: PlayerConcern): void {
+    this.db
+      .prepare(
+        `INSERT INTO player_concerns
+        (id, person_id, team_id, type, status, severity, raised_on, updated_on, resolved_on, note)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(person_id, team_id, type) DO UPDATE SET
+          status = excluded.status,
+          severity = excluded.severity,
+          raised_on = excluded.raised_on,
+          updated_on = excluded.updated_on,
+          resolved_on = excluded.resolved_on,
+          note = excluded.note`,
+      )
+      .run(
+        concern.id,
+        concern.personId,
+        concern.teamId,
+        concern.type,
+        concern.status,
+        concern.severity,
+        concern.raisedOn,
+        concern.updatedOn,
+        concern.resolvedOn ?? null,
+        concern.note ?? null,
+      );
+  }
+
+  concern(
+    personId: EntityId,
+    teamId: EntityId,
+    type: PlayerConcern["type"],
+  ): PlayerConcern | undefined {
+    const row = this.db
+      .prepare("SELECT * FROM player_concerns WHERE person_id = ? AND team_id = ? AND type = ?")
+      .get(personId, teamId, type) as any;
+    return row ? mapConcern(row) : undefined;
+  }
+
+  concernsForTeam(teamId: EntityId): PlayerConcern[] {
+    return this.db
+      .prepare("SELECT * FROM player_concerns WHERE team_id = ? ORDER BY updated_on DESC")
+      .all(teamId)
+      .map(mapConcern);
+  }
+
+  concernsForPerson(personId: EntityId, teamId: EntityId): PlayerConcern[] {
+    return this.db
+      .prepare("SELECT * FROM player_concerns WHERE person_id = ? AND team_id = ?")
+      .all(personId, teamId)
+      .map(mapConcern);
+  }
+
+  /** Append-only; mirrors TransferHistoryEvent's insert-once convention. */
+  insertHistoryEvent(event: RelationshipHistoryEvent): void {
+    this.db
+      .prepare(
+        `INSERT INTO relationship_history_events
+        (id, person_id, team_id, manager_profile_id, event_type, occurred_on, data_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO NOTHING`,
+      )
+      .run(
+        event.id,
+        event.personId,
+        event.teamId ?? null,
+        event.managerProfileId ?? null,
+        event.eventType,
+        event.occurredOn,
+        event.data ? json.stringify(event.data) : null,
+      );
+  }
+
+  historyForPerson(personId: EntityId): RelationshipHistoryEvent[] {
+    return this.db
+      .prepare(
+        "SELECT * FROM relationship_history_events WHERE person_id = ? ORDER BY occurred_on, id",
+      )
+      .all(personId)
+      .map(mapHistoryEvent);
+  }
+}
+
+const mapRelationship = (row: any): ManagerPlayerRelationship => ({
+  id: row.id,
+  managerProfileId: row.manager_profile_id,
+  personId: row.person_id,
+  score: row.score,
+  level: row.level,
+  updatedOn: row.updated_on,
+});
+
+const mapSatisfaction = (row: any): PlayerClubSatisfaction => ({
+  id: row.id,
+  personId: row.person_id,
+  teamId: row.team_id,
+  score: row.score,
+  level: row.level,
+  updatedOn: row.updated_on,
+});
+
+const mapHierarchyEntry = (row: any): SquadHierarchyEntry => ({
+  id: row.id,
+  teamId: row.team_id,
+  personId: row.person_id,
+  influence: row.influence,
+  role: row.role,
+  updatedOn: row.updated_on,
+});
+
+const mapConcern = (row: any): PlayerConcern => ({
+  id: row.id,
+  personId: row.person_id,
+  teamId: row.team_id,
+  type: row.type,
+  status: row.status,
+  severity: row.severity,
+  raisedOn: row.raised_on,
+  updatedOn: row.updated_on,
+  resolvedOn: row.resolved_on ?? undefined,
+  note: row.note ?? undefined,
+});
+
+const mapHistoryEvent = (row: any): RelationshipHistoryEvent => ({
+  id: row.id,
+  personId: row.person_id,
+  teamId: row.team_id ?? undefined,
+  managerProfileId: row.manager_profile_id ?? undefined,
+  eventType: row.event_type,
+  occurredOn: row.occurred_on,
+  data: json.parse(row.data_json, undefined),
+});
+
 export class CompetitionRepository {
   constructor(private readonly db: GameDatabase) {}
 
@@ -2323,15 +2554,19 @@ export class TransferMarketRepository {
       .prepare(
         `INSERT INTO agents
         (id, person_id, agency_name, reputation, negotiation_style, aggressiveness,
-          loyalty_preference, fee_expectation, career_ambition, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          loyalty_preference, fee_expectation, career_ambition, status, negotiation_skill,
+          network_scope, preferred_markets_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(person_id) DO UPDATE SET
           reputation = excluded.reputation,
+          negotiation_skill = excluded.negotiation_skill,
           negotiation_style = excluded.negotiation_style,
           aggressiveness = excluded.aggressiveness,
           loyalty_preference = excluded.loyalty_preference,
           fee_expectation = excluded.fee_expectation,
-          career_ambition = excluded.career_ambition`,
+          career_ambition = excluded.career_ambition,
+          network_scope = excluded.network_scope,
+          preferred_markets_json = excluded.preferred_markets_json`,
       )
       .run(
         agent.id,
@@ -2344,6 +2579,9 @@ export class TransferMarketRepository {
         agent.feeExpectation,
         agent.careerAmbition,
         agent.status,
+        agent.negotiationSkill,
+        agent.networkScope,
+        json.stringify(agent.preferredMarkets),
       );
   }
 
@@ -2372,6 +2610,56 @@ export class TransferMarketRepository {
       )
       .get(playerId) as any;
     return row ? mapAgentProfile(row) : undefined;
+  }
+
+  agentClients(playerId?: EntityId): AgentClient[] {
+    const rows = playerId
+      ? this.db
+          .prepare("SELECT * FROM agent_clients WHERE player_id = ? ORDER BY started_at, id")
+          .all(playerId)
+      : this.db.prepare("SELECT * FROM agent_clients ORDER BY player_id, started_at, id").all();
+    return rows.map(mapAgentClient);
+  }
+
+  endActiveAgentClient(playerId: EntityId): void {
+    this.db
+      .prepare(
+        "UPDATE agent_clients SET status = 'ENDED' WHERE player_id = ? AND status = 'ACTIVE'",
+      )
+      .run(playerId);
+  }
+
+  insertAgentApproach(approach: AgentApproachRecord): void {
+    this.db
+      .prepare(
+        `INSERT INTO agent_approaches
+        (id, agent_id, player_id, approached_at, trigger, interest_score, network_scope,
+          decision, decided_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          decision = excluded.decision,
+          decided_at = excluded.decided_at`,
+      )
+      .run(
+        approach.id,
+        approach.agentId,
+        approach.playerId,
+        approach.approachedAt,
+        approach.trigger,
+        approach.interestScore,
+        approach.networkScope,
+        approach.decision,
+        approach.decidedAt ?? null,
+      );
+  }
+
+  agentApproaches(playerId?: EntityId): AgentApproachRecord[] {
+    const rows = playerId
+      ? this.db
+          .prepare("SELECT * FROM agent_approaches WHERE player_id = ? ORDER BY approached_at, id")
+          .all(playerId)
+      : this.db.prepare("SELECT * FROM agent_approaches ORDER BY approached_at, id").all();
+    return rows.map(mapAgentApproach);
   }
 
   insertTransferOffer(offer: TransferOffer): void {
@@ -3867,12 +4155,35 @@ const mapAgentProfile = (row: any): AgentProfile => ({
   personId: row.person_id,
   agencyName: row.agency_name ?? undefined,
   reputation: row.reputation,
+  negotiationSkill: row.negotiation_skill ?? row.reputation,
   negotiationStyle: row.negotiation_style,
   aggressiveness: row.aggressiveness,
   loyaltyPreference: row.loyalty_preference,
   feeExpectation: row.fee_expectation,
   careerAmbition: row.career_ambition,
+  networkScope: row.network_scope ?? "NEPAL_DOMESTIC",
+  preferredMarkets: json.parse(row.preferred_markets_json, ["NP"]),
   status: row.status,
+});
+
+const mapAgentClient = (row: any): AgentClient => ({
+  id: row.id,
+  agentId: row.agent_id,
+  playerId: row.player_id,
+  startedAt: row.started_at,
+  status: row.status,
+});
+
+const mapAgentApproach = (row: any): AgentApproachRecord => ({
+  id: row.id,
+  agentId: row.agent_id,
+  playerId: row.player_id,
+  approachedAt: row.approached_at,
+  trigger: row.trigger,
+  interestScore: row.interest_score,
+  networkScope: row.network_scope,
+  decision: row.decision,
+  decidedAt: row.decided_at ?? undefined,
 });
 
 const mapTransferOffer = (row: any): TransferOffer => ({
