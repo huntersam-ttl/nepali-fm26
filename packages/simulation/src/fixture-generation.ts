@@ -70,3 +70,16 @@ export const generateLeagueFixtures = (input: {
     })),
   );
 };
+
+export const generateKnockoutFixtures = (input: { competitionSeasonId: EntityId; teamIds: readonly EntityId[]; ruleSet: CompetitionRuleSet; seed: string; twoLegged?: boolean }): FixtureRecord[] => {
+  if (input.teamIds.length < 2) return [];
+  const rng = new SeededRandom(input.seed); const teams = [...input.teamIds].sort((a, b) => String(a).localeCompare(String(b))).sort(() => rng.next() - 0.5); const fixtures: FixtureRecord[] = []; const twoLegged = input.twoLegged ?? false;
+  for (let index = 0; index + 1 < teams.length; index += 2) {
+    const home = teams[index]!; const away = teams[index + 1]!; const tieId = createStableEntityId("fixture-tie", `${input.competitionSeasonId}:${Math.floor(index / 2)}:${home}:${away}`);
+    fixtures.push({ id:createStableEntityId("fixture", `${input.competitionSeasonId}:knockout:${index}:1:${home}:${away}`), competitionSeasonId:input.competitionSeasonId, homeTeamId:home, awayTeamId:away, scheduledDate:addDays(input.ruleSet.seasonStartDate, Math.floor(index / 2) * input.ruleSet.roundSpacingDays), status:"scheduled", round:1, tieId, leg:1 });
+    if (twoLegged) fixtures.push({ id:createStableEntityId("fixture", `${input.competitionSeasonId}:knockout:${index}:2:${away}:${home}`), competitionSeasonId:input.competitionSeasonId, homeTeamId:away, awayTeamId:home, scheduledDate:addDays(input.ruleSet.seasonStartDate, Math.floor(index / 2) * input.ruleSet.roundSpacingDays + Math.max(7, input.ruleSet.roundSpacingDays)), status:"scheduled", round:1, tieId, leg:2 });
+  }
+  return fixtures;
+};
+
+export const fixtureCongestion = (fixtures: readonly FixtureRecord[], minimumRestDays = 3): { teamId: EntityId; fixtureIds: EntityId[] }[] => { const byTeam = new Map<EntityId, FixtureRecord[]>(); for (const fixture of fixtures) for (const team of [fixture.homeTeamId, fixture.awayTeamId]) byTeam.set(team, [...(byTeam.get(team) ?? []), fixture]); const result: { teamId: EntityId; fixtureIds: EntityId[] }[] = []; for (const [teamId, items] of byTeam) { const sorted = [...items].sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate)); const conflicts = sorted.filter((item, index) => index > 0 && (Date.parse(item.scheduledDate) - Date.parse(sorted[index - 1]!.scheduledDate)) / 86400000 < minimumRestDays).map((item) => item.id); if (conflicts.length) result.push({ teamId, fixtureIds: conflicts }); } return result; };

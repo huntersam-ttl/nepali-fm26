@@ -2743,8 +2743,8 @@ export class CompetitionRepository {
     this.db
       .prepare(
         `INSERT INTO fixtures
-        (id, competition_season_id, home_team_id, away_team_id, scheduled_date, status, round, venue_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        (id, competition_season_id, home_team_id, away_team_id, scheduled_date, status, round, venue_id, tie_id, leg)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO NOTHING`,
       )
       .run(
@@ -2756,6 +2756,8 @@ export class CompetitionRepository {
         fixture.status,
         fixture.round,
         fixture.venueId ?? null,
+        fixture.tieId ?? null,
+        fixture.leg ?? null,
       );
   }
 
@@ -2774,6 +2776,8 @@ export class CompetitionRepository {
         status: row.status,
         round: row.round,
         venueId: row.venue_id ?? undefined,
+        tieId: row.tie_id ?? undefined,
+        leg: row.leg ?? undefined,
       }));
   }
 
