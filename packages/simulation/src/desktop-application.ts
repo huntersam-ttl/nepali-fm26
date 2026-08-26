@@ -3,6 +3,7 @@ import { basename, dirname, join } from "node:path";
 import {
   CompetitionRepository,
   ManagerRepository,
+  MatchSessionRepository,
   PlayerRepository,
   SaveRepository,
   WorldRepository,
@@ -29,16 +30,23 @@ import {
   type DesktopApplicationState,
   type DesktopErrorCode,
   type EntityId,
+  type AdvanceMatchCommand,
   type FixtureDetail,
   type FixtureList,
   type FixtureReadModel,
+  type FixtureRecord,
+  type LiveMatchView,
+  type LiveTacticsCommand,
   type ManagerCompetitionView,
   type ManagerDashboard,
   type MatchEvent,
+  type MatchSessionRecord,
+  type MatchViewMode,
   type Person,
   type PlayerAttributeSet,
   type PlayerProfile,
   type PostMatchReadModel,
+  type PostMatchReport,
   type QuickSimSummary,
   type RecruitmentSearchCommand,
   type RecruitmentSearchPage,
@@ -50,7 +58,9 @@ import {
   type SquadList,
   type SquadRow,
   type StaffList,
+  type StartMatchCommand,
   type StartingClubOption,
+  type SubstitutionCommand,
   type TacticalAssignment,
   type TacticalSetup,
   type TacticsUpdateCommand,
@@ -68,7 +78,26 @@ import { generateLeagueFixtures } from "./fixture-generation.js";
 import { importNepalWorld } from "./nepal-save.js";
 import { createCareerCharacter, createManagerContract, testLicence } from "./manager-career.js";
 import { nextFixtureForTeam, quickSimManagerMatch } from "./manager-flow.js";
-import { MatchAlreadyPlayedError, simulateAndFinalizeMatch } from "./match-session.js";
+import {
+  MatchAlreadyPlayedError,
+  MatchCommandError,
+  advanceMatch,
+  continueFromHalfTime,
+  loadMatchSession,
+  makeSubstitution,
+  quickSimFromCurrentState,
+  simulateAndFinalizeMatch,
+  startMatchSession,
+  updateLiveTactics,
+  type AdvanceTarget,
+  type MatchFinalizationContext,
+} from "./match-session.js";
+import {
+  applyTacticsCommand,
+  buildLiveMatchView,
+  buildPostMatchReport,
+} from "./manager-matchday.js";
+import type { LiveMatchState, SimulateMatchInput } from "./match-engine.js";
 import {
   FORMATION_PRESETS,
   TACTICAL_STYLE_PRESETS,
@@ -97,6 +126,7 @@ import {
   buildTrainingView,
   buildTransferCentre,
   createManagerScoutingAssignment,
+  assertManagerAuthority,
   ensureManagerSystems,
   makeManagerTransferOffer,
   renewManagerContract,
@@ -657,6 +687,125 @@ export class DesktopApplicationService {
     );
   }
 
+  // -------------------------------------------------------------------------
+  // Interactive matchday (Step 4C).
+  //
+  // Each command resolves the manager context first, so authority is checked in
+  // the service rather than implied by the UI having shown a button.
+  // -------------------------------------------------------------------------
+
+  private matchCommand<T>(
+    action: (
+      db: GameDatabase,
+      save: SaveMetadata,
+      context: ManagerContext,
+      helpers: MatchCommandHelpers,
+    ) => T,
+  ): AppResult<T> {
+    return this.managerCommand((db, save, context) => {
+      assertManagerAuthority(context, undefined, "SELECT_SQUAD");
+      return action(db, save, context, matchHelpers(db, save, context));
+    }, true);
+  }
+
+  startMatch(command: StartMatchCommand = {}): AppResult<LiveMatchView> {
+    return this.matchCommand((db, save, context, helpers) => {
+      const fixture = helpers.resolveFixture(command.fixtureId);
+      const state = startMatchSession(
+        db,
+        helpers.simulateInput(fixture),
+        command.viewMode ?? "TEXT_LIVE",
+      );
+      return helpers.view(state, command.viewMode ?? "TEXT_LIVE");
+    });
+  }
+
+  getLiveMatch(fixtureId?: EntityId, since?: number): AppResult<LiveMatchView> {
+    return this.matchCommand((db, save, context, helpers) => {
+      const { state, record } = helpers.requireSession(fixtureId);
+      return helpers.view(
+        state,
+        record.viewMode ?? "TEXT_LIVE",
+        since,
+        record.status === "COMPLETED",
+      );
+    });
+  }
+
+  advanceMatch(command: AdvanceMatchCommand = {}, fixtureId?: EntityId): AppResult<LiveMatchView> {
+    return this.matchCommand((db, save, context, helpers) => {
+      const { state, record } = helpers.requireSession(fixtureId);
+      advanceMatch(db, state, advanceTargetFor(command));
+      return helpers.view(state, record.viewMode ?? "TEXT_LIVE", command.since);
+    });
+  }
+
+  continueFromHalfTime(fixtureId?: EntityId): AppResult<LiveMatchView> {
+    return this.matchCommand((db, save, context, helpers) => {
+      const { state, record } = helpers.requireSession(fixtureId);
+      continueFromHalfTime(db, state);
+      return helpers.view(state, record.viewMode ?? "TEXT_LIVE");
+    });
+  }
+
+  makeSubstitution(command: SubstitutionCommand, fixtureId?: EntityId): AppResult<LiveMatchView> {
+    return this.matchCommand((db, save, context, helpers) => {
+      const { state, record } = helpers.requireSession(fixtureId);
+      // A manager may only substitute for the team they manage.
+      makeSubstitution(db, state, {
+        teamId: context.team.id,
+        playerOffId: command.playerOffId,
+        playerOnId: command.playerOnId,
+      });
+      return helpers.view(state, record.viewMode ?? "TEXT_LIVE");
+    });
+  }
+
+  updateLiveTactics(command: LiveTacticsCommand, fixtureId?: EntityId): AppResult<LiveMatchView> {
+    return this.matchCommand((db, save, context, helpers) => {
+      const { state, record } = helpers.requireSession(fixtureId);
+      const team = state.home.teamId === context.team.id ? state.home : state.away;
+      if (!team.setup) {
+        throw appError("INVALID_SELECTION", "Your team has no tactical setup in this match.");
+      }
+      updateLiveTactics(db, state, {
+        teamId: context.team.id,
+        setup: applyTacticsCommand(team.setup, command),
+      });
+      return helpers.view(state, record.viewMode ?? "TEXT_LIVE");
+    });
+  }
+
+  /** Finishes an interactive match from where it stands, never from kickoff. */
+  quickSimCurrentMatch(fixtureId?: EntityId): AppResult<LiveMatchView> {
+    return this.matchCommand((db, save, context, helpers) => {
+      const { state, record } = helpers.requireSession(fixtureId);
+      const fixture = helpers.resolveFixture(state.fixtureId);
+      quickSimFromCurrentState(db, state, helpers.finalizationContext(fixture));
+      return helpers.view(state, record.viewMode ?? "QUICK_SIM", undefined, true);
+    });
+  }
+
+  resumeMatch(fixtureId?: EntityId): AppResult<LiveMatchView | undefined> {
+    return this.matchCommand((db, save, context, helpers) => {
+      const session = loadMatchSession(db, fixtureId ?? helpers.activeFixtureId());
+      if (!session) return undefined;
+      return helpers.view(
+        session.state,
+        session.record.viewMode ?? "TEXT_LIVE",
+        undefined,
+        session.record.status === "COMPLETED",
+      );
+    });
+  }
+
+  getPostMatchReport(fixtureId: EntityId): AppResult<PostMatchReport | undefined> {
+    return this.managerCommand((db, _save, context) => {
+      assertManagerAuthority(context);
+      return buildPostMatchReport(db, fixtureId, context.team.id, context.season.name);
+    });
+  }
+
   /** Post-match summary for a played fixture, built from persisted match state. */
   getMatchSummary(fixtureId: EntityId): AppResult<QuickSimSummary | undefined> {
     return this.managerCommand((db, _save, context) =>
@@ -678,6 +827,7 @@ export class DesktopApplicationService {
       return ok(action(session.db, save, session.filePath));
     } catch (error) {
       if (error instanceof MatchAlreadyPlayedError) return fail(error.code, error.message);
+      if (error instanceof MatchCommandError) return fail(error.code, error.message);
       if (error instanceof ManagerCommandError) return fail(error.code, error.message);
       if (isAppError(error)) return fail(error.code, error.message, error.detail);
       return fail("SIMULATION_ERROR", "The career command failed.", error);
@@ -1317,6 +1467,109 @@ const continueTitle = (reason: string): string => {
   }
 };
 
+// ---------------------------------------------------------------------------
+// Matchday helpers
+// ---------------------------------------------------------------------------
+
+type MatchCommandHelpers = {
+  resolveFixture(fixtureId?: EntityId): FixtureRecord;
+  activeFixtureId(): EntityId;
+  simulateInput(fixture: FixtureRecord): SimulateMatchInput;
+  finalizationContext(fixture: FixtureRecord): MatchFinalizationContext;
+  requireSession(fixtureId?: EntityId): { state: LiveMatchState; record: MatchSessionRecord };
+  view(
+    state: LiveMatchState,
+    viewMode: MatchViewMode,
+    since?: number,
+    finalized?: boolean,
+  ): LiveMatchView;
+};
+
+const matchHelpers = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  context: ManagerContext,
+): MatchCommandHelpers => {
+  const managerFixture = (fixtureId?: EntityId): FixtureRecord => {
+    const fixture = fixtureId
+      ? context.fixtures.find((candidate) => candidate.id === fixtureId)
+      : context.fixtures.find(
+          (candidate) =>
+            candidate.status === "scheduled" &&
+            (candidate.homeTeamId === context.team.id || candidate.awayTeamId === context.team.id),
+        );
+    if (!fixture) throw appError("FIXTURE_MISSING", "No such fixture for your team.");
+    // Authority: the manager may only control their own team's matches.
+    if (fixture.homeTeamId !== context.team.id && fixture.awayTeamId !== context.team.id) {
+      throw appError("ROLE_NOT_AUTHORIZED", "That match does not involve your team.");
+    }
+    return fixture;
+  };
+
+  const buildInput = (fixture: FixtureRecord): SimulateMatchInput => {
+    const players = new PlayerRepository(db);
+    const homePlayers = players.attributesForTeam(fixture.homeTeamId);
+    const awayPlayers = players.attributesForTeam(fixture.awayTeamId);
+    const tactic = new ManagerRepository(db).tacticalSetups(context.team.id)[0];
+    if (!tactic) throw appError("INVALID_SELECTION", "No saved tactic exists for your team.");
+    const managerIsHome = fixture.homeTeamId === context.team.id;
+    const opponentTactic = defaultSetup(
+      managerIsHome ? fixture.awayTeamId : fixture.homeTeamId,
+      managerIsHome ? awayPlayers : homePlayers,
+    );
+    return {
+      fixture,
+      homePlayers,
+      awayPlayers,
+      homeTacticalSetup: managerIsHome ? tactic : opponentTactic,
+      awayTacticalSetup: managerIsHome ? opponentTactic : tactic,
+      seed: `${save.randomSeed}:${fixture.id}`,
+      substitutionLimit: substitutionLimitFor(context.ruleSet),
+    };
+  };
+
+  return {
+    resolveFixture: managerFixture,
+    activeFixtureId: () => {
+      const active = new MatchSessionRepository(db)
+        .activeSessions()
+        .find((session) => context.fixtures.some((fixture) => fixture.id === session.fixtureId));
+      if (!active) throw appError("FIXTURE_MISSING", "No match is currently in progress.");
+      return active.fixtureId;
+    },
+    simulateInput: buildInput,
+    finalizationContext: (fixture) => ({
+      fixture,
+      competitionTeamIds: context.teams.map((team) => team.id),
+      ruleSet: context.ruleSet,
+      seed: `${save.randomSeed}:${fixture.id}`,
+      save,
+    }),
+    requireSession: (fixtureId) => {
+      const fixture = managerFixture(fixtureId ?? undefined);
+      const session = loadMatchSession(db, fixture.id);
+      if (!session) throw appError("FIXTURE_MISSING", "That match has not been started.");
+      return session;
+    },
+    view: (state, viewMode, since, finalized) =>
+      buildLiveMatchView(db, state, {
+        competitionName: context.season.name,
+        managedTeamId: context.team.id,
+        viewMode,
+        since,
+        finalized,
+      }),
+  };
+};
+
+const advanceTargetFor = (command: AdvanceMatchCommand): AdvanceTarget => {
+  if (command.toHalfTime) return { kind: "HALF_TIME" };
+  if (command.toNextEvent) {
+    return { kind: "NEXT_EVENT", minImportance: command.minImportance ?? "MAJOR" };
+  }
+  return { kind: "MINUTES", minutes: Math.max(1, Math.min(120, command.minutes ?? 1)) };
+};
+
 /**
  * Competition substitution allowance. The Nepal rule sets do not yet carry a
  * researched figure, so this falls back to the engine's long-standing 3.
@@ -1358,6 +1611,14 @@ const DESKTOP_ERROR_CODES = new Set<string>([
   "RUNTIME_UNAVAILABLE",
   "ROLE_NOT_AUTHORIZED",
   "MATCH_ALREADY_PLAYED",
+  "MATCH_NOT_ACTIVE",
+  "MATCH_ALREADY_COMPLETE",
+  "INVALID_SUBSTITUTION",
+  "SUBSTITUTION_LIMIT_REACHED",
+  "PLAYER_NOT_ON_PITCH",
+  "PLAYER_NOT_ON_BENCH",
+  "INVALID_TACTICAL_CHANGE",
+  "MATCH_NOT_AT_HALF_TIME",
 ]);
 
 /**

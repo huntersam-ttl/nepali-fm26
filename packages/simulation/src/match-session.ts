@@ -17,15 +17,21 @@ import {
   type PlayerMatchState,
   type SaveMetadata,
   type SuspensionRecord,
+  type TacticalSetup,
 } from "@nepal-football-sim/shared-types";
 import { postMatchdayEconomy } from "./club-economy.js";
 import {
+  applySubstitution,
+  applyTacticalChange,
   createMatchState,
+  matchEventImportance,
   orderedEvents,
   runMatchToCompletion,
   stepMatch,
   toMatchResult,
   type LiveMatchState,
+  type MatchEventImportance,
+  type RuntimeTeam,
   type SimulateMatchInput,
 } from "./match-engine.js";
 import { calculateStandings, summarizePlayerStats, summarizeTeamStats } from "./standings.js";
@@ -193,7 +199,9 @@ export const finalizeMatch = (
   const managers = new ManagerRepository(db);
   const players = new PlayerRepository(db);
 
-  db.exec("BEGIN;");
+  // A savepoint rather than BEGIN: finalization is called both standalone and
+  // from inside an outer command transaction, and savepoints nest safely.
+  db.exec("SAVEPOINT match_finalization;");
   try {
     // Attendance and gate money come from the existing economy model, which is
     // already idempotent through stable ledger ids.
@@ -256,9 +264,10 @@ export const finalizeMatch = (
         lastSavedAt: new Date().toISOString(),
       });
     }
-    db.exec("COMMIT;");
+    db.exec("RELEASE match_finalization;");
   } catch (error) {
-    db.exec("ROLLBACK;");
+    db.exec("ROLLBACK TO match_finalization;");
+    db.exec("RELEASE match_finalization;");
     throw error;
   }
 
@@ -367,4 +376,212 @@ const nextDay = (date: string): string => {
   const parsed = new Date(`${date}T00:00:00.000Z`);
   parsed.setUTCDate(parsed.getUTCDate() + 1);
   return parsed.toISOString().slice(0, 10);
+};
+
+// ---------------------------------------------------------------------------
+// Interactive match control
+// ---------------------------------------------------------------------------
+
+export type MatchCommandCode =
+  | "MATCH_NOT_ACTIVE"
+  | "MATCH_ALREADY_COMPLETE"
+  | "INVALID_SUBSTITUTION"
+  | "SUBSTITUTION_LIMIT_REACHED"
+  | "PLAYER_NOT_ON_PITCH"
+  | "PLAYER_NOT_ON_BENCH"
+  | "INVALID_TACTICAL_CHANGE"
+  | "MATCH_NOT_AT_HALF_TIME";
+
+/** Structured failure from an interactive match command. */
+export class MatchCommandError extends Error {
+  constructor(
+    readonly code: MatchCommandCode,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+export type AdvanceTarget =
+  | { kind: "MINUTES"; minutes: number }
+  | { kind: "NEXT_EVENT"; minImportance?: MatchEventImportance }
+  | { kind: "HALF_TIME" }
+  | { kind: "FULL_TIME" };
+
+const IMPORTANCE_RANK: Record<MatchEventImportance, number> = {
+  MINOR: 0,
+  NOTABLE: 1,
+  MAJOR: 2,
+  CRITICAL: 3,
+};
+
+/**
+ * Advances a live match toward a target, stopping early whenever the match
+ * itself demands the manager's attention. Bounded: never loops past full time.
+ */
+export const advanceMatch = (
+  db: GameDatabase,
+  state: LiveMatchState,
+  target: AdvanceTarget,
+): LiveMatchState => {
+  // Read through a helper: `stepMatch` mutates the period, so narrowing the
+  // property directly would tell the compiler the loop can never advance.
+  const period = (): LiveMatchState["period"] => state.period;
+  if (period() === "FULL_TIME") {
+    throw new MatchCommandError("MATCH_ALREADY_COMPLETE", "The match has already finished.");
+  }
+  // A pause must be acknowledged before play continues.
+  state.pauseReason = undefined;
+
+  const startSequence = state.eventSequence;
+  const minImportance =
+    target.kind === "NEXT_EVENT" ? (target.minImportance ?? "MAJOR") : undefined;
+  let steps = 0;
+  const maxSteps = target.kind === "MINUTES" ? Math.max(1, target.minutes) : 200;
+
+  while (steps < maxSteps && period() !== "FULL_TIME") {
+    if (target.kind === "HALF_TIME" && period() === "HALF_TIME") break;
+    stepMatch(state);
+    steps += 1;
+    if (state.pauseReason) break;
+    if (target.kind === "HALF_TIME" && period() === "HALF_TIME") break;
+    if (minImportance && hasEventAtLeast(state, startSequence, minImportance)) break;
+  }
+
+  saveMatchSession(db, state);
+  return state;
+};
+
+const hasEventAtLeast = (
+  state: LiveMatchState,
+  sinceSequence: number,
+  minImportance: MatchEventImportance,
+): boolean =>
+  state.events.some(
+    (event) =>
+      Number(event.data?.sequence ?? -1) >= sinceSequence &&
+      IMPORTANCE_RANK[matchEventImportance(event)] >= IMPORTANCE_RANK[minImportance],
+  );
+
+/** Resumes the second half. Only valid while the match is at half time. */
+export const continueFromHalfTime = (db: GameDatabase, state: LiveMatchState): LiveMatchState => {
+  if (state.period !== "HALF_TIME") {
+    throw new MatchCommandError("MATCH_NOT_AT_HALF_TIME", "The match is not at half time.");
+  }
+  stepMatch(state);
+  saveMatchSession(db, state);
+  return state;
+};
+
+export type SubstitutionRequest = {
+  teamId: EntityId;
+  playerOffId: EntityId;
+  playerOnId: EntityId;
+};
+
+/**
+ * Manager substitution. Every rule is checked here rather than trusted from the
+ * UI, and each failure has its own code so the client can explain it.
+ */
+export const makeSubstitution = (
+  db: GameDatabase,
+  state: LiveMatchState,
+  request: SubstitutionRequest,
+): LiveMatchState => {
+  if (state.period === "FULL_TIME") {
+    throw new MatchCommandError("MATCH_ALREADY_COMPLETE", "The match has already finished.");
+  }
+  if (state.period === "NOT_STARTED") {
+    throw new MatchCommandError("MATCH_NOT_ACTIVE", "The match has not kicked off yet.");
+  }
+  const team = teamForId(state, request.teamId);
+  if (team.substitutionsUsed >= state.substitutionLimit) {
+    throw new MatchCommandError(
+      "SUBSTITUTION_LIMIT_REACHED",
+      `Only ${state.substitutionLimit} substitutions are permitted.`,
+    );
+  }
+  if (request.playerOffId === request.playerOnId) {
+    throw new MatchCommandError("INVALID_SUBSTITUTION", "A player cannot replace themselves.");
+  }
+
+  const onPitch = team.selection.some((player) => player.personId === request.playerOffId);
+  if (!onPitch) {
+    throw new MatchCommandError(
+      "PLAYER_NOT_ON_PITCH",
+      "That player is not currently on the pitch.",
+    );
+  }
+  const outgoing = team.states.find((player) => player.personId === request.playerOffId);
+  if (outgoing?.redCard) {
+    throw new MatchCommandError(
+      "INVALID_SUBSTITUTION",
+      "A dismissed player cannot be substituted; the team plays on a man short.",
+    );
+  }
+  const incoming = team.benchPlayers.some((player) => player.personId === request.playerOnId);
+  if (!incoming) {
+    const alreadyUsed = team.usedSubstitutes.includes(request.playerOnId);
+    throw new MatchCommandError(
+      "PLAYER_NOT_ON_BENCH",
+      alreadyUsed
+        ? "That player has already come on."
+        : "That player is not on the bench for this match.",
+    );
+  }
+
+  applySubstitution(
+    state,
+    team,
+    request.playerOffId,
+    request.playerOnId,
+    Math.max(state.minute, 1),
+    { reason: "manager", decidedBy: "MANAGER" },
+  );
+  // A user decision is a meaningful checkpoint.
+  saveMatchSession(db, state);
+  return state;
+};
+
+export type LiveTacticsRequest = {
+  teamId: EntityId;
+  setup: TacticalSetup;
+};
+
+/** Manager tactical change. Takes effect from the next simulated minute. */
+export const updateLiveTactics = (
+  db: GameDatabase,
+  state: LiveMatchState,
+  request: LiveTacticsRequest,
+): LiveMatchState => {
+  if (state.period === "FULL_TIME") {
+    throw new MatchCommandError("MATCH_ALREADY_COMPLETE", "The match has already finished.");
+  }
+  const team = teamForId(state, request.teamId);
+  const assigned = request.setup.assignments.filter((assignment) => assignment.playerId).length;
+  if (assigned === 0) {
+    throw new MatchCommandError(
+      "INVALID_TACTICAL_CHANGE",
+      "A tactical setup must assign at least one player.",
+    );
+  }
+  applyTacticalChange(state, team, request.setup, Math.max(state.minute, 1), "MANAGER");
+  saveMatchSession(db, state);
+  return state;
+};
+
+const teamForId = (state: LiveMatchState, teamId: EntityId): RuntimeTeam => {
+  if (state.home.teamId === teamId) return state.home;
+  if (state.away.teamId === teamId) return state.away;
+  throw new MatchCommandError("MATCH_NOT_ACTIVE", "That team is not playing in this match.");
+};
+
+/** Finishes a partially played match from its current state, never from kickoff. */
+export const quickSimFromCurrentState = (
+  db: GameDatabase,
+  state: LiveMatchState,
+  context: MatchFinalizationContext,
+): { state: LiveMatchState; outcome: FinalizationOutcome } => {
+  runMatchToCompletion(state);
+  return { state, outcome: finalizeMatch(db, state, context) };
 };

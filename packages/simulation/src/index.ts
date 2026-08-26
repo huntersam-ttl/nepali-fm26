@@ -12,6 +12,8 @@ export * from "./manager-flow.js";
 export * from "./match-environment.js";
 export * from "./match-engine.js";
 export * from "./match-session.js";
+export * from "./match-commentary.js";
+export * from "./manager-matchday.js";
 export * from "./nepal-save.js";
 export * from "./preseason-continuity.js";
 export * from "./player-development.js";

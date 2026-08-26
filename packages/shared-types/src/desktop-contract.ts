@@ -35,7 +35,16 @@ export type DesktopErrorCode =
   /** The active career role may not perform the requested action. */
   | "ROLE_NOT_AUTHORIZED"
   /** The fixture already has a result and cannot be played again. */
-  | "MATCH_ALREADY_PLAYED";
+  | "MATCH_ALREADY_PLAYED"
+  // Interactive matchday failures.
+  | "MATCH_NOT_ACTIVE"
+  | "MATCH_ALREADY_COMPLETE"
+  | "INVALID_SUBSTITUTION"
+  | "SUBSTITUTION_LIMIT_REACHED"
+  | "PLAYER_NOT_ON_PITCH"
+  | "PLAYER_NOT_ON_BENCH"
+  | "INVALID_TACTICAL_CHANGE"
+  | "MATCH_NOT_AT_HALF_TIME";
 
 export type DesktopAppError = {
   code: DesktopErrorCode;

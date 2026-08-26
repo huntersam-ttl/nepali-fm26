@@ -3,10 +3,14 @@ import type { AddressInfo } from "node:net";
 import type {
   AppResult,
   CareerCreationCommand,
+  AdvanceMatchCommand,
   ContractRenewalCommand,
   EntityId,
+  LiveTacticsCommand,
   RecruitmentSearchCommand,
   ScoutingAssignmentCommand,
+  StartMatchCommand,
+  SubstitutionCommand,
   TacticalSetup,
   TacticsUpdateCommand,
   TrainingUpdateCommand,
@@ -191,6 +195,37 @@ const dispatch = (
       return service.getContracts();
     case "renewContract":
       return service.renewContract(body.command as ContractRenewalCommand);
+    // Interactive matchday (Step 4C).
+    case "startMatch":
+      return service.startMatch(body.command as StartMatchCommand);
+    case "getLiveMatch":
+      return service.getLiveMatch(
+        body.fixtureId as EntityId | undefined,
+        body.since as number | undefined,
+      );
+    case "advanceMatch":
+      return service.advanceMatch(
+        body.command as AdvanceMatchCommand,
+        body.fixtureId as EntityId | undefined,
+      );
+    case "continueFromHalfTime":
+      return service.continueFromHalfTime(body.fixtureId as EntityId | undefined);
+    case "makeSubstitution":
+      return service.makeSubstitution(
+        body.command as SubstitutionCommand,
+        body.fixtureId as EntityId | undefined,
+      );
+    case "updateLiveTactics":
+      return service.updateLiveTactics(
+        body.command as LiveTacticsCommand,
+        body.fixtureId as EntityId | undefined,
+      );
+    case "quickSimCurrentMatch":
+      return service.quickSimCurrentMatch(body.fixtureId as EntityId | undefined);
+    case "resumeMatch":
+      return service.resumeMatch(body.fixtureId as EntityId | undefined);
+    case "getPostMatchReport":
+      return service.getPostMatchReport(body.fixtureId as EntityId);
     case "getMatchSummary":
       return service.getMatchSummary(body.fixtureId as EntityId);
     case "getStaff":

@@ -104,3 +104,77 @@ were byte-identical. The differences are deliberate:
 5. **Event and injury ids are stable.** Derived from the match id and a sequence rather than random,
    so a timeline is reproducible. Ids are opaque and affect no outcome.
 6. **Possession** is blended with observed control, as above.
+
+## Interactive match control
+
+The engine is driven through a typed command surface on `DesktopApplicationService`:
+
+| Command                | Effect                                                            |
+| ---------------------- | ----------------------------------------------------------------- |
+| `startMatch`           | Creates or resumes a session for the manager's next fixture       |
+| `getLiveMatch`         | Live read model, optionally only commentary after a cursor        |
+| `advanceMatch`         | Advances by minutes, to the next important event, or to half time |
+| `continueFromHalfTime` | Resumes the second half                                           |
+| `makeSubstitution`     | Manager substitution with full validation                         |
+| `updateLiveTactics`    | Mid-match tactical change                                         |
+| `quickSimCurrentMatch` | Finishes a part-played match from where it stands                 |
+| `resumeMatch`          | Reopens an interrupted session                                    |
+| `getPostMatchReport`   | Report built entirely from persisted state                        |
+
+Every command resolves the manager context first, so authority is checked in the service. A manager
+may only control matches involving the team named on their contract; anything else is
+`ROLE_NOT_AUTHORIZED` or `FIXTURE_MISSING`. React never receives the serialised engine state.
+
+## Advancing and event cursors
+
+`advanceMatch` takes a target — minutes, next event at or above an importance, half time, or full
+time — and always stops early when the match needs the manager: a serious injury, a dismissal, half
+time, or full time. Those are the only pause reasons; ordinary events never interrupt.
+
+The live view carries a `cursor` (the highest event sequence included). Passing it back as `since`
+returns only what is new, so a Text Live view does not refetch the whole timeline each tick.
+
+## Commentary
+
+Commentary is deterministic and generated locally. A template family is chosen per event type and
+context (a goal with an assist reads differently from one without; a clear-cut chance differs from a
+speculative shot), and the specific line is picked by hashing the event id — **not** by drawing from
+the match RNG. Wording therefore can never influence the football, and the same match always reads
+the same way. The score shown is the score as it stood at that moment.
+
+## Substitution validation
+
+Checked in the service, never trusted from the client: the match must be in a playable state, the
+outgoing player must be on the pitch, the incoming player must be on this bench and not already
+used, a dismissed player cannot be replaced, and the competition allowance must not be exceeded.
+Each failure has its own code (`PLAYER_NOT_ON_PITCH`, `PLAYER_NOT_ON_BENCH`,
+`SUBSTITUTION_LIMIT_REACHED`, `INVALID_SUBSTITUTION`).
+
+The allowance comes from `specialRules.substitutionLimit` on the competition rule set and falls back
+to three. The Nepal rule sets carry no researched figure yet, so that fallback is SIMULATION_ONLY.
+
+## Live tactical changes
+
+A partial command is merged onto the team's current setup, then the tactical modifiers and team
+strength are recomputed from it. Only future minutes are affected; nothing already simulated is
+revisited. A `TACTICAL_CHANGE` event stores just the fields that moved, not a copy of the whole
+tactic.
+
+## AI reactions
+
+AI substitutions still occur in the same windows and cost the same single random draw, so the RNG
+stream stays aligned, but the choice is now a deterministic score over condition, rating,
+disciplinary risk and the scoreline — using only what a manager could see, never hidden ability.
+
+AI tactical reactions are deterministic and consume no randomness at all: a side chasing a game late
+goes more attacking, one protecting a lead turns cautious, and a side reduced to ten defends. They
+are recorded as `TACTICAL_CHANGE` events attributed to the AI.
+
+## Half time and resume
+
+At half time the match holds with `pauseReason: HALF_TIME`. Substitutions and tactical changes made
+there are persisted before the second half begins and take effect from minute 46.
+
+Every user decision is a checkpoint, so an interrupted match resumes with the same minute, score,
+lineup, tactical state, substitutions used and RNG progression — and therefore the same future
+result as an uninterrupted run.

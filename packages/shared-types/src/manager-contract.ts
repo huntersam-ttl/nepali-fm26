@@ -2,6 +2,7 @@ import type { EntityId } from "./ids.js";
 import type {
   InboxItem,
   ISODate,
+  MatchViewMode,
   KnowledgeConfidence,
   KnowledgeRange,
   PlayerAttributeSet,
@@ -650,3 +651,178 @@ export const ATTRIBUTE_GROUPS: ReadonlyArray<{
   { group: "Physical", source: "physical" },
   { group: "Goalkeeping", source: "goalkeeping" },
 ];
+
+// ---------------------------------------------------------------------------
+// Live matchday (Step 4C)
+//
+// Read models only. The serialised engine state never reaches the client.
+// ---------------------------------------------------------------------------
+
+export type MatchCommentaryLine = {
+  eventId: string;
+  minute?: number;
+  stoppageTime?: number;
+  type: string;
+  importance: "MINOR" | "NOTABLE" | "MAJOR" | "CRITICAL";
+  teamId?: EntityId;
+  /** Monotonic cursor so a live view can fetch only what is new. */
+  sequence: number;
+  text: string;
+};
+
+export type LivePlayerState = {
+  personId: EntityId;
+  name: string;
+  position: string;
+  status: "ON_PITCH" | "BENCH" | "SUBBED_OFF" | "SENT_OFF";
+  minutes: number;
+  rating: number;
+  fitness: number;
+  fatigue: number;
+  goals: number;
+  assists: number;
+  yellowCards: number;
+  redCard: boolean;
+  injured: boolean;
+  subbedOnMinute?: number;
+  subbedOffMinute?: number;
+};
+
+export type LiveTeamView = {
+  teamId: EntityId;
+  teamName: string;
+  goals: number;
+  possession: number;
+  shots: number;
+  shotsOnTarget: number;
+  xg: number;
+  corners: number;
+  fouls: number;
+  yellowCards: number;
+  redCards: number;
+  onPitch: LivePlayerState[];
+  bench: LivePlayerState[];
+  playersOff: LivePlayerState[];
+  substitutionsUsed: number;
+  substitutionsRemaining: number;
+  /** Fewer than eleven after a dismissal. */
+  playersOnPitch: number;
+  formation?: string;
+  style?: string;
+  mentality?: string;
+};
+
+export type LiveMatchView = {
+  matchId: EntityId;
+  fixtureId: EntityId;
+  competitionName: string;
+  period: "NOT_STARTED" | "FIRST_HALF" | "HALF_TIME" | "SECOND_HALF" | "FULL_TIME";
+  minute: number;
+  stoppageTime: number;
+  /** Set when the match wants the manager's attention. */
+  pauseReason?: "HALF_TIME" | "INJURY_DECISION" | "RED_CARD" | "FULL_TIME";
+  viewMode: MatchViewMode;
+  home: LiveTeamView;
+  away: LiveTeamView;
+  /** The team this career manages, so the UI knows which side to control. */
+  managedTeamId: EntityId;
+  commentary: MatchCommentaryLine[];
+  /** Highest sequence included, to pass back as the next cursor. */
+  cursor: number;
+  /** Players who picked up an injury and may need replacing. */
+  injuryDecisions: LivePlayerState[];
+  finalized: boolean;
+};
+
+export type StartMatchCommand = {
+  fixtureId?: EntityId;
+  viewMode?: MatchViewMode;
+};
+
+export type AdvanceMatchCommand = {
+  /** Defaults to a single minute. */
+  minutes?: number;
+  toNextEvent?: boolean;
+  minImportance?: "MINOR" | "NOTABLE" | "MAJOR" | "CRITICAL";
+  toHalfTime?: boolean;
+  /** Cursor: only commentary after this sequence is returned. */
+  since?: number;
+};
+
+export type SubstitutionCommand = {
+  playerOffId: EntityId;
+  playerOnId: EntityId;
+};
+
+export type LiveTacticsCommand = {
+  formationId?: string;
+  style?: string;
+  mentality?: string;
+  tempo?: number;
+  passingLength?: number;
+  width?: number;
+  pressingIntensity?: number;
+  defensiveLine?: number;
+  assignments?: Array<{ slotId: string; playerId?: EntityId; roleId: string }>;
+};
+
+export type MatchRatingRow = {
+  personId: EntityId;
+  name: string;
+  teamId: EntityId;
+  teamName: string;
+  position?: string;
+  minutes: number;
+  rating: number;
+  goals: number;
+  assists: number;
+  yellowCards: number;
+  redCard: boolean;
+  started: boolean;
+  subbedOnMinute?: number;
+  subbedOffMinute?: number;
+};
+
+export type PostMatchReport = {
+  matchId: EntityId;
+  fixtureId: EntityId;
+  competitionName: string;
+  venue?: string;
+  date: ISODate;
+  homeTeamName: string;
+  awayTeamName: string;
+  homeGoals: number;
+  awayGoals: number;
+  result: "W" | "D" | "L";
+  attendance?: number;
+  scorers: Array<{ minute?: number; playerName: string; teamName: string; assist?: string }>;
+  stats: {
+    possession: { home: number; away: number };
+    shots: { home: number; away: number };
+    shotsOnTarget: { home: number; away: number };
+    xg: { home: number; away: number };
+    corners: { home: number; away: number };
+    fouls: { home: number; away: number };
+    yellowCards: { home: number; away: number };
+    redCards: { home: number; away: number };
+  };
+  timeline: MatchCommentaryLine[];
+  ratings: MatchRatingRow[];
+  playerOfTheMatch?: MatchRatingRow;
+  substitutions: Array<{
+    minute?: number;
+    teamName: string;
+    playerOn: string;
+    playerOff: string;
+    reason?: string;
+  }>;
+  tacticalChanges: Array<{
+    minute?: number;
+    teamName: string;
+    decidedBy: string;
+    summary: string;
+  }>;
+  cards: Array<{ minute?: number; playerName: string; teamName: string; type: string }>;
+  injuries: Array<{ minute?: number; playerName: string; teamName: string; severity?: string }>;
+  finances: Array<{ description: string; amount: number; currency: string; direction: string }>;
+};

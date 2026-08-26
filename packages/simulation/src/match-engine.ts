@@ -54,7 +54,7 @@ export const DEFAULT_MATCH_ENVIRONMENT: MatchEnvironment = {
   homeAdvantage: 1,
 };
 
-type RuntimeTeam = {
+export type RuntimeTeam = {
   teamId: EntityId;
   selection: SelectedPlayer[];
   strength: TeamStrength;
@@ -68,6 +68,10 @@ type RuntimeTeam = {
   benchIds: EntityId[];
   /** Attribute sets for bench players, so a substitute can actually come on. */
   benchPlayers: SelectedPlayer[];
+  /** Current tactical setup, kept so a mid-match change can be re-applied. */
+  setup?: TacticalSetup;
+  /** Person ids that have already been used as a substitute. */
+  usedSubstitutes: EntityId[];
 };
 
 export type MatchPeriod = "NOT_STARTED" | "FIRST_HALF" | "HALF_TIME" | "SECOND_HALF" | "FULL_TIME";
@@ -100,7 +104,12 @@ export type LiveMatchState = {
   scheduledDate: string;
   substitutionLimit: number;
   attendance?: number;
+  /** Why an interactive match should stop and wait for the manager. */
+  pauseReason?: MatchPauseReason;
 };
+
+/** Reasons an interactive match pauses. Minor events never pause. */
+export type MatchPauseReason = "HALF_TIME" | "INJURY_DECISION" | "RED_CARD" | "FULL_TIME";
 
 const REGULATION_MINUTES = 90;
 const HALF_TIME_MINUTE = 45;
@@ -188,6 +197,7 @@ export const stepMatch = (state: LiveMatchState): LiveMatchState => {
 
   if (state.period === "HALF_TIME") {
     state.period = "SECOND_HALF";
+    state.pauseReason = undefined;
     pushEvent(state, HALF_TIME_MINUTE + 1, "SECOND_HALF", state.awayTeamId);
     state.rngState = rng.snapshot();
     return state;
@@ -199,6 +209,7 @@ export const stepMatch = (state: LiveMatchState): LiveMatchState => {
 
   if (state.minute === HALF_TIME_MINUTE) {
     state.period = "HALF_TIME";
+    state.pauseReason = "HALF_TIME";
     pushEvent(state, HALF_TIME_MINUTE, "HALF_TIME", state.homeTeamId);
     return state;
   }
@@ -257,6 +268,9 @@ const simulateMinute = (state: LiveMatchState, rng: SeededRandom, minute: number
   addPassingStats(rng, attacking);
   maybeSubstitute(rng, state, minute, attacking);
   maybeSubstitute(rng, state, minute, defending);
+  // Deterministic, so it does not disturb the random stream.
+  aiTacticalReaction(state, home, minute);
+  aiTacticalReaction(state, away, minute);
 
   if (rng.next() < attackingSequenceChance(attacking, defending, environment)) {
     const shooter = chooseShooter(rng, attacking.selection);
@@ -359,6 +373,9 @@ const simulateMinute = (state: LiveMatchState, rng: SeededRandom, minute: number
     };
     playerState(injuredTeam, injured.personId).injuryDuringMatch = injury;
     pushEvent(state, minute, "INJURY", injuredTeam.teamId, injured.personId, undefined, injury);
+    if (injury.severity !== "minor") {
+      state.pauseReason = "INJURY_DECISION";
+    }
   }
 };
 
@@ -367,7 +384,101 @@ const completeMatch = (state: LiveMatchState): void => {
   finalizeStates(state.away.states, state.awayGoals, state.homeGoals);
   applyPossession(state);
   state.period = "FULL_TIME";
+  state.pauseReason = "FULL_TIME";
   pushEvent(state, REGULATION_MINUTES, "FULL_TIME", state.homeTeamId);
+};
+
+/**
+ * Applies a new tactical setup to a side mid-match and records it.
+ *
+ * Only future minutes are affected: strength and modifiers are recomputed from
+ * the new setup, and nothing already simulated is revisited.
+ */
+export const applyTacticalChange = (
+  state: LiveMatchState,
+  team: RuntimeTeam,
+  setup: TacticalSetup,
+  minute: number,
+  decidedBy: "MANAGER" | "AI" = "MANAGER",
+): void => {
+  const previous = team.setup;
+  team.setup = setup;
+  team.tactical = calculateTacticalModifiers({
+    setup,
+    averageRoleFit: average(team.selection.map((player) => player.roleFit ?? 70)),
+  });
+  team.strength = applyTacticalStrength(
+    applyEnvironmentToStrength(
+      calculateTeamStrength({
+        selection: team.selection,
+        homeAdvantage: team.teamId === state.homeTeamId,
+        managerQuality: team.tactical.managerQuality,
+      }),
+      team.teamId === state.homeTeamId,
+      state.environment,
+    ),
+    setup,
+  );
+
+  // Only the fields that actually moved are stored, not the whole tactic.
+  const changes: Record<string, unknown> = { decidedBy };
+  if (previous?.formation.id !== setup.formation.id) {
+    changes.formation = setup.formation.name;
+  }
+  if (previous?.style !== setup.style) changes.style = setup.style;
+  if (previous?.instructions.mentality !== setup.instructions.mentality) {
+    changes.mentality = setup.instructions.mentality;
+  }
+  const before = previous?.instructions;
+  const after = setup.instructions;
+  if (before?.inPossession.tempo !== after.inPossession.tempo) {
+    changes.tempo = after.inPossession.tempo;
+  }
+  if (before?.inPossession.passingLength !== after.inPossession.passingLength) {
+    changes.passingLength = after.inPossession.passingLength;
+  }
+  if (before?.inPossession.width !== after.inPossession.width) {
+    changes.width = after.inPossession.width;
+  }
+  if (before?.outOfPossession.pressingIntensity !== after.outOfPossession.pressingIntensity) {
+    changes.pressingIntensity = after.outOfPossession.pressingIntensity;
+  }
+  if (before?.outOfPossession.defensiveLine !== after.outOfPossession.defensiveLine) {
+    changes.defensiveLine = after.outOfPossession.defensiveLine;
+  }
+  pushEvent(state, minute, "TACTICAL_CHANGE", team.teamId, undefined, undefined, changes);
+};
+
+/**
+ * Lightweight deterministic AI reactions. Consumes no randomness, so it shifts
+ * how a side plays without perturbing the match's random stream.
+ */
+const aiTacticalReaction = (state: LiveMatchState, team: RuntimeTeam, minute: number): void => {
+  if (!team.setup || minute < 60 || minute % 15 !== 0) return;
+  const deficit = trailingBy(state, team);
+  const shortHanded = team.selection.length < 11;
+  const mentality = team.setup.instructions.mentality;
+
+  let target: TacticalSetup["instructions"]["mentality"] | undefined;
+  if (shortHanded && mentality !== "DEFENSIVE") {
+    target = "DEFENSIVE";
+  } else if (deficit > 0 && minute >= 70 && mentality !== "ATTACKING") {
+    target = "ATTACKING";
+  } else if (deficit < 0 && minute >= 80 && mentality !== "CAUTIOUS") {
+    target = "CAUTIOUS";
+  }
+  if (!target) return;
+
+  applyTacticalChange(
+    state,
+    team,
+    {
+      ...team.setup,
+      instructions: { ...team.setup.instructions, mentality: target },
+    },
+    minute,
+    "AI",
+  );
 };
 
 /**
@@ -433,6 +544,8 @@ const createRuntimeTeam = (
   controlTicks: 0,
   benchIds: [],
   benchPlayers: [],
+  setup: tacticalSetup,
+  usedSubstitutes: [],
 });
 
 const chooseAttackingTeam = (
@@ -516,6 +629,12 @@ const chooseAssister = (
   return rng.pick(creators);
 };
 
+/**
+ * AI substitution. The window still costs the same single random draw as before
+ * so the RNG stream stays aligned, but the choice of who comes off is now a
+ * deterministic score over fitness, rating, cards and the scoreline rather than
+ * "most tired player".
+ */
 const maybeSubstitute = (
   rng: SeededRandom,
   state: LiveMatchState,
@@ -529,22 +648,75 @@ const maybeSubstitute = (
   ) {
     return;
   }
-  const benchPersonId = team.benchIds[team.substitutionsUsed];
-  if (!benchPersonId) {
+  const candidate = substitutionCandidate(state, team, minute);
+  if (!candidate) {
     return;
   }
-  const outgoing = [...team.states].sort((a, b) => b.fatigue - a.fatigue || a.rating - b.rating)[0];
-  if (!outgoing || outgoing.personId === benchPersonId) {
-    return;
-  }
-  applySubstitution(state, team, outgoing.personId, benchPersonId, minute, {
-    reason: outgoing.injuryDuringMatch
-      ? "injury"
-      : outgoing.rating < 5.8
-        ? "performance"
-        : "fitness",
+  applySubstitution(state, team, candidate.offId, candidate.onId, minute, {
+    reason: candidate.reason,
+    decidedBy: "AI",
   });
 };
+
+type SubstitutionChoice = { offId: EntityId; onId: EntityId; reason: string };
+
+/**
+ * Picks who to withdraw. Uses only information a manager can see during a
+ * match — condition, performance, disciplinary risk — not hidden ability.
+ */
+const substitutionCandidate = (
+  state: LiveMatchState,
+  team: RuntimeTeam,
+  minute: number,
+): SubstitutionChoice | undefined => {
+  const incoming = team.benchPlayers[0];
+  if (!incoming) return undefined;
+
+  const chasing = trailingBy(state, team) > 0;
+  const leading = trailingBy(state, team) < 0;
+
+  const scored = team.selection
+    .filter((player) => player.position !== "GK")
+    .flatMap((player) => {
+      const playerState = team.states.find((candidate) => candidate.personId === player.personId);
+      if (!playerState || playerState.subbedOffMinute !== undefined) return [];
+      let urgency = 0;
+      let reason = "fitness";
+      if (playerState.injuryDuringMatch) {
+        urgency += 100;
+        reason = "injury";
+      }
+      // A booked player late on is a dismissal risk.
+      if (playerState.yellowCards >= 1 && minute >= 60) {
+        urgency += 22;
+        if (reason === "fitness") reason = "discipline";
+      }
+      urgency += Math.max(0, 70 - playerState.currentFitness);
+      urgency += Math.max(0, 6.4 - playerState.rating) * 6;
+      if (playerState.rating < 5.8 && reason === "fitness") reason = "performance";
+      // Chasing a game, take off a defender; protecting one, take off a forward.
+      if (chasing && ["CB", "RB", "LB", "DM"].includes(player.position)) urgency += 12;
+      if (leading && ["ST", "LW", "RW", "AM"].includes(player.position)) urgency += 10;
+      return [{ playerState, urgency, reason }];
+    })
+    .sort(
+      (a, b) =>
+        b.urgency - a.urgency || a.playerState.personId.localeCompare(b.playerState.personId),
+    );
+
+  const choice = scored[0];
+  if (!choice || choice.playerState.personId === incoming.personId) return undefined;
+  return {
+    offId: choice.playerState.personId,
+    onId: incoming.personId,
+    reason: choice.reason,
+  };
+};
+
+const trailingBy = (state: LiveMatchState, team: RuntimeTeam): number =>
+  team.teamId === state.homeTeamId
+    ? state.awayGoals - state.homeGoals
+    : state.homeGoals - state.awayGoals;
 
 /**
  * Puts a substitution into effect. Unlike the original engine this actually
@@ -582,6 +754,7 @@ export const applySubstitution = (
   };
   team.selection[outgoingIndex] = replacement;
   team.benchPlayers = team.benchPlayers.filter((player) => player.personId !== incomingId);
+  team.usedSubstitutes.push(incomingId);
 
   const incomingState = createInitialPlayerState(replacement);
   incomingState.subbedOnMinute = minute;
@@ -820,6 +993,7 @@ const dismissPlayer = (
   // Counted once, whether it came straight or from a second booking.
   team.stats.redCards += 1;
   team.selection = team.selection.filter((candidate) => candidate.personId !== personId);
+  state.pauseReason = "RED_CARD";
   if (type === "RED_CARD") {
     pushEvent(state, minute, "RED_CARD", team.teamId, personId);
   } else {
