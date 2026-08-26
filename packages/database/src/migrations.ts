@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 52;
+export const CURRENT_DATABASE_VERSION = 53;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -2967,6 +2967,21 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
         annual_budget INTEGER NOT NULL, annual_operating_cost INTEGER NOT NULL, started_on TEXT NOT NULL, status TEXT NOT NULL, provenance_status TEXT NOT NULL
       );
       CREATE UNIQUE INDEX IF NOT EXISTS idx_club_development_programme ON club_development_programmes(club_id, programme_type);
+    `,
+  },
+  {
+    version: 53,
+    sql: `
+      CREATE TABLE IF NOT EXISTS ownership_acquisition_offers (
+        id TEXT PRIMARY KEY, club_id TEXT NOT NULL REFERENCES clubs(id), buyer_person_id TEXT NOT NULL REFERENCES persons(id), seller_holder_id TEXT,
+        percentage REAL NOT NULL, offer_amount INTEGER NOT NULL, counter_amount INTEGER, status TEXT NOT NULL, created_on TEXT NOT NULL, decided_on TEXT, rationale TEXT, provenance_status TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS ownership_acquisition_transactions (
+        id TEXT PRIMARY KEY, offer_id TEXT NOT NULL REFERENCES ownership_acquisition_offers(id), club_id TEXT NOT NULL REFERENCES clubs(id), buyer_person_id TEXT NOT NULL REFERENCES persons(id), seller_holder_id TEXT,
+        transaction_date TEXT NOT NULL, amount INTEGER NOT NULL, percentage REAL NOT NULL, status TEXT NOT NULL, provenance_status TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_ownership_offers_club ON ownership_acquisition_offers(club_id, created_on, id);
+      CREATE INDEX IF NOT EXISTS idx_ownership_transactions_club ON ownership_acquisition_transactions(club_id, transaction_date, id);
     `,
   },
 ];

@@ -11,6 +11,7 @@ export * from "./media.js";
 export * from "./medical.js";
 export * from "./club-creation.js";
 export * from "./womens-youth.js";
+export * from "./ownership.js";
 export * from "./federation-politics.js";
 export * from "./external-football-world.js";
 export * from "./clubmart.js";

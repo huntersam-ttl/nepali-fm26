@@ -1818,6 +1818,32 @@ export type ClubOwnershipStake = {
   ownershipModel: ClubOwnershipModel;
   provenanceStatus: "SIMULATION_ONLY" | "VERIFIED" | "REPORTED" | "ESTIMATED" | "UNKNOWN";
 };
+export type OwnershipAcquisitionOffer = {
+  id: EntityId;
+  clubId: EntityId;
+  buyerPersonId: EntityId;
+  sellerHolderId?: EntityId;
+  percentage: number;
+  offerAmount: number;
+  counterAmount?: number;
+  status: "ENQUIRY" | "OFFER" | "COUNTER" | "ACCEPTED" | "REJECTED" | "WITHDRAWN";
+  createdOn: ISODate;
+  decidedOn?: ISODate;
+  rationale?: string;
+  provenanceStatus: "SIMULATION_ONLY";
+};
+export type OwnershipAcquisitionTransaction = {
+  id: EntityId;
+  offerId: EntityId;
+  clubId: EntityId;
+  buyerPersonId: EntityId;
+  sellerHolderId?: EntityId;
+  date: ISODate;
+  amount: number;
+  percentage: number;
+  status: "POSTED";
+  provenanceStatus: "SIMULATION_ONLY";
+};
 
 export type PersonalFinancialProfile = {
   personId: EntityId;
