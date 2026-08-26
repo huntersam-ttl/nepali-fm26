@@ -1,5 +1,6 @@
 import { z } from "zod";
 export * from "./player-coverage-report.js";
+export * from "./personnel-coverage-report.js";
 
 const isoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const targetDatabaseDateSchema = z.string().regex(/^\d{4}-\d{2}$/);
