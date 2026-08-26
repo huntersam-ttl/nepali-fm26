@@ -65,7 +65,19 @@ const genericAdapter: UniversalInteractionAdapter = {
   buildHistoryResult: (session) => session.outcome ?? "Interaction recorded",
 };
 
-export const universalInteractionAdapters: Readonly<Record<string, UniversalInteractionAdapter>> = Object.freeze({ GENERIC: genericAdapter });
+const adapterFor = (type: string): UniversalInteractionAdapter => ({ ...genericAdapter, type, canOpen: (db, context) => {
+  // Negotiations may be opened before a contract/deal exists; participants and
+  // the domain-specific authority check are then the source of truth.
+  if (type === "CONTRACT_NEGOTIATION" || type === "TRANSFER_NEGOTIATION") return Boolean(context.initiator.entityId && context.counterpart.entityId);
+  return genericAdapter.canOpen(db, context);
+} });
+
+export const universalInteractionAdapters: Readonly<Record<string, UniversalInteractionAdapter>> = Object.freeze(Object.fromEntries([
+  "CONTRACT_NEGOTIATION", "CONTRACT", "TRANSFER_NEGOTIATION", "TRANSFER_OFFER", "TRANSFER_DEAL", "PLAYER_CONCERN",
+  "PLAYER_PROMISE", "BOARD_REQUEST", "INFRASTRUCTURE_PROJECT", "FEDERATION_GRANT", "FEDERATION_PROJECT",
+  "FEDERATION_CORRECTIVE_ACTION", "COMMERCIAL_DEAL", "STAFF_CONTRACT", "JOB_SECURITY", "FACILITY_REQUEST",
+  "FEDERATION_FUNDING", "GOVERNMENT_SUPPORT",
+].map((type) => [type, adapterFor(type)])));
 
 export const getAvailableInteractions = (db: GameDatabase, context: Pick<UniversalInteractionAdapterContext, "initiator" | "counterpart" | "organisationId">): UniversalInteractionDescriptor[] => {
   const sameOrganisation = Boolean(context.organisationId);
@@ -80,10 +92,26 @@ export const getAvailableInteractions = (db: GameDatabase, context: Pick<Univers
 
 export const openInteraction = (db: GameDatabase, context: UniversalInteractionAdapterContext): UniversalInteraction => {
   const adapter = universalInteractionAdapters[context.interactionType] ?? genericAdapter;
+  const authority: Record<string, (value: UniversalInteractionAdapterContext) => boolean> = {
+    PLAYER_CONCERN: (value) => value.initiator.type === "MANAGER" && value.counterpart.type === "PLAYER" && Boolean(value.organisationId),
+    BOARD_REQUEST: (value) => value.initiator.type === "MANAGER" && value.counterpart.type === "BOARD" && Boolean(value.organisationId),
+    FACILITY_REQUEST: (value) => ["MANAGER", "CHAIRMAN"].includes(value.initiator.type) && value.counterpart.type === "BOARD" && Boolean(value.organisationId),
+    STAFF_CONTRACT: (value) => ["MANAGER", "CHAIRMAN"].includes(value.initiator.type) && ["STAFF", "MANAGER"].includes(value.counterpart.type) && Boolean(value.organisationId),
+    FEDERATION_FUNDING: (value) => ["FEDERATION_OFFICIAL", "GOVERNMENT"].includes(value.initiator.type),
+    FEDERATION_PROJECT: (value) => value.initiator.type === "FEDERATION_OFFICIAL",
+    FEDERATION_CORRECTIVE_ACTION: (value) => value.initiator.type === "FEDERATION_OFFICIAL",
+  };
+  if (authority[context.interactionType] && !authority[context.interactionType]!(context)) throw new Error("Interaction authority is not available for the current career role");
   if (!adapter.canOpen(db, context)) throw new Error("Interaction cannot be opened from the current domain state");
   const session = openUniversalInteraction(db, adapter.buildContext(context));
-  return context.linkedReference ? { ...session, linkedReference: context.linkedReference, execution: { status: "PENDING", idempotencyKey: `interaction:${session.id}:accepted` } } : session;
+  if (!context.linkedReference) return session;
+  const linked = { ...session, linkedReference: context.linkedReference, execution: { status: "PENDING" as const, idempotencyKey: `interaction:${session.id}:accepted` } };
+  new UniversalInteractionRepository(db).upsert(linked);
+  return linked;
 };
+
+export const getActiveInteractions = (db: GameDatabase): UniversalInteraction[] => new UniversalInteractionRepository(db).active();
+export const getInteractionHistory = (db: GameDatabase): UniversalInteraction[] => new UniversalInteractionRepository(db).all();
 
 export const submitInteractionAction = (db: GameDatabase, input: Parameters<typeof submitUniversalInteractionAction>[1]): UniversalInteraction => {
   const repo = new UniversalInteractionRepository(db);

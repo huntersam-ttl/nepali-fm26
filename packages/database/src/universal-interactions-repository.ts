@@ -6,7 +6,7 @@ export class UniversalInteractionRepository { constructor(private readonly db:Ga
  upsert(v:UniversalInteraction){this.db.prepare("INSERT INTO universal_interactions VALUES (?,?) ON CONFLICT(id) DO UPDATE SET data_json=excluded.data_json").run(v.id,JSON.stringify(v));}
  session(id:EntityId){const r=this.db.prepare("SELECT * FROM universal_interactions WHERE id=?").get(id) as any;return r?map(r):undefined;}
  active(){return (this.db.prepare("SELECT * FROM universal_interactions").all() as any[]).map(map).filter((v)=>!["ACCEPTED","REJECTED","WALKED_AWAY","COMPLETED","CANCELLED"].includes(v.stage)).sort((a,b)=>a.worldDate.localeCompare(b.worldDate)||a.id.localeCompare(b.id));}
- all(){return (this.db.prepare("SELECT * FROM universal_interactions ORDER BY worldDate,id").all() as any[]).map(map);}
+ all(){return (this.db.prepare("SELECT * FROM universal_interactions").all() as any[]).map(map).sort((a,b)=>a.worldDate.localeCompare(b.worldDate)||a.id.localeCompare(b.id));}
  insertMemory(v:InteractionMemory){this.db.prepare("INSERT OR IGNORE INTO interaction_memories VALUES (?,?,?,?)").run(v.id,v.participantId,v.counterpartId,JSON.stringify(v));}
- memories(participantId?:EntityId){return (this.db.prepare(participantId?"SELECT * FROM interaction_memories WHERE participant_id=? ORDER BY occurred_on,id":"SELECT * FROM interaction_memories ORDER BY occurred_on,id").all(...(participantId?[participantId]:[])) as any[]).map(mapMemory);}
+ memories(participantId?:EntityId){return (this.db.prepare(participantId?"SELECT * FROM interaction_memories WHERE participant_id=?":"SELECT * FROM interaction_memories").all(...(participantId?[participantId]:[])) as any[]).map(mapMemory).sort((a,b)=>a.occurredOn.localeCompare(b.occurredOn)||a.id.localeCompare(b.id));}
 }
