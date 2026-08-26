@@ -3,6 +3,8 @@ import {
   type CompetitionRuleSet,
   type EntityId,
   type FixtureRecord,
+  type HistoricalEvent,
+  type ISODate,
 } from "@nepal-football-sim/shared-types";
 import { SeededRandom } from "./rng.js";
 
@@ -83,3 +85,80 @@ export const generateKnockoutFixtures = (input: { competitionSeasonId: EntityId;
 };
 
 export const fixtureCongestion = (fixtures: readonly FixtureRecord[], minimumRestDays = 3): { teamId: EntityId; fixtureIds: EntityId[] }[] => { const byTeam = new Map<EntityId, FixtureRecord[]>(); for (const fixture of fixtures) for (const team of [fixture.homeTeamId, fixture.awayTeamId]) byTeam.set(team, [...(byTeam.get(team) ?? []), fixture]); const result: { teamId: EntityId; fixtureIds: EntityId[] }[] = []; for (const [teamId, items] of byTeam) { const sorted = [...items].sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate)); const conflicts = sorted.filter((item, index) => index > 0 && (Date.parse(item.scheduledDate) - Date.parse(sorted[index - 1]!.scheduledDate)) / 86400000 < minimumRestDays).map((item) => item.id); if (conflicts.length) result.push({ teamId, fixtureIds: conflicts }); } return result; };
+
+export type FixturePostponementReason =
+  | "venue_unavailable"
+  | "shared_ground_conflict"
+  | "weather_disruption"
+  | "competition_clash"
+  | "exceptional_scheduling_conflict";
+
+export type FixtureRescheduleResult = {
+  fixture: FixtureRecord;
+  history: HistoricalEvent;
+  compressed: boolean;
+};
+
+const dateDistance = (left: ISODate, right: ISODate): number =>
+  Math.round((Date.parse(left) - Date.parse(right)) / 86400000);
+
+const dateAt = (date: ISODate, days: number): ISODate => addDays(date, days);
+
+/**
+ * Picks a bounded date for a postponed fixture. Existing fixtures are treated
+ * as facts: no date is invented outside the competition window and a team's
+ * venue/tie context is carried unchanged. The final pass permits compressed
+ * rest only when the window has no normal solution.
+ */
+export const rescheduleFixture = (input: {
+  fixture: FixtureRecord;
+  existingFixtures: readonly FixtureRecord[];
+  reason: FixturePostponementReason;
+  windowStart: ISODate;
+  windowEnd: ISODate;
+  minimumRestDays?: number;
+  blockedDates?: readonly ISODate[];
+  internationalWindowDates?: readonly ISODate[];
+  maxSearchDays?: number;
+  rescheduledOn?: ISODate;
+}): FixtureRescheduleResult | undefined => {
+  const minimumRestDays = Math.max(0, input.minimumRestDays ?? 3);
+  const blocked = new Set([...(input.blockedDates ?? []), ...(input.internationalWindowDates ?? [])]);
+  const peers = input.existingFixtures.filter((item) => item.id !== input.fixture.id);
+  const teams = new Set([input.fixture.homeTeamId, input.fixture.awayTeamId]);
+  const venue = input.fixture.venueId;
+  const maxSearchDays = Math.max(1, input.maxSearchDays ?? 370);
+  const candidates: ISODate[] = [];
+  const startOffset = Math.max(0, dateDistance(input.fixture.scheduledDate, input.windowStart) + 1);
+  for (let offset = startOffset; offset <= maxSearchDays; offset += 1) {
+    const candidate = dateAt(input.windowStart, offset);
+    if (candidate > input.windowEnd) break;
+    candidates.push(candidate);
+  }
+  const isAvailable = (candidate: ISODate, enforceRest: boolean): boolean => {
+    if (blocked.has(candidate)) return false;
+    const sameDay = peers.filter((item) => item.scheduledDate === candidate);
+    if (sameDay.some((item) => teams.has(item.homeTeamId) || teams.has(item.awayTeamId))) return false;
+    if (venue && sameDay.some((item) => item.venueId === venue)) return false;
+    if (!enforceRest) return true;
+    return peers.every((item) => {
+      if (!teams.has(item.homeTeamId) && !teams.has(item.awayTeamId)) return true;
+      return Math.abs(dateDistance(candidate, item.scheduledDate)) >= minimumRestDays;
+    });
+  };
+  const scheduledDate = candidates.find((candidate) => isAvailable(candidate, true)) ?? candidates.find((candidate) => isAvailable(candidate, false));
+  if (!scheduledDate) return undefined;
+  const compressed = !isAvailable(scheduledDate, true);
+  const fixture: FixtureRecord = { ...input.fixture, scheduledDate, status: "postponed" };
+  const history: HistoricalEvent = {
+    id: createStableEntityId("fixture-reschedule", `${fixture.id}:${scheduledDate}:${input.reason}`),
+    occurredOn: input.rescheduledOn ?? scheduledDate,
+    eventType: "fixture_rescheduled",
+    involvedEntities: [{ id: fixture.id, type: "fixture" }],
+    title: "Fixture rescheduled",
+    data: { reason: input.reason, previousDate: input.fixture.scheduledDate, scheduledDate, compressed, tieId: fixture.tieId, leg: fixture.leg },
+    importance: "medium",
+    scope: "club",
+  };
+  return { fixture, history, compressed };
+};

@@ -2785,6 +2785,12 @@ export class CompetitionRepository {
     this.db.prepare("UPDATE fixtures SET status = 'played' WHERE id = ?").run(fixtureId);
   }
 
+  rescheduleFixture(fixtureId: EntityId, scheduledDate: string, status: FixtureRecord["status"] = "postponed"): void {
+    this.db
+      .prepare("UPDATE fixtures SET scheduled_date = ?, status = ? WHERE id = ? AND status NOT IN ('played', 'cancelled')")
+      .run(scheduledDate, status, fixtureId);
+  }
+
   /**
    * Idempotent by match id, so re-finalising a completed match is a no-op
    * rather than a primary-key error.
