@@ -3008,6 +3008,10 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       CREATE INDEX IF NOT EXISTS idx_club_licence_cases_season ON club_licence_cases(competition_season_id, status, club_id);
     `,
   },
+  {
+    version: 56,
+    sql: `ALTER TABLE club_licence_cases ADD COLUMN history_json TEXT NOT NULL DEFAULT '[]';`,
+  },
 ];
 
 export const migrateDatabase = (db: GameDatabase): number => {

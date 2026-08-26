@@ -4062,8 +4062,9 @@ export type OwnershipInvestorProfile = {
 
 export type ClubLicenceCaseStatus = "PENDING" | "PASSED" | "CONDITIONAL" | "FAILED" | "APPEALED" | "RESOLVED";
 export type ClubLicenceRemediation = { key: string; requirement: string; deadline: ISODate; completed: boolean };
+export type ClubLicenceHistoryEvent = { date: ISODate; action: "OPENED" | "ASSESSED" | "CONDITIONAL" | "PASSED" | "FAILED" | "APPEALED" | "RESOLVED" | "CLOSED"; note: string };
 export type ClubLicenceCase = {
   id: EntityId; federationId: EntityId; clubId: EntityId; competitionSeasonId: EntityId; seasonLabel: string;
-  status: ClubLicenceCaseStatus; remediation: ClubLicenceRemediation[]; sanctions: string[]; reviewedAt: ISODate;
+  status: ClubLicenceCaseStatus; remediation: ClubLicenceRemediation[]; sanctions: string[]; history: ClubLicenceHistoryEvent[]; reviewedAt: ISODate;
   provenanceStatus: "SIMULATION_ONLY";
 };
