@@ -24,3 +24,4 @@ export * from "./referee-development-repository.js";
 export * from "./insurance-repository.js";
 export * from "./national-team-compensation-repository.js";
 export * from "./training-camp-repository.js";
+export * from "./club-network-repository.js";
