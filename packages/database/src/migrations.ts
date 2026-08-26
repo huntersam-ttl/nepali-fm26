@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 44;
+export const CURRENT_DATABASE_VERSION = 45;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -2850,6 +2850,28 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       );
       CREATE INDEX IF NOT EXISTS idx_national_team_management_team ON national_team_management_decisions(national_team_id, decision_date);
       CREATE INDEX IF NOT EXISTS idx_national_team_campaigns_team ON national_team_campaigns(national_team_id, started_on);
+    `,
+  },
+  {
+    version: 45,
+    sql: `
+      ALTER TABLE national_team_campaigns ADD COLUMN objectives_json TEXT NOT NULL DEFAULT '{}';
+      CREATE TABLE IF NOT EXISTS national_team_squad_registrations (
+        id TEXT PRIMARY KEY, federation_id TEXT NOT NULL REFERENCES federations(id), national_team_id TEXT NOT NULL REFERENCES teams(id), competition_edition_id TEXT NOT NULL REFERENCES international_competition_editions(id),
+        registration_deadline TEXT NOT NULL, provisional_player_ids_json TEXT NOT NULL, final_player_ids_json TEXT, status TEXT NOT NULL, provenance_status TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS national_team_camp_lifecycles (
+        id TEXT PRIMARY KEY, federation_id TEXT NOT NULL REFERENCES federations(id), national_team_id TEXT NOT NULL REFERENCES teams(id), competition_edition_id TEXT REFERENCES international_competition_editions(id),
+        callup_date TEXT NOT NULL, arrival_date TEXT, training_start TEXT, match_date TEXT, release_date TEXT, status TEXT NOT NULL, player_ids_json TEXT NOT NULL, fitness_effect REAL NOT NULL, provenance_status TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS international_commitments (
+        player_id TEXT NOT NULL REFERENCES persons(id), federation_id TEXT NOT NULL REFERENCES federations(id), status TEXT NOT NULL, decided_on TEXT NOT NULL, reason TEXT, provenance_status TEXT NOT NULL, PRIMARY KEY (player_id, federation_id)
+      );
+      CREATE TABLE IF NOT EXISTS diaspora_recruitment (
+        id TEXT PRIMARY KEY, federation_id TEXT NOT NULL REFERENCES federations(id), player_id TEXT NOT NULL REFERENCES persons(id), status TEXT NOT NULL, last_updated TEXT NOT NULL, provenance_status TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_national_team_registrations_deadline ON national_team_squad_registrations(competition_edition_id, registration_deadline);
+      CREATE INDEX IF NOT EXISTS idx_national_team_camps_status ON national_team_camp_lifecycles(national_team_id, status);
     `,
   },
 ];

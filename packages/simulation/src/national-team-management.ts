@@ -1,4 +1,4 @@
-import { createStableEntityId, type EntityId, type NationalTeamCallup, type NationalTeamCampaign, type NationalTeamManagementDecision } from "@nepal-football-sim/shared-types";
+import { createStableEntityId, type DiasporaRecruitment, type EntityId, type InternationalCommitment, type NationalTeamCallup, type NationalTeamCampaign, type NationalTeamCampLifecycle, type NationalTeamManagementDecision, type NationalTeamSquadRegistration } from "@nepal-football-sim/shared-types";
 import { FederationGovernanceRepository, InternationalFootballRepository, NationalTeamManagementRepository, type GameDatabase } from "@nepal-football-sim/database";
 import { scheduleFriendly, selectNationalTeamSquad } from "./federation-governance.js";
 
@@ -28,9 +28,10 @@ export const selectManagedNationalTeamSquad = (db: GameDatabase, input: { federa
   repo.upsertDecision(decision); return decision;
 };
 
-export const respondToNationalTeamCallup = (db: GameDatabase, input: { callupId: EntityId; response: "ACCEPT" | "DECLINE" }): NationalTeamCallup => {
+export const respondToNationalTeamCallup = (db: GameDatabase, input: { callupId: EntityId; response: "ACCEPT" | "DECLINE" | "RELUCTANT"; date?: string; reason?: string }): NationalTeamCallup => {
   const repo = new FederationGovernanceRepository(db); const callup = repo.nationalTeamCallups().find((item) => item.id === input.callupId); if (!callup) throw new Error("National team call-up not found");
-  const next = { ...callup, status: input.response === "ACCEPT" ? "CALLED_UP" as const : "DECLINED" as const }; repo.upsertNationalTeamCallup(next); return next;
+  const federationId = (db.prepare("SELECT federation_id FROM teams WHERE id=?").get(callup.nationalTeamId) as { federation_id: EntityId } | undefined)?.federation_id; if (input.response === "RELUCTANT" && federationId) setInternationalCommitment(db, { playerId: callup.playerId, federationId, status: "TEMPORARILY_RELUCTANT", decidedOn: input.date ?? callup.callupDate, reason: input.reason, provenanceStatus: status });
+  const next = { ...callup, status: input.response === "DECLINE" ? "DECLINED" as const : "CALLED_UP" as const }; repo.upsertNationalTeamCallup(next); return next;
 };
 
 export const diasporaEligibilityForNationalTeam = (db: GameDatabase, federationId: EntityId) => new FederationGovernanceRepository(db).internationalEligibilities(federationId).filter((item) => item.discoveredVia === "DIASPORA_SCOUTING" || item.status === "DOCUMENTATION_REQUIRED");
@@ -40,10 +41,46 @@ export const scheduleApprovedNationalTeamFriendly = (db: GameDatabase, input: { 
   return scheduleFriendly(db, input);
 };
 
-export const registerNationalTeamCampaign = (db: GameDatabase, input: { federationId: EntityId; nationalTeamId: EntityId; name: string; startedOn: string; competitionEditionId?: EntityId }): NationalTeamCampaign => {
+export const registerNationalTeamCampaign = (db: GameDatabase, input: { federationId: EntityId; nationalTeamId: EntityId; name: string; startedOn: string; competitionEditionId?: EntityId; objectives?: Record<string, number> }): NationalTeamCampaign => {
   nationalTeam(db, input.nationalTeamId);
-  const campaign: NationalTeamCampaign = { id: createStableEntityId("national-team-campaign", `${input.nationalTeamId}:${input.competitionEditionId ?? input.name}:${input.startedOn}`), federationId: input.federationId, nationalTeamId: input.nationalTeamId, competitionEditionId: input.competitionEditionId, name: input.name, startedOn: input.startedOn, matchesPlayed: 0, wins: 0, draws: 0, losses: 0, qualificationStatus: "ACTIVE", status: status };
+  const campaign: NationalTeamCampaign = { id: createStableEntityId("national-team-campaign", `${input.nationalTeamId}:${input.competitionEditionId ?? input.name}:${input.startedOn}`), federationId: input.federationId, nationalTeamId: input.nationalTeamId, competitionEditionId: input.competitionEditionId, name: input.name, startedOn: input.startedOn, matchesPlayed: 0, wins: 0, draws: 0, losses: 0, qualificationStatus: "ACTIVE", objectives: input.objectives ?? {}, status: status };
   new NationalTeamManagementRepository(db).upsertCampaign(campaign); return campaign;
+};
+
+export const planNationalTeamCampaignSquad = (db: GameDatabase, input: { federationId: EntityId; nationalTeamId: EntityId; competitionEditionId: EntityId; registrationDeadline: string; date: string; programme: string; seed: string; managerPersonId?: EntityId }): NationalTeamSquadRegistration => {
+  if (input.date > input.registrationDeadline) throw new Error("Registration deadline has passed");
+  const decision = selectManagedNationalTeamSquad(db, { ...input, competitionEditionId: input.competitionEditionId });
+  const registration: NationalTeamSquadRegistration = { id: createStableEntityId("national-team-registration", `${input.competitionEditionId}:${input.nationalTeamId}`), federationId: input.federationId, nationalTeamId: input.nationalTeamId, competitionEditionId: input.competitionEditionId, registrationDeadline: input.registrationDeadline, provisionalPlayerIds: decision.selectedPlayerIds, status: "PROVISIONAL", provenanceStatus: status };
+  new NationalTeamManagementRepository(db).upsertRegistration(registration); return registration;
+};
+
+export const finalizeNationalTeamCampaignSquad = (db: GameDatabase, input: { registrationId: EntityId; date: string; seed: string }): NationalTeamSquadRegistration => {
+  const repo = new NationalTeamManagementRepository(db); const registration = repo.registrations().find((item) => item.id === input.registrationId); if (!registration) throw new Error("National team registration not found"); if (input.date > registration.registrationDeadline) throw new Error("Registration deadline has passed");
+  const finalPlayerIds = registration.provisionalPlayerIds.filter((playerId) => !unavailable(db, playerId, input.date));
+  if (finalPlayerIds.length < registration.provisionalPlayerIds.length) {
+    const replacement = selectManagedNationalTeamSquad(db, { federationId: registration.federationId, nationalTeamId: registration.nationalTeamId, date: input.date, programme: "Registration replacements", seed: `${input.seed}:${registration.id}`, size: registration.provisionalPlayerIds.length });
+    for (const playerId of replacement.selectedPlayerIds) if (finalPlayerIds.length < registration.provisionalPlayerIds.length && !finalPlayerIds.includes(playerId)) finalPlayerIds.push(playerId);
+  }
+  const next = { ...registration, finalPlayerIds, status: "FINAL" as const }; repo.upsertRegistration(next); return next;
+};
+
+export const startNationalTeamCampLifecycle = (db: GameDatabase, input: { federationId: EntityId; nationalTeamId: EntityId; playerIds: EntityId[]; callupDate: string; competitionEditionId?: EntityId }): NationalTeamCampLifecycle => {
+  const camp: NationalTeamCampLifecycle = { id: createStableEntityId("national-team-camp-lifecycle", `${input.nationalTeamId}:${input.callupDate}`), federationId: input.federationId, nationalTeamId: input.nationalTeamId, competitionEditionId: input.competitionEditionId, callupDate: input.callupDate, status: "CALLED_UP", playerIds: input.playerIds, fitnessEffect: -3, provenanceStatus: status };
+  new NationalTeamManagementRepository(db).upsertCampLifecycle(camp); return camp;
+};
+
+export const advanceNationalTeamCampLifecycle = (db: GameDatabase, input: { campId: EntityId; phase: "ARRIVED" | "TRAINING" | "MATCH" | "RELEASED"; date: string }): NationalTeamCampLifecycle => {
+  const repo = new NationalTeamManagementRepository(db); const camp = repo.campLifecycles().find((item) => item.id === input.campId); if (!camp) throw new Error("National team camp not found"); const order = ["CALLED_UP", "ARRIVED", "TRAINING", "MATCH", "RELEASED"]; if (order.indexOf(input.phase) <= order.indexOf(camp.status)) throw new Error("Camp phase cannot move backwards");
+  const next: NationalTeamCampLifecycle = { ...camp, status: input.phase, arrivalDate: input.phase === "ARRIVED" ? input.date : camp.arrivalDate, trainingStart: input.phase === "TRAINING" ? input.date : camp.trainingStart, matchDate: input.phase === "MATCH" ? input.date : camp.matchDate, releaseDate: input.phase === "RELEASED" ? input.date : camp.releaseDate };
+  const international = new InternationalFootballRepository(db); for (const playerId of camp.playerIds) { const duty = international.duties().find((item) => item.nationalTeamId === camp.nationalTeamId && item.playerId === playerId && item.departureDate === camp.callupDate); if (input.phase === "ARRIVED" && !duty) international.upsertDuty({ id: createStableEntityId("national-team-duty", `${camp.id}:${playerId}`), nationalTeamId: camp.nationalTeamId, playerId, competitionEditionId: camp.competitionEditionId, departureDate: camp.callupDate, returnDate: camp.releaseDate ?? input.date, status: "ON_DUTY", fitnessEffect: camp.fitnessEffect, provenanceStatus: status }); else if (input.phase === "RELEASED" && duty) international.upsertDuty({ ...duty, returnDate: input.date, status: "RETURNED" }); }
+  repo.upsertCampLifecycle(next); return next;
+};
+
+export const setInternationalCommitment = (db: GameDatabase, input: InternationalCommitment): InternationalCommitment => { const next = { ...input, provenanceStatus: status }; new NationalTeamManagementRepository(db).upsertCommitment(next); return next; };
+
+export const advanceDiasporaRecruitment = (db: GameDatabase, input: Omit<DiasporaRecruitment, "id" | "provenanceStatus"> & { id?: EntityId }): DiasporaRecruitment => {
+  if (input.status === "ELIGIBLE_CONFIRMED" || input.status === "COMMITTED") { const eligibility = new FederationGovernanceRepository(db).internationalEligibilities(input.federationId).find((item) => item.playerId === input.playerId && item.status === "ELIGIBLE"); if (!eligibility) throw new Error("Eligibility confirmation is required before commitment"); }
+  const next: DiasporaRecruitment = { ...input, id: input.id ?? createStableEntityId("diaspora-recruitment", `${input.federationId}:${input.playerId}`), provenanceStatus: status }; new NationalTeamManagementRepository(db).upsertDiaspora(next); return next;
 };
 
 export const recordNationalTeamCampaignResult = (db: GameDatabase, input: { campaignId: EntityId; date: string; nationalTeamWon: boolean; draw: boolean; qualificationStatus?: NationalTeamCampaign["qualificationStatus"] }): NationalTeamCampaign => {

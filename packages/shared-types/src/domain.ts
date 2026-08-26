@@ -3303,8 +3303,14 @@ export type NationalTeamCampaign = {
   draws: number;
   losses: number;
   qualificationStatus: "ACTIVE" | "QUALIFIED" | "ELIMINATED" | "COMPLETED";
+  objectives?: Record<string, number>;
   status: "SIMULATION_ONLY";
 };
+
+export type NationalTeamSquadRegistration = { id: EntityId; federationId: EntityId; nationalTeamId: EntityId; competitionEditionId: EntityId; registrationDeadline: ISODate; provisionalPlayerIds: EntityId[]; finalPlayerIds?: EntityId[]; status: "PROVISIONAL" | "FINAL" | "REPLACEMENT_WINDOW_CLOSED"; provenanceStatus: "SIMULATION_ONLY" };
+export type NationalTeamCampLifecycle = { id: EntityId; federationId: EntityId; nationalTeamId: EntityId; competitionEditionId?: EntityId; callupDate: ISODate; arrivalDate?: ISODate; trainingStart?: ISODate; matchDate?: ISODate; releaseDate?: ISODate; status: "CALLED_UP" | "ARRIVED" | "TRAINING" | "MATCH" | "RELEASED"; playerIds: EntityId[]; fitnessEffect: number; provenanceStatus: "SIMULATION_ONLY" };
+export type InternationalCommitment = { playerId: EntityId; federationId: EntityId; status: "ACTIVE" | "TEMPORARILY_RELUCTANT" | "RETIRED"; decidedOn: ISODate; reason?: string; provenanceStatus: "SIMULATION_ONLY" };
+export type DiasporaRecruitment = { id: EntityId; federationId: EntityId; playerId: EntityId; status: "IDENTIFIED" | "CONTACTED" | "INTERESTED" | "ELIGIBLE_CONFIRMED" | "COMMITTED"; lastUpdated: ISODate; provenanceStatus: "SIMULATION_ONLY" };
 
 export type InternationalRetirementStatus = "ACTIVE" | "CONSIDERING" | "RETIRED_INTERNATIONAL";
 
