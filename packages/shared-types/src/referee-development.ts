@@ -1,0 +1,6 @@
+import type { EntityId } from "./ids.js";
+
+export type RefereeDevelopmentProfile = { id: EntityId; refereeProfileId: EntityId; currentQuality: number; fitness: number; experience: number; consistency: number; disciplinaryTendency: number; developmentPotential: number; status: "DOMESTIC" | "INTERNATIONAL"; updatedOn: string; provenanceStatus: "SIMULATION_ONLY" };
+export type RefereeDevelopmentPathway = { id: EntityId; federationId: EntityId; programmeType: "EDUCATION" | "FITNESS_TESTING" | "DOMESTIC_PROGRESSION" | "AFC_FIFA_PATHWAY" | "INTERNATIONAL_EXCHANGE"; refereeProfileIds: EntityId[]; startDate: string; endDate: string; funding: number; staffingQuality: number; status: "PLANNED" | "ACTIVE" | "COMPLETED"; provenanceStatus: "SIMULATION_ONLY" };
+export type VarProgrammeStatus = "FEASIBILITY" | "APPROVED" | "PROCUREMENT" | "TRAINING" | "PILOT" | "ACTIVE" | "SUSPENDED";
+export type VarProgramme = { id: EntityId; federationId: EntityId; name: string; scope: "SELECTED_STADIUMS" | "FINALS" | "SELECTED_COMPETITIONS" | "FULL_COMPETITION"; stadiumIds: EntityId[]; competitionIds: EntityId[]; funding: number; trainedOfficials: number; compatibleStadiums: number; operationsCapacity: number; annualOperatingCost: number; status: VarProgrammeStatus; updatedOn: string; provenanceStatus: "SIMULATION_ONLY" };

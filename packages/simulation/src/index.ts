@@ -10,6 +10,7 @@ export * from "./grassroots.js";
 export * from "./media-rights.js";
 export * from "./commercial-rights.js";
 export * from "./competition-distribution.js";
+export * from "./referee-development.js";
 export * from "./federation-governance.js";
 export * from "./national-team-management.js";
 export * from "./media.js";
