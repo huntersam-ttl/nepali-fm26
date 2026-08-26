@@ -2014,6 +2014,61 @@ export type ClubAsset = {
   status: "SIMULATION_ONLY" | "VERIFIED" | "REPORTED" | "ESTIMATED" | "UNKNOWN";
 };
 
+export type ProcurementCategory =
+  | "KITS_TRAINING_WEAR" | "FOOTBALL_EQUIPMENT" | "GYM_PERFORMANCE"
+  | "MEDICAL_SUPPLIES" | "ANALYSIS_SCOUTING" | "GROUNDS_STADIUM";
+
+export type ProcurementSupplier = {
+  id: EntityId;
+  name: string;
+  region: string;
+  reputation: number;
+  priceLevel: number;
+  reliability: number;
+  foreign: boolean;
+  status: "SIMULATION_ONLY";
+};
+
+export type ProcurementRequest = {
+  id: EntityId;
+  clubId: EntityId;
+  category: ProcurementCategory;
+  quantity: number;
+  requestedOn: ISODate;
+  status: "REQUESTED" | "OFFERED" | "SELECTED" | "ORDERED" | "DELIVERED" | "FAILED" | "CANCELLED";
+  budgetCategory: ClubBudgetCategory;
+  statusText?: string;
+};
+
+export type ProcurementOffer = {
+  id: EntityId;
+  requestId: EntityId;
+  supplierId: EntityId;
+  unitPrice: number;
+  shippingCost: number;
+  quality: number;
+  deliveryDays: number;
+  reliability: number;
+  expiresOn: ISODate;
+  status: "OFFERED" | "ACCEPTED" | "REJECTED";
+};
+
+export type ProcurementOrder = {
+  id: EntityId;
+  requestId: EntityId;
+  offerId: EntityId;
+  clubId: EntityId;
+  orderedOn: ISODate;
+  expectedDelivery: ISODate;
+  deliveredOn?: ISODate;
+  quantity: number;
+  totalCost: number;
+  category: ProcurementCategory;
+  status: "ORDERED" | "IN_TRANSIT" | "DELIVERED" | "FAILED";
+  quality: number;
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
 export type ClubValuation = {
   clubId: EntityId;
   valuation: number;

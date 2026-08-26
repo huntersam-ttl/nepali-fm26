@@ -8,6 +8,7 @@ import {
 import { ClubEconomyRepository, TransferMarketRepository, type GameDatabase } from "@nepal-football-sim/database";
 import { createInfrastructureProject } from "./club-economy.js";
 import { preferredForeignMarkets } from "./external-football-world.js";
+import { createProcurementRequest, selectProcurementOffer } from "./clubmart.js";
 
 const seasonLabel = (date: string): string => date.slice(0, 4);
 
@@ -76,6 +77,7 @@ export const runClubAiSeasonPlanning = (db: GameDatabase, input: { date: string;
     const foreignMarkets = preferredForeignMarkets(db, seasonLabel(input.date));
     const contracts = market.activeContractsForClub(clubId, input.date);
     const activeProjects = economy.infrastructureProjects(clubId).filter((project) => !["COMPLETED", "CANCELLED"].includes(project.status));
+    const procurement = economy.assets(clubId).filter((asset) => asset.assetType === "EQUIPMENT");
     const sponsorships = economy.sponsorships(clubId).filter((item) => item.status === "ACTIVE" && item.endDate >= input.date);
     const actions = [
       contracts.length < 18 ? "ASSESS_SQUAD_NEEDS" : "REVIEW_SQUAD_DEPTH",
@@ -92,6 +94,13 @@ export const runClubAiSeasonPlanning = (db: GameDatabase, input: { date: string;
     if (identity === "COMMERCIAL_GROWTH") actions.push("PROTECT_COMMERCIAL_AUDIENCE_GROWTH");
     if (identity === "VETERAN_FOCUSED") actions.push("RETAIN_EXPERIENCED_CORE_WITHIN_WAGE_LIMIT");
     actions.push(identity === "DEVELOPMENT_SELLING" || identity === "ACADEMY_FIRST" ? `EXPORT_PATHWAY_${foreignMarkets.destination}` : `RECRUITMENT_MARKET_${foreignMarkets.source}`);
+    if (procurement.length === 0 && account.financialHealth !== "INSOLVENT") {
+      try {
+        const request = createProcurementRequest(db, { clubId, category: identity === "ACADEMY_FIRST" ? "FOOTBALL_EQUIPMENT" : "MEDICAL_SUPPLIES", quantity: identity === "ACADEMY_FIRST" ? 12 : 4, date: input.date, seed: `${input.seed}:ai:${clubId}` });
+        const selected = [...request.offers].sort((a, b) => a.unitPrice * request.request.quantity + a.shippingCost - (b.unitPrice * request.request.quantity + b.shippingCost) || b.reliability - a.reliability)[0];
+        if (selected) { selectProcurementOffer(db, { offerId: selected.id, date: input.date }); actions.push("PROCURE_OPERATIONAL_EQUIPMENT"); }
+      } catch { actions.push("DEFER_PROCUREMENT_FOR_AFFORDABILITY"); }
+    }
     if (priorities.infrastructure >= 0.5 && activeProjects.length === 0 && account.cashBalance > 3500000) {
       try {
         createInfrastructureProject(db, { clubId, projectType: "TRAINING_GROUND", date: input.date, seed: `${input.seed}:ai:${clubId}` });

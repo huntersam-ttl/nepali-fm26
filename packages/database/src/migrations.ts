@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 38;
+export const CURRENT_DATABASE_VERSION = 39;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -2676,6 +2676,34 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       );
       CREATE INDEX IF NOT EXISTS idx_staff_approaches_person
         ON staff_approaches(person_id, created_on);
+    `,
+  },
+  {
+    version: 39,
+    sql: `
+      CREATE TABLE IF NOT EXISTS procurement_suppliers (
+        id TEXT PRIMARY KEY, name TEXT NOT NULL, region TEXT NOT NULL,
+        reputation REAL NOT NULL, price_level REAL NOT NULL, reliability REAL NOT NULL,
+        foreign_supplier INTEGER NOT NULL, status TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS procurement_requests (
+        id TEXT PRIMARY KEY, club_id TEXT NOT NULL REFERENCES clubs(id), category TEXT NOT NULL,
+        quantity INTEGER NOT NULL, requested_on TEXT NOT NULL, status TEXT NOT NULL,
+        budget_category TEXT NOT NULL, status_text TEXT
+      );
+      CREATE TABLE IF NOT EXISTS procurement_offers (
+        id TEXT PRIMARY KEY, request_id TEXT NOT NULL REFERENCES procurement_requests(id), supplier_id TEXT NOT NULL REFERENCES procurement_suppliers(id),
+        unit_price INTEGER NOT NULL, shipping_cost INTEGER NOT NULL, quality REAL NOT NULL,
+        delivery_days INTEGER NOT NULL, reliability REAL NOT NULL, expires_on TEXT NOT NULL, status TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS procurement_orders (
+        id TEXT PRIMARY KEY, request_id TEXT NOT NULL REFERENCES procurement_requests(id), offer_id TEXT NOT NULL REFERENCES procurement_offers(id), club_id TEXT NOT NULL REFERENCES clubs(id),
+        ordered_on TEXT NOT NULL, expected_delivery TEXT NOT NULL, delivered_on TEXT,
+        quantity INTEGER NOT NULL, total_cost INTEGER NOT NULL, category TEXT NOT NULL, status TEXT NOT NULL,
+        quality REAL NOT NULL, provenance_status TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_procurement_requests_club ON procurement_requests(club_id, requested_on);
+      CREATE INDEX IF NOT EXISTS idx_procurement_orders_delivery ON procurement_orders(expected_delivery, status);
     `,
   },
 ];
