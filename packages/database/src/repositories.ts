@@ -1286,8 +1286,11 @@ export class CompetitionRepository {
   insertMatch(match: Match, attendance?: number): void {
     this.db
       .prepare(
-        `INSERT INTO matches (id, fixture_id, played_date, home_goals, away_goals, attendance)
-         VALUES (?, ?, ?, ?, ?, ?)
+        `INSERT INTO matches (
+           id, fixture_id, played_date, home_goals, away_goals, attendance,
+           winner_team_id, went_to_extra_time, shootout_home_goals, shootout_away_goals
+         )
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO NOTHING`,
       )
       .run(
@@ -1297,6 +1300,10 @@ export class CompetitionRepository {
         match.homeGoals ?? null,
         match.awayGoals ?? null,
         attendance ?? null,
+        match.winnerTeamId ?? null,
+        match.wentToExtraTime ? 1 : null,
+        match.shootoutHomeGoals ?? null,
+        match.shootoutAwayGoals ?? null,
       );
   }
 

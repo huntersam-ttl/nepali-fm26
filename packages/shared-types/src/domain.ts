@@ -768,6 +768,12 @@ export type CompetitionRuleSet = {
   promotionEnabled?: boolean;
   relegationEnabled?: boolean;
   specialRules?: Partial<Record<SeasonSpecialRuleFlag, boolean>>;
+  /**
+   * True for knockout-style fixtures that cannot end level: drawn matches go to
+   * extra time and, if still level, a penalty shootout. Unset/false for the
+   * real Nepal league data, which is round-robin and never needs a winner.
+   */
+  matchesRequireWinner?: boolean;
 };
 
 export type CompetitionMovementType = "PROMOTION" | "RELEGATION" | "QUALIFICATION";
@@ -810,6 +816,13 @@ export type Fixture = {
 export type FixtureRecord = Fixture & {
   round: number;
   venueId?: EntityId;
+  /**
+   * Two-leg tie context. Unused by any current fixture generator (the real
+   * Nepal competitions are round-robin), but additive so a future knockout
+   * generator can populate it without another shape change.
+   */
+  tieId?: EntityId;
+  leg?: 1 | 2;
 };
 
 export type Match = {
@@ -818,6 +831,11 @@ export type Match = {
   playedDate?: ISODate;
   homeGoals?: number;
   awayGoals?: number;
+  /** Set only for knockout ties: the team the tie was awarded to. */
+  winnerTeamId?: EntityId;
+  wentToExtraTime?: boolean;
+  shootoutHomeGoals?: number;
+  shootoutAwayGoals?: number;
 };
 
 export type MatchEventType =
@@ -840,7 +858,12 @@ export type MatchEventType =
   | "VAR_CHECK"
   | "PENALTY"
   | "OFFSIDE"
-  | "OWN_GOAL";
+  | "OWN_GOAL"
+  | "EXTRA_TIME_START"
+  | "EXTRA_TIME_HALF_TIME"
+  | "EXTRA_TIME_SECOND_HALF"
+  | "PENALTY_SHOOTOUT_KICK"
+  | "PENALTY_SHOOTOUT_COMPLETE";
 
 export type MatchEvent = {
   id: EntityId;

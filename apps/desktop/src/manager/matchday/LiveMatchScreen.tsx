@@ -18,6 +18,10 @@ const PERIOD_LABEL: Record<LiveMatchView["period"], string> = {
   FIRST_HALF: "First half",
   HALF_TIME: "Half time",
   SECOND_HALF: "Second half",
+  EXTRA_TIME_FIRST_HALF: "Extra time — first half",
+  EXTRA_TIME_HALF_TIME: "Extra time — half time",
+  EXTRA_TIME_SECOND_HALF: "Extra time — second half",
+  PENALTY_SHOOTOUT: "Penalties",
   FULL_TIME: "Full time",
 };
 
@@ -26,6 +30,9 @@ const PAUSE_MESSAGE: Record<NonNullable<LiveMatchView["pauseReason"]>, string> =
   INJURY_DECISION: "A player is injured and may need replacing.",
   RED_CARD: "A player has been sent off. You may reshape the team.",
   FULL_TIME: "Full time.",
+  EXTRA_TIME_START: "Still level after 90 minutes. Extra time begins.",
+  EXTRA_TIME_HALF_TIME: "Extra time, half time — make your changes, then continue.",
+  PENALTY_SHOOTOUT: "Still level after extra time. It goes to penalties.",
 };
 
 export const LiveMatchScreen = ({
@@ -73,7 +80,8 @@ export const LiveMatchScreen = ({
   if (!view || !managed) return <p className="muted">Loading match…</p>;
 
   const finished = view.period === "FULL_TIME";
-  const atHalfTime = view.period === "HALF_TIME";
+  const atHalfTime = view.period === "HALF_TIME" || view.period === "EXTRA_TIME_HALF_TIME";
+  const atPenalties = view.pauseReason === "PENALTY_SHOOTOUT";
 
   return (
     <section className="matchday">
@@ -90,7 +98,18 @@ export const LiveMatchScreen = ({
               disabled={state.busy}
               onClick={() => void controller.continueSecondHalf()}
             >
-              Continue second half
+              {view.period === "EXTRA_TIME_HALF_TIME"
+                ? "Continue extra time"
+                : "Continue second half"}
+            </button>
+          )}
+          {atPenalties && (
+            <button
+              className="primary"
+              disabled={state.busy}
+              onClick={() => void controller.advanceMinutes(1)}
+            >
+              Take penalties
             </button>
           )}
         </div>
@@ -128,14 +147,14 @@ export const LiveMatchScreen = ({
           <>
             <button
               className="primary"
-              disabled={state.busy || atHalfTime}
+              disabled={state.busy || atHalfTime || atPenalties}
               onClick={() => (state.playing ? controller.pause() : controller.play(view.viewMode))}
             >
               {state.playing ? "Pause" : "Play"}
             </button>
             <button
               className="ghost"
-              disabled={state.busy || state.playing || atHalfTime}
+              disabled={state.busy || state.playing || atHalfTime || atPenalties}
               onClick={() => void controller.advanceToNextEvent("MAJOR")}
             >
               Next event
@@ -143,7 +162,7 @@ export const LiveMatchScreen = ({
             {view.viewMode === "TEXT_LIVE" && (
               <button
                 className="ghost"
-                disabled={state.busy || state.playing || atHalfTime}
+                disabled={state.busy || state.playing || atHalfTime || atPenalties}
                 onClick={() => void controller.advanceMinutes(5)}
               >
                 +5 min

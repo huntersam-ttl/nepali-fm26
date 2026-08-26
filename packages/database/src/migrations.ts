@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 18;
+export const CURRENT_DATABASE_VERSION = 19;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -2156,6 +2156,21 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       );
 
       ALTER TABLE matches ADD COLUMN attendance INTEGER;
+    `,
+  },
+  {
+    version: 19,
+    sql: `
+      -- Knockout-tie outcome. NULL for every league match; only set when a
+      -- competition rule required a winner (extra time / penalties / aggregate).
+      ALTER TABLE matches ADD COLUMN winner_team_id TEXT REFERENCES teams(id);
+      ALTER TABLE matches ADD COLUMN went_to_extra_time INTEGER;
+      ALTER TABLE matches ADD COLUMN shootout_home_goals INTEGER;
+      ALTER TABLE matches ADD COLUMN shootout_away_goals INTEGER;
+
+      -- Two-leg tie pairing. Unused by any current fixture generator.
+      ALTER TABLE fixtures ADD COLUMN tie_id TEXT;
+      ALTER TABLE fixtures ADD COLUMN leg INTEGER;
     `,
   },
 ];

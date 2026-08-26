@@ -1530,6 +1530,8 @@ const matchHelpers = (
       awayTacticalSetup: managerIsHome ? opponentTactic : tactic,
       seed: `${save.randomSeed}:${fixture.id}`,
       substitutionLimit: substitutionLimitFor(context.ruleSet),
+      requiresWinner: Boolean(context.ruleSet.matchesRequireWinner),
+      aggregateFirstLeg: firstLegScoreFor(db, fixture),
     };
   };
 
@@ -1593,6 +1595,32 @@ const advanceTargetFor = (command: AdvanceMatchCommand): AdvanceTarget => {
  */
 const substitutionLimitFor = (ruleSet: CompetitionRuleSet): number =>
   Number((ruleSet.specialRules as Record<string, unknown> | undefined)?.substitutionLimit ?? 3);
+
+/**
+ * The completed first leg's score for a two-leg tie, translated into this
+ * fixture's home/away frame. Undefined unless a fixture generator has already
+ * paired two fixtures via `tieId` — no current generator does this yet.
+ */
+const firstLegScoreFor = (
+  db: GameDatabase,
+  fixture: FixtureRecord,
+): { homeGoals: number; awayGoals: number } | undefined => {
+  if (!fixture.tieId) return undefined;
+  const row = db
+    .prepare(
+      `SELECT m.home_goals AS home_goals, m.away_goals AS away_goals, f.home_team_id AS home_team_id
+       FROM fixtures f JOIN matches m ON m.fixture_id = f.id
+       WHERE f.tie_id = ? AND f.id != ? LIMIT 1`,
+    )
+    .get(fixture.tieId, fixture.id) as
+    { home_goals: number | null; away_goals: number | null; home_team_id: string } | undefined;
+  if (!row) return undefined;
+  const homeGoals = row.home_goals ?? 0;
+  const awayGoals = row.away_goals ?? 0;
+  return row.home_team_id === fixture.homeTeamId
+    ? { homeGoals, awayGoals }
+    : { homeGoals: awayGoals, awayGoals: homeGoals };
+};
 
 const today = (): string => new Date().toISOString().slice(0, 10);
 

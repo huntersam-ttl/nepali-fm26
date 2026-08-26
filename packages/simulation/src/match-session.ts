@@ -463,9 +463,13 @@ const hasEventAtLeast = (
       IMPORTANCE_RANK[matchEventImportance(event)] >= IMPORTANCE_RANK[minImportance],
   );
 
-/** Resumes the second half. Only valid while the match is at half time. */
+/**
+ * Resumes play after a scheduled break — half time, or the equivalent break
+ * between extra-time halves. Only valid while the match is actually paused
+ * at one of those breaks.
+ */
 export const continueFromHalfTime = (db: GameDatabase, state: LiveMatchState): LiveMatchState => {
-  if (state.period !== "HALF_TIME") {
+  if (state.period !== "HALF_TIME" && state.period !== "EXTRA_TIME_HALF_TIME") {
     throw new MatchCommandError("MATCH_NOT_AT_HALF_TIME", "The match is not at half time.");
   }
   stepMatch(state);

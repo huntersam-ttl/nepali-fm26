@@ -30,6 +30,10 @@ export type SimulateMatchInput = {
   awayTacticalSetup?: TacticalSetup;
   /** Competition substitution allowance. Defaults to the engine's original 3. */
   substitutionLimit?: number;
+  /** Knockout ties that cannot end level: drawn regulation goes to ET, then penalties. */
+  requiresWinner?: boolean;
+  /** First-leg score of a two-leg tie, in this match's home/away frame. */
+  aggregateFirstLeg?: { homeGoals: number; awayGoals: number };
 };
 
 export type MatchEnvironment = {
@@ -74,7 +78,16 @@ export type RuntimeTeam = {
   usedSubstitutes: EntityId[];
 };
 
-export type MatchPeriod = "NOT_STARTED" | "FIRST_HALF" | "HALF_TIME" | "SECOND_HALF" | "FULL_TIME";
+export type MatchPeriod =
+  | "NOT_STARTED"
+  | "FIRST_HALF"
+  | "HALF_TIME"
+  | "SECOND_HALF"
+  | "EXTRA_TIME_FIRST_HALF"
+  | "EXTRA_TIME_HALF_TIME"
+  | "EXTRA_TIME_SECOND_HALF"
+  | "PENALTY_SHOOTOUT"
+  | "FULL_TIME";
 
 /**
  * Everything needed to resume a match exactly where it stopped.
@@ -106,13 +119,41 @@ export type LiveMatchState = {
   attendance?: number;
   /** Why an interactive match should stop and wait for the manager. */
   pauseReason?: MatchPauseReason;
+  /** Knockout ties that cannot end level. Unset/false for league matches. */
+  requiresWinner?: boolean;
+  /** First-leg score of a two-leg tie, in this match's home/away frame. */
+  aggregateFirstLeg?: { homeGoals: number; awayGoals: number };
+  /** True once extra time has started. */
+  extraTime?: boolean;
+  /** Penalty shootout goals, tracked separately: these never count as match goals/stats. */
+  shootoutHomeGoals?: number;
+  shootoutAwayGoals?: number;
+  shootoutKicks?: PenaltyKick[];
+  /** The side that won the tie, once decided by regulation, ET, aggregate or shootout. */
+  winnerTeamId?: EntityId;
+};
+
+export type PenaltyKick = {
+  teamId: EntityId;
+  personId: EntityId;
+  scored: boolean;
+  round: number;
 };
 
 /** Reasons an interactive match pauses. Minor events never pause. */
-export type MatchPauseReason = "HALF_TIME" | "INJURY_DECISION" | "RED_CARD" | "FULL_TIME";
+export type MatchPauseReason =
+  | "HALF_TIME"
+  | "INJURY_DECISION"
+  | "RED_CARD"
+  | "FULL_TIME"
+  | "EXTRA_TIME_START"
+  | "EXTRA_TIME_HALF_TIME"
+  | "PENALTY_SHOOTOUT";
 
 const REGULATION_MINUTES = 90;
 const HALF_TIME_MINUTE = 45;
+const EXTRA_TIME_HALF_MINUTE = 105;
+const EXTRA_TIME_FULL_MINUTES = 120;
 
 export const createMatchState = (input: SimulateMatchInput): LiveMatchState => {
   const environment = { ...DEFAULT_MATCH_ENVIRONMENT, ...input.environment };
@@ -168,6 +209,8 @@ export const createMatchState = (input: SimulateMatchInput): LiveMatchState => {
     environment,
     scheduledDate: input.fixture.scheduledDate,
     substitutionLimit: input.substitutionLimit ?? 3,
+    requiresWinner: input.requiresWinner,
+    aggregateFirstLeg: input.aggregateFirstLeg,
   };
   // Bench membership drives substitutions; it is not part of the pitch selection.
   state.home.benchIds = [...(input.homeTacticalSetup?.bench ?? [])];
@@ -203,34 +246,92 @@ export const stepMatch = (state: LiveMatchState): LiveMatchState => {
     return state;
   }
 
+  if (state.period === "EXTRA_TIME_HALF_TIME") {
+    state.period = "EXTRA_TIME_SECOND_HALF";
+    state.pauseReason = undefined;
+    pushEvent(state, EXTRA_TIME_HALF_MINUTE + 1, "EXTRA_TIME_SECOND_HALF", state.awayTeamId);
+    state.rngState = rng.snapshot();
+    return state;
+  }
+
+  if (state.period === "PENALTY_SHOOTOUT") {
+    resolveShootout(state, rng);
+    state.rngState = rng.snapshot();
+    return state;
+  }
+
   simulateMinute(state, rng, state.minute + 1);
   state.minute += 1;
   state.rngState = rng.snapshot();
 
-  if (state.minute === HALF_TIME_MINUTE) {
+  if (state.period === "FIRST_HALF" && state.minute === HALF_TIME_MINUTE) {
+    state.stoppageTime = computeStoppageTime(state, 0, HALF_TIME_MINUTE);
     state.period = "HALF_TIME";
     state.pauseReason = "HALF_TIME";
     pushEvent(state, HALF_TIME_MINUTE, "HALF_TIME", state.homeTeamId);
+    state.stoppageTime = 0;
     return state;
   }
-  if (state.minute >= REGULATION_MINUTES) {
-    completeMatch(state);
+
+  if (state.period === "SECOND_HALF" && state.minute >= REGULATION_MINUTES) {
+    state.stoppageTime = computeStoppageTime(state, HALF_TIME_MINUTE, REGULATION_MINUTES);
+    if (needsExtraTime(state)) {
+      state.period = "EXTRA_TIME_FIRST_HALF";
+      state.extraTime = true;
+      state.pauseReason = "EXTRA_TIME_START";
+      pushEvent(state, state.minute, "EXTRA_TIME_START", state.homeTeamId);
+    } else {
+      completeMatch(state);
+    }
+    state.stoppageTime = 0;
+    return state;
   }
+
+  if (state.period === "EXTRA_TIME_FIRST_HALF" && state.minute === EXTRA_TIME_HALF_MINUTE) {
+    state.stoppageTime = computeStoppageTime(state, REGULATION_MINUTES, EXTRA_TIME_HALF_MINUTE);
+    state.period = "EXTRA_TIME_HALF_TIME";
+    state.pauseReason = "EXTRA_TIME_HALF_TIME";
+    pushEvent(state, EXTRA_TIME_HALF_MINUTE, "EXTRA_TIME_HALF_TIME", state.homeTeamId);
+    state.stoppageTime = 0;
+    return state;
+  }
+
+  if (state.period === "EXTRA_TIME_SECOND_HALF" && state.minute >= EXTRA_TIME_FULL_MINUTES) {
+    state.stoppageTime = computeStoppageTime(
+      state,
+      EXTRA_TIME_HALF_MINUTE,
+      EXTRA_TIME_FULL_MINUTES,
+    );
+    completeMatch(state);
+    if (state.requiresWinner && !state.winnerTeamId) {
+      // Still level after extra time: penalties decide it. FULL_TIME was
+      // already pushed by completeMatch above; that stands as end-of-play.
+      state.period = "PENALTY_SHOOTOUT";
+      state.pauseReason = "PENALTY_SHOOTOUT";
+    }
+    state.stoppageTime = 0;
+    return state;
+  }
+
   return state;
 };
 
-/** Runs the state machine until full time. Bounded by the regulation clock. */
+/** Runs the state machine until full time (and any shootout) is resolved. */
 export const runMatchToCompletion = (state: LiveMatchState): LiveMatchState => {
   let guard = 0;
-  while (state.period !== "FULL_TIME") {
+  const guardLimit = EXTRA_TIME_FULL_MINUTES + 32;
+  while (!isMatchDecided(state)) {
     stepMatch(state);
     guard += 1;
-    if (guard > REGULATION_MINUTES + 16) {
+    if (guard > guardLimit) {
       throw new Error("Match state machine failed to reach full time");
     }
   }
   return state;
 };
+
+/** True once the match cannot advance any further: full time, shootout included. */
+const isMatchDecided = (state: LiveMatchState): boolean => state.period === "FULL_TIME";
 
 export const toMatchResult = (state: LiveMatchState): MatchResult => ({
   match: {
@@ -239,6 +340,10 @@ export const toMatchResult = (state: LiveMatchState): MatchResult => ({
     playedDate: state.scheduledDate,
     homeGoals: state.homeGoals,
     awayGoals: state.awayGoals,
+    winnerTeamId: state.winnerTeamId,
+    wentToExtraTime: state.extraTime,
+    shootoutHomeGoals: state.shootoutHomeGoals,
+    shootoutAwayGoals: state.shootoutAwayGoals,
   },
   events: orderedEvents(state),
   homeStats: roundStats(state.home.stats),
@@ -385,7 +490,132 @@ const completeMatch = (state: LiveMatchState): void => {
   applyPossession(state);
   state.period = "FULL_TIME";
   state.pauseReason = "FULL_TIME";
-  pushEvent(state, REGULATION_MINUTES, "FULL_TIME", state.homeTeamId);
+  pushEvent(state, state.minute, "FULL_TIME", state.homeTeamId);
+  if (state.requiresWinner) {
+    const score = effectiveAggregateScore(state);
+    if (score.home !== score.away) {
+      state.winnerTeamId = score.home > score.away ? state.homeTeamId : state.awayTeamId;
+    }
+  }
+};
+
+/**
+ * Realistic stoppage time: a deterministic function of how many stoppages
+ * (fouls, cards, injuries, subs, goals) happened during the half. Display and
+ * commentary only — it does not add simulated minutes to the clock.
+ */
+const STOPPAGE_EVENT_TYPES = new Set([
+  "FOUL",
+  "YELLOW_CARD",
+  "SECOND_YELLOW",
+  "RED_CARD",
+  "INJURY",
+  "SUBSTITUTION",
+  "GOAL",
+]);
+
+const computeStoppageTime = (
+  state: LiveMatchState,
+  fromMinute: number,
+  toMinute: number,
+): number => {
+  const count = state.events.filter(
+    (event) =>
+      (event.minute ?? 0) > fromMinute &&
+      (event.minute ?? 0) <= toMinute &&
+      STOPPAGE_EVENT_TYPES.has(event.type),
+  ).length;
+  return Math.round(clamp(count / 2.4, 1, 7));
+};
+
+/** Regulation/ET goals plus any first-leg goals, in this match's home/away frame. */
+const effectiveAggregateScore = (state: LiveMatchState): { home: number; away: number } => {
+  const leg = state.aggregateFirstLeg;
+  if (!leg) return { home: state.homeGoals, away: state.awayGoals };
+  return { home: state.homeGoals + leg.homeGoals, away: state.awayGoals + leg.awayGoals };
+};
+
+/** A knockout tie still level on aggregate at 90' needs extra time. */
+const needsExtraTime = (state: LiveMatchState): boolean => {
+  if (!state.requiresWinner) return false;
+  const score = effectiveAggregateScore(state);
+  return score.home === score.away;
+};
+
+/**
+ * Resolves a penalty shootout deterministically and atomically in one step —
+ * not an interactive per-kick UI, so it stays a bounded addition to the
+ * existing state machine rather than a new subsystem. Best-of-five then
+ * sudden death, cycling back through the taker list if it runs out.
+ */
+const resolveShootout = (state: LiveMatchState, rng: SeededRandom): void => {
+  const homeTakers = shootoutTakers(state.home);
+  const awayTakers = shootoutTakers(state.away);
+  const kicks: PenaltyKick[] = [];
+  let homeScore = 0;
+  let awayScore = 0;
+
+  const takeKick = (team: RuntimeTeam, takers: SelectedPlayer[], round: number): boolean => {
+    const taker = takers[(round - 1) % takers.length]!;
+    const chance = clamp(
+      0.7 + taker.attributes.mental.composure / 500 + taker.attributes.technical.finishing / 550,
+      0.55,
+      0.93,
+    );
+    const scored = rng.next() < chance;
+    kicks.push({ teamId: team.teamId, personId: taker.personId, scored, round });
+    pushEvent(
+      state,
+      state.minute,
+      "PENALTY_SHOOTOUT_KICK",
+      team.teamId,
+      taker.personId,
+      undefined,
+      {
+        scored,
+        round,
+      },
+    );
+    return scored;
+  };
+
+  let round = 1;
+  // Best of five.
+  while (round <= 5) {
+    if (takeKick(state.home, homeTakers, round)) homeScore += 1;
+    if (takeKick(state.away, awayTakers, round)) awayScore += 1;
+    round += 1;
+  }
+  // Sudden death: one kick each, round by round, until it's decided.
+  while (homeScore === awayScore && round <= 200) {
+    if (takeKick(state.home, homeTakers, round)) homeScore += 1;
+    if (takeKick(state.away, awayTakers, round)) awayScore += 1;
+    round += 1;
+  }
+
+  state.shootoutHomeGoals = homeScore;
+  state.shootoutAwayGoals = awayScore;
+  state.shootoutKicks = kicks;
+  state.winnerTeamId = homeScore > awayScore ? state.homeTeamId : state.awayTeamId;
+  state.period = "FULL_TIME";
+  state.pauseReason = "FULL_TIME";
+  pushEvent(
+    state,
+    state.minute,
+    "PENALTY_SHOOTOUT_COMPLETE",
+    state.winnerTeamId,
+    undefined,
+    undefined,
+    { homeScore, awayScore },
+  );
+};
+
+/** Outfield players first, goalkeeper last, so a keeper only takes a kick if everyone else has. */
+const shootoutTakers = (team: RuntimeTeam): SelectedPlayer[] => {
+  const outfield = team.selection.filter((player) => player.position !== "GK");
+  const keeper = team.selection.filter((player) => player.position === "GK");
+  const pool = [...outfield, ...keeper];
+  return pool.length > 0 ? pool : team.selection;
 };
 
 /**
@@ -876,6 +1106,11 @@ const IMPORTANCE: Record<string, MatchEventImportance> = {
   HALF_TIME: "MAJOR",
   SECOND_HALF: "NOTABLE",
   FULL_TIME: "CRITICAL",
+  EXTRA_TIME_START: "CRITICAL",
+  EXTRA_TIME_HALF_TIME: "MAJOR",
+  EXTRA_TIME_SECOND_HALF: "NOTABLE",
+  PENALTY_SHOOTOUT_KICK: "MAJOR",
+  PENALTY_SHOOTOUT_COMPLETE: "CRITICAL",
   GOAL: "CRITICAL",
   OWN_GOAL: "CRITICAL",
   PENALTY_SCORED: "CRITICAL",

@@ -192,6 +192,17 @@ export const buildLiveMatchView = (
     cursor: state.eventSequence - 1,
     injuryDecisions,
     finalized: Boolean(options.finalized),
+    requiresWinner: state.requiresWinner,
+    aggregateFirstLeg: state.aggregateFirstLeg,
+    aggregateScore: state.aggregateFirstLeg
+      ? {
+          home: state.homeGoals + state.aggregateFirstLeg.homeGoals,
+          away: state.awayGoals + state.aggregateFirstLeg.awayGoals,
+        }
+      : undefined,
+    shootoutHomeGoals: state.shootoutHomeGoals,
+    shootoutAwayGoals: state.shootoutAwayGoals,
+    winnerTeamId: state.winnerTeamId,
   };
 };
 
@@ -322,6 +333,33 @@ export const buildPostMatchReport = (
   const managedIsHome = String(managedTeamId) === String(homeTeamId);
   const own = managedIsHome ? homeGoals : awayGoals;
   const other = managedIsHome ? awayGoals : homeGoals;
+  const winnerTeamId = (match.winner_team_id as EntityId | undefined) ?? undefined;
+  const aggregateFirstLeg = fixture.tie_id
+    ? (db
+        .prepare(
+          `SELECT m.home_goals AS home_goals, m.away_goals AS away_goals, f.home_team_id AS home_team_id
+           FROM fixtures f JOIN matches m ON m.fixture_id = f.id
+           WHERE f.tie_id = ? AND f.id != ? LIMIT 1`,
+        )
+        .get(fixture.tie_id, fixtureId) as SqlRow | undefined)
+    : undefined;
+  const firstLegHomeAwayGoals = aggregateFirstLeg
+    ? String(aggregateFirstLeg.home_team_id) === String(homeTeamId)
+      ? {
+          homeGoals: Number(aggregateFirstLeg.home_goals ?? 0),
+          awayGoals: Number(aggregateFirstLeg.away_goals ?? 0),
+        }
+      : {
+          homeGoals: Number(aggregateFirstLeg.away_goals ?? 0),
+          awayGoals: Number(aggregateFirstLeg.home_goals ?? 0),
+        }
+    : undefined;
+  const aggregateScore = firstLegHomeAwayGoals
+    ? {
+        home: homeGoals + firstLegHomeAwayGoals.homeGoals,
+        away: awayGoals + firstLegHomeAwayGoals.awayGoals,
+      }
+    : undefined;
 
   const teamStats = (teamId: EntityId, type: string) =>
     events.filter((event) => String(event.teamId) === String(teamId) && event.type === type).length;
@@ -346,8 +384,22 @@ export const buildPostMatchReport = (
     awayTeamName: awayName,
     homeGoals,
     awayGoals,
-    result: own > other ? "W" : own === other ? "D" : "L",
+    result: winnerTeamId
+      ? String(winnerTeamId) === String(managedTeamId)
+        ? "W"
+        : "L"
+      : own > other
+        ? "W"
+        : own === other
+          ? "D"
+          : "L",
     attendance: match.attendance ?? undefined,
+    wentToExtraTime: Boolean(match.went_to_extra_time),
+    shootoutHomeGoals: (match.shootout_home_goals as number | undefined) ?? undefined,
+    shootoutAwayGoals: (match.shootout_away_goals as number | undefined) ?? undefined,
+    winnerTeamId,
+    aggregateFirstLeg: firstLegHomeAwayGoals,
+    aggregateScore,
     scorers: events
       .filter((event) => event.type === "GOAL")
       .map((event) => ({

@@ -469,3 +469,115 @@ describe("match session persistence", () => {
     expect(fingerprint(finished)).toEqual(expected);
   });
 });
+
+describe("extra time, penalties and aggregate context", () => {
+  const knockoutInput = (seed: string) => ({ ...input(seed), requiresWinner: true });
+
+  it("never touches extra time or penalties for a normal league match", () => {
+    for (const seed of SEEDS) {
+      const result = simulateMatch(input(seed));
+      expect(result.match.wentToExtraTime).toBeFalsy();
+      expect(result.match.shootoutHomeGoals).toBeUndefined();
+      expect(result.events.some((event) => event.type.startsWith("EXTRA_TIME"))).toBe(false);
+      expect(result.events.some((event) => event.type.startsWith("PENALTY_SHOOTOUT"))).toBe(false);
+    }
+  });
+
+  it("always produces a winner for a knockout tie, going to ET and penalties as needed", () => {
+    for (let index = 0; index < 60; index += 1) {
+      const seed = `knockout-seed-${index}`;
+      const result = simulateMatch(knockoutInput(seed));
+      expect(result.match.winnerTeamId).toBeDefined();
+    }
+  });
+
+  it("finds a knockout match that goes all the way to penalties and keeps shootout goals separate", () => {
+    let found: ReturnType<typeof simulateMatch> | undefined;
+    for (let index = 0; index < 500 && !found; index += 1) {
+      const result = simulateMatch(knockoutInput(`shootout-seed-${index}`));
+      if (result.match.shootoutHomeGoals !== undefined) found = result;
+    }
+    expect(found).toBeDefined();
+    const result = found!;
+    expect(result.match.wentToExtraTime).toBe(true);
+    expect(result.match.homeGoals).toBe(result.match.awayGoals);
+    expect(result.match.shootoutHomeGoals).not.toBe(result.match.shootoutAwayGoals);
+    const expectedWinner =
+      result.match.shootoutHomeGoals! > result.match.shootoutAwayGoals!
+        ? fixture.homeTeamId
+        : fixture.awayTeamId;
+    expect(result.match.winnerTeamId).toBe(expectedWinner);
+
+    // Shootout goals never leak into normal match/player stats.
+    const shootoutKickEvents = result.events.filter(
+      (event) => event.type === "PENALTY_SHOOTOUT_KICK",
+    );
+    expect(shootoutKickEvents.length).toBeGreaterThan(0);
+    const scoredShootoutGoals = shootoutKickEvents.filter((event) => event.data?.scored).length;
+    const totalPlayerGoals = result.playerStates.reduce((total, player) => total + player.goals, 0);
+    expect(totalPlayerGoals).toBe(result.match.homeGoals! + result.match.awayGoals!);
+    expect(scoredShootoutGoals).not.toBe(0);
+    expect(result.events.some((event) => event.type === "PENALTY_SHOOTOUT_COMPLETE")).toBe(true);
+  });
+
+  it("decides a knockout tie by extra-time goals without needing penalties, when ET breaks the deadlock", () => {
+    let found: ReturnType<typeof simulateMatch> | undefined;
+    for (let index = 0; index < 500 && !found; index += 1) {
+      const result = simulateMatch(knockoutInput(`et-seed-${index}`));
+      if (result.match.wentToExtraTime && result.match.shootoutHomeGoals === undefined) {
+        found = result;
+      }
+    }
+    expect(found).toBeDefined();
+    expect(found!.match.homeGoals).not.toBe(found!.match.awayGoals);
+    expect(found!.match.winnerTeamId).toBeDefined();
+  });
+
+  it("is deterministic across Quick Sim / step-wise Key Events / minute-by-minute Text Live for a knockout tie", () => {
+    const seed = "knockout-determinism-seed";
+    const quickSim = fingerprint(runMatchToCompletion(createMatchState(knockoutInput(seed))));
+
+    const stepped = createMatchState(knockoutInput(seed));
+    let guard = 0;
+    while (stepped.period !== "FULL_TIME" && guard < 260) {
+      stepMatch(stepped);
+      guard += 1;
+    }
+    expect(fingerprint(stepped)).toEqual(quickSim);
+
+    // Interrupt and resume mid extra-time/shootout.
+    const partial = createMatchState(knockoutInput(seed));
+    for (let step = 0; step < 130; step += 1) stepMatch(partial);
+    const resumed = runMatchToCompletion(deserializeMatchState(serializeMatchState(partial)));
+    expect(fingerprint(resumed)).toEqual(quickSim);
+  });
+
+  it("computes aggregate context and folds first-leg goals into the winner decision", () => {
+    const secondLeg = {
+      ...knockoutInput("aggregate-seed"),
+      aggregateFirstLeg: { homeGoals: 0, awayGoals: 3 },
+    };
+    const result = simulateMatch(secondLeg);
+    // Away led 3-0 from the first leg; even a home win in this leg alone
+    // should not overturn the tie unless it swings the aggregate.
+    const aggregateHome = result.match.homeGoals! + 0;
+    const aggregateAway = result.match.awayGoals! + 3;
+    if (aggregateHome !== aggregateAway) {
+      const expectedWinner =
+        aggregateHome > aggregateAway ? fixture.homeTeamId : fixture.awayTeamId;
+      expect(result.match.winnerTeamId).toBe(expectedWinner);
+    }
+  });
+
+  it("computes realistic, bounded stoppage time from in-half stoppages", () => {
+    const result = simulateMatch(input("stoppage-seed"));
+    const halfTime = result.events.find((event) => event.type === "HALF_TIME");
+    const fullTime = result.events.find((event) => event.type === "FULL_TIME");
+    for (const event of [halfTime, fullTime]) {
+      if (event?.stoppageTime !== undefined) {
+        expect(event.stoppageTime).toBeGreaterThanOrEqual(1);
+        expect(event.stoppageTime).toBeLessThanOrEqual(7);
+      }
+    }
+  });
+});

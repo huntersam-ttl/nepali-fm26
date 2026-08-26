@@ -716,11 +716,27 @@ export type LiveMatchView = {
   matchId: EntityId;
   fixtureId: EntityId;
   competitionName: string;
-  period: "NOT_STARTED" | "FIRST_HALF" | "HALF_TIME" | "SECOND_HALF" | "FULL_TIME";
+  period:
+    | "NOT_STARTED"
+    | "FIRST_HALF"
+    | "HALF_TIME"
+    | "SECOND_HALF"
+    | "EXTRA_TIME_FIRST_HALF"
+    | "EXTRA_TIME_HALF_TIME"
+    | "EXTRA_TIME_SECOND_HALF"
+    | "PENALTY_SHOOTOUT"
+    | "FULL_TIME";
   minute: number;
   stoppageTime: number;
   /** Set when the match wants the manager's attention. */
-  pauseReason?: "HALF_TIME" | "INJURY_DECISION" | "RED_CARD" | "FULL_TIME";
+  pauseReason?:
+    | "HALF_TIME"
+    | "INJURY_DECISION"
+    | "RED_CARD"
+    | "FULL_TIME"
+    | "EXTRA_TIME_START"
+    | "EXTRA_TIME_HALF_TIME"
+    | "PENALTY_SHOOTOUT";
   viewMode: MatchViewMode;
   home: LiveTeamView;
   away: LiveTeamView;
@@ -732,6 +748,15 @@ export type LiveMatchView = {
   /** Players who picked up an injury and may need replacing. */
   injuryDecisions: LivePlayerState[];
   finalized: boolean;
+  /** Set for knockout ties: whether the tie currently requires a winner. */
+  requiresWinner?: boolean;
+  /** First-leg score of a two-leg tie, if this is the second leg. */
+  aggregateFirstLeg?: { homeGoals: number; awayGoals: number };
+  /** Aggregate score including this leg, only set when a first leg exists. */
+  aggregateScore?: { home: number; away: number };
+  shootoutHomeGoals?: number;
+  shootoutAwayGoals?: number;
+  winnerTeamId?: EntityId;
 };
 
 export type StartMatchCommand = {
@@ -795,6 +820,12 @@ export type PostMatchReport = {
   awayGoals: number;
   result: "W" | "D" | "L";
   attendance?: number;
+  wentToExtraTime?: boolean;
+  shootoutHomeGoals?: number;
+  shootoutAwayGoals?: number;
+  winnerTeamId?: EntityId;
+  aggregateFirstLeg?: { homeGoals: number; awayGoals: number };
+  aggregateScore?: { home: number; away: number };
   scorers: Array<{ minute?: number; playerName: string; teamName: string; assist?: string }>;
   stats: {
     possession: { home: number; away: number };
