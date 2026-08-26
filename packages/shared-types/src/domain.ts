@@ -2700,6 +2700,13 @@ export type FederationProject = {
   status: FederationProjectStatus;
   impactJson: Record<string, number>;
   fundingJson: Record<string, number>;
+  ownership?: "FEDERATION" | "STATE" | "SHARED";
+  siteRights?: "OWNED" | "LEASED" | "PERMISSION_REQUIRED";
+  components?: string[];
+  utilisationJson?: Record<string, number>;
+  maintenanceStatus?: "FUNDED" | "UNDERFUNDED" | "DETERIORATING";
+  delayDays?: number;
+  fundingStatus?: "UNFUNDED" | "PARTIALLY_FUNDED" | "FUNDED";
   provenanceStatus: "SIMULATION_ONLY";
 };
 

@@ -337,10 +337,17 @@ export const createFederationProject = (
     targetProvinceId?: EntityId;
     targetDistrictId?: EntityId;
     academyId?: EntityId;
+    ownership?: FederationProject["ownership"];
+    siteRights?: FederationProject["siteRights"];
+    funding?: Record<string, number>;
   },
 ): FederationProject => {
   const rng = seeded(input.seed, `${input.federationId}:${input.projectType}:${input.date}`);
   const capitalCost = projectCost(input.projectType, rng);
+  const fundingJson = input.funding ?? { federationCash: 0.7, restrictedGrant: 0.3 };
+  const fundingTotal = Object.values(fundingJson).reduce((total, value) => total + Math.max(0, value), 0);
+  const ownership = input.ownership ?? (input.projectType === "REGIONAL_CENTRE" ? "SHARED" : "FEDERATION");
+  const siteRights = input.siteRights ?? (ownership === "STATE" || ownership === "SHARED" ? "LEASED" : "OWNED");
   const project: FederationProject = {
     id: createStableEntityId(
       "federation-project",
@@ -360,7 +367,14 @@ export const createFederationProject = (
     currency,
     status: "PLANNING",
     impactJson: projectImpact(input.projectType),
-    fundingJson: { federationCash: 0.7, restrictedGrant: 0.3 },
+    fundingJson,
+    ownership,
+    siteRights,
+    components: federationProjectComponents(input.projectType),
+    utilisationJson: federationProjectUtilisation(input.projectType),
+    maintenanceStatus: "FUNDED",
+    delayDays: 0,
+    fundingStatus: fundingTotal >= 1 ? "FUNDED" : fundingTotal > 0 ? "PARTIALLY_FUNDED" : "UNFUNDED",
     provenanceStatus: simulationStatus,
   };
   new FederationGovernanceRepository(db).upsertProject(project);
@@ -395,10 +409,20 @@ export const advanceFederationProjects = (
         Math.round(project.capitalCost * 0.2),
       );
     } else if (project.status === "FINANCING" && project.startDate <= addDays(input.date, -120)) {
+      if (project.fundingStatus !== "FUNDED") {
+        repo.upsertProject({ ...project, status: "FINANCING", maintenanceStatus: "UNDERFUNDED" });
+        updated.push({ ...project, status: "FINANCING", maintenanceStatus: "UNDERFUNDED" });
+        continue;
+      }
+      const risk = seeded(input.seed, `${project.id}:construction-risk`);
+      const delayDays = risk.integer(0, project.projectType === "NATIONAL_TRAINING_CENTRE" ? 120 : 60);
       next = {
         ...next,
         status:
           project.projectType === "NATIONAL_TRAINING_CENTRE" ? "CONSTRUCTION" : "IMPLEMENTATION",
+        expectedCompletion: addDays(project.expectedCompletion, delayDays),
+        delayDays,
+        capitalCost: Math.round(project.capitalCost * (1 + risk.next() * 0.15)),
       };
       postFederationTransaction(db, {
         federationId: project.federationId,
@@ -438,7 +462,7 @@ export const advanceFederationProjects = (
             : project.projectType === "ACADEMY_EXPANSION"
               ? "ACADEMY_FACILITY"
               : "EQUIPMENT",
-        ownership: "OPERATED",
+        ownership: project.ownership === "STATE" ? "OPERATED" : project.ownership === "SHARED" ? "OPERATED" : "OWNED",
         locationId: project.locationId,
         academyId: project.academyId,
         estimatedValue: Math.round(project.capitalCost * 0.8),
@@ -451,6 +475,33 @@ export const advanceFederationProjects = (
     updated.push(next);
   }
   return updated;
+};
+
+export const fundFederationProject = (
+  db: GameDatabase,
+  input: { projectId: EntityId; date: string; source: string; amount: number },
+): FederationProject => {
+  const repo = new FederationGovernanceRepository(db);
+  const project = repo.projects().find((item) => item.id === input.projectId);
+  if (!project) throw new Error(`Federation project ${input.projectId} not found`);
+  if (project.status === "COMPLETED" || project.status === "CANCELLED") {
+    throw new Error(`Federation project ${input.projectId} is not fundable`);
+  }
+  const amount = Math.max(0, Math.round(input.amount));
+  if (amount > 0 && input.source !== "federationCash") {
+    const category: FederationLedgerCategory = input.source === "FIFA_GRANT" ? "FIFA_GRANT" : input.source === "AFC_GRANT" ? "AFC_GRANT" : "GOVERNMENT_GRANT";
+    postFederationTransaction(db, {
+      federationId: project.federationId, date: input.date, category, direction: "CREDIT", amount,
+      description: `${input.source} funding for ${project.name}`, relatedEntityId: project.id,
+      idempotencyKey: `project-funding:${project.id}:${input.source}:${input.date}`,
+    });
+  }
+  const fundingJson = { ...project.fundingJson, [input.source]: (project.fundingJson[input.source] ?? 0) + amount };
+  const committed = sumValues(fundingJson);
+  const fundingStatus: FederationProject["fundingStatus"] = committed >= project.capitalCost ? "FUNDED" : committed > 0 ? "PARTIALLY_FUNDED" : "UNFUNDED";
+  const next = { ...project, fundingJson, fundingStatus };
+  repo.upsertProject(next);
+  return next;
 };
 
 export const proposeCompetitionReform = (
@@ -915,6 +966,21 @@ export const processFederationMonth = (
     }
     if (input.aiEnabled !== false) {
       runFederationAiMonth(db, federation.id, input.date, input.seed);
+    }
+    for (const project of repo.projects(federation.id).filter((item) => item.status === "COMPLETED")) {
+      const maintenance = Math.max(1, Math.round(project.annualOperatingCost / 12));
+      const account = repo.financialAccount(federation.id);
+      if (!account) continue;
+      const underfunded = account.cashBalance - maintenance < reserveFloor(account);
+      if (!underfunded) {
+        postFederationTransaction(db, {
+          federationId: federation.id, date: input.date, category: "INFRASTRUCTURE", direction: "DEBIT",
+          amount: maintenance, description: `${project.name} operating and maintenance cost`, relatedEntityId: project.id,
+          idempotencyKey: `federation-project-maintenance:${project.id}:${input.date}`,
+        });
+      }
+      const maintenanceStatus = underfunded ? "DETERIORATING" : "FUNDED";
+      if (project.maintenanceStatus !== maintenanceStatus) repo.upsertProject({ ...project, maintenanceStatus });
     }
   }
   advanceFederationProjects(db, { date: input.date, seed: input.seed });
@@ -1555,11 +1621,15 @@ const runFederationAiMonth = (
     repo.projects(federationId).filter((project) => project.status !== "COMPLETED").length < 2
   ) {
     const weakProject =
-      profile.grassrootsDevelopment <= profile.coachEducation
-        ? "GRASSROOTS_PROGRAMME"
-        : profile.refereeDevelopment < profile.youthDevelopment
-          ? "REFEREE_PROGRAMME"
-          : "ACADEMY_EXPANSION";
+      profile.infrastructureLevel < 1
+        ? "NATIONAL_TRAINING_CENTRE"
+        : profile.grassrootsDevelopment < 1
+          ? "REGIONAL_CENTRE"
+          : profile.refereeDevelopment < profile.coachEducation
+            ? "REFEREE_PROGRAMME"
+            : profile.youthDevelopment < profile.coachEducation
+              ? "ACADEMY_EXPANSION"
+              : "COACH_EDUCATION";
     createFederationProject(db, {
       federationId,
       projectType: weakProject,
@@ -2046,6 +2116,27 @@ const projectCost = (type: FederationProjectType, rng: SeededRandom): number => 
             : 1600000;
   return Math.round(base * (0.88 + rng.next() * 0.24));
 };
+
+const federationProjectComponents = (type: FederationProjectType): string[] => {
+  switch (type) {
+    case "NATIONAL_TRAINING_CENTRE": return ["national_pitches", "gym", "medical_suite", "coach_classrooms", "referee_classrooms"];
+    case "REGIONAL_CENTRE": return ["training_pitch", "talent_hub", "coach_classroom"];
+    case "COACH_EDUCATION": return ["classrooms", "analysis_suite", "library"];
+    case "REFEREE_PROGRAMME": return ["referee_classroom", "fitness_lab", "video_review"];
+    case "WOMENS_DEVELOPMENT": return ["women_training_slots", "safeguarding_office"];
+    case "ACADEMY_EXPANSION": return ["youth_pitches", "education_rooms", "lodging"];
+    default: return [type.toLowerCase()];
+  }
+};
+
+const federationProjectUtilisation = (type: FederationProjectType): Record<string, number> => ({
+  nationalTeamCamps: type === "NATIONAL_TRAINING_CENTRE" ? 12 : 0,
+  regionalProgrammes: type === "REGIONAL_CENTRE" ? 8 : 0,
+  coachCourses: type === "COACH_EDUCATION" || type === "NATIONAL_TRAINING_CENTRE" ? 6 : 0,
+  refereeCourses: type === "REFEREE_PROGRAMME" || type === "NATIONAL_TRAINING_CENTRE" ? 6 : 0,
+  youthProgrammes: ["ACADEMY_EXPANSION", "REGIONAL_CENTRE", "NATIONAL_TRAINING_CENTRE"].includes(type) ? 10 : 0,
+  womensProgrammes: type === "WOMENS_DEVELOPMENT" ? 10 : 0,
+});
 
 const projectImpact = (type: FederationProjectType): Record<string, number> => {
   switch (type) {

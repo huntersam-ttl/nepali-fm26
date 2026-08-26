@@ -5961,13 +5961,18 @@ export class FederationGovernanceRepository {
         `INSERT INTO federation_projects
         (id, federation_id, project_type, name, location_id, target_province_id, target_district_id,
           academy_id, start_date, expected_completion, completed_at, capital_cost,
-          annual_operating_cost, currency, status, impact_json, funding_json, provenance_status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          annual_operating_cost, currency, status, impact_json, funding_json, ownership, site_rights,
+          components_json, utilisation_json, maintenance_status, delay_days, funding_status, provenance_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           expected_completion = excluded.expected_completion,
           completed_at = excluded.completed_at,
           status = excluded.status,
-          impact_json = excluded.impact_json`,
+          impact_json = excluded.impact_json,
+          funding_json = excluded.funding_json, ownership = excluded.ownership, site_rights = excluded.site_rights,
+          components_json = excluded.components_json, utilisation_json = excluded.utilisation_json,
+          maintenance_status = excluded.maintenance_status, delay_days = excluded.delay_days,
+          funding_status = excluded.funding_status`,
       )
       .run(
         project.id,
@@ -5987,6 +5992,13 @@ export class FederationGovernanceRepository {
         project.status,
         json.stringify(project.impactJson),
         json.stringify(project.fundingJson),
+        project.ownership ?? "FEDERATION",
+        project.siteRights ?? "OWNED",
+        json.stringify(project.components ?? []),
+        json.stringify(project.utilisationJson ?? {}),
+        project.maintenanceStatus ?? "FUNDED",
+        project.delayDays ?? 0,
+        project.fundingStatus ?? "FUNDED",
         project.provenanceStatus,
       );
   }
@@ -6705,6 +6717,13 @@ const mapFederationProject = (row: any): FederationProject => ({
   status: row.status,
   impactJson: json.parse<Record<string, number>>(row.impact_json, {}),
   fundingJson: json.parse<Record<string, number>>(row.funding_json, {}),
+  ownership: row.ownership ?? "FEDERATION",
+  siteRights: row.site_rights ?? "OWNED",
+  components: json.parse<string[]>(row.components_json, []),
+  utilisationJson: json.parse<Record<string, number>>(row.utilisation_json, {}),
+  maintenanceStatus: row.maintenance_status ?? "FUNDED",
+  delayDays: row.delay_days ?? 0,
+  fundingStatus: row.funding_status ?? "FUNDED",
   provenanceStatus: row.provenance_status,
 });
 

@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 27;
+export const CURRENT_DATABASE_VERSION = 33;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -2505,6 +2505,18 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       ALTER TABLE infrastructure_projects ADD COLUMN cancelled_on TEXT;
       ALTER TABLE infrastructure_projects ADD COLUMN sunk_cost INTEGER NOT NULL DEFAULT 0;
       ALTER TABLE infrastructure_projects ADD COLUMN recovery_plan TEXT;
+    `,
+  },
+  {
+    version: 33,
+    sql: `
+      ALTER TABLE federation_projects ADD COLUMN ownership TEXT NOT NULL DEFAULT 'FEDERATION';
+      ALTER TABLE federation_projects ADD COLUMN site_rights TEXT NOT NULL DEFAULT 'OWNED';
+      ALTER TABLE federation_projects ADD COLUMN components_json TEXT NOT NULL DEFAULT '[]';
+      ALTER TABLE federation_projects ADD COLUMN utilisation_json TEXT NOT NULL DEFAULT '{}';
+      ALTER TABLE federation_projects ADD COLUMN maintenance_status TEXT NOT NULL DEFAULT 'FUNDED';
+      ALTER TABLE federation_projects ADD COLUMN delay_days INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE federation_projects ADD COLUMN funding_status TEXT NOT NULL DEFAULT 'FUNDED';
     `,
   },
 ];
