@@ -1,16 +1,22 @@
 import React, { useState } from "react";
+import type { EntityId } from "@nepal-football-sim/shared-types";
 import { managerBridge } from "../managerBridge.js";
 import { AsyncPanel, Badge, Panel, useRuntimeData } from "../ui.js";
 
 const money = (minor?: number): string => (minor === undefined ? "—" : `NPR ${Math.round(minor / 1000)}k`);
 
+const DOMAINS = ["TRANSFERS", "SCOUTING", "CONTRACTS", "YOUTH", "TRAINING", "MEDICAL"] as const;
+
 export const StaffScreen = (): React.ReactElement => {
   const [state, refresh] = useRuntimeData(() => managerBridge.getStaffMarket());
+  const [hierarchyState, refreshHierarchy] = useRuntimeData(() => managerBridge.getStaffHierarchy());
   const [salaryDrafts, setSalaryDrafts] = useState<Record<string, string>>({});
+  const [planDrafts, setPlanDrafts] = useState<Record<string, string>>({});
   const [actionBusy, setActionBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const draftFor = (key: string, fallback: string): string => salaryDrafts[key] ?? fallback;
+  const staffList = state.status === "ready" ? state.data.staff : [];
 
   const runAction = async (key: string, run: () => Promise<{ ok: boolean; error?: { message: string } }>) => {
     setActionBusy(key);
@@ -22,6 +28,7 @@ export const StaffScreen = (): React.ReactElement => {
       return;
     }
     refresh();
+    refreshHierarchy();
   };
 
   return (
@@ -245,6 +252,171 @@ export const StaffScreen = (): React.ReactElement => {
                     <li key={approach.id}>
                       {approach.fromClubName} approached {approach.personName} for {approach.role.replace(/_/g, " ").toLowerCase()} at{" "}
                       {money(approach.offeredSalaryMinor)} · <Badge tone={approach.status === "ACCEPTED" ? "bad" : "info"}>{approach.status}</Badge>
+                    </li>
+                  ))}
+                </ul>
+              </Panel>
+            )}
+          </>
+        )}
+      </AsyncPanel>
+
+      <AsyncPanel state={hierarchyState}>
+        {(hierarchy) => (
+          <>
+            <Panel title="Staff hierarchy">
+              {hierarchy.hierarchy.length === 0 ? (
+                <p className="empty-state">No staff appointments to chart.</p>
+              ) : (
+                <ul className="report-list">
+                  {hierarchy.hierarchy.map((entry) => (
+                    <li key={entry.appointmentId}>
+                      {entry.personName} · {entry.role.replace(/_/g, " ").toLowerCase()}{" "}
+                      <span className="subtle">rank {entry.seniorityRank}</span>{" "}
+                      {entry.domains.length > 0 && (
+                        <span className="subtle">[{entry.domains.join(", ").toLowerCase()}]</span>
+                      )}{" "}
+                      <Badge tone={entry.workload === "OVERLOADED" ? "bad" : entry.workload === "HEAVY" ? "warn" : "info"}>
+                        {entry.workload.toLowerCase()}
+                      </Badge>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Panel>
+
+            <Panel title="Responsibilities">
+              <div className="table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Domain</th>
+                      <th>Owner</th>
+                      <th>Reassign to</th>
+                      <th>Board</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {DOMAINS.map((domain) => {
+                      const responsibility = hierarchy.responsibilities.find((r) => r.domain === domain);
+                      return (
+                        <tr key={domain}>
+                          <td>{domain.toLowerCase()}</td>
+                          <td>
+                            {responsibility?.ownerType === "STAFF"
+                              ? responsibility.ownerName ?? "Staff"
+                              : responsibility?.ownerType === "BOARD"
+                                ? "Board"
+                                : "Manager"}
+                          </td>
+                          <td>
+                            <div className="button-row">
+                              <button
+                                className="ghost small"
+                                disabled={actionBusy !== null}
+                                onClick={() => void runAction(`resp-manager-${domain}`, () => managerBridge.assignStaffResponsibility(domain, "MANAGER"))}
+                              >
+                                Manager
+                              </button>
+                              {staffList.map((member) => (
+                                <button
+                                  key={member.appointmentId}
+                                  className="ghost small"
+                                  disabled={actionBusy !== null}
+                                  onClick={() =>
+                                    void runAction(`resp-staff-${domain}-${member.appointmentId}`, () =>
+                                      managerBridge.assignStaffResponsibility(domain, "STAFF", member.appointmentId),
+                                    )
+                                  }
+                                >
+                                  {member.name}
+                                </button>
+                              ))}
+                              <button
+                                className="ghost small"
+                                disabled={actionBusy !== null}
+                                onClick={() => void runAction(`resp-board-${domain}`, () => managerBridge.assignStaffResponsibility(domain, "BOARD"))}
+                              >
+                                Board
+                              </button>
+                            </div>
+                          </td>
+                          <td>
+                            {responsibility?.ownerType === "BOARD" && (
+                              <button
+                                className="ghost small"
+                                disabled={actionBusy !== null}
+                                onClick={() => void runAction(`resp-approve-${domain}`, () => managerBridge.requestStaffBoardApproval(domain))}
+                              >
+                                {responsibility.boardApprovalGrantedUntil ? "Renew approval" : "Request approval"}
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </Panel>
+
+            <Panel title="Development plans">
+              {hierarchy.developmentPlans.length === 0 ? (
+                <p className="empty-state">No development plans in progress.</p>
+              ) : (
+                <ul className="report-list">
+                  {hierarchy.developmentPlans.map((plan) => (
+                    <li key={plan.id}>
+                      {plan.personName} · {plan.focus} <span className="subtle">{plan.targetDate}</span>{" "}
+                      <Badge tone={plan.status === "COMPLETED" ? "info" : "warn"}>{plan.status.toLowerCase()}</Badge>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {staffList.length > 0 && (
+                <div className="button-row">
+                  <select
+                    value={draftFor("plan-person", staffList[0]!.personId)}
+                    onChange={(e) => setPlanDrafts({ ...planDrafts, "plan-person": e.target.value })}
+                  >
+                    {staffList.map((member) => (
+                      <option key={member.personId} value={member.personId}>
+                        {member.name}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    placeholder="Focus"
+                    value={planDrafts["plan-focus"] ?? ""}
+                    onChange={(e) => setPlanDrafts({ ...planDrafts, "plan-focus": e.target.value })}
+                    style={{ width: "10rem" }}
+                  />
+                  <button
+                    className="primary small"
+                    disabled={actionBusy !== null || !(planDrafts["plan-focus"] ?? "").trim()}
+                    onClick={() =>
+                      void runAction("create-plan", () =>
+                        managerBridge.createStaffDevelopmentPlan(
+                          (planDrafts["plan-person"] ?? staffList[0]!.personId) as EntityId,
+                          planDrafts["plan-focus"] ?? "",
+                        ),
+                      )
+                    }
+                  >
+                    Create plan
+                  </button>
+                </div>
+              )}
+            </Panel>
+
+            {hierarchy.successionPlans.length > 0 && (
+              <Panel title="Succession planning">
+                <ul className="report-list">
+                  {hierarchy.successionPlans.map((plan) => (
+                    <li key={plan.id}>
+                      {plan.personName} · {plan.role.replace(/_/g, " ").toLowerCase()} ·{" "}
+                      <Badge tone={plan.reason === "POACHING_RISK" ? "bad" : "warn"}>{plan.reason.toLowerCase()}</Badge>{" "}
+                      {plan.candidateName ? `→ candidate: ${plan.candidateName}` : "no internal candidate found"}
                     </li>
                   ))}
                 </ul>

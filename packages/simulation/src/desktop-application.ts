@@ -79,8 +79,15 @@ import {
   type StaffApproachView,
   type StaffList,
   type StaffMarketView,
+  type StaffDevelopmentPlanView,
+  type StaffHierarchyEntryView,
+  type StaffHierarchyView,
   type StaffRenewalOfferView,
+  type StaffResponsibilityDomain,
+  type StaffResponsibilityOwnerType,
+  type StaffResponsibilityView,
   type StaffRowWithContract,
+  type StaffSuccessionPlanView,
   type StartMatchCommand,
   type StartingClubOption,
   type SubstitutionCommand,
@@ -130,22 +137,34 @@ import {
   acceptStaffApplication,
   acceptStaffRenewalCounter,
   applyForStaffVacancy,
+  assertResponsibilityPermits,
+  assignResponsibility,
+  createStaffDevelopmentPlan,
   declineStaffApplication,
   declineStaffRenewalOffer,
+  defaultResponsibilitiesForClub,
   dismissStaff,
   enrolInLicenceCourse,
   ensureAiStaffAssigned,
   evaluateAllStaffContracts,
   evaluateLicenceCourses,
+  evaluateStaffDevelopmentPlans,
   evaluateStaffPerformance,
   evaluateStaffPoaching,
+  evaluateSuccessionNeeds,
   hireStaff,
   LicenceCourseError,
   offerStaffRenewal,
-  StaffActionError,
-  StaffNegotiationError,
+  requestBoardApproval,
+  RESPONSIBILITY_DOMAINS,
+  ResponsibilityError,
+  responsibilityOwner,
   staffCareerHistory,
+  StaffActionError,
+  staffHierarchyForClub,
+  StaffNegotiationError,
   staffInterestScore,
+  staffWorkloadForClub,
 } from "./staff-market.js";
 import {
   MatchAlreadyPlayedError,
@@ -584,6 +603,11 @@ export class DesktopApplicationService {
         if (context.club?.id) evaluateStaffPerformance(db, updated, context.club.id);
         evaluateLicenceCourses(db, updated);
         evaluateStaffPoaching(db, updated, context.club?.id);
+        if (context.club?.id) {
+          defaultResponsibilitiesForClub(db, updated, context.club.id);
+          evaluateStaffDevelopmentPlans(db, context.club.id);
+          evaluateSuccessionNeeds(db, updated, context.club.id);
+        }
 
         // Squad dynamics: only the player's own squad, since only they read
         // an inbox — raised/escalated concerns become inbox items, resolved
@@ -865,6 +889,7 @@ export class DesktopApplicationService {
 
   updateTraining(command: TrainingUpdateCommand): AppResult<TrainingView> {
     return this.managerCommand((db, save, context) => {
+      requireDomainPermission(db, save, context, "TRAINING", "updateTraining");
       applyTrainingUpdate(db, save, context, command);
       return buildTrainingView(db, save, context);
     }, true);
@@ -898,10 +923,10 @@ export class DesktopApplicationService {
   }
 
   createScoutingAssignment(command: ScoutingAssignmentCommand): AppResult<ScoutingDashboard> {
-    return this.managerCommand(
-      (db, save, context) => createManagerScoutingAssignment(db, save, context, command),
-      true,
-    );
+    return this.managerCommand((db, save, context) => {
+      requireDomainPermission(db, save, context, "SCOUTING", "createScoutingAssignment");
+      return createManagerScoutingAssignment(db, save, context, command);
+    }, true);
   }
 
   getScoutingReport(playerId: EntityId): AppResult<ScoutingReportView> {
@@ -929,10 +954,10 @@ export class DesktopApplicationService {
   }
 
   makeTransferOffer(command: TransferOfferCommand): AppResult<TransferCentre> {
-    return this.managerCommand(
-      (db, save, context) => makeManagerTransferOffer(db, save, context, command),
-      true,
-    );
+    return this.managerCommand((db, save, context) => {
+      requireDomainPermission(db, save, context, "TRANSFERS", "makeTransferOffer");
+      return makeManagerTransferOffer(db, save, context, command);
+    }, true);
   }
 
   respondTransferOffer(command: TransferResponseCommand): AppResult<TransferCentre> {
@@ -975,10 +1000,10 @@ export class DesktopApplicationService {
   }
 
   renewContract(command: ContractRenewalCommand): AppResult<ContractList> {
-    return this.managerCommand(
-      (db, save, context) => renewManagerContract(db, save, context, command),
-      true,
-    );
+    return this.managerCommand((db, save, context) => {
+      requireDomainPermission(db, save, context, "CONTRACTS", "renewContract");
+      return renewManagerContract(db, save, context, command);
+    }, true);
   }
 
   // -------------------------------------------------------------------------
@@ -1197,6 +1222,58 @@ export class DesktopApplicationService {
         throw error;
       }
       return buildStaffMarketView(db, save, context);
+    }, true);
+  }
+
+  // Staff Market Phase C.
+  getStaffHierarchy(): AppResult<StaffHierarchyView> {
+    return this.managerCommand((db, save, context) => {
+      return buildStaffHierarchyView(db, context.club!.id);
+    }, false);
+  }
+
+  assignStaffResponsibility(
+    domain: StaffResponsibilityDomain,
+    ownerType: StaffResponsibilityOwnerType,
+    ownerAppointmentId?: EntityId,
+  ): AppResult<StaffHierarchyView> {
+    return this.managerCommand((db, save, context) => {
+      try {
+        assignResponsibility(db, save, context.club!.id, domain, ownerType, ownerAppointmentId);
+      } catch (error) {
+        if (error instanceof ResponsibilityError) throw appError("INVALID_SELECTION", error.message);
+        throw error;
+      }
+      return buildStaffHierarchyView(db, context.club!.id);
+    }, true);
+  }
+
+  requestStaffBoardApproval(domain: StaffResponsibilityDomain): AppResult<StaffHierarchyView> {
+    return this.managerCommand((db, save, context) => {
+      try {
+        requestBoardApproval(db, save, context.club!.id, domain);
+      } catch (error) {
+        if (error instanceof ResponsibilityError) throw appError("INVALID_SELECTION", error.message);
+        throw error;
+      }
+      return buildStaffHierarchyView(db, context.club!.id);
+    }, true);
+  }
+
+  createStaffDevelopmentPlan(
+    personId: EntityId,
+    focus: string,
+    targetLicenceType?: string,
+    clubFunded = true,
+  ): AppResult<StaffHierarchyView> {
+    return this.managerCommand((db, save, context) => {
+      try {
+        createStaffDevelopmentPlan(db, save, context.club!.id, personId, focus, targetLicenceType, clubFunded);
+      } catch (error) {
+        if (error instanceof LicenceCourseError) throw appError("INVALID_SELECTION", error.message);
+        throw error;
+      }
+      return buildStaffHierarchyView(db, context.club!.id);
     }, true);
   }
 
@@ -1630,6 +1707,54 @@ const buildStaffMarketView = (db: GameDatabase, save: SaveMetadata, context: Man
     : [];
 
   return { staff, vacancies: base.vacancies, candidates: base.candidates, applications, renewalOffers, approaches };
+};
+
+const buildStaffHierarchyView = (db: GameDatabase, clubId: EntityId): StaffHierarchyView => {
+  const market = new StaffMarketRepository(db);
+
+  const hierarchy: StaffHierarchyEntryView[] = staffHierarchyForClub(db, clubId).map((entry) => ({
+    appointmentId: entry.appointmentId,
+    personId: entry.personId,
+    personName: displayName(getPerson(db, entry.personId)),
+    role: entry.role,
+    seniorityRank: entry.seniorityRank,
+    domains: entry.domains,
+    workload: entry.workload,
+  }));
+
+  const responsibilities: StaffResponsibilityView[] = RESPONSIBILITY_DOMAINS.map((domain) => {
+    const owner = responsibilityOwner(db, clubId, domain);
+    return {
+      domain: owner.domain,
+      ownerType: owner.ownerType,
+      ownerAppointmentId: owner.ownerAppointmentId,
+      ownerName: owner.ownerAppointmentId
+        ? displayName(getPerson(db, market.appointmentById(owner.ownerAppointmentId)!.personId))
+        : undefined,
+      boardApprovalGrantedUntil: owner.boardApprovalGrantedUntil,
+    };
+  });
+
+  const developmentPlans: StaffDevelopmentPlanView[] = market.developmentPlansForClub(clubId).map((plan) => ({
+    id: plan.id,
+    personId: plan.personId,
+    personName: displayName(getPerson(db, plan.personId)),
+    focus: plan.focus,
+    targetLicenceType: plan.targetLicenceType,
+    targetDate: plan.targetDate,
+    status: plan.status,
+  }));
+
+  const successionPlans: StaffSuccessionPlanView[] = market.successionPlansForClub(clubId).map((plan) => ({
+    id: plan.id,
+    outgoingAppointmentId: plan.outgoingAppointmentId,
+    personName: displayName(getPerson(db, plan.outgoingPersonId)),
+    role: plan.role,
+    candidateName: plan.candidatePersonId ? displayName(getPerson(db, plan.candidatePersonId)) : undefined,
+    reason: plan.reason,
+  }));
+
+  return { hierarchy, responsibilities, developmentPlans, successionPlans };
 };
 
 const buildSquadDynamicsView = (db: GameDatabase, teamId: EntityId): SquadDynamicsView => {
@@ -2085,6 +2210,23 @@ const roleSuitabilityLabel = (overall: number): string => {
 };
 
 const displayName = (person: Person): string => person.displayName ?? person.fullName;
+
+/** Thin wrapper so existing manager actions can be gated by delegation without touching their own logic. */
+const requireDomainPermission = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  context: ManagerContext,
+  domain: StaffResponsibilityDomain,
+  action: string,
+): void => {
+  if (!context.club?.id) return;
+  try {
+    assertResponsibilityPermits(db, save, context.club.id, domain, action);
+  } catch (error) {
+    if (error instanceof ResponsibilityError) throw appError("INVALID_SELECTION", error.message);
+    throw error;
+  }
+};
 
 const ageOn = (dateOfBirth: string, onDate: string): number => {
   const birth = new Date(`${dateOfBirth}T00:00:00Z`);

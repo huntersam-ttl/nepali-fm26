@@ -657,6 +657,50 @@ export type StaffMarketView = {
   approaches: StaffApproachView[];
 };
 
+export type StaffHierarchyEntryView = {
+  appointmentId: EntityId;
+  personId: EntityId;
+  personName: string;
+  role: string;
+  seniorityRank: number;
+  domains: string[];
+  workload: string;
+};
+
+export type StaffResponsibilityView = {
+  domain: string;
+  ownerType: string;
+  ownerAppointmentId?: EntityId;
+  ownerName?: string;
+  boardApprovalGrantedUntil?: ISODate;
+};
+
+export type StaffDevelopmentPlanView = {
+  id: EntityId;
+  personId: EntityId;
+  personName: string;
+  focus: string;
+  targetLicenceType?: string;
+  targetDate: ISODate;
+  status: string;
+};
+
+export type StaffSuccessionPlanView = {
+  id: EntityId;
+  outgoingAppointmentId: EntityId;
+  personName: string;
+  role: string;
+  candidateName?: string;
+  reason: string;
+};
+
+export type StaffHierarchyView = {
+  hierarchy: StaffHierarchyEntryView[];
+  responsibilities: StaffResponsibilityView[];
+  developmentPlans: StaffDevelopmentPlanView[];
+  successionPlans: StaffSuccessionPlanView[];
+};
+
 // ---------------------------------------------------------------------------
 // Dashboard, calendar and continue
 // ---------------------------------------------------------------------------
@@ -897,6 +941,11 @@ export type ManagerRuntimeApi = {
   respondToStaffRenewal(offerId: EntityId, accept: boolean): Promise<unknown>;
   dismissStaffMember(appointmentId: EntityId): Promise<unknown>;
   enrolStaffLicenceCourse(personId: EntityId, clubFunded: boolean): Promise<unknown>;
+  // Staff Market Phase C.
+  getStaffHierarchy(): Promise<unknown>;
+  assignStaffResponsibility(domain: string, ownerType: string, ownerAppointmentId?: EntityId): Promise<unknown>;
+  requestStaffBoardApproval(domain: string): Promise<unknown>;
+  createStaffDevelopmentPlan(personId: EntityId, focus: string, targetLicenceType?: string, clubFunded?: boolean): Promise<unknown>;
   getCalendar(): Promise<unknown>;
   // Manager Career World (Step 5).
   getJobCentre(): Promise<unknown>;

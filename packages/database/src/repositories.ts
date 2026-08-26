@@ -79,6 +79,7 @@ import type {
   StaffApplication,
   StaffApproach,
   StaffAppointment,
+  StaffDevelopmentPlan,
   StaffEmploymentContract,
   StaffEmploymentStatus,
   StaffHistoryEvent,
@@ -87,7 +88,10 @@ import type {
   StaffPerformanceRecord,
   StaffProfile,
   StaffRenewalOffer,
+  StaffResponsibility,
+  StaffResponsibilityLogEntry,
   StaffSimulationProfile,
+  StaffSuccessionPlan,
   StaffVacancy,
   Team,
   TeamPersonAssignment,
@@ -2205,6 +2209,144 @@ export class StaffMarketRepository {
       .all(personId)
       .map(mapStaffHistoryEventRow);
   }
+
+  // -- Phase C: responsibility, workload, development, succession ----------
+
+  upsertResponsibility(responsibility: StaffResponsibility): void {
+    this.db
+      .prepare(
+        `INSERT INTO staff_responsibilities
+        (id, club_id, domain, owner_type, owner_appointment_id, board_approval_granted_until, updated_on)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(club_id, domain) DO UPDATE SET
+          owner_type = excluded.owner_type,
+          owner_appointment_id = excluded.owner_appointment_id,
+          board_approval_granted_until = excluded.board_approval_granted_until,
+          updated_on = excluded.updated_on`,
+      )
+      .run(
+        responsibility.id,
+        responsibility.clubId,
+        responsibility.domain,
+        responsibility.ownerType,
+        responsibility.ownerAppointmentId ?? null,
+        responsibility.boardApprovalGrantedUntil ?? null,
+        responsibility.updatedOn,
+      );
+  }
+
+  responsibility(clubId: EntityId, domain: string): StaffResponsibility | undefined {
+    const row = this.db
+      .prepare("SELECT * FROM staff_responsibilities WHERE club_id = ? AND domain = ?")
+      .get(clubId, domain) as any;
+    return row ? mapStaffResponsibilityRow(row) : undefined;
+  }
+
+  responsibilitiesForClub(clubId: EntityId): StaffResponsibility[] {
+    return this.db
+      .prepare("SELECT * FROM staff_responsibilities WHERE club_id = ?")
+      .all(clubId)
+      .map(mapStaffResponsibilityRow);
+  }
+
+  insertResponsibilityLog(entry: StaffResponsibilityLogEntry): void {
+    this.db
+      .prepare(
+        `INSERT INTO staff_responsibility_log
+        (id, club_id, domain, owner_type, owner_appointment_id, action, occurred_on, description)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO NOTHING`,
+      )
+      .run(
+        entry.id,
+        entry.clubId,
+        entry.domain,
+        entry.ownerType,
+        entry.ownerAppointmentId ?? null,
+        entry.action,
+        entry.occurredOn,
+        entry.description ?? null,
+      );
+  }
+
+  responsibilityLogForClub(clubId: EntityId): StaffResponsibilityLogEntry[] {
+    return this.db
+      .prepare("SELECT * FROM staff_responsibility_log WHERE club_id = ? ORDER BY occurred_on DESC")
+      .all(clubId)
+      .map(mapStaffResponsibilityLogRow);
+  }
+
+  upsertDevelopmentPlan(plan: StaffDevelopmentPlan): void {
+    this.db
+      .prepare(
+        `INSERT INTO staff_development_plans
+        (id, person_id, club_id, focus, target_licence_type, licence_course_id, created_on, target_date, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET status = excluded.status`,
+      )
+      .run(
+        plan.id,
+        plan.personId,
+        plan.clubId,
+        plan.focus,
+        plan.targetLicenceType ?? null,
+        plan.licenceCourseId ?? null,
+        plan.createdOn,
+        plan.targetDate,
+        plan.status,
+      );
+  }
+
+  developmentPlansForClub(clubId: EntityId): StaffDevelopmentPlan[] {
+    return this.db
+      .prepare("SELECT * FROM staff_development_plans WHERE club_id = ? ORDER BY created_on DESC")
+      .all(clubId)
+      .map(mapStaffDevelopmentPlanRow);
+  }
+
+  activeDevelopmentPlansForPerson(personId: EntityId): StaffDevelopmentPlan[] {
+    return this.db
+      .prepare("SELECT * FROM staff_development_plans WHERE person_id = ? AND status = 'ACTIVE'")
+      .all(personId)
+      .map(mapStaffDevelopmentPlanRow);
+  }
+
+  upsertSuccessionPlan(plan: StaffSuccessionPlan): void {
+    this.db
+      .prepare(
+        `INSERT INTO staff_succession_plans
+        (id, club_id, outgoing_appointment_id, outgoing_person_id, role, candidate_person_id, reason, created_on, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          candidate_person_id = excluded.candidate_person_id,
+          status = excluded.status`,
+      )
+      .run(
+        plan.id,
+        plan.clubId,
+        plan.outgoingAppointmentId,
+        plan.outgoingPersonId,
+        plan.role,
+        plan.candidatePersonId ?? null,
+        plan.reason,
+        plan.createdOn,
+        plan.status,
+      );
+  }
+
+  activeSuccessionPlanFor(outgoingAppointmentId: EntityId): StaffSuccessionPlan | undefined {
+    const row = this.db
+      .prepare("SELECT * FROM staff_succession_plans WHERE outgoing_appointment_id = ? AND status = 'ACTIVE'")
+      .get(outgoingAppointmentId) as any;
+    return row ? mapStaffSuccessionPlanRow(row) : undefined;
+  }
+
+  successionPlansForClub(clubId: EntityId): StaffSuccessionPlan[] {
+    return this.db
+      .prepare("SELECT * FROM staff_succession_plans WHERE club_id = ? AND status = 'ACTIVE'")
+      .all(clubId)
+      .map(mapStaffSuccessionPlanRow);
+  }
 }
 
 const mapStaffProfile = (row: any): StaffProfile => ({
@@ -2357,6 +2499,51 @@ const mapStaffHistoryEventRow = (row: any): StaffHistoryEvent => ({
   federationId: row.federation_id ?? undefined,
   academyId: row.academy_id ?? undefined,
   description: row.description ?? undefined,
+});
+
+const mapStaffResponsibilityRow = (row: any): StaffResponsibility => ({
+  id: row.id,
+  clubId: row.club_id,
+  domain: row.domain,
+  ownerType: row.owner_type,
+  ownerAppointmentId: row.owner_appointment_id ?? undefined,
+  boardApprovalGrantedUntil: row.board_approval_granted_until ?? undefined,
+  updatedOn: row.updated_on,
+});
+
+const mapStaffResponsibilityLogRow = (row: any): StaffResponsibilityLogEntry => ({
+  id: row.id,
+  clubId: row.club_id,
+  domain: row.domain,
+  ownerType: row.owner_type,
+  ownerAppointmentId: row.owner_appointment_id ?? undefined,
+  action: row.action,
+  occurredOn: row.occurred_on,
+  description: row.description ?? undefined,
+});
+
+const mapStaffDevelopmentPlanRow = (row: any): StaffDevelopmentPlan => ({
+  id: row.id,
+  personId: row.person_id,
+  clubId: row.club_id,
+  focus: row.focus,
+  targetLicenceType: row.target_licence_type ?? undefined,
+  licenceCourseId: row.licence_course_id ?? undefined,
+  createdOn: row.created_on,
+  targetDate: row.target_date,
+  status: row.status,
+});
+
+const mapStaffSuccessionPlanRow = (row: any): StaffSuccessionPlan => ({
+  id: row.id,
+  clubId: row.club_id,
+  outgoingAppointmentId: row.outgoing_appointment_id,
+  outgoingPersonId: row.outgoing_person_id,
+  role: row.role,
+  candidatePersonId: row.candidate_person_id ?? undefined,
+  reason: row.reason,
+  createdOn: row.created_on,
+  status: row.status,
 });
 
 export class CompetitionRepository {

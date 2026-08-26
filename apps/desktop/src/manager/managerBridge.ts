@@ -30,8 +30,11 @@ import type {
   SquadMeetingCommand,
   SquadMeetingResult,
   SquadList,
+  StaffHierarchyView,
   StaffList,
   StaffMarketView,
+  StaffResponsibilityDomain,
+  StaffResponsibilityOwnerType,
   TacticsUpdateCommand,
   TacticsView,
   TrainingUpdateCommand,
@@ -109,6 +112,26 @@ export const managerBridge = {
     runtimeCall<StaffMarketView>("dismissStaffMember", { appointmentId }),
   enrolStaffLicenceCourse: (personId: EntityId, clubFunded: boolean) =>
     runtimeCall<StaffMarketView>("enrolStaffLicenceCourse", { personId, clubFunded }),
+  getStaffHierarchy: () => runtimeCall<StaffHierarchyView>("getStaffHierarchy"),
+  assignStaffResponsibility: (
+    domain: StaffResponsibilityDomain,
+    ownerType: StaffResponsibilityOwnerType,
+    ownerAppointmentId?: EntityId,
+  ) => runtimeCall<StaffHierarchyView>("assignStaffResponsibility", { domain, ownerType, ownerAppointmentId }),
+  requestStaffBoardApproval: (domain: StaffResponsibilityDomain) =>
+    runtimeCall<StaffHierarchyView>("requestStaffBoardApproval", { domain }),
+  createStaffDevelopmentPlan: (
+    personId: EntityId,
+    focus: string,
+    targetLicenceType?: string,
+    clubFunded?: boolean,
+  ) =>
+    runtimeCall<StaffHierarchyView>("createStaffDevelopmentPlan", {
+      personId,
+      focus,
+      targetLicenceType,
+      clubFunded,
+    }),
 
   // --- Manager Career World --------------------------------------------
   getJobCentre: () => runtimeCall<JobCentreView>("getJobCentre"),

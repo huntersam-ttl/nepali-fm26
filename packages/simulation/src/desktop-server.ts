@@ -11,6 +11,8 @@ import type {
   LiveTacticsCommand,
   RecruitmentSearchCommand,
   ScoutingAssignmentCommand,
+  StaffResponsibilityDomain,
+  StaffResponsibilityOwnerType,
   StartMatchCommand,
   SubstitutionCommand,
   TacticalSetup,
@@ -270,6 +272,24 @@ const dispatch = (
       return service.dismissStaffMember(body.appointmentId as EntityId);
     case "enrolStaffLicenceCourse":
       return service.enrolStaffLicenceCourse(body.personId as EntityId, body.clubFunded as boolean);
+    // Staff Market Phase C.
+    case "getStaffHierarchy":
+      return service.getStaffHierarchy();
+    case "assignStaffResponsibility":
+      return service.assignStaffResponsibility(
+        body.domain as StaffResponsibilityDomain,
+        body.ownerType as StaffResponsibilityOwnerType,
+        body.ownerAppointmentId as EntityId | undefined,
+      );
+    case "requestStaffBoardApproval":
+      return service.requestStaffBoardApproval(body.domain as StaffResponsibilityDomain);
+    case "createStaffDevelopmentPlan":
+      return service.createStaffDevelopmentPlan(
+        body.personId as EntityId,
+        body.focus as string,
+        body.targetLicenceType as string | undefined,
+        body.clubFunded as boolean | undefined,
+      );
     // Manager Career World (Step 5).
     case "getJobCentre":
       return service.getJobCentre();

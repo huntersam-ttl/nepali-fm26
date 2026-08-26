@@ -16,6 +16,7 @@ import {
   type StaffApplicationStatus,
   type StaffApproach,
   type StaffAppointment,
+  type StaffDevelopmentPlan,
   type StaffEmploymentContract,
   type StaffHistoryEvent,
   type StaffLicence,
@@ -24,9 +25,14 @@ import {
   type StaffProfile,
   type StaffRenewalOffer,
   type StaffRenewalOfferStatus,
+  type StaffResponsibility,
+  type StaffResponsibilityDomain,
+  type StaffResponsibilityOwnerType,
   type StaffSimulationProfile,
+  type StaffSuccessionPlan,
   type StaffVacancy,
   type StaffVacancyReason,
+  type StaffWorkloadLevel,
   type Team,
 } from "@nepal-football-sim/shared-types";
 import { SeededRandom } from "./rng.js";
@@ -1238,4 +1244,351 @@ const resolvePoach = (db: GameDatabase, save: SaveMetadata, approach: StaffAppro
     });
   }
   hireStaff(db, save, approach.fromClubId, undefined, approach.personId, approach.role, approach.offeredSalaryMinor);
+};
+
+// ===========================================================================
+// Phase C — hierarchy, delegation, workload, development, succession
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// Responsibility domains and delegation
+// ---------------------------------------------------------------------------
+
+/** Which roles are actually qualified to own each responsibility domain. */
+const DOMAIN_ELIGIBLE_ROLES: Record<StaffResponsibilityDomain, FootballStaffRole[]> = {
+  TRANSFERS: ["SPORTING_DIRECTOR", "TECHNICAL_DIRECTOR", "DIRECTOR_OF_FOOTBALL"],
+  SCOUTING: ["CHIEF_SCOUT", "SCOUT"],
+  CONTRACTS: ["SPORTING_DIRECTOR", "TECHNICAL_DIRECTOR", "DIRECTOR_OF_FOOTBALL"],
+  YOUTH: ["ACADEMY_DIRECTOR", "YOUTH_COACH"],
+  TRAINING: ["HEAD_COACH", "ASSISTANT_COACH", "FIRST_TEAM_COACH", "FITNESS_COACH"],
+  MEDICAL: ["HEAD_PHYSIO", "DOCTOR", "PHYSIO", "SPORTS_SCIENTIST"],
+};
+
+export const RESPONSIBILITY_DOMAINS: StaffResponsibilityDomain[] = [
+  "TRANSFERS", "SCOUTING", "CONTRACTS", "YOUTH", "TRAINING", "MEDICAL",
+];
+
+const BOARD_APPROVAL_WINDOW_DAYS = 7;
+
+export class ResponsibilityError extends Error {
+  constructor(
+    readonly code: "INVALID_OWNER" | "NOT_ELIGIBLE" | "APPOINTMENT_NOT_FOUND" | "BOARD_APPROVAL_REQUIRED",
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+/**
+ * Assigns who owns one responsibility domain at a club. Exactly one row per
+ * (club, domain) — reassigning always replaces the prior owner outright, so
+ * two staff members can never simultaneously own the same responsibility.
+ */
+export const assignResponsibility = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  clubId: EntityId,
+  domain: StaffResponsibilityDomain,
+  ownerType: StaffResponsibilityOwnerType,
+  ownerAppointmentId?: EntityId,
+): StaffResponsibility => {
+  const market = new StaffMarketRepository(db);
+  if (ownerType === "STAFF") {
+    if (!ownerAppointmentId) {
+      throw new ResponsibilityError("INVALID_OWNER", "Select a staff member to delegate to.");
+    }
+    const appointment = market.appointmentById(ownerAppointmentId);
+    if (!appointment || appointment.employmentStatus !== "ACTIVE" || appointment.clubId !== clubId) {
+      throw new ResponsibilityError("APPOINTMENT_NOT_FOUND", "That staff member is not active at this club.");
+    }
+    if (!DOMAIN_ELIGIBLE_ROLES[domain].includes(appointment.role)) {
+      throw new ResponsibilityError(
+        "NOT_ELIGIBLE",
+        `${appointment.role.replace(/_/g, " ").toLowerCase()} cannot take responsibility for ${domain.toLowerCase()}.`,
+      );
+    }
+  }
+  const existing = market.responsibility(clubId, domain);
+  const responsibility: StaffResponsibility = {
+    id: existing?.id ?? createEntityId(),
+    clubId,
+    domain,
+    ownerType,
+    ownerAppointmentId: ownerType === "STAFF" ? ownerAppointmentId : undefined,
+    boardApprovalGrantedUntil: ownerType === "BOARD" ? existing?.boardApprovalGrantedUntil : undefined,
+    updatedOn: save.worldDate,
+  };
+  market.upsertResponsibility(responsibility);
+  return responsibility;
+};
+
+/** Reads who owns a domain, defaulting to MANAGER when nothing has been assigned yet. */
+export const responsibilityOwner = (db: GameDatabase, clubId: EntityId, domain: StaffResponsibilityDomain): StaffResponsibility => {
+  const existing = new StaffMarketRepository(db).responsibility(clubId, domain);
+  return (
+    existing ?? {
+      id: createEntityId(),
+      clubId,
+      domain,
+      ownerType: "MANAGER",
+      updatedOn: "1970-01-01",
+    }
+  );
+};
+
+/**
+ * Seeds sensible defaults from the club's *real* roster: a domain is
+ * delegated to a specialist only if one actually exists at the club, so a
+ * small club (no such specialist) naturally keeps everything with the
+ * manager, and a larger, well-staffed club specialises on its own.
+ */
+export const defaultResponsibilitiesForClub = (db: GameDatabase, save: SaveMetadata, clubId: EntityId): StaffResponsibility[] => {
+  const market = new StaffMarketRepository(db);
+  const staff = market.activeAppointmentsForClub(clubId);
+  return RESPONSIBILITY_DOMAINS.map((domain) => {
+    if (market.responsibility(clubId, domain)) return responsibilityOwner(db, clubId, domain);
+    const specialist = staff.find((appointment) => DOMAIN_ELIGIBLE_ROLES[domain].includes(appointment.role));
+    return assignResponsibility(db, save, clubId, domain, specialist ? "STAFF" : "MANAGER", specialist?.id);
+  });
+};
+
+/**
+ * The board grants (or refuses) approval to act in a domain for a window,
+ * from the club's own real financial standing — not a coin flip.
+ */
+export const requestBoardApproval = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  clubId: EntityId,
+  domain: StaffResponsibilityDomain,
+): { granted: boolean; responsibility: StaffResponsibility } => {
+  const finances = new TransferMarketRepository(db).clubFinancialProfile(clubId);
+  const granted = !finances || finances.financialHealth !== "POOR";
+  const existing = responsibilityOwner(db, clubId, domain);
+  const responsibility: StaffResponsibility = {
+    ...existing,
+    id: existing.id,
+    clubId,
+    domain,
+    ownerType: "BOARD",
+    boardApprovalGrantedUntil: granted ? addDays(save.worldDate, BOARD_APPROVAL_WINDOW_DAYS) : undefined,
+    updatedOn: save.worldDate,
+  };
+  new StaffMarketRepository(db).upsertResponsibility(responsibility);
+  return { granted, responsibility };
+};
+
+/**
+ * The gate that gives delegation real teeth: BOARD domains require a live
+ * approval window, and every check is logged against whoever actually holds
+ * the domain — the same existing transfer/scouting/contract/training
+ * functions still do the work, this only decides whether they may run and
+ * who gets the credit.
+ */
+export const assertResponsibilityPermits = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  clubId: EntityId,
+  domain: StaffResponsibilityDomain,
+  action: string,
+): StaffResponsibility => {
+  const owner = responsibilityOwner(db, clubId, domain);
+  if (owner.ownerType === "BOARD") {
+    const stillValid = owner.boardApprovalGrantedUntil && owner.boardApprovalGrantedUntil >= save.worldDate;
+    if (!stillValid) {
+      throw new ResponsibilityError(
+        "BOARD_APPROVAL_REQUIRED",
+        `Board approval is required for ${domain.toLowerCase()} decisions and none is currently in place.`,
+      );
+    }
+  }
+  new StaffMarketRepository(db).insertResponsibilityLog({
+    id: createEntityId(),
+    clubId,
+    domain,
+    ownerType: owner.ownerType,
+    ownerAppointmentId: owner.ownerAppointmentId,
+    action,
+    occurredOn: save.worldDate,
+  });
+  return owner;
+};
+
+// ---------------------------------------------------------------------------
+// Workload
+// ---------------------------------------------------------------------------
+
+export type StaffWorkload = { personId: EntityId; appointmentId: EntityId; domainsCovered: number; level: StaffWorkloadLevel };
+
+const workloadLevelFor = (domainsCovered: number): StaffWorkloadLevel =>
+  domainsCovered === 0 ? "LIGHT" : domainsCovered === 1 ? "NORMAL" : domainsCovered === 2 ? "HEAVY" : "OVERLOADED";
+
+/** Workload is derived, not stored: how many domains each staff member currently owns. */
+export const staffWorkloadForClub = (db: GameDatabase, clubId: EntityId): StaffWorkload[] => {
+  const market = new StaffMarketRepository(db);
+  const counts = new Map<EntityId, number>();
+  for (const responsibility of market.responsibilitiesForClub(clubId)) {
+    if (responsibility.ownerType !== "STAFF" || !responsibility.ownerAppointmentId) continue;
+    counts.set(responsibility.ownerAppointmentId, (counts.get(responsibility.ownerAppointmentId) ?? 0) + 1);
+  }
+  return market
+    .activeAppointmentsForClub(clubId)
+    .map((appointment) => {
+      const domainsCovered = counts.get(appointment.id) ?? 0;
+      return { personId: appointment.personId, appointmentId: appointment.id, domainsCovered, level: workloadLevelFor(domainsCovered) };
+    })
+    .filter((entry) => entry.domainsCovered > 0);
+};
+
+// ---------------------------------------------------------------------------
+// Development plans (wraps the existing Phase B licence-course pipeline)
+// ---------------------------------------------------------------------------
+
+const DEVELOPMENT_PLAN_DEFAULT_MONTHS = 6;
+
+/**
+ * Records the club's intent to develop someone. When it targets a licence,
+ * this drives the existing `enrolInLicenceCourse` pipeline rather than
+ * tracking course progress a second time — the plan is a label over real state.
+ */
+export const createStaffDevelopmentPlan = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  clubId: EntityId,
+  personId: EntityId,
+  focus: string,
+  targetLicenceType?: string,
+  clubFunded = true,
+): StaffDevelopmentPlan => {
+  const market = new StaffMarketRepository(db);
+  let licenceCourseId: EntityId | undefined;
+  let targetDate = addDays(save.worldDate, DEVELOPMENT_PLAN_DEFAULT_MONTHS * 30);
+  if (targetLicenceType) {
+    const course = enrolInLicenceCourse(db, save, personId, clubFunded ? clubId : undefined);
+    licenceCourseId = course.id;
+    targetDate = course.completesOn;
+  }
+  const plan: StaffDevelopmentPlan = {
+    id: createEntityId(),
+    personId,
+    clubId,
+    focus,
+    targetLicenceType,
+    licenceCourseId,
+    createdOn: save.worldDate,
+    targetDate,
+    status: "ACTIVE",
+  };
+  market.upsertDevelopmentPlan(plan);
+  return plan;
+};
+
+/** Keeps development plans in sync with whatever the underlying licence course actually did. */
+export const evaluateStaffDevelopmentPlans = (db: GameDatabase, clubId: EntityId): StaffDevelopmentPlan[] => {
+  const market = new StaffMarketRepository(db);
+  const updated: StaffDevelopmentPlan[] = [];
+  for (const plan of market.developmentPlansForClub(clubId).filter((p) => p.status === "ACTIVE")) {
+    if (!plan.licenceCourseId) continue;
+    const course = market
+      .staffLicencesForPerson(plan.personId)
+      .find((licence) => licence.licenceType === plan.targetLicenceType);
+    if (course) {
+      const completed: StaffDevelopmentPlan = { ...plan, status: "COMPLETED" };
+      market.upsertDevelopmentPlan(completed);
+      updated.push(completed);
+    }
+  }
+  return updated;
+};
+
+// ---------------------------------------------------------------------------
+// Succession planning
+// ---------------------------------------------------------------------------
+
+const SUCCESSION_WINDOW_DAYS = 60;
+
+/** Roles a club would genuinely miss losing without warning. */
+const KEY_ROLES = new Set<FootballStaffRole>([
+  "HEAD_COACH", "ASSISTANT_COACH", "SPORTING_DIRECTOR", "TECHNICAL_DIRECTOR", "CHIEF_SCOUT", "ACADEMY_DIRECTOR", "HEAD_PHYSIO",
+]);
+
+/**
+ * Flags key appointments at real risk of ending soon — contract expiring
+ * within the window, or an active poaching approach against them — and
+ * looks for an internal successor already eligible for the role.
+ */
+export const evaluateSuccessionNeeds = (db: GameDatabase, save: SaveMetadata, clubId: EntityId): StaffSuccessionPlan[] => {
+  const market = new StaffMarketRepository(db);
+  const worldDate = save.worldDate;
+  const plans: StaffSuccessionPlan[] = [];
+
+  for (const appointment of market.activeAppointmentsForClub(clubId)) {
+    if (!KEY_ROLES.has(appointment.role)) continue;
+    if (market.activeSuccessionPlanFor(appointment.id)) continue;
+
+    const contract = appointment.contractId ? market.employmentContractById(appointment.contractId) : undefined;
+    const contractExpiring =
+      contract?.contractEnd !== undefined && daysBetween(worldDate, contract.contractEnd) <= SUCCESSION_WINDOW_DAYS;
+    const poachingRisk = market
+      .approachesForClub(clubId)
+      .some((approach) => approach.personId === appointment.personId && approach.status === "PENDING");
+    if (!contractExpiring && !poachingRisk) continue;
+
+    const candidate = market
+      .activeAppointmentsForClub(clubId)
+      .find(
+        (other) =>
+          other.id !== appointment.id &&
+          staffEligibility(appointment.role, market.staffProfile(other.personId), market.staffLicencesForPerson(other.personId)).eligible,
+      );
+
+    const plan: StaffSuccessionPlan = {
+      id: createEntityId(),
+      clubId,
+      outgoingAppointmentId: appointment.id,
+      outgoingPersonId: appointment.personId,
+      role: appointment.role,
+      candidatePersonId: candidate?.personId,
+      reason: contractExpiring ? "CONTRACT_EXPIRING" : "POACHING_RISK",
+      createdOn: worldDate,
+      status: "ACTIVE",
+    };
+    market.upsertSuccessionPlan(plan);
+    plans.push(plan);
+  }
+  return plans;
+};
+
+// ---------------------------------------------------------------------------
+// Hierarchy read model
+// ---------------------------------------------------------------------------
+
+export type StaffHierarchyEntry = {
+  appointmentId: EntityId;
+  personId: EntityId;
+  role: FootballStaffRole;
+  seniorityRank: number;
+  domains: StaffResponsibilityDomain[];
+  workload: StaffWorkloadLevel;
+};
+
+/** The club's org chart: every active appointment, ranked by seniority, with the domains they own. */
+export const staffHierarchyForClub = (db: GameDatabase, clubId: EntityId): StaffHierarchyEntry[] => {
+  const market = new StaffMarketRepository(db);
+  const responsibilities = market.responsibilitiesForClub(clubId);
+  const workload = new Map(staffWorkloadForClub(db, clubId).map((entry) => [entry.appointmentId, entry.level]));
+
+  return market
+    .activeAppointmentsForClub(clubId)
+    .map((appointment) => ({
+      appointmentId: appointment.id,
+      personId: appointment.personId,
+      role: appointment.role,
+      seniorityRank: seniorityRankOf(appointment.role),
+      domains: responsibilities
+        .filter((r) => r.ownerType === "STAFF" && r.ownerAppointmentId === appointment.id)
+        .map((r) => r.domain),
+      workload: workload.get(appointment.id) ?? "LIGHT",
+    }))
+    .sort((a, b) => b.seniorityRank - a.seniorityRank);
 };
