@@ -2467,6 +2467,26 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       ALTER TABLE competition_media_rights ADD COLUMN exclusive INTEGER NOT NULL DEFAULT 1;
     `,
   },
+  {
+    version: 30,
+    sql: `
+      CREATE TABLE IF NOT EXISTS club_season_memberships (
+        id TEXT PRIMARY KEY, club_id TEXT NOT NULL REFERENCES clubs(id), season_label TEXT NOT NULL,
+        member_count INTEGER NOT NULL, price INTEGER NOT NULL, revenue INTEGER NOT NULL, status TEXT NOT NULL,
+        UNIQUE(club_id, season_label)
+      );
+      CREATE TABLE IF NOT EXISTS commercial_history_events (
+        id TEXT PRIMARY KEY, club_id TEXT NOT NULL REFERENCES clubs(id), event_date TEXT NOT NULL,
+        event_type TEXT NOT NULL, amount INTEGER NOT NULL, audience_impact REAL NOT NULL, description TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_commercial_history_club_date ON commercial_history_events(club_id, event_date);
+      CREATE TABLE IF NOT EXISTS preseason_commercial_camps (
+        id TEXT PRIMARY KEY, club_id TEXT NOT NULL REFERENCES clubs(id), destination TEXT NOT NULL,
+        start_date TEXT NOT NULL, end_date TEXT NOT NULL, cost INTEGER NOT NULL, commercial_reach REAL NOT NULL,
+        sporting_impact REAL NOT NULL, status TEXT NOT NULL
+      );
+    `,
+  },
 ];
 
 export const migrateDatabase = (db: GameDatabase): number => {

@@ -103,6 +103,9 @@ import type {
   TeamCohesion,
   ClubCommercialProfile,
   CompetitionMediaRights,
+  ClubSeasonMembership,
+  CommercialHistoryEvent,
+  PreseasonCommercialCamp,
   SquadDispute,
   SquadMeeting,
   LeagueStanding,
@@ -5334,6 +5337,29 @@ export class ClubEconomyRepository {
       .prepare("SELECT * FROM club_supporter_profiles ORDER BY club_id")
       .all()
       .map(mapClubSupporterProfile);
+  }
+
+  upsertSeasonMembership(membership: ClubSeasonMembership): void {
+    this.db.prepare(`INSERT INTO club_season_memberships
+      (id, club_id, season_label, member_count, price, revenue, status) VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(club_id, season_label) DO UPDATE SET member_count=excluded.member_count, price=excluded.price, revenue=excluded.revenue, status=excluded.status`).run(
+      membership.id, membership.clubId, membership.seasonLabel, membership.memberCount, membership.price, membership.revenue, membership.status);
+  }
+  seasonMemberships(clubId?: EntityId): ClubSeasonMembership[] {
+    const rows = clubId ? this.db.prepare("SELECT * FROM club_season_memberships WHERE club_id = ? ORDER BY season_label").all(clubId) : this.db.prepare("SELECT * FROM club_season_memberships ORDER BY club_id, season_label").all();
+    return rows.map((row: any) => ({ id: row.id, clubId: row.club_id, seasonLabel: row.season_label, memberCount: row.member_count, price: row.price, revenue: row.revenue, status: row.status }));
+  }
+  insertCommercialHistory(event: CommercialHistoryEvent): void {
+    this.db.prepare(`INSERT INTO commercial_history_events (id, club_id, event_date, event_type, amount, audience_impact, description) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING`).run(event.id, event.clubId, event.date, event.eventType, event.amount, event.audienceImpact, event.description);
+  }
+  commercialHistory(clubId: EntityId): CommercialHistoryEvent[] {
+    return (this.db.prepare("SELECT * FROM commercial_history_events WHERE club_id = ? ORDER BY event_date, id").all(clubId) as any[]).map((row) => ({ id: row.id, clubId: row.club_id, date: row.event_date, eventType: row.event_type, amount: row.amount, audienceImpact: row.audience_impact, description: row.description }));
+  }
+  upsertCommercialCamp(camp: PreseasonCommercialCamp): void {
+    this.db.prepare(`INSERT INTO preseason_commercial_camps (id, club_id, destination, start_date, end_date, cost, commercial_reach, sporting_impact, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET status=excluded.status`).run(camp.id, camp.clubId, camp.destination, camp.startDate, camp.endDate, camp.cost, camp.commercialReach, camp.sportingImpact, camp.status);
+  }
+  commercialCamps(clubId: EntityId): PreseasonCommercialCamp[] {
+    return (this.db.prepare("SELECT * FROM preseason_commercial_camps WHERE club_id = ? ORDER BY start_date").all(clubId) as any[]).map((row) => ({ id: row.id, clubId: row.club_id, destination: row.destination, startDate: row.start_date, endDate: row.end_date, cost: row.cost, commercialReach: row.commercial_reach, sportingImpact: row.sporting_impact, status: row.status }));
   }
 
   upsertFacilityProfile(profile: ClubFacilityProfile): void {

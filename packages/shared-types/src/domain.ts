@@ -1684,6 +1684,7 @@ export type ClubFinancialAccount = {
 
 export type ClubLedgerCategory =
   | "MATCHDAY_REVENUE"
+  | "MERCHANDISE"
   | "SPONSORSHIP"
   | "BROADCASTING"
   | "PRIZE_MONEY"
@@ -1904,6 +1905,38 @@ export type ClubSupporterProfile = {
   standardTicketPrice: number;
   currency: string;
   status: "SIMULATION_ONLY" | "VERIFIED" | "REPORTED" | "ESTIMATED" | "UNKNOWN";
+};
+
+export type ClubSeasonMembership = {
+  id: EntityId;
+  clubId: EntityId;
+  seasonLabel: string;
+  memberCount: number;
+  price: number;
+  revenue: number;
+  status: "ACTIVE" | "EXPIRED";
+};
+
+export type CommercialHistoryEvent = {
+  id: EntityId;
+  clubId: EntityId;
+  date: ISODate;
+  eventType: "MERCHANDISE" | "SEASON_MEMBERSHIP" | "TOUR" | "SUPPORTER_GROWTH";
+  amount: number;
+  audienceImpact: number;
+  description: string;
+};
+
+export type PreseasonCommercialCamp = {
+  id: EntityId;
+  clubId: EntityId;
+  destination: string;
+  startDate: ISODate;
+  endDate: ISODate;
+  cost: number;
+  commercialReach: number;
+  sportingImpact: number;
+  status: "PLANNED" | "COMPLETED" | "CANCELLED";
 };
 
 export type ClubFacilityProfile = {

@@ -18,6 +18,8 @@ import {
   type ClubSupporterProfile,
   type ClubCommercialProfile,
   type CompetitionMediaRights,
+  type ClubSeasonMembership,
+  type PreseasonCommercialCamp,
   type ClubValuation,
   type EntityId,
   type FixtureRecord,
@@ -181,6 +183,48 @@ export const setClubTicketPrice = (db: GameDatabase, clubId: EntityId, price: nu
   const updated = { ...profile, standardTicketPrice: Math.max(1, Math.round(price)) };
   economy.upsertSupporterProfile(updated);
   return updated;
+};
+
+export const createSeasonMembership = (db: GameDatabase, input: { clubId: EntityId; seasonLabel: string; price: number }): ClubSeasonMembership => {
+  const economy = new ClubEconomyRepository(db);
+  const support = economy.supporterProfile(input.clubId);
+  if (!support) throw new Error("Supporter profile is not initialized");
+  const memberCount = Math.max(1, Math.round(support.coreSupporters * 0.42 + support.familySupport * 0.2));
+  const membership: ClubSeasonMembership = { id: createStableEntityId("season-membership", `${input.clubId}:${input.seasonLabel}`), clubId: input.clubId, seasonLabel: input.seasonLabel, memberCount, price: Math.max(1, Math.round(input.price)), revenue: memberCount * Math.max(1, Math.round(input.price)), status: "ACTIVE" };
+  economy.upsertSeasonMembership(membership);
+  postClubTransaction(db, { clubId: input.clubId, date: `${input.seasonLabel}-08-01`, category: "MATCHDAY_REVENUE", direction: "CREDIT", amount: membership.revenue, description: "Season-ticket and membership revenue", relatedEntityId: membership.id, idempotencyKey: `season-membership:${membership.id}` });
+  economy.insertCommercialHistory({ id: createStableEntityId("commercial-history", `${membership.id}:membership`), clubId: input.clubId, date: `${input.seasonLabel}-08-01`, eventType: "SEASON_MEMBERSHIP", amount: membership.revenue, audienceImpact: memberCount, description: "Season membership sales" });
+  return membership;
+};
+
+export const postMerchandiseRevenue = (db: GameDatabase, input: { clubId: EntityId; date: string; seed: string }): number => {
+  const economy = new ClubEconomyRepository(db);
+  const support = economy.supporterProfile(input.clubId);
+  const commercial = economy.commercialProfile(input.clubId);
+  if (!support || !commercial) return 0;
+  const standing = db.prepare("SELECT points FROM league_standings ls JOIN teams t ON t.id = ls.team_id WHERE t.club_id = ? ORDER BY points DESC LIMIT 1").get(input.clubId) as { points?: number } | undefined;
+  const units = Math.max(1, Math.round((support.coreSupporters + support.casualSupporters * 0.18 + support.diasporaSupport * 0.65) * (0.02 + commercial.merchandiseAppeal / 500) * (1 + Math.min(0.3, (standing?.points ?? 0) / 300))));
+  const amount = units * Math.round(180 + commercial.merchandiseAppeal * 35);
+  postClubTransaction(db, { clubId: input.clubId, date: input.date, category: "MERCHANDISE", direction: "CREDIT", amount, description: `Merchandise sales across shirts, scarves and digital products (${units} units)`, idempotencyKey: `merchandise:${input.clubId}:${input.date}` });
+  economy.upsertSupporterProfile({ ...support, casualSupporters: support.casualSupporters + Math.max(1, Math.round(units * 0.03)), diasporaSupport: support.diasporaSupport + Math.round(units * 0.01) });
+  economy.insertCommercialHistory({ id: createStableEntityId("commercial-history", `${input.clubId}:${input.date}:merchandise`), clubId: input.clubId, date: input.date, eventType: "MERCHANDISE", amount, audienceImpact: units, description: "Abstract merchandise sales" });
+  return amount;
+};
+
+export const runPreseasonCommercialCamp = (db: GameDatabase, input: { clubId: EntityId; destination: string; startDate: string; endDate: string; seed: string }): PreseasonCommercialCamp => {
+  const economy = new ClubEconomyRepository(db);
+  const commercial = economy.commercialProfile(input.clubId);
+  const support = economy.supporterProfile(input.clubId);
+  const reach = Math.round((commercial?.digitalReach ?? 2) + (support?.diasporaSupport ?? 0) / 500);
+  const cost = Math.round(85000 + reach * 22000);
+  const camp: PreseasonCommercialCamp = { id: createStableEntityId("commercial-camp", `${input.clubId}:${input.startDate}:${input.destination}`), clubId: input.clubId, destination: input.destination, startDate: input.startDate, endDate: input.endDate, cost, commercialReach: reach, sportingImpact: -0.03, status: "COMPLETED" };
+  economy.upsertCommercialCamp(camp);
+  postClubTransaction(db, { clubId: input.clubId, date: input.startDate, category: "TRAVEL", direction: "DEBIT", amount: cost, description: `Preseason commercial camp in ${input.destination}`, relatedEntityId: camp.id, idempotencyKey: `commercial-camp:${camp.id}` });
+  const tourRevenue = Math.round(reach * 18000);
+  if (tourRevenue > 0) postClubTransaction(db, { clubId: input.clubId, date: input.endDate, category: "MATCHDAY_REVENUE", direction: "CREDIT", amount: tourRevenue, description: `Preseason friendly/tour revenue from ${input.destination}`, relatedEntityId: camp.id, idempotencyKey: `commercial-tour-revenue:${camp.id}` });
+  if (support) economy.upsertSupporterProfile({ ...support, diasporaSupport: support.diasporaSupport + Math.round(reach * 8), commercialReputation: Math.min(10, support.commercialReputation + 0.12) });
+  economy.insertCommercialHistory({ id: createStableEntityId("commercial-history", `${camp.id}:tour`), clubId: input.clubId, date: input.startDate, eventType: "TOUR", amount: tourRevenue - cost, audienceImpact: reach, description: `Commercial camp and tour in ${input.destination}` });
+  return camp;
 };
 
 export const postClubTransaction = (
@@ -637,15 +681,17 @@ export const postMatchdayEconomy = (
   const fixtureImportance = fixture.round <= 2 || fixture.round >= 20 ? 1.12 : 1;
   const reputationFactor = 1 + ((homeSupport?.footballReputation ?? 5) + (awaySupport?.footballReputation ?? 5)) / 100;
   const audienceFactor = 1 + ((homeSupport?.diasporaSupport ?? 0) / Math.max(1, homeSupport?.coreSupporters ?? 1)) * 0.08 + ((homeCommercial?.digitalReach ?? 0) + (awayCommercial?.digitalReach ?? 0)) / 100;
+  const ticketPrice = homeSupport?.standardTicketPrice ?? 250;
+  const sentimentFactor = { VERY_POSITIVE: 1.12, POSITIVE: 1.06, NEUTRAL: 1, NEGATIVE: 0.92, VERY_NEGATIVE: 0.82 }[homeSupport?.sentiment ?? "NEUTRAL"];
+  const priceSensitivity = Math.max(0.55, Math.min(1.25, Math.pow(250 / Math.max(1, ticketPrice), homeCommercial?.ticketPriceElasticity ?? 1)));
   const baseDemand =
     (homeSupport?.coreSupporters ?? 800) * 0.18 +
     (homeSupport?.casualSupporters ?? 1000) * 0.04 +
     (awaySupport?.coreSupporters ?? 600) * 0.04;
   const attendance = Math.max(
     120,
-    Math.min(capacity, Math.round(baseDemand * fixtureImportance * reputationFactor * audienceFactor * (0.8 + rng.next() * 0.4))),
+    Math.min(capacity, Math.round(baseDemand * fixtureImportance * reputationFactor * audienceFactor * sentimentFactor * priceSensitivity * (0.8 + rng.next() * 0.4))),
   );
-  const ticketPrice = homeSupport?.standardTicketPrice ?? 250;
   const gross = attendance * ticketPrice;
   const homeShare = Math.round(gross * 0.5);
   const organiserShare = Math.round(gross * 0.3);
@@ -750,6 +796,7 @@ export const processClubEconomyMonth = (
         idempotencyKey: `sponsor-month:${sponsorship.id}:${input.date}`,
       });
     }
+    postMerchandiseRevenue(db, { clubId: account.clubId, date: input.date, seed: input.seed });
   }
   advanceInfrastructureProjects(db, input);
 };
@@ -824,6 +871,11 @@ export const postCompetitionMediaRights = (
     annualValue,
     streamingShare: 0.35,
     currency,
+    rightsType: "DOMESTIC_AND_STREAMING",
+    startDate: undefined,
+    endDate: undefined,
+    contractStatus: "ACTIVE",
+    exclusive: true,
     status: simulationStatus,
   };
   economy.upsertMediaRights(rights);
