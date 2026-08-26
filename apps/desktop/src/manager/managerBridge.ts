@@ -27,6 +27,8 @@ import type {
   SubstitutionCommand,
   ScoutingReportView,
   SquadDynamicsView,
+  SquadMeetingCommand,
+  SquadMeetingResult,
   SquadList,
   StaffList,
   TacticsUpdateCommand,
@@ -53,6 +55,8 @@ export const managerBridge = {
   getSquadConcerns: () => runtimeCall<SquadDynamicsView>("getSquadConcerns"),
   respondToConcern: (concernId: EntityId, action: ConcernResponseAction) =>
     runtimeCall<ConcernResponseResult>("respondToConcern", { concernId, action }),
+  holdSquadMeeting: (command: SquadMeetingCommand) =>
+    runtimeCall<SquadMeetingResult>("holdSquadMeeting", { command }),
   getPlayerProfile: (playerId: EntityId) =>
     runtimeCall<PlayerProfile>("getPlayerProfile", { playerId }),
   getTactics: () => runtimeCall<TacticsView>("getTactics"),

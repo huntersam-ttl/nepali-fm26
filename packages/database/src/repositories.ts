@@ -101,6 +101,8 @@ import type {
   ManagerPromise,
   SquadGroupMembership,
   TeamCohesion,
+  SquadDispute,
+  SquadMeeting,
   LeagueStanding,
   ManagerContract,
   ManagerProfile,
@@ -1600,7 +1602,142 @@ export class SquadDynamicsRepository {
     const row = this.db.prepare("SELECT * FROM team_cohesion WHERE team_id = ?").get(teamId) as any;
     return row ? mapCohesion(row) : undefined;
   }
+
+  insertDispute(dispute: SquadDispute): void {
+    this.db
+      .prepare(
+        `INSERT INTO squad_disputes
+        (id, team_id, kind, person_id, with_person_id, concern_type, status, raised_on, resolved_on)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO NOTHING`,
+      )
+      .run(
+        dispute.id,
+        dispute.teamId,
+        dispute.kind,
+        dispute.personId,
+        dispute.withPersonId ?? null,
+        dispute.concernType,
+        dispute.status,
+        dispute.raisedOn,
+        dispute.resolvedOn ?? null,
+      );
+  }
+
+  updateDisputeStatus(id: EntityId, status: SquadDispute["status"], resolvedOn?: string): void {
+    this.db
+      .prepare("UPDATE squad_disputes SET status = ?, resolved_on = ? WHERE id = ?")
+      .run(status, resolvedOn ?? null, id);
+  }
+
+  disputeById(id: EntityId): SquadDispute | undefined {
+    const row = this.db.prepare("SELECT * FROM squad_disputes WHERE id = ?").get(id) as any;
+    return row ? mapDispute(row) : undefined;
+  }
+
+  openDisputesForTeam(teamId: EntityId): SquadDispute[] {
+    return this.db
+      .prepare("SELECT * FROM squad_disputes WHERE team_id = ? AND status = 'OPEN' ORDER BY raised_on")
+      .all(teamId)
+      .map(mapDispute);
+  }
+
+  /** Any dispute, open or not, for the given pairing/type — used to avoid re-raising the same one. */
+  findDispute(
+    teamId: EntityId,
+    kind: SquadDispute["kind"],
+    personId: EntityId,
+    withPersonId: EntityId | undefined,
+    concernType: PlayerConcern["type"],
+  ): SquadDispute | undefined {
+    const row = this.db
+      .prepare(
+        `SELECT * FROM squad_disputes
+        WHERE team_id = ? AND kind = ? AND concern_type = ? AND status = 'OPEN'
+          AND person_id = ? AND (with_person_id IS ? OR with_person_id = ?)`,
+      )
+      .get(teamId, kind, concernType, personId, withPersonId ?? null, withPersonId ?? null) as any;
+    return row ? mapDispute(row) : undefined;
+  }
+
+  insertMeeting(meeting: SquadMeeting): void {
+    this.db
+      .prepare(
+        `INSERT INTO squad_meetings
+        (id, team_id, manager_profile_id, type, person_id, with_person_id, concern_id, dispute_id,
+          outcome, summary, occurred_on)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO NOTHING`,
+      )
+      .run(
+        meeting.id,
+        meeting.teamId,
+        meeting.managerProfileId,
+        meeting.type,
+        meeting.personId ?? null,
+        meeting.withPersonId ?? null,
+        meeting.concernId ?? null,
+        meeting.disputeId ?? null,
+        meeting.outcome,
+        meeting.summary,
+        meeting.occurredOn,
+      );
+  }
+
+  meetingsForTeam(teamId: EntityId): SquadMeeting[] {
+    return this.db
+      .prepare("SELECT * FROM squad_meetings WHERE team_id = ? ORDER BY occurred_on DESC")
+      .all(teamId)
+      .map(mapMeeting);
+  }
+
+  lastMeeting(
+    teamId: EntityId,
+    type: SquadMeeting["type"],
+    personId: EntityId | undefined,
+  ): SquadMeeting | undefined {
+    const row = personId
+      ? (this.db
+          .prepare(
+            `SELECT * FROM squad_meetings WHERE team_id = ? AND type = ? AND person_id = ?
+            ORDER BY occurred_on DESC LIMIT 1`,
+          )
+          .get(teamId, type, personId) as any)
+      : (this.db
+          .prepare(
+            `SELECT * FROM squad_meetings WHERE team_id = ? AND type = ?
+            ORDER BY occurred_on DESC LIMIT 1`,
+          )
+          .get(teamId, type) as any);
+    return row ? mapMeeting(row) : undefined;
+  }
 }
+
+const mapDispute = (row: any): SquadDispute => ({
+  id: row.id,
+  teamId: row.team_id,
+  kind: row.kind,
+  personId: row.person_id,
+  withPersonId: row.with_person_id ?? undefined,
+  concernType: row.concern_type,
+  status: row.status,
+  raisedOn: row.raised_on,
+  resolvedOn: row.resolved_on ?? undefined,
+});
+
+const mapMeeting = (row: any): SquadMeeting => ({
+  id: row.id,
+  teamId: row.team_id,
+  managerProfileId: row.manager_profile_id,
+  type: row.type,
+  personId: row.person_id ?? undefined,
+  withPersonId: row.with_person_id ?? undefined,
+  concernId: row.concern_id ?? undefined,
+  disputeId: row.dispute_id ?? undefined,
+  outcome: row.outcome,
+  summary: row.summary,
+  occurredOn: row.occurred_on,
+});
 
 const mapGroupMembership = (row: any): SquadGroupMembership => ({
   id: row.id,

@@ -19,6 +19,9 @@ import type {
   PlayerSquadRole,
   SquadGroupType,
   SquadHierarchyRole,
+  SquadDispute,
+  SquadMeeting,
+  SquadMeetingType,
   TacticalFamiliarity,
   TacticalSetup,
   TeamCohesionLevel,
@@ -679,11 +682,31 @@ export type TeamCohesionView = {
   topIssue?: string;
 };
 
+export type SquadDisputeView = SquadDispute & {
+  playerName: string;
+  withPlayerName?: string;
+};
+
+export type SquadMeetingView = SquadMeeting;
+
 export type SquadDynamicsView = {
   concerns: SquadConcernView[];
   promises: SquadPromiseView[];
   cohesion: TeamCohesionView;
   groups: SquadGroupMemberView[];
+  disputes: SquadDisputeView[];
+  meetings: SquadMeetingView[];
+};
+
+export type SquadMeetingCommand = {
+  type: SquadMeetingType;
+  personId?: EntityId;
+  disputeId?: EntityId;
+};
+
+export type SquadMeetingResult = {
+  meeting: SquadMeetingView;
+  squad: SquadDynamicsView;
 };
 
 export type ConcernResponseCommand = {
@@ -827,6 +850,7 @@ export type ManagerRuntimeApi = {
   // Squad Dynamics Phase B.
   getSquadConcerns(): Promise<unknown>;
   respondToConcern(concernId: EntityId, action: ConcernResponseAction): Promise<unknown>;
+  holdSquadMeeting(command: SquadMeetingCommand): Promise<unknown>;
 };
 
 /** Attribute keys grouped for presentation. Values stay on the engine's 1-20 scale. */

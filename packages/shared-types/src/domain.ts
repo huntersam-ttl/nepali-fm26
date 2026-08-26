@@ -3319,7 +3319,10 @@ export type RelationshipEventType =
   | "PROMISE_BROKEN"
   | "PROMISE_EXPIRED"
   | "DISPUTE_FLARED"
-  | "SPILLOVER_APPLIED";
+  | "SPILLOVER_APPLIED"
+  | "MEETING_HELD"
+  | "DISPUTE_MEDIATED"
+  | "DISPUTE_UNRESOLVED";
 
 /** Append-only log of relationship/concern state transitions, mirroring TransferHistoryEvent. */
 export type RelationshipHistoryEvent = {
@@ -3413,4 +3416,48 @@ export type TeamCohesion = {
   captainInfluence: CaptainInfluence;
   topIssue?: string;
   updatedOn: ISODate;
+};
+
+// ---------------------------------------------------------------------------
+// Manager Relationships & Squad Dynamics — Phase D: meetings and mediation
+// ---------------------------------------------------------------------------
+
+export type SquadDisputeKind = "PLAYER_VS_PLAYER" | "PLAYER_VS_MANAGER";
+export type SquadDisputeStatus = "OPEN" | "MEDIATED" | "UNRESOLVED";
+
+/** A dispute is a persisted, actionable record — not just a log line. */
+export type SquadDispute = {
+  id: EntityId;
+  teamId: EntityId;
+  kind: SquadDisputeKind;
+  personId: EntityId;
+  withPersonId?: EntityId;
+  concernType: PlayerConcernType;
+  status: SquadDisputeStatus;
+  raisedOn: ISODate;
+  resolvedOn?: ISODate;
+};
+
+export type SquadMeetingType =
+  | "ONE_TO_ONE"
+  | "MEDIATE_DISPUTE"
+  | "ADDRESS_MANAGER_DISPUTE"
+  | "CAPTAIN_CONSULTATION"
+  | "SQUAD_MEETING";
+
+export type SquadMeetingOutcome = "POSITIVE" | "NEUTRAL" | "NEGATIVE";
+
+/** Persisted record of every meeting the manager holds, with its real outcome. */
+export type SquadMeeting = {
+  id: EntityId;
+  teamId: EntityId;
+  managerProfileId: EntityId;
+  type: SquadMeetingType;
+  personId?: EntityId;
+  withPersonId?: EntityId;
+  concernId?: EntityId;
+  disputeId?: EntityId;
+  outcome: SquadMeetingOutcome;
+  summary: string;
+  occurredOn: ISODate;
 };

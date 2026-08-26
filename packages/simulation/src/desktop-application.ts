@@ -68,6 +68,8 @@ import {
   type ScoutingReportView,
   type SquadConcernView,
   type SquadDynamicsView,
+  type SquadMeetingCommand,
+  type SquadMeetingResult,
   type SquadGroupMemberView,
   type SquadList,
   type SquadPromiseView,
@@ -113,6 +115,8 @@ import { nextFixtureForTeam, quickSimManagerMatch } from "./manager-flow.js";
 import {
   ConcernActionError,
   evaluateSquadDynamics,
+  holdSquadMeeting,
+  MeetingActionError,
   respondToConcern as respondToConcernCommand,
   validActionsForConcern,
 } from "./squad-dynamics.js";
@@ -783,6 +787,18 @@ export class DesktopApplicationService {
         throw error;
       }
       return { outcome, squad: buildSquadDynamicsView(db, context.team.id) };
+    }, true);
+  }
+
+  holdSquadMeeting(command: SquadMeetingCommand): AppResult<SquadMeetingResult> {
+    return this.managerCommand((db, save, context) => {
+      try {
+        const meeting = holdSquadMeeting(db, save, context.manager.id, context.team.id, command);
+        return { meeting, squad: buildSquadDynamicsView(db, context.team.id) };
+      } catch (error) {
+        if (error instanceof MeetingActionError) throw appError("INVALID_SELECTION", error.message);
+        throw error;
+      }
     }, true);
   }
 
@@ -1473,7 +1489,19 @@ const buildSquadDynamicsView = (db: GameDatabase, teamId: EntityId): SquadDynami
     topIssue: cohesionRecord?.topIssue,
   };
 
-  return { concerns, promises: activePromises.map(toPromiseView), cohesion, groups };
+  const disputes = dynamics.openDisputesForTeam(teamId).map((dispute) => ({
+    ...dispute,
+    playerName: displayName(getPerson(db, dispute.personId)),
+    withPlayerName: dispute.withPersonId ? displayName(getPerson(db, dispute.withPersonId)) : undefined,
+  }));
+  return {
+    concerns,
+    promises: activePromises.map(toPromiseView),
+    cohesion,
+    groups,
+    disputes,
+    meetings: dynamics.meetingsForTeam(teamId).slice(0, 10),
+  };
 };
 
 const unemployedCareerHeader = (db: GameDatabase, save: SaveMetadata): CareerHeader => {

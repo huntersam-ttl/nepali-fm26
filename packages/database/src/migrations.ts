@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 26;
+export const CURRENT_DATABASE_VERSION = 27;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -2388,6 +2388,46 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
         top_issue TEXT,
         updated_on TEXT NOT NULL
       );
+    `,
+  },
+  {
+    version: 27,
+    sql: `
+      -- Manager Relationships & Squad Dynamics: Phase D meetings and mediation.
+      CREATE TABLE IF NOT EXISTS squad_disputes (
+        id TEXT PRIMARY KEY,
+        team_id TEXT NOT NULL REFERENCES teams(id),
+        kind TEXT NOT NULL,
+        person_id TEXT NOT NULL REFERENCES persons(id),
+        with_person_id TEXT REFERENCES persons(id),
+        concern_type TEXT NOT NULL,
+        status TEXT NOT NULL,
+        raised_on TEXT NOT NULL,
+        resolved_on TEXT
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_squad_disputes_team_status
+        ON squad_disputes(team_id, status);
+
+      CREATE TABLE IF NOT EXISTS squad_meetings (
+        id TEXT PRIMARY KEY,
+        team_id TEXT NOT NULL REFERENCES teams(id),
+        manager_profile_id TEXT NOT NULL REFERENCES manager_profiles(id),
+        type TEXT NOT NULL,
+        person_id TEXT REFERENCES persons(id),
+        with_person_id TEXT REFERENCES persons(id),
+        concern_id TEXT REFERENCES player_concerns(id),
+        dispute_id TEXT REFERENCES squad_disputes(id),
+        outcome TEXT NOT NULL,
+        summary TEXT NOT NULL,
+        occurred_on TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_squad_meetings_team
+        ON squad_meetings(team_id, occurred_on);
+
+      CREATE INDEX IF NOT EXISTS idx_squad_meetings_type_person
+        ON squad_meetings(team_id, type, person_id, occurred_on);
     `,
   },
 ];

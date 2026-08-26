@@ -22,10 +22,14 @@ import {
   type PlayerContractRecord,
   type PlayerSquadRole,
   type SaveMetadata,
+  type SquadDispute,
   type SquadGroupMembership,
   type SquadGroupType,
   type SquadHierarchyEntry,
   type SquadHierarchyRole,
+  type SquadMeeting,
+  type SquadMeetingOutcome,
+  type SquadMeetingType,
   type TeamCohesion,
   type TeamCohesionLevel,
 } from "@nepal-football-sim/shared-types";
@@ -591,15 +595,29 @@ const evaluateTeamCohesion = (
   }
   for (const [type, concerns] of escalatedByType) {
     if (concerns.length < 2) continue;
-    dynamics.insertHistoryEvent({
-      id: createEntityId(),
-      personId: concerns[0]!.personId,
-      teamId,
-      managerProfileId,
-      eventType: "DISPUTE_FLARED",
-      occurredOn: worldDate,
-      data: { kind: "PLAYER_VS_PLAYER", withPersonId: concerns[1]!.personId, type },
-    });
+    const [first, second] = concerns;
+    if (!dynamics.findDispute(teamId, "PLAYER_VS_PLAYER", first!.personId, second!.personId, type)) {
+      const dispute: SquadDispute = {
+        id: createEntityId(),
+        teamId,
+        kind: "PLAYER_VS_PLAYER",
+        personId: first!.personId,
+        withPersonId: second!.personId,
+        concernType: type,
+        status: "OPEN",
+        raisedOn: worldDate,
+      };
+      dynamics.insertDispute(dispute);
+      dynamics.insertHistoryEvent({
+        id: createEntityId(),
+        personId: first!.personId,
+        teamId,
+        managerProfileId,
+        eventType: "DISPUTE_FLARED",
+        occurredOn: worldDate,
+        data: { kind: "PLAYER_VS_PLAYER", withPersonId: second!.personId, type },
+      });
+    }
     topIssue = `Multiple players are unhappy about ${CONCERN_TYPE_LABEL[type]} at the same time.`;
     score -= 5;
     break;
@@ -610,16 +628,37 @@ const evaluateTeamCohesion = (
       return (dynamics.relationship(managerProfileId, concern.personId)?.score ?? 0) <= -50;
     });
     if (managerDispute) {
-      dynamics.insertHistoryEvent({
-        id: createEntityId(),
-        personId: managerDispute.personId,
-        teamId,
-        managerProfileId,
-        eventType: "DISPUTE_FLARED",
-        occurredOn: worldDate,
-        data: { kind: "PLAYER_VS_MANAGER", type: managerDispute.type },
-      });
+      if (!dynamics.findDispute(teamId, "PLAYER_VS_MANAGER", managerDispute.personId, undefined, managerDispute.type)) {
+        const dispute: SquadDispute = {
+          id: createEntityId(),
+          teamId,
+          kind: "PLAYER_VS_MANAGER",
+          personId: managerDispute.personId,
+          concernType: managerDispute.type,
+          status: "OPEN",
+          raisedOn: worldDate,
+        };
+        dynamics.insertDispute(dispute);
+        dynamics.insertHistoryEvent({
+          id: createEntityId(),
+          personId: managerDispute.personId,
+          teamId,
+          managerProfileId,
+          eventType: "DISPUTE_FLARED",
+          occurredOn: worldDate,
+          data: { kind: "PLAYER_VS_MANAGER", type: managerDispute.type },
+        });
+      }
       topIssue = `A senior player is in open dispute with you over ${CONCERN_TYPE_LABEL[managerDispute.type]}.`;
+    }
+  }
+  if (!topIssue) {
+    const openDispute = dynamics.openDisputesForTeam(teamId)[0];
+    if (openDispute) {
+      topIssue =
+        openDispute.kind === "PLAYER_VS_MANAGER"
+          ? `A senior player is still in open dispute with you over ${CONCERN_TYPE_LABEL[openDispute.concernType]}.`
+          : `Two players remain at odds over ${CONCERN_TYPE_LABEL[openDispute.concernType]}.`;
     }
   }
 
@@ -666,7 +705,10 @@ const logEvent = (
     | "PROMISE_MADE"
     | "PROMISE_KEPT"
     | "PROMISE_BROKEN"
-    | "PROMISE_EXPIRED",
+    | "PROMISE_EXPIRED"
+    | "MEETING_HELD"
+    | "DISPUTE_MEDIATED"
+    | "DISPUTE_UNRESOLVED",
   worldDate: string,
   data: Record<string, unknown>,
 ): void => {
@@ -689,6 +731,194 @@ export const activeConcernCount = (db: GameDatabase, teamId: EntityId): number =
 // ---------------------------------------------------------------------------
 // Phase B — manager responses and promises
 // ---------------------------------------------------------------------------
+
+const MEETING_COOLDOWN_DAYS: Record<SquadMeetingType, number> = {
+  ONE_TO_ONE: 14,
+  MEDIATE_DISPUTE: 14,
+  ADDRESS_MANAGER_DISPUTE: 14,
+  CAPTAIN_CONSULTATION: 10,
+  SQUAD_MEETING: 21,
+};
+
+export class MeetingActionError extends Error {
+  constructor(
+    readonly code:
+      | "ON_COOLDOWN"
+      | "DISPUTE_NOT_FOUND"
+      | "DISPUTE_NOT_OPEN"
+      | "NO_CAPTAIN"
+      | "NOTHING_TO_ADDRESS",
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+/** Throws when the same kind of meeting was held too recently — no spamming a player or the squad. */
+const assertMeetingAllowed = (
+  db: GameDatabase,
+  teamId: EntityId,
+  type: SquadMeetingType,
+  personId: EntityId | undefined,
+  worldDate: string,
+): void => {
+  const recent = new SquadDynamicsRepository(db).lastMeeting(teamId, type, personId);
+  if (!recent) return;
+  const daysSince = daysBetween(recent.occurredOn, worldDate);
+  const cooldown = MEETING_COOLDOWN_DAYS[type];
+  if (daysSince < cooldown) {
+    throw new MeetingActionError(
+      "ON_COOLDOWN",
+      `Wait ${cooldown - daysSince} more day(s) before doing that again.`,
+    );
+  }
+};
+
+const recordMeeting = (
+  db: GameDatabase,
+  teamId: EntityId,
+  managerProfileId: EntityId,
+  type: SquadMeetingType,
+  outcome: SquadMeetingOutcome,
+  summary: string,
+  worldDate: string,
+  extra: { personId?: EntityId; withPersonId?: EntityId; concernId?: EntityId; disputeId?: EntityId } = {},
+): SquadMeeting => {
+  const meeting: SquadMeeting = {
+    id: createEntityId(),
+    teamId,
+    managerProfileId,
+    type,
+    outcome,
+    summary,
+    occurredOn: worldDate,
+    ...extra,
+  };
+  new SquadDynamicsRepository(db).insertMeeting(meeting);
+  logEvent(db, extra.personId ?? managerProfileId, teamId, managerProfileId, "MEETING_HELD", worldDate, {
+    type,
+    outcome,
+  });
+  return meeting;
+};
+
+export const holdSquadMeeting = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  managerProfileId: EntityId,
+  teamId: EntityId,
+  command: { type: SquadMeetingType; personId?: EntityId; disputeId?: EntityId },
+): SquadMeeting => {
+  const dynamics = new SquadDynamicsRepository(db);
+  let personId = command.personId;
+  let dispute = command.disputeId ? dynamics.disputeById(command.disputeId) : undefined;
+  if (command.type === "MEDIATE_DISPUTE") {
+    if (!dispute) throw new MeetingActionError("DISPUTE_NOT_FOUND", "That dispute no longer exists.");
+    if (dispute.teamId !== teamId) throw new MeetingActionError("DISPUTE_NOT_FOUND", "That dispute is outside your squad.");
+    if (dispute.status !== "OPEN") throw new MeetingActionError("DISPUTE_NOT_OPEN", "That dispute is already closed.");
+    personId = dispute.personId;
+  } else if (command.type === "ADDRESS_MANAGER_DISPUTE") {
+    if (!personId) throw new MeetingActionError("NOTHING_TO_ADDRESS", "Select a player to meet.");
+    dispute = dynamics.openDisputesForTeam(teamId).find((entry) => entry.kind === "PLAYER_VS_MANAGER" && entry.personId === personId);
+    if (!dispute) throw new MeetingActionError("NOTHING_TO_ADDRESS", "That player has no open dispute with you.");
+  } else if (command.type === "CAPTAIN_CONSULTATION") {
+    personId = dynamics.hierarchyForTeam(teamId).find((entry) => entry.role === "CAPTAIN")?.personId;
+    if (!personId) throw new MeetingActionError("NO_CAPTAIN", "This squad has no captain to consult.");
+  } else if (command.type === "ONE_TO_ONE" && !personId) {
+    throw new MeetingActionError("NOTHING_TO_ADDRESS", "Select a player to meet.");
+  } else if (command.type === "SQUAD_MEETING") {
+    const cohesionRecord = dynamics.cohesion(teamId);
+    const meaningful =
+      cohesionRecord && (["SHAKY", "POOR", "CRITICAL"].includes(cohesionRecord.level) || cohesionRecord.topIssue);
+    if (!meaningful) {
+      throw new MeetingActionError(
+        "NOTHING_TO_ADDRESS",
+        "The dressing room is calm — there's nothing for a squad meeting to address right now.",
+      );
+    }
+  }
+  assertMeetingAllowed(db, teamId, command.type, personId, save.worldDate);
+  const cohesion = dynamics.cohesion(teamId)?.score ?? 70;
+  const hierarchy = dynamics.hierarchyForTeam(teamId);
+  const influenceOf = (id: EntityId | undefined) =>
+    hierarchy.find((entry) => entry.personId === id)?.influence ?? 30;
+  const relationshipOf = (id: EntityId | undefined) =>
+    id ? dynamics.relationship(managerProfileId, id)?.score ?? 0 : 0;
+
+  const relationship = relationshipOf(personId);
+  const avgRelationship = dispute?.withPersonId
+    ? (relationship + relationshipOf(dispute.withPersonId)) / 2
+    : relationship;
+  const involvedInfluence = dispute?.withPersonId
+    ? (influenceOf(personId) + influenceOf(dispute.withPersonId)) / 2
+    : influenceOf(personId);
+  // More influential players carry more dressing-room weight: their trust is
+  // harder to win back, so high influence drags the odds down a little.
+  const influenceDrag = (involvedInfluence - 50) / 4;
+  // A seeded roll keeps this state-driven but never a guaranteed success.
+  const rng = new SeededRandom(
+    `squad-meeting:${command.type}:${personId ?? "team"}:${dispute?.id ?? "-"}:${save.worldDate}`,
+  );
+  const roll = (rng.next() - 0.5) * 20;
+  const score = cohesion + avgRelationship - influenceDrag + roll;
+  const outcome: SquadMeetingOutcome = score >= 70 ? "POSITIVE" : score >= 40 ? "NEUTRAL" : "NEGATIVE";
+  const summary = outcome === "POSITIVE" ? "The meeting brought clarity and steadied the dressing room." : outcome === "NEUTRAL" ? "The meeting was constructive, but tensions remain." : "The meeting failed to settle the underlying tension.";
+  const meeting = recordMeeting(db, teamId, managerProfileId, command.type, outcome, summary, save.worldDate, {
+    personId, withPersonId: dispute?.withPersonId, disputeId: dispute?.id,
+    concernId: personId ? dynamics.concernsForPerson(personId, teamId).find((entry) => entry.status !== "RESOLVED")?.id : undefined,
+  });
+  if (dispute) {
+    const disputeStatus = outcome === "POSITIVE" ? "MEDIATED" : "UNRESOLVED";
+    dynamics.updateDisputeStatus(dispute.id, disputeStatus, save.worldDate);
+    logEvent(db, dispute.personId, teamId, managerProfileId, disputeStatus === "MEDIATED" ? "DISPUTE_MEDIATED" : "DISPUTE_UNRESOLVED", save.worldDate, { disputeId: dispute.id, meetingId: meeting.id });
+    // Easing or deepening whatever the dispute was actually about.
+    for (const involvedId of dispute.withPersonId ? [dispute.personId, dispute.withPersonId] : [dispute.personId]) {
+      const concern = dynamics.concern(involvedId, teamId, dispute.concernType);
+      if (concern && concern.status !== "RESOLVED") {
+        dynamics.upsertConcern({
+          ...concern,
+          severity: clamp(concern.severity + (outcome === "POSITIVE" ? -3 : 1), 1, 10),
+          status: outcome === "POSITIVE" && concern.status === "ESCALATED" ? "ACTIVE" : concern.status,
+          updatedOn: save.worldDate,
+        });
+      }
+    }
+    if (dispute.withPersonId) {
+      // Mediation changes both relationships, not just the primary subject's.
+      adjustRelationship(
+        db,
+        managerProfileId,
+        dispute.withPersonId,
+        outcome === "POSITIVE" ? 6 : outcome === "NEUTRAL" ? 1 : -4,
+        save.worldDate,
+      );
+    }
+  }
+  if (personId) {
+    adjustRelationship(
+      db,
+      managerProfileId,
+      personId,
+      outcome === "POSITIVE" ? 6 : outcome === "NEUTRAL" ? 1 : -4,
+      save.worldDate,
+    );
+  }
+  if (command.type === "SQUAD_MEETING") {
+    const severityDelta = outcome === "POSITIVE" ? -1 : outcome === "NEGATIVE" ? 1 : 0;
+    if (severityDelta !== 0) {
+      for (const concern of dynamics.concernsForTeam(teamId).filter((entry) => entry.status !== "RESOLVED")) {
+        dynamics.upsertConcern({
+          ...concern,
+          severity: clamp(concern.severity + severityDelta, 1, 10),
+          updatedOn: save.worldDate,
+        });
+      }
+    }
+    const moraleDelta = outcome === "POSITIVE" ? 3 : outcome === "NEGATIVE" ? -3 : 0;
+    if (moraleDelta !== 0) nudgeSquadMorale(db, teamId, moraleDelta, save.worldDate, []);
+  }
+  return meeting;
+};
 
 export class ConcernActionError extends Error {
   constructor(
@@ -819,6 +1049,7 @@ export const respondToConcern = (
       `${action} is not a valid response to a ${concern.type} concern.`,
     );
   }
+  assertMeetingAllowed(db, concern.teamId, "ONE_TO_ONE", concern.personId, save.worldDate);
 
   const worldDate = save.worldDate;
   const attributes = new PlayerRepository(db)
