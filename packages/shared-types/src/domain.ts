@@ -3312,6 +3312,11 @@ export type NationalTeamCampLifecycle = { id: EntityId; federationId: EntityId; 
 export type InternationalCommitment = { playerId: EntityId; federationId: EntityId; status: "ACTIVE" | "TEMPORARILY_RELUCTANT" | "RETIRED"; decidedOn: ISODate; reason?: string; provenanceStatus: "SIMULATION_ONLY" };
 export type DiasporaRecruitment = { id: EntityId; federationId: EntityId; playerId: EntityId; status: "IDENTIFIED" | "CONTACTED" | "INTERESTED" | "ELIGIBLE_CONFIRMED" | "COMMITTED"; lastUpdated: ISODate; provenanceStatus: "SIMULATION_ONLY" };
 
+export type NationalTeamSelectionPolicy = "FORM_FIRST" | "EXPERIENCE_FIRST" | "YOUTH_DEVELOPMENT" | "DOMESTIC_CORE" | "DIASPORA_INCLUSIVE" | "BALANCED";
+export type NationalTeamWatchlistItem = { id: EntityId; federationId: EntityId; nationalTeamId: EntityId; playerId: EntityId; playerKnowledgeLevel: PlayerKnowledgeLevel; reason: string; lastReviewed: ISODate; status: "MONITORING" | "SELECTED" | "DROPPED"; provenanceStatus: "SIMULATION_ONLY" };
+export type NationalTeamOperationalPlan = { id: EntityId; federationId: EntityId; nationalTeamId: EntityId; competitionEditionId?: EntityId; campStart: ISODate; campEnd: ISODate; travelPlan: string; baseVenue?: EntityId; registrationDeadline?: ISODate; recoveryDaysBetweenFixtures: number; status: "PLANNED" | "ACTIVE" | "COMPLETED"; provenanceStatus: "SIMULATION_ONLY" };
+export type NationalTeamInternationalForm = { id: EntityId; nationalTeamId: EntityId; playerId: EntityId; windowDate: ISODate; appearances: number; minutes: number; goals: number; formRating: number; rationale: string; provenanceStatus: "SIMULATION_ONLY" };
+
 export type InternationalRetirementStatus = "ACTIVE" | "CONSIDERING" | "RETIRED_INTERNATIONAL";
 
 export type InternationalRetirement = {

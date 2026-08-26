@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 45;
+export const CURRENT_DATABASE_VERSION = 46;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -2872,6 +2872,24 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       );
       CREATE INDEX IF NOT EXISTS idx_national_team_registrations_deadline ON national_team_squad_registrations(competition_edition_id, registration_deadline);
       CREATE INDEX IF NOT EXISTS idx_national_team_camps_status ON national_team_camp_lifecycles(national_team_id, status);
+    `,
+  },
+  {
+    version: 46,
+    sql: `
+      CREATE TABLE IF NOT EXISTS national_team_watchlist (
+        id TEXT PRIMARY KEY, federation_id TEXT NOT NULL REFERENCES federations(id), national_team_id TEXT NOT NULL REFERENCES teams(id), player_id TEXT NOT NULL REFERENCES persons(id),
+        player_knowledge_level TEXT NOT NULL, reason TEXT NOT NULL, last_reviewed TEXT NOT NULL, status TEXT NOT NULL, provenance_status TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS national_team_operational_plans (
+        id TEXT PRIMARY KEY, federation_id TEXT NOT NULL REFERENCES federations(id), national_team_id TEXT NOT NULL REFERENCES teams(id), competition_edition_id TEXT REFERENCES international_competition_editions(id),
+        camp_start TEXT NOT NULL, camp_end TEXT NOT NULL, travel_plan TEXT NOT NULL, base_venue_id TEXT REFERENCES venues(id), registration_deadline TEXT, recovery_days INTEGER NOT NULL, status TEXT NOT NULL, provenance_status TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS national_team_international_form (
+        id TEXT PRIMARY KEY, national_team_id TEXT NOT NULL REFERENCES teams(id), player_id TEXT NOT NULL REFERENCES persons(id), window_date TEXT NOT NULL, appearances INTEGER NOT NULL, minutes INTEGER NOT NULL, goals INTEGER NOT NULL, form_rating REAL NOT NULL, rationale TEXT NOT NULL, provenance_status TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_national_team_watchlist_team ON national_team_watchlist(national_team_id, status, last_reviewed);
+      CREATE INDEX IF NOT EXISTS idx_national_team_form_player ON national_team_international_form(player_id, window_date);
     `,
   },
 ];
