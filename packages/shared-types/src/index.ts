@@ -4,3 +4,4 @@ export * from "./manager-contract.js";
 export * from "./ids.js";
 export * from "./government.js";
 export * from "./grassroots.js";
+export * from "./media-rights.js";
