@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 40;
+export const CURRENT_DATABASE_VERSION = 41;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -2726,6 +2726,27 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       );
       CREATE INDEX IF NOT EXISTS idx_procurement_contracts_club ON procurement_contracts(club_id, status, ends_on);
       CREATE INDEX IF NOT EXISTS idx_procurement_service_records_club ON procurement_service_records(club_id, recorded_on);
+    `,
+  },
+  {
+    version: 41,
+    sql: `
+      CREATE TABLE IF NOT EXISTS federation_election_cycles (
+        id TEXT PRIMARY KEY, federation_id TEXT NOT NULL REFERENCES federations(id), nomination_start TEXT NOT NULL,
+        election_date TEXT NOT NULL, term_years INTEGER NOT NULL, status TEXT NOT NULL, provenance_status TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS federation_election_candidates (
+        id TEXT PRIMARY KEY, cycle_id TEXT NOT NULL REFERENCES federation_election_cycles(id), federation_id TEXT NOT NULL REFERENCES federations(id),
+        person_id TEXT NOT NULL REFERENCES persons(id), reputation REAL NOT NULL, support_base REAL NOT NULL, committee_influence REAL NOT NULL,
+        voting_blocs_json TEXT NOT NULL, manifesto_json TEXT NOT NULL, incumbent INTEGER NOT NULL, status TEXT NOT NULL, provenance_status TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS federation_election_results (
+        id TEXT PRIMARY KEY, cycle_id TEXT NOT NULL REFERENCES federation_election_cycles(id), federation_id TEXT NOT NULL REFERENCES federations(id),
+        winner_candidate_id TEXT NOT NULL REFERENCES federation_election_candidates(id), elected_person_id TEXT NOT NULL REFERENCES persons(id),
+        votes_json TEXT NOT NULL, decided_at TEXT NOT NULL, status TEXT NOT NULL, provenance_status TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_federation_election_cycles_date ON federation_election_cycles(federation_id, election_date);
+      CREATE INDEX IF NOT EXISTS idx_federation_election_candidates_cycle ON federation_election_candidates(cycle_id, status);
     `,
   },
 ];

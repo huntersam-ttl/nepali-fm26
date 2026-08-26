@@ -2772,6 +2772,43 @@ export type FederationLeadershipTenure = {
   provenanceStatus: "SIMULATION_ONLY";
 };
 
+export type FederationElectionCycle = {
+  id: EntityId;
+  federationId: EntityId;
+  nominationStart: ISODate;
+  electionDate: ISODate;
+  termYears: number;
+  status: "SCHEDULED" | "NOMINATIONS" | "VOTING" | "COMPLETED";
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+export type FederationElectionCandidate = {
+  id: EntityId;
+  cycleId: EntityId;
+  federationId: EntityId;
+  personId: EntityId;
+  reputation: number;
+  supportBase: number;
+  committeeInfluence: number;
+  votingBlocs: Record<string, number>;
+  manifesto: Record<string, number>;
+  incumbent: boolean;
+  status: "ELIGIBLE" | "WITHDRAWN" | "ELECTED" | "DEFEATED";
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+export type FederationElectionResult = {
+  id: EntityId;
+  cycleId: EntityId;
+  federationId: EntityId;
+  winnerCandidateId: EntityId;
+  electedPersonId: EntityId;
+  votes: Record<string, number>;
+  decidedAt: ISODate;
+  status: "COMPLETED";
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
 export type FederationCommitteeType =
   | "COMPETITION_COMMITTEE"
   | "TECHNICAL_COMMITTEE"
