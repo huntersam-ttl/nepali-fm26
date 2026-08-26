@@ -5,6 +5,7 @@ export * from "./demo-league.js";
 export * from "./desktop-application.js";
 export * from "./desktop-server.js";
 export * from "./fixture-generation.js";
+export * from "./government.js";
 export * from "./federation-governance.js";
 export * from "./national-team-management.js";
 export * from "./media.js";
