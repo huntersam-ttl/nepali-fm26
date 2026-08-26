@@ -77,12 +77,16 @@ import type {
   CompetitionReformProposal,
   FootballStaffRole,
   StaffApplication,
+  StaffApproach,
   StaffAppointment,
   StaffEmploymentContract,
   StaffEmploymentStatus,
   StaffHistoryEvent,
   StaffLicence,
+  StaffLicenceCourse,
+  StaffPerformanceRecord,
   StaffProfile,
+  StaffRenewalOffer,
   StaffSimulationProfile,
   StaffVacancy,
   Team,
@@ -591,7 +595,15 @@ export class WorldRepository {
         `INSERT INTO staff_profiles
         (id, person_id, preferred_role, salary_expectation, reputation, country_knowledge_json,
           club_knowledge_json, availability, work_eligibility_status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          preferred_role = excluded.preferred_role,
+          salary_expectation = excluded.salary_expectation,
+          reputation = excluded.reputation,
+          country_knowledge_json = excluded.country_knowledge_json,
+          club_knowledge_json = excluded.club_knowledge_json,
+          availability = excluded.availability,
+          work_eligibility_status = excluded.work_eligibility_status`,
       )
       .run(
         profile.id,
@@ -2272,6 +2284,52 @@ const mapStaffApplicationRow = (row: any): StaffApplication => ({
   decidedOn: row.decided_on ?? undefined,
   offeredSalaryMinor: row.offered_salary_minor ?? undefined,
   offeredContractEnd: row.offered_contract_end ?? undefined,
+  counterSalaryMinor: row.counter_salary_minor ?? undefined,
+});
+
+const mapStaffRenewalOfferRow = (row: any): StaffRenewalOffer => ({
+  id: row.id,
+  appointmentId: row.appointment_id,
+  personId: row.person_id,
+  clubId: row.club_id,
+  proposedSalaryMinor: row.proposed_salary_minor,
+  proposedContractEnd: row.proposed_contract_end,
+  counterSalaryMinor: row.counter_salary_minor ?? undefined,
+  status: row.status,
+  createdOn: row.created_on,
+  decidedOn: row.decided_on ?? undefined,
+});
+
+const mapStaffPerformanceRecordRow = (row: any): StaffPerformanceRecord => ({
+  id: row.id,
+  personId: row.person_id,
+  appointmentId: row.appointment_id,
+  clubId: row.club_id,
+  periodEnd: row.period_end,
+  score: row.score,
+  note: row.note ?? undefined,
+});
+
+const mapStaffLicenceCourseRow = (row: any): StaffLicenceCourse => ({
+  id: row.id,
+  personId: row.person_id,
+  fundedByClubId: row.funded_by_club_id ?? undefined,
+  targetLicenceType: row.target_licence_type,
+  startedOn: row.started_on,
+  completesOn: row.completes_on,
+  status: row.status,
+});
+
+const mapStaffApproachRow = (row: any): StaffApproach => ({
+  id: row.id,
+  personId: row.person_id,
+  fromClubId: row.from_club_id,
+  currentClubId: row.current_club_id ?? undefined,
+  role: row.role,
+  offeredSalaryMinor: row.offered_salary_minor,
+  status: row.status,
+  createdOn: row.created_on,
+  decidedOn: row.decided_on ?? undefined,
 });
 
 const mapStaffEmploymentContractRow = (row: any): StaffEmploymentContract => ({

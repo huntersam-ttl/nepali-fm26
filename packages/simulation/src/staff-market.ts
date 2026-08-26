@@ -1,4 +1,5 @@
 import {
+  ClubEconomyRepository,
   StaffMarketRepository,
   TransferMarketRepository,
   WorldRepository,
@@ -12,11 +13,17 @@ import {
   type Person,
   type SaveMetadata,
   type StaffApplication,
+  type StaffApplicationStatus,
+  type StaffApproach,
   type StaffAppointment,
   type StaffEmploymentContract,
   type StaffHistoryEvent,
   type StaffLicence,
+  type StaffLicenceCourse,
+  type StaffPerformanceRecord,
   type StaffProfile,
+  type StaffRenewalOffer,
+  type StaffRenewalOfferStatus,
   type StaffSimulationProfile,
   type StaffVacancy,
   type StaffVacancyReason,
@@ -453,6 +460,20 @@ export const evaluateStaffContracts = (
   return outcome;
 };
 
+/** Runs the expiry/renewal check across every senior club, not just the player's — this is
+ * what makes contract expiry and free-agent movement a world-wide fact, not a player-only one. */
+export const evaluateAllStaffContracts = (db: GameDatabase, save: SaveMetadata): StaffContractTickOutcome => {
+  const teams = seniorTeams(db, save.worldDate);
+  const clubIds = new Set(teams.map((team) => team.clubId).filter((id): id is EntityId => Boolean(id)));
+  const combined: StaffContractTickOutcome = { renewed: [], expired: [] };
+  for (const clubId of clubIds) {
+    const outcome = evaluateStaffContracts(db, save, clubId);
+    combined.renewed.push(...outcome.renewed);
+    combined.expired.push(...outcome.expired);
+  }
+  return combined;
+};
+
 // ---------------------------------------------------------------------------
 // AI recruitment
 // ---------------------------------------------------------------------------
@@ -583,6 +604,7 @@ export const ensureStaffProfileForRetiree = (
 export type StaffCareerHistoryView = {
   history: StaffHistoryEvent[];
   contracts: StaffEmploymentContract[];
+  performance: StaffPerformanceRecord[];
 };
 
 export const staffCareerHistory = (db: GameDatabase, personId: EntityId): StaffCareerHistoryView => {
@@ -590,5 +612,630 @@ export const staffCareerHistory = (db: GameDatabase, personId: EntityId): StaffC
   return {
     history: market.staffHistoryForPerson(personId),
     contracts: market.employmentContractsForPerson(personId),
+    performance: market.performanceHistoryForPerson(personId),
   };
+};
+
+// ===========================================================================
+// Phase B — negotiation, interest, performance, licence pathway, poaching
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// Club reputation and staff interest
+// ---------------------------------------------------------------------------
+
+/** How prestigious a club looks to a prospective employee — board ambition plus league standing. */
+export const clubReputationScore = (db: GameDatabase, clubId: EntityId, worldDate: string): number => {
+  let score = 50;
+  const policy = new ClubEconomyRepository(db).boardPolicy(clubId);
+  if (policy) {
+    const bump: Partial<Record<typeof policy.strategicObjective, number>> = {
+      TITLE_CHALLENGE: 25,
+      PROMOTION: 12,
+      COMMERCIAL_GROWTH: 5,
+      SURVIVE: -15,
+    };
+    score += bump[policy.strategicObjective] ?? 0;
+  }
+  const seasonId = currentSeasonId(db, worldDate);
+  if (seasonId) {
+    // league_standings carries no explicit position column — rank by points,
+    // then goal difference, same tiebreak order the league table itself uses.
+    const row = db
+      .prepare(
+        `SELECT ls.points AS points, ls.goal_difference AS gd,
+          1 + (
+            SELECT COUNT(*) FROM league_standings other
+            WHERE other.competition_season_id = ls.competition_season_id
+              AND (other.points > ls.points OR (other.points = ls.points AND other.goal_difference > ls.goal_difference))
+          ) AS position
+        FROM league_standings ls
+        JOIN club_memberships cm ON cm.team_id = ls.team_id AND cm.competition_season_id = ls.competition_season_id
+        WHERE cm.club_id = ? AND ls.competition_season_id = ?`,
+      )
+      .get(clubId, seasonId) as SqlRow | undefined;
+    if (row?.position) score += clamp((10 - row.position) * 2, -15, 15);
+  }
+  return clamp(score, 0, 100);
+};
+
+const ROLE_SENIORITY_RANK: Partial<Record<FootballStaffRole, number>> = {
+  SPORTING_DIRECTOR: 9,
+  TECHNICAL_DIRECTOR: 9,
+  HEAD_COACH: 8,
+  CHIEF_SCOUT: 6,
+  ACADEMY_DIRECTOR: 6,
+  ASSISTANT_COACH: 5,
+  FIRST_TEAM_COACH: 5,
+  DOCTOR: 5,
+  HEAD_PHYSIO: 5,
+  HEAD_ANALYST: 4,
+  GOALKEEPER_COACH: 4,
+  FITNESS_COACH: 4,
+  SPORTS_SCIENTIST: 4,
+  PSYCHOLOGIST: 4,
+  SET_PIECE_COACH: 3,
+  YOUTH_COACH: 3,
+  ANALYST: 3,
+  PHYSIO: 3,
+  SCOUT: 2,
+  NUTRITIONIST: 2,
+};
+const seniorityRankOf = (role: FootballStaffRole): number => ROLE_SENIORITY_RANK[role] ?? 3;
+
+export type StaffInterestFactors = {
+  score: number;
+  reasons: string[];
+};
+
+/**
+ * How keen a candidate is on one specific offer, from real inputs only: the
+ * hiring club's reputation, whether the role is a step up or down for them,
+ * how the salary compares to what they'd expect, their licence/role fit, and
+ * — for a foreign candidate — whether the money is worth relocating for.
+ */
+export const staffInterestScore = (
+  db: GameDatabase,
+  personId: EntityId,
+  clubId: EntityId,
+  role: FootballStaffRole,
+  offeredSalaryMinor: number,
+  worldDate: string,
+): StaffInterestFactors => {
+  const market = new StaffMarketRepository(db);
+  const profile = market.staffProfile(personId);
+  const licences = market.staffLicencesForPerson(personId);
+  const reasons: string[] = [];
+  let score = 50;
+
+  const reputation = clubReputationScore(db, clubId, worldDate);
+  score += (reputation - 50) * 0.3;
+  if (reputation >= 70) reasons.push("Club reputation is a strong draw.");
+  else if (reputation <= 30) reasons.push("Club reputation is unappealing.");
+
+  const eligibility = staffEligibility(role, profile, licences);
+  if (!eligibility.eligible) {
+    score -= 40;
+    reasons.push(eligibility.note ?? "Not qualified for the role.");
+  } else if (profile?.preferredRole === role) {
+    score += 10;
+    reasons.push("Exactly the role they specialise in.");
+  }
+
+  const expectation = estimateSalaryExpectation(role, licences, profile?.reputation);
+  const salaryRatio = expectation > 0 ? offeredSalaryMinor / expectation : 1;
+  score += clamp((salaryRatio - 1) * 60, -30, 30);
+  if (salaryRatio >= 1.1) reasons.push("Salary comfortably beats their expectation.");
+  else if (salaryRatio < 0.9) reasons.push("Salary falls short of their expectation.");
+
+  const currentAppointment = market.activeAppointment(personId);
+  if (currentAppointment) {
+    const currentRank = seniorityRankOf(currentAppointment.role);
+    const offeredRank = seniorityRankOf(role);
+    if (offeredRank > currentRank) {
+      score += 15;
+      reasons.push("A genuine step up in their career.");
+    } else if (offeredRank < currentRank) {
+      score -= 15;
+      reasons.push("A step down from their current role.");
+    }
+  }
+
+  if (!isDomesticPerson(db, personId)) {
+    // A foreign move needs to be worth the upheaval, not just adequate.
+    score += salaryRatio >= 1.3 ? 10 : -20;
+    reasons.push(salaryRatio >= 1.3 ? "Salary justifies relocating abroad." : "Not enough on offer to relocate abroad.");
+  }
+
+  return { score: clamp(Math.round(score), 0, 100), reasons };
+};
+
+// ---------------------------------------------------------------------------
+// Hire negotiation (against an open vacancy)
+// ---------------------------------------------------------------------------
+
+export class StaffNegotiationError extends Error {
+  constructor(
+    readonly code: "APPLICATION_NOT_FOUND" | "APPLICATION_NOT_ACTIONABLE" | "VACANCY_NOT_FOUND" | "OFFER_NOT_FOUND" | "OFFER_NOT_ACTIONABLE",
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+/** The club proposes terms for one candidate against one open vacancy; resolves immediately. */
+export const applyForStaffVacancy = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  vacancyId: EntityId,
+  personId: EntityId,
+  proposedSalaryMinor: number,
+  proposedContractMonths = 24,
+): StaffApplication => {
+  const market = new StaffMarketRepository(db);
+  const vacancy = market.vacancyById(vacancyId);
+  if (!vacancy || vacancy.status !== "VACANT" || !vacancy.clubId) {
+    throw new StaffNegotiationError("VACANCY_NOT_FOUND", "That vacancy is no longer open.");
+  }
+  const worldDate = save.worldDate;
+  const interest = staffInterestScore(db, personId, vacancy.clubId, vacancy.role, proposedSalaryMinor, worldDate);
+  const rng = new SeededRandom(`staff-application:${vacancyId}:${personId}:${worldDate}`);
+  const roll = rng.next() * 100;
+
+  let status: StaffApplicationStatus;
+  let counterSalaryMinor: number | undefined;
+  if (interest.score - roll * 0.3 >= 60) {
+    status = "OFFERED";
+  } else if (interest.score - roll * 0.3 >= 35) {
+    status = "COUNTERED";
+    const licences = market.staffLicencesForPerson(personId);
+    counterSalaryMinor = Math.round(
+      Math.max(proposedSalaryMinor, estimateSalaryExpectation(vacancy.role, licences, market.staffProfile(personId)?.reputation)) * 1.12,
+    );
+  } else {
+    status = "REJECTED";
+  }
+
+  const application: StaffApplication = {
+    id: createEntityId(),
+    vacancyId,
+    personId,
+    status,
+    createdOn: worldDate,
+    decidedOn: worldDate,
+    offeredSalaryMinor: status === "OFFERED" ? proposedSalaryMinor : undefined,
+    offeredContractEnd: status === "OFFERED" ? addDays(worldDate, proposedContractMonths * 30) : undefined,
+    counterSalaryMinor,
+  };
+  market.insertApplication(application);
+  return application;
+};
+
+/** Finalizes an OFFERED or COUNTERED application into a real hire, at whichever terms are pending. */
+export const acceptStaffApplication = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  applicationId: EntityId,
+  contractMonths = 24,
+): StaffAppointment => {
+  const market = new StaffMarketRepository(db);
+  const application = market.applicationById(applicationId);
+  if (!application) throw new StaffNegotiationError("APPLICATION_NOT_FOUND", "That application no longer exists.");
+  if (application.status !== "OFFERED" && application.status !== "COUNTERED") {
+    throw new StaffNegotiationError("APPLICATION_NOT_ACTIONABLE", "That application is no longer open to accept.");
+  }
+  const vacancy = market.vacancyById(application.vacancyId);
+  if (!vacancy || !vacancy.clubId) {
+    throw new StaffNegotiationError("VACANCY_NOT_FOUND", "That vacancy is no longer open.");
+  }
+  const salary =
+    application.status === "COUNTERED" ? application.counterSalaryMinor! : application.offeredSalaryMinor!;
+  const appointment = hireStaff(db, save, vacancy.clubId, vacancy.teamId, application.personId, vacancy.role, salary, contractMonths);
+  market.insertApplication({ ...application, status: "ACCEPTED", decidedOn: save.worldDate });
+  return appointment;
+};
+
+export const declineStaffApplication = (db: GameDatabase, save: SaveMetadata, applicationId: EntityId): void => {
+  const market = new StaffMarketRepository(db);
+  const application = market.applicationById(applicationId);
+  if (!application) throw new StaffNegotiationError("APPLICATION_NOT_FOUND", "That application no longer exists.");
+  market.insertApplication({ ...application, status: "DECLINED", decidedOn: save.worldDate });
+};
+
+// ---------------------------------------------------------------------------
+// Renewal negotiation (against an existing appointment)
+// ---------------------------------------------------------------------------
+
+/** The club proposes new terms to keep an existing staff member; resolves immediately. */
+export const offerStaffRenewal = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  appointmentId: EntityId,
+  proposedSalaryMinor: number,
+  proposedContractMonths = 24,
+): StaffRenewalOffer => {
+  const market = new StaffMarketRepository(db);
+  const appointment = market.appointmentById(appointmentId);
+  if (!appointment || appointment.employmentStatus !== "ACTIVE" || !appointment.clubId) {
+    throw new StaffNegotiationError("APPLICATION_NOT_FOUND", "That appointment is not active.");
+  }
+  const worldDate = save.worldDate;
+  const interest = staffInterestScore(db, appointment.personId, appointment.clubId, appointment.role, proposedSalaryMinor, worldDate);
+  const rng = new SeededRandom(`staff-renewal-offer:${appointmentId}:${worldDate}`);
+  const roll = rng.next() * 100;
+
+  let status: StaffRenewalOfferStatus;
+  let counterSalaryMinor: number | undefined;
+  if (interest.score - roll * 0.3 >= 55) {
+    status = "ACCEPTED";
+  } else if (interest.score - roll * 0.3 >= 30) {
+    status = "COUNTERED";
+    const licences = market.staffLicencesForPerson(appointment.personId);
+    counterSalaryMinor = Math.round(
+      Math.max(proposedSalaryMinor, estimateSalaryExpectation(appointment.role, licences, market.staffProfile(appointment.personId)?.reputation)) * 1.1,
+    );
+  } else {
+    status = "REJECTED";
+  }
+
+  const offer: StaffRenewalOffer = {
+    id: createEntityId(),
+    appointmentId,
+    personId: appointment.personId,
+    clubId: appointment.clubId,
+    proposedSalaryMinor,
+    proposedContractEnd: addDays(worldDate, proposedContractMonths * 30),
+    counterSalaryMinor,
+    status,
+    createdOn: worldDate,
+    decidedOn: worldDate,
+  };
+  market.upsertRenewalOffer(offer);
+
+  if (status === "ACCEPTED") {
+    finalizeRenewal(db, appointment, proposedSalaryMinor, offer.proposedContractEnd, worldDate);
+  }
+  return offer;
+};
+
+const finalizeRenewal = (
+  db: GameDatabase,
+  appointment: StaffAppointment,
+  salaryAmountMinor: number,
+  contractEnd: string,
+  worldDate: string,
+): void => {
+  const market = new StaffMarketRepository(db);
+  if (appointment.contractId) {
+    const contract = market.employmentContractById(appointment.contractId);
+    if (contract) {
+      market.upsertEmploymentContract({ ...contract, salaryAmountMinor, contractEnd, status: "ACTIVE" });
+    }
+  }
+  logStaffHistory(db, appointment.personId, "STAFF_JOINED", worldDate, {
+    appointmentId: appointment.id,
+    clubId: appointment.clubId,
+    teamId: appointment.teamId,
+    description: "Contract renewed.",
+  });
+};
+
+/** Accepts the candidate's counter — the manager blinks first, on their terms. */
+export const acceptStaffRenewalCounter = (db: GameDatabase, save: SaveMetadata, offerId: EntityId): StaffRenewalOffer => {
+  const market = new StaffMarketRepository(db);
+  const offer = market.renewalOfferById(offerId);
+  if (!offer) throw new StaffNegotiationError("OFFER_NOT_FOUND", "That renewal offer no longer exists.");
+  if (offer.status !== "COUNTERED") {
+    throw new StaffNegotiationError("OFFER_NOT_ACTIONABLE", "That offer has no pending counter to accept.");
+  }
+  const appointment = market.appointmentById(offer.appointmentId);
+  if (!appointment) throw new StaffNegotiationError("APPLICATION_NOT_FOUND", "That appointment is not active.");
+
+  const accepted: StaffRenewalOffer = { ...offer, status: "ACCEPTED", decidedOn: save.worldDate };
+  market.upsertRenewalOffer(accepted);
+  finalizeRenewal(db, appointment, offer.counterSalaryMinor!, offer.proposedContractEnd, save.worldDate);
+  return accepted;
+};
+
+export const declineStaffRenewalOffer = (db: GameDatabase, save: SaveMetadata, offerId: EntityId): void => {
+  const market = new StaffMarketRepository(db);
+  const offer = market.renewalOfferById(offerId);
+  if (!offer) throw new StaffNegotiationError("OFFER_NOT_FOUND", "That renewal offer no longer exists.");
+  market.upsertRenewalOffer({ ...offer, status: "DECLINED", decidedOn: save.worldDate });
+};
+
+// ---------------------------------------------------------------------------
+// Performance tracking and reputation progression
+// ---------------------------------------------------------------------------
+
+const REPUTATION_LADDER = ["LOW", "MEDIUM", "HIGH"];
+
+const stepReputation = (current: string | undefined, direction: 1 | -1): string => {
+  const index = REPUTATION_LADDER.indexOf(current ?? "MEDIUM");
+  const base = index === -1 ? 1 : index;
+  return REPUTATION_LADDER[clamp(base + direction, 0, REPUTATION_LADDER.length - 1)]!;
+};
+
+const COACHING_ROLES = new Set<FootballStaffRole>([
+  "ASSISTANT_COACH", "FIRST_TEAM_COACH", "GOALKEEPER_COACH", "FITNESS_COACH", "SET_PIECE_COACH", "YOUTH_COACH",
+]);
+const SCOUTING_ROLES = new Set<FootballStaffRole>(["SCOUT", "CHIEF_SCOUT", "ANALYST", "HEAD_ANALYST"]);
+const MEDICAL_ROLES = new Set<FootballStaffRole>(["PHYSIO", "HEAD_PHYSIO", "DOCTOR", "SPORTS_SCIENTIST"]);
+
+const rolePerformanceScore = (
+  db: GameDatabase,
+  appointment: StaffAppointment,
+  worldDate: string,
+): { score: number; note: string } => {
+  if (appointment.teamId && COACHING_ROLES.has(appointment.role)) {
+    const seasonId = currentSeasonId(db, worldDate);
+    const row = seasonId
+      ? (db
+          .prepare("SELECT played, points FROM league_standings WHERE team_id = ? AND competition_season_id = ?")
+          .get(appointment.teamId, seasonId) as SqlRow | undefined)
+      : undefined;
+    if (row?.played) {
+      const ppg = row.points / row.played;
+      return { score: clamp(Math.round(ppg * 33.3), 0, 100), note: `Team averaging ${ppg.toFixed(2)} points/game.` };
+    }
+    return { score: 50, note: "No results yet this season." };
+  }
+  if (appointment.teamId && SCOUTING_ROLES.has(appointment.role)) {
+    const row = db
+      .prepare(
+        "SELECT COUNT(*) AS total FROM scouting_assignments WHERE scout_person_id = ? AND status = 'COMPLETED'",
+      )
+      .get(appointment.personId) as SqlRow | undefined;
+    const completed = row?.total ?? 0;
+    return { score: clamp(40 + completed * 5, 0, 100), note: `${completed} completed scouting assignment(s).` };
+  }
+  if (appointment.teamId && MEDICAL_ROLES.has(appointment.role)) {
+    const row = db
+      .prepare("SELECT AVG(fitness) AS avg_fitness FROM player_availability_states WHERE team_id = ?")
+      .get(appointment.teamId) as SqlRow | undefined;
+    const avgFitness = row?.avg_fitness ?? 75;
+    return { score: clamp(Math.round(avgFitness), 0, 100), note: `Squad averaging ${Math.round(avgFitness)} fitness.` };
+  }
+  return { score: 50, note: "No role-specific performance signal available." };
+};
+
+const PERFORMANCE_REVIEW_INTERVAL_DAYS = 30;
+
+/** Reviews every active appointment at the club once per interval, from real proxies, and drifts reputation accordingly. */
+export const evaluateStaffPerformance = (db: GameDatabase, save: SaveMetadata, clubId: EntityId): StaffPerformanceRecord[] => {
+  const market = new StaffMarketRepository(db);
+  const worldDate = save.worldDate;
+  const records: StaffPerformanceRecord[] = [];
+
+  for (const appointment of market.activeAppointmentsForClub(clubId)) {
+    const history = market.performanceHistoryForPerson(appointment.personId);
+    const last = history[history.length - 1];
+    if (last && daysBetween(last.periodEnd, worldDate) < PERFORMANCE_REVIEW_INTERVAL_DAYS) continue;
+
+    const { score, note } = rolePerformanceScore(db, appointment, worldDate);
+    const record: StaffPerformanceRecord = {
+      id: createEntityId(),
+      personId: appointment.personId,
+      appointmentId: appointment.id,
+      clubId,
+      periodEnd: worldDate,
+      score,
+      note,
+    };
+    market.insertPerformanceRecord(record);
+    records.push(record);
+
+    const profile = market.staffProfile(appointment.personId);
+    if (profile) {
+      const nextReputation =
+        score >= 70 ? stepReputation(profile.reputation, 1) : score <= 30 ? stepReputation(profile.reputation, -1) : profile.reputation;
+      if (nextReputation !== profile.reputation) {
+        new WorldRepository(db).insertStaffProfile({ ...profile, reputation: nextReputation });
+      }
+    }
+  }
+  return records;
+};
+
+// ---------------------------------------------------------------------------
+// Coaching licence progression pathway
+// ---------------------------------------------------------------------------
+
+const LICENCE_COURSE_MONTHS = 6;
+const LICENCE_COURSE_COST_MINOR = 300_000;
+
+const nextLicenceType = (currentRank: number): string | undefined =>
+  Object.entries(LICENCE_RANK).find(([, rank]) => rank === currentRank + 1)?.[0];
+
+export class LicenceCourseError extends Error {
+  constructor(readonly code: "ALREADY_ENROLLED" | "MAX_LICENCE" | "CANNOT_AFFORD", message: string) {
+    super(message);
+  }
+}
+
+/** Enrols a staff member in the next coaching-licence level up, club-funded when budget allows. */
+export const enrolInLicenceCourse = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  personId: EntityId,
+  fundedByClubId?: EntityId,
+): StaffLicenceCourse => {
+  const market = new StaffMarketRepository(db);
+  if (market.activeLicenceCourseForPerson(personId)) {
+    throw new LicenceCourseError("ALREADY_ENROLLED", "Already enrolled in a licence course.");
+  }
+  const currentRank = licenceRankOf(market.staffLicencesForPerson(personId));
+  const target = nextLicenceType(currentRank);
+  if (!target) throw new LicenceCourseError("MAX_LICENCE", "Already holds the highest coaching licence.");
+  if (fundedByClubId && !clubCanAffordSalary(db, fundedByClubId, LICENCE_COURSE_COST_MINOR)) {
+    throw new LicenceCourseError("CANNOT_AFFORD", "The club cannot fund this course right now.");
+  }
+  const worldDate = save.worldDate;
+  const course: StaffLicenceCourse = {
+    id: createEntityId(),
+    personId,
+    fundedByClubId,
+    targetLicenceType: target,
+    startedOn: worldDate,
+    completesOn: addDays(worldDate, LICENCE_COURSE_MONTHS * 30),
+    status: "IN_PROGRESS",
+  };
+  market.upsertLicenceCourse(course);
+  return course;
+};
+
+/** Completes any licence course whose date has arrived, issuing the new licence. */
+export const evaluateLicenceCourses = (db: GameDatabase, save: SaveMetadata): StaffLicenceCourse[] => {
+  const market = new StaffMarketRepository(db);
+  const worldDate = save.worldDate;
+  const completed: StaffLicenceCourse[] = [];
+  for (const course of market.allInProgressLicenceCourses()) {
+    if (worldDate < course.completesOn) continue;
+    const finished: StaffLicenceCourse = { ...course, status: "COMPLETED" };
+    market.upsertLicenceCourse(finished);
+    new WorldRepository(db).insertStaffLicence({
+      id: createEntityId(),
+      personId: course.personId,
+      licenceType: course.targetLicenceType,
+      issuer: "ANFA",
+      issueDate: worldDate,
+      status: "VERIFIED",
+    });
+    logStaffHistory(db, course.personId, "STAFF_LICENCE_UPGRADED", worldDate, {
+      description: `Qualified for ${course.targetLicenceType.replace(/_/g, " ")}.`,
+    });
+    completed.push(finished);
+  }
+  return completed;
+};
+
+// ---------------------------------------------------------------------------
+// Poaching and resignations
+// ---------------------------------------------------------------------------
+
+const POACH_SALARY_PREMIUM = 1.2;
+const POACH_INTEREST_THRESHOLD = 70;
+
+/**
+ * Rival clubs occasionally approach *employed* staff elsewhere for their own
+ * open core roles, at a premium over the target's current salary. Outside
+ * the player's own club this resolves silently; against the player's own
+ * staff it can end in a real resignation — the only real defence is having
+ * renewed them onto a competitive contract already.
+ */
+export const evaluateStaffPoaching = (db: GameDatabase, save: SaveMetadata, playerClubId: EntityId | undefined): StaffApproach[] => {
+  const market = new StaffMarketRepository(db);
+  const worldDate = save.worldDate;
+  const teams = seniorTeams(db, worldDate);
+  const clubIds = new Set(teams.map((team) => team.clubId).filter((id): id is EntityId => Boolean(id)));
+  const approaches: StaffApproach[] = [];
+
+  for (const clubId of clubIds) {
+    for (const role of CORE_CLUB_ROLES) {
+      if (market.activeAppointmentsForClub(clubId).some((appointment) => appointment.role === role)) continue;
+      const vacancy = market.openVacancyForRole(clubId, role);
+      if (!vacancy?.openedOn || daysBetween(vacancy.openedOn, worldDate) < VACANCY_GRACE_DAYS) continue;
+
+      const target = findPoachTarget(db, clubId, role);
+      if (!target) continue;
+      const contract = target.contractId ? market.employmentContractById(target.contractId) : undefined;
+      const offeredSalaryMinor = Math.round((contract?.salaryAmountMinor ?? estimateSalaryExpectation(role, [], undefined)) * POACH_SALARY_PREMIUM);
+      const interest = staffInterestScore(db, target.personId, clubId, role, offeredSalaryMinor, worldDate);
+      if (interest.score < POACH_INTEREST_THRESHOLD) continue;
+      if (!clubCanAffordSalary(db, clubId, offeredSalaryMinor)) continue;
+
+      const approach: StaffApproach = {
+        id: createEntityId(),
+        personId: target.personId,
+        fromClubId: clubId,
+        currentClubId: target.clubId,
+        role,
+        offeredSalaryMinor,
+        status: "PENDING",
+        createdOn: worldDate,
+      };
+      market.insertApproach(approach);
+      approaches.push(approach);
+
+      const rng = new SeededRandom(`staff-poach:${approach.id}:${worldDate}`);
+      if (target.clubId === playerClubId) {
+        // The player's own staff: give it a beat before resolving, so a
+        // renewal offered right after can still save the situation.
+        continue;
+      }
+      if (rng.next() * 100 < interest.score) {
+        resolvePoach(db, save, approach, target);
+      } else {
+        market.insertApproach({ ...approach, status: "DECLINED", decidedOn: worldDate });
+      }
+    }
+  }
+
+  // Give any pending approach against the player's own staff a fair chance
+  // to resolve on a later tick, once the grace window has passed.
+  if (playerClubId) {
+    for (const approach of market.approachesForClub(playerClubId)) {
+      if (approach.status !== "PENDING") continue;
+      if (daysBetween(approach.createdOn, worldDate) < VACANCY_GRACE_DAYS) continue;
+      const target = market.activeAppointment(approach.personId);
+      if (!target || target.clubId !== playerClubId) continue;
+      const interest = staffInterestScore(db, approach.personId, approach.fromClubId, approach.role, approach.offeredSalaryMinor, worldDate);
+      const rng = new SeededRandom(`staff-poach-resolve:${approach.id}:${worldDate}`);
+      if (rng.next() * 100 < interest.score) {
+        resolvePoach(db, save, approach, target);
+      } else {
+        market.insertApproach({ ...approach, status: "DECLINED", decidedOn: worldDate });
+      }
+    }
+  }
+
+  return approaches;
+};
+
+const findPoachTarget = (db: GameDatabase, excludeClubId: EntityId, role: FootballStaffRole): StaffAppointment | undefined => {
+  const row = db
+    .prepare(
+      `SELECT * FROM staff_appointments
+      WHERE role = ? AND employment_status = 'ACTIVE' AND (club_id IS NULL OR club_id != ?)
+      LIMIT 1`,
+    )
+    .get(role, excludeClubId) as SqlRow | undefined;
+  if (!row) return undefined;
+  return {
+    id: row.id,
+    personId: row.person_id,
+    organisationType: row.organisation_type,
+    clubId: row.club_id ?? undefined,
+    teamId: row.team_id ?? undefined,
+    role: row.role,
+    startDate: row.start_date ?? undefined,
+    endDate: row.end_date ?? undefined,
+    employmentStatus: row.employment_status,
+    contractId: row.contract_id ?? undefined,
+    serviceRankTitle: row.service_rank_title ?? undefined,
+  };
+};
+
+const resolvePoach = (db: GameDatabase, save: SaveMetadata, approach: StaffApproach, target: StaffAppointment): void => {
+  const market = new StaffMarketRepository(db);
+  const worldDate = save.worldDate;
+  market.insertApproach({ ...approach, status: "ACCEPTED", decidedOn: worldDate });
+
+  if (target.employmentStatus === "ACTIVE") {
+    market.updateAppointmentStatus(target.id, "FORMER", worldDate);
+    if (target.contractId) {
+      const contract = market.employmentContractById(target.contractId);
+      if (contract) market.upsertEmploymentContract({ ...contract, status: "RESIGNED", contractEnd: worldDate });
+    }
+    if (target.clubId) {
+      openStaffVacancy(db, target.clubId, target.role, "RESIGNED", worldDate);
+    }
+    logStaffHistory(db, target.personId, "STAFF_LEFT", worldDate, {
+      appointmentId: target.id,
+      clubId: target.clubId,
+      teamId: target.teamId,
+      description: "Resigned to join another club for a better opportunity.",
+    });
+  }
+  hireStaff(db, save, approach.fromClubId, undefined, approach.personId, approach.role, approach.offeredSalaryMinor);
 };

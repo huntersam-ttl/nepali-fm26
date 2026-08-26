@@ -8,6 +8,7 @@ import {
   PlayerRepository,
   SaveRepository,
   SquadDynamicsRepository,
+  StaffMarketRepository,
   WorldRepository,
   createNewSave,
   loadSave,
@@ -74,7 +75,12 @@ import {
   type SquadList,
   type SquadPromiseView,
   type SquadRow,
+  type StaffApplicationView,
+  type StaffApproachView,
   type StaffList,
+  type StaffMarketView,
+  type StaffRenewalOfferView,
+  type StaffRowWithContract,
   type StartMatchCommand,
   type StartingClubOption,
   type SubstitutionCommand,
@@ -120,7 +126,27 @@ import {
   respondToConcern as respondToConcernCommand,
   validActionsForConcern,
 } from "./squad-dynamics.js";
-import { ensureAiStaffAssigned, evaluateStaffContracts } from "./staff-market.js";
+import {
+  acceptStaffApplication,
+  acceptStaffRenewalCounter,
+  applyForStaffVacancy,
+  declineStaffApplication,
+  declineStaffRenewalOffer,
+  dismissStaff,
+  enrolInLicenceCourse,
+  ensureAiStaffAssigned,
+  evaluateAllStaffContracts,
+  evaluateLicenceCourses,
+  evaluateStaffPerformance,
+  evaluateStaffPoaching,
+  hireStaff,
+  LicenceCourseError,
+  offerStaffRenewal,
+  StaffActionError,
+  StaffNegotiationError,
+  staffCareerHistory,
+  staffInterestScore,
+} from "./staff-market.js";
 import {
   MatchAlreadyPlayedError,
   MatchCommandError,
@@ -549,10 +575,15 @@ export class DesktopApplicationService {
         evaluateBoardConfidence(db, updated);
 
         // Staff market: AI clubs fill their own support-staff vacancies from
-        // need/budget, and every club's staff contracts near expiry are
-        // renewed or lapse. The player's own club is staffed by hand.
+        // need/budget; every club's staff contracts near expiry are renewed
+        // or lapse; performance reviews drift reputation from real proxies;
+        // licence courses complete; rivals occasionally poach staff. The
+        // player's own club is staffed and renewed by hand via the UI.
         ensureAiStaffAssigned(db, updated, context.club?.id);
-        if (context.club?.id) evaluateStaffContracts(db, updated, context.club.id);
+        evaluateAllStaffContracts(db, updated);
+        if (context.club?.id) evaluateStaffPerformance(db, updated, context.club.id);
+        evaluateLicenceCourses(db, updated);
+        evaluateStaffPoaching(db, updated, context.club?.id);
 
         // Squad dynamics: only the player's own squad, since only they read
         // an inbox — raised/escalated concerns become inbox items, resolved
@@ -1082,6 +1113,93 @@ export class DesktopApplicationService {
     return this.managerCommand((db, save, context) => buildStaffList(db, save, context, clubId));
   }
 
+  getStaffMarket(): AppResult<StaffMarketView> {
+    return this.managerCommand((db, save, context) => buildStaffMarketView(db, save, context));
+  }
+
+  applyForStaffRole(
+    vacancyId: EntityId,
+    personId: EntityId,
+    salaryAmountMinor: number,
+    contractMonths: number,
+  ): AppResult<StaffMarketView> {
+    return this.managerCommand((db, save, context) => {
+      try {
+        applyForStaffVacancy(db, save, vacancyId, personId, salaryAmountMinor, contractMonths);
+      } catch (error) {
+        if (error instanceof StaffNegotiationError) throw appError("INVALID_SELECTION", error.message);
+        throw error;
+      }
+      return buildStaffMarketView(db, save, context);
+    }, true);
+  }
+
+  respondToStaffApplication(applicationId: EntityId, accept: boolean): AppResult<StaffMarketView> {
+    return this.managerCommand((db, save, context) => {
+      try {
+        if (accept) acceptStaffApplication(db, save, applicationId);
+        else declineStaffApplication(db, save, applicationId);
+      } catch (error) {
+        if (error instanceof StaffNegotiationError) throw appError("INVALID_SELECTION", error.message);
+        throw error;
+      }
+      return buildStaffMarketView(db, save, context);
+    }, true);
+  }
+
+  offerStaffContractRenewal(
+    appointmentId: EntityId,
+    salaryAmountMinor: number,
+    contractMonths: number,
+  ): AppResult<StaffMarketView> {
+    return this.managerCommand((db, save, context) => {
+      try {
+        offerStaffRenewal(db, save, appointmentId, salaryAmountMinor, contractMonths);
+      } catch (error) {
+        if (error instanceof StaffNegotiationError) throw appError("INVALID_SELECTION", error.message);
+        throw error;
+      }
+      return buildStaffMarketView(db, save, context);
+    }, true);
+  }
+
+  respondToStaffRenewal(offerId: EntityId, accept: boolean): AppResult<StaffMarketView> {
+    return this.managerCommand((db, save, context) => {
+      try {
+        if (accept) acceptStaffRenewalCounter(db, save, offerId);
+        else declineStaffRenewalOffer(db, save, offerId);
+      } catch (error) {
+        if (error instanceof StaffNegotiationError) throw appError("INVALID_SELECTION", error.message);
+        throw error;
+      }
+      return buildStaffMarketView(db, save, context);
+    }, true);
+  }
+
+  dismissStaffMember(appointmentId: EntityId): AppResult<StaffMarketView> {
+    return this.managerCommand((db, save, context) => {
+      try {
+        dismissStaff(db, save, appointmentId);
+      } catch (error) {
+        if (error instanceof StaffActionError) throw appError("INVALID_SELECTION", error.message);
+        throw error;
+      }
+      return buildStaffMarketView(db, save, context);
+    }, true);
+  }
+
+  enrolStaffLicenceCourse(personId: EntityId, clubFunded: boolean): AppResult<StaffMarketView> {
+    return this.managerCommand((db, save, context) => {
+      try {
+        enrolInLicenceCourse(db, save, personId, clubFunded ? context.club?.id : undefined);
+      } catch (error) {
+        if (error instanceof LicenceCourseError) throw appError("INVALID_SELECTION", error.message);
+        throw error;
+      }
+      return buildStaffMarketView(db, save, context);
+    }, true);
+  }
+
   private withSession<T>(
     action: (db: GameDatabase, save: SaveMetadata, filePath: string) => T,
   ): AppResult<T> {
@@ -1445,6 +1563,74 @@ const toPromiseView = (promise: ManagerPromise): SquadPromiseView => ({
   dueOn: promise.dueOn,
   status: promise.status,
 });
+
+const buildStaffMarketView = (db: GameDatabase, save: SaveMetadata, context: ManagerContext): StaffMarketView => {
+  const clubId = context.club?.id;
+  const base = buildStaffList(db, save, context, clubId);
+  const market = new StaffMarketRepository(db);
+
+  const staff: StaffRowWithContract[] = base.staff.map((row) => {
+    const appointment = market.appointmentById(row.appointmentId);
+    const employmentContract = appointment?.contractId ? market.employmentContractById(appointment.contractId) : undefined;
+    const performance = market.performanceHistoryForPerson(row.personId);
+    return {
+      ...row,
+      salaryAmountMinor: employmentContract?.salaryAmountMinor,
+      contractEnd: employmentContract?.contractEnd,
+      lastPerformanceScore: performance[performance.length - 1]?.score,
+    };
+  });
+
+  const applications: StaffApplicationView[] = clubId
+    ? base.vacancies
+        .flatMap((vacancy) => market.applicationsForVacancy(vacancy.id))
+        .filter((application) => application.status === "OFFERED" || application.status === "COUNTERED" || application.status === "PENDING")
+        .map((application) => {
+          const vacancy = market.vacancyById(application.vacancyId);
+          return {
+            id: application.id,
+            vacancyId: application.vacancyId,
+            personId: application.personId,
+            personName: displayName(getPerson(db, application.personId)),
+            role: vacancy?.role ?? "",
+            status: application.status,
+            offeredSalaryMinor: application.offeredSalaryMinor,
+            counterSalaryMinor: application.counterSalaryMinor,
+            createdOn: application.createdOn,
+          };
+        })
+    : [];
+
+  const renewalOffers: StaffRenewalOfferView[] = base.staff
+    .flatMap((row) => market.renewalOffersForAppointment(row.appointmentId))
+    .filter((offer) => offer.status === "COUNTERED")
+    .map((offer) => ({
+      id: offer.id,
+      appointmentId: offer.appointmentId,
+      personId: offer.personId,
+      personName: displayName(getPerson(db, offer.personId)),
+      role: market.appointmentById(offer.appointmentId)?.role ?? "",
+      status: offer.status,
+      proposedSalaryMinor: offer.proposedSalaryMinor,
+      counterSalaryMinor: offer.counterSalaryMinor,
+      createdOn: offer.createdOn,
+    }));
+
+  const approaches: StaffApproachView[] = clubId
+    ? market.approachesForClub(clubId).map((approach) => ({
+        id: approach.id,
+        personId: approach.personId,
+        personName: displayName(getPerson(db, approach.personId)),
+        fromClubName: getClub(db, approach.fromClubId).name,
+        role: approach.role,
+        offeredSalaryMinor: approach.offeredSalaryMinor,
+        status: approach.status,
+        createdOn: approach.createdOn,
+      }))
+    : [];
+
+  return { staff, vacancies: base.vacancies, candidates: base.candidates, applications, renewalOffers, approaches };
+};
 
 const buildSquadDynamicsView = (db: GameDatabase, teamId: EntityId): SquadDynamicsView => {
   const dynamics = new SquadDynamicsRepository(db);

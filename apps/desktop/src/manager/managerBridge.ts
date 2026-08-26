@@ -31,6 +31,7 @@ import type {
   SquadMeetingResult,
   SquadList,
   StaffList,
+  StaffMarketView,
   TacticsUpdateCommand,
   TacticsView,
   TrainingUpdateCommand,
@@ -95,6 +96,19 @@ export const managerBridge = {
   renewContract: (command: ContractRenewalCommand) =>
     runtimeCall<ContractList>("renewContract", { command }),
   getStaff: (clubId?: EntityId) => runtimeCall<StaffList>("getStaff", { clubId }),
+  getStaffMarket: () => runtimeCall<StaffMarketView>("getStaffMarket"),
+  applyForStaffRole: (vacancyId: EntityId, personId: EntityId, salaryAmountMinor: number, contractMonths: number) =>
+    runtimeCall<StaffMarketView>("applyForStaffRole", { vacancyId, personId, salaryAmountMinor, contractMonths }),
+  respondToStaffApplication: (applicationId: EntityId, accept: boolean) =>
+    runtimeCall<StaffMarketView>("respondToStaffApplication", { applicationId, accept }),
+  offerStaffContractRenewal: (appointmentId: EntityId, salaryAmountMinor: number, contractMonths: number) =>
+    runtimeCall<StaffMarketView>("offerStaffContractRenewal", { appointmentId, salaryAmountMinor, contractMonths }),
+  respondToStaffRenewal: (offerId: EntityId, accept: boolean) =>
+    runtimeCall<StaffMarketView>("respondToStaffRenewal", { offerId, accept }),
+  dismissStaffMember: (appointmentId: EntityId) =>
+    runtimeCall<StaffMarketView>("dismissStaffMember", { appointmentId }),
+  enrolStaffLicenceCourse: (personId: EntityId, clubFunded: boolean) =>
+    runtimeCall<StaffMarketView>("enrolStaffLicenceCourse", { personId, clubFunded }),
 
   // --- Manager Career World --------------------------------------------
   getJobCentre: () => runtimeCall<JobCentreView>("getJobCentre"),

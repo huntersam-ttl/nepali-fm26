@@ -247,6 +247,29 @@ const dispatch = (
       return service.getMatchSummary(body.fixtureId as EntityId);
     case "getStaff":
       return service.getStaff(body.clubId as EntityId | undefined);
+    case "getStaffMarket":
+      return service.getStaffMarket();
+    case "applyForStaffRole":
+      return service.applyForStaffRole(
+        body.vacancyId as EntityId,
+        body.personId as EntityId,
+        body.salaryAmountMinor as number,
+        body.contractMonths as number,
+      );
+    case "respondToStaffApplication":
+      return service.respondToStaffApplication(body.applicationId as EntityId, body.accept as boolean);
+    case "offerStaffContractRenewal":
+      return service.offerStaffContractRenewal(
+        body.appointmentId as EntityId,
+        body.salaryAmountMinor as number,
+        body.contractMonths as number,
+      );
+    case "respondToStaffRenewal":
+      return service.respondToStaffRenewal(body.offerId as EntityId, body.accept as boolean);
+    case "dismissStaffMember":
+      return service.dismissStaffMember(body.appointmentId as EntityId);
+    case "enrolStaffLicenceCourse":
+      return service.enrolStaffLicenceCourse(body.personId as EntityId, body.clubFunded as boolean);
     // Manager Career World (Step 5).
     case "getJobCentre":
       return service.getJobCentre();

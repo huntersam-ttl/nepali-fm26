@@ -607,6 +607,56 @@ export type StaffList = {
   candidates: Array<{ personId: EntityId; name: string; preferredRole?: string }>;
 };
 
+export type StaffRowWithContract = StaffRow & {
+  salaryAmountMinor?: number;
+  contractEnd?: ISODate;
+  lastPerformanceScore?: number;
+};
+
+export type StaffApplicationView = {
+  id: EntityId;
+  vacancyId: EntityId;
+  personId: EntityId;
+  personName: string;
+  role: string;
+  status: string;
+  offeredSalaryMinor?: number;
+  counterSalaryMinor?: number;
+  createdOn: ISODate;
+};
+
+export type StaffRenewalOfferView = {
+  id: EntityId;
+  appointmentId: EntityId;
+  personId: EntityId;
+  personName: string;
+  role: string;
+  status: string;
+  proposedSalaryMinor: number;
+  counterSalaryMinor?: number;
+  createdOn: ISODate;
+};
+
+export type StaffApproachView = {
+  id: EntityId;
+  personId: EntityId;
+  personName: string;
+  fromClubName: string;
+  role: string;
+  offeredSalaryMinor: number;
+  status: string;
+  createdOn: ISODate;
+};
+
+export type StaffMarketView = {
+  staff: StaffRowWithContract[];
+  vacancies: StaffVacancyView[];
+  candidates: Array<{ personId: EntityId; name: string; preferredRole?: string }>;
+  applications: StaffApplicationView[];
+  renewalOffers: StaffRenewalOfferView[];
+  approaches: StaffApproachView[];
+};
+
 // ---------------------------------------------------------------------------
 // Dashboard, calendar and continue
 // ---------------------------------------------------------------------------
@@ -839,6 +889,14 @@ export type ManagerRuntimeApi = {
   getContracts(): Promise<unknown>;
   renewContract(command: ContractRenewalCommand): Promise<unknown>;
   getStaff(clubId?: EntityId): Promise<unknown>;
+  // Staff Market Phase B.
+  getStaffMarket(): Promise<unknown>;
+  applyForStaffRole(vacancyId: EntityId, personId: EntityId, salaryAmountMinor: number, contractMonths: number): Promise<unknown>;
+  respondToStaffApplication(applicationId: EntityId, accept: boolean): Promise<unknown>;
+  offerStaffContractRenewal(appointmentId: EntityId, salaryAmountMinor: number, contractMonths: number): Promise<unknown>;
+  respondToStaffRenewal(offerId: EntityId, accept: boolean): Promise<unknown>;
+  dismissStaffMember(appointmentId: EntityId): Promise<unknown>;
+  enrolStaffLicenceCourse(personId: EntityId, clubFunded: boolean): Promise<unknown>;
   getCalendar(): Promise<unknown>;
   // Manager Career World (Step 5).
   getJobCentre(): Promise<unknown>;
