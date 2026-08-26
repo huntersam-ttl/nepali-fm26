@@ -6,6 +6,7 @@ import {
 } from "@nepal-football-sim/database";
 import {
   createEntityId,
+  type CaptainInfluence,
   type ClubSatisfactionLevel,
   type ConcernResponseAction,
   type ConcernResponseOutcome,
@@ -21,8 +22,12 @@ import {
   type PlayerContractRecord,
   type PlayerSquadRole,
   type SaveMetadata,
+  type SquadGroupMembership,
+  type SquadGroupType,
   type SquadHierarchyEntry,
   type SquadHierarchyRole,
+  type TeamCohesion,
+  type TeamCohesionLevel,
 } from "@nepal-football-sim/shared-types";
 import { SeededRandom } from "./rng.js";
 
@@ -82,6 +87,39 @@ export const computeSquadHierarchy = (
     return entry;
   });
   return entries;
+};
+
+// ---------------------------------------------------------------------------
+// Dressing-room groups — derived from hierarchy, not a separate social graph
+// ---------------------------------------------------------------------------
+
+const GROUP_FOR_ROLE: Record<SquadHierarchyRole, SquadGroupType> = {
+  CAPTAIN: "CORE_LEADERS",
+  VICE_CAPTAIN: "CORE_LEADERS",
+  SENIOR_PLAYER: "CORE_LEADERS",
+  SQUAD_PLAYER: "MAIN_GROUP",
+  FRINGE_PLAYER: "PERIPHERAL",
+};
+
+/** Core leaders / main group / peripheral, straight from real hierarchy standing. */
+export const computeSquadGroups = (
+  db: GameDatabase,
+  teamId: EntityId,
+  hierarchy: SquadHierarchyEntry[],
+  worldDate: string,
+): SquadGroupMembership[] => {
+  const dynamics = new SquadDynamicsRepository(db);
+  return hierarchy.map((entry) => {
+    const membership: SquadGroupMembership = {
+      id: createEntityId(),
+      teamId,
+      personId: entry.personId,
+      groupType: GROUP_FOR_ROLE[entry.role],
+      updatedOn: worldDate,
+    };
+    dynamics.upsertGroupMembership(membership);
+    return membership;
+  });
 };
 
 // ---------------------------------------------------------------------------
@@ -254,6 +292,8 @@ export const evaluateSquadDynamics = (
 
   const hierarchy = computeSquadHierarchy(db, teamId, worldDate);
   const hierarchyByPerson = new Map(hierarchy.map((entry) => [entry.personId, entry.role]));
+  const groups = computeSquadGroups(db, teamId, hierarchy, worldDate);
+  const groupByPerson = new Map(groups.map((entry) => [entry.personId, entry.groupType]));
 
   const teamGamesPlayed = clubId ? gamesPlayedFor(db, teamId) : 0;
   const seasonStats = seasonStatsFor(db, teamId);
@@ -389,6 +429,8 @@ export const evaluateSquadDynamics = (
     outcome.expiredPromises.push(expired);
   }
 
+  evaluateTeamCohesion(db, save, teamId, managerProfileId, hierarchy, groupByPerson, outcome);
+
   return outcome;
 };
 
@@ -409,11 +451,189 @@ const applyMoraleImpact = (
     personId,
     teamId,
     fitness: existing?.fitness ?? 82,
-    moraleModifier: clamp(-penalty * 2, -30, 0),
+    // Ceiling of 5 (not 0) leaves room for a stabilizing captain to lift
+    // spirits slightly above the "no concerns" baseline.
+    moraleModifier: clamp(-penalty * 2, -30, 5),
     formModifier: existing?.formModifier ?? 0,
     availability: existing?.availability ?? "AVAILABLE",
     updatedOn: worldDate,
   });
+};
+
+// ---------------------------------------------------------------------------
+// Team cohesion — dressing-room atmosphere, captain influence, spillover
+// ---------------------------------------------------------------------------
+
+const GROUP_INFLUENCE_WEIGHT: Record<SquadGroupType, number> = {
+  CORE_LEADERS: 3,
+  MAIN_GROUP: 1.5,
+  PERIPHERAL: 1,
+};
+
+const cohesionLevelFor = (score: number): TeamCohesionLevel => {
+  if (score >= 80) return "UNITED";
+  if (score >= 60) return "STABLE";
+  if (score >= 40) return "SHAKY";
+  if (score >= 20) return "POOR";
+  return "CRITICAL";
+};
+
+/** Adds `delta` to every roster player's morale except those excluded, clamped as usual. */
+const nudgeSquadMorale = (
+  db: GameDatabase,
+  teamId: EntityId,
+  delta: number,
+  worldDate: string,
+  excludePersonIds: EntityId[],
+): void => {
+  const players = new PlayerRepository(db);
+  for (const state of players.availabilityStates(teamId)) {
+    if (excludePersonIds.includes(state.personId)) continue;
+    players.upsertAvailabilityState({
+      personId: state.personId,
+      teamId,
+      fitness: state.fitness,
+      moraleModifier: clamp(state.moraleModifier + delta, -30, 5),
+      formModifier: state.formModifier,
+      availability: state.availability,
+      updatedOn: worldDate,
+    });
+  }
+};
+
+const CONCERN_TYPE_LABEL: Record<PlayerConcernType, string> = {
+  PLAYING_TIME: "playing time",
+  CONTRACT: "their contracts",
+  ROLE_STATUS: "squad status",
+  TRANSFER_INTEREST: "transfer speculation",
+};
+
+/**
+ * The dressing-room read: weighted satisfaction (influential players count
+ * more than peripheral ones), captain influence from their *real* relationship
+ * and concern state, spillover from core leaders' concerns/broken promises
+ * onto the rest of the squad, and dispute detection from concerns that are
+ * genuinely shared or already adversarial. Every input already exists in
+ * Phase A/B state — nothing here is randomly generated.
+ */
+const evaluateTeamCohesion = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  teamId: EntityId,
+  managerProfileId: EntityId,
+  hierarchy: SquadHierarchyEntry[],
+  groupByPerson: Map<EntityId, SquadGroupType>,
+  outcome: SquadDynamicsOutcome,
+): TeamCohesion => {
+  const worldDate = save.worldDate;
+  const dynamics = new SquadDynamicsRepository(db);
+
+  const satisfaction = dynamics.satisfactionForTeam(teamId);
+  let weightedTotal = 0;
+  let weightSum = 0;
+  for (const entry of satisfaction) {
+    const weight = GROUP_INFLUENCE_WEIGHT[groupByPerson.get(entry.personId) ?? "MAIN_GROUP"];
+    weightedTotal += entry.score * weight;
+    weightSum += weight;
+  }
+  let score = weightSum > 0 ? weightedTotal / weightSum : 70;
+
+  const captainEntry = hierarchy.find((entry) => entry.role === "CAPTAIN");
+  let captainInfluence: CaptainInfluence = "NEUTRAL";
+  if (captainEntry) {
+    const captainRelationship = dynamics.relationship(managerProfileId, captainEntry.personId)?.score ?? 0;
+    const captainConcerns = dynamics
+      .concernsForPerson(captainEntry.personId, teamId)
+      .filter((concern) => concern.status !== "RESOLVED");
+    if (captainConcerns.some((concern) => concern.status === "ESCALATED") || captainRelationship <= -15) {
+      captainInfluence = "DESTABILIZING";
+      score -= 10;
+      nudgeSquadMorale(db, teamId, -6, worldDate, [captainEntry.personId]);
+    } else if (captainRelationship >= 15 && captainConcerns.length === 0) {
+      captainInfluence = "STABILIZING";
+      score += 8;
+      nudgeSquadMorale(db, teamId, 4, worldDate, [captainEntry.personId]);
+    }
+  }
+
+  // Spillover: a core leader's concern escalating or promise breaking this
+  // tick unsettles the rest of the squad, weighted by how many sources fired.
+  const unsettlingSources = new Set(
+    [
+      ...outcome.escalatedConcerns.filter((concern) => groupByPerson.get(concern.personId) === "CORE_LEADERS"),
+      ...outcome.brokenPromises.filter((promise) => groupByPerson.get(promise.personId) === "CORE_LEADERS"),
+    ].map((entry) => entry.personId),
+  );
+  if (unsettlingSources.size > 0) {
+    const penalty = clamp(unsettlingSources.size * 3, 3, 12);
+    nudgeSquadMorale(db, teamId, -penalty, worldDate, [...unsettlingSources]);
+    score -= penalty;
+    for (const personId of unsettlingSources) {
+      dynamics.insertHistoryEvent({
+        id: createEntityId(),
+        personId,
+        teamId,
+        managerProfileId,
+        eventType: "SPILLOVER_APPLIED",
+        occurredOn: worldDate,
+        data: { affectedTeammates: true },
+      });
+    }
+  }
+
+  // Disputes: real, shared or adversarial state — not manufactured drama.
+  let topIssue: string | undefined;
+  const escalatedByType = new Map<PlayerConcernType, PlayerConcern[]>();
+  for (const concern of outcome.escalatedConcerns) {
+    const list = escalatedByType.get(concern.type) ?? [];
+    list.push(concern);
+    escalatedByType.set(concern.type, list);
+  }
+  for (const [type, concerns] of escalatedByType) {
+    if (concerns.length < 2) continue;
+    dynamics.insertHistoryEvent({
+      id: createEntityId(),
+      personId: concerns[0]!.personId,
+      teamId,
+      managerProfileId,
+      eventType: "DISPUTE_FLARED",
+      occurredOn: worldDate,
+      data: { kind: "PLAYER_VS_PLAYER", withPersonId: concerns[1]!.personId, type },
+    });
+    topIssue = `Multiple players are unhappy about ${CONCERN_TYPE_LABEL[type]} at the same time.`;
+    score -= 5;
+    break;
+  }
+  if (!topIssue) {
+    const managerDispute = outcome.escalatedConcerns.find((concern) => {
+      if (groupByPerson.get(concern.personId) !== "CORE_LEADERS") return false;
+      return (dynamics.relationship(managerProfileId, concern.personId)?.score ?? 0) <= -50;
+    });
+    if (managerDispute) {
+      dynamics.insertHistoryEvent({
+        id: createEntityId(),
+        personId: managerDispute.personId,
+        teamId,
+        managerProfileId,
+        eventType: "DISPUTE_FLARED",
+        occurredOn: worldDate,
+        data: { kind: "PLAYER_VS_MANAGER", type: managerDispute.type },
+      });
+      topIssue = `A senior player is in open dispute with you over ${CONCERN_TYPE_LABEL[managerDispute.type]}.`;
+    }
+  }
+
+  score = clamp(Math.round(score), 0, 100);
+  const cohesion: TeamCohesion = {
+    teamId,
+    score,
+    level: cohesionLevelFor(score),
+    captainInfluence,
+    topIssue,
+    updatedOn: worldDate,
+  };
+  dynamics.upsertCohesion(cohesion);
+  return cohesion;
 };
 
 const gamesPlayedFor = (db: GameDatabase, teamId: EntityId): number => {

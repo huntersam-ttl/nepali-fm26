@@ -99,6 +99,8 @@ import type {
   RelationshipHistoryEvent,
   ManagerConcernResponse,
   ManagerPromise,
+  SquadGroupMembership,
+  TeamCohesion,
   LeagueStanding,
   ManagerContract,
   ManagerProfile,
@@ -1552,7 +1554,70 @@ export class SquadDynamicsRepository {
       .all(personId)
       .map(mapHistoryEvent);
   }
+
+  upsertGroupMembership(membership: SquadGroupMembership): void {
+    this.db
+      .prepare(
+        `INSERT INTO squad_group_membership (id, team_id, person_id, group_type, updated_on)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(team_id, person_id) DO UPDATE SET
+          group_type = excluded.group_type,
+          updated_on = excluded.updated_on`,
+      )
+      .run(membership.id, membership.teamId, membership.personId, membership.groupType, membership.updatedOn);
+  }
+
+  groupsForTeam(teamId: EntityId): SquadGroupMembership[] {
+    return this.db
+      .prepare("SELECT * FROM squad_group_membership WHERE team_id = ?")
+      .all(teamId)
+      .map(mapGroupMembership);
+  }
+
+  upsertCohesion(cohesion: TeamCohesion): void {
+    this.db
+      .prepare(
+        `INSERT INTO team_cohesion (team_id, score, level, captain_influence, top_issue, updated_on)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(team_id) DO UPDATE SET
+          score = excluded.score,
+          level = excluded.level,
+          captain_influence = excluded.captain_influence,
+          top_issue = excluded.top_issue,
+          updated_on = excluded.updated_on`,
+      )
+      .run(
+        cohesion.teamId,
+        cohesion.score,
+        cohesion.level,
+        cohesion.captainInfluence,
+        cohesion.topIssue ?? null,
+        cohesion.updatedOn,
+      );
+  }
+
+  cohesion(teamId: EntityId): TeamCohesion | undefined {
+    const row = this.db.prepare("SELECT * FROM team_cohesion WHERE team_id = ?").get(teamId) as any;
+    return row ? mapCohesion(row) : undefined;
+  }
 }
+
+const mapGroupMembership = (row: any): SquadGroupMembership => ({
+  id: row.id,
+  teamId: row.team_id,
+  personId: row.person_id,
+  groupType: row.group_type,
+  updatedOn: row.updated_on,
+});
+
+const mapCohesion = (row: any): TeamCohesion => ({
+  teamId: row.team_id,
+  score: row.score,
+  level: row.level,
+  captainInfluence: row.captain_influence,
+  topIssue: row.top_issue ?? undefined,
+  updatedOn: row.updated_on,
+});
 
 const mapRelationship = (row: any): ManagerPlayerRelationship => ({
   id: row.id,

@@ -1,5 +1,6 @@
 import type { EntityId } from "./ids.js";
 import type {
+  CaptainInfluence,
   ConcernResponseAction,
   ConcernResponseOutcome,
   InboxItem,
@@ -16,9 +17,11 @@ import type {
   PlayerKnowledgeLevel,
   PlayerPosition,
   PlayerSquadRole,
+  SquadGroupType,
   SquadHierarchyRole,
   TacticalFamiliarity,
   TacticalSetup,
+  TeamCohesionLevel,
   TeamInstructions,
   TrainingIntensity,
   TrainingPlan,
@@ -660,9 +663,27 @@ export type SquadConcernView = {
   activePromise?: SquadPromiseView;
 };
 
+export type SquadGroupMemberView = {
+  personId: EntityId;
+  playerName: string;
+  groupType: SquadGroupType;
+  hierarchyRole: SquadHierarchyRole;
+  influence: number;
+};
+
+export type TeamCohesionView = {
+  score: number;
+  level: TeamCohesionLevel;
+  captainName?: string;
+  captainInfluence: CaptainInfluence;
+  topIssue?: string;
+};
+
 export type SquadDynamicsView = {
   concerns: SquadConcernView[];
   promises: SquadPromiseView[];
+  cohesion: TeamCohesionView;
+  groups: SquadGroupMemberView[];
 };
 
 export type ConcernResponseCommand = {
@@ -714,6 +735,9 @@ export type ManagerDashboard = {
   boardConfidence?: number;
   boardExpectation?: string;
   concernCount?: number;
+  cohesionScore?: number;
+  cohesionLevel?: TeamCohesionLevel;
+  cohesionTopIssue?: string;
   jobCentre?: JobCentreView;
   squadAvailability: {
     total: number;

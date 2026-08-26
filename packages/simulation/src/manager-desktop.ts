@@ -5,6 +5,7 @@ import {
   ManagerRepository,
   PlayerRepository,
   RecruitmentRepository,
+  SquadDynamicsRepository,
   TransferMarketRepository,
   WorldRepository,
   type GameDatabase,
@@ -1869,12 +1870,16 @@ export const buildManagerDashboard = (
 
   const boardConfidence = clubId ? new CareerWorldRepository(db).boardConfidence(clubId) : undefined;
   const concernCount = activeConcernCount(db, context.team.id);
+  const cohesion = new SquadDynamicsRepository(db).cohesion(context.team.id);
 
   return {
     employmentStatus: "EMPLOYED",
     boardConfidence: boardConfidence?.confidence,
     boardExpectation: boardConfidence?.expectation,
     concernCount,
+    cohesionScore: cohesion?.score,
+    cohesionLevel: cohesion?.level,
+    cohesionTopIssue: cohesion?.topIssue,
     clubName: context.club?.name,
     teamName: context.team.name,
     competitionName: context.season.name,

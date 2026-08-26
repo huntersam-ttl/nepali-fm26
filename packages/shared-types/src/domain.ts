@@ -3317,7 +3317,9 @@ export type RelationshipEventType =
   | "PROMISE_MADE"
   | "PROMISE_KEPT"
   | "PROMISE_BROKEN"
-  | "PROMISE_EXPIRED";
+  | "PROMISE_EXPIRED"
+  | "DISPUTE_FLARED"
+  | "SPILLOVER_APPLIED";
 
 /** Append-only log of relationship/concern state transitions, mirroring TransferHistoryEvent. */
 export type RelationshipHistoryEvent = {
@@ -3383,4 +3385,32 @@ export type ManagerPromise = {
   status: ManagerPromiseStatus;
   baselineMetric?: number;
   resolvedOn?: ISODate;
+};
+
+// ---------------------------------------------------------------------------
+// Manager Relationships & Squad Dynamics — Phase C: dressing-room structure
+// ---------------------------------------------------------------------------
+
+/** Derived directly from squad-hierarchy role — no separate social graph. */
+export type SquadGroupType = "CORE_LEADERS" | "MAIN_GROUP" | "PERIPHERAL";
+
+export type SquadGroupMembership = {
+  id: EntityId;
+  teamId: EntityId;
+  personId: EntityId;
+  groupType: SquadGroupType;
+  updatedOn: ISODate;
+};
+
+export type TeamCohesionLevel = "UNITED" | "STABLE" | "SHAKY" | "POOR" | "CRITICAL";
+export type CaptainInfluence = "STABILIZING" | "NEUTRAL" | "DESTABILIZING";
+
+/** One row per team: the dressing-room's overall state, recomputed each tick. */
+export type TeamCohesion = {
+  teamId: EntityId;
+  score: number;
+  level: TeamCohesionLevel;
+  captainInfluence: CaptainInfluence;
+  topIssue?: string;
+  updatedOn: ISODate;
 };

@@ -68,6 +68,7 @@ import {
   type ScoutingReportView,
   type SquadConcernView,
   type SquadDynamicsView,
+  type SquadGroupMemberView,
   type SquadList,
   type SquadPromiseView,
   type SquadRow,
@@ -80,6 +81,7 @@ import {
   type TacticsUpdateCommand,
   type TacticsView,
   type Team,
+  type TeamCohesionView,
   type TrainingUpdateCommand,
   type TrainingView,
   type TransferCentre,
@@ -1449,7 +1451,29 @@ const buildSquadDynamicsView = (db: GameDatabase, teamId: EntityId): SquadDynami
       activePromise: promiseByConcernId.get(concern.id),
     }));
 
-  return { concerns, promises: activePromises.map(toPromiseView) };
+  const hierarchy = dynamics.hierarchyForTeam(teamId);
+  const groupByPerson = new Map(
+    dynamics.groupsForTeam(teamId).map((entry) => [entry.personId, entry.groupType]),
+  );
+  const groups: SquadGroupMemberView[] = hierarchy.map((entry) => ({
+    personId: entry.personId,
+    playerName: displayName(getPerson(db, entry.personId)),
+    groupType: groupByPerson.get(entry.personId) ?? "MAIN_GROUP",
+    hierarchyRole: entry.role,
+    influence: entry.influence,
+  }));
+
+  const cohesionRecord = dynamics.cohesion(teamId);
+  const captainEntry = hierarchy.find((entry) => entry.role === "CAPTAIN");
+  const cohesion: TeamCohesionView = {
+    score: cohesionRecord?.score ?? 70,
+    level: cohesionRecord?.level ?? "STABLE",
+    captainName: captainEntry ? displayName(getPerson(db, captainEntry.personId)) : undefined,
+    captainInfluence: cohesionRecord?.captainInfluence ?? "NEUTRAL",
+    topIssue: cohesionRecord?.topIssue,
+  };
+
+  return { concerns, promises: activePromises.map(toPromiseView), cohesion, groups };
 };
 
 const unemployedCareerHeader = (db: GameDatabase, save: SaveMetadata): CareerHeader => {

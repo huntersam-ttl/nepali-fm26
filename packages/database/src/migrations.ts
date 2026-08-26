@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 25;
+export const CURRENT_DATABASE_VERSION = 26;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -2365,6 +2365,29 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
 
       CREATE INDEX IF NOT EXISTS idx_manager_promises_team_status
         ON manager_promises(team_id, status, due_on);
+    `,
+  },
+  {
+    version: 26,
+    sql: `
+      -- Manager Relationships & Squad Dynamics: Phase C dressing-room structure.
+      CREATE TABLE IF NOT EXISTS squad_group_membership (
+        id TEXT PRIMARY KEY,
+        team_id TEXT NOT NULL REFERENCES teams(id),
+        person_id TEXT NOT NULL REFERENCES persons(id),
+        group_type TEXT NOT NULL,
+        updated_on TEXT NOT NULL,
+        UNIQUE(team_id, person_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS team_cohesion (
+        team_id TEXT PRIMARY KEY REFERENCES teams(id),
+        score INTEGER NOT NULL,
+        level TEXT NOT NULL,
+        captain_influence TEXT NOT NULL,
+        top_issue TEXT,
+        updated_on TEXT NOT NULL
+      );
     `,
   },
 ];

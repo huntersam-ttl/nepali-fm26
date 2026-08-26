@@ -37,6 +37,19 @@ const actionLabel = (action: ConcernResponseAction): string => {
   }
 };
 
+const groupLabel = (groupType: string): string => {
+  switch (groupType) {
+    case "CORE_LEADERS":
+      return "Core leaders";
+    case "MAIN_GROUP":
+      return "Main group";
+    case "PERIPHERAL":
+      return "Peripheral";
+    default:
+      return groupType;
+  }
+};
+
 export const HomeScreen = ({
   onContinue,
   busy,
@@ -250,8 +263,43 @@ export const HomeScreen = ({
                     { label: "Contracts expiring", value: dashboard.contractIssues },
                     { label: "Staff vacancies", value: dashboard.staffIssues },
                     { label: "Player concerns", value: dashboard.concernCount ?? 0 },
+                    { label: "Dressing room", value: dashboard.cohesionLevel ?? "STABLE" },
                   ]}
                 />
+              </Panel>
+
+              <Panel title="Dressing room">
+                <AsyncPanel state={concerns}>
+                  {(view) => (
+                    <>
+                      <Metrics
+                        items={[
+                          { label: "Atmosphere", value: view.cohesion.level },
+                          { label: "Cohesion", value: view.cohesion.score },
+                          { label: "Captain", value: view.cohesion.captainName ?? "None" },
+                          { label: "Captain's influence", value: view.cohesion.captainInfluence },
+                        ]}
+                      />
+                      {view.cohesion.topIssue && (
+                        <p className="warning" role="alert">
+                          {view.cohesion.topIssue}
+                        </p>
+                      )}
+                      <ul className="report-list">
+                        {(["CORE_LEADERS", "MAIN_GROUP", "PERIPHERAL"] as const).map((groupType) => {
+                          const members = view.groups.filter((member) => member.groupType === groupType);
+                          if (members.length === 0) return null;
+                          return (
+                            <li key={groupType}>
+                              <strong>{groupLabel(groupType)}</strong> ({members.length}):{" "}
+                              {members.map((member) => member.playerName).join(", ")}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </>
+                  )}
+                </AsyncPanel>
               </Panel>
 
               <Panel title="Squad concerns">
