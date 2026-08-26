@@ -2069,6 +2069,42 @@ export type ProcurementOrder = {
   provenanceStatus: "SIMULATION_ONLY";
 };
 
+export type ProcurementAgreementType = "PREFERRED_SUPPLIER" | "RECURRING_SUPPLY" | "MAINTENANCE_SERVICE";
+export type ProcurementContractStatus = "OFFERED" | "ACTIVE" | "EXPIRED" | "TERMINATED";
+export type ProcurementContract = {
+  id: EntityId;
+  clubId: EntityId;
+  supplierId: EntityId;
+  agreementType: ProcurementAgreementType;
+  category: ProcurementCategory;
+  unitPrice: number;
+  discountRate: number;
+  serviceLevel: number;
+  warrantyMonths: number;
+  startsOn: ISODate;
+  endsOn: ISODate;
+  renewalNoticeDays: number;
+  status: ProcurementContractStatus;
+};
+export type ProcurementServiceRecord = {
+  id: EntityId;
+  contractId: EntityId;
+  clubId: EntityId;
+  supplierId: EntityId;
+  orderId?: EntityId;
+  recordedOn: ISODate;
+  serviceType: "MAINTENANCE" | "WARRANTY" | "REPLACEMENT";
+  status: "SCHEDULED" | "COMPLETED" | "MISSED";
+  cost: number;
+};
+export type ProcurementApprovalThreshold = {
+  clubId: EntityId;
+  category: ProcurementCategory;
+  maxAutoApproval: number;
+  chairmanApprovalAbove: number;
+  status: "SIMULATION_ONLY";
+};
+
 export type ClubValuation = {
   clubId: EntityId;
   valuation: number;

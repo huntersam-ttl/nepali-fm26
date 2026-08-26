@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 39;
+export const CURRENT_DATABASE_VERSION = 40;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -2704,6 +2704,28 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       );
       CREATE INDEX IF NOT EXISTS idx_procurement_requests_club ON procurement_requests(club_id, requested_on);
       CREATE INDEX IF NOT EXISTS idx_procurement_orders_delivery ON procurement_orders(expected_delivery, status);
+    `,
+  },
+  {
+    version: 40,
+    sql: `
+      CREATE TABLE IF NOT EXISTS procurement_contracts (
+        id TEXT PRIMARY KEY, club_id TEXT NOT NULL REFERENCES clubs(id), supplier_id TEXT NOT NULL REFERENCES procurement_suppliers(id),
+        agreement_type TEXT NOT NULL, category TEXT NOT NULL, unit_price INTEGER NOT NULL, discount_rate REAL NOT NULL,
+        service_level REAL NOT NULL, warranty_months INTEGER NOT NULL, starts_on TEXT NOT NULL, ends_on TEXT NOT NULL,
+        renewal_notice_days INTEGER NOT NULL, status TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS procurement_service_records (
+        id TEXT PRIMARY KEY, contract_id TEXT NOT NULL REFERENCES procurement_contracts(id), club_id TEXT NOT NULL REFERENCES clubs(id),
+        supplier_id TEXT NOT NULL REFERENCES procurement_suppliers(id), order_id TEXT REFERENCES procurement_orders(id), recorded_on TEXT NOT NULL,
+        service_type TEXT NOT NULL, status TEXT NOT NULL, cost INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS procurement_approval_thresholds (
+        club_id TEXT NOT NULL REFERENCES clubs(id), category TEXT NOT NULL, max_auto_approval INTEGER NOT NULL,
+        chairman_approval_above INTEGER NOT NULL, status TEXT NOT NULL, PRIMARY KEY (club_id, category)
+      );
+      CREATE INDEX IF NOT EXISTS idx_procurement_contracts_club ON procurement_contracts(club_id, status, ends_on);
+      CREATE INDEX IF NOT EXISTS idx_procurement_service_records_club ON procurement_service_records(club_id, recorded_on);
     `,
   },
 ];
