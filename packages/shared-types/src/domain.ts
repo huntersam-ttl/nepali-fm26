@@ -4059,3 +4059,11 @@ export type OwnershipInvestorProfile = {
   expectations: Record<InvestorExpectationType, InvestorExpectation>; trust: number; confidence: number;
   lastReviewedOn: ISODate; status: "ACTIVE" | "EXITED"; provenanceStatus: "SIMULATION_ONLY";
 };
+
+export type ClubLicenceCaseStatus = "PENDING" | "PASSED" | "CONDITIONAL" | "FAILED" | "APPEALED" | "RESOLVED";
+export type ClubLicenceRemediation = { key: string; requirement: string; deadline: ISODate; completed: boolean };
+export type ClubLicenceCase = {
+  id: EntityId; federationId: EntityId; clubId: EntityId; competitionSeasonId: EntityId; seasonLabel: string;
+  status: ClubLicenceCaseStatus; remediation: ClubLicenceRemediation[]; sanctions: string[]; reviewedAt: ISODate;
+  provenanceStatus: "SIMULATION_ONLY";
+};

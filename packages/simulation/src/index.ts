@@ -43,3 +43,4 @@ export * from "./transfer-market.js";
 export * from "./youth-intake.js";
 export * from "./world.js";
 export * from "./investor.js";
+export * from "./licensing.js";
