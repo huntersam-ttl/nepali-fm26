@@ -468,12 +468,17 @@ export const createInfrastructureProject = (
     locationId?: EntityId;
     venueId?: EntityId;
     financing?: Record<string, number>;
+    siteRights?: InfrastructureProject["siteRights"];
   },
 ): InfrastructureProject => {
   const rng = new SeededRandom(
     `${input.seed}:project:${input.clubId}:${input.projectType}:${input.date}`,
   );
   const baseCost = projectBaseCost(input.projectType);
+  const financingJson = input.financing ?? { clubCash: 1 };
+  const rawCommitted = Object.values(financingJson).reduce((total, value) => total + Math.max(0, value), 0);
+  const fundingCommitted = rawCommitted <= 1 ? Math.round(baseCost * rawCommitted) : Math.round(rawCommitted);
+  const siteRights = input.siteRights ?? "OWNED";
   const project: InfrastructureProject = {
     id: createStableEntityId(
       "infrastructure-project",
@@ -489,7 +494,12 @@ export const createInfrastructureProject = (
     ongoingCost: Math.round(baseCost * 0.015),
     currency,
     status: "PLANNING",
-    financingJson: input.financing ?? { clubCash: 1 },
+    financingJson,
+    siteRights,
+    fundingStatus: fundingCommitted >= baseCost ? "FUNDED" : fundingCommitted > 0 ? "PARTIALLY_FUNDED" : "UNFUNDED",
+    fundingCommitted,
+    delayDays: 0,
+    maintenanceStatus: "FUNDED",
     provenanceStatus: simulationStatus,
   };
   new ClubEconomyRepository(db).upsertInfrastructureProject(project);
@@ -506,26 +516,35 @@ export const advanceInfrastructureProjects = (
     if (project.status === "COMPLETED" || project.status === "CANCELLED") continue;
     let next = project;
     if (project.status === "PLANNING" && project.planningStart <= addDays(input.date, -30)) {
-      next = { ...next, status: "CONSTRUCTION", constructionStart: input.date };
+      if (project.fundingStatus !== "FUNDED") {
+        next = { ...next, status: "FINANCING" };
+        economy.upsertInfrastructureProject(next);
+        updated.push(next);
+        continue;
+      }
+      const rng = new SeededRandom(`${input.seed}:project-risk:${project.id}`);
+      const delayDays = rng.integer(0, 45);
+      const overrun = 1 + rng.next() * 0.12;
+      next = { ...next, status: "CONSTRUCTION", constructionStart: input.date, delayDays, capitalCost: Math.round(project.capitalCost * overrun) };
       postClubTransaction(db, {
         clubId: project.clubId,
         date: input.date,
         category: "FACILITY_COST",
         direction: "DEBIT",
-        amount: Math.round(project.capitalCost * 0.35),
+        amount: Math.round(next.capitalCost * 0.35),
         description: `${project.projectType} construction installment`,
         relatedEntityId: project.id,
         idempotencyKey: `project-start:${project.id}`,
       });
     }
-    if (next.status === "CONSTRUCTION" && next.expectedCompletion <= input.date) {
+    if (next.status === "CONSTRUCTION" && addDays(next.expectedCompletion, next.delayDays ?? 0) <= input.date) {
       next = { ...next, status: "COMPLETED", completedAt: input.date };
       postClubTransaction(db, {
         clubId: project.clubId,
         date: input.date,
         category: "FACILITY_COST",
         direction: "DEBIT",
-        amount: Math.round(project.capitalCost * 0.65),
+        amount: Math.round(next.capitalCost * 0.65),
         description: `${project.projectType} completion installment`,
         relatedEntityId: project.id,
         idempotencyKey: `project-complete:${project.id}`,
@@ -537,13 +556,18 @@ export const advanceInfrastructureProjects = (
         ),
         clubId: project.clubId,
         assetType: assetTypeForProject(project.projectType),
-        ownership: "OWNED",
+        ownership: next.siteRights === "OWNED" ? "OWNED" : next.siteRights === "LEASED" ? "LEASED" : "USED_BY_PERMISSION",
         locationId: project.locationId,
         venueId: project.venueId,
         estimatedValue: Math.round(project.capitalCost * 0.8),
         currency,
         status: simulationStatus,
       });
+      const facility = economy.facilityProfile(project.clubId);
+      if (facility) {
+        const quality = next.projectType === "TRAINING_GROUND" ? { trainingFacilityQuality: facility.trainingFacilityQuality + 1.2 } : next.projectType === "ACADEMY" ? { youthFacilityQuality: facility.youthFacilityQuality + 1.2, academyCapacity: facility.academyCapacity + 12 } : ["MEDICAL_ROOM", "RECOVERY_CENTRE", "GYM"].includes(next.projectType) ? { medicalFacilityQuality: facility.medicalFacilityQuality + 1 } : {};
+        economy.upsertFacilityProfile({ ...facility, ...quality });
+      }
     }
     economy.upsertInfrastructureProject(next);
     updated.push(next);
@@ -766,6 +790,18 @@ export const processClubEconomyMonth = (
         description: "Monthly facilities operating cost",
         idempotencyKey: `facility-opex:${input.date}`,
       });
+    }
+    const completedProjects = economy.infrastructureProjects(account.clubId).filter((project) => project.status === "COMPLETED");
+    const projectMaintenance = completedProjects.reduce((total, project) => total + project.ongoingCost, 0);
+    if (projectMaintenance > 0) {
+      const available = (economy.financialAccount(account.clubId)?.cashBalance ?? 0) - reserveFloor(account);
+      const funded = available >= projectMaintenance;
+      postClubTransaction(db, { clubId: account.clubId, date: input.date, category: "FACILITY_COST", direction: "DEBIT", amount: projectMaintenance, description: "Infrastructure maintenance and operations", idempotencyKey: `project-maintenance:${input.date}` });
+      if (!funded && input.date.endsWith("-28")) {
+        const current = economy.facilityProfile(account.clubId);
+        if (current) economy.upsertFacilityProfile({ ...current, trainingFacilityQuality: Math.max(0, current.trainingFacilityQuality - 0.08), youthFacilityQuality: Math.max(0, current.youthFacilityQuality - 0.08), medicalFacilityQuality: Math.max(0, current.medicalFacilityQuality - 0.08) });
+        for (const project of completedProjects) economy.upsertInfrastructureProject({ ...project, maintenanceStatus: "DETERIORATING" });
+      }
     }
     const activeSponsorships = economy
       .sponsorships(account.clubId)

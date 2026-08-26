@@ -4477,6 +4477,11 @@ const mapInfrastructureProject = (row: any): InfrastructureProject => ({
   currency: row.currency,
   status: row.status,
   financingJson: json.parse(row.financing_json, {}),
+  siteRights: row.site_rights ?? "OWNED",
+  fundingStatus: row.funding_status ?? "FUNDED",
+  fundingCommitted: row.funding_committed ?? 0,
+  delayDays: row.delay_days ?? 0,
+  maintenanceStatus: row.maintenance_status ?? "FUNDED",
   provenanceStatus: row.provenance_status,
 });
 
@@ -5405,13 +5410,17 @@ export class ClubEconomyRepository {
         `INSERT INTO infrastructure_projects
         (id, club_id, project_type, location_id, venue_id, planning_start, construction_start,
           expected_completion, completed_at, capital_cost, ongoing_cost, currency, status,
-          financing_json, provenance_status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          financing_json, site_rights, funding_status, funding_committed, delay_days, maintenance_status, provenance_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           construction_start = excluded.construction_start,
           expected_completion = excluded.expected_completion,
           completed_at = excluded.completed_at,
-          status = excluded.status`,
+          status = excluded.status,
+          capital_cost = excluded.capital_cost, ongoing_cost = excluded.ongoing_cost,
+          financing_json = excluded.financing_json, site_rights = excluded.site_rights,
+          funding_status = excluded.funding_status, funding_committed = excluded.funding_committed,
+          delay_days = excluded.delay_days, maintenance_status = excluded.maintenance_status`,
       )
       .run(
         project.id,
@@ -5428,6 +5437,11 @@ export class ClubEconomyRepository {
         project.currency,
         project.status,
         json.stringify(project.financingJson),
+        project.siteRights ?? "OWNED",
+        project.fundingStatus ?? "FUNDED",
+        project.fundingCommitted ?? 0,
+        project.delayDays ?? 0,
+        project.maintenanceStatus ?? "FUNDED",
         project.provenanceStatus,
       );
   }

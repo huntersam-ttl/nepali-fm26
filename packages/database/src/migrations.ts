@@ -2487,6 +2487,16 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       );
     `,
   },
+  {
+    version: 31,
+    sql: `
+      ALTER TABLE infrastructure_projects ADD COLUMN site_rights TEXT NOT NULL DEFAULT 'OWNED';
+      ALTER TABLE infrastructure_projects ADD COLUMN funding_status TEXT NOT NULL DEFAULT 'FUNDED';
+      ALTER TABLE infrastructure_projects ADD COLUMN funding_committed INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE infrastructure_projects ADD COLUMN delay_days INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE infrastructure_projects ADD COLUMN maintenance_status TEXT NOT NULL DEFAULT 'FUNDED';
+    `,
+  },
 ];
 
 export const migrateDatabase = (db: GameDatabase): number => {

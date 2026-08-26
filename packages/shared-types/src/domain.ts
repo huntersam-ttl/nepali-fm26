@@ -1984,6 +1984,11 @@ export type InfrastructureProject = {
   currency: string;
   status: InfrastructureProjectStatus;
   financingJson: Record<string, number>;
+  siteRights?: "OWNED" | "LEASED" | "SHARED" | "PERMISSION_REQUIRED";
+  fundingStatus?: "UNFUNDED" | "PARTIALLY_FUNDED" | "FUNDED";
+  fundingCommitted?: number;
+  delayDays?: number;
+  maintenanceStatus?: "FUNDED" | "UNDERFUNDED" | "DETERIORATING";
   provenanceStatus: "SIMULATION_ONLY" | "VERIFIED" | "REPORTED" | "ESTIMATED" | "UNKNOWN";
 };
 
