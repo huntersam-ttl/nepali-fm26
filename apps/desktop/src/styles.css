@@ -430,6 +430,33 @@ dd {
   margin-bottom: 10px;
 }
 
+.transfer-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 12px;
+  border: 1px solid #d8dfd9;
+  border-radius: 6px;
+  background: #f7f9f6;
+}
+
+.transfer-form label {
+  display: grid;
+  gap: 4px;
+  color: #51605a;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.transfer-form input {
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid #cbd5cd;
+  border-radius: 4px;
+  background: #fff;
+}
+
 .panel-head h2 {
   margin: 0;
 }

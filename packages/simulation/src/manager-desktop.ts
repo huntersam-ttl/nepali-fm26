@@ -59,8 +59,12 @@ import {
   type TransferCentre,
   type TransferListCommand,
   type TransferOfferCommand,
+  type TransferOffer,
   type TransferOfferView,
   type TransferResponseCommand,
+  type TransferRequestCommand,
+  type TransferRequestResponseCommand,
+  type TransferLoanCommand,
 } from "@nepal-football-sim/shared-types";
 import { initializeClubEconomyForSave } from "./club-economy.js";
 import { activeConcernCount } from "./squad-dynamics.js";
@@ -88,10 +92,14 @@ import {
 } from "./tactics.js";
 import {
   createTransferOffer,
+  counterTransferOffer,
   evaluateTransferOffer,
   completePermanentTransfer,
   initializeTransferMarketForSave,
   negotiatePlayerContract,
+  requestPlayerTransfer,
+  respondToPlayerTransferRequest,
+  startLoan,
 } from "./transfer-market.js";
 import type { ManagerContext } from "./desktop-application.js";
 
@@ -1278,19 +1286,7 @@ const budgetView = (
 const offerView = (
   db: GameDatabase,
   context: ManagerContext,
-  offer: {
-    id: EntityId;
-    playerId: EntityId;
-    buyingClubId: EntityId;
-    sellingClubId?: EntityId;
-    offerType: string;
-    transferFee: number;
-    addOns: number;
-    currency: string;
-    status: string;
-    submittedAt: ISODate;
-    expiresAt: ISODate;
-  },
+  offer: TransferOffer,
 ): TransferOfferView => {
   const outgoing = offer.sellingClubId === context.club?.id;
   return {
@@ -1301,7 +1297,23 @@ const offerView = (
     otherClubName: clubName(db, outgoing ? offer.buyingClubId : offer.sellingClubId),
     offerType: offer.offerType,
     transferFee: offer.transferFee,
+    installments: offer.installments,
     addOns: offer.addOns,
+    sellOnPercentage: offer.sellOnPercentage,
+    askingRange: offer.askingRange,
+    agentFee: offer.agentFee,
+    signingFee: offer.signingFee,
+    agentContact: new TransferMarketRepository(db).agentForPlayer(offer.playerId)
+      ? "AGENT"
+      : "SELF_REPRESENTED",
+    conditionals: offer.conditionals ?? [],
+    playerExchanges: (offer.playerExchanges ?? []).map((exchange) => ({
+      playerId: exchange.playerId,
+      playerName: personName(db, exchange.playerId),
+      valuation: exchange.valuation,
+      requestedBy: exchange.requestedBy,
+    })),
+    sellerRequestedPlayerId: offer.sellerRequestedPlayerId,
     currency: offer.currency,
     status: offer.status,
     submittedAt: offer.submittedAt,
@@ -1371,6 +1383,28 @@ export const buildTransferCentre = (
     budget: budgetView(db, save, context),
     windowOpen: windows.length > 0,
     windowCloses: windows[0]?.closeDate,
+    expiringContracts: market
+      .contractsExpiringBetween(save.worldDate, addDays(save.worldDate, 180))
+      .filter((contract) => contract.clubId === clubId)
+      .map((contract) => ({
+        playerId: contract.playerId,
+        playerName: personName(db, contract.playerId),
+        endDate: contract.endDate,
+        monthsRemaining: monthsBetween(save.worldDate, contract.endDate),
+        squadRole: contract.squadRole,
+      })),
+    requests: market
+      .transferRequests()
+      .filter((request) => request.clubId === clubId)
+      .map((request) => ({
+        id: request.id,
+        playerId: request.playerId,
+        playerName: personName(db, request.playerId),
+        reason: request.reason,
+        pressureScore: request.pressureScore,
+        status: request.status,
+        askingRange: request.askingContext,
+      })),
     targets: dashboard.shortlist,
     incoming: offers
       .filter((offer) => offer.buyingClubId === clubId)
@@ -1393,6 +1427,65 @@ export const buildTransferCentre = (
         otherClubName: clubName(db, event.relatedClubId),
       })),
   };
+};
+
+export const makeManagerTransferRequest = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  context: ManagerContext,
+  command: TransferRequestCommand,
+): TransferCentre => {
+  assertManagerAuthority(context, undefined, "LIST_PLAYER");
+  if (command.playerId && context.club?.id) {
+    requestPlayerTransfer(db, { ...command, worldDate: save.worldDate });
+  }
+  return buildTransferCentre(db, save, context);
+};
+
+export const respondManagerTransferRequest = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  context: ManagerContext,
+  command: TransferRequestResponseCommand,
+): TransferCentre => {
+  assertManagerAuthority(context, undefined, "LIST_PLAYER");
+  const market = new TransferMarketRepository(db);
+  const request = market.transferRequests().find((item) => item.id === command.requestId);
+  if (!request || request.clubId !== context.club?.id) {
+    throw new ManagerCommandError(
+      "ROLE_NOT_AUTHORIZED",
+      "You may only respond to requests from your own players.",
+    );
+  }
+  respondToPlayerTransferRequest(db, request, command.decision, save.worldDate);
+  return buildTransferCentre(db, save, context);
+};
+
+export const negotiateManagerLoan = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  context: ManagerContext,
+  command: TransferLoanCommand,
+): TransferCentre => {
+  assertManagerAuthority(context, undefined, "OFFER_TRANSFER");
+  const parentClubId = new TransferMarketRepository(db).activeContract(
+    command.playerId,
+    save.worldDate,
+  )?.clubId;
+  if (!context.club?.id || !parentClubId || parentClubId === context.club.id) {
+    throw new ManagerCommandError(
+      "INVALID_SELECTION",
+      "That player cannot be approached for a loan.",
+    );
+  }
+  startLoan(db, parentClubId, context.club.id, command.playerId, save.worldDate, save.randomSeed, {
+    endDate: command.endDate,
+    wageContributionPercent: command.wageContributionPercent,
+    loanFee: command.loanFee,
+    playingTimeExpectation: command.playingTimeExpectation,
+    recallAllowed: command.recallAllowed,
+  });
+  return buildTransferCentre(db, save, context);
 };
 
 export const makeManagerTransferOffer = (
@@ -1422,6 +1515,12 @@ export const makeManagerTransferOffer = (
     playerId: command.playerId,
     submittedAt: save.worldDate,
     fee: command.fee,
+    installments: command.installments,
+    addOns: command.addOns,
+    sellOnPercentage: command.sellOnPercentage,
+    conditionals: command.conditionals,
+    exchangePlayerIds: command.exchangePlayerIds,
+    sellerRequestedPlayerId: command.sellerRequestedPlayerId,
   });
   // The selling club's decision is made by the engine, never by the UI.
   const outcome = evaluateTransferOffer(
@@ -1460,6 +1559,17 @@ export const respondToTransferOffer = (
       "ROLE_NOT_AUTHORIZED",
       "You may only respond to offers made for your own players.",
     );
+  }
+  if (command.action === "COUNTER") {
+    counterTransferOffer(db, offer, {
+      worldDate: save.worldDate,
+      transferFee: command.transferFee,
+      installments: command.installments,
+      addOns: command.addOns,
+      sellOnPercentage: command.sellOnPercentage,
+      sellerRequestedPlayerId: command.sellerRequestedPlayerId,
+    });
+    return buildTransferCentre(db, save, context);
   }
   market.insertNegotiationRound({
     id: createStableEntityId("negotiation-round", `${offer.id}:manager:${command.action}`),
