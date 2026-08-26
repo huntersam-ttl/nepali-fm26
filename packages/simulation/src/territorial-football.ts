@@ -1,9 +1,12 @@
 import { createStableEntityId, type DistrictDevelopmentProject, type DistrictFootballUnit, type EntityId, type ProvinceFootballUnit, type TerritorialRepresentativeTeam } from "@nepal-football-sim/shared-types";
 import { TerritorialFootballRepository, type GameDatabase } from "@nepal-football-sim/database";
+import type { MacroEconomicState } from "@nepal-football-sim/shared-types";
 
 const provinces: Array<[string, string[]]> = [["Koshi", ["Taplejung","Panchthar","Ilam","Jhapa","Morang","Sunsari","Dhankuta","Terhathum","Sankhuwasabha","Bhojpur","Solukhumbu","Okhaldhunga","Khotang","Udayapur"]],["Madhesh",["Saptari","Siraha","Dhanusha","Mahottari","Sarlahi","Rautahat","Bara","Parsa"]],["Bagmati",["Dolakha","Ramechhap","Sindhuli","Kavrepalanchok","Sindhupalchok","Rasuwa","Nuwakot","Dhading","Kathmandu","Bhaktapur","Lalitpur","Makwanpur","Chitwan"]],["Gandaki",["Gorkha","Manang","Mustang","Myagdi","Kaski","Lamjung","Tanahun","Syangja","Parbat","Baglung","Nawalpur"]],["Lumbini",["Rupandehi","Kapilvastu","Palpa","Arghakhanchi","Gulmi","Dang","Pyuthan","Rolpa","Rukum East","Banke","Bardiya","Nawalparasi West"]],["Karnali",["Dolpa","Humla","Jumla","Kalikot","Mugu","Surkhet","Dailekh","Jajarkot","Salyan","Rukum West"]],["Sudurpashchim",["Bajura","Bajhang","Doti","Achham","Kailali","Kanchanpur","Dadeldhura","Baitadi","Darchula"]]];
 const clean = (value:string) => value.toLowerCase().replace(/ district| province|\s+/g, "");
 const clamp = (value:number) => Math.max(0, Math.min(100, Math.round(value)));
+
+export const lowerLeagueFinanceMultiplier = (division: "A" | "B" | "C", macro?: MacroEconomicState): number => { const base = division === "A" ? 1 : division === "B" ? 0.42 : 0.2; return Number((base * Math.max(0.75, Math.min(2.2, macro?.footballCommercialStrength ?? 1))).toFixed(3)); };
 
 export const initializeNepalTerritorialStructure = (db:GameDatabase, date:string): { districts:DistrictFootballUnit[]; provinces:ProvinceFootballUnit[] } => {
   const repo = new TerritorialFootballRepository(db); const locations = db.prepare("SELECT id,name FROM locations WHERE kind='district'").all() as Array<{id:EntityId;name:string}>; const byName = new Map(locations.map((location) => [clean(location.name), location])); const result: DistrictFootballUnit[] = [];
