@@ -9,6 +9,7 @@ export * from "./federation-governance.js";
 export * from "./national-team-management.js";
 export * from "./media.js";
 export * from "./medical.js";
+export * from "./club-creation.js";
 export * from "./federation-politics.js";
 export * from "./external-football-world.js";
 export * from "./clubmart.js";

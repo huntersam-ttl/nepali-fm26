@@ -156,6 +156,21 @@ export type Club = {
   foundedYear?: number;
 };
 
+export type SimulationClubStatus = "ACTIVE" | "DORMANT" | "FAILED";
+export type SimulationClubRecord = {
+  id: EntityId;
+  clubId: EntityId;
+  locationId: EntityId;
+  foundedOn: ISODate;
+  ownershipType: ClubOwnershipType;
+  initialReputation: number;
+  supporterBase: number;
+  status: SimulationClubStatus;
+  admissionStatus: "PENDING" | "ADMITTED" | "REJECTED";
+  venueId?: EntityId;
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
 export type ClubAlias = {
   id: EntityId;
   clubId: EntityId;

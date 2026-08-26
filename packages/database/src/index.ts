@@ -8,4 +8,5 @@ export * from "./national-team-management-repository.js";
 export * from "./media-repository.js";
 export * from "./media-phase-b-repository.js";
 export * from "./medical-repository.js";
+export * from "./club-creation-repository.js";
 export * from "./save-system.js";
