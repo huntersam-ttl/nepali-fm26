@@ -33,6 +33,9 @@ describe("AI world and long-term decision-making phase A", () => {
     expect(a).toEqual(b);
     expect(a).toHaveLength(3);
     expect(a.every((decision) => decision.actions.length >= 5)).toBe(true);
+    const identities = new ClubEconomyRepository(first).aiDecisions().map((decision) => decision.identity);
+    expect(new Set(identities).size).toBeGreaterThan(1);
+    expect(new ClubEconomyRepository(first).aiDecisions(clubId).map((decision) => decision.identity)).toEqual([a[0].identity, a[1].identity, a[2].identity]);
     first.close(); second.close();
     const reloaded = openGameDatabase(firstPath);
     expect(new ClubEconomyRepository(reloaded).aiDecisions(clubId)).toHaveLength(3);
