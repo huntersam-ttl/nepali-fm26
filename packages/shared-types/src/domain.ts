@@ -3275,6 +3275,37 @@ export type NationalTeamCamp = {
   provenanceStatus: "SIMULATION_ONLY";
 };
 
+export type NationalTeamManagementDecision = {
+  id: EntityId;
+  federationId: EntityId;
+  nationalTeamId: EntityId;
+  managerPersonId?: EntityId;
+  decisionDate: ISODate;
+  programme: string;
+  selectedPlayerIds: EntityId[];
+  captainPlayerId?: EntityId;
+  tacticalSetupId?: EntityId;
+  tacticalStyle?: string;
+  competitionEditionId?: EntityId;
+  status: "ACTIVE" | "SUPERSEDED";
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+export type NationalTeamCampaign = {
+  id: EntityId;
+  federationId: EntityId;
+  nationalTeamId: EntityId;
+  competitionEditionId?: EntityId;
+  name: string;
+  startedOn: ISODate;
+  matchesPlayed: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  qualificationStatus: "ACTIVE" | "QUALIFIED" | "ELIMINATED" | "COMPLETED";
+  status: "SIMULATION_ONLY";
+};
+
 export type InternationalRetirementStatus = "ACTIVE" | "CONSIDERING" | "RETIRED_INTERNATIONAL";
 
 export type InternationalRetirement = {

@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 43;
+export const CURRENT_DATABASE_VERSION = 44;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -2832,6 +2832,24 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       );
       CREATE INDEX IF NOT EXISTS idx_staff_succession_plans_club
         ON staff_succession_plans(club_id, status);
+    `,
+  },
+  {
+    version: 44,
+    sql: `
+      CREATE TABLE IF NOT EXISTS national_team_management_decisions (
+        id TEXT PRIMARY KEY, federation_id TEXT NOT NULL REFERENCES federations(id), national_team_id TEXT NOT NULL REFERENCES teams(id),
+        manager_person_id TEXT REFERENCES persons(id), decision_date TEXT NOT NULL, programme TEXT NOT NULL, selected_player_ids_json TEXT NOT NULL,
+        captain_player_id TEXT REFERENCES persons(id), tactical_setup_id TEXT, tactical_style TEXT, competition_edition_id TEXT REFERENCES international_competition_editions(id),
+        status TEXT NOT NULL, provenance_status TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS national_team_campaigns (
+        id TEXT PRIMARY KEY, federation_id TEXT NOT NULL REFERENCES federations(id), national_team_id TEXT NOT NULL REFERENCES teams(id),
+        competition_edition_id TEXT REFERENCES international_competition_editions(id), name TEXT NOT NULL, started_on TEXT NOT NULL,
+        matches_played INTEGER NOT NULL, wins INTEGER NOT NULL, draws INTEGER NOT NULL, losses INTEGER NOT NULL, qualification_status TEXT NOT NULL, status TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_national_team_management_team ON national_team_management_decisions(national_team_id, decision_date);
+      CREATE INDEX IF NOT EXISTS idx_national_team_campaigns_team ON national_team_campaigns(national_team_id, started_on);
     `,
   },
 ];
