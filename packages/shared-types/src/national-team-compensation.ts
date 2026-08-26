@@ -1,0 +1,4 @@
+import type { EntityId } from "./ids.js";
+export type NationalTeamCompensationProgramme="SENIOR_MEN"|"SENIOR_WOMEN"|"YOUTH"|"FUTSAL";
+export type NationalTeamCompensationPolicy={id:EntityId;federationId:EntityId;programme:NationalTeamCompensationProgramme;version:number;effectiveFrom:string;effectiveTo?:string;monthlyRetainer:number;appearanceFee:number;winBonus:number;drawBonus:number;qualificationBonus:number;tournamentParticipationBonus:number;tournamentPerformanceBonus:number;travelAllowance:number;campAllowance:number;status:"PROPOSED"|"APPROVED"|"ACTIVE"|"EXPIRED";provenanceStatus:"SIMULATION_ONLY"};
+export type NationalTeamCompensationPayment={id:EntityId;policyId:EntityId;federationId:EntityId;nationalTeamId:EntityId;playerId:EntityId;paymentType:string;amount:number;eventId:EntityId;paidOn:string;status:"PAID"|"DEFERRED";federationLedgerEntryId?:EntityId;provenanceStatus:"SIMULATION_ONLY"};

@@ -9,3 +9,4 @@ export * from "./commercial-rights.js";
 export * from "./competition-distribution.js";
 export * from "./referee-development.js";
 export * from "./insurance.js";
+export * from "./national-team-compensation.js";
