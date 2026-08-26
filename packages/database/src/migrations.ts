@@ -2996,6 +2996,18 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       CREATE INDEX IF NOT EXISTS idx_investor_profiles_club ON ownership_investor_profiles(club_id, status, last_reviewed_on);
     `,
   },
+  {
+    version: 55,
+    sql: `
+      CREATE TABLE IF NOT EXISTS club_licence_cases (
+        id TEXT PRIMARY KEY, federation_id TEXT NOT NULL REFERENCES federations(id), club_id TEXT NOT NULL REFERENCES clubs(id),
+        competition_season_id TEXT NOT NULL REFERENCES competition_seasons(id), season_label TEXT NOT NULL, status TEXT NOT NULL,
+        remediation_json TEXT NOT NULL, sanctions_json TEXT NOT NULL, reviewed_at TEXT NOT NULL, provenance_status TEXT NOT NULL,
+        UNIQUE(federation_id, club_id, competition_season_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_club_licence_cases_season ON club_licence_cases(competition_season_id, status, club_id);
+    `,
+  },
 ];
 
 export const migrateDatabase = (db: GameDatabase): number => {

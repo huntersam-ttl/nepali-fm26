@@ -41,6 +41,11 @@ import {
   type PreseasonContinuityReport,
 } from "./preseason-continuity.js";
 import { updatePlayerDevelopment } from "./player-development.js";
+import {
+  computeDevelopmentEnvironment,
+  ensureSensibleDevelopmentPlan,
+  trainingAvailabilityFor,
+} from "./player-development-plans.js";
 import { progressPyramidSeason, persistPyramidProgression } from "./pyramid-progression.js";
 import {
   initializeRecruitmentForSave,
@@ -1158,6 +1163,26 @@ function summarizeTeamStatsWithCleanSheets(
   }));
 }
 
+const ageOnDate = (dateOfBirth: string, onDate: string): number => {
+  const birth = new Date(`${dateOfBirth}T00:00:00Z`);
+  const on = new Date(`${onDate}T00:00:00Z`);
+  let age = on.getUTCFullYear() - birth.getUTCFullYear();
+  if (
+    on.getUTCMonth() < birth.getUTCMonth() ||
+    (on.getUTCMonth() === birth.getUTCMonth() && on.getUTCDate() < birth.getUTCDate())
+  ) {
+    age -= 1;
+  }
+  return age;
+};
+
+/**
+ * AI-club and background player development for a season period — the same
+ * `updatePlayerDevelopment` engine the manager's own daily loop uses, given
+ * real age, a sensible default individual plan (filled in only if the club
+ * hasn't set one) and the club's real coaching/facility environment, so
+ * background clubs develop players on the same rules the player's club does.
+ */
 function developPlayers(
   db: GameDatabase,
   competitionSeasonId: EntityId,
@@ -1165,20 +1190,42 @@ function developPlayers(
   seed: string,
 ): number {
   const players = new PlayerRepository(db);
+  const world = new WorldRepository(db);
   const stats = playerSeasonStats(db, competitionSeasonId).filter((stat) => stat.minutes > 0);
+  const teamsProcessed = new Set<EntityId>();
+  const environmentByTeam = new Map<EntityId, ReturnType<typeof computeDevelopmentEnvironment>>();
   let count = 0;
   for (const stat of stats) {
     const attributes = players.getAttributes(stat.personId);
     const state = players.developmentState(stat.personId);
     const potential = players.potential(stat.personId);
     if (!attributes || !state || !potential) continue;
+    if (!teamsProcessed.has(stat.teamId)) {
+      ensureSensibleDevelopmentPlan(db, date, stat.teamId);
+      teamsProcessed.add(stat.teamId);
+    }
+    let environment = environmentByTeam.get(stat.teamId);
+    if (!environment) {
+      const clubRow = db.prepare("SELECT club_id FROM teams WHERE id = ?").get(stat.teamId) as
+        | { club_id?: EntityId }
+        | undefined;
+      environment = computeDevelopmentEnvironment(db, clubRow?.club_id);
+      environmentByTeam.set(stat.teamId, environment);
+    }
+    const person = world.getPerson(stat.personId);
+    const age = person?.dateOfBirth ? ageOnDate(person.dateOfBirth, date) : 25;
+    const individualPlan = world.activeIndividualDevelopmentPlan(stat.personId);
+    const availability = trainingAvailabilityFor(db, stat.personId, date);
     const updated = updatePlayerDevelopment({
       attributes,
       state,
       potential,
-      age: 27,
+      age,
       date,
       seed,
+      individualPlan,
+      environment,
+      trainingAvailability: availability,
       playingTime: {
         id: createStableEntityId("playing-time", `${competitionSeasonId}:${stat.personId}`),
         playerId: stat.personId,
@@ -1193,6 +1240,9 @@ function developPlayers(
     });
     players.upsertAttributes(updated.updatedAttributes);
     players.upsertDevelopmentState(updated.updatedState);
+    for (const event of updated.historyEvents) {
+      players.insertTrainingHistoryEvent({ ...event, teamId: stat.teamId });
+    }
     count += 1;
   }
   return count;

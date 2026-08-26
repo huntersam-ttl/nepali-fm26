@@ -1,0 +1,9 @@
+import type { ClubLicenceCase, EntityId } from "@nepal-football-sim/shared-types";
+import type { GameDatabase } from "./connection.js";
+const map = (r: any): ClubLicenceCase => ({ id:r.id, federationId:r.federation_id, clubId:r.club_id, competitionSeasonId:r.competition_season_id, seasonLabel:r.season_label, status:r.status, remediation:JSON.parse(r.remediation_json), sanctions:JSON.parse(r.sanctions_json), reviewedAt:r.reviewed_at, provenanceStatus:r.provenance_status });
+export class ClubLicensingRepository {
+  constructor(private readonly db: GameDatabase) {}
+  upsert(value: ClubLicenceCase): void { this.db.prepare(`INSERT INTO club_licence_cases (id,federation_id,club_id,competition_season_id,season_label,status,remediation_json,sanctions_json,reviewed_at,provenance_status) VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(federation_id,club_id,competition_season_id) DO UPDATE SET status=excluded.status,remediation_json=excluded.remediation_json,sanctions_json=excluded.sanctions_json,reviewed_at=excluded.reviewed_at`).run(value.id,value.federationId,value.clubId,value.competitionSeasonId,value.seasonLabel,value.status,JSON.stringify(value.remediation),JSON.stringify(value.sanctions),value.reviewedAt,value.provenanceStatus); }
+  get(id: EntityId): ClubLicenceCase | undefined { const row=this.db.prepare("SELECT * FROM club_licence_cases WHERE id=?").get(id) as any; return row?map(row):undefined; }
+  cases(competitionSeasonId?: EntityId): ClubLicenceCase[] { const rows=(competitionSeasonId?this.db.prepare("SELECT * FROM club_licence_cases WHERE competition_season_id=? ORDER BY club_id").all(competitionSeasonId):this.db.prepare("SELECT * FROM club_licence_cases ORDER BY season_label,club_id").all()) as any[]; return rows.map(map); }
+}

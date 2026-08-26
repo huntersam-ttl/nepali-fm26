@@ -313,6 +313,9 @@ export type PlayerDevelopmentEntry = {
   recovery: number;
   injuryRisk: number;
   currentlyInjured: boolean;
+  trainingAvailability: "FULL" | "INJURED" | "RETURNING";
+  plateaued: boolean;
+  latestRecommendation?: string;
   activePlan?: IndividualDevelopmentPlanView;
   recentHistory: DevelopmentHistoryEntryView[];
 };

@@ -377,6 +377,7 @@ const PlayerDevelopmentBoard = ({
                   <th>Fitness</th>
                   <th>Injury risk</th>
                   <th>Active focus</th>
+                  <th>Review</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -395,7 +396,8 @@ const PlayerDevelopmentBoard = ({
                     <td>{player.currentAbility}</td>
                     <td>
                       {player.fitness}
-                      {player.currentlyInjured && <Badge tone="bad">injured</Badge>}
+                      {player.trainingAvailability === "INJURED" && <Badge tone="bad">injured</Badge>}
+                      {player.trainingAvailability === "RETURNING" && <Badge tone="warn">returning</Badge>}
                     </td>
                     <td>{Math.round(player.injuryRisk * 100)}%</td>
                     <td>
@@ -404,6 +406,12 @@ const PlayerDevelopmentBoard = ({
                             player.activePlan.targetPosition ? ` → ${player.activePlan.targetPosition}` : ""
                           }`
                         : "—"}
+                    </td>
+                    <td>
+                      {player.plateaued && <Badge tone="warn">plateaued</Badge>}
+                      {player.latestRecommendation && (
+                        <span className="subtle">{player.latestRecommendation.replace(/_/g, " ").toLowerCase()}</span>
+                      )}
                     </td>
                     <td>
                       {player.activePlan && (
