@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 58;
+export const CURRENT_DATABASE_VERSION = 59;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -3035,6 +3035,53 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
     sql: `
       ALTER TABLE saves ADD COLUMN last_autosave_world_date TEXT;
       ALTER TABLE saves ADD COLUMN last_autosave_at TEXT;
+    `,
+  },
+  {
+    version: 59,
+    sql: `
+      CREATE TABLE IF NOT EXISTS federation_grants (
+        id TEXT PRIMARY KEY, federation_id TEXT NOT NULL REFERENCES federations(id),
+        source_institution TEXT NOT NULL, currency TEXT NOT NULL,
+        approved_amount REAL NOT NULL, received_amount REAL NOT NULL, remaining_amount REAL NOT NULL,
+        approval_date TEXT, funding_period_start TEXT NOT NULL, funding_period_end TEXT NOT NULL,
+        purpose TEXT NOT NULL, restriction_type TEXT NOT NULL, status TEXT NOT NULL,
+        reporting_requirements_json TEXT NOT NULL, audit_required INTEGER NOT NULL,
+        milestones_json TEXT NOT NULL, history_json TEXT NOT NULL, conditions_json TEXT NOT NULL,
+        provenance_status TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_federation_grants_federation ON federation_grants(federation_id, status);
+
+      CREATE TABLE IF NOT EXISTS federation_grant_expenditures (
+        id TEXT PRIMARY KEY, grant_id TEXT NOT NULL REFERENCES federation_grants(id),
+        federation_id TEXT NOT NULL REFERENCES federations(id), expenditure_date TEXT NOT NULL,
+        amount REAL NOT NULL, purpose TEXT NOT NULL, description TEXT NOT NULL,
+        ledger_entry_id TEXT NOT NULL, status TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_federation_grant_expenditures_grant ON federation_grant_expenditures(grant_id);
+
+      CREATE TABLE IF NOT EXISTS federation_compliance_profiles (
+        federation_id TEXT PRIMARY KEY REFERENCES federations(id),
+        status TEXT NOT NULL, dimensions_json TEXT NOT NULL, last_reviewed_on TEXT NOT NULL,
+        history_json TEXT NOT NULL, provenance_status TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS federation_sanctions (
+        id TEXT PRIMARY KEY, federation_id TEXT NOT NULL REFERENCES federations(id),
+        authority TEXT NOT NULL, reason TEXT NOT NULL, category TEXT NOT NULL, start_date TEXT NOT NULL,
+        requirements_json TEXT NOT NULL, affected_programmes_json TEXT NOT NULL, consequences_json TEXT NOT NULL,
+        review_state TEXT NOT NULL, resolved_on TEXT, history_json TEXT NOT NULL, provenance_status TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_federation_sanctions_federation ON federation_sanctions(federation_id, review_state);
+
+      CREATE TABLE IF NOT EXISTS federation_corrective_actions (
+        id TEXT PRIMARY KEY, federation_id TEXT NOT NULL REFERENCES federations(id),
+        sanction_id TEXT REFERENCES federation_sanctions(id), description TEXT NOT NULL, category TEXT NOT NULL,
+        started_on TEXT NOT NULL, target_completion_on TEXT NOT NULL, completed_on TEXT,
+        status TEXT NOT NULL, evidence TEXT, provenance_status TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_federation_corrective_actions_federation ON federation_corrective_actions(federation_id, status);
+      CREATE INDEX IF NOT EXISTS idx_federation_corrective_actions_sanction ON federation_corrective_actions(sanction_id);
     `,
   },
 ];
