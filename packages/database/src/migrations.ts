@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 50;
+export const CURRENT_DATABASE_VERSION = 51;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -2948,6 +2948,15 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
         admission_status TEXT NOT NULL, venue_id TEXT REFERENCES venues(id), provenance_status TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_simulation_clubs_location ON simulation_club_records(location_id, status);
+    `,
+  },
+  {
+    version: 51,
+    sql: `
+      CREATE TABLE IF NOT EXISTS simulation_club_lifecycle_events (
+        id TEXT PRIMARY KEY, club_id TEXT NOT NULL REFERENCES clubs(id), event_type TEXT NOT NULL, occurred_on TEXT NOT NULL, reason TEXT NOT NULL, provenance_status TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_simulation_club_lifecycle ON simulation_club_lifecycle_events(club_id, occurred_on, id);
     `,
   },
 ];

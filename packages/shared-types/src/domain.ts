@@ -170,6 +170,14 @@ export type SimulationClubRecord = {
   venueId?: EntityId;
   provenanceStatus: "SIMULATION_ONLY";
 };
+export type SimulationClubLifecycleEvent = {
+  id: EntityId;
+  clubId: EntityId;
+  eventType: "FOUNDED" | "ADMISSION_REQUESTED" | "ADMITTED" | "REJECTED" | "DORMANT" | "REVIVED";
+  occurredOn: ISODate;
+  reason: string;
+  provenanceStatus: "SIMULATION_ONLY";
+};
 
 export type ClubAlias = {
   id: EntityId;

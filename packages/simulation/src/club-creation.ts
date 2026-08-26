@@ -1,6 +1,7 @@
 import { ClubCreationRepository, ClubEconomyRepository, WorldRepository, type GameDatabase } from "@nepal-football-sim/database";
-import { createStableEntityId, type Club, type ClubMembership, type EntityId, type SimulationClubRecord, type Team, type VenueRelationship } from "@nepal-football-sim/shared-types";
+import { createStableEntityId, type Club, type ClubMembership, type EntityId, type SimulationClubLifecycleEvent, type SimulationClubRecord, type Team, type VenueRelationship } from "@nepal-football-sim/shared-types";
 import { repairPreseasonContinuity } from "./preseason-continuity.js";
+import { SeededRandom } from "./rng.js";
 
 const status = "SIMULATION_ONLY" as const;
 const yearOf = (date: string): number => Number(date.slice(0, 4));
@@ -44,7 +45,8 @@ export const createSimulationClub = (db: GameDatabase, input: CreateSimulationCl
   economy.upsertSupporterProfile({ clubId, coreSupporters: 100, casualSupporters: 150, regionalSupport: 50, diasporaSupport: 0, activeSupport: 40, familySupport: 30, youthSupport: 50, clubPopularity: 1.5, footballReputation: 1.5, commercialReputation: 1, sentiment: "NEUTRAL", standardTicketPrice: 100, currency: "NPR", status });
   const admitted = input.competitionSeasonId ? admitSimulationClub(db, { clubId, teamId: team.id, competitionSeasonId: input.competitionSeasonId, date: input.foundedOn }) : false;
   const record: SimulationClubRecord = { id: createStableEntityId("simulation-club-record", clubId), clubId, locationId: input.locationId, foundedOn: input.foundedOn, ownershipType: club.ownershipType, initialReputation: 1.5, supporterBase: 250, status: "ACTIVE", admissionStatus: input.competitionSeasonId ? admitted ? "ADMITTED" : "REJECTED" : "PENDING", venueId: venue.id, provenanceStatus: status };
-  new ClubCreationRepository(db).upsert(record);
+  const history = new ClubCreationRepository(db); history.upsert(record); history.recordEvent({ id: createStableEntityId("simulation-club-event", `${clubId}:founded`), clubId, eventType: "FOUNDED", occurredOn: input.foundedOn, reason: "Local simulation club founded from Nepal geography.", provenanceStatus: status });
+  if (input.competitionSeasonId) history.recordEvent({ id: createStableEntityId("simulation-club-event", `${clubId}:admission:${input.competitionSeasonId}`), clubId, eventType: admitted ? "ADMITTED" : "REJECTED", occurredOn: input.foundedOn, reason: admitted ? "Passed venue and financial admission checks." : "Did not pass local competition admission checks.", provenanceStatus: status });
   createVacancies(db, clubId, team.id, input.name, input.foundedOn);
   if (admitted && input.competitionSeasonId) repairPreseasonContinuity({ db, competitionSeasonIds: [input.competitionSeasonId], date: input.foundedOn, seed: input.seed });
   return record;
@@ -55,5 +57,36 @@ export const admitSimulationClub = (db: GameDatabase, input: { clubId: EntityId;
   const venue = db.prepare("SELECT 1 FROM venue_relationships WHERE club_id = ? AND status != 'CLOSED'").get(input.clubId); const account = db.prepare("SELECT cash_balance FROM club_financial_accounts WHERE club_id = ?").get(input.clubId) as { cash_balance?: number } | undefined;
   if (!season || !venue || (account?.cash_balance ?? 0) < 100000) return false;
   const membership: ClubMembership = { id: createStableEntityId("simulation-club-membership", `${input.clubId}:${input.competitionSeasonId}`), clubId: input.clubId, teamId: input.teamId, competitionId: season.competition_id, competitionSeasonId: input.competitionSeasonId, membershipType: "LEAGUE_MEMBER", status: "ACTIVE" };
-  new WorldRepository(db).insertClubMembership(membership); return true;
+  new WorldRepository(db).insertClubMembership(membership); new ClubCreationRepository(db).recordEvent({ id: createStableEntityId("simulation-club-event", `${input.clubId}:admitted:${input.competitionSeasonId}`), clubId: input.clubId, eventType: "ADMITTED", occurredOn: input.date, reason: "Passed existing competition, venue, and financial checks.", provenanceStatus: status }); return true;
+};
+
+const updateSupporters = (db: GameDatabase, record: SimulationClubRecord, date: string, thriving: boolean): void => {
+  const economy = new ClubEconomyRepository(db); const profile = economy.supporterProfile(record.clubId); if (!profile) return;
+  const delta = thriving ? Math.max(2, Math.round((profile.clubPopularity + profile.footballReputation) * 0.7)) : -Math.max(1, Math.round(profile.clubPopularity * 0.35));
+  const total = Math.max(40, profile.coreSupporters + profile.casualSupporters + delta); const next = { ...profile, coreSupporters: Math.max(20, profile.coreSupporters + (thriving ? 1 : -1)), casualSupporters: Math.max(20, total - Math.max(20, profile.coreSupporters + (thriving ? 1 : -1))), clubPopularity: Math.max(0.5, Math.min(10, profile.clubPopularity + (thriving ? 0.08 : -0.05))), footballReputation: Math.max(0.5, Math.min(10, profile.footballReputation + (thriving ? 0.06 : -0.04))) };
+  economy.upsertSupporterProfile(next); const repo = new ClubCreationRepository(db); repo.upsert({ ...record, supporterBase: next.coreSupporters + next.casualSupporters, status: record.status });
+};
+
+export const evaluateSimulationClubSurvival = (db: GameDatabase, input: { date: string }): SimulationClubRecord[] => {
+  const repo = new ClubCreationRepository(db); const results: SimulationClubRecord[] = [];
+  for (const record of repo.all().filter((item) => item.status === "ACTIVE")) {
+    const account = db.prepare("SELECT cash_balance FROM club_financial_accounts WHERE club_id = ?").get(record.clubId) as { cash_balance?: number } | undefined;
+    const activeMemberships = (db.prepare("SELECT COUNT(*) AS count FROM club_memberships WHERE club_id = ? AND status IN ('ACTIVE','PROMOTED','QUALIFIED')").get(record.clubId) as { count?: number })?.count ?? 0;
+    const facilities = db.prepare("SELECT AVG((training_facility_quality + youth_facility_quality + medical_facility_quality) / 3.0) AS quality FROM club_facility_profiles WHERE club_id = ?").get(record.clubId) as { quality?: number } | undefined;
+    const viable = (account?.cash_balance ?? 0) >= 0 && (activeMemberships > 0 || input.date <= `${record.foundedOn.slice(0, 4)}-12-31`) && (facilities?.quality ?? 0) >= 1;
+    updateSupporters(db, record, input.date, viable);
+    const next = viable ? record : { ...record, status: "DORMANT" as const, admissionStatus: "PENDING" as const }; repo.upsert(next); if (!viable) repo.recordEvent({ id: createStableEntityId("simulation-club-event", `${record.clubId}:dormant:${input.date}`), clubId: record.clubId, eventType: "DORMANT", occurredOn: input.date, reason: "Financial, facility, or competition participation failure; historic club retained.", provenanceStatus: status }); results.push(next);
+  }
+  return results;
+};
+
+export const considerSimulationClubAdmissions = (db: GameDatabase, input: { competitionSeasonId: EntityId; date: string; seed: string; maxAdmissions?: number }): SimulationClubRecord[] => {
+  const repo = new ClubCreationRepository(db); const candidates = repo.all().filter((item) => item.status === "ACTIVE" && ["PENDING", "REJECTED"].includes(item.admissionStatus)); const current = (db.prepare("SELECT COUNT(*) AS count FROM club_memberships WHERE competition_season_id = ? AND status = 'ACTIVE'").get(input.competitionSeasonId) as { count?: number })?.count ?? 0; if (candidates.length < 2 || current < 1) return [];
+  const rng = new SeededRandom(`${input.seed}:admissions:${input.competitionSeasonId}:${input.date}`); const admitted: SimulationClubRecord[] = [];
+  for (const candidate of candidates.sort((a, b) => a.clubId.localeCompare(b.clubId))) { if (admitted.length >= (input.maxAdmissions ?? 1) || rng.next() < 0.35) continue; const team = db.prepare("SELECT id FROM teams WHERE club_id = ? AND level = 'senior' ORDER BY id LIMIT 1").get(candidate.clubId) as { id: EntityId } | undefined; if (!team || !admitSimulationClub(db, { clubId: candidate.clubId, teamId: team.id, competitionSeasonId: input.competitionSeasonId, date: input.date })) continue; const next = { ...candidate, admissionStatus: "ADMITTED" as const }; repo.upsert(next); repo.recordEvent({ id: createStableEntityId("simulation-club-event", `${candidate.clubId}:admission-request:${input.date}`), clubId: candidate.clubId, eventType: "ADMISSION_REQUESTED", occurredOn: input.date, reason: "Federation considered a viable local entrant.", provenanceStatus: status }); admitted.push(next); }
+  return admitted;
+};
+
+export const reviveSimulationClub = (db: GameDatabase, input: { clubId: EntityId; competitionSeasonId: EntityId; date: string; seed: string }): SimulationClubRecord => {
+  const repo = new ClubCreationRepository(db); const record = repo.get(input.clubId); if (!record || record.status !== "DORMANT") throw new Error("Dormant simulation club not found"); const team = db.prepare("SELECT id FROM teams WHERE club_id = ? AND level = 'senior' ORDER BY id LIMIT 1").get(input.clubId) as { id: EntityId } | undefined; if (!team || !admitSimulationClub(db, { clubId: input.clubId, teamId: team.id, competitionSeasonId: input.competitionSeasonId, date: input.date })) throw new Error("Club does not meet revival requirements"); const next = { ...record, status: "ACTIVE" as const, admissionStatus: "ADMITTED" as const }; repo.upsert(next); repo.recordEvent({ id: createStableEntityId("simulation-club-event", `${input.clubId}:revived:${input.date}`), clubId: input.clubId, eventType: "REVIVED", occurredOn: input.date, reason: "Returned after meeting finance, venue, and competition entry requirements.", provenanceStatus: status }); repairPreseasonContinuity({ db, competitionSeasonIds: [input.competitionSeasonId], date: input.date, seed: input.seed }); return next;
 };
