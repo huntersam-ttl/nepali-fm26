@@ -5,4 +5,5 @@ export * from "./procurement-repository.js";
 export * from "./federation-politics-repository.js";
 export * from "./federation-governance-phase-b-repository.js";
 export * from "./national-team-management-repository.js";
+export * from "./media-repository.js";
 export * from "./save-system.js";

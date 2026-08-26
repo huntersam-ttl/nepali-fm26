@@ -3317,6 +3317,9 @@ export type NationalTeamWatchlistItem = { id: EntityId; federationId: EntityId; 
 export type NationalTeamOperationalPlan = { id: EntityId; federationId: EntityId; nationalTeamId: EntityId; competitionEditionId?: EntityId; campStart: ISODate; campEnd: ISODate; travelPlan: string; baseVenue?: EntityId; registrationDeadline?: ISODate; recoveryDaysBetweenFixtures: number; status: "PLANNED" | "ACTIVE" | "COMPLETED"; provenanceStatus: "SIMULATION_ONLY" };
 export type NationalTeamInternationalForm = { id: EntityId; nationalTeamId: EntityId; playerId: EntityId; windowDate: ISODate; appearances: number; minutes: number; goals: number; formRating: number; rationale: string; provenanceStatus: "SIMULATION_ONLY" };
 
+export type MediaOutlet = { id: EntityId; name: string; scope: "LOCAL" | "NATIONAL" | "REGIONAL_INTERNATIONAL"; reputation: number; reach: number; bias: "NEUTRAL" | "CLUB_FOCUSED" | "NATIONAL_FOCUS" | "DEVELOPMENT_FOCUS"; style: "WIRE" | "ANALYSIS" | "TABLOID" | "TRADE"; status: "SIMULATION_ONLY" };
+export type MediaStory = { id: EntityId; outletId: EntityId; eventType: "MATCH_RESULT" | "TRANSFER" | "STAFF_CHANGE" | "INJURY" | "COMPETITION" | "MILESTONE" | "NATIONAL_TEAM"; sourceEntityId: EntityId; publishedOn: ISODate; importance: number; headline: string; summary: string; subjectIds: EntityId[]; reputationEffect: number; status: "PUBLISHED" | "ARCHIVED"; provenanceStatus: "SIMULATION_ONLY" };
+
 export type InternationalRetirementStatus = "ACTIVE" | "CONSIDERING" | "RETIRED_INTERNATIONAL";
 
 export type InternationalRetirement = {

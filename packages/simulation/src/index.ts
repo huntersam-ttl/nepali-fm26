@@ -7,6 +7,7 @@ export * from "./desktop-server.js";
 export * from "./fixture-generation.js";
 export * from "./federation-governance.js";
 export * from "./national-team-management.js";
+export * from "./media.js";
 export * from "./federation-politics.js";
 export * from "./external-football-world.js";
 export * from "./clubmart.js";

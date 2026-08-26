@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 46;
+export const CURRENT_DATABASE_VERSION = 47;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -2890,6 +2890,19 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       );
       CREATE INDEX IF NOT EXISTS idx_national_team_watchlist_team ON national_team_watchlist(national_team_id, status, last_reviewed);
       CREATE INDEX IF NOT EXISTS idx_national_team_form_player ON national_team_international_form(player_id, window_date);
+    `,
+  },
+  {
+    version: 47,
+    sql: `
+      CREATE TABLE IF NOT EXISTS media_outlets (
+        id TEXT PRIMARY KEY, name TEXT NOT NULL, scope TEXT NOT NULL, reputation REAL NOT NULL, reach REAL NOT NULL, bias TEXT NOT NULL, style TEXT NOT NULL, status TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS media_stories (
+        id TEXT PRIMARY KEY, outlet_id TEXT NOT NULL REFERENCES media_outlets(id), event_type TEXT NOT NULL, source_entity_id TEXT NOT NULL, published_on TEXT NOT NULL,
+        importance REAL NOT NULL, headline TEXT NOT NULL, summary TEXT NOT NULL, subject_ids_json TEXT NOT NULL, reputation_effect REAL NOT NULL, status TEXT NOT NULL, provenance_status TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_media_stories_date ON media_stories(published_on, importance DESC);
     `,
   },
 ];
