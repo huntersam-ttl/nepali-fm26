@@ -749,7 +749,8 @@ export type StaffHistoryEvent = {
     | "STAFF_LEFT"
     | "FEDERATION_OFFICIAL_APPOINTED"
     | "FEDERATION_OFFICIAL_LEFT"
-    | "REFEREE_PROMOTED";
+    | "REFEREE_PROMOTED"
+    | "STAFF_LICENCE_UPGRADED";
   occurredOn: ISODate;
   appointmentId?: EntityId;
   clubId?: EntityId;
@@ -2563,6 +2564,22 @@ export type FederationAiDecision = {
   status: "SIMULATION_ONLY";
 };
 
+export type ExternalFootballRegion = "SOUTH_ASIA" | "WIDER_ASIA" | "MIDDLE_EAST" | "AUSTRALIA" | "EUROPE";
+
+export type ExternalFootballRegionProfile = {
+  id: EntityId;
+  region: ExternalFootballRegion;
+  seasonLabel: string;
+  economicStrength: number;
+  footballReputation: number;
+  clubStrength: number;
+  transferDemand: number;
+  foreignRecruitmentAppeal: number;
+  nationalTeamStrength: number;
+  commercialGrowth: number;
+  status: "SIMULATION_ONLY";
+};
+
 export type FederationFinancialAccount = {
   federationId: EntityId;
   currency: string;
@@ -3587,7 +3604,7 @@ export type SquadMeeting = {
 export type StaffVacancyReason = "DISMISSED" | "RESIGNED" | "EXPIRED" | "NEW_ROLE";
 
 export type StaffApplicationStatus =
-  "PENDING" | "OFFERED" | "ACCEPTED" | "DECLINED" | "REJECTED" | "WITHDRAWN";
+  "PENDING" | "OFFERED" | "COUNTERED" | "ACCEPTED" | "DECLINED" | "REJECTED" | "WITHDRAWN";
 
 /** An approach from a candidate (or the club) for one open staff vacancy. */
 export type StaffApplication = {
@@ -3599,6 +3616,8 @@ export type StaffApplication = {
   decidedOn?: ISODate;
   offeredSalaryMinor?: number;
   offeredContractEnd?: ISODate;
+  /** Set when the candidate wants more than the club proposed — the manager then accepts or declines it. */
+  counterSalaryMinor?: number;
 };
 
 export type StaffEmploymentContractStatus = "ACTIVE" | "EXPIRED" | "TERMINATED" | "RESIGNED";
@@ -3624,4 +3643,69 @@ export type StaffEmploymentContract = {
   salaryAmountMinor: number;
   currency: string;
   status: StaffEmploymentContractStatus;
+};
+
+// ---------------------------------------------------------------------------
+// Staff Market — Phase B: negotiation, performance, licences, poaching
+// ---------------------------------------------------------------------------
+
+export type StaffRenewalOfferStatus =
+  "OFFERED" | "COUNTERED" | "ACCEPTED" | "DECLINED" | "REJECTED";
+
+/**
+ * A club-initiated renewal proposal against an *existing* appointment — kept
+ * separate from `StaffApplication` (which is always against an open
+ * vacancy) since a renewal never has a `vacancyId` to hang off.
+ */
+export type StaffRenewalOffer = {
+  id: EntityId;
+  appointmentId: EntityId;
+  personId: EntityId;
+  clubId: EntityId;
+  proposedSalaryMinor: number;
+  proposedContractEnd: ISODate;
+  counterSalaryMinor?: number;
+  status: StaffRenewalOfferStatus;
+  createdOn: ISODate;
+  decidedOn?: ISODate;
+};
+
+/** One evaluation window's role-appropriate performance read, never a raw ability score. */
+export type StaffPerformanceRecord = {
+  id: EntityId;
+  personId: EntityId;
+  appointmentId: EntityId;
+  clubId: EntityId;
+  periodEnd: ISODate;
+  score: number;
+  note?: string;
+};
+
+export type StaffLicenceCourseStatus = "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+
+/** A licence upgrade in progress, optionally club-funded. */
+export type StaffLicenceCourse = {
+  id: EntityId;
+  personId: EntityId;
+  fundedByClubId?: EntityId;
+  targetLicenceType: string;
+  startedOn: ISODate;
+  completesOn: ISODate;
+  status: StaffLicenceCourseStatus;
+};
+
+export type StaffApproachStatus = "PENDING" | "ACCEPTED" | "DECLINED";
+
+/** A rival club's approach toward someone else's staff member. Resolves on its own — the
+ * player's real lever against losing their own staff is proactively renewing their contract. */
+export type StaffApproach = {
+  id: EntityId;
+  personId: EntityId;
+  fromClubId: EntityId;
+  currentClubId?: EntityId;
+  role: FootballStaffRole;
+  offeredSalaryMinor: number;
+  status: StaffApproachStatus;
+  createdOn: ISODate;
+  decidedOn?: ISODate;
 };

@@ -36,6 +36,7 @@ import type {
   FederationAsset,
   FederationBudget,
   FederationAiDecision,
+  ExternalFootballRegionProfile,
   FederationCommittee,
   FederationFinancialAccount,
   FederationFinancialStatement,
@@ -1966,13 +1967,15 @@ export class StaffMarketRepository {
     this.db
       .prepare(
         `INSERT INTO staff_applications
-        (id, vacancy_id, person_id, status, created_on, decided_on, offered_salary_minor, offered_contract_end)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        (id, vacancy_id, person_id, status, created_on, decided_on, offered_salary_minor,
+          offered_contract_end, counter_salary_minor)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           status = excluded.status,
           decided_on = excluded.decided_on,
           offered_salary_minor = excluded.offered_salary_minor,
-          offered_contract_end = excluded.offered_contract_end`,
+          offered_contract_end = excluded.offered_contract_end,
+          counter_salary_minor = excluded.counter_salary_minor`,
       )
       .run(
         application.id,
@@ -1983,6 +1986,7 @@ export class StaffMarketRepository {
         application.decidedOn ?? null,
         application.offeredSalaryMinor ?? null,
         application.offeredContractEnd ?? null,
+        application.counterSalaryMinor ?? null,
       );
   }
 
@@ -1996,6 +2000,145 @@ export class StaffMarketRepository {
       .prepare("SELECT * FROM staff_applications WHERE vacancy_id = ?")
       .all(vacancyId)
       .map(mapStaffApplicationRow);
+  }
+
+  applicationsForPerson(personId: EntityId): StaffApplication[] {
+    return this.db
+      .prepare("SELECT * FROM staff_applications WHERE person_id = ? ORDER BY created_on DESC")
+      .all(personId)
+      .map(mapStaffApplicationRow);
+  }
+
+  // -- Renewal offers --------------------------------------------------------
+
+  upsertRenewalOffer(offer: StaffRenewalOffer): void {
+    this.db
+      .prepare(
+        `INSERT INTO staff_renewal_offers
+        (id, appointment_id, person_id, club_id, proposed_salary_minor, proposed_contract_end,
+          counter_salary_minor, status, created_on, decided_on)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          status = excluded.status,
+          decided_on = excluded.decided_on,
+          counter_salary_minor = excluded.counter_salary_minor`,
+      )
+      .run(
+        offer.id,
+        offer.appointmentId,
+        offer.personId,
+        offer.clubId,
+        offer.proposedSalaryMinor,
+        offer.proposedContractEnd,
+        offer.counterSalaryMinor ?? null,
+        offer.status,
+        offer.createdOn,
+        offer.decidedOn ?? null,
+      );
+  }
+
+  renewalOfferById(id: EntityId): StaffRenewalOffer | undefined {
+    const row = this.db.prepare("SELECT * FROM staff_renewal_offers WHERE id = ?").get(id) as any;
+    return row ? mapStaffRenewalOfferRow(row) : undefined;
+  }
+
+  renewalOffersForAppointment(appointmentId: EntityId): StaffRenewalOffer[] {
+    return this.db
+      .prepare("SELECT * FROM staff_renewal_offers WHERE appointment_id = ? ORDER BY created_on DESC")
+      .all(appointmentId)
+      .map(mapStaffRenewalOfferRow);
+  }
+
+  // -- Performance -------------------------------------------------------
+
+  insertPerformanceRecord(record: StaffPerformanceRecord): void {
+    this.db
+      .prepare(
+        `INSERT INTO staff_performance_records
+        (id, person_id, appointment_id, club_id, period_end, score, note)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO NOTHING`,
+      )
+      .run(record.id, record.personId, record.appointmentId, record.clubId, record.periodEnd, record.score, record.note ?? null);
+  }
+
+  performanceHistoryForPerson(personId: EntityId): StaffPerformanceRecord[] {
+    return this.db
+      .prepare("SELECT * FROM staff_performance_records WHERE person_id = ? ORDER BY period_end")
+      .all(personId)
+      .map(mapStaffPerformanceRecordRow);
+  }
+
+  // -- Licence courses -----------------------------------------------------
+
+  upsertLicenceCourse(course: StaffLicenceCourse): void {
+    this.db
+      .prepare(
+        `INSERT INTO staff_licence_courses
+        (id, person_id, funded_by_club_id, target_licence_type, started_on, completes_on, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET status = excluded.status`,
+      )
+      .run(
+        course.id,
+        course.personId,
+        course.fundedByClubId ?? null,
+        course.targetLicenceType,
+        course.startedOn,
+        course.completesOn,
+        course.status,
+      );
+  }
+
+  activeLicenceCourseForPerson(personId: EntityId): StaffLicenceCourse | undefined {
+    const row = this.db
+      .prepare("SELECT * FROM staff_licence_courses WHERE person_id = ? AND status = 'IN_PROGRESS'")
+      .get(personId) as any;
+    return row ? mapStaffLicenceCourseRow(row) : undefined;
+  }
+
+  allInProgressLicenceCourses(): StaffLicenceCourse[] {
+    return this.db
+      .prepare("SELECT * FROM staff_licence_courses WHERE status = 'IN_PROGRESS'")
+      .all()
+      .map(mapStaffLicenceCourseRow);
+  }
+
+  // -- Approaches ------------------------------------------------------------
+
+  insertApproach(approach: StaffApproach): void {
+    this.db
+      .prepare(
+        `INSERT INTO staff_approaches
+        (id, person_id, from_club_id, current_club_id, role, offered_salary_minor, status, created_on, decided_on)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET status = excluded.status, decided_on = excluded.decided_on`,
+      )
+      .run(
+        approach.id,
+        approach.personId,
+        approach.fromClubId,
+        approach.currentClubId ?? null,
+        approach.role,
+        approach.offeredSalaryMinor,
+        approach.status,
+        approach.createdOn,
+        approach.decidedOn ?? null,
+      );
+  }
+
+  approachesForPerson(personId: EntityId): StaffApproach[] {
+    return this.db
+      .prepare("SELECT * FROM staff_approaches WHERE person_id = ? ORDER BY created_on DESC")
+      .all(personId)
+      .map(mapStaffApproachRow);
+  }
+
+  approachesForClub(currentClubId: EntityId): StaffApproach[] {
+    return this.db
+      .prepare("SELECT * FROM staff_approaches WHERE current_club_id = ? ORDER BY created_on DESC")
+      .all(currentClubId)
+      .map(mapStaffApproachRow);
   }
 
   upsertEmploymentContract(contract: StaffEmploymentContract): void {
@@ -8071,5 +8214,38 @@ export class EventRepository {
         importance: row.importance,
         scope: row.scope,
       }));
+  }
+}
+
+export class ExternalFootballRepository {
+  constructor(private readonly db: GameDatabase) {}
+
+  upsertProfile(profile: ExternalFootballRegionProfile): void {
+    this.db.prepare(`INSERT INTO external_football_region_profiles
+      (id, region, season_label, economic_strength, football_reputation, club_strength,
+       transfer_demand, foreign_recruitment_appeal, national_team_strength, commercial_growth, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(region, season_label) DO UPDATE SET
+        economic_strength = excluded.economic_strength, football_reputation = excluded.football_reputation,
+        club_strength = excluded.club_strength, transfer_demand = excluded.transfer_demand,
+        foreign_recruitment_appeal = excluded.foreign_recruitment_appeal,
+        national_team_strength = excluded.national_team_strength, commercial_growth = excluded.commercial_growth,
+        status = excluded.status`).run(
+      profile.id, profile.region, profile.seasonLabel, profile.economicStrength, profile.footballReputation,
+      profile.clubStrength, profile.transferDemand, profile.foreignRecruitmentAppeal,
+      profile.nationalTeamStrength, profile.commercialGrowth, profile.status,
+    );
+  }
+
+  profiles(seasonLabel?: string): ExternalFootballRegionProfile[] {
+    const rows = (seasonLabel
+      ? this.db.prepare("SELECT * FROM external_football_region_profiles WHERE season_label = ? ORDER BY region").all(seasonLabel)
+      : this.db.prepare("SELECT * FROM external_football_region_profiles ORDER BY season_label, region").all()) as any[];
+    return rows.map((row) => ({
+      id: row.id, region: row.region, seasonLabel: row.season_label, economicStrength: row.economic_strength,
+      footballReputation: row.football_reputation, clubStrength: row.club_strength,
+      transferDemand: row.transfer_demand, foreignRecruitmentAppeal: row.foreign_recruitment_appeal,
+      nationalTeamStrength: row.national_team_strength, commercialGrowth: row.commercial_growth, status: row.status,
+    }));
   }
 }

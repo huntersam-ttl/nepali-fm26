@@ -50,6 +50,7 @@ import {
 import { calculateStandings, sortStandings, summarizePlayerStats } from "./standings.js";
 import { initializeTransferMarketForSave, simulateTransferWindow } from "./transfer-market.js";
 import { runClubAiSeasonPlanning } from "./ai-club-strategy.js";
+import { processExternalFootballWorldSeason } from "./external-football-world.js";
 import {
   initializeYouthSystemForSave,
   runAnnualYouthAndRetirementCycle,
@@ -336,6 +337,7 @@ const processEconomyForSeasonPeriod = (
       date: `${startYear}-${String(month).padStart(2, "0")}-28`,
       seed: `${input.seed}:${month}`,
     });
+    if (month === 8) processExternalFootballWorldSeason(db, { seasonLabel: String(startYear), seed: input.seed });
     runClubAiSeasonPlanning(db, { date: `${startYear}-${String(month).padStart(2, "0")}-28`, seed: input.seed });
   }
   for (const month of [1, 2, 3, 4, 5, 6, 7]) {
@@ -343,6 +345,7 @@ const processEconomyForSeasonPeriod = (
       date: `${endYear}-${String(month).padStart(2, "0")}-28`,
       seed: `${input.seed}:${month}`,
     });
+    if (month === 8) processExternalFootballWorldSeason(db, { seasonLabel: String(endYear), seed: input.seed });
     runClubAiSeasonPlanning(db, { date: `${endYear}-${String(month).padStart(2, "0")}-28`, seed: input.seed });
   }
   closeClubFinancialSeason(db, {

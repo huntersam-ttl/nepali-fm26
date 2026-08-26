@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 36;
+export const CURRENT_DATABASE_VERSION = 38;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -2595,6 +2595,87 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       );
       CREATE INDEX IF NOT EXISTS idx_federation_ai_decision_history_date
         ON federation_ai_decision_history(federation_id, decision_date);
+    `,
+  },
+  {
+    version: 37,
+    sql: `
+      CREATE TABLE IF NOT EXISTS external_football_region_profiles (
+        id TEXT PRIMARY KEY,
+        region TEXT NOT NULL,
+        season_label TEXT NOT NULL,
+        economic_strength REAL NOT NULL,
+        football_reputation REAL NOT NULL,
+        club_strength REAL NOT NULL,
+        transfer_demand REAL NOT NULL,
+        foreign_recruitment_appeal REAL NOT NULL,
+        national_team_strength REAL NOT NULL,
+        commercial_growth REAL NOT NULL,
+        status TEXT NOT NULL,
+        UNIQUE(region, season_label)
+      );
+      CREATE INDEX IF NOT EXISTS idx_external_football_region_profiles_season
+        ON external_football_region_profiles(season_label, region);
+    `,
+  },
+  {
+    version: 38,
+    sql: `
+      -- Staff Market Phase B: negotiation, performance, licence pathway, poaching.
+      ALTER TABLE staff_applications ADD COLUMN counter_salary_minor INTEGER;
+
+      CREATE TABLE IF NOT EXISTS staff_renewal_offers (
+        id TEXT PRIMARY KEY,
+        appointment_id TEXT NOT NULL REFERENCES staff_appointments(id),
+        person_id TEXT NOT NULL REFERENCES persons(id),
+        club_id TEXT NOT NULL REFERENCES clubs(id),
+        proposed_salary_minor INTEGER NOT NULL,
+        proposed_contract_end TEXT NOT NULL,
+        counter_salary_minor INTEGER,
+        status TEXT NOT NULL,
+        created_on TEXT NOT NULL,
+        decided_on TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_staff_renewal_offers_appointment
+        ON staff_renewal_offers(appointment_id, status);
+
+      CREATE TABLE IF NOT EXISTS staff_performance_records (
+        id TEXT PRIMARY KEY,
+        person_id TEXT NOT NULL REFERENCES persons(id),
+        appointment_id TEXT NOT NULL REFERENCES staff_appointments(id),
+        club_id TEXT NOT NULL REFERENCES clubs(id),
+        period_end TEXT NOT NULL,
+        score REAL NOT NULL,
+        note TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_staff_performance_records_person
+        ON staff_performance_records(person_id, period_end);
+
+      CREATE TABLE IF NOT EXISTS staff_licence_courses (
+        id TEXT PRIMARY KEY,
+        person_id TEXT NOT NULL REFERENCES persons(id),
+        funded_by_club_id TEXT REFERENCES clubs(id),
+        target_licence_type TEXT NOT NULL,
+        started_on TEXT NOT NULL,
+        completes_on TEXT NOT NULL,
+        status TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_staff_licence_courses_person
+        ON staff_licence_courses(person_id, status);
+
+      CREATE TABLE IF NOT EXISTS staff_approaches (
+        id TEXT PRIMARY KEY,
+        person_id TEXT NOT NULL REFERENCES persons(id),
+        from_club_id TEXT NOT NULL REFERENCES clubs(id),
+        current_club_id TEXT REFERENCES clubs(id),
+        role TEXT NOT NULL,
+        offered_salary_minor INTEGER NOT NULL,
+        status TEXT NOT NULL,
+        created_on TEXT NOT NULL,
+        decided_on TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_staff_approaches_person
+        ON staff_approaches(person_id, created_on);
     `,
   },
 ];

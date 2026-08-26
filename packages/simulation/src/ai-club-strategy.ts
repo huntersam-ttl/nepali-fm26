@@ -7,6 +7,7 @@ import {
 } from "@nepal-football-sim/shared-types";
 import { ClubEconomyRepository, TransferMarketRepository, type GameDatabase } from "@nepal-football-sim/database";
 import { createInfrastructureProject } from "./club-economy.js";
+import { preferredForeignMarkets } from "./external-football-world.js";
 
 const seasonLabel = (date: string): string => date.slice(0, 4);
 
@@ -72,6 +73,7 @@ export const runClubAiSeasonPlanning = (db: GameDatabase, input: { date: string;
     const identity = stableIdentity(candidate, previous, objective === "SURVIVE");
     const identityStrength = Math.min(1, (previous?.identity === identity ? (previous.identityStrength ?? 0.55) + 0.08 : 0.55));
     const priorities = prioritiesFor(policy, account.financialHealth, identity);
+    const foreignMarkets = preferredForeignMarkets(db, seasonLabel(input.date));
     const contracts = market.activeContractsForClub(clubId, input.date);
     const activeProjects = economy.infrastructureProjects(clubId).filter((project) => !["COMPLETED", "CANCELLED"].includes(project.status));
     const sponsorships = economy.sponsorships(clubId).filter((item) => item.status === "ACTIVE" && item.endDate >= input.date);
@@ -89,6 +91,7 @@ export const runClubAiSeasonPlanning = (db: GameDatabase, input: { date: string;
     if (identity === "DEVELOPMENT_SELLING") actions.push("RECYCLE_PLAYER_SALES_INTO_SQUAD");
     if (identity === "COMMERCIAL_GROWTH") actions.push("PROTECT_COMMERCIAL_AUDIENCE_GROWTH");
     if (identity === "VETERAN_FOCUSED") actions.push("RETAIN_EXPERIENCED_CORE_WITHIN_WAGE_LIMIT");
+    actions.push(identity === "DEVELOPMENT_SELLING" || identity === "ACADEMY_FIRST" ? `EXPORT_PATHWAY_${foreignMarkets.destination}` : `RECRUITMENT_MARKET_${foreignMarkets.source}`);
     if (priorities.infrastructure >= 0.5 && activeProjects.length === 0 && account.cashBalance > 3500000) {
       try {
         createInfrastructureProject(db, { clubId, projectType: "TRAINING_GROUND", date: input.date, seed: `${input.seed}:ai:${clubId}` });
@@ -111,7 +114,7 @@ export const runClubAiSeasonPlanning = (db: GameDatabase, input: { date: string;
       actions,
       identity,
       identityStrength,
-      context: { financialHealth: account.financialHealth, cash: account.cashBalance, reputation, commercialReputation, squadContracts: contracts.length, activeProjects: activeProjects.length, strategicIdentity: identity, identityStrength, previousIdentity: previous?.identity ?? "", lastMovement: movement ?? "NONE" },
+      context: { financialHealth: account.financialHealth, cash: account.cashBalance, reputation, commercialReputation, squadContracts: contracts.length, activeProjects: activeProjects.length, strategicIdentity: identity, identityStrength, previousIdentity: previous?.identity ?? "", lastMovement: movement ?? "NONE", foreignSource: foreignMarkets.source, foreignDestination: foreignMarkets.destination },
       status: "SIMULATION_ONLY",
     };
     economy.upsertAiDecision(decision);
