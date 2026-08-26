@@ -10,10 +10,15 @@ import {
 import type { EntityId } from "@nepal-football-sim/shared-types";
 import {
   analyzeSquadNeeds,
+  calculateTransferPackageValue,
+  calculateTransferValuation,
+  counterTransferOffer,
   createNepalSave,
+  createTransferEnquiry,
   createTransferOffer,
   evaluateTransferOffer,
   initializeTransferMarketForSave,
+  respondToTransferEnquiry,
   runTransferDiagnostic,
   searchPlayersForClub,
   simulateNepalCareer,
@@ -133,6 +138,162 @@ describe("transfer and contract market", () => {
     db.close();
   });
 
+  it("builds contextual transfer valuation ranges from knowledge rather than a public exact value", () => {
+    const db = openGameDatabase(createSave("valuation-ranges"));
+    const buyingClubId = clubIdByCanonical(db, "NEP-DIVA-MAC");
+    const target = transferTargetForClub(db, buyingClubId);
+
+    const valuation = calculateTransferValuation(db, {
+      buyingClubId,
+      sellingClubId: target.clubId,
+      playerId: target.playerId,
+      worldDate: "2026-08-01",
+    });
+
+    expect(valuation.internalValue.min).toBeLessThan(valuation.internalValue.max);
+    expect(valuation.scoutEstimate.min).toBeLessThan(valuation.scoutEstimate.max);
+    expect(valuation.askingRange.min).toBeLessThan(valuation.askingRange.max);
+    expect(valuation.scoutEstimate).not.toEqual(valuation.internalValue);
+    expect(valuation.factors.buyerWealthPerception).toBeGreaterThan(0);
+    db.close();
+  });
+
+  it("applies contract-expiry leverage, seller reluctance and financial pressure", () => {
+    const db = openGameDatabase(createSave("valuation-leverage"));
+    const market = new TransferMarketRepository(db);
+    const buyingClubId = clubIdByCanonical(db, "NEP-DIVA-MAC");
+    const target = transferTargetForClub(db, buyingClubId);
+    const contract = market.activeContract(target.playerId, "2026-08-01")!;
+    const sellerFinance = market.clubFinancialProfile(target.clubId)!;
+
+    market.upsertPlayerContract({ ...contract, endDate: "2028-08-01", squadRole: "KEY_PLAYER" });
+    market.upsertTransferStatus({
+      id: `status-not-for-sale-${target.playerId}` as EntityId,
+      playerId: target.playerId,
+      clubId: target.clubId,
+      status: "NOT_FOR_SALE",
+      reason: "Core starter",
+      setBy: "CLUB",
+      updatedAt: "2026-08-01",
+    });
+    const reluctant = calculateTransferValuation(db, {
+      buyingClubId,
+      sellingClubId: target.clubId,
+      playerId: target.playerId,
+      worldDate: "2026-08-01",
+    });
+
+    market.upsertPlayerContract({ ...contract, endDate: "2026-09-01", squadRole: "ROTATION" });
+    market.upsertTransferStatus({
+      id: `status-listed-${target.playerId}` as EntityId,
+      playerId: target.playerId,
+      clubId: target.clubId,
+      status: "TRANSFER_LISTED",
+      reason: "Needs cash",
+      setBy: "CLUB",
+      updatedAt: "2026-08-01",
+    });
+    market.upsertClubFinancialProfile({ ...sellerFinance, financialHealth: "POOR" });
+    const pressured = calculateTransferValuation(db, {
+      buyingClubId,
+      sellingClubId: target.clubId,
+      playerId: target.playerId,
+      worldDate: "2026-08-01",
+    });
+
+    expect(pressured.factors.contractExpiryLeverage).toBeLessThan(
+      reluctant.factors.contractExpiryLeverage,
+    );
+    expect(pressured.factors.sellerFinancePressure).toBeLessThan(
+      reluctant.factors.sellerFinancePressure,
+    );
+    expect(pressured.askingRange.max).toBeLessThan(reluctant.askingRange.min);
+    db.close();
+  });
+
+  it("values player exchanges, cash plus player offers and seller-requested counter players", () => {
+    const db = openGameDatabase(createSave("exchange-packages"));
+    const buyingClubId = clubIdByCanonical(db, "NEP-DIVA-MAC");
+    const target = transferTargetForClub(db, buyingClubId);
+    const exchangePlayerId = playerForClub(db, buyingClubId);
+
+    const offer = createTransferOffer(db, {
+      buyingClubId,
+      sellingClubId: target.clubId,
+      playerId: target.playerId,
+      submittedAt: "2026-08-01",
+      fee: 250_000,
+      installments: 80_000,
+      addOns: 40_000,
+      conditionals: [
+        {
+          type: "APPEARANCE",
+          threshold: 15,
+          amount: 60_000,
+          description: "After 15 appearances",
+        },
+      ],
+      exchangePlayerIds: [exchangePlayerId],
+    });
+    const cashOnly = createTransferOffer(db, {
+      buyingClubId,
+      sellingClubId: target.clubId,
+      playerId: target.playerId,
+      submittedAt: "2026-08-02",
+      fee: 250_000,
+    });
+    const counter = counterTransferOffer(db, offer, {
+      worldDate: "2026-08-03",
+      transferFee: 300_000,
+      sellerRequestedPlayerId: exchangePlayerId,
+    });
+
+    expect(offer.playerExchanges?.[0]?.valuation.min).toBeGreaterThan(0);
+    expect(calculateTransferPackageValue(offer)).toBeGreaterThan(
+      calculateTransferPackageValue(cashOnly),
+    );
+    expect(counter.status).toBe("COUNTERED");
+    expect(counter.sellerRequestedPlayerId).toBe(exchangePlayerId);
+    expect(
+      new TransferMarketRepository(db).negotiationRounds(offer.id).map((round) => round.action),
+    ).toContain("COUNTER");
+    db.close();
+  });
+
+  it("persists transfer enquiries, availability responses and negotiated offers across reload", () => {
+    const databasePath = createSave("negotiation-persistence");
+    const db = openGameDatabase(databasePath);
+    const buyingClubId = clubIdByCanonical(db, "NEP-DIVA-MAC");
+    const target = transferTargetForClub(db, buyingClubId);
+    const enquiry = createTransferEnquiry(db, {
+      buyingClubId,
+      sellingClubId: target.clubId,
+      playerId: target.playerId,
+      submittedAt: "2026-08-01",
+    });
+    const response = respondToTransferEnquiry(db, enquiry, "2026-08-02");
+    const counter = counterTransferOffer(db, response, {
+      worldDate: "2026-08-03",
+      installments: 120_000,
+      sellOnPercentage: 15,
+    });
+    db.close();
+
+    const reloaded = openGameDatabase(databasePath);
+    const market = new TransferMarketRepository(reloaded);
+    const persisted = market.transferOffers().find((offer) => offer.id === counter.id)!;
+    const rounds = market.negotiationRounds(counter.id);
+
+    expect(persisted.status).toBe("COUNTERED");
+    expect(persisted.askingRange?.min).toBeGreaterThan(0);
+    expect(persisted.installments).toBe(120_000);
+    expect(persisted.sellOnPercentage).toBe(15);
+    expect(rounds.map((round) => round.action)).toEqual(
+      expect.arrayContaining(["ENQUIRY", "AVAILABILITY_RESPONSE", "COUNTER"]),
+    );
+    reloaded.close();
+  });
+
   it("supports temporary loans without terminating parent contracts", () => {
     const db = openGameDatabase(createSave("loan-return"));
     const parentClubId = clubIdByCanonical(db, "NEP-DIVA-MAC");
@@ -215,4 +376,17 @@ function playerForClub(db: ReturnType<typeof openGameDatabase>, clubId: EntityId
       )
       .get(clubId) as { id: EntityId }
   ).id;
+}
+
+function transferTargetForClub(
+  db: ReturnType<typeof openGameDatabase>,
+  buyingClubId: EntityId,
+): { playerId: EntityId; clubId: EntityId } {
+  const target = searchPlayersForClub(db, buyingClubId, {}, "2026-08-01").find(
+    (item) => item.clubId && item.clubId !== buyingClubId && item.estimatedAbility,
+  );
+  if (!target?.clubId) {
+    throw new Error("Expected a transfer target with a current club");
+  }
+  return { playerId: target.playerId, clubId: target.clubId };
 }

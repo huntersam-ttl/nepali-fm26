@@ -14,7 +14,10 @@ import {
   type PlayerTransferStatusRecord,
   type SquadNeed,
   type SquadNeedReport,
+  type TransferConditionalClause,
   type TransferOffer,
+  type TransferPlayerExchange,
+  type TransferValuationSnapshot,
 } from "@nepal-football-sim/shared-types";
 import {
   RecruitmentRepository,
@@ -331,38 +334,72 @@ export const createTransferOffer = (
     playerId: EntityId;
     submittedAt: string;
     fee?: number;
+    installments?: number;
+    addOns?: number;
+    sellOnPercentage?: number;
+    conditionals?: TransferConditionalClause[];
+    exchangePlayerIds?: EntityId[];
+    sellerRequestedPlayerId?: EntityId;
   },
 ): TransferOffer => {
-  const knowledge = new RecruitmentRepository(db).playerKnowledge(
-    input.buyingClubId,
-    input.playerId,
+  const valuation = calculateTransferValuation(db, {
+    buyingClubId: input.buyingClubId,
+    sellingClubId: input.sellingClubId,
+    playerId: input.playerId,
+    worldDate: input.submittedAt,
+  });
+  const fee =
+    input.fee ??
+    Math.round(
+      input.sellingClubId ? valuation.askingRange.min * 0.82 : midpoint(valuation.scoutEstimate),
+    );
+  const playerExchanges = input.exchangePlayerIds?.map((playerId) =>
+    buildPlayerExchange(db, {
+      playerId,
+      fromClubId: input.buyingClubId,
+      toClubId: input.sellingClubId ?? input.buyingClubId,
+      worldDate: input.submittedAt,
+      requestedBy: "BUYING_CLUB",
+    }),
   );
-  const ability = knowledge?.abilityKnowledge.estimatedAbility as KnowledgeRange | undefined;
-  const fee = input.fee ?? Math.round(((ability?.max ?? 7) + (ability?.min ?? 5)) * 30000);
   const offer: TransferOffer = {
     id: createStableEntityId(
       "transfer-offer",
-      `${input.buyingClubId}:${input.sellingClubId ?? "free"}:${input.playerId}:${input.submittedAt}:${fee}`,
+      `${input.buyingClubId}:${input.sellingClubId ?? "free"}:${input.playerId}:${input.submittedAt}:${fee}:${input.exchangePlayerIds?.join(",") ?? ""}`,
     ),
     buyingClubId: input.buyingClubId,
     sellingClubId: input.sellingClubId,
     playerId: input.playerId,
     offerType: input.sellingClubId ? "PERMANENT" : "FREE_TRANSFER",
     transferFee: input.sellingClubId ? fee : 0,
-    installments: 0,
-    addOns: Math.round(fee * 0.1),
-    sellOnPercentage: input.sellingClubId ? 5 : 0,
+    installments: input.installments ?? 0,
+    addOns: input.addOns ?? Math.round(fee * 0.1),
+    sellOnPercentage: input.sellOnPercentage ?? (input.sellingClubId ? 5 : 0),
     submittedAt: input.submittedAt,
     expiresAt: addDays(input.submittedAt, 14),
     status: "SUBMITTED",
     currency,
-    askingRange: ability
-      ? { min: Math.round(ability.min * 45000), max: Math.round(ability.max * 90000) }
-      : undefined,
+    askingRange: input.sellingClubId ? valuation.askingRange : undefined,
     agentFee: Math.round(fee * 0.04),
     signingFee: Math.round(fee * 0.08),
+    buyerPerceivedValue: valuation.scoutEstimate,
+    sellerInternalValue: valuation.internalValue,
+    playerDesireToMove: valuation.playerDesireToMove,
+    conditionals: input.conditionals,
+    playerExchanges,
+    sellerRequestedPlayerId: input.sellerRequestedPlayerId,
   };
-  new TransferMarketRepository(db).insertTransferOffer(offer);
+  const market = new TransferMarketRepository(db);
+  market.insertTransferOffer(offer);
+  market.insertNegotiationRound({
+    id: createStableEntityId("negotiation-round", `${offer.id}:buyer:opening`),
+    offerId: offer.id,
+    roundNumber: 1,
+    actor: "BUYING_CLUB",
+    action: "OPENING_OFFER",
+    message: "Opening offer submitted from the buying club valuation range",
+    createdAt: input.submittedAt,
+  });
   return offer;
 };
 
@@ -373,28 +410,288 @@ export const evaluateTransferOffer = (
   seed: string,
 ): { accepted: boolean; reason: string } => {
   const market = new TransferMarketRepository(db);
-  const contract = market.activeContract(offer.playerId, worldDate);
-  const player = marketPlayer(db, offer.playerId);
-  const roleWeight = contract ? squadRoleWeight(contract.squadRole) : 1;
-  const months = contract ? monthsBetween(worldDate, contract.endDate) : 0;
-  const base = Math.round((player?.currentAbility ?? 7) * 70000 * roleWeight);
-  const remaining = Math.max(0.45, Math.min(1.6, months / 12));
-  const ask = Math.round(base * remaining);
-  const accepted = !offer.sellingClubId || offer.transferFee + offer.addOns >= ask * 0.38;
+  const valuation = offer.sellerInternalValue
+    ? {
+        internalValue: offer.sellerInternalValue,
+        askingRange: offer.askingRange ?? offer.sellerInternalValue,
+      }
+    : calculateTransferValuation(db, {
+        buyingClubId: offer.buyingClubId,
+        sellingClubId: offer.sellingClubId,
+        playerId: offer.playerId,
+        worldDate,
+      });
+  const packageValue = calculateTransferPackageValue(offer);
+  const minimum = Math.round(valuation.askingRange.min * 0.82);
+  const accepted = !offer.sellingClubId || packageValue >= minimum;
   market.insertNegotiationRound({
     id: createStableEntityId("negotiation-round", `${offer.id}:seller:1`),
     offerId: offer.id,
-    roundNumber: 1,
+    roundNumber: 2,
     actor: "SELLING_CLUB",
     action: accepted ? "ACCEPT" : "REJECT",
     message: accepted
       ? `Accepted within internal willingness range (${seed})`
-      : `Rejected because player importance and contract remaining outweighed fee`,
+      : `Rejected: package ${packageValue} below contextual range ${minimum}`,
     createdAt: worldDate,
   });
   market.updateOfferStatus(offer.id, accepted ? "ACCEPTED" : "REJECTED");
   return { accepted, reason: accepted ? "accepted" : "seller value not met" };
 };
+
+export const calculateTransferValuation = (
+  db: GameDatabase,
+  input: {
+    playerId: EntityId;
+    worldDate: string;
+    buyingClubId?: EntityId;
+    sellingClubId?: EntityId;
+  },
+): TransferValuationSnapshot => {
+  const market = new TransferMarketRepository(db);
+  const player = marketPlayer(db, input.playerId);
+  const contract = market.activeContract(input.playerId, input.worldDate);
+  const status = market.transferStatus(input.playerId);
+  const sellerId = input.sellingClubId ?? contract?.clubId ?? player?.currentClubId;
+  const sellerFinance = sellerId ? market.clubFinancialProfile(sellerId) : undefined;
+  const buyerFinance = input.buyingClubId
+    ? market.clubFinancialProfile(input.buyingClubId)
+    : undefined;
+  const role = contract?.squadRole ?? "ROTATION";
+  const months = contract ? monthsBetween(input.worldDate, contract.endDate) : 0;
+  const currentAbility = player?.currentAbility ?? 7;
+  const potentialAbility = player?.potentialAbility ?? currentAbility + 1;
+  const reputation = player?.reputation ?? 5;
+  const base = Math.round(
+    currentAbility * 62000 +
+      Math.max(0, potentialAbility - currentAbility) * 36000 +
+      reputation * 18000,
+  );
+  const contractExpiryLeverage = contractExpiryFactor(months);
+  const agePotentialUncertainty =
+    (player?.age ?? 24) <= 23 && potentialAbility > currentAbility + 1.5
+      ? 1.14
+      : (player?.age ?? 24) >= 32
+        ? 0.84
+        : 1;
+  const sportingLevel = 0.9 + Math.min(0.35, currentAbility / 40 + squadRoleWeight(role) / 12);
+  const reputationForm = 0.92 + Math.min(0.35, reputation / 40 + (player?.goals ?? 0) / 220);
+  const leagueEconomicLevel = economicLevelFactor(db, sellerFinance);
+  const internationalExposure =
+    1 + Math.min(0.16, reputation / 100 + (player?.appearances ?? 0) / 900);
+  const positionalScarcity = positionalScarcityFactor(db, sellerId, player?.positionGroup);
+  const sellerFinancePressure = sellerFinancePressureFactor(sellerFinance);
+  const playerImportance = squadRoleWeight(role);
+  const replacementDifficulty = 0.86 + Math.min(0.42, positionalScarcity / 5 + currentAbility / 45);
+  const windowTiming = windowTimingFactor(market, input.worldDate);
+  const buyerWealthPerception = buyerWealthFactor(buyerFinance, sellerFinance);
+  const playerDesire = playerDesireFactor(status?.status, months);
+  const reluctance = status?.status === "NOT_FOR_SALE" ? 1.14 : 1;
+  const internalMid = Math.round(
+    base *
+      contractExpiryLeverage *
+      agePotentialUncertainty *
+      sportingLevel *
+      reputationForm *
+      leagueEconomicLevel *
+      internationalExposure *
+      sellerFinancePressure *
+      playerImportance *
+      playerDesire,
+  );
+  const askingMid = Math.round(
+    internalMid *
+      reluctance *
+      positionalScarcity *
+      replacementDifficulty *
+      windowTiming *
+      buyerWealthPerception,
+  );
+  const knowledge = input.buyingClubId
+    ? new RecruitmentRepository(db).playerKnowledge(input.buyingClubId, input.playerId)
+    : undefined;
+  const confidence = knowledgeConfidence(knowledge?.knowledgeLevel);
+  const ageUncertainty = (player?.age ?? 24) <= 23 ? 0.18 : 0.1;
+  const internalValue = valueRange(internalMid, 0.08 + ageUncertainty);
+  const scoutEstimate = valueRange(internalMid, 0.34 - confidence * 0.18 + ageUncertainty);
+  const askingRange = valueRange(askingMid, 0.16 + Math.max(0, buyerWealthPerception - 1) / 2);
+  return {
+    playerId: input.playerId,
+    buyingClubId: input.buyingClubId,
+    sellingClubId: sellerId,
+    internalValue,
+    scoutEstimate,
+    askingRange,
+    confidence,
+    playerDesireToMove: playerDesire,
+    factors: {
+      contractExpiryLeverage,
+      agePotentialUncertainty,
+      sportingLevel,
+      reputationForm,
+      leagueEconomicLevel,
+      internationalExposure,
+      positionalScarcity,
+      sellerFinancePressure,
+      playerImportance,
+      replacementDifficulty,
+      windowTiming,
+      buyerWealthPerception,
+      playerDesire,
+    },
+  };
+};
+
+export const createTransferEnquiry = (
+  db: GameDatabase,
+  input: {
+    buyingClubId: EntityId;
+    sellingClubId: EntityId;
+    playerId: EntityId;
+    submittedAt: string;
+  },
+): TransferOffer => {
+  const offer = createTransferOffer(db, { ...input, fee: 0, addOns: 0, sellOnPercentage: 0 });
+  const market = new TransferMarketRepository(db);
+  market.insertTransferOffer({ ...offer, status: "NEGOTIATING" });
+  market.insertNegotiationRound({
+    id: createStableEntityId("negotiation-round", `${offer.id}:buyer:enquiry`),
+    offerId: offer.id,
+    roundNumber: 2,
+    actor: "BUYING_CLUB",
+    action: "ENQUIRY",
+    message: "Buying club asks whether the player is available",
+    createdAt: input.submittedAt,
+  });
+  return { ...offer, status: "NEGOTIATING" };
+};
+
+export const respondToTransferEnquiry = (
+  db: GameDatabase,
+  offer: TransferOffer,
+  worldDate: string,
+): TransferOffer => {
+  const valuation = calculateTransferValuation(db, {
+    buyingClubId: offer.buyingClubId,
+    sellingClubId: offer.sellingClubId,
+    playerId: offer.playerId,
+    worldDate,
+  });
+  const updated = { ...offer, askingRange: valuation.askingRange, status: "NEGOTIATING" as const };
+  const market = new TransferMarketRepository(db);
+  market.insertTransferOffer(updated);
+  market.insertNegotiationRound({
+    id: createStableEntityId("negotiation-round", `${offer.id}:seller:availability`),
+    offerId: offer.id,
+    roundNumber: 3,
+    actor: "SELLING_CLUB",
+    action: "AVAILABILITY_RESPONSE",
+    message: "Selling club responds with a contextual asking range",
+    createdAt: worldDate,
+  });
+  return updated;
+};
+
+export const counterTransferOffer = (
+  db: GameDatabase,
+  offer: TransferOffer,
+  input: {
+    worldDate: string;
+    transferFee?: number;
+    installments?: number;
+    addOns?: number;
+    sellOnPercentage?: number;
+    conditionals?: TransferConditionalClause[];
+    sellerRequestedPlayerId?: EntityId;
+  },
+): TransferOffer => {
+  const exchange = input.sellerRequestedPlayerId
+    ? [
+        ...(offer.playerExchanges ?? []),
+        buildPlayerExchange(db, {
+          playerId: input.sellerRequestedPlayerId,
+          fromClubId: offer.buyingClubId,
+          toClubId: offer.sellingClubId ?? offer.buyingClubId,
+          worldDate: input.worldDate,
+          requestedBy: "SELLING_CLUB",
+        }),
+      ]
+    : offer.playerExchanges;
+  const counter: TransferOffer = {
+    ...offer,
+    transferFee: input.transferFee ?? offer.transferFee,
+    installments: input.installments ?? offer.installments,
+    addOns: input.addOns ?? offer.addOns,
+    sellOnPercentage: input.sellOnPercentage ?? offer.sellOnPercentage,
+    conditionals: input.conditionals ?? offer.conditionals,
+    playerExchanges: exchange,
+    sellerRequestedPlayerId: input.sellerRequestedPlayerId ?? offer.sellerRequestedPlayerId,
+    status: "COUNTERED",
+    expiresAt: addDays(input.worldDate, 10),
+  };
+  const market = new TransferMarketRepository(db);
+  market.insertTransferOffer(counter);
+  market.insertNegotiationRound({
+    id: createStableEntityId("negotiation-round", `${offer.id}:seller:counter:${input.worldDate}`),
+    offerId: offer.id,
+    roundNumber: market.negotiationRounds(offer.id).length + 1,
+    actor: "SELLING_CLUB",
+    action: "COUNTER",
+    message: input.sellerRequestedPlayerId
+      ? "Selling club counters and requests a specific player exchange"
+      : "Selling club counters with revised package terms",
+    createdAt: input.worldDate,
+  });
+  return counter;
+};
+
+export const acceptTransferOffer = (
+  db: GameDatabase,
+  offer: TransferOffer,
+  worldDate: string,
+): void => {
+  const market = new TransferMarketRepository(db);
+  market.updateOfferStatus(offer.id, "ACCEPTED");
+  market.insertNegotiationRound({
+    id: createStableEntityId("negotiation-round", `${offer.id}:seller:accept:${worldDate}`),
+    offerId: offer.id,
+    roundNumber: market.negotiationRounds(offer.id).length + 1,
+    actor: "SELLING_CLUB",
+    action: "ACCEPT",
+    message: "Selling club accepts the negotiated package",
+    createdAt: worldDate,
+  });
+};
+
+export const rejectTransferOffer = (
+  db: GameDatabase,
+  offer: TransferOffer,
+  worldDate: string,
+): void => {
+  const market = new TransferMarketRepository(db);
+  market.updateOfferStatus(offer.id, "REJECTED");
+  market.insertNegotiationRound({
+    id: createStableEntityId("negotiation-round", `${offer.id}:seller:reject:${worldDate}`),
+    offerId: offer.id,
+    roundNumber: market.negotiationRounds(offer.id).length + 1,
+    actor: "SELLING_CLUB",
+    action: "REJECT",
+    message: "Selling club rejects the negotiated package",
+    createdAt: worldDate,
+  });
+};
+
+export const calculateTransferPackageValue = (offer: TransferOffer): number =>
+  Math.round(
+    offer.transferFee +
+      offer.installments * 0.86 +
+      offer.addOns * 0.42 +
+      (offer.conditionals ?? []).reduce((total, clause) => total + clause.amount * 0.38, 0) +
+      (offer.playerExchanges ?? []).reduce(
+        (total, exchange) => total + midpoint(exchange.valuation) * 0.9,
+        0,
+      ),
+  );
 
 export const negotiatePlayerContract = (
   db: GameDatabase,
@@ -1208,6 +1505,124 @@ const squadRoleWeight = (role: PlayerSquadRole): number =>
     PROSPECT: 0.86,
     YOUTH: 0.45,
   })[role];
+
+const valueRange = (mid: number, spread: number): KnowledgeRange => ({
+  min: Math.max(0, Math.round(mid * (1 - spread))),
+  max: Math.max(0, Math.round(mid * (1 + spread))),
+});
+
+const midpoint = (range: KnowledgeRange): number => Math.round((range.min + range.max) / 2);
+
+const contractExpiryFactor = (months: number): number => {
+  if (months <= 1) return 0.38;
+  if (months <= 6) return 0.58;
+  if (months <= 12) return 0.82;
+  if (months <= 24) return 1;
+  return 1.12;
+};
+
+const sellerFinancePressureFactor = (finance?: ClubFinancialProfile): number => {
+  if (!finance) return 1;
+  if (finance.financialHealth === "POOR") return 0.78;
+  if (finance.financialHealth === "GOOD") return 1.06;
+  return 1;
+};
+
+const economicLevelFactor = (db: GameDatabase, finance?: ClubFinancialProfile): number => {
+  if (!finance) return 1;
+  const row = db
+    .prepare(
+      "SELECT AVG(transfer_budget) AS average FROM club_financial_profiles WHERE transfer_budget > 0",
+    )
+    .get() as { average?: number };
+  const average = row.average ?? finance.transferBudget;
+  return Math.max(0.78, Math.min(1.28, finance.transferBudget / Math.max(1, average)));
+};
+
+const buyerWealthFactor = (buyer?: ClubFinancialProfile, seller?: ClubFinancialProfile): number => {
+  if (!buyer || !seller) return 1;
+  return Math.max(0.92, Math.min(1.24, buyer.transferBudget / Math.max(1, seller.transferBudget)));
+};
+
+const positionalScarcityFactor = (
+  db: GameDatabase,
+  sellerId?: EntityId,
+  positionGroupValue?: string,
+): number => {
+  if (!sellerId || !positionGroupValue) return 1;
+  const sameGroup = playersForClub(db, sellerId).filter(
+    (player) => player.positionGroup === positionGroupValue,
+  ).length;
+  if (sameGroup <= 1) return 1.3;
+  if (sameGroup === 2) return 1.16;
+  if (sameGroup >= 7) return 0.94;
+  return 1;
+};
+
+const windowTimingFactor = (market: TransferMarketRepository, worldDate: string): number => {
+  const open = market.openTransferWindows(worldDate);
+  if (open.length === 0) return 0.94;
+  const daysToClose = Math.min(
+    ...open.map((window) =>
+      Math.max(
+        0,
+        Math.floor(
+          (Date.parse(`${window.closeDate}T00:00:00.000Z`) -
+            Date.parse(`${worldDate}T00:00:00.000Z`)) /
+            86400000,
+        ),
+      ),
+    ),
+  );
+  if (daysToClose <= 7) return 1.18;
+  if (daysToClose <= 21) return 1.08;
+  return 1;
+};
+
+const playerDesireFactor = (
+  status: PlayerTransferStatusRecord["status"] | undefined,
+  months: number,
+): number => {
+  if (status === "TRANSFER_LISTED" || status === "AVAILABLE" || status === "INTERESTED_IN_MOVE") {
+    return 0.86;
+  }
+  if (status === "UNSETTLED" || status === "CONTRACT_EXPIRING" || months <= 6) return 0.9;
+  if (status === "NOT_FOR_SALE") return 1.06;
+  return 1;
+};
+
+const knowledgeConfidence = (level: unknown): number => {
+  if (level === "FULL") return 0.92;
+  if (level === "HIGH") return 0.78;
+  if (level === "MEDIUM") return 0.58;
+  if (level === "LOW") return 0.36;
+  return 0.24;
+};
+
+const buildPlayerExchange = (
+  db: GameDatabase,
+  input: {
+    playerId: EntityId;
+    fromClubId: EntityId;
+    toClubId: EntityId;
+    worldDate: string;
+    requestedBy: "BUYING_CLUB" | "SELLING_CLUB";
+  },
+): TransferPlayerExchange => {
+  const valuation = calculateTransferValuation(db, {
+    buyingClubId: input.toClubId,
+    sellingClubId: input.fromClubId,
+    playerId: input.playerId,
+    worldDate: input.worldDate,
+  });
+  return {
+    playerId: input.playerId,
+    fromClubId: input.fromClubId,
+    toClubId: input.toClubId,
+    valuation: valuation.scoutEstimate,
+    requestedBy: input.requestedBy,
+  };
+};
 
 const positionGroup = (position: string): string => {
   if (position === "GK") return "GOALKEEPER";
