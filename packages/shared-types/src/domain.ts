@@ -2030,6 +2030,11 @@ export type TransferOfferStatus =
   | "REJECTED"
   | "WITHDRAWN"
   | "EXPIRED"
+  | "PLAYER_NEGOTIATING"
+  | "PLAYER_ACCEPTED"
+  | "PLAYER_REJECTED"
+  | "PLAYER_STALLED"
+  | "COMPETING_OFFER"
   | "COMPLETED";
 
 export type TransferConditionalClauseType = "APPEARANCE" | "PERFORMANCE";
@@ -2104,7 +2109,7 @@ export type NegotiationRound = {
   id: EntityId;
   offerId: EntityId;
   roundNumber: number;
-  actor: "BUYING_CLUB" | "SELLING_CLUB" | "PLAYER_AGENT" | "SYSTEM";
+  actor: "BUYING_CLUB" | "SELLING_CLUB" | "PLAYER_AGENT" | "PLAYER" | "SYSTEM";
   action:
     | "ENQUIRY"
     | "AVAILABILITY_RESPONSE"
@@ -2113,7 +2118,9 @@ export type NegotiationRound = {
     | "DEMAND"
     | "COUNTER"
     | "ACCEPT"
-    | "REJECT";
+    | "REJECT"
+    | "STALL"
+    | "COMPETING_OFFER";
   salary?: number;
   squadRole?: PlayerSquadRole;
   contractLengthMonths?: number;
@@ -2122,6 +2129,17 @@ export type NegotiationRound = {
   message: string;
   createdAt: ISODate;
 };
+
+export type PlayerPersonalTerms = {
+  salary: number;
+  contractLengthMonths: number;
+  squadRole: PlayerSquadRole;
+  signingFee: number;
+  agentFee: number;
+};
+
+export type PlayerPersonalTermsState =
+  "ACCEPTED" | "REJECTED" | "STALLED" | "COMPETING_OFFER" | "COUNTERED";
 
 export type LoanStatus = "ACTIVE" | "ENDED" | "CANCELLED";
 

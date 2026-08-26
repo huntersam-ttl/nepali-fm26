@@ -11,6 +11,7 @@ import { createStableEntityId, type EntityId } from "@nepal-football-sim/shared-
 import {
   analyzeSquadNeeds,
   assessAgentInterest,
+  acceptTransferOffer,
   calculateTransferPackageValue,
   calculateTransferValuation,
   counterTransferOffer,
@@ -20,6 +21,7 @@ import {
   evaluateTransferOffer,
   initializeTransferMarketForSave,
   negotiatePlayerContract,
+  negotiatePlayerTerms,
   processAgentRepresentation,
   respondToTransferEnquiry,
   runTransferDiagnostic,
@@ -468,6 +470,88 @@ describe("transfer and contract market", () => {
     expect(representedContract.salary).toBeGreaterThan(selfContract.salary);
     expect(selfContract.salary).toBeGreaterThan(0);
     db.close();
+  });
+
+  it("requires player agreement, supports counters and records competing personal terms", () => {
+    const databasePath = createSave("phase-c-personal-terms");
+    const db = openGameDatabase(databasePath);
+    const buyingClubId = clubIdByCanonical(db, "NEP-DIVA-MAC");
+    const competingClubId = clubIdByCanonical(db, "NEP-DIVA-FRN");
+    const target = transferTargetForClub(db, buyingClubId);
+    const suitableOffer = createTransferOffer(db, {
+      buyingClubId,
+      sellingClubId: target.clubId,
+      playerId: target.playerId,
+      submittedAt: "2026-08-01",
+      fee: 500_000,
+    });
+    acceptTransferOffer(db, suitableOffer, "2026-08-01");
+    const clubAgreedOffer = { ...suitableOffer, status: "ACCEPTED" as const };
+    const accepted = negotiatePlayerTerms(db, clubAgreedOffer, {
+      worldDate: "2026-08-02",
+      seed: "phase-c-accepted",
+      proposal: { salary: 500_000, squadRole: "FIRST_TEAM", contractLengthMonths: 36 },
+    });
+    expect(accepted.state).toBe("ACCEPTED");
+    expect(accepted.represented).toBe(false);
+    expect(new TransferMarketRepository(db).negotiationRounds(suitableOffer.id).at(-1)?.actor).toBe(
+      "PLAYER",
+    );
+
+    const overseasPreference = negotiatePlayerTerms(db, clubAgreedOffer, {
+      worldDate: "2026-08-02",
+      seed: "phase-c-overseas",
+      preferences: { prefersOverseas: true },
+      proposal: { salary: 500_000, squadRole: "FIRST_TEAM", contractLengthMonths: 36 },
+    });
+    expect(overseasPreference.score).toBeLessThan(accepted.score);
+
+    const poorRole = negotiatePlayerTerms(db, clubAgreedOffer, {
+      worldDate: "2026-08-03",
+      seed: "phase-c-poor-role",
+      proposal: { salary: 1, squadRole: "YOUTH", contractLengthMonths: 12 },
+    });
+    expect(poorRole.state).toBe("REJECTED");
+
+    const countered = negotiatePlayerTerms(db, clubAgreedOffer, {
+      worldDate: "2026-08-04",
+      seed: "phase-c-counter",
+      action: "COUNTER",
+      counterProposal: { salary: 350_000, squadRole: "ROTATION", contractLengthMonths: 24 },
+    });
+    expect(countered.state).toBe("COUNTERED");
+
+    const competing = createTransferOffer(db, {
+      buyingClubId: competingClubId,
+      sellingClubId: target.clubId,
+      playerId: target.playerId,
+      submittedAt: "2026-08-01",
+      fee: 700_000,
+    });
+    acceptTransferOffer(db, competing, "2026-08-01");
+    const preferred = negotiatePlayerTerms(db, clubAgreedOffer, {
+      worldDate: "2026-08-05",
+      seed: "phase-c-competing",
+      proposal: { salary: 1, squadRole: "ROTATION", contractLengthMonths: 12 },
+    });
+    expect(preferred.state).toBe("COMPETING_OFFER");
+    expect(preferred.preferredOfferId).toBe(competing.id);
+    expect(
+      new TransferMarketRepository(db).negotiationRounds(suitableOffer.id).length,
+    ).toBeGreaterThan(2);
+    db.close();
+
+    const reloaded = openGameDatabase(databasePath);
+    const persisted = new TransferMarketRepository(reloaded)
+      .transferOffers()
+      .find((item) => item.id === suitableOffer.id)!;
+    expect(persisted.status).toBe("COMPETING_OFFER");
+    expect(
+      new TransferMarketRepository(reloaded)
+        .negotiationRounds(suitableOffer.id)
+        .some((round) => round.action === "COUNTER"),
+    ).toBe(true);
+    reloaded.close();
   });
 
   it("supports temporary loans without terminating parent contracts", () => {

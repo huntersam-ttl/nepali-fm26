@@ -11,6 +11,8 @@ import {
   type KnowledgeRange,
   type NegotiationRound,
   type PlayerContractRecord,
+  type PlayerPersonalTerms,
+  type PlayerPersonalTermsState,
   type PlayerLoanRecord,
   type PlayerSquadRole,
   type PlayerTransferStatusRecord,
@@ -715,6 +717,27 @@ export type AgentInterestAssessment = {
   };
 };
 
+export type PlayerPersonalTermsPreferences = {
+  expectedPlayingTime?: PlayerSquadRole;
+  preferredCountries?: string[];
+  prefersOverseas?: boolean;
+  minimumClubLevel?: number;
+  continentalOpportunity?: boolean;
+  currentClubSatisfaction?: number;
+  ambition?: number;
+  careerStage?: "PROSPECT" | "PRIME" | "VETERAN";
+  securityPreference?: number;
+};
+
+export type PlayerPersonalTermsResult = {
+  state: PlayerPersonalTermsState;
+  proposal: PlayerPersonalTerms;
+  score: number;
+  reason: string;
+  preferredOfferId?: EntityId;
+  represented: boolean;
+};
+
 export const assessAgentInterest = (
   db: GameDatabase,
   input: {
@@ -867,6 +890,259 @@ export const processAgentRepresentation = (
   return approach;
 };
 
+const roleRank = (role: PlayerSquadRole): number =>
+  ({
+    KEY_PLAYER: 6,
+    IMPORTANT_PLAYER: 5,
+    FIRST_TEAM: 4,
+    ROTATION: 3,
+    BACKUP: 2,
+    PROSPECT: 1,
+    YOUTH: 0,
+  })[role];
+
+const clubSportingLevel = (db: GameDatabase, clubId: EntityId): number => {
+  const rows = db
+    .prepare("SELECT level FROM teams WHERE club_id = ? AND gender = 'MEN' ORDER BY level")
+    .all(clubId) as Array<{ level: string }>;
+  const level = rows[0]?.level?.toUpperCase() ?? "";
+  if (level.includes("NATIONAL") || level.includes("PREMIER")) return 5;
+  if (level.includes("A")) return 4;
+  if (level.includes("B")) return 3;
+  return 2;
+};
+
+const clubCountryCode = (db: GameDatabase, clubId: EntityId): string | undefined =>
+  (
+    db
+      .prepare(
+        "SELECT c.iso_code FROM countries c JOIN clubs cl ON cl.country_id = c.id WHERE cl.id = ?",
+      )
+      .get(clubId) as { iso_code?: string } | undefined
+  )?.iso_code;
+
+const defaultPersonalTerms = (
+  db: GameDatabase,
+  offer: TransferOffer,
+  worldDate: string,
+  seed: string,
+): PlayerPersonalTerms => {
+  const player = marketPlayer(db, offer.playerId);
+  const agent = new TransferMarketRepository(db).agentForPlayer(offer.playerId);
+  const current = new TransferMarketRepository(db).activeContract(offer.playerId, worldDate);
+  const rng = new SeededRandom(`${seed}:player-terms:${offer.id}`);
+  const salary = Math.max(
+    current?.salary ?? 0,
+    Math.round(
+      ((player?.currentAbility ?? 7) * 18000 + (agent?.feeExpectation ?? 8) * 2500) *
+        (agent ? 1.04 + agent.negotiationSkill / 220 + agent.aggressiveness / 260 : 0.94) *
+        (1 + rng.next() * 0.12),
+    ),
+  );
+  return {
+    salary,
+    contractLengthMonths: 10 + Math.floor(rng.next() * 14),
+    squadRole: salary > 190000 ? "FIRST_TEAM" : salary > 130000 ? "ROTATION" : "BACKUP",
+    signingFee: offer.signingFee,
+    agentFee: agent ? offer.agentFee : 0,
+  };
+};
+
+export const negotiatePlayerTerms = (
+  db: GameDatabase,
+  offer: TransferOffer,
+  input: {
+    worldDate: string;
+    seed: string;
+    proposal?: Partial<PlayerPersonalTerms>;
+    preferences?: PlayerPersonalTermsPreferences;
+    action?: "ACCEPT" | "REJECT" | "COUNTER";
+    counterProposal?: Partial<PlayerPersonalTerms>;
+  },
+): PlayerPersonalTermsResult => {
+  const market = new TransferMarketRepository(db);
+  const agent = market.agentForPlayer(offer.playerId);
+  const base = defaultPersonalTerms(db, offer, input.worldDate, input.seed);
+  const proposal: PlayerPersonalTerms = {
+    ...base,
+    ...input.proposal,
+  };
+  if (input.action === "COUNTER") {
+    const counter: PlayerPersonalTerms = {
+      ...proposal,
+      ...input.counterProposal,
+    };
+    market.insertNegotiationRound({
+      id: createStableEntityId(
+        "negotiation-round",
+        `${offer.id}:player:counter:${input.worldDate}`,
+      ),
+      offerId: offer.id,
+      roundNumber: market.negotiationRounds(offer.id).length + 1,
+      actor: agent ? "PLAYER_AGENT" : "PLAYER",
+      action: "COUNTER",
+      salary: counter.salary,
+      squadRole: counter.squadRole,
+      contractLengthMonths: counter.contractLengthMonths,
+      agentFee: counter.agentFee,
+      signingFee: counter.signingFee,
+      message: agent
+        ? "Agent counters the personal terms"
+        : "Player counters the personal terms directly",
+      createdAt: input.worldDate,
+    });
+    market.updateOfferStatus(offer.id, "PLAYER_NEGOTIATING");
+    return {
+      state: "COUNTERED",
+      proposal: counter,
+      score: 0,
+      reason: "player counter-proposal",
+      represented: Boolean(agent),
+    };
+  }
+
+  if (!["ACCEPTED", "PLAYER_NEGOTIATING", "PLAYER_ACCEPTED"].includes(offer.status)) {
+    return {
+      state: "STALLED",
+      proposal,
+      score: 0,
+      reason: "club agreement is not complete",
+      represented: Boolean(agent),
+    };
+  }
+  const player = marketPlayer(db, offer.playerId);
+  const current = market.activeContract(offer.playerId, input.worldDate);
+  const prefs = input.preferences ?? {};
+  const destinationCountry = clubCountryCode(db, offer.buyingClubId);
+  const expectedRole = prefs.expectedPlayingTime ?? (player ? squadRoleFor(player) : "ROTATION");
+  const destinationLevel = clubSportingLevel(db, offer.buyingClubId);
+  const salaryFloor = Math.max(
+    current?.salary ? Math.round(current.salary * (agent ? 1.03 : 1.01)) : 0,
+    Math.round((player?.currentAbility ?? 7) * 12500),
+  );
+  const roleDelta = roleRank(proposal.squadRole) - roleRank(expectedRole);
+  const roleScore = roleDelta >= 0 ? 24 : roleDelta === -1 ? -8 : -30;
+  const salaryScore = Math.max(
+    -35,
+    Math.min(28, ((proposal.salary - salaryFloor) / Math.max(salaryFloor, 1)) * 28),
+  );
+  const levelScore = destinationLevel >= (prefs.minimumClubLevel ?? 0) ? 10 : -12;
+  const countryPreferred = Boolean(
+    destinationCountry && prefs.preferredCountries?.includes(destinationCountry),
+  );
+  const overseasScore =
+    prefs.prefersOverseas === undefined
+      ? 0
+      : prefs.prefersOverseas === (destinationCountry !== "NP")
+        ? 14
+        : -14;
+  const preferenceScore = (countryPreferred ? 10 : 0) + overseasScore;
+  const ambitionScore =
+    ((prefs.ambition ?? Math.min(15, Math.round((player?.potentialAbility ?? 8) / 2))) - 7) * 1.8;
+  const securityScore =
+    (prefs.securityPreference ?? 6) >= 8 && proposal.contractLengthMonths >= 24 ? 10 : 0;
+  const continentalScore = prefs.continentalOpportunity ? (destinationLevel >= 4 ? 10 : -8) : 0;
+  const careerStageScore =
+    prefs.careerStage === "PROSPECT" && proposal.contractLengthMonths >= 24
+      ? 7
+      : prefs.careerStage === "VETERAN" && destinationLevel < 3
+        ? -8
+        : 0;
+  const satisfactionScore =
+    prefs.currentClubSatisfaction !== undefined ? (50 - prefs.currentClubSatisfaction) / 4 : 0;
+  const competing = market
+    .transferOffers()
+    .filter(
+      (item) =>
+        item.playerId === offer.playerId &&
+        item.id !== offer.id &&
+        ["ACCEPTED", "PLAYER_ACCEPTED", "NEGOTIATING", "COUNTERED"].includes(item.status),
+    );
+  const competingOffer = competing
+    .map((item) => ({ item, terms: defaultPersonalTerms(db, item, input.worldDate, input.seed) }))
+    .sort(
+      (a, b) =>
+        b.terms.salary - a.terms.salary || String(a.item.id).localeCompare(String(b.item.id)),
+    )[0];
+  const competingScore =
+    competingOffer && competingOffer.terms.salary > proposal.salary * 1.12 ? -24 : 0;
+  let score =
+    roleScore +
+    salaryScore +
+    levelScore +
+    preferenceScore +
+    ambitionScore +
+    securityScore +
+    continentalScore +
+    careerStageScore +
+    satisfactionScore +
+    competingScore;
+  let state: PlayerPersonalTermsState;
+  let reason: string;
+  if (input.action === "REJECT") {
+    state = "REJECTED";
+    reason = "player or representative rejected the personal terms";
+  } else if (input.action === "ACCEPT") {
+    state = "ACCEPTED";
+    reason = "player accepted the personal terms";
+  } else if (competingScore < 0 && competingOffer) {
+    state = "COMPETING_OFFER";
+    reason = "player prefers a competing offer";
+  } else if (score < -20) {
+    state = "REJECTED";
+    reason =
+      roleScore < -20 ? "squad role is below expectations" : "wage and career terms are inadequate";
+  } else if (score < 8) {
+    state = "STALLED";
+    reason = "player wants improved personal terms";
+  } else {
+    state = "ACCEPTED";
+    reason = "player accepted the personal terms";
+  }
+  const action =
+    state === "COMPETING_OFFER"
+      ? "COMPETING_OFFER"
+      : state === "STALLED"
+        ? "STALL"
+        : state === "ACCEPTED"
+          ? "ACCEPT"
+          : "REJECT";
+  market.insertNegotiationRound({
+    id: createStableEntityId(
+      "negotiation-round",
+      `${offer.id}:player:${input.worldDate}:${action}:${input.seed}`,
+    ),
+    offerId: offer.id,
+    roundNumber: market.negotiationRounds(offer.id).length + 1,
+    actor: agent ? "PLAYER_AGENT" : "PLAYER",
+    action,
+    salary: proposal.salary,
+    squadRole: proposal.squadRole,
+    contractLengthMonths: proposal.contractLengthMonths,
+    agentFee: proposal.agentFee,
+    signingFee: proposal.signingFee,
+    message: reason,
+    createdAt: input.worldDate,
+  });
+  const status =
+    state === "ACCEPTED"
+      ? "PLAYER_ACCEPTED"
+      : state === "REJECTED"
+        ? "PLAYER_REJECTED"
+        : state === "COMPETING_OFFER"
+          ? "COMPETING_OFFER"
+          : "PLAYER_STALLED";
+  market.updateOfferStatus(offer.id, status);
+  return {
+    state,
+    proposal,
+    score: Math.round(score * 100) / 100,
+    reason,
+    preferredOfferId: competingOffer?.item.id,
+    represented: Boolean(agent),
+  };
+};
+
 export const negotiatePlayerContract = (
   db: GameDatabase,
   offer: TransferOffer,
@@ -955,6 +1231,16 @@ export const completePermanentTransfer = (
   seed: string,
 ): void => {
   const market = new TransferMarketRepository(db);
+  const personalTerms = negotiatePlayerTerms(db, offer, { worldDate, seed });
+  if (personalTerms.state !== "ACCEPTED") {
+    if (personalTerms.state === "REJECTED" || personalTerms.state === "COMPETING_OFFER") {
+      market.updateOfferStatus(
+        offer.id,
+        personalTerms.state === "REJECTED" ? "PLAYER_REJECTED" : "COMPETING_OFFER",
+      );
+    }
+    return;
+  }
   const contract = negotiatePlayerContract(db, offer, worldDate, seed);
   if (!clubCanAffordWage(db, offer.buyingClubId, contract.salary, worldDate)) {
     market.updateOfferStatus(offer.id, "REJECTED");
