@@ -1,0 +1,3 @@
+import { describe, expect, it } from "vitest";
+import { CAMP_DESTINATION_PROFILES, calculateCampEffects, hasCampFixtureOverlap } from "@nepal-football-sim/simulation";
+describe("training camps phase A",()=>{it("keeps effects bounded and deterministic",()=>{const camp={...CAMP_DESTINATION_PROFILES.JAPAN,duration:14};expect(calculateCampEffects(camp)).toEqual(calculateCampEffects(camp));expect(calculateCampEffects(camp).developmentSignal).toBeLessThan(.1);});it("detects calendar overlap",()=>{expect(hasCampFixtureOverlap({startDate:"2027-01-10",endDate:"2027-01-20"},["2027-01-15"])).toBe(true);expect(hasCampFixtureOverlap({startDate:"2027-01-10",endDate:"2027-01-20"},["2027-01-21"])).toBe(false);});});
