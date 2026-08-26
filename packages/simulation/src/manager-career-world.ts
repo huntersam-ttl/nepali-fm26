@@ -3,6 +3,7 @@ import {
   ClubEconomyRepository,
   CompetitionRepository,
   ManagerRepository,
+  SupporterCultureRepository,
   WorldRepository,
   type GameDatabase,
 } from "@nepal-football-sim/database";
@@ -23,6 +24,7 @@ import {
 } from "@nepal-football-sim/shared-types";
 import { SeededRandom } from "./rng.js";
 import { createManagerContract } from "./manager-career.js";
+import { supporterBoardPressureModifier } from "./supporter-culture.js";
 
 type SqlRow = Record<string, any>;
 
@@ -272,7 +274,14 @@ export const evaluateBoardConfidence = (
     const existing = careerWorld.boardConfidence(contract.clubId);
     const baseline =
       existing && existing.contractId === contract.id ? existing.confidence : 60;
-    const next = Math.max(0, Math.min(100, baseline + confidenceDelta(expectation, tertile)));
+    /* Supporter sentiment is one contextual factor only: finances and club
+     * objectives stay authoritative, and supporters never sack anyone alone. */
+    const supporters = new SupporterCultureRepository(db).profile(contract.clubId, "men");
+    const supporterPressure = supporters ? supporterBoardPressureModifier(supporters) : 0;
+    const next = Math.max(
+      0,
+      Math.min(100, baseline + confidenceDelta(expectation, tertile) + supporterPressure),
+    );
 
     careerWorld.upsertBoardConfidence({
       clubId: contract.clubId,

@@ -1,5 +1,6 @@
 import {
   createStableEntityId,
+  type AttendanceDemandBreakdown,
   type Club,
   type ClubAsset,
   type ClubBoardPolicy,
@@ -40,6 +41,7 @@ import {
 } from "@nepal-football-sim/database";
 import { SeededRandom } from "./rng.js";
 import { adjustForMacro, macroEconomyForCountry } from "./macro-economy.js";
+import { supporterAttendanceForFixture } from "./supporter-culture.js";
 
 export type ClubFinancialSummary = {
   account: ClubFinancialAccount;
@@ -736,6 +738,11 @@ export type MatchdayEconomyResult = {
   capacity: number;
   ticketPrice: number;
   homeShare: number;
+  /**
+   * Supporter-demand breakdown, present when the club has a supporter culture
+   * profile. Exposed for balancing and read models, not as player-facing truth.
+   */
+  attendanceBreakdown?: AttendanceDemandBreakdown;
 };
 
 export const postMatchdayEconomy = (
@@ -763,10 +770,26 @@ export const postMatchdayEconomy = (
     (homeSupport?.coreSupporters ?? 800) * 0.18 +
     (homeSupport?.casualSupporters ?? 1000) * 0.04 +
     (awaySupport?.coreSupporters ?? 600) * 0.04;
-  const attendance = Math.max(
-    120,
-    Math.min(capacity, Math.round(baseDemand * fixtureImportance * reputationFactor * audienceFactor * sentimentFactor * priceSensitivity * (0.8 + rng.next() * 0.4))),
-  );
+  /* Supporter-aware demand replaces the flat formula wherever the supporter
+   * world has a profile; saves without one keep the previous behaviour. */
+  const demand = supporterAttendanceForFixture({
+    db,
+    homeClubId,
+    awayClubId,
+    capacity,
+    ticketPrice,
+    seed: `${seed}:${fixture.id}`,
+    countryId: nepalCountryId(db),
+    opponentReputation: awaySupport?.footballReputation,
+    stakes: fixture.round >= 20 ? 60 : fixture.round <= 2 ? 25 : 35,
+    competitionImportance: 55,
+  });
+  const attendance = demand
+    ? Math.max(60, Math.min(capacity, demand.attendance))
+    : Math.max(
+        120,
+        Math.min(capacity, Math.round(baseDemand * fixtureImportance * reputationFactor * audienceFactor * sentimentFactor * priceSensitivity * (0.8 + rng.next() * 0.4))),
+      );
   const gross = attendance * ticketPrice;
   const homeShare = Math.round(gross * 0.5);
   const organiserShare = Math.round(gross * 0.3);
@@ -800,7 +823,7 @@ export const postMatchdayEconomy = (
     relatedEntityId: fixture.id,
     idempotencyKey: `matchday-cost-away:${fixture.id}`,
   });
-  return { attendance, capacity, ticketPrice, homeShare };
+  return { attendance, capacity, ticketPrice, homeShare, attendanceBreakdown: demand };
 };
 
 export const processClubEconomyMonth = (

@@ -29,3 +29,4 @@ export * from "./training-camp-repository.js";
 export * from "./club-network-repository.js";
 export * from "./macro-economy-repository.js";
 export * from "./universal-interactions-repository.js";
+export * from "./supporter-culture-repository.js";
