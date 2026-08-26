@@ -14,6 +14,7 @@ import {
   type ScoutReportRecommendation,
   type ScoutingAssignment,
   type ScoutingAssignmentPriority,
+  type ScoutingCoverage,
 } from "@nepal-football-sim/shared-types";
 import { RecruitmentRepository, type GameDatabase } from "@nepal-football-sim/database";
 import { SeededRandom } from "./rng.js";
@@ -218,6 +219,14 @@ export const createScoutingAssignment = (
   };
   new RecruitmentRepository(db).insertAssignment(assignment);
   return assignment;
+};
+
+export const scoutingCoverage = (db: GameDatabase, clubId: EntityId, worldDate: string): ScoutingCoverage => {
+  const recruitment = new RecruitmentRepository(db); const profile = recruitment.clubRecruitmentProfile(clubId); const staff = db.prepare("SELECT COUNT(*) AS count FROM staff_appointments WHERE club_id=? AND employment_status='ACTIVE' AND role IN ('SCOUT','RECRUITMENT_ANALYST','HEAD_SCOUT')").get(clubId) as { count?: number } | undefined; const budget = profile?.scoutingBudget ?? 0; const quality = Math.min(10, (staff?.count ?? 0) * 2 + (profile?.domesticKnowledge ?? 0) / 10); return { clubId, reachable: Boolean(profile && budget > 0 && (staff?.count ?? 0) > 0), effectiveQuality: quality, budgetAvailable: budget, rationale: profile ? `Coverage ${profile.networkReach} with ${staff?.count ?? 0} active scouting staff on a ${budget} budget.` : "No recruitment network profile is available." };
+};
+
+export const planScoutingAssignment = (db: GameDatabase, input: Parameters<typeof createScoutingAssignment>[1]): ScoutingAssignment => {
+  const coverage = scoutingCoverage(db, input.clubId, input.startedAt); if (!coverage.reachable) throw new Error("Scouting network cannot support this assignment"); return createScoutingAssignment(db, input);
 };
 
 export const simulateScoutingDay = (input: {
