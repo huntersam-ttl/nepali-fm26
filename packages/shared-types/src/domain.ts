@@ -2431,6 +2431,26 @@ export type InjuryRecord = {
   severity: "minor" | "moderate" | "major";
 };
 
+export type MedicalRehabStage = "DIAGNOSIS" | "REHABILITATION" | "RETURN_TO_TRAINING" | "RETURN_TO_PLAY" | "CLEARED";
+export type MedicalAvailabilityRecommendation = "UNAVAILABLE" | "LIMITED_TRAINING" | "AVAILABLE_WITH_RISK" | "FULLY_FIT";
+export type MedicalAssessment = {
+  id: EntityId;
+  personId: EntityId;
+  injuryId?: EntityId;
+  assessedOn: ISODate;
+  stage: MedicalRehabStage;
+  estimatedReturnStart: ISODate;
+  estimatedReturnEnd: ISODate;
+  confidence: number;
+  recurrenceRisk: number;
+  fatigue: number;
+  workloadFlag: "NORMAL" | "ELEVATED" | "OVERLOADED";
+  availabilityRecommendation: MedicalAvailabilityRecommendation;
+  clearanceStatus: "NOT_CLEARED" | "TRAINING_CLEARANCE" | "MATCH_CLEARANCE";
+  rationale: string;
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
 export type SuspensionRecord = {
   id: EntityId;
   personId: EntityId;

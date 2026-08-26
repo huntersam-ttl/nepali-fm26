@@ -285,6 +285,15 @@ export const HomeScreen = ({
                 />
               </Panel>
 
+              <Panel title="Medical Centre">
+                {(dashboard.medicalCentre ?? []).filter((item) => item.availabilityRecommendation !== "FULLY_FIT").slice(0, 5).map((item) => (
+                  <p key={item.id} className="subtle">
+                    {item.personId}: {item.availabilityRecommendation.replaceAll("_", " ").toLowerCase()} · return {item.estimatedReturnStart}–{item.estimatedReturnEnd} · {item.workloadFlag.toLowerCase()} load
+                  </p>
+                ))}
+                {(dashboard.medicalCentre ?? []).every((item) => item.availabilityRecommendation === "FULLY_FIT") && <p className="ok">No medical restrictions.</p>}
+              </Panel>
+
               <Panel title="Dressing room">
                 <AsyncPanel state={concerns}>
                   {(view) => (

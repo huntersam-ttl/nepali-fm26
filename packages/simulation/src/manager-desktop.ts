@@ -69,6 +69,7 @@ import {
 } from "@nepal-football-sim/shared-types";
 import { initializeClubEconomyForSave } from "./club-economy.js";
 import { activeConcernCount } from "./squad-dynamics.js";
+import { medicalCentreReadModel } from "./medical.js";
 import {
   createDefaultTrainingPlan,
   createInitialDevelopmentState,
@@ -1908,6 +1909,7 @@ export const buildManagerDashboard = (
     contractIssues: contracts,
     staffIssues,
     inbox: new ManagerRepository(db).inboxItems().slice(0, 12),
+    medicalCentre: clubId ? medicalCentreReadModel(db, { clubId, date: save.worldDate }) : [],
   };
 };
 

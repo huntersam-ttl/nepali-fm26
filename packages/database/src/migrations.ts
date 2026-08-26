@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 48;
+export const CURRENT_DATABASE_VERSION = 49;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -2920,6 +2920,23 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
         interview_date TEXT NOT NULL, context TEXT NOT NULL, importance REAL NOT NULL, questions_json TEXT NOT NULL, responses_json TEXT NOT NULL, summary TEXT NOT NULL, manager_reputation_effect REAL NOT NULL, club_support_effect REAL NOT NULL, status TEXT NOT NULL, provenance_status TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_media_interviews_date ON media_interviews(interview_date, importance DESC);
+    `,
+  },
+  {
+    version: 49,
+    sql: `
+      CREATE TABLE IF NOT EXISTS medical_assessments (
+        id TEXT PRIMARY KEY, person_id TEXT NOT NULL REFERENCES persons(id), injury_id TEXT REFERENCES injuries(id), assessed_on TEXT NOT NULL,
+        stage TEXT NOT NULL, estimated_return_start TEXT NOT NULL, estimated_return_end TEXT NOT NULL, confidence REAL NOT NULL,
+        recurrence_risk REAL NOT NULL, fatigue REAL NOT NULL, workload_flag TEXT NOT NULL, availability_recommendation TEXT NOT NULL,
+        clearance_status TEXT NOT NULL, rationale TEXT NOT NULL, provenance_status TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS medical_assessment_history (
+        id TEXT PRIMARY KEY, person_id TEXT NOT NULL REFERENCES persons(id), assessed_on TEXT NOT NULL, stage TEXT NOT NULL,
+        recommendation TEXT NOT NULL, rationale TEXT NOT NULL, provenance_status TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_medical_assessments_person ON medical_assessments(person_id, assessed_on);
+      CREATE INDEX IF NOT EXISTS idx_medical_history_person ON medical_assessment_history(person_id, assessed_on);
     `,
   },
 ];

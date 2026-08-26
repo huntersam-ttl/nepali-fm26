@@ -4,6 +4,7 @@ import type {
   ConcernResponseAction,
   ConcernResponseOutcome,
   InboxItem,
+  MedicalAssessment,
   ISODate,
   ManagerPromiseStatus,
   ManagerPromiseType,
@@ -870,6 +871,7 @@ export type ManagerDashboard = {
   contractIssues: number;
   staffIssues: number;
   inbox: InboxItem[];
+  medicalCentre?: MedicalAssessment[];
 };
 
 export type CalendarEntry = {
