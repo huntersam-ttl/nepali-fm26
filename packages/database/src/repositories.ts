@@ -35,6 +35,7 @@ import type {
   Federation,
   FederationAsset,
   FederationBudget,
+  FederationAiDecision,
   FederationCommittee,
   FederationFinancialAccount,
   FederationFinancialStatement,
@@ -6298,6 +6299,26 @@ export class FederationGovernanceRepository {
           )
           .all();
     return rows.map(mapFederationStrategyPriority);
+  }
+
+  upsertAiDecision(decision: FederationAiDecision): void {
+    this.db.prepare(`INSERT INTO federation_ai_decision_history
+      (id, federation_id, decision_date, season_label, priorities_json, actions_json, context_json, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING`).run(
+      decision.id, decision.federationId, decision.date, decision.seasonLabel,
+      json.stringify(decision.priorities), json.stringify(decision.actions), json.stringify(decision.context), decision.status,
+    );
+  }
+
+  aiDecisions(federationId?: EntityId): FederationAiDecision[] {
+    const rows = (federationId
+      ? this.db.prepare("SELECT * FROM federation_ai_decision_history WHERE federation_id = ? ORDER BY decision_date, id").all(federationId)
+      : this.db.prepare("SELECT * FROM federation_ai_decision_history ORDER BY federation_id, decision_date, id").all()) as any[];
+    return rows.map((row) => ({
+      id: row.id, federationId: row.federation_id, date: row.decision_date, seasonLabel: row.season_label,
+      priorities: json.parse(row.priorities_json, {}), actions: json.parse(row.actions_json, []),
+      context: json.parse(row.context_json, {}), status: row.status,
+    }));
   }
 
   upsertProject(project: FederationProject): void {

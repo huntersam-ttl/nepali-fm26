@@ -2552,6 +2552,17 @@ export type FederationSimulationProfile = {
   status: "SIMULATION_ONLY";
 };
 
+export type FederationAiDecision = {
+  id: EntityId;
+  federationId: EntityId;
+  date: ISODate;
+  seasonLabel: string;
+  priorities: Record<string, number>;
+  actions: string[];
+  context: Record<string, string | number>;
+  status: "SIMULATION_ONLY";
+};
+
 export type FederationFinancialAccount = {
   federationId: EntityId;
   currency: string;

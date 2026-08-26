@@ -9,6 +9,7 @@ import {
   type EntityId,
   type Federation,
   type FederationBudget,
+  type FederationAiDecision,
   type FederationBudgetCategory,
   type FederationCommitteeType,
   type FederationFinancialAccount,
@@ -916,6 +917,54 @@ export const getFederationKPIs = (
   federationId = anfaFederation(db).id,
 ): FederationKPI[] => new FederationGovernanceRepository(db).kpis(federationId);
 
+export const runFederationAiSeasonPlanning = (
+  db: GameDatabase,
+  input: { date: string; seed: string },
+): FederationAiDecision[] => {
+  if (!input.date.endsWith("-08-28")) return [];
+  const repo = new FederationGovernanceRepository(db);
+  const economy = new ClubEconomyRepository(db);
+  const decisions: FederationAiDecision[] = [];
+  for (const federation of allFederations(db)) {
+    const profile = repo.profile(federation.id);
+    const account = repo.financialAccount(federation.id);
+    if (!profile || !account) continue;
+    const clubAccounts = economy.financialAccounts();
+    const clubSupporters = clubAccounts.map((item) => economy.supporterProfile(item.clubId)).filter(Boolean);
+    const averageCommercial = clubSupporters.length === 0 ? 0 : clubSupporters.reduce((total, item) => total + (item?.commercialReputation ?? 0), 0) / clubSupporters.length;
+    const financiallyWeak = clubAccounts.filter((item) => ["DISTRESSED", "INSOLVENT"].includes(item.financialHealth)).length;
+    const latestWins = repo.kpis(federation.id).filter((item) => item.metric === "INTERNATIONAL_WINS").sort((a, b) => b.measuredAt.localeCompare(a.measuredAt))[0]?.value ?? 0;
+    const priorities: Record<string, number> = {
+      clubs: Number(Math.min(1, 0.25 + financiallyWeak / Math.max(1, clubAccounts.length)).toFixed(3)),
+      infrastructure: Number((profile.infrastructureLevel < 1 ? 0.9 : 0.35).toFixed(3)),
+      youth: Number((profile.youthDevelopment < 1 ? 0.85 : 0.45).toFixed(3)),
+      nationalTeam: Number((latestWins < 2 || profile.reputation < 5 ? 0.8 : 0.45).toFixed(3)),
+      commercial: Number((averageCommercial < 5 ? 0.7 : 0.45).toFixed(3)),
+    };
+    const actions: string[] = [];
+    if (account.financialHealth === "DISTRESSED" || account.financialHealth === "INSOLVENT") actions.push("PROTECT_CORE_PROGRAMMES");
+    if (priorities.infrastructure >= 0.8) actions.push("PRIORITISE_NATIONAL_CENTRE");
+    if (priorities.clubs >= 0.6) actions.push("TARGET_GRANTS_AT_WEAK_CLUBS");
+    if (priorities.youth >= 0.7) actions.push("EXPAND_YOUTH_AND_REGIONAL_COVERAGE");
+    if (priorities.nationalTeam >= 0.7) actions.push("INVEST_IN_NATIONAL_TEAM_PREPARATION");
+    if (priorities.commercial >= 0.65) actions.push("DEVELOP_COMPETITION_COMMERCIAL_REACH");
+    if (actions.length === 0) actions.push("BALANCE_DEVELOPMENT_AND_COMPETITIVE_INVESTMENT");
+    const decision: FederationAiDecision = {
+      id: createStableEntityId("federation-ai-decision", `${federation.id}:${input.date}`),
+      federationId: federation.id,
+      date: input.date,
+      seasonLabel: seasonLabel(input.date),
+      priorities,
+      actions,
+      context: { financialHealth: account.financialHealth, cash: account.cashBalance, financiallyWeakClubs: financiallyWeak, averageCommercial, internationalWins: latestWins, infrastructure: profile.infrastructureLevel, youth: profile.youthDevelopment },
+      status: simulationStatus,
+    };
+    repo.upsertAiDecision(decision);
+    decisions.push(decision);
+  }
+  return decisions;
+};
+
 export const processFederationMonth = (
   db: GameDatabase,
   input: { date: string; seed: string; aiEnabled?: boolean },
@@ -965,6 +1014,7 @@ export const processFederationMonth = (
       investInDevelopmentEnvironment(db, federation.id, input.date);
     }
     if (input.aiEnabled !== false) {
+      runFederationAiSeasonPlanning(db, { date: input.date, seed: input.seed });
       runFederationAiMonth(db, federation.id, input.date, input.seed);
     }
     for (const project of repo.projects(federation.id).filter((item) => item.status === "COMPLETED")) {
