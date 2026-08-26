@@ -18,3 +18,4 @@ export * from "./save-system.js";
 export * from "./government-repository.js";
 export * from "./grassroots-repository.js";
 export * from "./media-rights-repository.js";
+export * from "./commercial-rights-repository.js";
