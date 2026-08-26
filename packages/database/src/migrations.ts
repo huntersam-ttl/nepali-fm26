@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 41;
+export const CURRENT_DATABASE_VERSION = 43;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -2747,6 +2747,91 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       );
       CREATE INDEX IF NOT EXISTS idx_federation_election_cycles_date ON federation_election_cycles(federation_id, election_date);
       CREATE INDEX IF NOT EXISTS idx_federation_election_candidates_cycle ON federation_election_candidates(cycle_id, status);
+    `,
+  },
+  {
+    version: 42,
+    sql: `
+      CREATE TABLE IF NOT EXISTS federation_committee_memberships (
+        id TEXT PRIMARY KEY, federation_id TEXT NOT NULL REFERENCES federations(id), committee_id TEXT NOT NULL REFERENCES federation_committees(id),
+        person_id TEXT NOT NULL REFERENCES persons(id), influence REAL NOT NULL, starts_on TEXT NOT NULL, ends_on TEXT, status TEXT NOT NULL, provenance_status TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS federation_governance_proposals (
+        id TEXT PRIMARY KEY, federation_id TEXT NOT NULL REFERENCES federations(id), proposed_by_person_id TEXT NOT NULL REFERENCES persons(id), title TEXT NOT NULL,
+        policy_area TEXT NOT NULL, target_committee TEXT NOT NULL, payload_json TEXT NOT NULL, proposed_at TEXT NOT NULL, reviewed_at TEXT, decided_at TEXT,
+        status TEXT NOT NULL, votes_json TEXT NOT NULL, provenance_status TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS federation_manifesto_commitments (
+        id TEXT PRIMARY KEY, federation_id TEXT NOT NULL REFERENCES federations(id), president_person_id TEXT NOT NULL REFERENCES persons(id), election_cycle_id TEXT NOT NULL REFERENCES federation_election_cycles(id),
+        policy_area TEXT NOT NULL, promise TEXT NOT NULL, target_value REAL NOT NULL, progress REAL NOT NULL, due_date TEXT NOT NULL, status TEXT NOT NULL, last_updated TEXT NOT NULL, provenance_status TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS federation_coalition_states (
+        federation_id TEXT PRIMARY KEY REFERENCES federations(id), president_person_id TEXT NOT NULL REFERENCES persons(id), confidence REAL NOT NULL, coalition_support REAL NOT NULL,
+        no_confidence_threshold REAL NOT NULL, last_updated TEXT NOT NULL, status TEXT NOT NULL, provenance_status TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS federation_governance_events (
+        id TEXT PRIMARY KEY, federation_id TEXT NOT NULL REFERENCES federations(id), event_date TEXT NOT NULL, event_type TEXT NOT NULL, subject_id TEXT NOT NULL,
+        summary TEXT NOT NULL, payload_json TEXT NOT NULL, provenance_status TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_federation_governance_proposals_federation ON federation_governance_proposals(federation_id, status, proposed_at);
+      CREATE INDEX IF NOT EXISTS idx_federation_governance_events_federation ON federation_governance_events(federation_id, event_date, id);
+    `,
+  },
+  {
+    version: 43,
+    sql: `
+      -- Staff Market Phase C: hierarchy, delegation, workload, planning.
+      CREATE TABLE IF NOT EXISTS staff_responsibilities (
+        id TEXT PRIMARY KEY,
+        club_id TEXT NOT NULL REFERENCES clubs(id),
+        domain TEXT NOT NULL,
+        owner_type TEXT NOT NULL,
+        owner_appointment_id TEXT REFERENCES staff_appointments(id),
+        board_approval_granted_until TEXT,
+        updated_on TEXT NOT NULL,
+        UNIQUE(club_id, domain)
+      );
+
+      CREATE TABLE IF NOT EXISTS staff_responsibility_log (
+        id TEXT PRIMARY KEY,
+        club_id TEXT NOT NULL REFERENCES clubs(id),
+        domain TEXT NOT NULL,
+        owner_type TEXT NOT NULL,
+        owner_appointment_id TEXT REFERENCES staff_appointments(id),
+        action TEXT NOT NULL,
+        occurred_on TEXT NOT NULL,
+        description TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_staff_responsibility_log_club
+        ON staff_responsibility_log(club_id, occurred_on);
+
+      CREATE TABLE IF NOT EXISTS staff_development_plans (
+        id TEXT PRIMARY KEY,
+        person_id TEXT NOT NULL REFERENCES persons(id),
+        club_id TEXT NOT NULL REFERENCES clubs(id),
+        focus TEXT NOT NULL,
+        target_licence_type TEXT,
+        licence_course_id TEXT REFERENCES staff_licence_courses(id),
+        created_on TEXT NOT NULL,
+        target_date TEXT NOT NULL,
+        status TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_staff_development_plans_person
+        ON staff_development_plans(person_id, status);
+
+      CREATE TABLE IF NOT EXISTS staff_succession_plans (
+        id TEXT PRIMARY KEY,
+        club_id TEXT NOT NULL REFERENCES clubs(id),
+        outgoing_appointment_id TEXT NOT NULL REFERENCES staff_appointments(id),
+        outgoing_person_id TEXT NOT NULL REFERENCES persons(id),
+        role TEXT NOT NULL,
+        candidate_person_id TEXT REFERENCES persons(id),
+        reason TEXT NOT NULL,
+        created_on TEXT NOT NULL,
+        status TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_staff_succession_plans_club
+        ON staff_succession_plans(club_id, status);
     `,
   },
 ];

@@ -1,6 +1,7 @@
-import { createStableEntityId, type EntityId, type Federation, type FederationElectionCandidate, type FederationElectionCycle, type FederationElectionResult, type FederationStrategicPriority, type Person } from "@nepal-football-sim/shared-types";
-import { FederationGovernanceRepository, FederationPoliticsRepository, WorldRepository, type GameDatabase } from "@nepal-football-sim/database";
+import { createStableEntityId, type EntityId, type Federation, type FederationCoalitionState, type FederationElectionCandidate, type FederationElectionCycle, type FederationElectionResult, type FederationGovernanceProposal, type FederationManifestoCommitment, type FederationStrategicPriority, type Person } from "@nepal-football-sim/shared-types";
+import { FederationGovernancePhaseBRepository, FederationGovernanceRepository, FederationPoliticsRepository, WorldRepository, type GameDatabase } from "@nepal-football-sim/database";
 import { SeededRandom } from "./rng.js";
+import { proposeCompetitionReform, createFederationProject } from "./federation-governance.js";
 
 const status = "SIMULATION_ONLY" as const;
 const addYears = (date: string, years: number): string => `${Number(date.slice(0, 4)) + years}${date.slice(4)}`;
@@ -49,6 +50,12 @@ export const runFederationElection = (db: GameDatabase, input: { cycleId: Entity
   const result: FederationElectionResult = { id: createStableEntityId("federation-election-result", cycle.id), cycleId: cycle.id, federationId: cycle.federationId, winnerCandidateId: winner.id, electedPersonId: winner.personId, votes, decidedAt: input.date, status: "COMPLETED", provenanceStatus: status }; politics.upsertResult(result); politics.upsertCycle({ ...cycle, status: "COMPLETED" });
   const activePriorities = governance.strategyPriorities(cycle.federationId).filter((item) => item.status === "ACTIVE"); for (const priority of activePriorities) governance.upsertStrategyPriority({ ...priority, effectiveTo: input.date, status: "INACTIVE" });
   for (const [key, weight] of Object.entries(winner.manifesto)) { const priority = priorityMap[key]; if (!priority) continue; governance.upsertStrategyPriority({ id: createStableEntityId("federation-strategy", `${cycle.federationId}:${priority}:${input.date}`), federationId: cycle.federationId, priority, weight, effectiveFrom: input.date, status: "ACTIVE", provenanceStatus: status }); }
+  const phaseB = new FederationGovernancePhaseBRepository(db);
+  const committees = governance.committees(cycle.federationId);
+  for (const member of phaseB.memberships(cycle.federationId).filter((item) => item.status === "ACTIVE")) phaseB.upsertMembership({ ...member, endsOn: input.date, status: "FORMER" });
+  for (const committee of committees) phaseB.upsertMembership({ id: createStableEntityId("federation-committee-membership", `${committee.id}:${winner.personId}:${input.date}`), federationId: cycle.federationId, committeeId: committee.id, personId: winner.personId, influence: 0.7, startsOn: input.date, status: "ACTIVE", provenanceStatus: status });
+  for (const [key, targetValue] of Object.entries(winner.manifesto)) { phaseB.upsertCommitment({ id: createStableEntityId("federation-manifesto", `${cycle.id}:${key}`), federationId: cycle.federationId, presidentPersonId: winner.personId, electionCycleId: cycle.id, policyArea: key, promise: `Advance ${key.toLowerCase().replaceAll("_", " ")}`, targetValue, progress: 0, dueDate: addYears(input.date, cycle.termYears), status: "OPEN", lastUpdated: input.date, provenanceStatus: status }); }
+  phaseB.upsertCoalition({ federationId: cycle.federationId, presidentPersonId: winner.personId, confidence: 0.68, coalitionSupport: 0.62, noConfidenceThreshold: 0.3, lastUpdated: input.date, status: "CONFIDENT", provenanceStatus: status });
   return result;
 };
 
@@ -56,4 +63,47 @@ export const advanceFederationElections = (db: GameDatabase, input: { date: stri
   const politics = new FederationPoliticsRepository(db); const results: FederationElectionResult[] = [];
   for (const cycle of politics.cycles().filter((item) => item.status !== "COMPLETED" && item.electionDate <= input.date)) results.push(runFederationElection(db, { cycleId: cycle.id, date: cycle.electionDate, seed: input.seed }));
   return results;
+};
+
+const committeeFor = (area: FederationGovernanceProposal["policyArea"]): FederationGovernanceProposal["targetCommittee"] => ({ COMPETITION: "COMPETITION_COMMITTEE", DEVELOPMENT: "TECHNICAL_COMMITTEE", INFRASTRUCTURE: "FINANCE_COMMITTEE", GRANTS: "FINANCE_COMMITTEE", COMMERCIAL: "COMMERCIAL_COMMITTEE" })[area] as FederationGovernanceProposal["targetCommittee"];
+
+export const createFederationGovernanceProposal = (db: GameDatabase, input: Omit<FederationGovernanceProposal, "id" | "targetCommittee" | "status" | "votes" | "provenanceStatus">): FederationGovernanceProposal => {
+  const governance = new FederationGovernanceRepository(db); const active = governance.leadershipTenures(input.federationId).some((item) => item.personId === input.proposedByPersonId && item.role === "FEDERATION_PRESIDENT" && item.status === "ACTIVE"); if (!active) throw new Error("Only the active president may submit a governance proposal");
+  const proposal: FederationGovernanceProposal = { ...input, id: createStableEntityId("federation-governance-proposal", `${input.federationId}:${input.proposedAt}:${input.title}`), targetCommittee: committeeFor(input.policyArea), status: "PROPOSED", votes: {}, provenanceStatus: status };
+  const repo = new FederationGovernancePhaseBRepository(db); repo.upsertProposal(proposal); repo.event({ id: createStableEntityId("federation-governance-event", proposal.id), federationId: input.federationId, date: input.proposedAt, eventType: "PROPOSAL", subjectId: proposal.id, summary: proposal.title, payload: { policyArea: proposal.policyArea }, provenanceStatus: status }); return proposal;
+};
+
+export const reviewFederationGovernanceProposal = (db: GameDatabase, proposalId: EntityId, date: string): FederationGovernanceProposal => {
+  const repo = new FederationGovernancePhaseBRepository(db); const proposal = repo.proposals().find((item) => item.id === proposalId); if (!proposal || proposal.status !== "PROPOSED") throw new Error("Proposal is not awaiting committee review");
+  const reviewed = { ...proposal, status: "COMMITTEE_REVIEW" as const, reviewedAt: date }; repo.upsertProposal(reviewed); repo.event({ id: createStableEntityId("federation-governance-event", `${proposal.id}:review`), federationId: proposal.federationId, date, eventType: "COMMITTEE_REVIEW", subjectId: proposal.id, summary: "Committee review opened", payload: { committee: proposal.targetCommittee }, provenanceStatus: status }); return reviewed;
+};
+
+export const decideFederationGovernanceProposal = (db: GameDatabase, proposalId: EntityId, input: { date: string; seed: string; approve?: boolean }): FederationGovernanceProposal => {
+  const repo = new FederationGovernancePhaseBRepository(db); const proposal = repo.proposals().find((item) => item.id === proposalId); if (!proposal || proposal.status !== "COMMITTEE_REVIEW") throw new Error("Proposal must complete committee review first");
+  const governance = new FederationGovernanceRepository(db); const committee = governance.committees(proposal.federationId).find((item) => item.committeeType === proposal.targetCommittee); const members = committee ? repo.memberships(proposal.federationId, committee.id).filter((item) => item.status === "ACTIVE") : []; const support = members.length ? members.reduce((sum, member) => sum + member.influence, 0) / members.length : 0.5; const approve = input.approve ?? support >= 0.5;
+  const decided = { ...proposal, decidedAt: input.date, status: approve ? "APPROVED" as const : "REJECTED" as const, votes: { committeeSupport: Number(support.toFixed(3)), approve: approve ? 1 : 0 } }; repo.upsertProposal(decided); repo.event({ id: createStableEntityId("federation-governance-event", `${proposal.id}:decision`), federationId: proposal.federationId, date: input.date, eventType: "POLICY_DECISION", subjectId: proposal.id, summary: approve ? "Committee approved proposal" : "Committee rejected proposal", payload: decided.votes, provenanceStatus: status }); return decided;
+};
+
+export const implementFederationGovernanceProposal = (db: GameDatabase, proposalId: EntityId, date: string): FederationGovernanceProposal => {
+  const repo = new FederationGovernancePhaseBRepository(db); const proposal = repo.proposals().find((item) => item.id === proposalId); if (!proposal || proposal.status !== "APPROVED") throw new Error("Only approved proposals can be implemented");
+  if (proposal.policyArea === "COMPETITION" && typeof proposal.payload.competitionId === "string") proposeCompetitionReform(db, { federationId: proposal.federationId, competitionId: proposal.payload.competitionId as EntityId, effectiveSeason: String(proposal.payload.effectiveSeason ?? date.slice(0, 4)), changes: (proposal.payload.changes ?? {}) as any, proposedAt: proposal.proposedAt, decidedAt: date, status: "APPROVED" });
+  if ((proposal.policyArea === "INFRASTRUCTURE" || proposal.policyArea === "DEVELOPMENT") && typeof proposal.payload.projectType === "string") createFederationProject(db, { federationId: proposal.federationId, projectType: proposal.payload.projectType as any, name: proposal.title, date, seed: `proposal:${proposal.id}`, funding: (proposal.payload.funding ?? undefined) as Record<string, number> | undefined });
+  const implemented = { ...proposal, status: "IMPLEMENTED" as const }; repo.upsertProposal(implemented); return implemented;
+};
+
+export const updateFederationManifesto = (db: GameDatabase, input: { federationId: EntityId; date: string; progressByPolicy: Record<string, number> }): FederationManifestoCommitment[] => {
+  const repo = new FederationGovernancePhaseBRepository(db); const updated: FederationManifestoCommitment[] = [];
+  for (const commitment of repo.commitments(input.federationId).filter((item) => item.status === "OPEN")) { const progress = Math.max(commitment.progress, Math.min(commitment.targetValue, input.progressByPolicy[commitment.policyArea] ?? commitment.progress)); const done = progress >= commitment.targetValue; const next = { ...commitment, progress, status: done ? "FULFILLED" as const : input.date >= commitment.dueDate ? "BROKEN" as const : "OPEN" as const, lastUpdated: input.date }; repo.upsertCommitment(next); updated.push(next); }
+  return updated;
+};
+
+export const updateFederationConfidence = (db: GameDatabase, input: { federationId: EntityId; date: string; outcome: "SUCCESS" | "FAILURE" }): FederationCoalitionState => {
+  const repo = new FederationGovernancePhaseBRepository(db); const current = repo.coalition(input.federationId); if (!current) throw new Error("Coalition state not initialized"); const delta = input.outcome === "SUCCESS" ? 0.06 : -0.08; const confidence = Math.max(0, Math.min(1, current.confidence + delta)); const next = { ...current, confidence, coalitionSupport: Math.max(0, Math.min(1, current.coalitionSupport + delta * 0.7)), status: confidence <= current.noConfidenceThreshold ? "NO_CONFIDENCE" as const : confidence < 0.5 ? "STRAINED" as const : "CONFIDENT" as const, lastUpdated: input.date }; repo.upsertCoalition(next); repo.event({ id: createStableEntityId("federation-governance-event", `${input.federationId}:confidence:${input.date}`), federationId: input.federationId, date: input.date, eventType: "CONFIDENCE_CHANGE", subjectId: current.presidentPersonId, summary: `Leadership confidence ${next.status.toLowerCase()}`, payload: { confidence: next.confidence }, provenanceStatus: status }); return next;
+};
+
+export const transitionFederationLeadership = (db: GameDatabase, input: { federationId: EntityId; date: string; replacementPersonId: EntityId; reason: "RESIGNATION" | "REMOVAL" }): FederationCoalitionState => {
+  const governance = new FederationGovernanceRepository(db); const current = governance.leadershipTenures(input.federationId).find((item) => item.role === "FEDERATION_PRESIDENT" && item.status === "ACTIVE"); if (!current) throw new Error("No active federation president");
+  governance.upsertLeadershipTenure({ ...current, termEnd: input.date, status: "FORMER" });
+  governance.upsertLeadershipTenure({ id: createStableEntityId("federation-leadership", `${input.federationId}:${input.replacementPersonId}:${input.date}:interim`), personId: input.replacementPersonId, federationId: input.federationId, role: "FEDERATION_PRESIDENT", termStart: input.date, status: "INTERIM", provenanceStatus: status });
+  const repo = new FederationGovernancePhaseBRepository(db); const previous = repo.coalition(input.federationId); const next: FederationCoalitionState = { federationId: input.federationId, presidentPersonId: input.replacementPersonId, confidence: 0.42, coalitionSupport: previous?.coalitionSupport ?? 0.4, noConfidenceThreshold: previous?.noConfidenceThreshold ?? 0.3, lastUpdated: input.date, status: "STRAINED", provenanceStatus: status }; repo.upsertCoalition(next); repo.event({ id: createStableEntityId("federation-governance-event", `${input.federationId}:${input.reason}:${input.date}`), federationId: input.federationId, date: input.date, eventType: input.reason, subjectId: current.personId, summary: `President ${input.reason.toLowerCase()}`, payload: { replacementPersonId: input.replacementPersonId }, provenanceStatus: status }); return next;
 };

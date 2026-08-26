@@ -2809,6 +2809,18 @@ export type FederationElectionResult = {
   provenanceStatus: "SIMULATION_ONLY";
 };
 
+export type FederationCommitteeMembership = { id: EntityId; federationId: EntityId; committeeId: EntityId; personId: EntityId; influence: number; startsOn: ISODate; endsOn?: ISODate; status: "ACTIVE" | "FORMER"; provenanceStatus: "SIMULATION_ONLY" };
+export type FederationGovernanceProposal = {
+  id: EntityId; federationId: EntityId; proposedByPersonId: EntityId; title: string;
+  policyArea: "COMPETITION" | "DEVELOPMENT" | "INFRASTRUCTURE" | "GRANTS" | "COMMERCIAL";
+  targetCommittee: FederationCommitteeType; payload: Record<string, unknown>; proposedAt: ISODate;
+  reviewedAt?: ISODate; decidedAt?: ISODate; status: "PROPOSED" | "COMMITTEE_REVIEW" | "APPROVED" | "REJECTED" | "IMPLEMENTED";
+  votes: Record<string, number>; provenanceStatus: "SIMULATION_ONLY";
+};
+export type FederationManifestoCommitment = { id: EntityId; federationId: EntityId; presidentPersonId: EntityId; electionCycleId: EntityId; policyArea: string; promise: string; targetValue: number; progress: number; dueDate: ISODate; status: "OPEN" | "FULFILLED" | "BROKEN"; lastUpdated: ISODate; provenanceStatus: "SIMULATION_ONLY" };
+export type FederationCoalitionState = { federationId: EntityId; presidentPersonId: EntityId; confidence: number; coalitionSupport: number; noConfidenceThreshold: number; lastUpdated: ISODate; status: "CONFIDENT" | "STRAINED" | "NO_CONFIDENCE"; provenanceStatus: "SIMULATION_ONLY" };
+export type FederationGovernanceEvent = { id: EntityId; federationId: EntityId; date: ISODate; eventType: "PROPOSAL" | "COMMITTEE_REVIEW" | "POLICY_DECISION" | "CONFIDENCE_CHANGE" | "RESIGNATION" | "REMOVAL"; subjectId: EntityId; summary: string; payload: Record<string, unknown>; provenanceStatus: "SIMULATION_ONLY" };
+
 export type FederationCommitteeType =
   | "COMPETITION_COMMITTEE"
   | "TECHNICAL_COMMITTEE"
@@ -3836,4 +3848,78 @@ export type StaffApproach = {
   status: StaffApproachStatus;
   createdOn: ISODate;
   decidedOn?: ISODate;
+};
+
+// ---------------------------------------------------------------------------
+// Staff Market — Phase C: hierarchy, delegation, workload, planning
+// ---------------------------------------------------------------------------
+
+export type StaffResponsibilityDomain =
+  "TRANSFERS" | "SCOUTING" | "CONTRACTS" | "YOUTH" | "TRAINING" | "MEDICAL";
+
+export type StaffResponsibilityOwnerType = "MANAGER" | "STAFF" | "BOARD";
+
+/**
+ * Who currently owns one responsibility domain at a club — exactly one row
+ * per (clubId, domain), which is what makes "two staff can't own the same
+ * responsibility" true by construction rather than by convention.
+ */
+export type StaffResponsibility = {
+  id: EntityId;
+  clubId: EntityId;
+  domain: StaffResponsibilityDomain;
+  ownerType: StaffResponsibilityOwnerType;
+  ownerAppointmentId?: EntityId;
+  /** Set only when ownerType is BOARD and the board has signed off for a window. */
+  boardApprovalGrantedUntil?: ISODate;
+  updatedOn: ISODate;
+};
+
+/** Audit trail: which real actor (manager, staff member, or board) actually executed an action. */
+export type StaffResponsibilityLogEntry = {
+  id: EntityId;
+  clubId: EntityId;
+  domain: StaffResponsibilityDomain;
+  ownerType: StaffResponsibilityOwnerType;
+  ownerAppointmentId?: EntityId;
+  action: string;
+  occurredOn: ISODate;
+  description?: string;
+};
+
+export type StaffWorkloadLevel = "LIGHT" | "NORMAL" | "HEAVY" | "OVERLOADED";
+
+export type StaffDevelopmentPlanStatus = "ACTIVE" | "COMPLETED" | "CANCELLED";
+
+/**
+ * A club's stated intent to develop one staff member — when it targets a
+ * licence, it drives the existing Phase B licence-course pipeline rather
+ * than tracking progress a second time.
+ */
+export type StaffDevelopmentPlan = {
+  id: EntityId;
+  personId: EntityId;
+  clubId: EntityId;
+  focus: string;
+  targetLicenceType?: string;
+  licenceCourseId?: EntityId;
+  createdOn: ISODate;
+  targetDate: ISODate;
+  status: StaffDevelopmentPlanStatus;
+};
+
+export type StaffSuccessionReason = "CONTRACT_EXPIRING" | "POACHING_RISK";
+export type StaffSuccessionPlanStatus = "ACTIVE" | "RESOLVED" | "CANCELLED";
+
+/** Raised automatically when a key appointment looks likely to end soon. */
+export type StaffSuccessionPlan = {
+  id: EntityId;
+  clubId: EntityId;
+  outgoingAppointmentId: EntityId;
+  outgoingPersonId: EntityId;
+  role: FootballStaffRole;
+  candidatePersonId?: EntityId;
+  reason: StaffSuccessionReason;
+  createdOn: ISODate;
+  status: StaffSuccessionPlanStatus;
 };
