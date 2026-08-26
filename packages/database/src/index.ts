@@ -28,3 +28,4 @@ export * from "./national-team-compensation-repository.js";
 export * from "./training-camp-repository.js";
 export * from "./club-network-repository.js";
 export * from "./macro-economy-repository.js";
+export * from "./universal-interactions-repository.js";

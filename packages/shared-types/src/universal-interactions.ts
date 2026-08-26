@@ -1,0 +1,8 @@
+import type { EntityId } from "./ids.js";
+
+export type InteractionParticipantType = "PLAYER" | "AGENT" | "MANAGER" | "STAFF" | "CHAIRMAN" | "BOARD" | "FEDERATION_OFFICIAL" | "SPONSOR" | "GOVERNMENT";
+export type InteractionStage = "OPENED" | "POSITION_STATED" | "NEGOTIATING" | "COUNTERED" | "ACCEPTED" | "REJECTED" | "WALKED_AWAY" | "DEFERRED" | "ESCALATED" | "COMPLETED" | "CANCELLED";
+export type InteractionTone = "CALM" | "SUPPORTIVE" | "ASSERTIVE" | "DEMANDING" | "PERSUASIVE" | "CONCILIATORY" | "PROFESSIONAL";
+export type InteractionAction = "STATE_POSITION" | "OFFER" | "COUNTER" | "ACCEPT" | "REJECT" | "DEFER" | "WALK_AWAY";
+export type UniversalInteraction = { id: EntityId; saveId?: EntityId; interactionType: string; initiator: { type: InteractionParticipantType; entityId: EntityId }; counterpart: { type: InteractionParticipantType; entityId: EntityId }; organisationId?: EntityId; worldDate: string; subject: string; stage: InteractionStage; availableActions: InteractionAction[]; demands: Record<string, number | string | boolean>; offers: Record<string, number | string | boolean>; promiseIds: EntityId[]; relationshipState: number; leverage: number; patience: number; trust: number; pressure: number; deadline?: string; outcome?: string; history: Array<{ date: string; stage: InteractionStage; action: InteractionAction; note: string }>; provenanceStatus: "SIMULATION_ONLY" };
+export type InteractionMemory = { id: EntityId; participantId: EntityId; counterpartId: EntityId; interactionId: EntityId; memoryType: string; value: number; occurredOn: string; note: string; provenanceStatus: "SIMULATION_ONLY" };

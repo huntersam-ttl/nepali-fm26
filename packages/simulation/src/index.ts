@@ -18,6 +18,7 @@ export * from "./club-networks.js";
 export * from "./macro-economy.js";
 export * from "./federation-compliance.js";
 export * from "./territorial-football.js";
+export * from "./universal-interactions.js";
 export * from "./federation-governance.js";
 export * from "./national-team-management.js";
 export * from "./media.js";

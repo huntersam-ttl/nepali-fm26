@@ -14,4 +14,5 @@ export * from "./insurance.js";
 export * from "./national-team-compensation.js";
 export * from "./training-camps.js";
 export * from "./club-networks.js";
+export * from "./universal-interactions.js";
 export * from "./macro-economy.js";
