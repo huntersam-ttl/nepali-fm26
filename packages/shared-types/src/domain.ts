@@ -4051,3 +4051,11 @@ export type StaffSuccessionPlan = {
   createdOn: ISODate;
   status: StaffSuccessionPlanStatus;
 };
+
+export type InvestorExpectationType = "FINANCIAL_RETURN" | "SPORTING_GROWTH" | "INFRASTRUCTURE_GROWTH" | "REPUTATION_GROWTH";
+export type InvestorExpectation = { type: InvestorExpectationType; target: number; progress: number; status: "ON_TRACK" | "AT_RISK" | "MET" | "MISSED" };
+export type OwnershipInvestorProfile = {
+  id: EntityId; clubId: EntityId; personId: EntityId; influence: number;
+  expectations: Record<InvestorExpectationType, InvestorExpectation>; trust: number; confidence: number;
+  lastReviewedOn: ISODate; status: "ACTIVE" | "EXITED"; provenanceStatus: "SIMULATION_ONLY";
+};

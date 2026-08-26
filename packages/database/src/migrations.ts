@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 53;
+export const CURRENT_DATABASE_VERSION = 54;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -2982,6 +2982,18 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       );
       CREATE INDEX IF NOT EXISTS idx_ownership_offers_club ON ownership_acquisition_offers(club_id, created_on, id);
       CREATE INDEX IF NOT EXISTS idx_ownership_transactions_club ON ownership_acquisition_transactions(club_id, transaction_date, id);
+    `,
+  },
+  {
+    version: 54,
+    sql: `
+      CREATE TABLE IF NOT EXISTS ownership_investor_profiles (
+        id TEXT PRIMARY KEY, club_id TEXT NOT NULL REFERENCES clubs(id), person_id TEXT NOT NULL REFERENCES persons(id),
+        influence REAL NOT NULL, trust REAL NOT NULL, confidence REAL NOT NULL, expectations_json TEXT NOT NULL,
+        last_reviewed_on TEXT NOT NULL, status TEXT NOT NULL, provenance_status TEXT NOT NULL,
+        UNIQUE(club_id, person_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_investor_profiles_club ON ownership_investor_profiles(club_id, status, last_reviewed_on);
     `,
   },
 ];
