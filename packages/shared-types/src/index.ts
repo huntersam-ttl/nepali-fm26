@@ -3,6 +3,7 @@ export * from "./domain.js";
 export * from "./manager-contract.js";
 export * from "./ids.js";
 export * from "./federation-compliance.js";
+export * from "./territorial-football.js";
 export * from "./government.js";
 export * from "./grassroots.js";
 export * from "./media-rights.js";
