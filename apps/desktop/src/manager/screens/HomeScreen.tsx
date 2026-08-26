@@ -1,7 +1,41 @@
 import React, { useState } from "react";
-import type { EntityId } from "@nepal-football-sim/shared-types";
+import type { ConcernResponseAction, EntityId } from "@nepal-football-sim/shared-types";
 import { managerBridge } from "../managerBridge.js";
 import { AsyncPanel, Badge, FormRun, Metrics, Panel, useRuntimeData } from "../ui.js";
+
+const concernLabel = (type: string): string => {
+  switch (type) {
+    case "PLAYING_TIME":
+      return "Playing time";
+    case "CONTRACT":
+      return "Contract";
+    case "ROLE_STATUS":
+      return "Squad status";
+    case "TRANSFER_INTEREST":
+      return "Transfer interest";
+    default:
+      return type;
+  }
+};
+
+const actionLabel = (action: ConcernResponseAction): string => {
+  switch (action) {
+    case "REASSURE":
+      return "Reassure";
+    case "PROMISE_PLAYING_TIME":
+      return "Promise more minutes";
+    case "PROMISE_CONTRACT_REVIEW":
+      return "Promise contract review";
+    case "PROMISE_SQUAD_ROLE":
+      return "Promise squad status review";
+    case "PROMISE_TRANSFER_STANCE":
+      return "Promise to keep them";
+    case "DISMISS":
+      return "Dismiss";
+    default:
+      return action;
+  }
+};
 
 export const HomeScreen = ({
   onContinue,
@@ -19,6 +53,7 @@ export const HomeScreen = ({
   ]);
   const [calendar] = useRuntimeData(() => managerBridge.getCalendar(), [refreshKey]);
   const [history] = useRuntimeData(() => managerBridge.getCareerHistory(), [refreshKey]);
+  const [concerns, refreshConcerns] = useRuntimeData(() => managerBridge.getSquadConcerns(), [refreshKey]);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -217,6 +252,59 @@ export const HomeScreen = ({
                     { label: "Player concerns", value: dashboard.concernCount ?? 0 },
                   ]}
                 />
+              </Panel>
+
+              <Panel title="Squad concerns">
+                <AsyncPanel
+                  state={concerns}
+                  isEmpty={(view) => view.concerns.length === 0}
+                  empty="No active squad concerns."
+                >
+                  {(view) => (
+                    <ul className="report-list">
+                      {view.concerns.map((concern) => (
+                        <li key={concern.id}>
+                          <strong>{concern.playerName}</strong>{" "}
+                          <Badge tone={concern.status === "ESCALATED" ? "bad" : "warn"}>
+                            {concernLabel(concern.type)}
+                          </Badge>{" "}
+                          <span className="subtle">({concern.status.toLowerCase()})</span>
+                          {concern.note && <div className="subtle">{concern.note}</div>}
+                          {concern.activePromise ? (
+                            <div className="subtle">
+                              Promise pending: {concern.activePromise.description} (due{" "}
+                              {concern.activePromise.dueOn})
+                            </div>
+                          ) : (
+                            <div className="button-row">
+                              {concern.validActions.map((action) => (
+                                <button
+                                  key={action}
+                                  className="ghost small"
+                                  disabled={actionBusy !== null}
+                                  onClick={() =>
+                                    void runAction(`concern-${concern.id}-${action}`, async () => {
+                                      const result = await managerBridge.respondToConcern(
+                                        concern.id,
+                                        action,
+                                      );
+                                      if (result.ok) refreshConcerns();
+                                      return result;
+                                    })
+                                  }
+                                >
+                                  {actionBusy === `concern-${concern.id}-${action}`
+                                    ? "…"
+                                    : actionLabel(action)}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </AsyncPanel>
               </Panel>
 
               <Panel title="Recent results">

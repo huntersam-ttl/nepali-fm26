@@ -4,6 +4,7 @@ import type {
   AppResult,
   CareerCreationCommand,
   AdvanceMatchCommand,
+  ConcernResponseAction,
   ContractRenewalCommand,
   EntityId,
   LiveTacticsCommand,
@@ -17,6 +18,9 @@ import type {
   TransferListCommand,
   TransferOfferCommand,
   TransferResponseCommand,
+  TransferRequestCommand,
+  TransferRequestResponseCommand,
+  TransferLoanCommand,
 } from "@nepal-football-sim/shared-types";
 import { DesktopApplicationService, type DesktopRuntimeOptions } from "./desktop-application.js";
 
@@ -155,6 +159,10 @@ const dispatch = (
       return service.getManagerDashboard();
     case "getSquad":
       return service.getSquad();
+    case "getSquadConcerns":
+      return service.getSquadConcerns();
+    case "respondToConcern":
+      return service.respondToConcern(body as { concernId: EntityId; action: ConcernResponseAction });
     case "getPlayerProfile":
       return service.getPlayerProfile(body.playerId as EntityId);
     case "getTactics":
@@ -189,6 +197,12 @@ const dispatch = (
       return service.makeTransferOffer(body.command as TransferOfferCommand);
     case "respondTransferOffer":
       return service.respondTransferOffer(body.command as TransferResponseCommand);
+    case "makeTransferRequest":
+      return service.makeTransferRequest(body.command as TransferRequestCommand);
+    case "respondTransferRequest":
+      return service.respondTransferRequest(body.command as TransferRequestResponseCommand);
+    case "negotiateLoan":
+      return service.negotiateLoan(body.command as TransferLoanCommand);
     case "setTransferStatus":
       return service.setTransferStatus(body.command as TransferListCommand);
     case "getContracts":

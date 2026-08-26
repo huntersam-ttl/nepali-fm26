@@ -97,6 +97,8 @@ import type {
   SquadHierarchyEntry,
   PlayerConcern,
   RelationshipHistoryEvent,
+  ManagerConcernResponse,
+  ManagerPromise,
   LeagueStanding,
   ManagerContract,
   ManagerProfile,
@@ -1434,6 +1436,94 @@ export class SquadDynamicsRepository {
       .map(mapConcern);
   }
 
+  concernById(id: EntityId): PlayerConcern | undefined {
+    const row = this.db.prepare("SELECT * FROM player_concerns WHERE id = ?").get(id) as any;
+    return row ? mapConcern(row) : undefined;
+  }
+
+  insertConcernResponse(response: ManagerConcernResponse): void {
+    this.db
+      .prepare(
+        `INSERT INTO manager_concern_responses
+        (id, concern_id, manager_profile_id, person_id, team_id, action, outcome, promise_id, occurred_on)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO NOTHING`,
+      )
+      .run(
+        response.id,
+        response.concernId,
+        response.managerProfileId,
+        response.personId,
+        response.teamId,
+        response.action,
+        response.outcome,
+        response.promiseId ?? null,
+        response.occurredOn,
+      );
+  }
+
+  responsesForConcern(concernId: EntityId): ManagerConcernResponse[] {
+    return this.db
+      .prepare("SELECT * FROM manager_concern_responses WHERE concern_id = ? ORDER BY occurred_on")
+      .all(concernId)
+      .map(mapConcernResponse);
+  }
+
+  upsertPromise(promise: ManagerPromise): void {
+    this.db
+      .prepare(
+        `INSERT INTO manager_promises
+        (id, manager_profile_id, person_id, team_id, concern_id, type, description,
+          made_on, due_on, status, baseline_metric, resolved_on)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          status = excluded.status,
+          resolved_on = excluded.resolved_on`,
+      )
+      .run(
+        promise.id,
+        promise.managerProfileId,
+        promise.personId,
+        promise.teamId,
+        promise.concernId ?? null,
+        promise.type,
+        promise.description,
+        promise.madeOn,
+        promise.dueOn,
+        promise.status,
+        promise.baselineMetric ?? null,
+        promise.resolvedOn ?? null,
+      );
+  }
+
+  promiseById(id: EntityId): ManagerPromise | undefined {
+    const row = this.db.prepare("SELECT * FROM manager_promises WHERE id = ?").get(id) as any;
+    return row ? mapPromise(row) : undefined;
+  }
+
+  activePromisesForTeam(teamId: EntityId): ManagerPromise[] {
+    return this.db
+      .prepare("SELECT * FROM manager_promises WHERE team_id = ? AND status = 'ACTIVE'")
+      .all(teamId)
+      .map(mapPromise);
+  }
+
+  activePromiseForConcern(concernId: EntityId): ManagerPromise | undefined {
+    const row = this.db
+      .prepare("SELECT * FROM manager_promises WHERE concern_id = ? AND status = 'ACTIVE'")
+      .get(concernId) as any;
+    return row ? mapPromise(row) : undefined;
+  }
+
+  promisesForPerson(personId: EntityId, teamId: EntityId): ManagerPromise[] {
+    return this.db
+      .prepare(
+        "SELECT * FROM manager_promises WHERE person_id = ? AND team_id = ? ORDER BY made_on",
+      )
+      .all(personId, teamId)
+      .map(mapPromise);
+  }
+
   /** Append-only; mirrors TransferHistoryEvent's insert-once convention. */
   insertHistoryEvent(event: RelationshipHistoryEvent): void {
     this.db
@@ -1471,6 +1561,33 @@ const mapRelationship = (row: any): ManagerPlayerRelationship => ({
   score: row.score,
   level: row.level,
   updatedOn: row.updated_on,
+});
+
+const mapConcernResponse = (row: any): ManagerConcernResponse => ({
+  id: row.id,
+  concernId: row.concern_id,
+  managerProfileId: row.manager_profile_id,
+  personId: row.person_id,
+  teamId: row.team_id,
+  action: row.action,
+  outcome: row.outcome,
+  promiseId: row.promise_id ?? undefined,
+  occurredOn: row.occurred_on,
+});
+
+const mapPromise = (row: any): ManagerPromise => ({
+  id: row.id,
+  managerProfileId: row.manager_profile_id,
+  personId: row.person_id,
+  teamId: row.team_id,
+  concernId: row.concern_id ?? undefined,
+  type: row.type,
+  description: row.description,
+  madeOn: row.made_on,
+  dueOn: row.due_on,
+  status: row.status,
+  baselineMetric: row.baseline_metric ?? undefined,
+  resolvedOn: row.resolved_on ?? undefined,
 });
 
 const mapSatisfaction = (row: any): PlayerClubSatisfaction => ({

@@ -1,14 +1,22 @@
 import type { EntityId } from "./ids.js";
 import type {
+  ConcernResponseAction,
+  ConcernResponseOutcome,
   InboxItem,
   ISODate,
+  ManagerPromiseStatus,
+  ManagerPromiseType,
   MatchViewMode,
   KnowledgeConfidence,
   KnowledgeRange,
   PlayerAttributeSet,
+  PlayerConcernStatus,
+  PlayerConcernType,
   PlayerDiscoveryStatus,
   PlayerKnowledgeLevel,
   PlayerPosition,
+  PlayerSquadRole,
+  SquadHierarchyRole,
   TacticalFamiliarity,
   TacticalSetup,
   TeamInstructions,
@@ -428,7 +436,16 @@ export type TransferOfferView = {
   otherClubName?: string;
   offerType: string;
   transferFee: number;
+  installments: number;
   addOns: number;
+  sellOnPercentage: number;
+  askingRange?: KnowledgeRange;
+  agentFee: number;
+  signingFee: number;
+  agentContact: "SELF_REPRESENTED" | "AGENT";
+  conditionals: Array<{ type: string; threshold: number; amount: number; description: string }>;
+  playerExchanges: Array<{ playerId: EntityId; playerName?: string; valuation?: KnowledgeRange; requestedBy: string }>;
+  sellerRequestedPlayerId?: EntityId;
   currency: string;
   status: string;
   submittedAt: ISODate;
@@ -451,6 +468,8 @@ export type TransferCentre = {
   budget: TransferBudgetView;
   windowOpen: boolean;
   windowCloses?: ISODate;
+  expiringContracts: Array<{ playerId: EntityId; playerName?: string; endDate: ISODate; monthsRemaining: number; squadRole: string }>;
+  requests: Array<{ id: EntityId; playerId: EntityId; playerName?: string; reason: string; pressureScore: number; status: string; askingRange?: KnowledgeRange }>;
   targets: ShortlistEntry[];
   incoming: TransferOfferView[];
   outgoing: TransferOfferView[];
@@ -477,11 +496,44 @@ export type TransferCentre = {
 export type TransferOfferCommand = {
   playerId: EntityId;
   fee?: number;
+  installments?: number;
+  addOns?: number;
+  sellOnPercentage?: number;
+  conditionals?: Array<{ type: "APPEARANCE" | "PERFORMANCE"; threshold: number; amount: number; description: string }>;
+  exchangePlayerIds?: EntityId[];
+  sellerRequestedPlayerId?: EntityId;
 };
 
 export type TransferResponseCommand = {
   offerId: EntityId;
-  action: "ACCEPT" | "REJECT";
+  action: "ACCEPT" | "REJECT" | "COUNTER";
+  transferFee?: number;
+  installments?: number;
+  addOns?: number;
+  sellOnPercentage?: number;
+  sellerRequestedPlayerId?: EntityId;
+};
+
+export type TransferRequestCommand = {
+  playerId: EntityId;
+  reason?: string;
+  satisfaction?: number;
+  ambition?: number;
+  foreignInterest?: boolean;
+};
+
+export type TransferRequestResponseCommand = {
+  requestId: EntityId;
+  decision: "ACCEPTED" | "REJECTED";
+};
+
+export type TransferLoanCommand = {
+  playerId: EntityId;
+  endDate?: ISODate;
+  wageContributionPercent?: number;
+  loanFee?: number;
+  playingTimeExpectation?: PlayerSquadRole;
+  recallAllowed?: boolean;
 };
 
 export type TransferListCommand = {
@@ -582,6 +634,45 @@ export type JobCentreView = {
   reputationProfile: string;
   vacancies: JobVacancyView[];
   applications: JobApplicationView[];
+};
+
+export type SquadPromiseView = {
+  id: EntityId;
+  type: ManagerPromiseType;
+  description: string;
+  madeOn: ISODate;
+  dueOn: ISODate;
+  status: ManagerPromiseStatus;
+};
+
+export type SquadConcernView = {
+  id: EntityId;
+  personId: EntityId;
+  playerName: string;
+  hierarchyRole?: SquadHierarchyRole;
+  type: PlayerConcernType;
+  status: PlayerConcernStatus;
+  severity: number;
+  raisedOn: ISODate;
+  updatedOn: ISODate;
+  note?: string;
+  validActions: ConcernResponseAction[];
+  activePromise?: SquadPromiseView;
+};
+
+export type SquadDynamicsView = {
+  concerns: SquadConcernView[];
+  promises: SquadPromiseView[];
+};
+
+export type ConcernResponseCommand = {
+  concernId: EntityId;
+  action: ConcernResponseAction;
+};
+
+export type ConcernResponseResult = {
+  outcome: ConcernResponseOutcome;
+  squad: SquadDynamicsView;
 };
 
 export type ManagerCareerHistoryEntry = {
@@ -694,6 +785,9 @@ export type ManagerRuntimeApi = {
   getTransferCentre(): Promise<unknown>;
   makeTransferOffer(command: TransferOfferCommand): Promise<unknown>;
   respondTransferOffer(command: TransferResponseCommand): Promise<unknown>;
+  makeTransferRequest(command: TransferRequestCommand): Promise<unknown>;
+  respondTransferRequest(command: TransferRequestResponseCommand): Promise<unknown>;
+  negotiateLoan(command: TransferLoanCommand): Promise<unknown>;
   setTransferStatus(command: TransferListCommand): Promise<unknown>;
   getContracts(): Promise<unknown>;
   renewContract(command: ContractRenewalCommand): Promise<unknown>;
@@ -706,6 +800,9 @@ export type ManagerRuntimeApi = {
   acceptJobOffer(applicationId: EntityId): Promise<unknown>;
   resignFromClub(): Promise<unknown>;
   getCareerHistory(): Promise<unknown>;
+  // Squad Dynamics Phase B.
+  getSquadConcerns(): Promise<unknown>;
+  respondToConcern(concernId: EntityId, action: ConcernResponseAction): Promise<unknown>;
 };
 
 /** Attribute keys grouped for presentation. Values stay on the engine's 1-20 scale. */

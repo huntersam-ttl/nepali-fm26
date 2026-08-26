@@ -2,6 +2,8 @@ import type {
   AdvanceMatchCommand,
   AppResult,
   CalendarEntry,
+  ConcernResponseAction,
+  ConcernResponseResult,
   ContractList,
   ContractRenewalCommand,
   DesktopApplicationState,
@@ -24,6 +26,7 @@ import type {
   StartMatchCommand,
   SubstitutionCommand,
   ScoutingReportView,
+  SquadDynamicsView,
   SquadList,
   StaffList,
   TacticsUpdateCommand,
@@ -34,6 +37,9 @@ import type {
   TransferListCommand,
   TransferOfferCommand,
   TransferResponseCommand,
+  TransferRequestCommand,
+  TransferRequestResponseCommand,
+  TransferLoanCommand,
 } from "@nepal-football-sim/shared-types";
 import { runtimeCall } from "../appBridge.js";
 
@@ -44,6 +50,9 @@ import { runtimeCall } from "../appBridge.js";
 export const managerBridge = {
   getManagerDashboard: () => runtimeCall<ManagerDashboard>("getManagerDashboard"),
   getSquad: () => runtimeCall<SquadList>("getSquad"),
+  getSquadConcerns: () => runtimeCall<SquadDynamicsView>("getSquadConcerns"),
+  respondToConcern: (concernId: EntityId, action: ConcernResponseAction) =>
+    runtimeCall<ConcernResponseResult>("respondToConcern", { concernId, action }),
   getPlayerProfile: (playerId: EntityId) =>
     runtimeCall<PlayerProfile>("getPlayerProfile", { playerId }),
   getTactics: () => runtimeCall<TacticsView>("getTactics"),
@@ -70,6 +79,12 @@ export const managerBridge = {
     runtimeCall<TransferCentre>("makeTransferOffer", { command }),
   respondTransferOffer: (command: TransferResponseCommand) =>
     runtimeCall<TransferCentre>("respondTransferOffer", { command }),
+  makeTransferRequest: (command: TransferRequestCommand) =>
+    runtimeCall<TransferCentre>("makeTransferRequest", { command }),
+  respondTransferRequest: (command: TransferRequestResponseCommand) =>
+    runtimeCall<TransferCentre>("respondTransferRequest", { command }),
+  negotiateLoan: (command: TransferLoanCommand) =>
+    runtimeCall<TransferCentre>("negotiateLoan", { command }),
   setTransferStatus: (command: TransferListCommand) =>
     runtimeCall<TransferCentre>("setTransferStatus", { command }),
   getContracts: () => runtimeCall<ContractList>("getContracts"),

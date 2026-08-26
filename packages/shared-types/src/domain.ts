@@ -3312,7 +3312,12 @@ export type RelationshipEventType =
   | "CONCERN_RESOLVED"
   | "RELATIONSHIP_IMPROVED"
   | "RELATIONSHIP_WORSENED"
-  | "SQUAD_ROLE_CHANGED";
+  | "SQUAD_ROLE_CHANGED"
+  | "CONCERN_RESPONSE"
+  | "PROMISE_MADE"
+  | "PROMISE_KEPT"
+  | "PROMISE_BROKEN"
+  | "PROMISE_EXPIRED";
 
 /** Append-only log of relationship/concern state transitions, mirroring TransferHistoryEvent. */
 export type RelationshipHistoryEvent = {
@@ -3323,4 +3328,59 @@ export type RelationshipHistoryEvent = {
   eventType: RelationshipEventType;
   occurredOn: ISODate;
   data?: Record<string, unknown>;
+};
+
+// ---------------------------------------------------------------------------
+// Manager Relationships & Squad Dynamics — Phase B: conversations & promises
+// ---------------------------------------------------------------------------
+
+/** What the manager can say back to an active concern. */
+export type ConcernResponseAction =
+  | "REASSURE"
+  | "PROMISE_PLAYING_TIME"
+  | "PROMISE_CONTRACT_REVIEW"
+  | "PROMISE_SQUAD_ROLE"
+  | "PROMISE_TRANSFER_STANCE"
+  | "DISMISS";
+
+export type ConcernResponseOutcome = "ACCEPTED" | "SKEPTICAL" | "REJECTED";
+
+/** One row per manager response to a concern; the audit trail behind a promise. */
+export type ManagerConcernResponse = {
+  id: EntityId;
+  concernId: EntityId;
+  managerProfileId: EntityId;
+  personId: EntityId;
+  teamId: EntityId;
+  action: ConcernResponseAction;
+  outcome: ConcernResponseOutcome;
+  promiseId?: EntityId;
+  occurredOn: ISODate;
+};
+
+export type ManagerPromiseType =
+  | "PLAYING_TIME"
+  | "CONTRACT_REVIEW"
+  | "SQUAD_ROLE"
+  | "TRANSFER_STANCE";
+export type ManagerPromiseStatus = "ACTIVE" | "KEPT" | "BROKEN" | "EXPIRED";
+
+/**
+ * A concrete commitment made in response to a concern. `baselineMetric` snapshots
+ * whatever real number the promise will be judged against at `dueOn` (appearance
+ * count, squad-role rank, etc) so resolution reads real state, not a guess.
+ */
+export type ManagerPromise = {
+  id: EntityId;
+  managerProfileId: EntityId;
+  personId: EntityId;
+  teamId: EntityId;
+  concernId?: EntityId;
+  type: ManagerPromiseType;
+  description: string;
+  madeOn: ISODate;
+  dueOn: ISODate;
+  status: ManagerPromiseStatus;
+  baselineMetric?: number;
+  resolvedOn?: ISODate;
 };

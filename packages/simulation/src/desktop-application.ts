@@ -7,6 +7,7 @@ import {
   MatchSessionRepository,
   PlayerRepository,
   SaveRepository,
+  SquadDynamicsRepository,
   WorldRepository,
   createNewSave,
   loadSave,
@@ -25,6 +26,8 @@ import {
   type CompetitionSeason,
   type CalendarEntry,
   type CompetitionView,
+  type ConcernResponseAction,
+  type ConcernResponseResult,
   type ContractList,
   type ContractRenewalCommand,
   type DesktopAppError,
@@ -46,6 +49,7 @@ import {
   type ManagerContract,
   type ManagerDashboard,
   type ManagerProfile,
+  type ManagerPromise,
   type MatchEvent,
   type MatchSessionRecord,
   type MatchViewMode,
@@ -62,7 +66,10 @@ import {
   type ScoutingAssignmentCommand,
   type ScoutingDashboard,
   type ScoutingReportView,
+  type SquadConcernView,
+  type SquadDynamicsView,
   type SquadList,
+  type SquadPromiseView,
   type SquadRow,
   type StaffList,
   type StartMatchCommand,
@@ -79,6 +86,9 @@ import {
   type TransferListCommand,
   type TransferOfferCommand,
   type TransferResponseCommand,
+  type TransferRequestCommand,
+  type TransferRequestResponseCommand,
+  type TransferLoanCommand,
 } from "@nepal-football-sim/shared-types";
 import { validateNepalWorldDataset, type NepalWorldDataset } from "@nepal-football-sim/data-import";
 import { generateLeagueFixtures } from "./fixture-generation.js";
@@ -98,7 +108,12 @@ import {
   advanceUnemployedCareer,
 } from "./manager-career-world.js";
 import { nextFixtureForTeam, quickSimManagerMatch } from "./manager-flow.js";
-import { evaluateSquadDynamics } from "./squad-dynamics.js";
+import {
+  ConcernActionError,
+  evaluateSquadDynamics,
+  respondToConcern as respondToConcernCommand,
+  validActionsForConcern,
+} from "./squad-dynamics.js";
 import {
   MatchAlreadyPlayedError,
   MatchCommandError,
@@ -153,6 +168,9 @@ import {
   makeManagerTransferOffer,
   renewManagerContract,
   respondToTransferOffer,
+  makeManagerTransferRequest,
+  respondManagerTransferRequest,
+  negotiateManagerLoan,
   searchManagerRecruitment,
   setManagerTransferStatus,
   toggleManagerShortlist,
@@ -545,6 +563,21 @@ export class DesktopApplicationService {
             read: false,
           });
         }
+        for (const promise of [...dynamicsOutcome.keptPromises, ...dynamicsOutcome.brokenPromises]) {
+          const player = getPerson(db, promise.personId);
+          const kept = promise.status === "KEPT";
+          new ManagerRepository(db).insertInboxItem({
+            id: createEntityId(),
+            createdOn: updated.worldDate,
+            type: "COMPETITION_UPDATE",
+            title: `${displayName(player)}: promise ${kept ? "kept" : "broken"}`,
+            body: kept
+              ? `You followed through on your promise to ${displayName(player)}.`
+              : `You did not follow through on your promise to ${displayName(player)} — trust has taken a hit.`,
+            relatedEntity: { type: "person", id: promise.personId },
+            read: false,
+          });
+        }
       }
 
       const state = this.buildState(db, updated, filePath);
@@ -734,6 +767,23 @@ export class DesktopApplicationService {
     return this.managerCommand(buildSquadList);
   }
 
+  getSquadConcerns(): AppResult<SquadDynamicsView> {
+    return this.managerCommand((db, save, context) => buildSquadDynamicsView(db, context.team.id));
+  }
+
+  respondToConcern(command: { concernId: EntityId; action: ConcernResponseAction }): AppResult<ConcernResponseResult> {
+    return this.managerCommand((db, save, context) => {
+      let outcome: ConcernResponseResult["outcome"];
+      try {
+        outcome = respondToConcernCommand(db, save, context.manager.id, command.concernId, command.action).outcome;
+      } catch (error) {
+        if (error instanceof ConcernActionError) throw appError("INVALID_SELECTION", error.message);
+        throw error;
+      }
+      return { outcome, squad: buildSquadDynamicsView(db, context.team.id) };
+    }, true);
+  }
+
   getPlayerProfile(playerId: EntityId): AppResult<PlayerProfile> {
     return this.managerCommand((db, save, context) =>
       buildPlayerProfile(db, save, context, playerId),
@@ -830,6 +880,27 @@ export class DesktopApplicationService {
   respondTransferOffer(command: TransferResponseCommand): AppResult<TransferCentre> {
     return this.managerCommand(
       (db, save, context) => respondToTransferOffer(db, save, context, command),
+      true,
+    );
+  }
+
+  makeTransferRequest(command: TransferRequestCommand): AppResult<TransferCentre> {
+    return this.managerCommand(
+      (db, save, context) => makeManagerTransferRequest(db, save, context, command),
+      true,
+    );
+  }
+
+  respondTransferRequest(command: TransferRequestResponseCommand): AppResult<TransferCentre> {
+    return this.managerCommand(
+      (db, save, context) => respondManagerTransferRequest(db, save, context, command),
+      true,
+    );
+  }
+
+  negotiateLoan(command: TransferLoanCommand): AppResult<TransferCentre> {
+    return this.managerCommand(
+      (db, save, context) => negotiateManagerLoan(db, save, context, command),
       true,
     );
   }
@@ -1337,6 +1408,48 @@ const buildJobCentreView = (
       };
     });
   return { reputationProfile: managerProfile.reputationProfile, vacancies, applications };
+};
+
+const toPromiseView = (promise: ManagerPromise): SquadPromiseView => ({
+  id: promise.id,
+  type: promise.type,
+  description: promise.description,
+  madeOn: promise.madeOn,
+  dueOn: promise.dueOn,
+  status: promise.status,
+});
+
+const buildSquadDynamicsView = (db: GameDatabase, teamId: EntityId): SquadDynamicsView => {
+  const dynamics = new SquadDynamicsRepository(db);
+  const hierarchyByPerson = new Map(
+    dynamics.hierarchyForTeam(teamId).map((entry) => [entry.personId, entry.role]),
+  );
+  const activePromises = dynamics.activePromisesForTeam(teamId);
+  const promiseByConcernId = new Map(
+    activePromises
+      .filter((promise): promise is ManagerPromise & { concernId: EntityId } => Boolean(promise.concernId))
+      .map((promise) => [promise.concernId, toPromiseView(promise)]),
+  );
+
+  const concerns: SquadConcernView[] = dynamics
+    .concernsForTeam(teamId)
+    .filter((concern) => concern.status !== "RESOLVED")
+    .map((concern) => ({
+      id: concern.id,
+      personId: concern.personId,
+      playerName: displayName(getPerson(db, concern.personId)),
+      hierarchyRole: hierarchyByPerson.get(concern.personId),
+      type: concern.type,
+      status: concern.status,
+      severity: concern.severity,
+      raisedOn: concern.raisedOn,
+      updatedOn: concern.updatedOn,
+      note: concern.note,
+      validActions: validActionsForConcern(concern.type),
+      activePromise: promiseByConcernId.get(concern.id),
+    }));
+
+  return { concerns, promises: activePromises.map(toPromiseView) };
 };
 
 const unemployedCareerHeader = (db: GameDatabase, save: SaveMetadata): CareerHeader => {

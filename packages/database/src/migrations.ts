@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 24;
+export const CURRENT_DATABASE_VERSION = 25;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -2327,6 +2327,44 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
 
       CREATE INDEX IF NOT EXISTS idx_player_transfer_requests_player
         ON player_transfer_requests(player_id, requested_at);
+    `,
+  },
+  {
+    version: 25,
+    sql: `
+      -- Manager Relationships & Squad Dynamics: Phase B conversations & promises.
+      CREATE TABLE IF NOT EXISTS manager_concern_responses (
+        id TEXT PRIMARY KEY,
+        concern_id TEXT NOT NULL REFERENCES player_concerns(id),
+        manager_profile_id TEXT NOT NULL REFERENCES manager_profiles(id),
+        person_id TEXT NOT NULL REFERENCES persons(id),
+        team_id TEXT NOT NULL REFERENCES teams(id),
+        action TEXT NOT NULL,
+        outcome TEXT NOT NULL,
+        promise_id TEXT,
+        occurred_on TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_manager_concern_responses_concern
+        ON manager_concern_responses(concern_id, occurred_on);
+
+      CREATE TABLE IF NOT EXISTS manager_promises (
+        id TEXT PRIMARY KEY,
+        manager_profile_id TEXT NOT NULL REFERENCES manager_profiles(id),
+        person_id TEXT NOT NULL REFERENCES persons(id),
+        team_id TEXT NOT NULL REFERENCES teams(id),
+        concern_id TEXT REFERENCES player_concerns(id),
+        type TEXT NOT NULL,
+        description TEXT NOT NULL,
+        made_on TEXT NOT NULL,
+        due_on TEXT NOT NULL,
+        status TEXT NOT NULL,
+        baseline_metric REAL,
+        resolved_on TEXT
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_manager_promises_team_status
+        ON manager_promises(team_id, status, due_on);
     `,
   },
 ];
