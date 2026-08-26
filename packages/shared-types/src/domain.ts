@@ -1964,7 +1964,8 @@ export type InfrastructureProjectType =
   | "STAND"
   | "FLOODLIGHTS"
   | "PITCH"
-  | "DRAINAGE";
+  | "DRAINAGE"
+  | "REFURBISHMENT";
 
 export type InfrastructureProjectStatus =
   "IDEA" | "PLANNING" | "APPROVED" | "FINANCING" | "CONSTRUCTION" | "COMPLETED" | "CANCELLED";
@@ -1989,6 +1990,11 @@ export type InfrastructureProject = {
   fundingCommitted?: number;
   delayDays?: number;
   maintenanceStatus?: "FUNDED" | "UNDERFUNDED" | "DETERIORATING";
+  components?: string[];
+  utilisationCapacity?: number;
+  cancelledOn?: ISODate;
+  sunkCost?: number;
+  recoveryPlan?: string;
   provenanceStatus: "SIMULATION_ONLY" | "VERIFIED" | "REPORTED" | "ESTIMATED" | "UNKNOWN";
 };
 

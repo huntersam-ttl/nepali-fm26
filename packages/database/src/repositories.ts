@@ -4482,6 +4482,11 @@ const mapInfrastructureProject = (row: any): InfrastructureProject => ({
   fundingCommitted: row.funding_committed ?? 0,
   delayDays: row.delay_days ?? 0,
   maintenanceStatus: row.maintenance_status ?? "FUNDED",
+  components: json.parse(row.components_json, []),
+  utilisationCapacity: row.utilisation_capacity ?? 0,
+  cancelledOn: row.cancelled_on ?? undefined,
+  sunkCost: row.sunk_cost ?? 0,
+  recoveryPlan: row.recovery_plan ?? undefined,
   provenanceStatus: row.provenance_status,
 });
 
@@ -5410,8 +5415,9 @@ export class ClubEconomyRepository {
         `INSERT INTO infrastructure_projects
         (id, club_id, project_type, location_id, venue_id, planning_start, construction_start,
           expected_completion, completed_at, capital_cost, ongoing_cost, currency, status,
-          financing_json, site_rights, funding_status, funding_committed, delay_days, maintenance_status, provenance_status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          financing_json, site_rights, funding_status, funding_committed, delay_days, maintenance_status,
+          components_json, utilisation_capacity, cancelled_on, sunk_cost, recovery_plan, provenance_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           construction_start = excluded.construction_start,
           expected_completion = excluded.expected_completion,
@@ -5420,7 +5426,9 @@ export class ClubEconomyRepository {
           capital_cost = excluded.capital_cost, ongoing_cost = excluded.ongoing_cost,
           financing_json = excluded.financing_json, site_rights = excluded.site_rights,
           funding_status = excluded.funding_status, funding_committed = excluded.funding_committed,
-          delay_days = excluded.delay_days, maintenance_status = excluded.maintenance_status`,
+          delay_days = excluded.delay_days, maintenance_status = excluded.maintenance_status,
+          components_json = excluded.components_json, utilisation_capacity = excluded.utilisation_capacity,
+          cancelled_on = excluded.cancelled_on, sunk_cost = excluded.sunk_cost, recovery_plan = excluded.recovery_plan`,
       )
       .run(
         project.id,
@@ -5442,6 +5450,11 @@ export class ClubEconomyRepository {
         project.fundingCommitted ?? 0,
         project.delayDays ?? 0,
         project.maintenanceStatus ?? "FUNDED",
+        json.stringify(project.components ?? []),
+        project.utilisationCapacity ?? 0,
+        project.cancelledOn ?? null,
+        project.sunkCost ?? 0,
+        project.recoveryPlan ?? null,
         project.provenanceStatus,
       );
   }

@@ -3,7 +3,7 @@ import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
 import { ClubEconomyRepository, openGameDatabase } from "@nepal-football-sim/database";
-import { createInfrastructureProject, createNepalSave, initializeClubEconomyForSave, advanceInfrastructureProjects } from "@nepal-football-sim/simulation";
+import { cancelInfrastructureProject, createInfrastructureProject, createNepalSave, initializeClubEconomyForSave, advanceInfrastructureProjects } from "@nepal-football-sim/simulation";
 import type { EntityId } from "@nepal-football-sim/shared-types";
 
 const dirs: string[] = [];
@@ -42,5 +42,18 @@ describe("infrastructure and institution building phase A", () => {
     expect(economy.assets(club.id).some((asset) => asset.assetType === "EQUIPMENT")).toBe(true);
     expect(economy.ledgerEntries(club.id).some((entry) => entry.category === "FACILITY_COST")).toBe(true);
     first.close(); second.close();
+  });
+
+  it("enforces component prerequisites, supports debt funding, and records sunk cancellation cost", () => {
+    const db = openGameDatabase(makeSave("infrastructure-finance"));
+    initializeClubEconomyForSave({ db, worldDate: "2026-08-01", seed: "infrastructure-finance" });
+    const club = db.prepare("SELECT id FROM clubs WHERE name = ?").get("Machhindra FC") as { id: EntityId };
+    expect(() => createInfrastructureProject(db, { clubId: club.id, projectType: "RECOVERY_CENTRE", date: "2026-08-01", seed: "infrastructure-finance" })).toThrow("requires completed TRAINING_GROUND");
+    const project = createInfrastructureProject(db, { clubId: club.id, projectType: "TRAINING_GROUND", date: "2026-08-01", seed: "infrastructure-finance", financing: { debt: 5200000 } });
+    expect(new ClubEconomyRepository(db).debts(club.id).some((debt) => debt.principal === 5200000)).toBe(true);
+    advanceInfrastructureProjects(db, { date: "2026-09-01", seed: "infrastructure-finance" });
+    const cancelled = cancelInfrastructureProject(db, project.id, "2026-09-15");
+    expect(cancelled.status).toBe("CANCELLED"); expect(cancelled.sunkCost).toBeGreaterThan(0);
+    db.close();
   });
 });

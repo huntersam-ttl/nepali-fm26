@@ -475,6 +475,10 @@ export const createInfrastructureProject = (
     `${input.seed}:project:${input.clubId}:${input.projectType}:${input.date}`,
   );
   const baseCost = projectBaseCost(input.projectType);
+  const economy = new ClubEconomyRepository(db);
+  const prerequisites = projectPrerequisites(input.projectType);
+  const completedTypes = new Set(economy.infrastructureProjects(input.clubId).filter((project) => project.status === "COMPLETED").map((project) => project.projectType));
+  if (prerequisites.some((required) => !completedTypes.has(required))) throw new Error(`${input.projectType} requires completed ${prerequisites.join(" and ")}`);
   const financingJson = input.financing ?? { clubCash: 1 };
   const rawCommitted = Object.values(financingJson).reduce((total, value) => total + Math.max(0, value), 0);
   const fundingCommitted = rawCommitted <= 1 ? Math.round(baseCost * rawCommitted) : Math.round(rawCommitted);
@@ -500,9 +504,16 @@ export const createInfrastructureProject = (
     fundingCommitted,
     delayDays: 0,
     maintenanceStatus: "FUNDED",
+    components: projectComponents(input.projectType),
+    utilisationCapacity: projectCapacity(input.projectType),
     provenanceStatus: simulationStatus,
   };
-  new ClubEconomyRepository(db).upsertInfrastructureProject(project);
+  const debtAmount = Math.max(0, financingJson.debt ?? 0);
+  if (debtAmount > 0) {
+    economy.upsertDebt({ id: createStableEntityId("infrastructure-debt", project.id), clubId: input.clubId, lenderType: "BANK", principal: debtAmount, outstandingPrincipal: debtAmount, interestRate: 0.075, currency, startDate: input.date, maturityDate: addYears(input.date, 5), repaymentSchedule: "SEASONAL", status: "ACTIVE", provenanceStatus: simulationStatus });
+    postClubTransaction(db, { clubId: input.clubId, date: input.date, category: "OTHER", direction: "CREDIT", amount: debtAmount, description: `Infrastructure debt draw for ${input.projectType}`, relatedEntityId: project.id, idempotencyKey: `infrastructure-debt:${project.id}` });
+  }
+  economy.upsertInfrastructureProject(project);
   return project;
 };
 
@@ -565,7 +576,7 @@ export const advanceInfrastructureProjects = (
       });
       const facility = economy.facilityProfile(project.clubId);
       if (facility) {
-        const quality = next.projectType === "TRAINING_GROUND" ? { trainingFacilityQuality: facility.trainingFacilityQuality + 1.2 } : next.projectType === "ACADEMY" ? { youthFacilityQuality: facility.youthFacilityQuality + 1.2, academyCapacity: facility.academyCapacity + 12 } : ["MEDICAL_ROOM", "RECOVERY_CENTRE", "GYM"].includes(next.projectType) ? { medicalFacilityQuality: facility.medicalFacilityQuality + 1 } : {};
+        const quality = next.projectType === "TRAINING_GROUND" ? { trainingFacilityQuality: facility.trainingFacilityQuality + 1.2 } : next.projectType === "ACADEMY" ? { youthFacilityQuality: facility.youthFacilityQuality + 1.2, academyCapacity: facility.academyCapacity + 12 } : ["MEDICAL_ROOM", "RECOVERY_CENTRE", "GYM"].includes(next.projectType) ? { medicalFacilityQuality: facility.medicalFacilityQuality + 1 } : next.projectType === "REFURBISHMENT" ? { trainingFacilityQuality: facility.trainingFacilityQuality + 0.5, youthFacilityQuality: facility.youthFacilityQuality + 0.5, medicalFacilityQuality: facility.medicalFacilityQuality + 0.5 } : {};
         economy.upsertFacilityProfile({ ...facility, ...quality });
       }
     }
@@ -573,6 +584,38 @@ export const advanceInfrastructureProjects = (
     updated.push(next);
   }
   return updated;
+};
+
+export const cancelInfrastructureProject = (db: GameDatabase, projectId: EntityId, date: string): InfrastructureProject => {
+  const economy = new ClubEconomyRepository(db);
+  const project = economy.infrastructureProjects().find((item) => item.id === projectId);
+  if (!project || ["COMPLETED", "CANCELLED"].includes(project.status)) throw new Error("That infrastructure project cannot be cancelled");
+  const sunkCost = economy.ledgerEntries(project.clubId).filter((entry) => entry.relatedEntityId === project.id && entry.category === "FACILITY_COST").reduce((total, entry) => total + entry.amount, 0);
+  const cancelled = { ...project, status: "CANCELLED" as const, cancelledOn: date, sunkCost, recoveryPlan: "Review the site and resubmit only after financing is secured." };
+  economy.upsertInfrastructureProject(cancelled);
+  return cancelled;
+};
+
+export const postponeInfrastructureProject = (db: GameDatabase, projectId: EntityId, date: string, recoveryPlan: string): InfrastructureProject => {
+  const economy = new ClubEconomyRepository(db);
+  const project = economy.infrastructureProjects().find((item) => item.id === projectId);
+  if (!project || ["COMPLETED", "CANCELLED"].includes(project.status)) throw new Error("That infrastructure project cannot be postponed");
+  const postponed = { ...project, status: "FINANCING" as const, expectedCompletion: addDays(project.expectedCompletion, 60), recoveryPlan };
+  economy.upsertInfrastructureProject(postponed);
+  return postponed;
+};
+
+export const createFacilityRefurbishment = (db: GameDatabase, input: { clubId: EntityId; date: string; seed: string; financing?: Record<string, number> }): InfrastructureProject => createInfrastructureProject(db, { ...input, projectType: "REFURBISHMENT" });
+
+export const planAIInfrastructureProject = (db: GameDatabase, input: { clubId: EntityId; date: string; seed: string }): InfrastructureProject | undefined => {
+  const economy = new ClubEconomyRepository(db);
+  const account = economy.financialAccount(input.clubId);
+  if (!account || ["DISTRESSED", "INSOLVENT"].includes(account.financialHealth)) return undefined;
+  const facility = economy.facilityProfile(input.clubId);
+  const type: InfrastructureProjectType = (facility?.medicalFacilityQuality ?? 0) < 4 ? "MEDICAL_ROOM" : (facility?.academyCapacity ?? 0) < 30 ? "ACADEMY" : "TRAINING_GROUND";
+  const cost = projectBaseCost(type);
+  if (account.cashBalance < cost * 1.25) return undefined;
+  return createInfrastructureProject(db, { clubId: input.clubId, projectType: type, date: input.date, seed: input.seed, financing: { clubCash: cost } });
 };
 
 export const calculateClubValuation = (
@@ -1520,6 +1563,8 @@ const prizeAmount = (competitionName: string, position: number): number => {
 
 const projectBaseCost = (type: InfrastructureProjectType): number => {
   switch (type) {
+    case "REFURBISHMENT":
+      return 2400000;
     case "STADIUM":
     case "STAND":
       return 18000000;
@@ -1535,12 +1580,37 @@ const projectBaseCost = (type: InfrastructureProjectType): number => {
   }
 };
 
+const projectPrerequisites = (type: InfrastructureProjectType): InfrastructureProjectType[] => {
+  if (["RECOVERY_CENTRE", "GYM"].includes(type)) return ["TRAINING_GROUND"];
+  if (type === "ANALYSIS_ROOM" || type === "SCOUTING_DEPARTMENT") return ["OFFICE"];
+  return [];
+};
+
+const projectComponents = (type: InfrastructureProjectType): string[] => {
+  switch (type) {
+    case "TRAINING_GROUND": return ["two_pitches", "floodlights", "changing_rooms"];
+    case "ACADEMY": return ["youth_pitches", "classrooms", "residence"];
+    case "MEDICAL_ROOM": return ["treatment_room", "diagnostics_suite"];
+    case "RECOVERY_CENTRE": return ["hydrotherapy", "recovery_gym", "physio_rooms"];
+    case "GYM": return ["strength_area", "conditioning_area"];
+    case "STADIUM": case "STAND": return ["seating", "turnstiles", "safety_systems"];
+    case "OFFICE": return ["administration", "commercial_suite"];
+    case "SCOUTING_DEPARTMENT": return ["recruitment_workspace", "data_room"];
+    case "ANALYSIS_ROOM": return ["video_suite", "analyst_workspace"];
+    case "REFURBISHMENT": return ["renewed_core_components"];
+    default: return [type.toLowerCase()];
+  }
+};
+
+const projectCapacity = (type: InfrastructureProjectType): number =>
+  type === "STADIUM" ? 8000 : type === "STAND" ? 2500 : type === "ACADEMY" ? 36 : type === "TRAINING_GROUND" ? 4 : 1;
+
 const assetTypeForProject = (type: InfrastructureProjectType): ClubAsset["assetType"] =>
   type === "STADIUM" || type === "STAND"
     ? "VENUE"
     : type === "TRAINING_GROUND" || type === "ACADEMY"
       ? "TRAINING_GROUND"
-      : "EQUIPMENT";
+      : type === "OFFICE" ? "BUILDING" : "EQUIPMENT";
 
 const categoryTotals = (
   entries: readonly ClubLedgerEntry[],
