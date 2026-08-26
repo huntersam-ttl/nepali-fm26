@@ -1616,6 +1616,20 @@ export type PlayerTransferStatusRecord = {
   updatedAt: ISODate;
 };
 
+export type TransferRequestStatus = "PENDING" | "ACCEPTED" | "REJECTED" | "WITHDRAWN";
+
+export type PlayerTransferRequest = {
+  id: EntityId;
+  playerId: EntityId;
+  clubId: EntityId;
+  requestedAt: ISODate;
+  reason: string;
+  pressureScore: number;
+  status: TransferRequestStatus;
+  askingContext?: KnowledgeRange;
+  decidedAt?: ISODate;
+};
+
 export type ClubFinancialProfile = {
   id: EntityId;
   clubId: EntityId;

@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 23;
+export const CURRENT_DATABASE_VERSION = 24;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -2307,6 +2307,26 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
 
       CREATE INDEX IF NOT EXISTS idx_relationship_history_person
         ON relationship_history_events(person_id, occurred_on);
+    `,
+  },
+  {
+    version: 24,
+    sql: `
+      -- Deep Transfer Market Phase D: persisted player transfer requests.
+      CREATE TABLE IF NOT EXISTS player_transfer_requests (
+        id TEXT PRIMARY KEY,
+        player_id TEXT NOT NULL REFERENCES persons(id),
+        club_id TEXT NOT NULL REFERENCES clubs(id),
+        requested_at TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        pressure_score REAL NOT NULL,
+        status TEXT NOT NULL,
+        asking_context_json TEXT,
+        decided_at TEXT
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_player_transfer_requests_player
+        ON player_transfer_requests(player_id, requested_at);
     `,
   },
 ];

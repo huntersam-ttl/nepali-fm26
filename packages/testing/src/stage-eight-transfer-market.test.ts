@@ -12,17 +12,24 @@ import {
   analyzeSquadNeeds,
   assessAgentInterest,
   acceptTransferOffer,
+  aiRecruitmentPlan,
+  assessFreeAgentSigning,
   calculateTransferPackageValue,
   calculateTransferValuation,
+  clubTransferIdentity,
   counterTransferOffer,
   createNepalSave,
   createTransferEnquiry,
   createTransferOffer,
+  endLoan,
   evaluateTransferOffer,
   initializeTransferMarketForSave,
   negotiatePlayerContract,
   negotiatePlayerTerms,
   processAgentRepresentation,
+  processContractExpiries,
+  requestPlayerTransfer,
+  respondToPlayerTransferRequest,
   respondToTransferEnquiry,
   runTransferDiagnostic,
   searchPlayersForClub,
@@ -568,6 +575,116 @@ describe("transfer and contract market", () => {
     expect(market.activeLoans("2026-08-15").map((item) => item.id)).toContain(loan.id);
     expect(market.transferHistory().map((event) => event.eventType)).toContain("LOAN_STARTED");
     db.close();
+  });
+
+  it("covers Phase D loan terms, expiry, free-agent competition, requests and AI planning", () => {
+    const databasePath = createSave("phase-d-market");
+    const db = openGameDatabase(databasePath);
+    const market = new TransferMarketRepository(db);
+    const parentClubId = clubIdByCanonical(db, "NEP-DIVA-MAC");
+    const loanClubId = clubIdByCanonical(db, "NEP-DIVA-FRN");
+    const loanPlayerId = playerForClub(db, parentClubId);
+    const loan = startLoan(db, parentClubId, loanClubId, loanPlayerId, "2026-08-01", "phase-d", {
+      endDate: "2026-12-01",
+      wageContributionPercent: 70,
+      loanFee: 25_000,
+      playingTimeExpectation: "FIRST_TEAM",
+    });
+    expect(loan.wageContributionPercent).toBe(70);
+    expect(loan.loanFee).toBe(25_000);
+    expect(loan.playingTimeExpectation).toBe("FIRST_TEAM");
+    endLoan(db, loan, "2026-09-01");
+    expect(market.activeLoans("2026-09-02")).toHaveLength(0);
+    expect(market.activeContract(loanPlayerId, "2026-09-02")?.clubId).toBe(parentClubId);
+
+    const expiringPlayerId = market
+      .activeContractsForClub(parentClubId, "2026-08-01")
+      .find((contract) => contract.playerId !== loanPlayerId)!.playerId;
+    const expiring = market.activeContract(expiringPlayerId, "2026-08-01")!;
+    market.upsertPlayerContract({ ...expiring, endDate: "2026-08-01" });
+    expect(processContractExpiries(db, "2026-08-01").releases).toBeGreaterThan(0);
+    expect(market.transferStatus(expiringPlayerId)?.status).toBe("FREE_AGENT");
+
+    const freeAgentOffer = createTransferOffer(db, {
+      buyingClubId: parentClubId,
+      playerId: expiringPlayerId,
+      submittedAt: "2026-08-02",
+      fee: 0,
+    });
+    const rivalClubId = clubIdByCanonical(db, "NEP-DIVA-FRN");
+    const rivalOffer = createTransferOffer(db, {
+      buyingClubId: rivalClubId,
+      playerId: expiringPlayerId,
+      submittedAt: "2026-08-02",
+      fee: 0,
+    });
+    expect(
+      assessFreeAgentSigning(db, rivalClubId, expiringPlayerId, "2026-08-02").competition,
+    ).toBe(1);
+    market.insertTransferHistoryEvent({
+      id: createStableEntityId("transfer-history", `${expiringPlayerId}:flip-protection`),
+      playerId: expiringPlayerId,
+      eventType: "FREE_AGENT_SIGNED",
+      occurredOn: "2026-08-02",
+      data: { clubId: parentClubId },
+    });
+    expect(assessFreeAgentSigning(db, rivalClubId, expiringPlayerId, "2026-08-15").eligible).toBe(
+      false,
+    );
+    expect(freeAgentOffer.status).toBe("SUBMITTED");
+    expect(rivalOffer.status).toBe("SUBMITTED");
+
+    const requestPlayerId = playerForClub(db, parentClubId);
+    const request = requestPlayerTransfer(db, {
+      playerId: requestPlayerId,
+      worldDate: "2026-08-03",
+      satisfaction: 10,
+      ambition: 12,
+      foreignInterest: true,
+      reason: "Wants regular first-team football",
+    });
+    expect(request.status).toBe("PENDING");
+    const acceptedRequest = respondToPlayerTransferRequest(db, request, "ACCEPTED", "2026-08-04");
+    expect(acceptedRequest.status).toBe("ACCEPTED");
+    expect(market.transferStatus(requestPlayerId)?.status).toBe("TRANSFER_LISTED");
+
+    const plan = aiRecruitmentPlan(db, parentClubId, "2026-08-04");
+    expect(plan.identity).toBe(clubTransferIdentity(db, parentClubId));
+    expect(plan.transferBudget).toBeGreaterThanOrEqual(0);
+    expect(plan.wageBudgetRemaining).toBeGreaterThanOrEqual(0);
+    expect(plan.foreignSlotsRemaining).toBeGreaterThanOrEqual(0);
+    expect(plan.needs.clubId).toBe(parentClubId);
+
+    const lowballTarget = transferTargetForClub(db, parentClubId);
+    const firstLowball = createTransferOffer(db, {
+      buyingClubId: parentClubId,
+      sellingClubId: lowballTarget.clubId,
+      playerId: lowballTarget.playerId,
+      submittedAt: "2026-08-05",
+      fee: 0,
+    });
+    evaluateTransferOffer(db, firstLowball, "2026-08-05", "phase-d-lowball-1");
+    const secondLowball = createTransferOffer(db, {
+      buyingClubId: parentClubId,
+      sellingClubId: lowballTarget.clubId,
+      playerId: lowballTarget.playerId,
+      submittedAt: "2026-08-06",
+      fee: 0,
+    });
+    evaluateTransferOffer(db, secondLowball, "2026-08-06", "phase-d-lowball-2");
+    expect(
+      market
+        .negotiationRounds(secondLowball.id)
+        .some((round) => round.message.includes("repeated lowball")),
+    ).toBe(true);
+    db.close();
+
+    const reloaded = openGameDatabase(databasePath);
+    expect(new TransferMarketRepository(reloaded).transferRequests(requestPlayerId)).toHaveLength(
+      1,
+    );
+    expect(new TransferMarketRepository(reloaded).activeLoans("2026-09-02")).toHaveLength(0);
+    reloaded.close();
   });
 
   it("keeps three-season transfer careers playable and deterministic", () => {

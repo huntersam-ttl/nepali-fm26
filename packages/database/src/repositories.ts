@@ -133,6 +133,7 @@ import type {
   TransferWindow,
   NegotiationRound,
   PlayerTransferStatusRecord,
+  PlayerTransferRequest,
   GeneratedPlayerOrigin,
   SquadNeedReport,
   SponsorOrganisation,
@@ -2549,6 +2550,44 @@ export class TransferMarketRepository {
     return row ? mapPlayerTransferStatus(row) : undefined;
   }
 
+  upsertTransferRequest(request: PlayerTransferRequest): void {
+    this.db
+      .prepare(
+        `INSERT INTO player_transfer_requests
+        (id, player_id, club_id, requested_at, reason, pressure_score, status,
+          asking_context_json, decided_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          reason = excluded.reason,
+          pressure_score = excluded.pressure_score,
+          status = excluded.status,
+          asking_context_json = excluded.asking_context_json,
+          decided_at = excluded.decided_at`,
+      )
+      .run(
+        request.id,
+        request.playerId,
+        request.clubId,
+        request.requestedAt,
+        request.reason,
+        request.pressureScore,
+        request.status,
+        request.askingContext ? json.stringify(request.askingContext) : null,
+        request.decidedAt ?? null,
+      );
+  }
+
+  transferRequests(playerId?: EntityId): PlayerTransferRequest[] {
+    const rows = playerId
+      ? this.db
+          .prepare(
+            "SELECT * FROM player_transfer_requests WHERE player_id = ? ORDER BY requested_at, id",
+          )
+          .all(playerId)
+      : this.db.prepare("SELECT * FROM player_transfer_requests ORDER BY requested_at, id").all();
+    return rows.map(mapPlayerTransferRequest);
+  }
+
   upsertAgent(agent: AgentProfile): void {
     this.db
       .prepare(
@@ -4148,6 +4187,20 @@ const mapPlayerTransferStatus = (row: any): PlayerTransferStatusRecord => ({
   reason: row.reason,
   setBy: row.set_by,
   updatedAt: row.updated_at,
+});
+
+const mapPlayerTransferRequest = (row: any): PlayerTransferRequest => ({
+  id: row.id,
+  playerId: row.player_id,
+  clubId: row.club_id,
+  requestedAt: row.requested_at,
+  reason: row.reason,
+  pressureScore: row.pressure_score,
+  status: row.status,
+  askingContext: row.asking_context_json
+    ? json.parse(row.asking_context_json, undefined)
+    : undefined,
+  decidedAt: row.decided_at ?? undefined,
 });
 
 const mapAgentProfile = (row: any): AgentProfile => ({
