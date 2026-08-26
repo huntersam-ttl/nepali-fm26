@@ -178,6 +178,17 @@ export type SimulationClubLifecycleEvent = {
   reason: string;
   provenanceStatus: "SIMULATION_ONLY";
 };
+export type ClubDevelopmentProgramme = {
+  id: EntityId;
+  clubId: EntityId;
+  teamId: EntityId;
+  programmeType: "WOMENS_SENIOR" | "WOMENS_YOUTH" | "YOUTH_PATHWAY";
+  annualBudget: number;
+  annualOperatingCost: number;
+  startedOn: ISODate;
+  status: "ACTIVE" | "SUSPENDED" | "CLOSED";
+  provenanceStatus: "SIMULATION_ONLY";
+};
 
 export type ClubAlias = {
   id: EntityId;
