@@ -700,6 +700,9 @@ export type StaffVacancy = {
   required: boolean;
   assignedPersonId?: EntityId;
   status: "FILLED" | "VACANT" | "UNKNOWN";
+  /** Optional: absent for vacancies imported from real-world data with no known open date. */
+  openedOn?: ISODate;
+  reason?: StaffVacancyReason;
 };
 
 export type StaffLicence = {
@@ -2049,8 +2052,20 @@ export type ClubAiDecision = {
   priorities: Record<string, number>;
   actions: string[];
   context: Record<string, string | number>;
+  identity?: ClubStrategicIdentity;
+  identityStrength?: number;
   status: "SIMULATION_ONLY";
 };
+
+export type ClubStrategicIdentity =
+  | "ACADEMY_FIRST"
+  | "DEVELOPMENT_SELLING"
+  | "AMBITIOUS_SPENDER"
+  | "FINANCIALLY_CAUTIOUS"
+  | "VETERAN_FOCUSED"
+  | "INFRASTRUCTURE_FIRST"
+  | "COMMERCIAL_GROWTH"
+  | "LOAN_DEVELOPMENT_HEAVY";
 
 export type ClubFinancialStatement = {
   id: EntityId;
@@ -3551,4 +3566,51 @@ export type SquadMeeting = {
   outcome: SquadMeetingOutcome;
   summary: string;
   occurredOn: ISODate;
+};
+
+// ---------------------------------------------------------------------------
+// Staff Market & Development — Phase A
+// ---------------------------------------------------------------------------
+
+/** Why a staff vacancy opened — mirrors JobVacancyReason for consistency. */
+export type StaffVacancyReason = "DISMISSED" | "RESIGNED" | "EXPIRED" | "NEW_ROLE";
+
+export type StaffApplicationStatus =
+  "PENDING" | "OFFERED" | "ACCEPTED" | "DECLINED" | "REJECTED" | "WITHDRAWN";
+
+/** An approach from a candidate (or the club) for one open staff vacancy. */
+export type StaffApplication = {
+  id: EntityId;
+  vacancyId: EntityId;
+  personId: EntityId;
+  status: StaffApplicationStatus;
+  createdOn: ISODate;
+  decidedOn?: ISODate;
+  offeredSalaryMinor?: number;
+  offeredContractEnd?: ISODate;
+};
+
+export type StaffEmploymentContractStatus = "ACTIVE" | "EXPIRED" | "TERMINATED" | "RESIGNED";
+
+/**
+ * The employment contract behind a `StaffAppointment` (referenced by its
+ * `contractId`). Appointments track *what role someone holds*; contracts
+ * track *the deal that puts them there* — kept separate so a contract can
+ * expire/renew without inventing a new appointment record each time.
+ *
+ * Named distinctly from the generic `StaffContract` (`Contract & { contractKind:
+ * "STAFF" }`) above, which is unused scaffolding with a different, looser shape.
+ */
+export type StaffEmploymentContract = {
+  id: EntityId;
+  personId: EntityId;
+  appointmentId: EntityId;
+  clubId?: EntityId;
+  teamId?: EntityId;
+  role: FootballStaffRole;
+  contractStart: ISODate;
+  contractEnd?: ISODate;
+  salaryAmountMinor: number;
+  currency: string;
+  status: StaffEmploymentContractStatus;
 };

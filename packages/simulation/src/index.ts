@@ -25,6 +25,7 @@ export * from "./rng.js";
 export * from "./season-engine.js";
 export * from "./scouting.js";
 export * from "./squad-dynamics.js";
+export * from "./staff-market.js";
 export * from "./standings.js";
 export * from "./strength.js";
 export * from "./team-selection.js";

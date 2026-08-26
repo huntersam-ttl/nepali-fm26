@@ -2520,6 +2520,49 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
     `,
   },
   {
+    version: 34,
+    sql: `
+      -- Staff Market & Development: Phase A employment foundation.
+      ALTER TABLE staff_vacancies ADD COLUMN opened_on TEXT;
+      ALTER TABLE staff_vacancies ADD COLUMN reason TEXT;
+
+      CREATE TABLE IF NOT EXISTS staff_applications (
+        id TEXT PRIMARY KEY,
+        vacancy_id TEXT NOT NULL REFERENCES staff_vacancies(id),
+        person_id TEXT NOT NULL REFERENCES persons(id),
+        status TEXT NOT NULL,
+        created_on TEXT NOT NULL,
+        decided_on TEXT,
+        offered_salary_minor INTEGER,
+        offered_contract_end TEXT
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_staff_applications_vacancy
+        ON staff_applications(vacancy_id, status);
+      CREATE INDEX IF NOT EXISTS idx_staff_applications_person
+        ON staff_applications(person_id, status);
+
+      CREATE TABLE IF NOT EXISTS staff_employment_contracts (
+        id TEXT PRIMARY KEY,
+        person_id TEXT NOT NULL REFERENCES persons(id),
+        appointment_id TEXT NOT NULL REFERENCES staff_appointments(id),
+        club_id TEXT REFERENCES clubs(id),
+        team_id TEXT REFERENCES teams(id),
+        role TEXT NOT NULL,
+        contract_start TEXT NOT NULL,
+        contract_end TEXT,
+        salary_amount_minor INTEGER NOT NULL,
+        currency TEXT NOT NULL,
+        status TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_staff_employment_contracts_club
+        ON staff_employment_contracts(club_id, status);
+      CREATE INDEX IF NOT EXISTS idx_staff_employment_contracts_person
+        ON staff_employment_contracts(person_id, status);
+    `,
+  },
+  {
     version: 35,
     sql: `
       CREATE TABLE IF NOT EXISTS club_ai_decision_history (

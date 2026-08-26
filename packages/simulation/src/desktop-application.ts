@@ -120,6 +120,7 @@ import {
   respondToConcern as respondToConcernCommand,
   validActionsForConcern,
 } from "./squad-dynamics.js";
+import { ensureAiStaffAssigned, evaluateStaffContracts } from "./staff-market.js";
 import {
   MatchAlreadyPlayedError,
   MatchCommandError,
@@ -546,6 +547,12 @@ export class DesktopApplicationService {
         // own contract — `buildState` below picks that up automatically.
         ensureAiManagersAssigned(db, updated, context.team.id);
         evaluateBoardConfidence(db, updated);
+
+        // Staff market: AI clubs fill their own support-staff vacancies from
+        // need/budget, and every club's staff contracts near expiry are
+        // renewed or lapse. The player's own club is staffed by hand.
+        ensureAiStaffAssigned(db, updated, context.club?.id);
+        if (context.club?.id) evaluateStaffContracts(db, updated, context.club.id);
 
         // Squad dynamics: only the player's own squad, since only they read
         // an inbox — raised/escalated concerns become inbox items, resolved

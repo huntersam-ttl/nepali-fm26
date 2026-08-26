@@ -8,6 +8,7 @@ import type {
   ClubAsset,
   ClubAlias,
   ClubBoardPolicy,
+  ClubAiDecision,
   ClubBudget,
   ClubDebt,
   ClubEmploymentProfile,
@@ -72,7 +73,11 @@ import type {
   SimulationWorldRanking,
   CompetitionRegistration,
   CompetitionReformProposal,
+  FootballStaffRole,
+  StaffApplication,
   StaffAppointment,
+  StaffEmploymentContract,
+  StaffEmploymentStatus,
   StaffHistoryEvent,
   StaffLicence,
   StaffProfile,
@@ -1836,6 +1841,320 @@ const mapHistoryEvent = (row: any): RelationshipHistoryEvent => ({
   eventType: row.event_type,
   occurredOn: row.occurred_on,
   data: json.parse(row.data_json, undefined),
+});
+
+/** Staff Market & Development — Phase A. Read/query side of the staff tables
+ * whose base inserts live on `WorldRepository`, plus the new applications and
+ * employment-contract tables this phase adds. */
+export class StaffMarketRepository {
+  constructor(private readonly db: GameDatabase) {}
+
+  staffProfile(personId: EntityId): StaffProfile | undefined {
+    const row = this.db.prepare("SELECT * FROM staff_profiles WHERE person_id = ?").get(personId) as any;
+    return row ? mapStaffProfile(row) : undefined;
+  }
+
+  staffSimulationProfile(personId: EntityId): StaffSimulationProfile | undefined {
+    const row = this.db
+      .prepare("SELECT * FROM staff_simulation_profiles WHERE person_id = ?")
+      .get(personId) as any;
+    return row ? mapStaffSimulationProfile(row) : undefined;
+  }
+
+  staffLicencesForPerson(personId: EntityId): StaffLicence[] {
+    return this.db
+      .prepare("SELECT * FROM staff_licences WHERE person_id = ?")
+      .all(personId)
+      .map(mapStaffLicenceRow);
+  }
+
+  activeAppointment(personId: EntityId): StaffAppointment | undefined {
+    const row = this.db
+      .prepare("SELECT * FROM staff_appointments WHERE person_id = ? AND employment_status = 'ACTIVE'")
+      .get(personId) as any;
+    return row ? mapStaffAppointmentRow(row) : undefined;
+  }
+
+  activeAppointmentsForClub(clubId: EntityId): StaffAppointment[] {
+    return this.db
+      .prepare("SELECT * FROM staff_appointments WHERE club_id = ? AND employment_status = 'ACTIVE'")
+      .all(clubId)
+      .map(mapStaffAppointmentRow);
+  }
+
+  appointmentById(id: EntityId): StaffAppointment | undefined {
+    const row = this.db.prepare("SELECT * FROM staff_appointments WHERE id = ?").get(id) as any;
+    return row ? mapStaffAppointmentRow(row) : undefined;
+  }
+
+  updateAppointmentStatus(id: EntityId, status: StaffEmploymentStatus, endDate?: string): void {
+    this.db
+      .prepare("UPDATE staff_appointments SET employment_status = ?, end_date = ? WHERE id = ?")
+      .run(status, endDate ?? null, id);
+  }
+
+  /** Staff people with no currently-active appointment anywhere — the free-agent pool. */
+  unemployedStaffProfiles(): StaffProfile[] {
+    return this.db
+      .prepare(
+        `SELECT sp.* FROM staff_profiles sp
+        WHERE NOT EXISTS (
+          SELECT 1 FROM staff_appointments sa
+          WHERE sa.person_id = sp.person_id AND sa.employment_status = 'ACTIVE'
+        )`,
+      )
+      .all()
+      .map(mapStaffProfile);
+  }
+
+  upsertVacancy(vacancy: StaffVacancy): void {
+    this.db
+      .prepare(
+        `INSERT INTO staff_vacancies
+        (id, organisation_type, club_id, team_id, federation_id, academy_id, organisation_name,
+          role, required, assigned_person_id, status, opened_on, reason)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          assigned_person_id = excluded.assigned_person_id,
+          status = excluded.status`,
+      )
+      .run(
+        vacancy.id,
+        vacancy.organisationType,
+        vacancy.clubId ?? null,
+        vacancy.teamId ?? null,
+        vacancy.federationId ?? null,
+        vacancy.academyId ?? null,
+        vacancy.organisationName ?? null,
+        vacancy.role,
+        Number(vacancy.required),
+        vacancy.assignedPersonId ?? null,
+        vacancy.status,
+        vacancy.openedOn ?? null,
+        vacancy.reason ?? null,
+      );
+  }
+
+  vacancyById(id: EntityId): StaffVacancy | undefined {
+    const row = this.db.prepare("SELECT * FROM staff_vacancies WHERE id = ?").get(id) as any;
+    return row ? mapStaffVacancyRow(row) : undefined;
+  }
+
+  openVacancyForRole(clubId: EntityId, role: FootballStaffRole): StaffVacancy | undefined {
+    const row = this.db
+      .prepare("SELECT * FROM staff_vacancies WHERE club_id = ? AND role = ? AND status = 'VACANT'")
+      .get(clubId, role) as any;
+    return row ? mapStaffVacancyRow(row) : undefined;
+  }
+
+  openVacanciesForClub(clubId: EntityId): StaffVacancy[] {
+    return this.db
+      .prepare("SELECT * FROM staff_vacancies WHERE club_id = ? AND status = 'VACANT'")
+      .all(clubId)
+      .map(mapStaffVacancyRow);
+  }
+
+  allOpenVacancies(): StaffVacancy[] {
+    return this.db
+      .prepare("SELECT * FROM staff_vacancies WHERE status = 'VACANT' AND club_id IS NOT NULL")
+      .all()
+      .map(mapStaffVacancyRow);
+  }
+
+  insertApplication(application: StaffApplication): void {
+    this.db
+      .prepare(
+        `INSERT INTO staff_applications
+        (id, vacancy_id, person_id, status, created_on, decided_on, offered_salary_minor, offered_contract_end)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          status = excluded.status,
+          decided_on = excluded.decided_on,
+          offered_salary_minor = excluded.offered_salary_minor,
+          offered_contract_end = excluded.offered_contract_end`,
+      )
+      .run(
+        application.id,
+        application.vacancyId,
+        application.personId,
+        application.status,
+        application.createdOn,
+        application.decidedOn ?? null,
+        application.offeredSalaryMinor ?? null,
+        application.offeredContractEnd ?? null,
+      );
+  }
+
+  applicationById(id: EntityId): StaffApplication | undefined {
+    const row = this.db.prepare("SELECT * FROM staff_applications WHERE id = ?").get(id) as any;
+    return row ? mapStaffApplicationRow(row) : undefined;
+  }
+
+  applicationsForVacancy(vacancyId: EntityId): StaffApplication[] {
+    return this.db
+      .prepare("SELECT * FROM staff_applications WHERE vacancy_id = ?")
+      .all(vacancyId)
+      .map(mapStaffApplicationRow);
+  }
+
+  upsertEmploymentContract(contract: StaffEmploymentContract): void {
+    this.db
+      .prepare(
+        `INSERT INTO staff_employment_contracts
+        (id, person_id, appointment_id, club_id, team_id, role, contract_start, contract_end,
+          salary_amount_minor, currency, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          contract_end = excluded.contract_end,
+          salary_amount_minor = excluded.salary_amount_minor,
+          status = excluded.status`,
+      )
+      .run(
+        contract.id,
+        contract.personId,
+        contract.appointmentId,
+        contract.clubId ?? null,
+        contract.teamId ?? null,
+        contract.role,
+        contract.contractStart,
+        contract.contractEnd ?? null,
+        contract.salaryAmountMinor,
+        contract.currency,
+        contract.status,
+      );
+  }
+
+  employmentContractById(id: EntityId): StaffEmploymentContract | undefined {
+    const row = this.db.prepare("SELECT * FROM staff_employment_contracts WHERE id = ?").get(id) as any;
+    return row ? mapStaffEmploymentContractRow(row) : undefined;
+  }
+
+  activeEmploymentContractsForClub(clubId: EntityId): StaffEmploymentContract[] {
+    return this.db
+      .prepare("SELECT * FROM staff_employment_contracts WHERE club_id = ? AND status = 'ACTIVE'")
+      .all(clubId)
+      .map(mapStaffEmploymentContractRow);
+  }
+
+  employmentContractsForPerson(personId: EntityId): StaffEmploymentContract[] {
+    return this.db
+      .prepare("SELECT * FROM staff_employment_contracts WHERE person_id = ? ORDER BY contract_start")
+      .all(personId)
+      .map(mapStaffEmploymentContractRow);
+  }
+
+  staffHistoryForPerson(personId: EntityId): StaffHistoryEvent[] {
+    return this.db
+      .prepare("SELECT * FROM staff_history_events WHERE person_id = ? ORDER BY occurred_on")
+      .all(personId)
+      .map(mapStaffHistoryEventRow);
+  }
+}
+
+const mapStaffProfile = (row: any): StaffProfile => ({
+  id: row.id,
+  personId: row.person_id,
+  preferredRole: row.preferred_role ?? undefined,
+  salaryExpectation: row.salary_expectation ?? undefined,
+  reputation: row.reputation ?? undefined,
+  countryKnowledge: json.parse(row.country_knowledge_json, []),
+  clubKnowledge: json.parse(row.club_knowledge_json, []),
+  availability: row.availability ?? undefined,
+  workEligibilityStatus: row.work_eligibility_status ?? undefined,
+});
+
+const mapStaffSimulationProfile = (row: any): StaffSimulationProfile => ({
+  id: row.id,
+  personId: row.person_id,
+  coachingTechnical: row.coaching_technical,
+  coachingTactical: row.coaching_tactical,
+  coachingPhysical: row.coaching_physical,
+  coachingMental: row.coaching_mental,
+  goalkeeping: row.goalkeeping,
+  youthDevelopment: row.youth_development,
+  manManagement: row.man_management,
+  status: "SIMULATION_ONLY",
+});
+
+const mapStaffLicenceRow = (row: any): StaffLicence => ({
+  id: row.id,
+  personId: row.person_id,
+  licenceType: row.licence_type,
+  issuer: row.issuer,
+  issueDate: row.issue_date ?? undefined,
+  expiryDate: row.expiry_date ?? undefined,
+  status: row.status,
+});
+
+const mapStaffAppointmentRow = (row: any): StaffAppointment => ({
+  id: row.id,
+  personId: row.person_id,
+  organisationType: row.organisation_type,
+  clubId: row.club_id ?? undefined,
+  teamId: row.team_id ?? undefined,
+  federationId: row.federation_id ?? undefined,
+  academyId: row.academy_id ?? undefined,
+  organisationName: row.organisation_name ?? undefined,
+  role: row.role,
+  startDate: row.start_date ?? undefined,
+  endDate: row.end_date ?? undefined,
+  employmentStatus: row.employment_status,
+  contractId: row.contract_id ?? undefined,
+  serviceRankTitle: row.service_rank_title ?? undefined,
+});
+
+const mapStaffVacancyRow = (row: any): StaffVacancy => ({
+  id: row.id,
+  organisationType: row.organisation_type,
+  clubId: row.club_id ?? undefined,
+  teamId: row.team_id ?? undefined,
+  federationId: row.federation_id ?? undefined,
+  academyId: row.academy_id ?? undefined,
+  organisationName: row.organisation_name ?? undefined,
+  role: row.role,
+  required: Boolean(row.required),
+  assignedPersonId: row.assigned_person_id ?? undefined,
+  status: row.status,
+  openedOn: row.opened_on ?? undefined,
+  reason: row.reason ?? undefined,
+});
+
+const mapStaffApplicationRow = (row: any): StaffApplication => ({
+  id: row.id,
+  vacancyId: row.vacancy_id,
+  personId: row.person_id,
+  status: row.status,
+  createdOn: row.created_on,
+  decidedOn: row.decided_on ?? undefined,
+  offeredSalaryMinor: row.offered_salary_minor ?? undefined,
+  offeredContractEnd: row.offered_contract_end ?? undefined,
+});
+
+const mapStaffEmploymentContractRow = (row: any): StaffEmploymentContract => ({
+  id: row.id,
+  personId: row.person_id,
+  appointmentId: row.appointment_id,
+  clubId: row.club_id ?? undefined,
+  teamId: row.team_id ?? undefined,
+  role: row.role,
+  contractStart: row.contract_start,
+  contractEnd: row.contract_end ?? undefined,
+  salaryAmountMinor: row.salary_amount_minor,
+  currency: row.currency,
+  status: row.status,
+});
+
+const mapStaffHistoryEventRow = (row: any): StaffHistoryEvent => ({
+  id: row.id,
+  personId: row.person_id,
+  eventType: row.event_type,
+  occurredOn: row.occurred_on,
+  appointmentId: row.staff_appointment_id ?? undefined,
+  clubId: row.club_id ?? undefined,
+  teamId: row.team_id ?? undefined,
+  federationId: row.federation_id ?? undefined,
+  academyId: row.academy_id ?? undefined,
+  description: row.description ?? undefined,
 });
 
 export class CompetitionRepository {
@@ -5587,11 +5906,17 @@ export class ClubEconomyRepository {
     const rows = (clubId
       ? this.db.prepare("SELECT * FROM club_ai_decision_history WHERE club_id = ? ORDER BY decision_date, id").all(clubId)
       : this.db.prepare("SELECT * FROM club_ai_decision_history ORDER BY club_id, decision_date, id").all()) as any[];
-    return rows.map((row) => ({
+    return rows.map((row) => {
+      const context = json.parse(row.context_json, {}) as any;
+      return {
       id: row.id, clubId: row.club_id, date: row.decision_date, seasonLabel: row.season_label,
       objective: row.objective, priorities: json.parse(row.priorities_json, {}), actions: json.parse(row.actions_json, []),
-      context: json.parse(row.context_json, {}), status: row.status,
-    }));
+      context,
+      identity: context.strategicIdentity,
+      identityStrength: context.identityStrength,
+      status: row.status,
+      };
+    });
   }
 
   upsertFinancialStatement(statement: ClubFinancialStatement): void {
