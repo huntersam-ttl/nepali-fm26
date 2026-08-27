@@ -38,6 +38,7 @@ type TruePlayer = {
   assists: number;
   yellowCards: number;
   redCards: number;
+  marketRegion?: ExternalFootballRegion;
 };
 
 export type RecruitmentSearchFilters = {
@@ -239,7 +240,7 @@ export const searchRegionalCandidatesForClub = (
 ): RecruitmentSearchResult[] => {
   const accessible = new Set(accessibleRecruitmentRegions(db, clubId));
   return searchPlayersForClub(db, clubId, filters, worldDate)
-    .map((candidate) => ({ ...candidate, marketRegion: marketRegionForPlayer(db, candidate.playerId) }))
+    .map((candidate) => candidate)
     .filter((candidate) => candidate.marketRegion && accessible.has(candidate.marketRegion))
     .sort((a, b) => String(a.marketRegion).localeCompare(String(b.marketRegion)) || String(a.playerId).localeCompare(String(b.playerId)))
     .slice(0, Math.max(1, Math.min(limit, 24)));
@@ -705,6 +706,7 @@ const searchResult = (
   estimatedAbility: knowledge?.abilityKnowledge.estimatedAbility as KnowledgeRange | undefined,
   estimatedPotential: knowledge?.potentialKnowledge.estimatedPotential as string | undefined,
   recentAppearances: knowledge?.careerKnowledge.recentAppearances as number | undefined,
+  marketRegion: player.marketRegion,
 });
 
 const passesFilters = (
@@ -769,6 +771,7 @@ const truePlayers = (db: GameDatabase, playerIds?: readonly EntityId[]): TruePla
   return db
     .prepare(
       `SELECT p.id AS player_id, p.full_name, p.date_of_birth, pfp.current_club_id,
+        co.iso_code AS market_region,
         pfp.factual_json, pfp.simulation_json, pa.primary_position, pa.technical_json,
         pa.mental_json, pa.physical_json, pa.goalkeeping_json, tpa.team_id,
         COALESCE(SUM(pss.appearances), 0) AS appearances,
@@ -779,6 +782,9 @@ const truePlayers = (db: GameDatabase, playerIds?: readonly EntityId[]): TruePla
       FROM persons p
       LEFT JOIN player_factual_profiles pfp ON pfp.player_id = p.id
       LEFT JOIN player_attributes pa ON pa.person_id = p.id
+      LEFT JOIN player_contracts pc ON pc.player_id = p.id AND pc.status = 'ACTIVE'
+      LEFT JOIN clubs c ON c.id = COALESCE(pfp.current_club_id, pc.club_id)
+      LEFT JOIN countries co ON co.id = c.country_id
       LEFT JOIN team_person_assignments tpa ON tpa.person_id = p.id AND tpa.role = 'PLAYER'
       LEFT JOIN player_season_stats pss ON pss.person_id = p.id
       ${where}
@@ -796,6 +802,7 @@ const playersForClub = (db: GameDatabase, clubId: EntityId): TruePlayer[] =>
   db
     .prepare(
       `SELECT p.id AS player_id, p.full_name, p.date_of_birth, pfp.current_club_id,
+        co.iso_code AS market_region,
         pfp.factual_json, pfp.simulation_json, pa.primary_position, pa.technical_json,
         pa.mental_json, pa.physical_json, pa.goalkeeping_json, tpa.team_id,
         COALESCE(SUM(pss.appearances), 0) AS appearances,
@@ -806,6 +813,9 @@ const playersForClub = (db: GameDatabase, clubId: EntityId): TruePlayer[] =>
       FROM persons p
       LEFT JOIN player_factual_profiles pfp ON pfp.player_id = p.id
       LEFT JOIN player_attributes pa ON pa.person_id = p.id
+      LEFT JOIN player_contracts pc ON pc.player_id = p.id AND pc.status = 'ACTIVE'
+      LEFT JOIN clubs c ON c.id = COALESCE(pfp.current_club_id, pc.club_id)
+      LEFT JOIN countries co ON co.id = c.country_id
       LEFT JOIN team_person_assignments tpa ON tpa.person_id = p.id AND tpa.role = 'PLAYER'
       LEFT JOIN player_season_stats pss ON pss.person_id = p.id
       WHERE pfp.current_club_id = ?
@@ -884,6 +894,7 @@ const mapTruePlayer = (row: any): TruePlayer => {
     assists: Number(row.assists ?? 0),
     yellowCards: Number(row.yellow_cards ?? 0),
     redCards: Number(row.red_cards ?? 0),
+    marketRegion: countryToRecruitmentRegion(row.market_region),
   };
 };
 

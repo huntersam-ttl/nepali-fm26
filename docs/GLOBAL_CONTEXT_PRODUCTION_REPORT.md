@@ -243,3 +243,47 @@ PASS.
 `NOT ACTIVE`: generated corridor reachability is proven, but imported-data corridor participation,
 production negative cases, and full stage-eight classification remain incomplete. Loans remain the
 next separate transfer feature after this closure.
+
+## Imported Candidate Integration
+
+The remaining imported-data gap is classified `IMPORTED_ROWS_NOT_PRESENT_IN_TEST_WORLD` /
+`TEST_FIXTURE_ONLY`: this checkout has no canonical imported global seed or workbook-derived test
+artifact, only the Nepal registry and generated foreign-world fixtures. No workbook was read or
+applied during this pass.
+
+### Africa
+
+Canonical club-country metadata now resolves Africa through the shared candidate path and preserves
+knowledge/position gates. Generated Nigerian coverage passes; imported Africa proof awaits the
+canonical seed.
+
+### South Asia
+
+India and the modeled regional country codes use the same mapping. Generated Indian coverage passes;
+imported South Asia proof awaits the canonical seed.
+
+## Negative Production Cases
+
+Region access does not override ordinary filters: invalid position filtering returns no candidates and
+the existing knowledge gate remains authoritative. Imported negative cases are blocked by the same
+missing fixture.
+
+## Imported vs Generated Compatibility
+
+Both classes use the same country/region resolver. Generated players without factual profiles resolve
+through active contracts; imported players resolve through factual current-club metadata.
+
+## Candidate Bounds
+
+Regional results remain capped at 12, with a helper maximum of 24; the AI path samples at most four.
+Region is resolved in the player query rather than by per-candidate lookups.
+
+## Performance
+
+No broad optimization or recruitment-rate tuning was performed. Targeted tests remain bounded; the
+known full stage-eight runtime issue is separate.
+
+## Production Activation Decision
+
+`NOT ACTIVE`: imported Africa/South Asia integration and imported negative production cases require a
+canonical imported seed/test artifact. Loans remain separate.
