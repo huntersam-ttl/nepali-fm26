@@ -30,6 +30,7 @@ export * from "./womens-youth.js";
 export * from "./ownership.js";
 export * from "./federation-politics.js";
 export * from "./external-football-world.js";
+export * from "./foreign-football-world.js";
 export * from "./clubmart.js";
 export * from "./ai-club-strategy.js";
 export * from "./international-football.js";

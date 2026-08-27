@@ -64,6 +64,10 @@ import { initializeTransferMarketForSave, simulateTransferWindow } from "./trans
 import { runClubAiSeasonPlanning } from "./ai-club-strategy.js";
 import { processExternalFootballWorldSeason } from "./external-football-world.js";
 import {
+  initializeForeignFootballWorldForSave,
+  processForeignFootballWorldSeason,
+} from "./foreign-football-world.js";
+import {
   initializeYouthSystemForSave,
   runAnnualYouthAndRetirementCycle,
   type YouthAnnualReport,
@@ -208,6 +212,11 @@ export const simulateNepalCareer = (input: {
       seed: input.seed,
     });
   }
+  initializeForeignFootballWorldForSave({
+    db: input.db,
+    worldDate: save.worldDate,
+    seed: `${input.seed}:foreign-world`,
+  });
   if (economyEnabled) {
     advanceMacroEconomyForWorldDate(input.db, { date: save.worldDate, seed: input.seed });
     initializeClubEconomyForSave({ db: input.db, worldDate: save.worldDate, seed: input.seed });
@@ -358,6 +367,11 @@ export const simulateNepalCareer = (input: {
         seed: `${input.seed}:international:${index}`,
       });
     }
+    processForeignFootballWorldSeason({
+      db: input.db,
+      seasonEndDate: latestSeasonEnd(activeSeasons),
+      seed: `${input.seed}:foreign-world:${index}`,
+    });
     preseasonReports.push(
       ...repairPreseasonContinuity({
         db: input.db,
@@ -429,7 +443,7 @@ const processEconomyForSeasonPeriod = (
       date: `${endYear}-${String(month).padStart(2, "0")}-28`,
       seed: `${input.seed}:${month}`,
     });
-    if (month === 8)
+    if (month === 1)
       processExternalFootballWorldSeason(db, { seasonLabel: String(endYear), seed: input.seed });
     runClubAiSeasonPlanning(db, {
       date: `${endYear}-${String(month).padStart(2, "0")}-28`,
