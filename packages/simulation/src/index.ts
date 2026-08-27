@@ -70,3 +70,4 @@ export * from "./supporter-culture.js";
 export * from "./football-history.js";
 export * from "./workforce-supply.js";
 export * from "./referee-assignment.js";
+export * from "./global-football-import.js";

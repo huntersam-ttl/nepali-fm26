@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 62;
+export const CURRENT_DATABASE_VERSION = 63;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -3179,6 +3179,19 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       );
       CREATE INDEX IF NOT EXISTS idx_external_club_context_league ON external_club_context(league_id);
       CREATE INDEX IF NOT EXISTS idx_foreign_interest_target ON foreign_scouting_interest(target_player_id, level);
+    `,
+  },
+  {
+    version: 63,
+    sql: `
+      CREATE TABLE IF NOT EXISTS global_dataset_imports (
+        dataset_version TEXT PRIMARY KEY, source_path TEXT NOT NULL, applied_on TEXT NOT NULL, status TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS global_dataset_import_records (
+        dataset_version TEXT NOT NULL, entity_type TEXT NOT NULL, external_id TEXT NOT NULL,
+        canonical_id TEXT NOT NULL, action TEXT NOT NULL, provenance TEXT NOT NULL, payload_json TEXT NOT NULL,
+        PRIMARY KEY(dataset_version, entity_type, external_id)
+      );
     `,
   },
 ];

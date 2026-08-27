@@ -23,6 +23,7 @@ export type GlobalImportPlan = {
   playerClubHistory: WorkbookRow[];
   nepalForeignPlayers: WorkbookRow[];
   duplicateCandidates: WorkbookRow[];
+  manualReviewExternalIds: string[];
   actions: Array<{ entityType: string; externalId: string; action: "NEW" | "MAPPED" | "UNCHANGED" | "REVIEW"; canonicalId?: string }>;
 };
 
@@ -236,7 +237,8 @@ const buildPlan = (sheets: Record<string, WorkbookRow[]>, sourcePath: string, du
   const rows = (name: string) => sheets[name] ?? [];
   const actions: GlobalImportPlan["actions"] = [];
   for (const [sheet, id] of Object.entries(idColumns)) for (const row of rows(sheet)) actions.push({ entityType: sheet, externalId: text(row[id.column]), action: "NEW" });
-  return { datasetVersion: "football_world_import_v16", sourcePath, generatedAt: "DETERMINISTIC", sources: rows("SOURCES"), federations: rows("FEDERATIONS"), competitions: rows("COMPETITIONS"), leagues: rows("LEAGUES").map((row) => ({ ...row, is_playable_in_game: text(row.country).toUpperCase() === "NEPAL" ? "YES" : "NO", simulation_depth: text(row.country).toUpperCase() === "NEPAL" ? "FULL" : "CONTEXT_ONLY" })), clubs: rows("CLUBS").map((row) => ({ ...row, is_playable_in_game: "NO", simulation_depth: "CONTEXT_ONLY" })), players: rows("PLAYERS"), staff: rows("STAFF"), playerClubHistory: rows("PLAYER_CLUB_HISTORY"), nepalForeignPlayers: rows("NEPAL_FOREIGN_PLAYERS"), duplicateCandidates: duplicates, actions: actions.sort((a, b) => `${a.entityType}:${a.externalId}`.localeCompare(`${b.entityType}:${b.externalId}`)) };
+  const datasetVersion = (sourcePath.split(/[\\/]/).pop() ?? "football_world_import_v16.xlsx").replace(/\.xlsx$/i, "");
+  return { datasetVersion, sourcePath, generatedAt: "DETERMINISTIC", sources: rows("SOURCES"), federations: rows("FEDERATIONS"), competitions: rows("COMPETITIONS"), leagues: rows("LEAGUES").map((row) => ({ ...row, is_playable_in_game: text(row.country).toUpperCase() === "NEPAL" ? "YES" : "NO", simulation_depth: text(row.country).toUpperCase() === "NEPAL" ? "FULL" : "CONTEXT_ONLY" })), clubs: rows("CLUBS").map((row) => ({ ...row, is_playable_in_game: "NO", simulation_depth: "CONTEXT_ONLY" })), players: rows("PLAYERS"), staff: rows("STAFF"), playerClubHistory: rows("PLAYER_CLUB_HISTORY"), nepalForeignPlayers: rows("NEPAL_FOREIGN_PLAYERS"), duplicateCandidates: duplicates, manualReviewExternalIds: rows("CLUBS").filter((row) => !text(row.league)).map((row) => text(row.club_external_id)), actions: actions.sort((a, b) => `${a.entityType}:${a.externalId}`.localeCompare(`${b.entityType}:${b.externalId}`)) };
 };
 
 export const inspectGlobalFootballWorkbook = (sourcePath: string, mode: GlobalImportMode = "VALIDATE"): GlobalImportReport => {
@@ -258,7 +260,7 @@ export const inspectGlobalFootballWorkbook = (sourcePath: string, mode: GlobalIm
   }
   statistics.findings_fatal = findings.filter((finding) => finding.severity === "FATAL").length; statistics.findings_error = findings.filter((finding) => finding.severity === "ERROR").length; statistics.findings_warning = findings.filter((finding) => finding.severity === "WARNING").length;
   const plan = mode === "VALIDATE" ? undefined : buildPlan(sheets, sourcePath, duplicates);
-  return { mode, datasetVersion: "football_world_import_v16", sourcePath, sheets: Object.keys(parsed.sheets).sort(), statistics, findings, ...(plan ? { plan } : {}) };
+  return { mode, datasetVersion: plan?.datasetVersion ?? "football_world_import_v16", sourcePath, sheets: Object.keys(parsed.sheets).sort(), statistics, findings, ...(plan ? { plan } : {}) };
 };
 
 export const applyGlobalFootballImport = (report: GlobalImportReport, store: GlobalImportStore): void => {
