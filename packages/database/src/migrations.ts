@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 60;
+export const CURRENT_DATABASE_VERSION = 61;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -3106,6 +3106,41 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
         ON fixture_official_assignments(assigned_on);
       CREATE INDEX IF NOT EXISTS idx_fixture_official_assignments_referee
         ON fixture_official_assignments(referee_person_id);
+    `,
+  },
+  {
+    version: 61,
+    sql: `
+      CREATE TABLE IF NOT EXISTS club_ownership_succession (
+        club_id TEXT PRIMARY KEY REFERENCES clubs(id),
+        status TEXT NOT NULL,
+        exit_reason TEXT NOT NULL,
+        started_on TEXT NOT NULL,
+        next_review_on TEXT NOT NULL,
+        interim_holder_id TEXT REFERENCES persons(id),
+        candidate_person_id TEXT REFERENCES persons(id),
+        active_offer_id TEXT REFERENCES ownership_acquisition_offers(id),
+        completed_on TEXT,
+        attempt_count INTEGER NOT NULL DEFAULT 0,
+        provenance_status TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_ownership_succession_review
+        ON club_ownership_succession(status, next_review_on);
+      CREATE TABLE IF NOT EXISTS club_ownership_history (
+        id TEXT PRIMARY KEY,
+        club_id TEXT NOT NULL REFERENCES clubs(id),
+        holder_id TEXT REFERENCES persons(id),
+        holder_name TEXT NOT NULL,
+        start_date TEXT NOT NULL,
+        end_date TEXT,
+        exit_reason TEXT,
+        successor_holder_id TEXT REFERENCES persons(id),
+        acquisition_price INTEGER,
+        percentage REAL,
+        provenance_status TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_ownership_history_club
+        ON club_ownership_history(club_id, start_date, id);
     `,
   },
 ];

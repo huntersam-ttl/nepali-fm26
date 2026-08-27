@@ -70,6 +70,7 @@ import {
   reconcileWorkforceSupply,
   type WorkforceReconciliationReport,
 } from "./workforce-supply.js";
+import { processOwnershipContinuity } from "./ownership.js";
 
 export type CompetitionSeasonLifecycleStatus =
   | "NOT_STARTED"
@@ -392,6 +393,7 @@ const processEconomyForSeasonPeriod = (
     seasonLabel: String(endYear),
     date: input.seasonEndDate,
   });
+  processOwnershipContinuity(db, { date: input.seasonEndDate, seed: `${input.seed}:ownership` });
 };
 
 const processFederationForSeasonPeriod = (
