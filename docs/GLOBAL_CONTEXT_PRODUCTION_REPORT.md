@@ -64,14 +64,11 @@ test. A complete end-to-end Nepal-to-foreign transfer transaction still needs a 
 
 `NOT ACTIVE`
 
-## Transfer Integration
+## Competing Offers
 
-The preserved transfer-market change and starting-state integrity regression are now committed.
-The market can consume imported canonical players through the existing player, contract, offer,
-registration, finance, and history model; global scouting signals are bounded to three offer
-candidates per window. The normal transfer tick produced three permanent external offers plus a
-foreign-player-to-Nepal affiliation. The deterministic Nepal-to-foreign run stopped at player terms
-without a completed transfer, so no activation claim is made.
+Open and accepted offers now resolve at a deterministic market tick. The resolver ranks the latest
+persisted player/agent terms, closes losing offers, and uses the canonical completion path. Completion
+also guards against stale same-tick offers and closes remaining competitors.
 
 ## Transfer Bootstrap Performance
 
@@ -80,29 +77,60 @@ the full player world. A single factual-player count map reduced imported-save b
 seconds after the earlier >90-second bound. Global recruitment bootstrap now skips redundant full
 knowledge seeding for context-only clubs.
 
-## Nepal → Foreign
+## Reverse Free-Agent Signing
 
-Three permanent offers were created through normal transfer-tick progression. Player-term acceptance
-and completed settlement remain the outstanding deterministic scenario.
+Targeted coverage proves a foreign-affiliated free agent can choose Nepal when its persisted salary,
+role, and contract terms are best; a stronger foreign offer wins in the rejection case. No Nepal bias
+is used.
 
-## Foreign → Nepal
+## Contracted Reverse Purchase
 
-Normal free-agent selection now prioritizes foreign context candidates for Nepal squad needs; a
-foreign-player-to-Nepal affiliation was observed in the production-scale tick.
+The same resolver accepts contracted offers only after seller acceptance; a full production-scale
+contracted reverse settlement remains pending.
 
-## Registration / Finance / Identity / Persistence
+## Registration
 
-Existing registration, exact-once settlement, canonical identity, and persistence logic remains
-authoritative. End-to-end completed-transfer reload is pending.
+Canonical competition-registration seeding remains authoritative; targeted reverse registration
+coverage is not yet complete.
+
+## Reverse Finance
+
+Free-agent transfer fee is zero and canonical wage/fee accounting is used. Exact-once reverse finance
+has not yet received a production-scale audit.
+
+## Forward Finance Audit
+
+Forward settlement remains on the existing idempotent ledger path; a new exact-once audit is pending.
+
+## Identity
+
+The existing canonical person/player identity path is preserved.
+
+## History
+
+The winning free-agent path writes one `FREE_AGENT_SIGNED` event; rejected competitors do not.
+
+## Persistence
+
+Targeted pre/post reload coverage confirms one winning contract and one signing-history event.
+
+## Corridors
+
+Africa and South-Asia shortlist reachability remain pending.
 
 ## Stage-Eight
 
 The integrity test passes 4/4. The broader stage-eight suite exceeded the bounded execution window.
 
+## Production Activation Decision
+
+`NOT ACTIVE`: reverse registration, finance audit, contracted reverse settlement, corridor proof, and
+full forward/reverse production evidence are incomplete.
+
 ## Remaining Transfer Features
 
-Complete deterministic player-term acceptance for one Nepal-to-foreign offer, then run bidirectional
-finance/history/reload validation. Loans remain a separate enhancement.
+Complete the bounded forward/reverse finance and registration audit, then run contracted reverse and
+corridor checks. Loans remain a separate enhancement.
 
 ## Nepal → Foreign E2E
 
@@ -112,8 +140,8 @@ were persisted; the same canonical identity was retained.
 
 ## Foreign → Nepal E2E
 
-The bounded Nepal free-agent selection can choose an imported foreign candidate, but a complete
-contract, registration, finance, history, and reload proof is still outstanding.
+Targeted free-agent competition is green: Nepal wins legitimately or loses legitimately, with one
+contract/history result and reload persistence. Production-scale imported-player proof remains open.
 
 ## Player/Agent Decision
 
@@ -125,7 +153,6 @@ the deterministic scenario; it does not make foreign destinations universally ac
 The starting-integrity regression remains 4/4 green. The broader stage-eight suite still exceeds the
 bounded run window. Africa/South-Asia corridor and loan verification remain follow-up work.
 
-The reverse-flow reproduction classified the remaining stop as `PERSONAL_TERMS_NOT_ADVANCED`: the
-selected foreign free agent had competing active offers, so existing player-decision logic rejected
-or withdrew the offer rather than forcing acceptance. Exact forward finance audit and completed
-reverse save/reload proof remain open. Production activation remains `NOT ACTIVE`.
+The competing-offer root cause was missing bounded resolution after `COMPETING_OFFER`; offers could
+remain open or be retried against stale state. The targeted closure pass fixes that state transition.
+The integrity test remains 4/4; the broad stage-eight suite remains slow and is not claimed green.

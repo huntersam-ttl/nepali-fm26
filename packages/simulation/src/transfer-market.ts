@@ -60,8 +60,13 @@ export type TransferWindowSimulationReport = {
   worldDate: string;
   windowDates: Array<{ openDate: string; closeDate: string; type: string }>;
   offers: number;
+  /** Seller agreed to the fee. */
   accepted: number;
+  /** Seller declined the fee. */
   rejected: number;
+  /** Seller agreed but the player side did not conclude. */
+  playerRejected: number;
+  /** Deals the repository confirms as COMPLETED. */
   completedTransfers: number;
   freeAgentSignings: number;
   loans: number;
@@ -166,6 +171,8 @@ export const simulateTransferWindow = (input: {
   let freeAgentSignings = 0;
   let loans = 0;
   let loanReturns = 0;
+  /** Seller agreed but the player side did not conclude. */
+  let playerRejected = 0;
   let renewals = 0;
   let releases = 0;
   let rejected = 0;
@@ -242,7 +249,18 @@ export const simulateTransferWindow = (input: {
       ) {
         accepted += 1;
         completePermanentTransfer(input.db, offer, input.worldDate, input.seed);
-        completedTransfers += 1;
+        /*
+         * The seller accepting is not the deal closing: personal terms can still
+         * stall, be rejected, or be withdrawn. Count what the repository says
+         * actually completed, so the diagnostic reports deals rather than
+         * attempts.
+         */
+        const settled = market.transferOffers().find((item) => item.id === offer.id);
+        if (settled?.status === "COMPLETED") {
+          completedTransfers += 1;
+        } else {
+          playerRejected += 1;
+        }
         continue;
       }
       rejected += 1;
@@ -315,6 +333,7 @@ export const simulateTransferWindow = (input: {
     offers: offers.length,
     accepted,
     rejected,
+    playerRejected,
     completedTransfers,
     freeAgentSignings,
     loans,
@@ -351,6 +370,21 @@ const processBoundedForeignInterest = (
     .slice(0, 3)) {
     if (market.negotiationRounds(offer.id).some((round) => round.actor === "PLAYER" || round.actor === "PLAYER_AGENT")) continue;
     completePermanentTransfer(db, offer, worldDate, `${seed}:global-interest`, {
+      prefersOverseas: true,
+      expectedPlayingTime: "FIRST_TEAM",
+      ambition: 15,
+      securityPreference: 8,
+      continentalOpportunity: true,
+    });
+  }
+  const resolvablePlayers = new Set(
+    market
+      .transferOffers()
+      .filter((offer) => offer.status === "COMPETING_OFFER")
+      .map((offer) => offer.playerId),
+  );
+  for (const playerId of resolvablePlayers) {
+    resolveCompetingPlayerOffers(db, playerId, worldDate, `${seed}:global-interest`, {
       prefersOverseas: true,
       expectedPlayingTime: "FIRST_TEAM",
       ambition: 15,
@@ -858,11 +892,13 @@ export type PlayerPersonalTermsResult = {
   preferredOfferId?: EntityId;
   represented: boolean;
   /**
-   * Wage the player treats as the baseline for this move. A stalled buyer needs
-   * this to know what "improved personal terms" actually means; without it the
-   * AI can only guess, which is why negotiations used to deadlock.
+   * Wage the player treats as the baseline for this move, and the squad role
+   * they expect. A stalled buyer needs both to know what "improved personal
+   * terms" actually means; without them the AI can only guess, which is why
+   * negotiations used to deadlock.
    */
   salaryFloor?: number;
+  expectedSquadRole?: PlayerContractRecord["squadRole"];
 };
 
 export const assessAgentInterest = (
@@ -1075,6 +1111,29 @@ const defaultPersonalTerms = (
   };
 };
 
+const latestPersonalTerms = (
+  db: GameDatabase,
+  offer: TransferOffer,
+  worldDate: string,
+  seed: string,
+): PlayerPersonalTerms => {
+  const fallback = defaultPersonalTerms(db, offer, worldDate, seed);
+  const round = new TransferMarketRepository(db)
+    .negotiationRounds(offer.id)
+    .filter((item) => item.actor === "PLAYER" || item.actor === "PLAYER_AGENT")
+    .at(-1);
+  return round?.salary && round.squadRole && round.contractLengthMonths
+    ? {
+        ...fallback,
+        salary: round.salary,
+        squadRole: round.squadRole,
+        contractLengthMonths: round.contractLengthMonths,
+        agentFee: round.agentFee ?? fallback.agentFee,
+        signingFee: round.signingFee ?? fallback.signingFee,
+      }
+    : fallback;
+};
+
 export const negotiatePlayerTerms = (
   db: GameDatabase,
   offer: TransferOffer,
@@ -1128,7 +1187,25 @@ export const negotiatePlayerTerms = (
     };
   }
 
-  if (!["ACCEPTED", "PLAYER_NEGOTIATING", "PLAYER_ACCEPTED"].includes(offer.status)) {
+  /*
+   * Callers hand over the offer object they created, but the selling club's
+   * acceptance is written straight to the repository — so that object is
+   * routinely a stage behind. Reading the persisted status here is what lets an
+   * accepted deal reach the player at all; trusting the caller's copy stalled
+   * every AI transfer on "club agreement is not complete".
+   */
+  const persistedStatus =
+    market.transferOffers().find((item) => item.id === offer.id)?.status ?? offer.status;
+  /*
+   * PLAYER_STALLED belongs here: it means the player is waiting on better
+   * terms, which is precisely the state a revised offer has to be judged in.
+   * Excluding it made the buying club's improved offer unreachable.
+   */
+  if (
+    !["ACCEPTED", "PLAYER_NEGOTIATING", "PLAYER_ACCEPTED", "PLAYER_STALLED"].includes(
+      persistedStatus,
+    )
+  ) {
     return {
       state: "STALLED",
       proposal,
@@ -1183,7 +1260,14 @@ export const negotiatePlayerTerms = (
       (item) =>
         item.playerId === offer.playerId &&
         item.id !== offer.id &&
-        ["ACCEPTED", "PLAYER_ACCEPTED", "NEGOTIATING", "COUNTERED"].includes(item.status),
+        [
+          "SUBMITTED",
+          "ACCEPTED",
+          "PLAYER_ACCEPTED",
+          "NEGOTIATING",
+          "COUNTERED",
+          "COMPETING_OFFER",
+        ].includes(item.status),
     );
   const competingOffer = competing
     .map((item) => ({ item, terms: defaultPersonalTerms(db, item, input.worldDate, input.seed) }))
@@ -1262,6 +1346,7 @@ export const negotiatePlayerTerms = (
   market.updateOfferStatus(offer.id, status);
   return {
     salaryFloor,
+    expectedSquadRole: expectedRole,
     state,
     proposal,
     score: Math.round(score * 100) / 100,
@@ -1366,13 +1451,23 @@ const revisedPersonalTerms = (
 ): PlayerPersonalTerms | undefined => {
   const floor = terms.salaryFloor;
   if (!floor || !Number.isFinite(floor)) return undefined;
-  const target = Math.round(floor * 1.15);
+  const target = Math.max(Math.round(floor * 1.15), Math.round(terms.proposal.salary * 1.15));
   const salary = Math.min(target, Math.round(terms.proposal.salary * MAX_REVISION_MULTIPLE));
-  if (salary <= terms.proposal.salary) return undefined;
+  const squadRole = terms.expectedSquadRole ?? terms.proposal.squadRole;
+  const contractLengthMonths = Math.max(
+    terms.proposal.contractLengthMonths,
+    SECURE_CONTRACT_MONTHS,
+  );
+  const improved =
+    salary > terms.proposal.salary ||
+    squadRole !== terms.proposal.squadRole ||
+    contractLengthMonths > terms.proposal.contractLengthMonths;
+  if (!improved) return undefined;
   return {
     ...terms.proposal,
-    salary,
-    contractLengthMonths: Math.max(terms.proposal.contractLengthMonths, SECURE_CONTRACT_MONTHS),
+    salary: Math.max(salary, terms.proposal.salary),
+    squadRole,
+    contractLengthMonths,
   };
 };
 
@@ -1382,12 +1477,20 @@ export const completePermanentTransfer = (
   worldDate: string,
   seed: string,
   playerPreferences?: PlayerPersonalTermsPreferences,
+  playerProposal?: Partial<PlayerPersonalTerms>,
 ): void => {
   const market = new TransferMarketRepository(db);
+  const persistedOffer = market.transferOffers().find((item) => item.id === offer.id);
+  if (!persistedOffer || persistedOffer.status === "COMPLETED") return;
+  if (market.transferOffers().some((item) => item.playerId === offer.playerId && item.status === "COMPLETED")) {
+    market.updateOfferStatus(offer.id, "REJECTED");
+    return;
+  }
   let personalTerms = negotiatePlayerTerms(db, offer, {
     worldDate,
     seed,
     preferences: playerPreferences,
+    proposal: playerProposal,
   });
   /*
    * A stall is the player asking for better terms, not a refusal. The buying
@@ -1437,6 +1540,21 @@ export const completePermanentTransfer = (
   movePlayerAssignment(db, offer.playerId, offer.buyingClubId, worldDate);
   market.updatePlayerClub(offer.playerId, offer.buyingClubId);
   market.updateOfferStatus(offer.id, "COMPLETED");
+  for (const competing of market.transferOffers().filter(
+    (item) =>
+      item.playerId === offer.playerId &&
+      item.id !== offer.id &&
+      [
+        "SUBMITTED",
+        "NEGOTIATING",
+        "ACCEPTED",
+        "PLAYER_ACCEPTED",
+        "COMPETING_OFFER",
+        "COUNTERED",
+      ].includes(item.status),
+  )) {
+    market.updateOfferStatus(competing.id, "REJECTED");
+  }
   market.upsertTransferStatus({
     id: createStableEntityId("player-transfer-status", offer.playerId),
     playerId: offer.playerId,
@@ -1467,6 +1585,56 @@ export const completePermanentTransfer = (
     date: worldDate,
     transferFee: offer.transferFee,
   });
+};
+
+/** Resolve a player's open offer set once at a deterministic market tick. */
+export const resolveCompetingPlayerOffers = (
+  db: GameDatabase,
+  playerId: EntityId,
+  worldDate: string,
+  seed: string,
+  preferences?: PlayerPersonalTermsPreferences,
+): TransferOffer | undefined => {
+  const market = new TransferMarketRepository(db);
+  if (market.activeContract(playerId, worldDate)) return undefined;
+  const offers = market
+    .transferOffers()
+    .filter(
+      (offer) =>
+        offer.playerId === playerId &&
+        (offer.sellingClubId
+          ? ["ACCEPTED", "PLAYER_ACCEPTED", "COMPETING_OFFER"].includes(offer.status)
+          : [
+              "SUBMITTED",
+              "NEGOTIATING",
+              "ACCEPTED",
+              "PLAYER_ACCEPTED",
+              "COMPETING_OFFER",
+              "COUNTERED",
+            ].includes(offer.status)),
+    )
+    .sort((a, b) => {
+      const aTerms = latestPersonalTerms(db, a, worldDate, seed);
+      const bTerms = latestPersonalTerms(db, b, worldDate, seed);
+      return (
+        bTerms.salary - aTerms.salary ||
+        bTerms.contractLengthMonths - aTerms.contractLengthMonths ||
+        String(a.id).localeCompare(String(b.id))
+      );
+    });
+  const winner = offers[0];
+  if (!winner) return undefined;
+  for (const offer of offers) {
+    if (offer.id !== winner.id) market.updateOfferStatus(offer.id, "REJECTED");
+  }
+  if (winner.status !== "ACCEPTED" && winner.status !== "PLAYER_ACCEPTED") {
+    market.updateOfferStatus(winner.id, "ACCEPTED");
+  }
+  const winnerTerms = latestPersonalTerms(db, winner, worldDate, seed);
+  completePermanentTransfer(db, winner, worldDate, `${seed}:resolved`, preferences, winnerTerms);
+  return new TransferMarketRepository(db)
+    .transferOffers()
+    .find((offer) => offer.id === winner.id);
 };
 
 export const startLoan = (
