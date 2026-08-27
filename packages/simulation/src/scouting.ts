@@ -103,6 +103,10 @@ export const initializeRecruitmentForSave = (input: {
   const recruitment = new RecruitmentRepository(input.db);
   for (const club of clubs(input.db)) {
     recruitment.upsertClubRecruitmentProfile(defaultClubRecruitmentProfile(club, input.seed));
+    // External clubs use the bounded global-context scouting layer. Seeding
+    // full player knowledge for every imported club is both redundant and
+    // quadratic; Nepal clubs retain the normal detailed knowledge bootstrap.
+    if (club.canonicalExternalId?.startsWith("CLB-") || club.canonicalExternalId?.startsWith("SIM-FOREIGN-")) continue;
     seedClubKnowledge(input.db, club.id, input.worldDate, input.seed);
   }
 };
@@ -712,7 +716,7 @@ const truePlayers = (db: GameDatabase, playerIds?: readonly EntityId[]): TruePla
         COALESCE(SUM(pss.red_cards), 0) AS red_cards
       FROM persons p
       JOIN player_factual_profiles pfp ON pfp.player_id = p.id
-      JOIN player_attributes pa ON pa.person_id = p.id
+      LEFT JOIN player_attributes pa ON pa.person_id = p.id
       LEFT JOIN team_person_assignments tpa ON tpa.person_id = p.id AND tpa.role = 'PLAYER'
       LEFT JOIN player_season_stats pss ON pss.person_id = p.id
       ${where}
@@ -739,7 +743,7 @@ const playersForClub = (db: GameDatabase, clubId: EntityId): TruePlayer[] =>
         COALESCE(SUM(pss.red_cards), 0) AS red_cards
       FROM persons p
       JOIN player_factual_profiles pfp ON pfp.player_id = p.id
-      JOIN player_attributes pa ON pa.person_id = p.id
+      LEFT JOIN player_attributes pa ON pa.person_id = p.id
       LEFT JOIN team_person_assignments tpa ON tpa.person_id = p.id AND tpa.role = 'PLAYER'
       LEFT JOIN player_season_stats pss ON pss.person_id = p.id
       WHERE pfp.current_club_id = ?
@@ -781,7 +785,7 @@ const playersSharingCompetitions = (db: GameDatabase, clubId: EntityId): TruePla
         COALESCE(SUM(pss.red_cards), 0) AS red_cards
       FROM persons p
       JOIN player_factual_profiles pfp ON pfp.player_id = p.id
-      JOIN player_attributes pa ON pa.person_id = p.id
+      LEFT JOIN player_attributes pa ON pa.person_id = p.id
       LEFT JOIN team_person_assignments tpa ON tpa.person_id = p.id AND tpa.role = 'PLAYER'
       LEFT JOIN player_season_stats pss ON pss.person_id = p.id
       WHERE pfp.current_club_id IN (${clubIds.map(() => "?").join(",")})
@@ -807,9 +811,9 @@ const mapTruePlayer = (row: any): TruePlayer => {
     teamId: row.team_id ?? undefined,
     nationality: factual.nationality,
     factualPositionGroup: factual.factualPositionGroup,
-    simulationPosition: simulation.simulationPrimaryPosition ?? row.primary_position,
+    simulationPosition: simulation.simulationPrimaryPosition ?? row.primary_position ?? "MID",
     currentAbility:
-      simulation.currentAbility ?? averageObject({ ...technical, ...mental, ...physical }),
+      simulation.currentAbility ?? (Object.keys({ ...technical, ...mental, ...physical }).length > 0 ? averageObject({ ...technical, ...mental, ...physical }) : 7),
     potentialAbility: simulation.potentialAbility ?? 10,
     hiddenTraits: simulation.hiddenTraits ?? {},
     attributes: { ...technical, ...mental, ...physical, ...goalkeeping },

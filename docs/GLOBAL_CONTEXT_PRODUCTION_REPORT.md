@@ -63,3 +63,11 @@ test. A complete end-to-end Nepal-to-foreign transfer transaction still needs a 
 ## Production Activation Decision
 
 `NOT ACTIVE`
+
+## Transfer Integration
+
+The preserved transfer-market change and starting-state integrity regression are now committed.
+The market can consume imported canonical players through the existing player, contract, offer,
+registration, finance, and history model; global scouting signals are bounded to three offer
+candidates per window. Full bidirectional production-flow closure is still pending: imported-save
+market bootstrap remains above the practical bounded test window, and no activation claim is made.

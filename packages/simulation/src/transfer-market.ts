@@ -107,22 +107,36 @@ export const initializeTransferMarketForSave = (input: {
   }
   seedTransferWindows(input.db, input.worldDate);
   seedAgents(input.db, input.seed, input.worldDate);
+  const activeContracts = new Map(
+    market
+      .allPlayerContracts()
+      .filter((contract) => contract.status === "ACTIVE" && contract.startDate <= input.worldDate && contract.endDate >= input.worldDate)
+      .map((contract) => [contract.playerId, contract]),
+  );
+  const clubsById = new Map(clubs.map((club) => [club.id, club]));
+  const countryCodes = new Map(
+    (input.db.prepare("SELECT id, iso_code FROM countries").all() as Array<{ id: EntityId; iso_code: string }>).map((row) => [row.id, row.iso_code]),
+  );
   for (const player of marketPlayers(input.db)) {
     if (!player.currentClubId) {
       market.upsertTransferStatus(freeAgentStatus(player.playerId, input.worldDate));
       continue;
     }
-    const club = clubs.find((item) => item.id === player.currentClubId);
+    const club = clubsById.get(player.currentClubId);
     if (!club) {
       continue;
     }
+    // Imported external players remain context-visible free agents until an
+    // ordinary offer gives them a contract; only Nepal squads are bootstrapped
+    // into the detailed domestic market.
+    if (!['NP', 'NPL'].includes(countryCodes.get(club.countryId) ?? '')) continue;
     /*
      * A player generated during world creation already holds an active youth
      * contract. Issuing a starting contract on top would leave one player with
      * two live deals, so the existing agreement stands and only the transfer
      * status is brought into line.
      */
-    const existing = market.activeContract(player.playerId, input.worldDate);
+    const existing = activeContracts.get(player.playerId);
     const contract =
       existing ?? startingContract(input.db, player, club, input.worldDate, input.seed);
     if (!existing) {
@@ -154,6 +168,8 @@ export const simulateTransferWindow = (input: {
   let rejected = 0;
   let accepted = 0;
   const beforeWages = totalWages(input.db, input.worldDate);
+
+  processBoundedForeignInterest(input.db, input.worldDate, input.seed, windowOpen);
 
   for (const loan of market.endingLoans(input.worldDate)) {
     endLoan(input.db, loan, input.worldDate);
@@ -312,6 +328,39 @@ export const simulateTransferWindow = (input: {
     failedRegistrations: 0,
     sampleNegotiationTimeline: sampleOffer ? market.negotiationRounds(sampleOffer.id) : [],
   };
+};
+
+/** Converts a bounded set of persisted global scouting signals into ordinary market offers. */
+const processBoundedForeignInterest = (
+  db: GameDatabase,
+  worldDate: string,
+  seed: string,
+  windowOpen: boolean,
+): void => {
+  if (!windowOpen) return;
+  const market = new TransferMarketRepository(db);
+  const existing = new Set(market.transferOffers().map((offer) => `${offer.buyingClubId}:${offer.playerId}`));
+  const rows = db.prepare(`
+    SELECT interest.external_club_id AS buying_club_id, interest.target_player_id AS player_id
+    FROM foreign_scouting_interest interest
+    JOIN player_factual_profiles profile ON profile.player_id = interest.target_player_id
+    JOIN clubs seller ON seller.id = profile.current_club_id
+    WHERE interest.score >= 60 AND seller.country_id IN (SELECT id FROM countries WHERE iso_code IN ('NPL','NP'))
+    ORDER BY interest.score DESC, interest.external_club_id, interest.target_player_id
+    LIMIT 3
+  `).all() as Array<{ buying_club_id: EntityId; player_id: EntityId }>;
+  for (const row of rows) {
+    if (existing.has(`${row.buying_club_id}:${row.player_id}`)) continue;
+    const offer = createTransferOffer(db, {
+      buyingClubId: row.buying_club_id,
+      playerId: row.player_id,
+      submittedAt: worldDate,
+    });
+    const evaluation = evaluateTransferOffer(db, offer, worldDate, `${seed}:global-interest`);
+    if (evaluation.accepted && clubCanAffordTransfer(db, offer.buyingClubId, offer.transferFee + offer.addOns + offer.agentFee + offer.signingFee, worldDate)) {
+      completePermanentTransfer(db, offer, worldDate, `${seed}:global-interest`);
+    }
+  }
 };
 
 export const analyzeSquadNeeds = (
@@ -2176,7 +2225,7 @@ const marketPlayers = (db: GameDatabase): MarketPlayer[] =>
         COALESCE(SUM(pss.goals), 0) AS goals
       FROM persons p
       JOIN player_factual_profiles pfp ON pfp.player_id = p.id
-      JOIN player_attributes pa ON pa.person_id = p.id
+      LEFT JOIN player_attributes pa ON pa.person_id = p.id
       LEFT JOIN team_person_assignments tpa ON tpa.person_id = p.id AND tpa.role = 'PLAYER' AND tpa.ended_on IS NULL
       LEFT JOIN player_season_stats pss ON pss.person_id = p.id
       GROUP BY p.id
@@ -2191,7 +2240,7 @@ const marketPlayers = (db: GameDatabase): MarketPlayer[] =>
         fullName: row.full_name,
         currentClubId: row.current_club_id ?? undefined,
         teamId: row.team_id ?? undefined,
-        position,
+        position: position || "MID",
         positionGroup: positionGroup(position),
         currentAbility: simulation.currentAbility ?? 7,
         potentialAbility: simulation.potentialAbility ?? 10,
