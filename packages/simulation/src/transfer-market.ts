@@ -2513,13 +2513,23 @@ const initialTransferStatus = (
 const marketPlayers = (db: GameDatabase): MarketPlayer[] =>
   db
     .prepare(
-      `SELECT p.id AS player_id, p.full_name, p.date_of_birth, pfp.current_club_id,
+      /*
+       * A factual profile marks an imported player, not a footballer. Requiring
+       * one hid every generated player — including the contracted squads of the
+       * context-only foreign clubs — from the whole transfer engine, so they
+       * could never be a loan candidate or a purchase target. Player attributes
+       * are the real marker, and current club falls back to the active
+       * contract when there is no imported profile to read it from.
+       */
+      `SELECT p.id AS player_id, p.full_name, p.date_of_birth,
+        COALESCE(pfp.current_club_id, MAX(pc.club_id)) AS current_club_id,
         pfp.simulation_json, pa.primary_position, tpa.team_id,
         COALESCE(SUM(pss.appearances), 0) AS appearances,
         COALESCE(SUM(pss.goals), 0) AS goals
       FROM persons p
-      JOIN player_factual_profiles pfp ON pfp.player_id = p.id
-      LEFT JOIN player_attributes pa ON pa.person_id = p.id
+      JOIN player_attributes pa ON pa.person_id = p.id
+      LEFT JOIN player_factual_profiles pfp ON pfp.player_id = p.id
+      LEFT JOIN player_contracts pc ON pc.player_id = p.id AND pc.status = 'ACTIVE'
       LEFT JOIN team_person_assignments tpa ON tpa.person_id = p.id AND tpa.role = 'PLAYER' AND tpa.ended_on IS NULL
       LEFT JOIN player_season_stats pss ON pss.person_id = p.id
       GROUP BY p.id

@@ -287,3 +287,89 @@ known full stage-eight runtime issue is separate.
 
 `NOT ACTIVE`: imported Africa/South Asia integration and imported negative production cases require a
 canonical imported seed/test artifact. Loans remain separate.
+
+---
+
+# Global Loans and Contracted Foreign Purchase
+
+Covered by `transfer-global-loans` (5 tests, passing).
+
+## Enabling Fix
+
+The loan and transfer engines were already complete; the context-only foreign squads were simply
+invisible to them. `marketPlayers` required an imported `player_factual_profiles` row, which only
+imported people have, so the 132 contracted players at the generated foreign clubs could never be a
+loan candidate or a purchase target. Player attributes now mark a footballer, and current club falls
+back to the active contract when there is no imported profile. No second loan or transfer system was
+added.
+
+## Loans
+
+### Foreign → Nepal
+
+A contracted player at a context-only foreign club is loaned to a Nepal club. The parent contract —
+and therefore ownership — stays abroad, the temporary registration moves to Nepal, and one
+`LOAN_STARTED` record is written. One person, one player.
+
+### Nepal → Foreign
+
+A Nepal player is loaned to a context-only club, keeping the Nepal parent contract. Hosting a loan
+does not make the foreign club playable: it gains no competition membership.
+
+### Expiry / Return
+
+`endingLoans` selects only active loans past their end date, so the return runs once. The player
+returns to the parent club, `LOAN_ENDED` is written once, and no permanent-transfer record is
+invented. Re-processing the same date is a no-op.
+
+### Finance
+
+Wage contribution percentage and loan fee persist as agreed; both are bounded at the point of
+creation. Values stay finite.
+
+### Persistence
+
+An active loan survives reload with the same parent, destination, expiry and wage split. A completed
+return survives reload with no duplicate return record and no lingering active loan.
+
+### Rejection
+
+A second concurrent loan for the same player is refused, as is a loan for a player with no active
+parent contract.
+
+## Contracted Foreign Purchase
+
+### Seller Decision
+
+The external seller evaluates through the existing `evaluateTransferOffer` path; acceptance is a
+decision, not a formality.
+
+### Player Terms
+
+Resolved through the same personal-terms negotiation as domestic deals, including the buyer's single
+revision.
+
+### Registration
+
+The external affiliation ends and the Nepal contract begins. Exactly one active contract remains, and
+the person and player identifiers are unchanged.
+
+### Finance / History
+
+One `TRANSFER_COMPLETED` record, and none of the free-agent variety. Settlement is not repeated on
+reload.
+
+### Persistence
+
+After reload the player's current club, contract, registration and single history record are
+unchanged.
+
+### Production Reachability
+
+A normal `simulateTransferWindow` tick draws from the market that now includes foreign squads;
+closure is not proven through direct helper calls alone.
+
+## Remaining Transfer Depth
+
+Non-blocking: option-to-buy and recall exist on the loan record but have no AI pathway; imported
+Africa/South Asia corridor proof still needs a canonical imported seed artifact, tracked above.
