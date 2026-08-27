@@ -224,6 +224,23 @@ export const simulateNepalCareer = (input: {
     if (activeSeasons.length === 0) {
       break;
     }
+    /* Materialize the known season schedules before officiating reconciliation
+     * so supply sees both total volume and peak matchday concurrency. */
+    for (const season of activeSeasons) {
+      ensureFixtures(input.db, {
+        ...season,
+        seed: `${input.seed}:season:${index}:${season.season.id}`,
+      });
+    }
+    workforceReports.push(
+      reconcileWorkforceSupply({
+        db: input.db,
+        date: activeSeasons[0]!.ruleSet.seasonStartDate,
+        seed: `${input.seed}:workforce:${index}`,
+        seasonLabel: activeSeasons[0]!.ruleSet.seasonStartDate.slice(0, 4),
+      }),
+    );
+    entityCache.delete(input.db);
     const completed: Array<{
       season: CompetitionSeason;
       ruleSet: CompetitionRuleSet;
@@ -281,21 +298,6 @@ export const simulateNepalCareer = (input: {
           ),
         }),
       );
-      /* Retirements have just been applied, so this is the point where the
-       * world knows its real shortages. Supply reconciliation runs here, after
-       * retirement and before preseason squad repair, so clubs recruit from a
-       * replenished population rather than an emptied one. */
-      workforceReports.push(
-        reconcileWorkforceSupply({
-          db: input.db,
-          date: addDays(latestSeasonEnd(activeSeasons), 46),
-          seed: `${input.seed}:workforce:${index}`,
-          seasonLabel: String(
-            new Date(`${latestSeasonEnd(activeSeasons)}T00:00:00.000Z`).getUTCFullYear(),
-          ),
-        }),
-      );
-      entityCache.delete(input.db);
     }
     if (economyEnabled) {
       processEconomyForSeasonPeriod(input.db, {

@@ -129,6 +129,13 @@ const scheduledFixtureCount = (db: GameDatabase, fromDate: string, toDate: strin
     toDate,
   );
 
+const scheduledFixturePeak = (db: GameDatabase, fromDate: string, toDate: string): number => {
+  const rows = db
+    .prepare("SELECT scheduled_date, COUNT(*) AS count FROM fixtures WHERE scheduled_date >= ? AND scheduled_date <= ? GROUP BY scheduled_date ORDER BY scheduled_date")
+    .all(fromDate, toDate) as Array<{ count: number }>;
+  return rows.reduce((peak, row) => Math.max(peak, Number(row.count ?? 0)), 0);
+};
+
 const ageOn = (dateOfBirth: string | undefined, onDate: string): number | undefined => {
   if (!dateOfBirth) return undefined;
   const birth = Date.parse(`${dateOfBirth}T00:00:00.000Z`);
@@ -209,6 +216,7 @@ export const computeWorkforceDemand = (input: {
   const seasonStart = `${Number(seasonLabel) - 1}-01-01`;
   const seasonEnd = `${Number(seasonLabel) + 1}-12-31`;
   const fixtures = scheduledFixtureCount(db, seasonStart, seasonEnd);
+  const peakFixtures = scheduledFixturePeak(db, seasonStart, seasonEnd);
 
   const market = new StaffMarketRepository(db);
   const workforce = new WorkforceSupplyRepository(db);
@@ -231,10 +239,11 @@ export const computeWorkforceDemand = (input: {
   const assistants = workforce.activeOfficials("ASSISTANT_REFEREE").length;
   /* Officiating demand comes from the calendar the world actually has: total
    * fixtures divided by a realistic per-official season workload. */
-  const refereesRequired = Math.max(6, Math.ceil(fixtures / MAX_APPOINTMENTS_PER_OFFICIAL));
+  const refereesRequired = Math.max(6, Math.ceil(fixtures / MAX_APPOINTMENTS_PER_OFFICIAL), Math.ceil(peakFixtures * 1.15));
   const assistantsRequired = Math.max(
     12,
     Math.ceil((fixtures * ASSISTANTS_PER_FIXTURE) / MAX_APPOINTMENTS_PER_OFFICIAL),
+    Math.ceil(peakFixtures * ASSISTANTS_PER_FIXTURE * 1.15),
   );
 
   const lines: WorkforceDemandLine[] = [
