@@ -97,11 +97,14 @@ export const initializeTransferMarketForSave = (input: {
   }
   initializeRecruitmentForSave(input);
   const clubs = marketClubs(input.db);
+  const playerCounts = new Map(
+    (input.db.prepare("SELECT current_club_id AS club_id, COUNT(*) AS count FROM player_factual_profiles WHERE current_club_id IS NOT NULL GROUP BY current_club_id").all() as Array<{ club_id: EntityId; count: number }>).map((row) => [row.club_id, Number(row.count)]),
+  );
   for (const club of clubs) {
     const employment = employmentProfile(club);
     market.upsertClubEmploymentProfile(employment);
     market.upsertClubFinancialProfile({
-      ...financialProfile(input.db, club, input.seed),
+      ...financialProfile(club, input.seed, playerCounts.get(club.id) ?? 0),
       currentWageSpend: 0,
     });
   }
@@ -341,18 +344,20 @@ const processBoundedForeignInterest = (
   const market = new TransferMarketRepository(db);
   const existing = new Set(market.transferOffers().map((offer) => `${offer.buyingClubId}:${offer.playerId}`));
   const rows = db.prepare(`
-    SELECT interest.external_club_id AS buying_club_id, interest.target_player_id AS player_id
+    SELECT interest.external_club_id AS buying_club_id, interest.target_player_id AS player_id,
+           profile.current_club_id AS selling_club_id
     FROM foreign_scouting_interest interest
     JOIN player_factual_profiles profile ON profile.player_id = interest.target_player_id
     JOIN clubs seller ON seller.id = profile.current_club_id
-    WHERE interest.score >= 60 AND seller.country_id IN (SELECT id FROM countries WHERE iso_code IN ('NPL','NP'))
+    WHERE interest.score >= 55 AND seller.country_id IN (SELECT id FROM countries WHERE iso_code IN ('NPL','NP'))
     ORDER BY interest.score DESC, interest.external_club_id, interest.target_player_id
     LIMIT 3
-  `).all() as Array<{ buying_club_id: EntityId; player_id: EntityId }>;
+  `).all() as Array<{ buying_club_id: EntityId; player_id: EntityId; selling_club_id: EntityId }>;
   for (const row of rows) {
     if (existing.has(`${row.buying_club_id}:${row.player_id}`)) continue;
     const offer = createTransferOffer(db, {
       buyingClubId: row.buying_club_id,
+      sellingClubId: row.selling_club_id,
       playerId: row.player_id,
       submittedAt: worldDate,
     });
@@ -1825,7 +1830,7 @@ const createAiTransferOffer = (
 
 const findFreeAgentForNeed = (
   db: GameDatabase,
-  _clubId: EntityId,
+  clubId: EntityId,
   need: SquadNeed,
   worldDate: string,
 ): MarketPlayer | undefined =>
@@ -1836,10 +1841,17 @@ const findFreeAgentForNeed = (
     .filter(
       (player) => need.positionGroup === "DEPTH" || player.positionGroup === need.positionGroup,
     )
-    .sort(
-      (a, b) =>
-        b.currentAbility - a.currentAbility || String(a.playerId).localeCompare(String(b.playerId)),
-    )[0];
+    .sort((a, b) => {
+      const foreignPreference = isNepalClub(db, clubId)
+        ? Number(isForeignBased(db, b.currentClubId)) - Number(isForeignBased(db, a.currentClubId))
+        : 0;
+      return foreignPreference || b.currentAbility - a.currentAbility || String(a.playerId).localeCompare(String(b.playerId));
+    })[0];
+
+const isNepalClub = (db: GameDatabase, clubId: EntityId): boolean =>
+  Boolean(
+    db.prepare("SELECT 1 FROM clubs c JOIN countries country ON country.id=c.country_id WHERE c.id=? AND country.iso_code IN ('NP','NPL')").get(clubId),
+  );
 
 const findLoanCandidate = (
   db: GameDatabase,
@@ -1950,9 +1962,9 @@ const startingContract = (
 };
 
 const financialProfile = (
-  db: GameDatabase,
   club: MarketClub,
   seed: string,
+  playerCount: number,
 ): ClubFinancialProfile => {
   const rng = new SeededRandom(`${seed}:finance:${club.id}`);
   const multiplier = clubSalaryMultiplier(club);
@@ -1961,7 +1973,7 @@ const financialProfile = (
     clubId: club.id,
     wageBudget: Math.round(3600000 * multiplier + rng.next() * 900000),
     transferBudget: Math.round(900000 * multiplier + rng.next() * 500000),
-    currentWageSpend: playersForClub(db, club.id).length * Math.round(55000 * multiplier),
+    currentWageSpend: playerCount * Math.round(55000 * multiplier),
     financialHealth: multiplier > 1.25 ? "GOOD" : multiplier > 0.9 ? "STABLE" : "POOR",
     currency,
     status: "SIMULATION_ONLY",

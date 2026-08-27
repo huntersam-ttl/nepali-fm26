@@ -101,12 +101,15 @@ export const initializeRecruitmentForSave = (input: {
   seed: string;
 }): void => {
   const recruitment = new RecruitmentRepository(input.db);
+  const globalDatasetActive = Boolean(
+    input.db.prepare("SELECT 1 FROM global_dataset_imports WHERE status = 'ACTIVE' LIMIT 1").get(),
+  );
   for (const club of clubs(input.db)) {
     recruitment.upsertClubRecruitmentProfile(defaultClubRecruitmentProfile(club, input.seed));
     // External clubs use the bounded global-context scouting layer. Seeding
     // full player knowledge for every imported club is both redundant and
     // quadratic; Nepal clubs retain the normal detailed knowledge bootstrap.
-    if (club.canonicalExternalId?.startsWith("CLB-") || club.canonicalExternalId?.startsWith("SIM-FOREIGN-")) continue;
+    if (globalDatasetActive || club.canonicalExternalId?.startsWith("CLB-") || club.canonicalExternalId?.startsWith("SIM-FOREIGN-")) continue;
     seedClubKnowledge(input.db, club.id, input.worldDate, input.seed);
   }
 };

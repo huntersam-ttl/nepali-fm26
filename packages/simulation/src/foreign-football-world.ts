@@ -296,7 +296,7 @@ export const updateForeignScoutingInterest = (db: GameDatabase, input: { date: s
     const club = contexts.clubs().find((item) => item.clubId === player.club_id);
     if (club) contexts.upsertPlayer({ playerId: player.player_id, clubId: player.club_id, region: club.recruitmentRegions[0] ?? "WIDER_ASIA", reputation: club.reputation, interestLevel: "UNKNOWN", careerState: "ACTIVE", updatedOn: input.date });
   }
-  const targets = db.prepare(`SELECT p.player_id AS player_id, p.current_club_id AS club_id FROM player_factual_profiles p JOIN clubs c ON c.id = p.current_club_id WHERE c.canonical_external_id NOT LIKE 'SIM-FOREIGN-%' ORDER BY p.player_id LIMIT 12`).all() as Array<{ player_id: EntityId; club_id: EntityId }>;
+  const targets = db.prepare(`SELECT p.player_id AS player_id, p.current_club_id AS club_id FROM player_factual_profiles p JOIN clubs c ON c.id = p.current_club_id JOIN countries country ON country.id = c.country_id WHERE country.iso_code IN ('NPL','NP') ORDER BY p.player_id LIMIT 12`).all() as Array<{ player_id: EntityId; club_id: EntityId }>;
   for (const club of contexts.clubs().filter((item) => item.scoutingReach >= 40)) {
     for (const target of targets.slice(0, club.scoutingReach >= 60 ? 2 : 1)) {
       const score = Math.max(0, Math.min(100, club.scoutingReach * 0.45 + 35));

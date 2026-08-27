@@ -69,5 +69,37 @@ test. A complete end-to-end Nepal-to-foreign transfer transaction still needs a 
 The preserved transfer-market change and starting-state integrity regression are now committed.
 The market can consume imported canonical players through the existing player, contract, offer,
 registration, finance, and history model; global scouting signals are bounded to three offer
-candidates per window. Full bidirectional production-flow closure is still pending: imported-save
-market bootstrap remains above the practical bounded test window, and no activation claim is made.
+candidates per window. The normal transfer tick produced three permanent external offers plus a
+foreign-player-to-Nepal affiliation. The deterministic Nepal-to-foreign run stopped at player terms
+without a completed transfer, so no activation claim is made.
+
+## Transfer Bootstrap Performance
+
+The root cause was quadratic financial initialization: each club called `playersForClub`, reloading
+the full player world. A single factual-player count map reduced imported-save bootstrap to 1.9
+seconds after the earlier >90-second bound. Global recruitment bootstrap now skips redundant full
+knowledge seeding for context-only clubs.
+
+## Nepal → Foreign
+
+Three permanent offers were created through normal transfer-tick progression. Player-term acceptance
+and completed settlement remain the outstanding deterministic scenario.
+
+## Foreign → Nepal
+
+Normal free-agent selection now prioritizes foreign context candidates for Nepal squad needs; a
+foreign-player-to-Nepal affiliation was observed in the production-scale tick.
+
+## Registration / Finance / Identity / Persistence
+
+Existing registration, exact-once settlement, canonical identity, and persistence logic remains
+authoritative. End-to-end completed-transfer reload is pending.
+
+## Stage-Eight
+
+The integrity test passes 4/4. The broader stage-eight suite exceeded the bounded execution window.
+
+## Remaining Transfer Features
+
+Complete deterministic player-term acceptance for one Nepal-to-foreign offer, then run bidirectional
+finance/history/reload validation. Loans remain a separate enhancement.
