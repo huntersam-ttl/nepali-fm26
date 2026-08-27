@@ -191,7 +191,12 @@ const NAME_POOL = [
   "Ramesh Tamang", "Kiran Bhandari", "Sujan Karki", "Prakash Lama", "Rajan Basnet",
 ];
 
-const generateAiStaff = (
+/**
+ * Bounded generated staff person. Exported so the workforce-supply layer can
+ * replenish the domestic staff market through this one generator rather than
+ * standing up a second staff-generation engine.
+ */
+export const generateAiStaff = (
   seedKey: string,
   worldDate: string,
   countryId: EntityId,

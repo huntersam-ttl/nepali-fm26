@@ -106,7 +106,15 @@ export const initializeYouthSystemForSave = (input: {
   const youth = new YouthRepository(input.db);
   const country = nepalCountry(input.db);
   if (!country) return;
-  youth.upsertCountryDevelopmentProfile(nepalDevelopmentProfile(country.id, input.worldDate));
+  /* The profile id is keyed by year while the conflict target is
+   * (country, effective_from), so re-initialising on a different date in the
+   * same year would collide on the primary key. One profile per year is the
+   * intended shape, so skip when this year is already seeded. */
+  const developmentProfile = nepalDevelopmentProfile(country.id, input.worldDate);
+  const seededYear = input.db
+    .prepare("SELECT id FROM country_development_profiles WHERE id = ?")
+    .get(developmentProfile.id) as { id?: string } | undefined;
+  if (!seededYear) youth.upsertCountryDevelopmentProfile(developmentProfile);
   for (const academy of academies(input.db)) {
     youth.upsertAcademySimulationProfile(academyProfile(academy, input.seed));
   }
@@ -198,6 +206,63 @@ export const runAnnualYouthAndRetirementCycle = (input: {
   return normalizeAnnualReport(report);
 };
 
+/**
+ * Reusable single-source intake cohort, used by the workforce-supply layer so
+ * women's football and demand-driven top-ups run through this same generation
+ * engine rather than a second one. Idempotent per (season, club, academy,
+ * gender) through the underlying youth intake event key.
+ */
+export const generateYouthCohort = (input: {
+  db: GameDatabase;
+  countryId: EntityId;
+  clubId?: EntityId;
+  teamId?: EntityId;
+  academyId?: EntityId;
+  date: string;
+  seasonLabel: string;
+  seed: string;
+  count: number;
+  gender?: GeneratedYouthGender;
+  cohortKey?: string;
+}): YouthAnnualReport => {
+  initializeYouthSystemForSave({ db: input.db, worldDate: input.date, seed: input.seed });
+  const youth = new YouthRepository(input.db);
+  const academyRows = academies(input.db);
+  const club = input.clubId
+    ? youthClubs(input.db)
+        .map((row) =>
+          row.id === input.clubId ? { ...row, teamId: input.teamId ?? row.teamId } : row,
+        )
+        .find((row) => row.id === input.clubId)
+    : undefined;
+  const academy = input.academyId
+    ? academyRows.find((row) => row.id === input.academyId)
+    : club
+      ? academyForClub(academyRows, club.id)
+      : undefined;
+  const profile = club
+    ? profileForClub(youth.academyProfiles(), club, academyRows)
+    : academy
+      ? (youth.academyProfiles().find((row) => row.academyId === academy.id) ??
+        academyProfile(academy, input.seed))
+      : undefined;
+  if (!profile) return blankAnnualReport(input.date, input.seasonLabel);
+  return generateIntakeForSource({
+    db: input.db,
+    countryId: input.countryId,
+    club,
+    academy,
+    profile,
+    date: input.date,
+    seasonLabel: input.seasonLabel,
+    seed: input.seed,
+    count: Math.max(0, Math.round(input.count)),
+    seenNames: existingNames(input.db),
+    gender: input.gender,
+    cohortKey: input.cohortKey,
+  });
+};
+
 export const runYouthDiagnostic = (input: {
   db: GameDatabase;
   startDate: string;
@@ -243,15 +308,24 @@ const generateIntakeForSource = (input: {
   seed: string;
   count: number;
   seenNames: Set<string>;
+  gender?: GeneratedYouthGender;
+  /**
+   * Distinguishes two cohorts drawn from the same club in the same season (the
+   * regular academy intake and a demand-driven top-up), so their generated
+   * person IDs and intake events never collide.
+   */
+  cohortKey?: string;
 }): YouthAnnualReport => {
   const youth = new YouthRepository(input.db);
   const rng = new SeededRandom(input.seed);
   const report = blankAnnualReport(input.date, input.seasonLabel);
   const generated: Array<{ ability: number; potential: number }> = [];
   const intakeType = originTypeFor(input.academy, input.club, rng);
+  const gender = input.gender ?? "male";
+  const cohortKey = input.cohortKey ?? "academy";
   const eventId = createStableEntityId(
     "youth-intake-event",
-    `${input.seasonLabel}:${input.club?.id ?? "none"}:${input.academy?.id ?? "none"}`,
+    `${input.seasonLabel}:${input.club?.id ?? "none"}:${input.academy?.id ?? "none"}:${gender}:${cohortKey}`,
   );
   youth.insertYouthIntakeEvent({
     id: eventId,
@@ -278,6 +352,8 @@ const generateIntakeForSource = (input: {
       intakeEventId: eventId,
       rng: new SeededRandom(`${input.seed}:player:${index}`),
       seenNames: input.seenNames,
+      gender,
+      cohortKey,
     });
     generated.push({ ability: player.currentAbility, potential: player.potentialAbility });
     report.generatedPlayers += 1;
@@ -354,15 +430,18 @@ const createGeneratedYouth = (input: {
   intakeEventId: EntityId;
   rng: SeededRandom;
   seenNames: Set<string>;
+  gender?: GeneratedYouthGender;
+  cohortKey?: string;
 }): {
   position: PlayerPosition;
   currentAbility: number;
   potentialAbility: number;
   origin: GeneratedPlayerOrigin;
 } => {
-  const key = `${input.seasonLabel}:${input.club?.id ?? "free"}:${input.academy?.id ?? "district"}:${input.index}`;
+  const gender = input.gender ?? "male";
+  const key = `${input.seasonLabel}:${input.club?.id ?? "free"}:${input.academy?.id ?? "district"}:${gender}:${input.cohortKey ?? "academy"}:${input.index}`;
   const personId = createStableEntityId("person-generated-youth", key);
-  const name = generatedNepaliName(input.rng, input.seenNames);
+  const name = generatedNepaliName(input.rng, input.seenNames, gender);
   const age = weightedAge(input.rng);
   const position = generatedPosition(input.rng);
   const archetype = archetypeFor(position, input.rng);
@@ -377,7 +456,7 @@ const createGeneratedYouth = (input: {
     displayName: name.fullName,
     dateOfBirth: dob,
     nationalityCountryId: input.countryId,
-    genderPresentation: "male",
+    genderPresentation: gender,
     placeOfBirthLocationId: locationId,
     hometownLocationId: locationId,
     languages: ["Nepali"],
@@ -427,7 +506,10 @@ const createGeneratedYouth = (input: {
       ageGroupEligible: age <= 18,
       diaspora: input.origin === "DIASPORA_YOUTH",
     },
-    sourceNotes: "Generated simulation-only Nepal youth player",
+    sourceNotes:
+      gender === "female"
+        ? "Generated simulation-only Nepal women's youth player"
+        : "Generated simulation-only Nepal youth player",
   };
   youth.insertGeneratedPlayerOrigin(origin);
   youth.upsertYouthStatus({
@@ -840,42 +922,82 @@ const originTypeFor = (
   return "DIASPORA_YOUTH";
 };
 
+/**
+ * Women's football generates from its own name pool. Sharing the surname pool
+ * is correct - Nepali family names are not gendered - but given names are.
+ */
+export type GeneratedYouthGender = "male" | "female";
+
+const FEMALE_FIRST_NAMES = [
+  "Anita",
+  "Anjali",
+  "Asmita",
+  "Bimala",
+  "Deepa",
+  "Dipa",
+  "Gita",
+  "Kabita",
+  "Manisha",
+  "Nirmala",
+  "Pooja",
+  "Prabha",
+  "Preeti",
+  "Rachana",
+  "Rekha",
+  "Renuka",
+  "Sabitra",
+  "Samjhana",
+  "Sanju",
+  "Saru",
+  "Sarita",
+  "Sunita",
+  "Susmita",
+  "Rasila",
+];
+
 const generatedNepaliName = (
   rng: SeededRandom,
   seenNames: Set<string>,
+  gender: GeneratedYouthGender = "male",
 ): { firstName: string; middleName?: string; surname: string; fullName: string } => {
-  const first = [
-    "Aarav",
-    "Aashish",
-    "Abinash",
-    "Anish",
-    "Arjun",
-    "Bikash",
-    "Bimal",
-    "Bibek",
-    "Deepak",
-    "Dinesh",
-    "Kiran",
-    "Manish",
-    "Nabin",
-    "Niraj",
-    "Prabin",
-    "Prakash",
-    "Rabin",
-    "Rajan",
-    "Ramesh",
-    "Ritesh",
-    "Roshan",
-    "Sagar",
-    "Sandesh",
-    "Sanjog",
-    "Suman",
-    "Suraj",
-    "Sushil",
-    "Utsav",
-    "Yogesh",
-  ];
-  const middle = ["Bahadur", "Kumar", "Raj", "Prasad", "Man", "Bir"];
+  const first =
+    gender === "female"
+      ? FEMALE_FIRST_NAMES
+      : [
+          "Aarav",
+          "Aashish",
+          "Abinash",
+          "Anish",
+          "Arjun",
+          "Bikash",
+          "Bimal",
+          "Bibek",
+          "Deepak",
+          "Dinesh",
+          "Kiran",
+          "Manish",
+          "Nabin",
+          "Niraj",
+          "Prabin",
+          "Prakash",
+          "Rabin",
+          "Rajan",
+          "Ramesh",
+          "Ritesh",
+          "Roshan",
+          "Sagar",
+          "Sandesh",
+          "Sanjog",
+          "Suman",
+          "Suraj",
+          "Sushil",
+          "Utsav",
+          "Yogesh",
+        ];
+  const middle =
+    gender === "female"
+      ? ["Kumari", "Devi", "Maya", "Laxmi"]
+      : ["Bahadur", "Kumar", "Raj", "Prasad", "Man", "Bir"];
   const surnames = [
     "Adhikari",
     "Ale",

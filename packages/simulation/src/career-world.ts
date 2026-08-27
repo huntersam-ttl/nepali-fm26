@@ -65,6 +65,10 @@ import {
   runAnnualYouthAndRetirementCycle,
   type YouthAnnualReport,
 } from "./youth-intake.js";
+import {
+  reconcileWorkforceSupply,
+  type WorkforceReconciliationReport,
+} from "./workforce-supply.js";
 
 export type CompetitionSeasonLifecycleStatus =
   | "NOT_STARTED"
@@ -127,6 +131,7 @@ export type CareerSimulationReport = {
   seasonsRequested: number;
   seasons: CareerSeasonReport[];
   youthReports: YouthAnnualReport[];
+  workforceReports: WorkforceReconciliationReport[];
   preseasonReports: PreseasonContinuityReport[];
   runnableCompetitions: string[];
   skippedCompetitions: SkippedCompetitionReport[];
@@ -169,6 +174,7 @@ export const simulateNepalCareer = (input: {
   const save = loadSave(input.db);
   const reports: CareerSeasonReport[] = [];
   const youthReports: YouthAnnualReport[] = [];
+  const workforceReports: WorkforceReconciliationReport[] = [];
   const preseasonReports: PreseasonContinuityReport[] = [];
   const skippedCompetitions: CareerSimulationReport["skippedCompetitions"] = [];
   const economyEnabled = input.economyEnabled !== false;
@@ -273,6 +279,20 @@ export const simulateNepalCareer = (input: {
           ),
         }),
       );
+      /* Retirements have just been applied, so this is the point where the
+       * world knows its real shortages. Supply reconciliation runs here, after
+       * retirement and before preseason squad repair, so clubs recruit from a
+       * replenished population rather than an emptied one. */
+      workforceReports.push(
+        reconcileWorkforceSupply({
+          db: input.db,
+          date: addDays(latestSeasonEnd(activeSeasons), 46),
+          seed: `${input.seed}:workforce:${index}`,
+          seasonLabel: String(
+            new Date(`${latestSeasonEnd(activeSeasons)}T00:00:00.000Z`).getUTCFullYear(),
+          ),
+        }),
+      );
       entityCache.delete(input.db);
     }
     if (economyEnabled) {
@@ -324,6 +344,7 @@ export const simulateNepalCareer = (input: {
     seasonsRequested: input.seasons,
     seasons: reports,
     youthReports,
+    workforceReports,
     preseasonReports,
     runnableCompetitions,
     skippedCompetitions,

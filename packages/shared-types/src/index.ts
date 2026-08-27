@@ -17,3 +17,4 @@ export * from "./club-networks.js";
 export * from "./universal-interactions.js";
 export * from "./macro-economy.js";
 export * from "./supporter-culture.js";
+export * from "./workforce-supply.js";
