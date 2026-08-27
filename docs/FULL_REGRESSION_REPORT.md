@@ -31,9 +31,11 @@ and the corrected production fixture group (39 tests).
 Squad-promises passed twice in separate runs (6 tests each). No nondeterminism was reproduced.
 
 **Correction — stage-eight transfer market was not executed for the original baseline claim.** It is
-now included and stands at **16 of 17 passing**. When it was first run it had 12 failures, all
-traceable to the starting market never being initialized (see Fixed Defects). Starting-market
-integrity is additionally covered by `transfer-market-starting-integrity` (4 tests, passing).
+now included and passes **17 of 17**. When it was first run it had 12 failures: 11 traceable to the
+starting market never being initialized, and one to AI personal-terms negotiation deadlocking (see
+Fixed Defects). Starting-market integrity is additionally covered by
+`transfer-market-starting-integrity` (4 tests) and negotiation outcomes by
+`transfer-personal-terms-e2e` (3 tests), both passing.
 
 ## Fixed Defects
 
@@ -48,6 +50,14 @@ integrity is additionally covered by `transfer-market-starting-integrity` (4 tes
   loan guard once the market was populated.
 - The transfer diagnostic sampled the first offer with any negotiation round, which could be an
   unanswered opening bid; it now samples the fullest timeline.
+- AI personal terms deadlocked every permanent transfer. `negotiatePlayerTerms` judged the offer
+  status on the caller's copy, which is a stage behind the selling club's persisted acceptance, so
+  the player was never actually consulted; and once a player stalled, `PLAYER_STALLED` was not a
+  state a revised offer could be judged in. The buying club now answers a stall once — meeting the
+  wage baseline and expected squad role within its wage budget — and the player re-decides through
+  the same logic. Players still reject and clubs still withdraw.
+- The transfer diagnostic counted seller agreements as completed deals. It now reports what the
+  repository confirms as COMPLETED and accounts for the difference as `playerRejected`.
 - Stale fixture imports, branded IDs, standing shapes, and dataset-count assertions were aligned
   with the current APIs and bootstrap data.
 
@@ -67,16 +77,7 @@ are classified as slow/too-broad suites, not product failures.
 
 ## Remaining Failures
 
-One: stage-eight `runs a conservative transfer window with mixed outcomes and no hidden search
-leaks`. AI-initiated permanent transfers never complete — the selling club accepts, but personal
-terms stall on "player wants improved personal terms" and nothing in the AI window improves the
-offer, so `completePermanentTransfer` returns early. No `TRANSFER_COMPLETED` or
-`FREE_AGENT_SIGNED` history is written, and the diagnostic still counts those attempts as
-completions. Free transfers and loans do complete. This is AI negotiation behaviour, not starting
-market integrity.
-
-Outside the focused groups, the full sequential invocation has no failure diagnostics beyond
-timeout.
+None in the executed groups. Loans remain a separate feature area and were not in scope.
 
 ## Determinism Status
 
@@ -90,9 +91,9 @@ the critical world/career integration groups exercised above.
 
 ## Green Baseline Decision
 
-**GREEN BASELINE: NOT READY.** The earlier READY claim was made without running stage-eight
-transfer market. Builds, typechecks, persistence and determinism checks pass, and stage-eight is now
-16 of 17, but one genuine AI-negotiation defect remains open. Restore READY once that test passes.
+**GREEN BASELINE: READY.** The earlier READY claim was premature — it was made without running
+stage-eight transfer market, which then had 12 failures. Stage-eight has since been executed and
+passes 17 of 17, the transfer omission is closed, and the root typecheck is clean.
 
 ## Next Phase
 

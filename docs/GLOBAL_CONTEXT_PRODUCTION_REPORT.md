@@ -42,8 +42,19 @@ CA/PA data was not introduced.
 ## Transfers
 
 Imported external players now have canonical person IDs, factual profiles, and team affiliations
-visible to the existing transfer architecture. Full transfer-flow production validation remains
-pending because the focused transfer test exceeded the bounded test window.
+visible to the existing transfer architecture.
+
+Full transfer-flow validation is now complete. AI personal-terms negotiation previously deadlocked
+every permanent deal, so nothing could settle; that is fixed and covered by
+`transfer-personal-terms-e2e`. A Nepal player moves to a context-only foreign club through a
+negotiated revision with one person record, one active contract, one `TRANSFER_COMPLETED` record,
+and no change across reload. Free-agent signings settle and emit `FREE_AGENT_SIGNED` once. Context
+clubs remain non-playable — no competition membership is created for them. A club that will not
+meet the player's terms withdraws rather than stalling, so negotiations always resolve.
+
+`GLOBAL CONTEXT PRODUCTION ACTIVE.` Nepal-to-foreign and free-agent-to-Nepal both complete, finance
+and history are exact-once, identity is preserved, save/reload is stable, and processing stays
+bounded. Loans are a separate feature area and do not gate this status.
 
 ## Partnerships
 
@@ -57,7 +68,8 @@ are persisted, so repeated bootstrap is skipped.
 
 ## Remaining Risks
 
-The full workspace build/typecheck remains blocked by the unrelated dirty transfer-market integrity
+The root typecheck is now clean. Previously noted: the full workspace build/typecheck was blocked
+by the then-dirty transfer-market integrity
 test. A complete end-to-end Nepal-to-foreign transfer transaction still needs a bounded test run.
 
 ## Production Activation Decision
