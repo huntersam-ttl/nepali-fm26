@@ -184,7 +184,9 @@ export const simulateTransferWindow = (input: {
 
   const clubs = marketClubs(input.db);
   const squadSizes = activeSquadSizes(input.db);
-  const activeClubs = clubs.filter((club) => (squadSizes.get(club.id) ?? 0) >= 11);
+  const activeClubs = clubs
+    .filter((club) => (squadSizes.get(club.id) ?? 0) >= 11)
+    .sort((a, b) => Number(isNepalClub(input.db, b.id)) - Number(isNepalClub(input.db, a.id)) || a.name.localeCompare(b.name));
   for (const contract of market
     .contractsExpiringBetween(input.worldDate, addDays(input.worldDate, 90))
     .slice(0, 18)) {
@@ -855,6 +857,12 @@ export type PlayerPersonalTermsResult = {
   reason: string;
   preferredOfferId?: EntityId;
   represented: boolean;
+  /**
+   * Wage the player treats as the baseline for this move. A stalled buyer needs
+   * this to know what "improved personal terms" actually means; without it the
+   * AI can only guess, which is why negotiations used to deadlock.
+   */
+  salaryFloor?: number;
 };
 
 export const assessAgentInterest = (
@@ -1253,6 +1261,7 @@ export const negotiatePlayerTerms = (
           : "PLAYER_STALLED";
   market.updateOfferStatus(offer.id, status);
   return {
+    salaryFloor,
     state,
     proposal,
     score: Math.round(score * 100) / 100,
@@ -1343,6 +1352,30 @@ export const negotiatePlayerContract = (
   };
 };
 
+/**
+ * The buying club's single improved offer after a stall: clear the player's
+ * wage baseline with a modest margin, and lengthen the deal to the point where
+ * contract security counts in the player's favour. Both steps are capped so a
+ * revision can never spiral, and the result is still only a proposal.
+ */
+const MAX_REVISION_MULTIPLE = 1.6;
+const SECURE_CONTRACT_MONTHS = 24;
+
+const revisedPersonalTerms = (
+  terms: PlayerPersonalTermsResult,
+): PlayerPersonalTerms | undefined => {
+  const floor = terms.salaryFloor;
+  if (!floor || !Number.isFinite(floor)) return undefined;
+  const target = Math.round(floor * 1.15);
+  const salary = Math.min(target, Math.round(terms.proposal.salary * MAX_REVISION_MULTIPLE));
+  if (salary <= terms.proposal.salary) return undefined;
+  return {
+    ...terms.proposal,
+    salary,
+    contractLengthMonths: Math.max(terms.proposal.contractLengthMonths, SECURE_CONTRACT_MONTHS),
+  };
+};
+
 export const completePermanentTransfer = (
   db: GameDatabase,
   offer: TransferOffer,
@@ -1351,11 +1384,37 @@ export const completePermanentTransfer = (
   playerPreferences?: PlayerPersonalTermsPreferences,
 ): void => {
   const market = new TransferMarketRepository(db);
-  const personalTerms = negotiatePlayerTerms(db, offer, {
+  let personalTerms = negotiatePlayerTerms(db, offer, {
     worldDate,
     seed,
     preferences: playerPreferences,
   });
+  /*
+   * A stall is the player asking for better terms, not a refusal. The buying
+   * club previously never answered, so every permanent deal deadlocked here.
+   * It now gets exactly one revision: meet the wage the player is holding out
+   * for and offer the security of a longer deal, but only inside the wage
+   * budget. The player then re-decides through the same logic — this improves
+   * the offer, it does not force acceptance, and a single round keeps the
+   * negotiation bounded.
+   */
+  if (personalTerms.state === "STALLED") {
+    const improved = revisedPersonalTerms(personalTerms);
+    if (!improved || !clubCanAffordWage(db, offer.buyingClubId, improved.salary, worldDate)) {
+      market.updateOfferStatus(offer.id, "WITHDRAWN");
+      return;
+    }
+    personalTerms = negotiatePlayerTerms(db, offer, {
+      worldDate,
+      seed,
+      preferences: playerPreferences,
+      proposal: improved,
+    });
+    if (personalTerms.state === "STALLED") {
+      market.updateOfferStatus(offer.id, "WITHDRAWN");
+      return;
+    }
+  }
   if (personalTerms.state !== "ACCEPTED") {
     if (personalTerms.state === "REJECTED" || personalTerms.state === "COMPETING_OFFER") {
       market.updateOfferStatus(
@@ -1636,7 +1695,21 @@ export const signFreeAgent = (
     fee: 0,
   });
   new TransferMarketRepository(db).updateOfferStatus(offer.id, "ACCEPTED");
-  completePermanentTransfer(db, offer, worldDate, seed);
+  completePermanentTransfer(
+    db,
+    offer,
+    worldDate,
+    seed,
+    isNepalClub(db, clubId)
+      ? {
+          preferredCountries: ["NP", "NPL"],
+          prefersOverseas: false,
+          expectedPlayingTime: "FIRST_TEAM",
+          minimumClubLevel: 0,
+          securityPreference: 8,
+        }
+      : undefined,
+  );
   return new TransferMarketRepository(db).activeContract(playerId, worldDate)?.clubId === clubId;
 };
 
@@ -1860,8 +1933,15 @@ const findFreeAgentForNeed = (
   clubId: EntityId,
   need: SquadNeed,
   worldDate: string,
-): MarketPlayer | undefined =>
-  marketPlayers(db)
+): MarketPlayer | undefined => {
+  const activeOfferPlayers = new Set(
+    new TransferMarketRepository(db)
+      .transferOffers()
+      .filter((offer) => ["SUBMITTED", "NEGOTIATING", "ACCEPTED", "PLAYER_ACCEPTED"].includes(offer.status))
+      .map((offer) => offer.playerId),
+  );
+  return marketPlayers(db)
+    .filter((player) => !activeOfferPlayers.has(player.playerId))
     .filter(
       (player) => !new TransferMarketRepository(db).activeContract(player.playerId, worldDate),
     )
@@ -1874,6 +1954,7 @@ const findFreeAgentForNeed = (
         : 0;
       return foreignPreference || b.currentAbility - a.currentAbility || String(a.playerId).localeCompare(String(b.playerId));
     })[0];
+};
 
 const isNepalClub = (db: GameDatabase, clubId: EntityId): boolean =>
   Boolean(

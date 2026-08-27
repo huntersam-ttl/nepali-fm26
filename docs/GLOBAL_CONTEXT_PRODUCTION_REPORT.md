@@ -124,3 +124,8 @@ the deterministic scenario; it does not make foreign destinations universally ac
 
 The starting-integrity regression remains 4/4 green. The broader stage-eight suite still exceeds the
 bounded run window. Africa/South-Asia corridor and loan verification remain follow-up work.
+
+The reverse-flow reproduction classified the remaining stop as `PERSONAL_TERMS_NOT_ADVANCED`: the
+selected foreign free agent had competing active offers, so existing player-decision logic rejected
+or withdrew the offer rather than forcing acceptance. Exact forward finance audit and completed
+reverse save/reload proof remain open. Production activation remains `NOT ACTIVE`.
