@@ -1,0 +1,3 @@
+sheet,external_id,name,field,value,issue,evidence,candidate_mapping,recommended_action
+"CLUBS","CLB-000029","Sahara Club Pokhara","league","Aaha! Rara Gold Cup","NOT_APPLICABLE_OR_TOURNAMENT","Club row labels an event rather than a league.","","Review historical/tournament relationship separately."
+"CLUBS","CLB-000030","Dharan Football Club","league","Budha Subba Gold Cup","NOT_APPLICABLE_OR_TOURNAMENT","Club row labels an event rather than a league.","","Review historical/tournament relationship separately."

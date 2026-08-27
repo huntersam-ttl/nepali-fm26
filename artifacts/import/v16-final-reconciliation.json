@@ -1,0 +1,1879 @@
+{
+  "datasetVersion": "football_world_import_v16",
+  "sourcePath": "/tmp/football_world_import_v16_reconciled.xlsx",
+  "destinationPath": "/tmp/football_world_import_v16_reconciled_final.xlsx",
+  "changes": [
+    {
+      "sheet": "PLAYERS",
+      "externalId": "PLY-001392",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYERS",
+      "externalId": "PLY-001393",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYERS",
+      "externalId": "PLY-001394",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYERS",
+      "externalId": "PLY-001395",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYERS",
+      "externalId": "PLY-001396",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYERS",
+      "externalId": "PLY-001397",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYERS",
+      "externalId": "PLY-001398",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYERS",
+      "externalId": "PLY-001399",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYERS",
+      "externalId": "PLY-001400",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYERS",
+      "externalId": "PLY-001401",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYERS",
+      "externalId": "PLY-001402",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYERS",
+      "externalId": "PLY-001403",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYERS",
+      "externalId": "PLY-001404",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYERS",
+      "externalId": "PLY-001405",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYERS",
+      "externalId": "PLY-001406",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYERS",
+      "externalId": "PLY-001407",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYERS",
+      "externalId": "PLY-001408",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYERS",
+      "externalId": "PLY-001409",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYERS",
+      "externalId": "PLY-001410",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYERS",
+      "externalId": "PLY-001411",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYERS",
+      "externalId": "PLY-001412",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYERS",
+      "externalId": "PLY-001413",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYERS",
+      "externalId": "PLY-001414",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYERS",
+      "externalId": "PLY-001415",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYERS",
+      "externalId": "PLY-001416",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYERS",
+      "externalId": "PLY-001417",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYERS",
+      "externalId": "PLY-001418",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYERS",
+      "externalId": "PLY-001419",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYERS",
+      "externalId": "PLY-001420",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYERS",
+      "externalId": "PLY-001421",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYERS",
+      "externalId": "PLY-001422",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYERS",
+      "externalId": "PLY-001423",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYERS",
+      "externalId": "PLY-001424",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYERS",
+      "externalId": "PLY-001425",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYERS",
+      "externalId": "PLY-001426",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYERS",
+      "externalId": "PLY-001427",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "CLUBS",
+      "externalId": "CLB-000481",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "CLUBS",
+      "externalId": "CLB-000482",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "CLUBS",
+      "externalId": "CLB-000483",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "CLUBS",
+      "externalId": "CLB-000484",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "CLUBS",
+      "externalId": "CLB-000485",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "CLUBS",
+      "externalId": "CLB-000486",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "CLUBS",
+      "externalId": "CLB-000487",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "CLUBS",
+      "externalId": "CLB-000488",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "CLUBS",
+      "externalId": "CLB-000489",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "CLUBS",
+      "externalId": "CLB-000490",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "CLUBS",
+      "externalId": "CLB-000491",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "CLUBS",
+      "externalId": "CLB-000492",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "CLUBS",
+      "externalId": "CLB-000493",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "CLUBS",
+      "externalId": "CLB-000494",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "CLUBS",
+      "externalId": "CLB-000495",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "CLUBS",
+      "externalId": "CLB-000496",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "CLUBS",
+      "externalId": "CLB-000497",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "CLUBS",
+      "externalId": "CLB-000498",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "CLUBS",
+      "externalId": "CLB-000499",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "CLUBS",
+      "externalId": "CLB-000500",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "CLUBS",
+      "externalId": "CLB-000501",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "CLUBS",
+      "externalId": "CLB-000502",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "CLUBS",
+      "externalId": "CLB-000503",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "CLUBS",
+      "externalId": "CLB-000504",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "CLUBS",
+      "externalId": "CLB-000505",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "CLUBS",
+      "externalId": "CLB-000506",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "CLUBS",
+      "externalId": "CLB-000507",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "CLUBS",
+      "externalId": "CLB-000508",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "CLUBS",
+      "externalId": "CLB-000509",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "CLUBS",
+      "externalId": "CLB-000510",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "CLUBS",
+      "externalId": "CLB-000511",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "CLUBS",
+      "externalId": "CLB-000512",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "CLUBS",
+      "externalId": "CLB-000513",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "CLUBS",
+      "externalId": "CLB-000514",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "CLUBS",
+      "externalId": "CLB-000515",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "CLUBS",
+      "externalId": "CLB-000516",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYER_CLUB_HISTORY",
+      "externalId": "HIS-001157",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYER_CLUB_HISTORY",
+      "externalId": "HIS-001158",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYER_CLUB_HISTORY",
+      "externalId": "HIS-001159",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYER_CLUB_HISTORY",
+      "externalId": "HIS-001160",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYER_CLUB_HISTORY",
+      "externalId": "HIS-001161",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYER_CLUB_HISTORY",
+      "externalId": "HIS-001162",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYER_CLUB_HISTORY",
+      "externalId": "HIS-001163",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYER_CLUB_HISTORY",
+      "externalId": "HIS-001164",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYER_CLUB_HISTORY",
+      "externalId": "HIS-001165",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYER_CLUB_HISTORY",
+      "externalId": "HIS-001166",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYER_CLUB_HISTORY",
+      "externalId": "HIS-001167",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYER_CLUB_HISTORY",
+      "externalId": "HIS-001168",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYER_CLUB_HISTORY",
+      "externalId": "HIS-001169",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYER_CLUB_HISTORY",
+      "externalId": "HIS-001170",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYER_CLUB_HISTORY",
+      "externalId": "HIS-001171",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYER_CLUB_HISTORY",
+      "externalId": "HIS-001172",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYER_CLUB_HISTORY",
+      "externalId": "HIS-001173",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYER_CLUB_HISTORY",
+      "externalId": "HIS-001174",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYER_CLUB_HISTORY",
+      "externalId": "HIS-001175",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYER_CLUB_HISTORY",
+      "externalId": "HIS-001176",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYER_CLUB_HISTORY",
+      "externalId": "HIS-001177",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYER_CLUB_HISTORY",
+      "externalId": "HIS-001178",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYER_CLUB_HISTORY",
+      "externalId": "HIS-001179",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYER_CLUB_HISTORY",
+      "externalId": "HIS-001180",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYER_CLUB_HISTORY",
+      "externalId": "HIS-001181",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYER_CLUB_HISTORY",
+      "externalId": "HIS-001182",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYER_CLUB_HISTORY",
+      "externalId": "HIS-001183",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYER_CLUB_HISTORY",
+      "externalId": "HIS-001184",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYER_CLUB_HISTORY",
+      "externalId": "HIS-001185",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYER_CLUB_HISTORY",
+      "externalId": "HIS-001186",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYER_CLUB_HISTORY",
+      "externalId": "HIS-001187",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYER_CLUB_HISTORY",
+      "externalId": "HIS-001188",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYER_CLUB_HISTORY",
+      "externalId": "HIS-001189",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYER_CLUB_HISTORY",
+      "externalId": "HIS-001190",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYER_CLUB_HISTORY",
+      "externalId": "HIS-001191",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "PLAYER_CLUB_HISTORY",
+      "externalId": "HIS-001192",
+      "field": "provenance",
+      "oldValue": "UNVERIFIED",
+      "newValue": "UNKNOWN",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance."
+    },
+    {
+      "sheet": "SOURCES",
+      "externalId": "SRC-000004",
+      "field": "source_quality",
+      "oldValue": "STRONG_SECONDARY",
+      "newValue": "SECONDARY",
+      "classification": "SAFE_NORMALIZATION",
+      "reason": "Canonical source-quality alias; secondary evidence is not primary evidence."
+    },
+    {
+      "sheet": "SOURCES",
+      "externalId": "SRC-000005",
+      "field": "source_quality",
+      "oldValue": "STRONG_SECONDARY",
+      "newValue": "SECONDARY",
+      "classification": "SAFE_NORMALIZATION",
+      "reason": "Canonical source-quality alias; secondary evidence is not primary evidence."
+    },
+    {
+      "sheet": "SOURCES",
+      "externalId": "SRC-000009",
+      "field": "source_quality",
+      "oldValue": "STRONG_SECONDARY",
+      "newValue": "SECONDARY",
+      "classification": "SAFE_NORMALIZATION",
+      "reason": "Canonical source-quality alias; secondary evidence is not primary evidence."
+    },
+    {
+      "sheet": "SOURCES",
+      "externalId": "SRC-000010",
+      "field": "source_quality",
+      "oldValue": "STRONG_SECONDARY",
+      "newValue": "SECONDARY",
+      "classification": "SAFE_NORMALIZATION",
+      "reason": "Canonical source-quality alias; secondary evidence is not primary evidence."
+    },
+    {
+      "sheet": "SOURCES",
+      "externalId": "SRC-000011",
+      "field": "source_quality",
+      "oldValue": "STRONG_SECONDARY",
+      "newValue": "SECONDARY",
+      "classification": "SAFE_NORMALIZATION",
+      "reason": "Canonical source-quality alias; secondary evidence is not primary evidence."
+    },
+    {
+      "sheet": "FEDERATIONS",
+      "externalId": "FED-RECON-PZPN",
+      "field": "federation_external_id",
+      "oldValue": "",
+      "newValue": "FED-RECON-PZPN",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "Federation code PZPN is directly referenced by a verified league tuple; unprovided identity fields remain UNKNOWN."
+    },
+    {
+      "sheet": "FEDERATIONS",
+      "externalId": "FED-RECON-HFF",
+      "field": "federation_external_id",
+      "oldValue": "",
+      "newValue": "FED-RECON-HFF",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "Federation code HFF is directly referenced by a verified league tuple; unprovided identity fields remain UNKNOWN."
+    },
+    {
+      "sheet": "FEDERATIONS",
+      "externalId": "FED-RECON-FMF",
+      "field": "federation_external_id",
+      "oldValue": "",
+      "newValue": "FED-RECON-FMF",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "Federation code FMF is directly referenced by a verified league tuple; unprovided identity fields remain UNKNOWN."
+    },
+    {
+      "sheet": "FEDERATIONS",
+      "externalId": "FED-RECON-SAFA",
+      "field": "federation_external_id",
+      "oldValue": "",
+      "newValue": "FED-RECON-SAFA",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "Federation code SAFA is directly referenced by a verified league tuple; unprovided identity fields remain UNKNOWN."
+    },
+    {
+      "sheet": "FEDERATIONS",
+      "externalId": "FED-RECON-EFA",
+      "field": "federation_external_id",
+      "oldValue": "",
+      "newValue": "FED-RECON-EFA",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "Federation code EFA is directly referenced by a verified league tuple; unprovided identity fields remain UNKNOWN."
+    },
+    {
+      "sheet": "FEDERATIONS",
+      "externalId": "FED-RECON-FRMF",
+      "field": "federation_external_id",
+      "oldValue": "",
+      "newValue": "FED-RECON-FRMF",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "Federation code FRMF is directly referenced by a verified league tuple; unprovided identity fields remain UNKNOWN."
+    },
+    {
+      "sheet": "FEDERATIONS",
+      "externalId": "FED-RECON-FTF",
+      "field": "federation_external_id",
+      "oldValue": "",
+      "newValue": "FED-RECON-FTF",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "Federation code FTF is directly referenced by a verified league tuple; unprovided identity fields remain UNKNOWN."
+    },
+    {
+      "sheet": "FEDERATIONS",
+      "externalId": "FED-RECON-FAF",
+      "field": "federation_external_id",
+      "oldValue": "",
+      "newValue": "FED-RECON-FAF",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "Federation code FAF is directly referenced by a verified league tuple; unprovided identity fields remain UNKNOWN."
+    },
+    {
+      "sheet": "FEDERATIONS",
+      "externalId": "FED-RECON-FECOFA",
+      "field": "federation_external_id",
+      "oldValue": "",
+      "newValue": "FED-RECON-FECOFA",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "Federation code FECOFA is directly referenced by a verified league tuple; unprovided identity fields remain UNKNOWN."
+    },
+    {
+      "sheet": "FEDERATIONS",
+      "externalId": "FED-RECON-TFF",
+      "field": "federation_external_id",
+      "oldValue": "",
+      "newValue": "FED-RECON-TFF",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "Federation code TFF is directly referenced by a verified league tuple; unprovided identity fields remain UNKNOWN."
+    },
+    {
+      "sheet": "FEDERATIONS",
+      "externalId": "FED-RECON-FAZ",
+      "field": "federation_external_id",
+      "oldValue": "",
+      "newValue": "FED-RECON-FAZ",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "Federation code FAZ is directly referenced by a verified league tuple; unprovided identity fields remain UNKNOWN."
+    },
+    {
+      "sheet": "FEDERATIONS",
+      "externalId": "FED-RECON-FUFA",
+      "field": "federation_external_id",
+      "oldValue": "",
+      "newValue": "FED-RECON-FUFA",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "Federation code FUFA is directly referenced by a verified league tuple; unprovided identity fields remain UNKNOWN."
+    },
+    {
+      "sheet": "FEDERATIONS",
+      "externalId": "FED-RECON-FKF",
+      "field": "federation_external_id",
+      "oldValue": "",
+      "newValue": "FED-RECON-FKF",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "Federation code FKF is directly referenced by a verified league tuple; unprovided identity fields remain UNKNOWN."
+    },
+    {
+      "sheet": "FEDERATIONS",
+      "externalId": "FED-RECON-FIF",
+      "field": "federation_external_id",
+      "oldValue": "",
+      "newValue": "FED-RECON-FIF",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "Federation code FIF is directly referenced by a verified league tuple; unprovided identity fields remain UNKNOWN."
+    },
+    {
+      "sheet": "FEDERATIONS",
+      "externalId": "FED-RECON-FSF",
+      "field": "federation_external_id",
+      "oldValue": "",
+      "newValue": "FED-RECON-FSF",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "Federation code FSF is directly referenced by a verified league tuple; unprovided identity fields remain UNKNOWN."
+    },
+    {
+      "sheet": "FEDERATIONS",
+      "externalId": "FED-RECON-ZIFA",
+      "field": "federation_external_id",
+      "oldValue": "",
+      "newValue": "FED-RECON-ZIFA",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "Federation code ZIFA is directly referenced by a verified league tuple; unprovided identity fields remain UNKNOWN."
+    },
+    {
+      "sheet": "FEDERATIONS",
+      "externalId": "FED-RECON-FAT",
+      "field": "federation_external_id",
+      "oldValue": "",
+      "newValue": "FED-RECON-FAT",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "Federation code FAT is directly referenced by a verified league tuple; unprovided identity fields remain UNKNOWN."
+    },
+    {
+      "sheet": "FEDERATIONS",
+      "externalId": "FED-RECON-VFF",
+      "field": "federation_external_id",
+      "oldValue": "",
+      "newValue": "FED-RECON-VFF",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "Federation code VFF is directly referenced by a verified league tuple; unprovided identity fields remain UNKNOWN."
+    },
+    {
+      "sheet": "FEDERATIONS",
+      "externalId": "FED-RECON-JFF",
+      "field": "federation_external_id",
+      "oldValue": "",
+      "newValue": "FED-RECON-JFF",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "Federation code JFF is directly referenced by a verified league tuple; unprovided identity fields remain UNKNOWN."
+    },
+    {
+      "sheet": "FEDERATIONS",
+      "externalId": "FED-RECON-FENAGUT",
+      "field": "federation_external_id",
+      "oldValue": "",
+      "newValue": "FED-RECON-FENAGUT",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "Federation code FENAGUT is directly referenced by a verified league tuple; unprovided identity fields remain UNKNOWN."
+    },
+    {
+      "sheet": "FEDERATIONS",
+      "externalId": "FED-RECON-FAW",
+      "field": "federation_external_id",
+      "oldValue": "",
+      "newValue": "FED-RECON-FAW",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "Federation code FAW is directly referenced by a verified league tuple; unprovided identity fields remain UNKNOWN."
+    },
+    {
+      "sheet": "FEDERATIONS",
+      "externalId": "FED-RECON-OFC",
+      "field": "federation_external_id",
+      "oldValue": "",
+      "newValue": "FED-RECON-OFC",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "Federation code OFC is directly referenced by a verified league tuple; unprovided identity fields remain UNKNOWN."
+    },
+    {
+      "sheet": "FEDERATIONS",
+      "externalId": "FED-RECON-FBF",
+      "field": "federation_external_id",
+      "oldValue": "",
+      "newValue": "FED-RECON-FBF",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "Federation code FBF is directly referenced by a verified league tuple; unprovided identity fields remain UNKNOWN."
+    },
+    {
+      "sheet": "FEDERATIONS",
+      "externalId": "FED-RECON-KFF",
+      "field": "federation_external_id",
+      "oldValue": "",
+      "newValue": "FED-RECON-KFF",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "Federation code KFF is directly referenced by a verified league tuple; unprovided identity fields remain UNKNOWN."
+    },
+    {
+      "sheet": "FEDERATIONS",
+      "externalId": "FED-RECON-HKFA",
+      "field": "federation_external_id",
+      "oldValue": "",
+      "newValue": "FED-RECON-HKFA",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "Federation code HKFA is directly referenced by a verified league tuple; unprovided identity fields remain UNKNOWN."
+    },
+    {
+      "sheet": "FEDERATIONS",
+      "externalId": "FED-RECON-PSSI",
+      "field": "federation_external_id",
+      "oldValue": "",
+      "newValue": "FED-RECON-PSSI",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "Federation code PSSI is directly referenced by a verified league tuple; unprovided identity fields remain UNKNOWN."
+    },
+    {
+      "sheet": "CLUBS",
+      "externalId": "CLB-000029",
+      "field": "league",
+      "oldValue": "Aaha! Rara Gold Cup",
+      "newValue": "",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Tournament affiliation is not a league; do not invent a canonical league row."
+    },
+    {
+      "sheet": "CLUBS",
+      "externalId": "CLB-000030",
+      "field": "league",
+      "oldValue": "Budha Subba Gold Cup",
+      "newValue": "",
+      "classification": "MANUAL_REVIEW",
+      "reason": "Tournament affiliation is not a league; do not invent a canonical league row."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-ENGLAND-CHAMPIONSHIP",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-ENGLAND-CHAMPIONSHIP",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Championship is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "FEDERATIONS",
+      "externalId": "FED-RECON-UEFA",
+      "field": "federation_external_id",
+      "oldValue": "",
+      "newValue": "FED-RECON-UEFA",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "Federation code UEFA is directly referenced by a verified league tuple; unprovided identity fields remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-DENMARK-SUPERLIGA",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-DENMARK-SUPERLIGA",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Superliga is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-FRANCE-NATIONAL-2",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-FRANCE-NATIONAL-2",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League National 2 is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "FEDERATIONS",
+      "externalId": "FED-RECON-CFA",
+      "field": "federation_external_id",
+      "oldValue": "",
+      "newValue": "FED-RECON-CFA",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "Federation code CFA is directly referenced by a verified league tuple; unprovided identity fields remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-CHINA-CHINESE-WOMEN-S-SUPER-LEAGUE",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-CHINA-CHINESE-WOMEN-S-SUPER-LEAGUE",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Chinese Women's Super League is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-MOROCCO-MOROCCAN-WOMEN-S-CHAMPIONSHIP",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-MOROCCO-MOROCCAN-WOMEN-S-CHAMPIONSHIP",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Moroccan Women's Championship is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-DR-CONGO-DR-CONGO-WOMEN-S-CHAMPIONSHIP",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-DR-CONGO-DR-CONGO-WOMEN-S-CHAMPIONSHIP",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League DR Congo Women's Championship is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-GHANA-GHANA-WOMEN-S-PREMIER-LEAGUE",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-GHANA-GHANA-WOMEN-S-PREMIER-LEAGUE",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Ghana Women's Premier League is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "FEDERATIONS",
+      "externalId": "FED-RECON-FIFA",
+      "field": "federation_external_id",
+      "oldValue": "",
+      "newValue": "FED-RECON-FIFA",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "Federation code FIFA is directly referenced by a verified league tuple; unprovided identity fields remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-TURKEY-TURKISH-SUPER-LEAGUE",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-TURKEY-TURKISH-SUPER-LEAGUE",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Turkish Super League is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-USA-NCAA",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-USA-NCAA",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League NCAA is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-ISRAEL-LIGAT-NASHIM",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-ISRAEL-LIGAT-NASHIM",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Ligat Nashim is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-CYPRUS-SECOND-DIVISION",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-CYPRUS-SECOND-DIVISION",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Second Division is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-ENGLAND-NATIONAL-LEAGUE-SOUTH",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-ENGLAND-NATIONAL-LEAGUE-SOUTH",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League National League South is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-DENMARK-DENMARK-SERIES",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-DENMARK-DENMARK-SERIES",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Denmark Series is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-DENMARK-1ST-DIVISION",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-DENMARK-1ST-DIVISION",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League 1st Division is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-ENGLAND-ISTHMIAN-LEAGUE",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-ENGLAND-ISTHMIAN-LEAGUE",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Isthmian League is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-GERMANY-3-LIGA",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-GERMANY-3-LIGA",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League 3. Liga is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-ICELAND-BEST-DEILDIN",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-ICELAND-BEST-DEILDIN",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Best Deildin is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-SWEDEN-ETTAN",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-SWEDEN-ETTAN",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Ettan is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-GERMANY-OBERLIGA",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-GERMANY-OBERLIGA",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Oberliga is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-CYPRUS-FIRST-DIVISION",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-CYPRUS-FIRST-DIVISION",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League First Division is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-ENGLAND-NORTHERN-PREMIER",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-ENGLAND-NORTHERN-PREMIER",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Northern Premier is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-IRAQ-STARS-LEAGUE",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-IRAQ-STARS-LEAGUE",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Stars League is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "FEDERATIONS",
+      "externalId": "FED-RECON-CAF",
+      "field": "federation_external_id",
+      "oldValue": "",
+      "newValue": "FED-RECON-CAF",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "Federation code CAF is directly referenced by a verified league tuple; unprovided identity fields remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-SCOTLAND-SCOTTISH-PREMIERSHIP",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-SCOTLAND-SCOTTISH-PREMIERSHIP",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Scottish Premiership is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-BELGIUM-BELGIAN-PRO-LEAGUE",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-BELGIUM-BELGIAN-PRO-LEAGUE",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Belgian Pro League is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-CZECH-REPUBLIC-CZECH-FIRST-LEAGUE",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-CZECH-REPUBLIC-CZECH-FIRST-LEAGUE",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Czech First League is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-AUSTRIA-AUSTRIAN-BUNDESLIGA",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-AUSTRIA-AUSTRIAN-BUNDESLIGA",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Austrian Bundesliga is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-TURKEY-S-PER-LIG",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-TURKEY-S-PER-LIG",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Süper Lig is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-RUSSIA-RUSSIAN-PREMIER-LEAGUE",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-RUSSIA-RUSSIAN-PREMIER-LEAGUE",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Russian Premier League is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-ENGLAND-SOUTHERN-COUNTIES-EAST-LEAGUE",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-ENGLAND-SOUTHERN-COUNTIES-EAST-LEAGUE",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Southern Counties East League is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "FEDERATIONS",
+      "externalId": "FED-RECON-FAI",
+      "field": "federation_external_id",
+      "oldValue": "",
+      "newValue": "FED-RECON-FAI",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "Federation code FAI is directly referenced by a verified league tuple; unprovided identity fields remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-IRELAND-MUNSTER-SENIOR-LEAGUE",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-IRELAND-MUNSTER-SENIOR-LEAGUE",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Munster Senior League is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-ENGLAND-COMBINED-COUNTIES-LEAGUE",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-ENGLAND-COMBINED-COUNTIES-LEAGUE",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Combined Counties League is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-ENGLAND-SOUTHERN-LEAGUE-PREMIER",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-ENGLAND-SOUTHERN-LEAGUE-PREMIER",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Southern League Premier is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-WALES-ARDAL-LEAGUES",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-WALES-ARDAL-LEAGUES",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Ardal Leagues is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-SCOTLAND-WEST-OF-SCOTLAND-LEAGUE",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-SCOTLAND-WEST-OF-SCOTLAND-LEAGUE",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League West of Scotland League is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-SCOTLAND-EAST-OF-SCOTLAND-LEAGUE",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-SCOTLAND-EAST-OF-SCOTLAND-LEAGUE",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League East of Scotland League is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-POLAND-IV-LIGA",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-POLAND-IV-LIGA",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League IV liga is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "FEDERATIONS",
+      "externalId": "FED-RECON-FRF",
+      "field": "federation_external_id",
+      "oldValue": "",
+      "newValue": "FED-RECON-FRF",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "Federation code FRF is directly referenced by a verified league tuple; unprovided identity fields remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-ROMANIA-LIGA-III",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-ROMANIA-LIGA-III",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Liga III is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "FEDERATIONS",
+      "externalId": "FED-RECON-FACR",
+      "field": "federation_external_id",
+      "oldValue": "",
+      "newValue": "FED-RECON-FACR",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "Federation code FACR is directly referenced by a verified league tuple; unprovided identity fields remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-CZECH-REPUBLIC-BOHEMIAN-FOOTBALL-LEAGUE",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-CZECH-REPUBLIC-BOHEMIAN-FOOTBALL-LEAGUE",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Bohemian Football League is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-CZECH-REPUBLIC-DIVIZE-A",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-CZECH-REPUBLIC-DIVIZE-A",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Divize A is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-BRAZIL-PAULISTA-S-RIE-A3",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-BRAZIL-PAULISTA-S-RIE-A3",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Paulista Série A3 is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-BRAZIL-PAULISTA-SEGUNDA-DIVIS-O",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-BRAZIL-PAULISTA-SEGUNDA-DIVIS-O",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Paulista Segunda Divisão is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-BRAZIL-CAMPEONATO-ALAGOANO",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-BRAZIL-CAMPEONATO-ALAGOANO",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Campeonato Alagoano is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-ARGENTINA-TORNEO-FEDERAL-A",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-ARGENTINA-TORNEO-FEDERAL-A",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Torneo Federal A is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-GHANA-GHANA-DIVISION-ONE",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-GHANA-GHANA-DIVISION-ONE",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Ghana Division One is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-NIGERIA-NIGERIA-NATIONWIDE-LEAGUE-ONE",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-NIGERIA-NIGERIA-NATIONWIDE-LEAGUE-ONE",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Nigeria Nationwide League One is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-NIGERIA-NIGERIA-NATIONAL-LEAGUE",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-NIGERIA-NIGERIA-NATIONAL-LEAGUE",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Nigeria National League is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-KENYA-NATIONAL-SUPER-LEAGUE",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-KENYA-NATIONAL-SUPER-LEAGUE",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League National Super League is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-INDIA-BDFA-SUPER-DIVISION",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-INDIA-BDFA-SUPER-DIVISION",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League BDFA Super Division is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-THAILAND-THAI-SEMI-PRO-LEAGUE",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-THAILAND-THAI-SEMI-PRO-LEAGUE",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Thai Semi-Pro League is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-THAILAND-THAI-LEAGUE-3",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-THAILAND-THAI-LEAGUE-3",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Thai League 3 is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-INDONESIA-LIGA-3",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-INDONESIA-LIGA-3",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Liga 3 is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-INDONESIA-LIGA-2",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-INDONESIA-LIGA-2",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Liga 2 is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-USA-USL-LEAGUE-TWO",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-USA-USL-LEAGUE-TWO",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League USL League Two is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-USA-UPSL",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-USA-UPSL",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League UPSL is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-USA-EPSL",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-USA-EPSL",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League EPSL is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-IRELAND-LEINSTER-SENIOR-LEAGUE",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-IRELAND-LEINSTER-SENIOR-LEAGUE",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Leinster Senior League is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-ARGENTINA-PRIMERA-B-NACIONAL",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-ARGENTINA-PRIMERA-B-NACIONAL",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Primera B Nacional is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "FEDERATIONS",
+      "externalId": "FED-RECON-AFC",
+      "field": "federation_external_id",
+      "oldValue": "",
+      "newValue": "FED-RECON-AFC",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "Federation code AFC is directly referenced by a verified league tuple; unprovided identity fields remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-BELGIUM-CHALLENGER-PRO-LEAGUE",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-BELGIUM-CHALLENGER-PRO-LEAGUE",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Challenger Pro League is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    },
+    {
+      "sheet": "LEAGUES",
+      "externalId": "LGE-RECON-TAJIKISTAN-TAJIKISTAN-HIGHER-LEAGUE",
+      "field": "league_external_id",
+      "oldValue": "",
+      "newValue": "LGE-RECON-TAJIKISTAN-TAJIKISTAN-HIGHER-LEAGUE",
+      "classification": "CANONICAL_MAPPING",
+      "reason": "League Tajikistan Higher League is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN."
+    }
+  ]
+}

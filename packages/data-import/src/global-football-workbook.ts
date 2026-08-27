@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import * as XLSX from "xlsx";
 
 export type GlobalImportMode = "VALIDATE" | "DRY_RUN" | "APPLY";
@@ -112,6 +112,59 @@ export const writeReconciledGlobalFootballWorkbook = (sourcePath: string, destin
     workbook.Sheets.STAFF = XLSX.utils.aoa_to_sheet(repaired);
   }
   XLSX.writeFile(workbook, destinationPath, { bookType: "xlsx" });
+};
+
+export type FinalReconciliationManifestEntry = { sheet: string; externalId: string; field: string; oldValue: string; newValue: string; classification: "SAFE_NORMALIZATION" | "CANONICAL_MAPPING" | "DATA_REPAIR" | "MANUAL_REVIEW"; reason: string };
+export type FinalReconciliationResult = { destinationPath: string; manifest: FinalReconciliationManifestEntry[]; manualReview: Array<Record<string, string>> };
+
+const slug = (value: string): string => value.toUpperCase().replace(/[^A-Z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 42) || "UNKNOWN";
+const csvCell = (value: string): string => `"${value.replaceAll('"', '""')}"`;
+
+/**
+ * Produces a new candidate workbook. It edits only deterministic facts and
+ * leaves genuinely uncertain identity/competition decisions in a review file.
+ */
+export const reconcileFinalGlobalFootballWorkbook = (sourcePath: string, destinationPath: string, manifestPath: string, manualReviewPath: string): FinalReconciliationResult => {
+  const workbook = XLSX.read(readFileSync(sourcePath), { type: "buffer", cellDates: true, cellFormula: false, cellNF: false, cellStyles: true });
+  const manifest: FinalReconciliationManifestEntry[] = [];
+  const manualReview: Array<Record<string, string>> = [];
+  const arrays = new Map<string, unknown[][]>();
+  for (const sheet of Object.keys(expectedHeaders)) { const ws = workbook.Sheets[sheet]; if (ws) arrays.set(sheet, XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, raw: true, defval: null })); }
+  const idAt = (sheet: string, row: unknown[]): string => text(row[expectedHeaders[sheet]!.indexOf(idColumns[sheet]!.column)]);
+  const setField = (sheet: string, row: unknown[], field: string, value: string, classification: FinalReconciliationManifestEntry["classification"], reason: string): void => { const index = expectedHeaders[sheet]!.indexOf(field); const oldValue = text(row[index]); if (oldValue !== value) { row[index] = value; manifest.push({ sheet, externalId: idAt(sheet, row), field, oldValue, newValue: value, classification, reason }); } };
+  for (const [sheet, rows] of arrays) {
+    const headers = expectedHeaders[sheet]!;
+    for (const row of rows.slice(1)) {
+      const provenance = headers.indexOf("provenance"); if (provenance >= 0 && text(row[provenance]).toUpperCase() === "UNVERIFIED") setField(sheet, row, "provenance", "UNKNOWN", "MANUAL_REVIEW", "Raw Unverified/LOW-confidence row; preserve uncertainty without promoting provenance.");
+      const quality = headers.indexOf("source_quality"); if (quality >= 0 && text(row[quality]).toUpperCase() === "STRONG_SECONDARY") setField(sheet, row, "source_quality", "SECONDARY", "SAFE_NORMALIZATION", "Canonical source-quality alias; secondary evidence is not primary evidence.");
+      if (sheet === "PLAYERS") { setField(sheet, row, "primary_position", normalizePosition(row[headers.indexOf("primary_position")]), "SAFE_NORMALIZATION", "Explicit supported position alias."); setField(sheet, row, "secondary_position", normalizePosition(row[headers.indexOf("secondary_position")]), "SAFE_NORMALIZATION", "Explicit supported position alias."); }
+      if (sheet === "LEAGUES" && text(row[headers.indexOf("country")]).toUpperCase() !== "NEPAL") { setField(sheet, row, "is_playable_in_game", "NO", "SAFE_NORMALIZATION", "External leagues are never playable."); setField(sheet, row, "simulation_depth", "CONTEXT_ONLY", "SAFE_NORMALIZATION", "External leagues use context-only simulation."); }
+    }
+  }
+  const federationRows = arrays.get("FEDERATIONS")!; const federationHeaders = expectedHeaders.FEDERATIONS!; const federationCodes = new Set(federationRows.slice(1).map((row) => text(row[federationHeaders.indexOf("abbreviation")] )));
+  const federationByCountry = new Map(federationRows.slice(1).map((row) => [normalized(row[federationHeaders.indexOf("country")]), text(row[federationHeaders.indexOf("abbreviation")] )]));
+  const ensureFederation = (code: string, country: string, sourceId: string, confederation: string): string => {
+    const existing = federationByCountry.get(normalized(country)); if (existing && existing !== code) return existing;
+    if (!federationCodes.has(code)) { const row = ["FED-RECON-" + slug(code), code, code, country, confederation || "UNKNOWN", "UNKNOWN", "UNKNOWN", "UNKNOWN", sourceId, "", "Reconciled federation reference; identity details remain UNKNOWN."]; federationRows.push(row); federationCodes.add(code); federationByCountry.set(normalized(country), code); manifest.push({ sheet: "FEDERATIONS", externalId: row[0] as string, field: "federation_external_id", oldValue: "", newValue: row[0] as string, classification: "CANONICAL_MAPPING", reason: `Federation code ${code} is directly referenced by a verified league tuple; unprovided identity fields remain UNKNOWN.` }); }
+    return code;
+  };
+  const leagueRows = arrays.get("LEAGUES")!; const leagueHeaders = expectedHeaders.LEAGUES!; const leagueNames = new Set(leagueRows.slice(1).flatMap((row) => [normalized(row[leagueHeaders.indexOf("official_name")]), normalized(row[leagueHeaders.indexOf("common_name")])]).filter(Boolean));
+  for (const row of leagueRows.slice(1)) ensureFederation(text(row[leagueHeaders.indexOf("federation")]), text(row[leagueHeaders.indexOf("country")]), text(row[leagueHeaders.indexOf("source_1_id")]), text(row[leagueHeaders.indexOf("confederation")]));
+  const clubRows = arrays.get("CLUBS")!; const clubHeaders = expectedHeaders.CLUBS!; const nonLeagueNames = new Set(["aaha! rara gold cup", "budha subba gold cup"]);
+  const addedLeagueIds = new Set<string>();
+  for (const row of clubRows.slice(1)) {
+    const league = text(row[clubHeaders.indexOf("league")]); if (!league || leagueNames.has(normalized(league))) continue;
+    const externalId = idAt("CLUBS", row); const country = text(row[clubHeaders.indexOf("country")]);
+    if (nonLeagueNames.has(normalized(league))) { setField("CLUBS", row, "league", "", "MANUAL_REVIEW", "Tournament affiliation is not a league; do not invent a canonical league row."); manualReview.push({ sheet: "CLUBS", external_id: externalId, name: text(row[clubHeaders.indexOf("official_name")]), field: "league", value: league, issue: "NOT_APPLICABLE_OR_TOURNAMENT", evidence: "Club row labels an event rather than a league.", candidate_mapping: "", recommended_action: "Review historical/tournament relationship separately." }); continue; }
+    const federationToken = text(row[clubHeaders.indexOf("national_federation")]); const federation = ensureFederation(federationToken, country, text(row[clubHeaders.indexOf("source_1_id")]), "UNKNOWN");
+    const newId = `LGE-RECON-${slug(country)}-${slug(league)}`; if (!addedLeagueIds.has(newId)) { const newRow = [newId, league, league, country, federation, "UNKNOWN", "UNKNOWN", "", "UNKNOWN", "UNKNOWN", "NO", "CONTEXT_ONLY", "UNKNOWN", text(row[clubHeaders.indexOf("source_1_id")]), "", "Reconciled from a club reference; format details remain UNKNOWN."]; leagueRows.push(newRow); addedLeagueIds.add(newId); leagueNames.add(normalized(league)); manifest.push({ sheet: "LEAGUES", externalId: newId, field: "league_external_id", oldValue: "", newValue: newId, classification: "CANONICAL_MAPPING", reason: `League ${league} is explicitly present in a club/country/federation tuple; unsupported format facts remain UNKNOWN.` }); }
+  }
+  for (const [sheet, rows] of arrays) if (workbook.Sheets[sheet]) workbook.Sheets[sheet] = XLSX.utils.aoa_to_sheet(rows);
+  mkdirSync(manifestPath.includes("/") ? manifestPath.slice(0, manifestPath.lastIndexOf("/")) : ".", { recursive: true });
+  writeFileSync(destinationPath, ""); XLSX.writeFile(workbook, destinationPath, { bookType: "xlsx" });
+  writeFileSync(manifestPath, `${JSON.stringify({ datasetVersion: "football_world_import_v16", sourcePath, destinationPath, changes: manifest }, null, 2)}\n`);
+  const columns = ["sheet", "external_id", "name", "field", "value", "issue", "evidence", "candidate_mapping", "recommended_action"]; writeFileSync(manualReviewPath, `${columns.join(",")}\n${manualReview.map((row) => columns.map((column) => csvCell(row[column] ?? "")).join(",")).join("\n")}\n`);
+  return { destinationPath, manifest, manualReview };
 };
 
 const normalizeRows = (parsed: ParsedGlobalWorkbook): Record<string, WorkbookRow[]> => {
