@@ -4405,6 +4405,11 @@ export class PlayerRepository {
       .all(teamId)
       .map(mapAttributes);
   }
+  attributesForPlayers(playerIds: readonly EntityId[]): PlayerAttributeSet[] {
+    if (playerIds.length === 0) return [];
+    const placeholders = playerIds.map(() => "?").join(",");
+    return this.db.prepare(`SELECT * FROM player_attributes WHERE person_id IN (${placeholders}) ORDER BY person_id`).all(...playerIds).map(mapAttributes);
+  }
 
   insertFactualProfile(profile: PlayerFactualProfile): void {
     this.db
