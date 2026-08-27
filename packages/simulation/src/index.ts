@@ -36,6 +36,7 @@ export * from "./ai-club-strategy.js";
 export * from "./international-football.js";
 export * from "./manager-career.js";
 export * from "./manager-career-world.js";
+export * from "./manager-interviews.js";
 export * from "./manager-flow.js";
 export * from "./match-environment.js";
 export * from "./match-engine.js";

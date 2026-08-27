@@ -22,9 +22,10 @@ import {
   type SaveMetadata,
   type Team,
 } from "@nepal-football-sim/shared-types";
-import { SeededRandom } from "./rng.js";
 import { createManagerContract } from "./manager-career.js";
 import { supporterBoardPressureModifier } from "./supporter-culture.js";
+import { interviewManagerForApplication } from "./manager-interviews.js";
+import { SeededRandom } from "./rng.js";
 
 type SqlRow = Record<string, any>;
 
@@ -178,6 +179,17 @@ export const ensureAiManagersAssigned = (
     if (openVacancy && daysBetween(openVacancy.openedOn, save.worldDate) < VACANCY_GRACE_DAYS) {
       continue;
     }
+    const vacancy = openVacancy ?? {
+      id: createStableEntityId("manager-job-vacancy", `${team.id}:${save.worldDate}`),
+      clubId: team.clubId,
+      teamId: team.id,
+      countryId: countryId ?? firstCountryId(db),
+      openedOn: save.worldDate,
+      reason: "NEW_CLUB" as const,
+      boardExpectation: team.clubId ? expectationForClub(db, team.clubId) : "SURVIVE",
+      status: "OPEN" as const,
+    };
+    if (!openVacancy) careerWorld.insertVacancy(vacancy);
 
     const freeAgent = managers
       .unemployedManagerProfiles()
@@ -202,6 +214,15 @@ export const ensureAiManagersAssigned = (
       profileId = generated.profile.id;
     }
 
+    if (vacancy.clubId) {
+      const interview = interviewManagerForApplication(db, {
+        vacancy,
+        profile: managers.getProfile(profileId)!,
+        date: save.worldDate,
+      });
+      if (!interview.successful) continue;
+    }
+
     const contract = createManagerContract({
       managerProfileId: profileId,
       personId,
@@ -212,7 +233,7 @@ export const ensureAiManagersAssigned = (
     });
     managers.insertContract(contract);
 
-    if (openVacancy) careerWorld.fillVacancy(openVacancy.id, save.worldDate, contract.id);
+    careerWorld.fillVacancy(vacancy.id, save.worldDate, contract.id);
   }
 };
 
@@ -461,7 +482,7 @@ export const applyForJob = (
   }
   const alreadyApplied = careerWorld
     .applicationsForManager(managerProfile.id)
-    .some((application) => application.vacancyId === vacancyId && application.status === "OFFERED");
+    .some((application) => application.vacancyId === vacancyId && (application.status === "OFFERED" || application.status === "ACCEPTED"));
   if (alreadyApplied) {
     throw new JobApplicationError("ALREADY_APPLIED", "You already have an offer for this job.");
   }
@@ -470,13 +491,11 @@ export const applyForJob = (
     throw new JobApplicationError("NOT_ELIGIBLE", check.note ?? "You are not eligible for this role.");
   }
 
-  const rng = new SeededRandom(`job-application:${vacancyId}:${managerProfile.id}:${save.worldDate}`);
-  const reputationScore = managerProfile.attributes.personality.reputation;
-  const successChance = Math.min(0.95, 0.5 + reputationScore / 28);
-  const offered = rng.next() < successChance;
+  const interview = interviewManagerForApplication(db, { vacancy, profile: managerProfile, date: save.worldDate });
+  const offered = interview.successful;
 
   const application: JobApplication = {
-    id: createEntityId(),
+    id: createStableEntityId("manager-job-application", `${vacancyId}:${managerProfile.id}:${save.worldDate}`),
     vacancyId,
     managerProfileId: managerProfile.id,
     personId: managerProfile.personId,

@@ -59,7 +59,7 @@ export const resolveLinkedDomainResult = (db: GameDatabase, reference: Universal
     PLAYER_CONCERN: "player_concerns", INFRASTRUCTURE_PROJECT: "infrastructure_projects", FACILITY_REQUEST: "infrastructure_projects",
     STAFF_CONTRACT: "staff_employment_contracts", FEDERATION_GRANT: "federation_grants",
     FEDERATION_CORRECTIVE_ACTION: "federation_corrective_actions", GOVERNMENT_SUPPORT: "government_funding_applications",
-    COMMERCIAL_DEAL: "federation_commercial_rights_offers",
+    COMMERCIAL_DEAL: "federation_commercial_rights_offers", MANAGER_INTERVIEW: "manager_job_vacancies",
   };
   const table = tables[reference.type];
   return table ? exists(db, table, reference.canonicalId) : true;
@@ -85,7 +85,7 @@ const adapterFor = (type: string): UniversalInteractionAdapter => ({ ...genericA
 export const universalInteractionAdapters: Readonly<Record<string, UniversalInteractionAdapter>> = Object.freeze(Object.fromEntries([
   "CONTRACT_NEGOTIATION", "CONTRACT", "TRANSFER_NEGOTIATION", "TRANSFER_OFFER", "TRANSFER_DEAL", "PLAYER_CONCERN",
   "PLAYER_PROMISE", "BOARD_REQUEST", "INFRASTRUCTURE_PROJECT", "FEDERATION_GRANT", "FEDERATION_PROJECT",
-  "FEDERATION_CORRECTIVE_ACTION", "COMMERCIAL_DEAL", "STAFF_CONTRACT", "JOB_SECURITY", "FACILITY_REQUEST",
+  "FEDERATION_CORRECTIVE_ACTION", "COMMERCIAL_DEAL", "STAFF_CONTRACT", "JOB_SECURITY", "MANAGER_INTERVIEW", "FACILITY_REQUEST",
   "FEDERATION_FUNDING", "GOVERNMENT_SUPPORT",
 ].map((type) => [type, adapterFor(type)])));
 
