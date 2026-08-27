@@ -84,6 +84,7 @@ import { processOwnershipContinuity } from "./ownership.js";
 import { ensureFederationLeadershipContinuity } from "./federation-politics.js";
 import { advanceMacroEconomyForWorldDate } from "./macro-economy.js";
 import { recordCompetitionSeasonHistory, recordFootballMatchHistory } from "./football-history.js";
+import { processClubLicensingForSeason } from "./licensing.js";
 import {
   evolveSupporterCultureSeason,
   initializeSupporterCultureForSave,
@@ -295,7 +296,16 @@ export const simulateNepalCareer = (input: {
     }
 
     const nextSeasons = createNextSeasons(input.db, activeSeasons);
-    const movementCounts = applyProgression(input.db, activeSeasons, completed, nextSeasons);
+    const licensingEligible = new Set<EntityId>();
+    for (const item of completed) {
+      const licensing = processClubLicensingForSeason(input.db, {
+        competitionSeasonId: item.season.id,
+        date: item.season.endDate,
+        seasonLabel: item.season.startDate.slice(0, 4),
+      });
+      for (const clubId of licensing.eligibleClubIds) licensingEligible.add(clubId);
+    }
+    const movementCounts = applyProgression(input.db, activeSeasons, completed, nextSeasons, licensingEligible);
     const movements = completed.flatMap((item) =>
       new CompetitionRepository(input.db)
         .movements(item.season.id)
@@ -947,6 +957,7 @@ const applyProgression = (
     standings: readonly LeagueStanding[];
   }>,
   nextSeasons: ReadonlyMap<EntityId, CompetitionSeason>,
+  licensingEligible?: ReadonlySet<EntityId>,
 ): Map<EntityId, { promotions: number; relegations: number }> => {
   const world = new WorldRepository(db);
   const relationships = seasons.flatMap((season) =>
@@ -959,6 +970,7 @@ const applyProgression = (
     })),
     nextSeasons: new Map([...nextSeasons.values()].map((season) => [season.competitionId, season])),
     relationships,
+    eligibleClubIds: licensingEligible,
   });
   persistPyramidProgression(db, result);
   const counts = new Map<EntityId, { promotions: number; relegations: number }>();

@@ -67,7 +67,15 @@ export const progressPyramidSeason = (input: PyramidProgressionInput): PyramidPr
         if (slots === 0 || targetSeason === undefined) {
           continue;
         }
-        const selected = selectedMemberships(completed, relationship, slots);
+        const sportingSelection = selectedMemberships(completed, relationship, slots);
+        const fallbackSelection =
+          input.eligibleClubIds === undefined
+            ? []
+            : rankedMemberships(completed, relationship)
+                .filter((membership) => input.eligibleClubIds!.has(membership.clubId))
+                .filter((membership) => !sportingSelection.some((selected) => selected.clubId === membership.clubId))
+                .slice(0, Math.max(0, slots - sportingSelection.filter((membership) => input.eligibleClubIds!.has(membership.clubId)).length));
+        const selected = [...sportingSelection, ...fallbackSelection];
         for (const membership of selected) {
           const eligible =
             input.eligibleClubIds === undefined || input.eligibleClubIds.has(membership.clubId);
@@ -170,6 +178,13 @@ const selectedMemberships = (
   relationship: CompetitionRelationship,
   slots: number,
 ): ClubMembership[] => {
+  return rankedMemberships(completed, relationship).slice(0, slots);
+};
+
+const rankedMemberships = (
+  completed: CompletedCompetitionSeason,
+  relationship: CompetitionRelationship,
+): ClubMembership[] => {
   const membershipsByTeam = new Map(
     completed.memberships
       .filter((membership) => membership.teamId !== undefined)
@@ -181,8 +196,7 @@ const selectedMemberships = (
       : [...completed.standings];
   return ordered
     .map((standing) => membershipsByTeam.get(standing.teamId))
-    .filter((membership): membership is ClubMembership => membership !== undefined)
-    .slice(0, slots);
+    .filter((membership): membership is ClubMembership => membership !== undefined);
 };
 
 const movementSlots = (

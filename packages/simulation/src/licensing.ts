@@ -1,4 +1,4 @@
-import { ClubEconomyRepository, ClubLicensingRepository, type GameDatabase } from "@nepal-football-sim/database";
+import { ClubEconomyRepository, ClubLicensingRepository, FederationComplianceRepository, type GameDatabase } from "@nepal-football-sim/database";
 import { createStableEntityId, type ClubLicenceCase, type ClubLicenceHistoryEvent, type ClubLicenceRemediation, type EntityId } from "@nepal-football-sim/shared-types";
 
 const simulationStatus = "SIMULATION_ONLY" as const;
@@ -47,3 +47,20 @@ export const appealClubLicence = (db: GameDatabase, input: { caseId: EntityId; d
 
 export const closeClubLicenceCycle = (db: GameDatabase, input: { caseId: EntityId; date: string }): ClubLicenceCase => { const repo = new ClubLicensingRepository(db); const current = repo.get(input.caseId); if (!current) throw new Error("Licence case not found"); const result = { ...current, status: "RESOLVED" as const, history: [...current.history, event(input.date, "CLOSED", "Seasonal licensing record archived")], reviewedAt: input.date }; repo.upsert(result); return result; };
 export const clubMayEnterCompetition = (db: GameDatabase, competitionSeasonId: EntityId, clubId: EntityId) => { const item = new ClubLicensingRepository(db).cases(competitionSeasonId).find((entry) => entry.clubId === clubId); return item?.status === "PASSED" || item?.status === "RESOLVED" || item?.status === "CONDITIONAL"; };
+
+export const processClubLicensingForSeason = (db: GameDatabase, input: { competitionSeasonId: EntityId; date: string; seasonLabel: string }): { cases: ClubLicenceCase[]; eligibleClubIds: Set<EntityId> } => {
+  const rows = db.prepare("SELECT DISTINCT cm.club_id AS clubId, c.federation_id AS federationId FROM club_memberships cm JOIN competitions c ON c.id = cm.competition_id WHERE cm.competition_season_id = ? AND cm.status NOT IN ('WITHDRAWN','SUSPENDED','INELIGIBLE') ORDER BY cm.club_id").all(input.competitionSeasonId) as Array<{ clubId: EntityId; federationId?: EntityId }>;
+  const cases: ClubLicenceCase[] = [];
+  const eligibleClubIds = new Set<EntityId>();
+  for (const row of rows) {
+    if (!row.federationId) continue;
+    const licence = assessClubLicence(db, { federationId: row.federationId, clubId: row.clubId, competitionSeasonId: input.competitionSeasonId, seasonLabel: input.seasonLabel, date: input.date });
+    cases.push(licence);
+    if (clubMayEnterCompetition(db, input.competitionSeasonId, row.clubId)) eligibleClubIds.add(row.clubId);
+  }
+  return { cases, eligibleClubIds };
+};
+
+export const clubMayEnterContinentalCompetition = (db: GameDatabase, input: { domesticCompetitionSeasonId: EntityId; clubId: EntityId; federationId: EntityId }): boolean =>
+  clubMayEnterCompetition(db, input.domesticCompetitionSeasonId, input.clubId) &&
+  new FederationComplianceRepository(db).activeSanctionsForFederation(input.federationId).every((sanction) => !sanction.consequences.includes("CLUB_CONTINENTAL_PARTICIPATION_BLOCKED"));
