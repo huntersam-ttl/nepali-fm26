@@ -127,8 +127,15 @@ export const saveMatchSession = (
 
 export const serializeMatchState = (state: LiveMatchState): string => JSON.stringify(state);
 
-export const deserializeMatchState = (json: string): LiveMatchState =>
-  JSON.parse(json) as LiveMatchState;
+export const deserializeMatchState = (json: string): LiveMatchState => {
+  const state = JSON.parse(json) as Partial<LiveMatchState>;
+  return {
+    ...state,
+    winnerResolution: state.winnerResolution ?? "EXTRA_TIME_THEN_PENALTIES",
+    allowExtraTime: state.allowExtraTime ?? true,
+    allowPenalties: state.allowPenalties ?? true,
+  } as LiveMatchState;
+};
 
 /**
  * Advances a live match by a bounded number of minutes and checkpoints once at
@@ -183,6 +190,12 @@ export const finalizeMatch = (
 ): FinalizationOutcome => {
   if (state.period !== "FULL_TIME") {
     throw new Error("Cannot finalize a match before full time.");
+  }
+  const requiresWinner = Boolean(
+    context.ruleSet.matchesRequireWinner && (!context.fixture.tieId || context.fixture.leg === 2),
+  );
+  if (requiresWinner && !state.winnerTeamId) {
+    throw new Error(`Winner-required fixture ${context.fixture.id} completed without a winner`);
   }
   const sessions = new MatchSessionRepository(db);
   const existingSession = sessions.sessionForFixture(state.fixtureId);

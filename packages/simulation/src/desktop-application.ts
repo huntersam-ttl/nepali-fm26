@@ -2638,7 +2638,12 @@ const matchHelpers = (
       awayTacticalSetup: managerIsHome ? opponentTactic : tactic,
       seed: `${save.randomSeed}:${fixture.id}`,
       substitutionLimit: substitutionLimitFor(context.ruleSet),
-      requiresWinner: Boolean(context.ruleSet.matchesRequireWinner),
+      requiresWinner: Boolean(
+        context.ruleSet.matchesRequireWinner && (!fixture.tieId || fixture.leg === 2),
+      ),
+      winnerResolution: context.ruleSet.winnerResolution,
+      allowExtraTime: context.ruleSet.allowExtraTime,
+      allowPenalties: context.ruleSet.allowPenalties,
       aggregateFirstLeg: firstLegScoreFor(db, fixture),
     };
   };
@@ -2707,18 +2712,18 @@ const substitutionLimitFor = (ruleSet: CompetitionRuleSet): number =>
 /**
  * The completed first leg's score for a two-leg tie, translated into this
  * fixture's home/away frame. Undefined unless a fixture generator has already
- * paired two fixtures via `tieId` — no current generator does this yet.
+ * paired two fixtures via `tieId`.
  */
 const firstLegScoreFor = (
   db: GameDatabase,
   fixture: FixtureRecord,
 ): { homeGoals: number; awayGoals: number } | undefined => {
-  if (!fixture.tieId) return undefined;
+  if (!fixture.tieId || fixture.leg !== 2) return undefined;
   const row = db
     .prepare(
       `SELECT m.home_goals AS home_goals, m.away_goals AS away_goals, f.home_team_id AS home_team_id
        FROM fixtures f JOIN matches m ON m.fixture_id = f.id
-       WHERE f.tie_id = ? AND f.id != ? LIMIT 1`,
+       WHERE f.tie_id = ? AND f.leg = 1 AND f.id != ? LIMIT 1`,
     )
     .get(fixture.tieId, fixture.id) as
     { home_goals: number | null; away_goals: number | null; home_team_id: string } | undefined;

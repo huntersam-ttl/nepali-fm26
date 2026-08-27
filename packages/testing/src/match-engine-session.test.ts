@@ -491,6 +491,39 @@ describe("extra time, penalties and aggregate context", () => {
     }
   });
 
+  it("allows a drawn first leg and resolves a drawn second leg with direct penalties", () => {
+    const firstLeg = {
+      ...fixture,
+      id: "fixture-first-leg",
+      tieId: "tie-direct-penalties",
+      leg: 1,
+    } as unknown as FixtureRecord;
+    let firstLegResult: ReturnType<typeof simulateMatch> | undefined;
+    for (let index = 0; index < 500 && !firstLegResult; index += 1) {
+      const result = simulateMatch({
+        ...input(`first-leg-draw-${index}`),
+        fixture: firstLeg,
+        requiresWinner: false,
+      });
+      if (result.match.homeGoals === result.match.awayGoals) firstLegResult = result;
+    }
+    expect(firstLegResult).toBeDefined();
+    expect(firstLegResult!.match.winnerTeamId).toBeUndefined();
+
+    let shootout: ReturnType<typeof simulateMatch> | undefined;
+    for (let index = 0; index < 500 && !shootout; index += 1) {
+      const result = simulateMatch({
+        ...input(`direct-penalties-${index}`),
+        winnerResolution: "DIRECT_PENALTIES",
+        requiresWinner: true,
+      });
+      if (result.match.shootoutHomeGoals !== undefined) shootout = result;
+    }
+    expect(shootout).toBeDefined();
+    expect(shootout!.match.wentToExtraTime).toBeFalsy();
+    expect(shootout!.match.winnerTeamId).toBeDefined();
+  });
+
   it("finds a knockout match that goes all the way to penalties and keeps shootout goals separate", () => {
     let found: ReturnType<typeof simulateMatch> | undefined;
     for (let index = 0; index < 500 && !found; index += 1) {

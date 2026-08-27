@@ -9,6 +9,7 @@ import {
   type PlayerMatchState,
   type TacticalSetup,
   type TeamMatchStats,
+  type WinnerResolution,
 } from "@nepal-football-sim/shared-types";
 import { SeededRandom } from "./rng.js";
 import { calculateTeamStrength, type TeamStrength } from "./strength.js";
@@ -32,6 +33,9 @@ export type SimulateMatchInput = {
   substitutionLimit?: number;
   /** Knockout ties that cannot end level: drawn regulation goes to ET, then penalties. */
   requiresWinner?: boolean;
+  winnerResolution?: WinnerResolution;
+  allowExtraTime?: boolean;
+  allowPenalties?: boolean;
   /** First-leg score of a two-leg tie, in this match's home/away frame. */
   aggregateFirstLeg?: { homeGoals: number; awayGoals: number };
 };
@@ -131,6 +135,9 @@ export type LiveMatchState = {
   shootoutKicks?: PenaltyKick[];
   /** The side that won the tie, once decided by regulation, ET, aggregate or shootout. */
   winnerTeamId?: EntityId;
+  winnerResolution: WinnerResolution;
+  allowExtraTime: boolean;
+  allowPenalties: boolean;
 };
 
 export type PenaltyKick = {
@@ -210,6 +217,10 @@ export const createMatchState = (input: SimulateMatchInput): LiveMatchState => {
     scheduledDate: input.fixture.scheduledDate,
     substitutionLimit: input.substitutionLimit ?? 3,
     requiresWinner: input.requiresWinner,
+    winnerResolution: input.winnerResolution ?? "EXTRA_TIME_THEN_PENALTIES",
+    allowExtraTime:
+      input.allowExtraTime ?? input.winnerResolution !== "DIRECT_PENALTIES",
+    allowPenalties: input.allowPenalties ?? true,
     aggregateFirstLeg: input.aggregateFirstLeg,
   };
   // Bench membership drives substitutions; it is not part of the pitch selection.
@@ -282,6 +293,7 @@ export const stepMatch = (state: LiveMatchState): LiveMatchState => {
       pushEvent(state, state.minute, "EXTRA_TIME_START", state.homeTeamId);
     } else {
       completeMatch(state);
+      beginShootoutIfRequired(state);
     }
     state.stoppageTime = 0;
     return state;
@@ -303,12 +315,7 @@ export const stepMatch = (state: LiveMatchState): LiveMatchState => {
       EXTRA_TIME_FULL_MINUTES,
     );
     completeMatch(state);
-    if (state.requiresWinner && !state.winnerTeamId) {
-      // Still level after extra time: penalties decide it. FULL_TIME was
-      // already pushed by completeMatch above; that stands as end-of-play.
-      state.period = "PENALTY_SHOOTOUT";
-      state.pauseReason = "PENALTY_SHOOTOUT";
-    }
+    beginShootoutIfRequired(state);
     state.stoppageTime = 0;
     return state;
   }
@@ -537,9 +544,19 @@ const effectiveAggregateScore = (state: LiveMatchState): { home: number; away: n
 
 /** A knockout tie still level on aggregate at 90' needs extra time. */
 const needsExtraTime = (state: LiveMatchState): boolean => {
-  if (!state.requiresWinner) return false;
+  if (!state.requiresWinner || !state.allowExtraTime || state.winnerResolution === "DIRECT_PENALTIES") return false;
   const score = effectiveAggregateScore(state);
   return score.home === score.away;
+};
+
+const beginShootoutIfRequired = (state: LiveMatchState): void => {
+  if (state.requiresWinner && !state.winnerTeamId) {
+    if (!state.allowPenalties) {
+      throw new Error("Winner-required match has no configured penalty resolution");
+    }
+    state.period = "PENALTY_SHOOTOUT";
+    state.pauseReason = "PENALTY_SHOOTOUT";
+  }
 };
 
 /**

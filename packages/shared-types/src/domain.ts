@@ -841,6 +841,8 @@ export type TableTiebreaker =
   | "fairPlay"
   | "playoff";
 
+export type WinnerResolution = "EXTRA_TIME_THEN_PENALTIES" | "DIRECT_PENALTIES";
+
 export type CompetitionRuleSet = {
   id: EntityId;
   competitionSeasonId: EntityId;
@@ -867,6 +869,11 @@ export type CompetitionRuleSet = {
    * real Nepal league data, which is round-robin and never needs a winner.
    */
   matchesRequireWinner?: boolean;
+  /** Optional configured resolution for winner-required fixtures. */
+  winnerResolution?: WinnerResolution;
+  /** Optional overrides for configured knockout resolution. */
+  allowExtraTime?: boolean;
+  allowPenalties?: boolean;
 };
 
 export type CompetitionMovementType = "PROMOTION" | "RELEGATION" | "QUALIFICATION";

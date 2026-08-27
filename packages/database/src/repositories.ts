@@ -2637,7 +2637,12 @@ export class CompetitionRepository {
         ruleSet.continentalQualificationSlots,
         ruleSet.promotionEnabled === false ? 0 : 1,
         ruleSet.relegationEnabled === false ? 0 : 1,
-        json.stringify(ruleSet.specialRules ?? {}),
+        json.stringify({
+          ...(ruleSet.specialRules ?? {}),
+          ...(ruleSet.winnerResolution ? { winnerResolution: ruleSet.winnerResolution } : {}),
+          ...(ruleSet.allowExtraTime !== undefined ? { allowExtraTime: ruleSet.allowExtraTime } : {}),
+          ...(ruleSet.allowPenalties !== undefined ? { allowPenalties: ruleSet.allowPenalties } : {}),
+        }),
       );
   }
 
@@ -2645,6 +2650,9 @@ export class CompetitionRepository {
     const row = this.db
       .prepare("SELECT * FROM competition_rules WHERE competition_season_id = ? LIMIT 1")
       .get(competitionSeasonId) as any;
+    const specialRules = row
+      ? json.parse(row.special_rules_json, {} as Record<string, unknown>)
+      : undefined;
     return row
       ? {
           id: row.id,
@@ -2665,7 +2673,10 @@ export class CompetitionRepository {
           continentalQualificationSlots: row.continental_qualification_slots,
           promotionEnabled: Boolean(row.promotion_enabled),
           relegationEnabled: Boolean(row.relegation_enabled),
-          specialRules: json.parse(row.special_rules_json, {}),
+          specialRules,
+          winnerResolution: specialRules?.winnerResolution as CompetitionRuleSet["winnerResolution"],
+          allowExtraTime: specialRules?.allowExtraTime as boolean | undefined,
+          allowPenalties: specialRules?.allowPenalties as boolean | undefined,
         }
       : undefined;
   }

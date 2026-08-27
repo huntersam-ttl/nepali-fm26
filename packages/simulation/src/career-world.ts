@@ -444,9 +444,14 @@ const simulateCompetitionSeason = (
       homePlayers,
       awayPlayers,
       seed: `${input.seed}:match:${fixture.round}:${fixture.id}`,
+      requiresWinner: Boolean(input.ruleSet.matchesRequireWinner && (!fixture.tieId || fixture.leg === 2)),
+      winnerResolution: input.ruleSet.winnerResolution,
+      allowExtraTime: input.ruleSet.allowExtraTime,
+      allowPenalties: input.ruleSet.allowPenalties,
+      aggregateFirstLeg: firstLegScoreFor(db, fixture),
     });
     allResults.push(result);
-    persistMatchResult(db, result, input.season.id, fixture.scheduledDate);
+    persistMatchResult(db, result, input.season.id, fixture.scheduledDate, input.ruleSet, fixture);
     if (input.economyEnabled) {
       postMatchdayEconomy(db, fixture, fixture.scheduledDate, input.seed);
     }
@@ -622,12 +627,39 @@ const ensureFixtures = (
   return competitions.fixtures(input.season.id);
 };
 
+const firstLegScoreFor = (
+  db: GameDatabase,
+  fixture: FixtureRecord,
+): { homeGoals: number; awayGoals: number } | undefined => {
+  if (!fixture.tieId || fixture.leg !== 2) return undefined;
+  const firstLeg = db
+    .prepare(
+      `SELECT m.home_goals AS home_goals, m.away_goals AS away_goals,
+              f.home_team_id AS home_team_id
+       FROM fixtures f JOIN matches m ON m.fixture_id = f.id
+       WHERE f.tie_id = ? AND f.leg = 1 AND f.id != ? LIMIT 1`,
+    )
+    .get(fixture.tieId, fixture.id) as
+    | { home_goals?: number; away_goals?: number; home_team_id?: EntityId }
+    | undefined;
+  if (!firstLeg) return undefined;
+  return String(firstLeg.home_team_id) === String(fixture.homeTeamId)
+    ? { homeGoals: Number(firstLeg.home_goals ?? 0), awayGoals: Number(firstLeg.away_goals ?? 0) }
+    : { homeGoals: Number(firstLeg.away_goals ?? 0), awayGoals: Number(firstLeg.home_goals ?? 0) };
+};
+
 const persistMatchResult = (
   db: GameDatabase,
   result: MatchResult,
   competitionSeasonId: EntityId,
   playedDate: string,
+  ruleSet: CompetitionRuleSet,
+  fixture: FixtureRecord,
 ): void => {
+  const requiresWinner = Boolean(ruleSet.matchesRequireWinner && (!fixture.tieId || fixture.leg === 2));
+  if (requiresWinner && !result.match.winnerTeamId) {
+    throw new Error(`Winner-required fixture ${fixture.id} completed without a winner`);
+  }
   const competitions = new CompetitionRepository(db);
   const players = new PlayerRepository(db);
   competitions.insertMatch({ ...result.match, playedDate });
