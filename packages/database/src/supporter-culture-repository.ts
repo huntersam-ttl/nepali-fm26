@@ -157,6 +157,10 @@ export class SupporterCultureRepository {
       .run(value.id, value.clubId, value.date, j(value));
   }
 
+  hasEvent(id: EntityId): boolean {
+    return Boolean(this.db.prepare("SELECT 1 FROM supporter_events WHERE id = ?").get(id));
+  }
+
   events(clubId?: EntityId, limit = 25): SupporterEvent[] {
     const rows = (
       clubId

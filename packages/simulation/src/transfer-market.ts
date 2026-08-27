@@ -30,6 +30,7 @@ import {
   type GameDatabase,
 } from "@nepal-football-sim/database";
 import { clubCanAffordTransfer, clubCanAffordWage, recordTransferEconomy } from "./club-economy.js";
+import { applySupporterTransferOutcome } from "./supporter-culture.js";
 import { SeededRandom } from "./rng.js";
 import { initializeRecruitmentForSave, searchPlayersForClub } from "./scouting.js";
 
@@ -1290,6 +1291,14 @@ export const completePermanentTransfer = (
     data: { transferFee: offer.transferFee, currency: offer.currency },
   });
   recordTransferEconomy(db, offer, worldDate);
+  applySupporterTransferOutcome({
+    db,
+    buyingClubId: offer.buyingClubId,
+    sellingClubId: offer.sellingClubId,
+    playerId: offer.playerId,
+    date: worldDate,
+    transferFee: offer.transferFee,
+  });
 };
 
 export const startLoan = (

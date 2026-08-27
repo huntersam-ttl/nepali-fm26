@@ -4,6 +4,7 @@ import {
   MatchSessionRepository,
   PlayerRepository,
   SaveRepository,
+  SupporterCultureRepository,
   type GameDatabase,
 } from "@nepal-football-sim/database";
 import {
@@ -36,6 +37,10 @@ import {
   type SimulateMatchInput,
 } from "./match-engine.js";
 import { calculateStandings, summarizePlayerStats, summarizeTeamStats } from "./standings.js";
+import {
+  applyMatchSupporterOutcome,
+  initializeSupporterCultureForSave,
+} from "./supporter-culture.js";
 
 export type MatchFinalizationContext = {
   fixture: FixtureRecord;
@@ -229,6 +234,49 @@ export const finalizeMatch = (
     );
     state.attendance = economy?.attendance;
 
+    const homeClubId = clubIdForTeam(db, context.fixture.homeTeamId);
+    const awayClubId = clubIdForTeam(db, context.fixture.awayTeamId);
+    if (homeClubId && awayClubId) {
+      initializeSupporterCultureForSave({
+        db,
+        worldDate: result.match.playedDate ?? context.fixture.scheduledDate,
+        seed: context.save?.randomSeed ?? context.seed,
+      });
+      const rivalry = new SupporterCultureRepository(db).rivalry(homeClubId, awayClubId);
+      const homeGoals = result.match.homeGoals ?? 0;
+      const awayGoals = result.match.awayGoals ?? 0;
+      const resultDelta = homeGoals === awayGoals ? 0 : homeGoals > awayGoals ? 1 : -1;
+      const rivalryEvent = rivalry
+        ? {
+            date: result.match.playedDate ?? context.fixture.scheduledDate,
+            met: true,
+            cupFinal: context.fixture.round >= 20,
+          }
+        : undefined;
+      applyMatchSupporterOutcome({
+        db,
+        clubId: homeClubId,
+        opponentClubId: awayClubId,
+        date: result.match.playedDate ?? context.fixture.scheduledDate,
+        performanceVsExpectation: resultDelta * 12 + (homeGoals - awayGoals) * 3,
+        derbyResult: rivalry ? (resultDelta as -1 | 0 | 1) : undefined,
+        rivalryEvent,
+        attendance: economy?.attendance,
+        capacity: economy?.capacity,
+      });
+      applyMatchSupporterOutcome({
+        db,
+        clubId: awayClubId,
+        opponentClubId: homeClubId,
+        date: result.match.playedDate ?? context.fixture.scheduledDate,
+        performanceVsExpectation: -resultDelta * 12 + (awayGoals - homeGoals) * 3,
+        derbyResult: rivalry ? (-resultDelta as -1 | 0 | 1) : undefined,
+        rivalryEvent: rivalry
+          ? { ...rivalryEvent!, date: result.match.playedDate ?? context.fixture.scheduledDate }
+          : undefined,
+      });
+    }
+
     competition.insertMatch(result.match, economy?.attendance);
     for (const event of orderedEvents(state)) {
       competition.insertMatchEvent(event);
@@ -289,6 +337,12 @@ export const finalizeMatch = (
 
   return { status: "FINALIZED", matchId: state.matchId, attendance: state.attendance };
 };
+
+const clubIdForTeam = (db: GameDatabase, teamId: EntityId): EntityId | undefined =>
+  (
+    db.prepare("SELECT club_id AS clubId FROM teams WHERE id = ?").get(teamId) as
+      { clubId?: EntityId } | undefined
+  )?.clubId;
 
 /** Convenience path: create, run to full time, finalize. Used by Quick Sim. */
 export const simulateAndFinalizeMatch = (

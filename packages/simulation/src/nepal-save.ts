@@ -25,6 +25,7 @@ import {
 import { applyFederationComplianceSnapshot } from "./federation-compliance.js";
 import { ensureLowerLeaguePlayableWorld } from "./workforce-supply.js";
 import { advanceMacroEconomyForWorldDate } from "./macro-economy.js";
+import { initializeSupporterCultureForSave } from "./supporter-culture.js";
 
 export type CreateNepalSaveInput = {
   databasePath: string;
@@ -105,6 +106,7 @@ export const createNepalSave = (input: CreateNepalSaveInput): NepalSaveResult =>
     importNepalWorld(db, dataset);
     advanceMacroEconomyForWorldDate(db, { date: save.worldDate, seed: input.randomSeed });
     ensureLowerLeaguePlayableWorld({ db, date: save.worldDate, seed: input.randomSeed });
+    initializeSupporterCultureForSave({ db, worldDate: save.worldDate, seed: input.randomSeed });
     db.exec("COMMIT;");
 
     const inspection = new WorldRepository(db).inspectWorld();

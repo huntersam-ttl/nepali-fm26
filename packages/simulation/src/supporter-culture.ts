@@ -1410,6 +1410,111 @@ export const applyMatchSupporterOutcome = (input: {
   return next;
 };
 
+export const applySupporterOwnershipOutcome = (input: {
+  db: GameDatabase;
+  clubId: EntityId;
+  date: string;
+  trustImpact?: number;
+}): SupporterCultureProfile | undefined => {
+  const repository = new SupporterCultureRepository(input.db);
+  const eventId = createStableEntityId(
+    "supporter-event",
+    `${input.clubId}:men:${input.date}:OWNERSHIP_DECISION:ownership`,
+  );
+  const current = repository.profile(input.clubId, "men");
+  if (!current || repository.hasEvent(eventId)) return current;
+  const next = {
+    ...current,
+    trustInOwnership: nextOwnershipTrust(current, {
+      identityDecisionImpact: input.trustImpact ?? 4,
+    }),
+    lastEvaluatedOn: input.date,
+  };
+  repository.upsertProfile({ ...next, unrest: supporterUnrestState(next) });
+  repository.recordEvent(
+    buildSupporterEvent({
+      clubId: input.clubId,
+      gender: "men",
+      date: input.date,
+      type: "OWNERSHIP_DECISION",
+      magnitude: 60,
+      moodDelta: round2(next.trustInOwnership - current.trustInOwnership),
+      summary: "Supporters react to a completed ownership decision",
+      key: "ownership",
+    }),
+  );
+  return { ...next, unrest: supporterUnrestState(next) };
+};
+
+export const applySupporterTransferOutcome = (input: {
+  db: GameDatabase;
+  buyingClubId: EntityId;
+  sellingClubId?: EntityId;
+  playerId: EntityId;
+  date: string;
+  transferFee: number;
+}): void => {
+  const repository = new SupporterCultureRepository(input.db);
+  const transferKey = `transfer:${input.playerId}:${input.date}`;
+  const eventId = createStableEntityId(
+    "supporter-event",
+    `${input.buyingClubId}:men:${input.date}:STAR_SIGNING:${transferKey}`,
+  );
+  const reputation = clampRange(input.transferFee / 100000, 0, 100);
+  const buyer = repository.profile(input.buyingClubId, "men");
+  if (buyer && !repository.hasEvent(eventId)) {
+    const next = applyStarSigningEffect(buyer, {
+      playerReputation: reputation,
+      transferValueShareOfClub: 0.25,
+      date: input.date,
+    });
+    repository.upsertProfile(next);
+    repository.recordEvent(
+      buildSupporterEvent({
+        clubId: input.buyingClubId,
+        gender: "men",
+        date: input.date,
+        type: "STAR_SIGNING",
+        magnitude: reputation,
+        moodDelta: round2(next.currentMood - buyer.currentMood),
+        summary: "Supporters react to a completed player signing",
+        subjectIds: [input.playerId],
+        key: transferKey,
+      }),
+    );
+  }
+  if (input.sellingClubId) {
+    const seller = repository.profile(input.sellingClubId, "men");
+    const saleEventId = createStableEntityId(
+      "supporter-event",
+      `${input.sellingClubId}:men:${input.date}:PLAYER_SALE:${transferKey}`,
+    );
+    if (seller && !repository.hasEvent(saleEventId)) {
+      const affinity = repository.affinity(input.sellingClubId, input.playerId)?.affinity ?? 0;
+      const next = applyPlayerSaleEffect(seller, {
+        playerAffinity: affinity,
+        feeQuality: reputation,
+        financialDistress: 0,
+        date: input.date,
+      });
+      repository.upsertProfile(next);
+      repository.recordEvent(
+        buildSupporterEvent({
+          clubId: input.sellingClubId,
+          gender: "men",
+          date: input.date,
+          type: "PLAYER_SALE",
+          magnitude: Math.max(20, affinity),
+          moodDelta: round2(next.currentMood - seller.currentMood),
+          summary: "Supporters react to a completed player sale",
+          subjectIds: [input.playerId],
+          key: transferKey,
+        }),
+      );
+    }
+  }
+};
+
 /** Monthly cadence entry point. */
 export const normalizeSupporterCultureMonth = (
   db: GameDatabase,
@@ -1418,6 +1523,7 @@ export const normalizeSupporterCultureMonth = (
   const repository = new SupporterCultureRepository(db);
   const updated = repository
     .profiles()
+    .filter((profile) => date > profile.lastEvaluatedOn)
     .map((profile) => normalizeSupporterSentiment(profile, date));
   for (const profile of updated) repository.upsertProfile(profile);
   return updated;
@@ -1433,12 +1539,17 @@ export const evolveSupporterCultureSeason = (
   const gender = input.gender ?? "men";
   const profile = repository.profile(clubId, gender);
   if (!profile) return undefined;
+  if (input.date <= profile.lastEvaluatedOn) return profile;
   const base = input.promoted
     ? applyPromotionEffect(profile, { newTier: input.tier, date: input.date })
     : input.relegated
       ? applyRelegationEffect(profile, { newTier: input.tier, date: input.date })
       : profile;
-  const next = evolveSupporterBaseSeason(base, input);
+  const trophyBase =
+    (input.trophies ?? 0) > 0
+      ? applyTrophyEffect(base, { competitionImportance: 85, date: input.date })
+      : base;
+  const next = evolveSupporterBaseSeason(trophyBase, input);
   repository.upsertProfile(next);
   if (input.promoted || input.relegated) {
     repository.recordEvent(
@@ -1452,6 +1563,19 @@ export const evolveSupporterCultureSeason = (
         summary: input.promoted
           ? "Supporters celebrate promotion"
           : "Supporters react to relegation",
+      }),
+    );
+  }
+  if ((input.trophies ?? 0) > 0) {
+    repository.recordEvent(
+      buildSupporterEvent({
+        clubId,
+        gender,
+        date: input.date,
+        type: "TROPHY",
+        magnitude: 85,
+        moodDelta: round2(next.currentMood - profile.currentMood),
+        summary: "Supporters celebrate a trophy",
       }),
     );
   }

@@ -13,6 +13,7 @@ import {
 import {
   CompetitionRepository,
   PlayerRepository,
+  SupporterCultureRepository,
   WorldRepository,
   loadSave,
   updateSaveWorldDate,
@@ -73,6 +74,10 @@ import {
 import { processOwnershipContinuity } from "./ownership.js";
 import { ensureFederationLeadershipContinuity } from "./federation-politics.js";
 import { advanceMacroEconomyForWorldDate } from "./macro-economy.js";
+import {
+  evolveSupporterCultureSeason,
+  initializeSupporterCultureForSave,
+} from "./supporter-culture.js";
 
 export type CompetitionSeasonLifecycleStatus =
   | "NOT_STARTED"
@@ -204,6 +209,11 @@ export const simulateNepalCareer = (input: {
   if (economyEnabled) {
     advanceMacroEconomyForWorldDate(input.db, { date: save.worldDate, seed: input.seed });
     initializeClubEconomyForSave({ db: input.db, worldDate: save.worldDate, seed: input.seed });
+    initializeSupporterCultureForSave({
+      db: input.db,
+      worldDate: save.worldDate,
+      seed: input.seed,
+    });
   }
   if (input.youthEnabled) {
     initializeYouthSystemForSave({ db: input.db, worldDate: save.worldDate, seed: input.seed });
@@ -270,6 +280,32 @@ export const simulateNepalCareer = (input: {
 
     const nextSeasons = createNextSeasons(input.db, activeSeasons);
     const movementCounts = applyProgression(input.db, activeSeasons, completed, nextSeasons);
+    const movements = completed.flatMap((item) =>
+      new CompetitionRepository(input.db)
+        .movements(item.season.id)
+        .filter((movement) => movement.status === "APPLIED"),
+    );
+    for (const item of completed) {
+      const standings = item.standings;
+      for (const [position, standing] of standings.entries()) {
+        const clubId = clubIdForTeam(input.db, standing.teamId);
+        if (!clubId) continue;
+        const movement = movements.find(
+          (candidate) =>
+            candidate.fromCompetitionSeasonId === item.season.id && candidate.clubId === clubId,
+        );
+        const profile = new SupporterCultureRepository(input.db).profile(clubId, "men");
+        if (!profile) continue;
+        evolveSupporterCultureSeason(input.db, clubId, {
+          date: item.season.endDate,
+          tier: profile.tier,
+          finishShare: position / Math.max(1, standings.length - 1),
+          promoted: movement?.movementType === "PROMOTION",
+          relegated: movement?.movementType === "RELEGATION",
+          trophies: standing.teamId === item.standings[0]?.teamId ? 1 : 0,
+        });
+      }
+    }
     for (const report of reports.slice(-activeSeasons.length)) {
       const counts = movementCounts.get(report.seasonId);
       if (counts) {

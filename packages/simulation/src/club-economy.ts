@@ -41,7 +41,10 @@ import {
 } from "@nepal-football-sim/database";
 import { SeededRandom } from "./rng.js";
 import { adjustForMacro, macroEconomyForCountry } from "./macro-economy.js";
-import { supporterAttendanceForFixture } from "./supporter-culture.js";
+import {
+  normalizeSupporterCultureMonth,
+  supporterAttendanceForFixture,
+} from "./supporter-culture.js";
 
 export type ClubFinancialSummary = {
   account: ClubFinancialAccount;
@@ -125,7 +128,9 @@ export const initializeClubEconomyForSave = (input: {
     }
     economy.upsertOwnershipStake(generatedOwnershipStake(club, input.worldDate));
     economy.upsertSupporterProfile(generatedSupporterProfile(club, profile, input.seed));
-    economy.upsertCommercialProfile(generatedCommercialProfile(club, profile, input.seed, input.worldDate));
+    economy.upsertCommercialProfile(
+      generatedCommercialProfile(club, profile, input.seed, input.worldDate),
+    );
     economy.upsertFacilityProfile(generatedFacilityProfile(club, profile, input.seed));
     economy.upsertBoardPolicy(generatedBoardPolicy(club, input.worldDate));
     economy.upsertValuation(calculateClubValuation(input.db, club.id, input.worldDate));
@@ -179,7 +184,11 @@ export const getClubFinancialSummary = (
   };
 };
 
-export const setClubTicketPrice = (db: GameDatabase, clubId: EntityId, price: number): ClubSupporterProfile => {
+export const setClubTicketPrice = (
+  db: GameDatabase,
+  clubId: EntityId,
+  price: number,
+): ClubSupporterProfile => {
   const economy = new ClubEconomyRepository(db);
   const profile = economy.supporterProfile(clubId);
   if (!profile) throw new Error(`Supporter profile is not initialized for club ${clubId}`);
@@ -188,45 +197,164 @@ export const setClubTicketPrice = (db: GameDatabase, clubId: EntityId, price: nu
   return updated;
 };
 
-export const createSeasonMembership = (db: GameDatabase, input: { clubId: EntityId; seasonLabel: string; price: number }): ClubSeasonMembership => {
+export const createSeasonMembership = (
+  db: GameDatabase,
+  input: { clubId: EntityId; seasonLabel: string; price: number },
+): ClubSeasonMembership => {
   const economy = new ClubEconomyRepository(db);
   const support = economy.supporterProfile(input.clubId);
   if (!support) throw new Error("Supporter profile is not initialized");
-  const memberCount = Math.max(1, Math.round(support.coreSupporters * 0.42 + support.familySupport * 0.2));
-  const membership: ClubSeasonMembership = { id: createStableEntityId("season-membership", `${input.clubId}:${input.seasonLabel}`), clubId: input.clubId, seasonLabel: input.seasonLabel, memberCount, price: Math.max(1, Math.round(input.price)), revenue: memberCount * Math.max(1, Math.round(input.price)), status: "ACTIVE" };
+  const memberCount = Math.max(
+    1,
+    Math.round(support.coreSupporters * 0.42 + support.familySupport * 0.2),
+  );
+  const membership: ClubSeasonMembership = {
+    id: createStableEntityId("season-membership", `${input.clubId}:${input.seasonLabel}`),
+    clubId: input.clubId,
+    seasonLabel: input.seasonLabel,
+    memberCount,
+    price: Math.max(1, Math.round(input.price)),
+    revenue: memberCount * Math.max(1, Math.round(input.price)),
+    status: "ACTIVE",
+  };
   economy.upsertSeasonMembership(membership);
-  postClubTransaction(db, { clubId: input.clubId, date: `${input.seasonLabel}-08-01`, category: "MATCHDAY_REVENUE", direction: "CREDIT", amount: membership.revenue, description: "Season-ticket and membership revenue", relatedEntityId: membership.id, idempotencyKey: `season-membership:${membership.id}` });
-  economy.insertCommercialHistory({ id: createStableEntityId("commercial-history", `${membership.id}:membership`), clubId: input.clubId, date: `${input.seasonLabel}-08-01`, eventType: "SEASON_MEMBERSHIP", amount: membership.revenue, audienceImpact: memberCount, description: "Season membership sales" });
+  postClubTransaction(db, {
+    clubId: input.clubId,
+    date: `${input.seasonLabel}-08-01`,
+    category: "MATCHDAY_REVENUE",
+    direction: "CREDIT",
+    amount: membership.revenue,
+    description: "Season-ticket and membership revenue",
+    relatedEntityId: membership.id,
+    idempotencyKey: `season-membership:${membership.id}`,
+  });
+  economy.insertCommercialHistory({
+    id: createStableEntityId("commercial-history", `${membership.id}:membership`),
+    clubId: input.clubId,
+    date: `${input.seasonLabel}-08-01`,
+    eventType: "SEASON_MEMBERSHIP",
+    amount: membership.revenue,
+    audienceImpact: memberCount,
+    description: "Season membership sales",
+  });
   return membership;
 };
 
-export const postMerchandiseRevenue = (db: GameDatabase, input: { clubId: EntityId; date: string; seed: string }): number => {
+export const postMerchandiseRevenue = (
+  db: GameDatabase,
+  input: { clubId: EntityId; date: string; seed: string },
+): number => {
   const economy = new ClubEconomyRepository(db);
   const support = economy.supporterProfile(input.clubId);
   const commercial = economy.commercialProfile(input.clubId);
   if (!support || !commercial) return 0;
-  const standing = db.prepare("SELECT points FROM league_standings ls JOIN teams t ON t.id = ls.team_id WHERE t.club_id = ? ORDER BY points DESC LIMIT 1").get(input.clubId) as { points?: number } | undefined;
-  const units = Math.max(1, Math.round((support.coreSupporters + support.casualSupporters * 0.18 + support.diasporaSupport * 0.65) * (0.02 + commercial.merchandiseAppeal / 500) * (1 + Math.min(0.3, (standing?.points ?? 0) / 300))));
+  const standing = db
+    .prepare(
+      "SELECT points FROM league_standings ls JOIN teams t ON t.id = ls.team_id WHERE t.club_id = ? ORDER BY points DESC LIMIT 1",
+    )
+    .get(input.clubId) as { points?: number } | undefined;
+  const units = Math.max(
+    1,
+    Math.round(
+      (support.coreSupporters + support.casualSupporters * 0.18 + support.diasporaSupport * 0.65) *
+        (0.02 + commercial.merchandiseAppeal / 500) *
+        (1 + Math.min(0.3, (standing?.points ?? 0) / 300)),
+    ),
+  );
   const amount = units * Math.round(180 + commercial.merchandiseAppeal * 35);
-  postClubTransaction(db, { clubId: input.clubId, date: input.date, category: "MERCHANDISE", direction: "CREDIT", amount, description: `Merchandise sales across shirts, scarves and digital products (${units} units)`, idempotencyKey: `merchandise:${input.clubId}:${input.date}` });
-  economy.upsertSupporterProfile({ ...support, casualSupporters: support.casualSupporters + Math.max(1, Math.round(units * 0.03)), diasporaSupport: support.diasporaSupport + Math.round(units * 0.01) });
-  economy.insertCommercialHistory({ id: createStableEntityId("commercial-history", `${input.clubId}:${input.date}:merchandise`), clubId: input.clubId, date: input.date, eventType: "MERCHANDISE", amount, audienceImpact: units, description: "Abstract merchandise sales" });
+  postClubTransaction(db, {
+    clubId: input.clubId,
+    date: input.date,
+    category: "MERCHANDISE",
+    direction: "CREDIT",
+    amount,
+    description: `Merchandise sales across shirts, scarves and digital products (${units} units)`,
+    idempotencyKey: `merchandise:${input.clubId}:${input.date}`,
+  });
+  economy.upsertSupporterProfile({
+    ...support,
+    casualSupporters: support.casualSupporters + Math.max(1, Math.round(units * 0.03)),
+    diasporaSupport: support.diasporaSupport + Math.round(units * 0.01),
+  });
+  economy.insertCommercialHistory({
+    id: createStableEntityId("commercial-history", `${input.clubId}:${input.date}:merchandise`),
+    clubId: input.clubId,
+    date: input.date,
+    eventType: "MERCHANDISE",
+    amount,
+    audienceImpact: units,
+    description: "Abstract merchandise sales",
+  });
   return amount;
 };
 
-export const runPreseasonCommercialCamp = (db: GameDatabase, input: { clubId: EntityId; destination: string; startDate: string; endDate: string; seed: string }): PreseasonCommercialCamp => {
+export const runPreseasonCommercialCamp = (
+  db: GameDatabase,
+  input: {
+    clubId: EntityId;
+    destination: string;
+    startDate: string;
+    endDate: string;
+    seed: string;
+  },
+): PreseasonCommercialCamp => {
   const economy = new ClubEconomyRepository(db);
   const commercial = economy.commercialProfile(input.clubId);
   const support = economy.supporterProfile(input.clubId);
   const reach = Math.round((commercial?.digitalReach ?? 2) + (support?.diasporaSupport ?? 0) / 500);
   const cost = Math.round(85000 + reach * 22000);
-  const camp: PreseasonCommercialCamp = { id: createStableEntityId("commercial-camp", `${input.clubId}:${input.startDate}:${input.destination}`), clubId: input.clubId, destination: input.destination, startDate: input.startDate, endDate: input.endDate, cost, commercialReach: reach, sportingImpact: -0.03, status: "COMPLETED" };
+  const camp: PreseasonCommercialCamp = {
+    id: createStableEntityId(
+      "commercial-camp",
+      `${input.clubId}:${input.startDate}:${input.destination}`,
+    ),
+    clubId: input.clubId,
+    destination: input.destination,
+    startDate: input.startDate,
+    endDate: input.endDate,
+    cost,
+    commercialReach: reach,
+    sportingImpact: -0.03,
+    status: "COMPLETED",
+  };
   economy.upsertCommercialCamp(camp);
-  postClubTransaction(db, { clubId: input.clubId, date: input.startDate, category: "TRAVEL", direction: "DEBIT", amount: cost, description: `Preseason commercial camp in ${input.destination}`, relatedEntityId: camp.id, idempotencyKey: `commercial-camp:${camp.id}` });
+  postClubTransaction(db, {
+    clubId: input.clubId,
+    date: input.startDate,
+    category: "TRAVEL",
+    direction: "DEBIT",
+    amount: cost,
+    description: `Preseason commercial camp in ${input.destination}`,
+    relatedEntityId: camp.id,
+    idempotencyKey: `commercial-camp:${camp.id}`,
+  });
   const tourRevenue = Math.round(reach * 18000);
-  if (tourRevenue > 0) postClubTransaction(db, { clubId: input.clubId, date: input.endDate, category: "MATCHDAY_REVENUE", direction: "CREDIT", amount: tourRevenue, description: `Preseason friendly/tour revenue from ${input.destination}`, relatedEntityId: camp.id, idempotencyKey: `commercial-tour-revenue:${camp.id}` });
-  if (support) economy.upsertSupporterProfile({ ...support, diasporaSupport: support.diasporaSupport + Math.round(reach * 8), commercialReputation: Math.min(10, support.commercialReputation + 0.12) });
-  economy.insertCommercialHistory({ id: createStableEntityId("commercial-history", `${camp.id}:tour`), clubId: input.clubId, date: input.startDate, eventType: "TOUR", amount: tourRevenue - cost, audienceImpact: reach, description: `Commercial camp and tour in ${input.destination}` });
+  if (tourRevenue > 0)
+    postClubTransaction(db, {
+      clubId: input.clubId,
+      date: input.endDate,
+      category: "MATCHDAY_REVENUE",
+      direction: "CREDIT",
+      amount: tourRevenue,
+      description: `Preseason friendly/tour revenue from ${input.destination}`,
+      relatedEntityId: camp.id,
+      idempotencyKey: `commercial-tour-revenue:${camp.id}`,
+    });
+  if (support)
+    economy.upsertSupporterProfile({
+      ...support,
+      diasporaSupport: support.diasporaSupport + Math.round(reach * 8),
+      commercialReputation: Math.min(10, support.commercialReputation + 0.12),
+    });
+  economy.insertCommercialHistory({
+    id: createStableEntityId("commercial-history", `${camp.id}:tour`),
+    clubId: input.clubId,
+    date: input.startDate,
+    eventType: "TOUR",
+    amount: tourRevenue - cost,
+    audienceImpact: reach,
+    description: `Commercial camp and tour in ${input.destination}`,
+  });
   return camp;
 };
 
@@ -353,10 +481,23 @@ export const generateSponsorOffers = (
   const sponsors = economy.sponsors();
   const supporter = economy.supporterProfile(input.clubId);
   const commercial = economy.commercialProfile(input.clubId);
-  const clubCountry = db.prepare("SELECT country_id FROM clubs WHERE id = ?").get(input.clubId) as { country_id?: EntityId } | undefined;
-  const macro = clubCountry?.country_id ? macroEconomyForCountry(db, clubCountry.country_id, Number(input.date.slice(0, 4))) : undefined;
-  const team = db.prepare(`SELECT t.id FROM teams t WHERE t.club_id = ? AND t.level = 'senior' ORDER BY t.id LIMIT 1`).get(input.clubId) as { id: EntityId } | undefined;
-  const standing = team ? db.prepare("SELECT points FROM league_standings WHERE team_id = ? ORDER BY points DESC LIMIT 1").get(team.id) as { points?: number } | undefined : undefined;
+  const clubCountry = db.prepare("SELECT country_id FROM clubs WHERE id = ?").get(input.clubId) as
+    { country_id?: EntityId } | undefined;
+  const macro = clubCountry?.country_id
+    ? macroEconomyForCountry(db, clubCountry.country_id, Number(input.date.slice(0, 4)))
+    : undefined;
+  const team = db
+    .prepare(
+      `SELECT t.id FROM teams t WHERE t.club_id = ? AND t.level = 'senior' ORDER BY t.id LIMIT 1`,
+    )
+    .get(input.clubId) as { id: EntityId } | undefined;
+  const standing = team
+    ? (db
+        .prepare(
+          "SELECT points FROM league_standings WHERE team_id = ? ORDER BY points DESC LIMIT 1",
+        )
+        .get(team.id) as { points?: number } | undefined)
+    : undefined;
   const rng = new SeededRandom(`${input.seed}:sponsor-offers:${input.clubId}:${input.date}`);
   const count = input.count ?? 3;
   return sponsors
@@ -364,16 +505,35 @@ export const generateSponsorOffers = (
     .slice(0, Math.max(count, 1) * 4)
     .slice(0, count)
     .map((sponsor, index) => {
-      const audience = (supporter?.coreSupporters ?? 800) + (supporter?.casualSupporters ?? 1000) * 0.35 + (supporter?.diasporaSupport ?? 0) * 1.4;
+      const audience =
+        (supporter?.coreSupporters ?? 800) +
+        (supporter?.casualSupporters ?? 1000) * 0.35 +
+        (supporter?.diasporaSupport ?? 0) * 1.4;
       const resultsFactor = 1 + Math.min(0.18, (standing?.points ?? 0) / 500);
-      const reputationFactor = (supporter?.footballReputation ?? 5) + (commercial?.brandStrength ?? 4) + (commercial?.digitalReach ?? 3);
-      const tierFactor = { LOCAL: 0.65, REGIONAL: 1, NATIONAL: 1.35, PREMIUM: 1.8 }[sponsor.budgetTier];
+      const reputationFactor =
+        (supporter?.footballReputation ?? 5) +
+        (commercial?.brandStrength ?? 4) +
+        (commercial?.digitalReach ?? 3);
+      const tierFactor = { LOCAL: 0.65, REGIONAL: 1, NATIONAL: 1.35, PREMIUM: 1.8 }[
+        sponsor.budgetTier
+      ];
       const value = adjustForMacro(
-        (160000 + audience * 110 + reputationFactor * 70000 + sponsor.reputation * 50000) * tierFactor * resultsFactor + rng.integer(0, 90000),
+        (160000 + audience * 110 + reputationFactor * 70000 + sponsor.reputation * 50000) *
+          tierFactor *
+          resultsFactor +
+          rng.integer(0, 90000),
         macro,
         "sponsorMarketStrength",
       );
-      const type = (index === 0 ? "SHIRT_MAIN" : index === 1 ? "OFFICIAL_PARTNER" : index === 2 ? "SLEEVE" : "LOCAL_PARTNER") as SponsorshipType;
+      const type = (
+        index === 0
+          ? "SHIRT_MAIN"
+          : index === 1
+            ? "OFFICIAL_PARTNER"
+            : index === 2
+              ? "SLEEVE"
+              : "LOCAL_PARTNER"
+      ) as SponsorshipType;
       const contract: SponsorshipContract = {
         id: createStableEntityId(
           "sponsorship-contract",
@@ -389,7 +549,10 @@ export const generateSponsorOffers = (
         currency,
         status: "OFFERED",
         exclusivityGroup: type === "LOCAL_PARTNER" ? "LOCAL_SERVICES" : type,
-        expectations: { appearances: Math.round(4 + sponsor.reputation), socialReach: Math.round((commercial?.digitalReach ?? 3) * 10) },
+        expectations: {
+          appearances: Math.round(4 + sponsor.reputation),
+          socialReach: Math.round((commercial?.digitalReach ?? 3) * 10),
+        },
         provenanceStatus: simulationStatus,
       };
       economy.upsertSponsorship(contract);
@@ -405,9 +568,20 @@ export const acceptSponsorOffer = (
   const economy = new ClubEconomyRepository(db);
   const contract = economy.sponsorships().find((item) => item.id === sponsorshipId);
   if (!contract) throw new Error(`Sponsorship offer ${sponsorshipId} not found`);
-  if (contract.status !== "OFFERED") throw new Error(`Sponsorship ${sponsorshipId} is not available`);
-  const exclusiveConflict = economy.sponsorships(contract.clubId).some((item) => item.id !== contract.id && item.status === "ACTIVE" && item.exclusivityGroup && item.exclusivityGroup === contract.exclusivityGroup && item.endDate >= date);
-  if (exclusiveConflict) throw new Error(`An active ${contract.exclusivityGroup} sponsorship already exists`);
+  if (contract.status !== "OFFERED")
+    throw new Error(`Sponsorship ${sponsorshipId} is not available`);
+  const exclusiveConflict = economy
+    .sponsorships(contract.clubId)
+    .some(
+      (item) =>
+        item.id !== contract.id &&
+        item.status === "ACTIVE" &&
+        item.exclusivityGroup &&
+        item.exclusivityGroup === contract.exclusivityGroup &&
+        item.endDate >= date,
+    );
+  if (exclusiveConflict)
+    throw new Error(`An active ${contract.exclusivityGroup} sponsorship already exists`);
   economy.updateSponsorshipStatus(sponsorshipId, "ACTIVE");
   postClubTransaction(db, {
     clubId: contract.clubId,
@@ -422,7 +596,10 @@ export const acceptSponsorOffer = (
   return { ...contract, status: "ACTIVE" };
 };
 
-export const rejectSponsorOffer = (db: GameDatabase, sponsorshipId: EntityId): SponsorshipContract => {
+export const rejectSponsorOffer = (
+  db: GameDatabase,
+  sponsorshipId: EntityId,
+): SponsorshipContract => {
   const economy = new ClubEconomyRepository(db);
   const contract = economy.sponsorships().find((item) => item.id === sponsorshipId);
   if (!contract) throw new Error(`Sponsorship offer ${sponsorshipId} not found`);
@@ -432,36 +609,64 @@ export const rejectSponsorOffer = (db: GameDatabase, sponsorshipId: EntityId): S
 
 export const counterSponsorOffer = (
   db: GameDatabase,
-  input: { sponsorshipId: EntityId; annualValue: number; endDate?: string; date: string; seed: string },
+  input: {
+    sponsorshipId: EntityId;
+    annualValue: number;
+    endDate?: string;
+    date: string;
+    seed: string;
+  },
 ): SponsorshipContract => {
   const economy = new ClubEconomyRepository(db);
   const offer = economy.sponsorships().find((item) => item.id === input.sponsorshipId);
-  if (!offer || offer.status !== "OFFERED") throw new Error("That sponsorship offer is no longer available");
+  if (!offer || offer.status !== "OFFERED")
+    throw new Error("That sponsorship offer is no longer available");
   const sponsor = economy.sponsors().find((item) => item.id === offer.sponsorId);
-  const ceiling = offer.annualValue * ({ LOCAL: 1.08, REGIONAL: 1.14, NATIONAL: 1.2, PREMIUM: 1.26 }[sponsor?.budgetTier ?? "LOCAL"]);
-  const rng = new SeededRandom(`${input.seed}:sponsor-counter:${offer.id}:${input.annualValue}:${input.date}`);
+  const ceiling =
+    offer.annualValue *
+    { LOCAL: 1.08, REGIONAL: 1.14, NATIONAL: 1.2, PREMIUM: 1.26 }[sponsor?.budgetTier ?? "LOCAL"];
+  const rng = new SeededRandom(
+    `${input.seed}:sponsor-counter:${offer.id}:${input.annualValue}:${input.date}`,
+  );
   if (input.annualValue > ceiling || rng.next() > 0.78) {
     return rejectSponsorOffer(db, offer.id);
   }
-  const revised = { ...offer, annualValue: Math.max(1, Math.round(input.annualValue)), endDate: input.endDate ?? offer.endDate };
+  const revised = {
+    ...offer,
+    annualValue: Math.max(1, Math.round(input.annualValue)),
+    endDate: input.endDate ?? offer.endDate,
+  };
   economy.upsertSponsorship(revised);
   return acceptSponsorOffer(db, offer.id, input.date);
 };
 
-export const renewSponsorship = (db: GameDatabase, input: { sponsorshipId: EntityId; date: string; seed: string }): SponsorshipContract => {
+export const renewSponsorship = (
+  db: GameDatabase,
+  input: { sponsorshipId: EntityId; date: string; seed: string },
+): SponsorshipContract => {
   const economy = new ClubEconomyRepository(db);
   const previous = economy.sponsorships().find((item) => item.id === input.sponsorshipId);
-  if (!previous || (previous.status !== "ACTIVE" && previous.status !== "EXPIRED")) throw new Error("That sponsorship cannot be renewed");
+  if (!previous || (previous.status !== "ACTIVE" && previous.status !== "EXPIRED"))
+    throw new Error("That sponsorship cannot be renewed");
   const rng = new SeededRandom(`${input.seed}:sponsor-renewal:${previous.id}:${input.date}`);
   const value = Math.round(previous.annualValue * (0.9 + rng.next() * 0.25));
-  const renewed: SponsorshipContract = { ...previous, id: createStableEntityId("sponsorship-contract-renewal", `${previous.id}:${input.date}`), startDate: input.date, endDate: addYears(input.date, 1), annualValue: value, status: "OFFERED" };
+  const renewed: SponsorshipContract = {
+    ...previous,
+    id: createStableEntityId("sponsorship-contract-renewal", `${previous.id}:${input.date}`),
+    startDate: input.date,
+    endDate: addYears(input.date, 1),
+    annualValue: value,
+    status: "OFFERED",
+  };
   economy.upsertSponsorship(renewed);
   return renewed;
 };
 
 export const expireSponsorships = (db: GameDatabase, date: string): SponsorshipContract[] => {
   const economy = new ClubEconomyRepository(db);
-  const expired = economy.sponsorships().filter((item) => item.status === "ACTIVE" && item.endDate < date);
+  const expired = economy
+    .sponsorships()
+    .filter((item) => item.status === "ACTIVE" && item.endDate < date);
   for (const contract of expired) economy.updateSponsorshipStatus(contract.id, "EXPIRED");
   return expired.map((contract) => ({ ...contract, status: "EXPIRED" }));
 };
@@ -482,16 +687,33 @@ export const createInfrastructureProject = (
   const rng = new SeededRandom(
     `${input.seed}:project:${input.clubId}:${input.projectType}:${input.date}`,
   );
-  const clubCountry = db.prepare("SELECT country_id FROM clubs WHERE id = ?").get(input.clubId) as { country_id?: EntityId } | undefined;
-  const macro = clubCountry?.country_id ? macroEconomyForCountry(db, clubCountry.country_id, Number(input.date.slice(0, 4))) : undefined;
-  const baseCost = adjustForMacro(projectBaseCost(input.projectType), macro, "constructionCostIndex");
+  const clubCountry = db.prepare("SELECT country_id FROM clubs WHERE id = ?").get(input.clubId) as
+    { country_id?: EntityId } | undefined;
+  const macro = clubCountry?.country_id
+    ? macroEconomyForCountry(db, clubCountry.country_id, Number(input.date.slice(0, 4)))
+    : undefined;
+  const baseCost = adjustForMacro(
+    projectBaseCost(input.projectType),
+    macro,
+    "constructionCostIndex",
+  );
   const economy = new ClubEconomyRepository(db);
   const prerequisites = projectPrerequisites(input.projectType);
-  const completedTypes = new Set(economy.infrastructureProjects(input.clubId).filter((project) => project.status === "COMPLETED").map((project) => project.projectType));
-  if (prerequisites.some((required) => !completedTypes.has(required))) throw new Error(`${input.projectType} requires completed ${prerequisites.join(" and ")}`);
+  const completedTypes = new Set(
+    economy
+      .infrastructureProjects(input.clubId)
+      .filter((project) => project.status === "COMPLETED")
+      .map((project) => project.projectType),
+  );
+  if (prerequisites.some((required) => !completedTypes.has(required)))
+    throw new Error(`${input.projectType} requires completed ${prerequisites.join(" and ")}`);
   const financingJson = input.financing ?? { clubCash: 1 };
-  const rawCommitted = Object.values(financingJson).reduce((total, value) => total + Math.max(0, value), 0);
-  const fundingCommitted = rawCommitted <= 1 ? Math.round(baseCost * rawCommitted) : Math.round(rawCommitted);
+  const rawCommitted = Object.values(financingJson).reduce(
+    (total, value) => total + Math.max(0, value),
+    0,
+  );
+  const fundingCommitted =
+    rawCommitted <= 1 ? Math.round(baseCost * rawCommitted) : Math.round(rawCommitted);
   const siteRights = input.siteRights ?? "OWNED";
   const project: InfrastructureProject = {
     id: createStableEntityId(
@@ -510,7 +732,12 @@ export const createInfrastructureProject = (
     status: "PLANNING",
     financingJson,
     siteRights,
-    fundingStatus: fundingCommitted >= baseCost ? "FUNDED" : fundingCommitted > 0 ? "PARTIALLY_FUNDED" : "UNFUNDED",
+    fundingStatus:
+      fundingCommitted >= baseCost
+        ? "FUNDED"
+        : fundingCommitted > 0
+          ? "PARTIALLY_FUNDED"
+          : "UNFUNDED",
     fundingCommitted,
     delayDays: 0,
     maintenanceStatus: "FUNDED",
@@ -520,8 +747,30 @@ export const createInfrastructureProject = (
   };
   const debtAmount = Math.max(0, financingJson.debt ?? 0);
   if (debtAmount > 0) {
-    economy.upsertDebt({ id: createStableEntityId("infrastructure-debt", project.id), clubId: input.clubId, lenderType: "BANK", principal: debtAmount, outstandingPrincipal: debtAmount, interestRate: 0.075, currency, startDate: input.date, maturityDate: addYears(input.date, 5), repaymentSchedule: "SEASONAL", status: "ACTIVE", provenanceStatus: simulationStatus });
-    postClubTransaction(db, { clubId: input.clubId, date: input.date, category: "OTHER", direction: "CREDIT", amount: debtAmount, description: `Infrastructure debt draw for ${input.projectType}`, relatedEntityId: project.id, idempotencyKey: `infrastructure-debt:${project.id}` });
+    economy.upsertDebt({
+      id: createStableEntityId("infrastructure-debt", project.id),
+      clubId: input.clubId,
+      lenderType: "BANK",
+      principal: debtAmount,
+      outstandingPrincipal: debtAmount,
+      interestRate: 0.075,
+      currency,
+      startDate: input.date,
+      maturityDate: addYears(input.date, 5),
+      repaymentSchedule: "SEASONAL",
+      status: "ACTIVE",
+      provenanceStatus: simulationStatus,
+    });
+    postClubTransaction(db, {
+      clubId: input.clubId,
+      date: input.date,
+      category: "OTHER",
+      direction: "CREDIT",
+      amount: debtAmount,
+      description: `Infrastructure debt draw for ${input.projectType}`,
+      relatedEntityId: project.id,
+      idempotencyKey: `infrastructure-debt:${project.id}`,
+    });
   }
   economy.upsertInfrastructureProject(project);
   return project;
@@ -546,7 +795,13 @@ export const advanceInfrastructureProjects = (
       const rng = new SeededRandom(`${input.seed}:project-risk:${project.id}`);
       const delayDays = rng.integer(0, 45);
       const overrun = 1 + rng.next() * 0.12;
-      next = { ...next, status: "CONSTRUCTION", constructionStart: input.date, delayDays, capitalCost: Math.round(project.capitalCost * overrun) };
+      next = {
+        ...next,
+        status: "CONSTRUCTION",
+        constructionStart: input.date,
+        delayDays,
+        capitalCost: Math.round(project.capitalCost * overrun),
+      };
       postClubTransaction(db, {
         clubId: project.clubId,
         date: input.date,
@@ -558,7 +813,10 @@ export const advanceInfrastructureProjects = (
         idempotencyKey: `project-start:${project.id}`,
       });
     }
-    if (next.status === "CONSTRUCTION" && addDays(next.expectedCompletion, next.delayDays ?? 0) <= input.date) {
+    if (
+      next.status === "CONSTRUCTION" &&
+      addDays(next.expectedCompletion, next.delayDays ?? 0) <= input.date
+    ) {
       next = { ...next, status: "COMPLETED", completedAt: input.date };
       postClubTransaction(db, {
         clubId: project.clubId,
@@ -577,7 +835,12 @@ export const advanceInfrastructureProjects = (
         ),
         clubId: project.clubId,
         assetType: assetTypeForProject(project.projectType),
-        ownership: next.siteRights === "OWNED" ? "OWNED" : next.siteRights === "LEASED" ? "LEASED" : "USED_BY_PERMISSION",
+        ownership:
+          next.siteRights === "OWNED"
+            ? "OWNED"
+            : next.siteRights === "LEASED"
+              ? "LEASED"
+              : "USED_BY_PERMISSION",
         locationId: project.locationId,
         venueId: project.venueId,
         estimatedValue: Math.round(project.capitalCost * 0.8),
@@ -586,7 +849,23 @@ export const advanceInfrastructureProjects = (
       });
       const facility = economy.facilityProfile(project.clubId);
       if (facility) {
-        const quality = next.projectType === "TRAINING_GROUND" ? { trainingFacilityQuality: facility.trainingFacilityQuality + 1.2 } : next.projectType === "ACADEMY" ? { youthFacilityQuality: facility.youthFacilityQuality + 1.2, academyCapacity: facility.academyCapacity + 12 } : ["MEDICAL_ROOM", "RECOVERY_CENTRE", "GYM"].includes(next.projectType) ? { medicalFacilityQuality: facility.medicalFacilityQuality + 1 } : next.projectType === "REFURBISHMENT" ? { trainingFacilityQuality: facility.trainingFacilityQuality + 0.5, youthFacilityQuality: facility.youthFacilityQuality + 0.5, medicalFacilityQuality: facility.medicalFacilityQuality + 0.5 } : {};
+        const quality =
+          next.projectType === "TRAINING_GROUND"
+            ? { trainingFacilityQuality: facility.trainingFacilityQuality + 1.2 }
+            : next.projectType === "ACADEMY"
+              ? {
+                  youthFacilityQuality: facility.youthFacilityQuality + 1.2,
+                  academyCapacity: facility.academyCapacity + 12,
+                }
+              : ["MEDICAL_ROOM", "RECOVERY_CENTRE", "GYM"].includes(next.projectType)
+                ? { medicalFacilityQuality: facility.medicalFacilityQuality + 1 }
+                : next.projectType === "REFURBISHMENT"
+                  ? {
+                      trainingFacilityQuality: facility.trainingFacilityQuality + 0.5,
+                      youthFacilityQuality: facility.youthFacilityQuality + 0.5,
+                      medicalFacilityQuality: facility.medicalFacilityQuality + 0.5,
+                    }
+                  : {};
         economy.upsertFacilityProfile({ ...facility, ...quality });
       }
     }
@@ -596,36 +875,79 @@ export const advanceInfrastructureProjects = (
   return updated;
 };
 
-export const cancelInfrastructureProject = (db: GameDatabase, projectId: EntityId, date: string): InfrastructureProject => {
+export const cancelInfrastructureProject = (
+  db: GameDatabase,
+  projectId: EntityId,
+  date: string,
+): InfrastructureProject => {
   const economy = new ClubEconomyRepository(db);
   const project = economy.infrastructureProjects().find((item) => item.id === projectId);
-  if (!project || ["COMPLETED", "CANCELLED"].includes(project.status)) throw new Error("That infrastructure project cannot be cancelled");
-  const sunkCost = economy.ledgerEntries(project.clubId).filter((entry) => entry.relatedEntityId === project.id && entry.category === "FACILITY_COST").reduce((total, entry) => total + entry.amount, 0);
-  const cancelled = { ...project, status: "CANCELLED" as const, cancelledOn: date, sunkCost, recoveryPlan: "Review the site and resubmit only after financing is secured." };
+  if (!project || ["COMPLETED", "CANCELLED"].includes(project.status))
+    throw new Error("That infrastructure project cannot be cancelled");
+  const sunkCost = economy
+    .ledgerEntries(project.clubId)
+    .filter((entry) => entry.relatedEntityId === project.id && entry.category === "FACILITY_COST")
+    .reduce((total, entry) => total + entry.amount, 0);
+  const cancelled = {
+    ...project,
+    status: "CANCELLED" as const,
+    cancelledOn: date,
+    sunkCost,
+    recoveryPlan: "Review the site and resubmit only after financing is secured.",
+  };
   economy.upsertInfrastructureProject(cancelled);
   return cancelled;
 };
 
-export const postponeInfrastructureProject = (db: GameDatabase, projectId: EntityId, date: string, recoveryPlan: string): InfrastructureProject => {
+export const postponeInfrastructureProject = (
+  db: GameDatabase,
+  projectId: EntityId,
+  date: string,
+  recoveryPlan: string,
+): InfrastructureProject => {
   const economy = new ClubEconomyRepository(db);
   const project = economy.infrastructureProjects().find((item) => item.id === projectId);
-  if (!project || ["COMPLETED", "CANCELLED"].includes(project.status)) throw new Error("That infrastructure project cannot be postponed");
-  const postponed = { ...project, status: "FINANCING" as const, expectedCompletion: addDays(project.expectedCompletion, 60), recoveryPlan };
+  if (!project || ["COMPLETED", "CANCELLED"].includes(project.status))
+    throw new Error("That infrastructure project cannot be postponed");
+  const postponed = {
+    ...project,
+    status: "FINANCING" as const,
+    expectedCompletion: addDays(project.expectedCompletion, 60),
+    recoveryPlan,
+  };
   economy.upsertInfrastructureProject(postponed);
   return postponed;
 };
 
-export const createFacilityRefurbishment = (db: GameDatabase, input: { clubId: EntityId; date: string; seed: string; financing?: Record<string, number> }): InfrastructureProject => createInfrastructureProject(db, { ...input, projectType: "REFURBISHMENT" });
+export const createFacilityRefurbishment = (
+  db: GameDatabase,
+  input: { clubId: EntityId; date: string; seed: string; financing?: Record<string, number> },
+): InfrastructureProject =>
+  createInfrastructureProject(db, { ...input, projectType: "REFURBISHMENT" });
 
-export const planAIInfrastructureProject = (db: GameDatabase, input: { clubId: EntityId; date: string; seed: string }): InfrastructureProject | undefined => {
+export const planAIInfrastructureProject = (
+  db: GameDatabase,
+  input: { clubId: EntityId; date: string; seed: string },
+): InfrastructureProject | undefined => {
   const economy = new ClubEconomyRepository(db);
   const account = economy.financialAccount(input.clubId);
   if (!account || ["DISTRESSED", "INSOLVENT"].includes(account.financialHealth)) return undefined;
   const facility = economy.facilityProfile(input.clubId);
-  const type: InfrastructureProjectType = (facility?.medicalFacilityQuality ?? 0) < 4 ? "MEDICAL_ROOM" : (facility?.academyCapacity ?? 0) < 30 ? "ACADEMY" : "TRAINING_GROUND";
+  const type: InfrastructureProjectType =
+    (facility?.medicalFacilityQuality ?? 0) < 4
+      ? "MEDICAL_ROOM"
+      : (facility?.academyCapacity ?? 0) < 30
+        ? "ACADEMY"
+        : "TRAINING_GROUND";
   const cost = projectBaseCost(type);
   if (account.cashBalance < cost * 1.25) return undefined;
-  return createInfrastructureProject(db, { clubId: input.clubId, projectType: type, date: input.date, seed: input.seed, financing: { clubCash: cost } });
+  return createInfrastructureProject(db, {
+    clubId: input.clubId,
+    projectType: type,
+    date: input.date,
+    seed: input.seed,
+    financing: { clubCash: cost },
+  });
 };
 
 export const calculateClubValuation = (
@@ -761,11 +1083,27 @@ export const postMatchdayEconomy = (
   const rng = new SeededRandom(`${seed}:matchday:${fixture.id}`);
   const capacity = venueCapacity(db, fixture.venueId) ?? 4000;
   const fixtureImportance = fixture.round <= 2 || fixture.round >= 20 ? 1.12 : 1;
-  const reputationFactor = 1 + ((homeSupport?.footballReputation ?? 5) + (awaySupport?.footballReputation ?? 5)) / 100;
-  const audienceFactor = 1 + ((homeSupport?.diasporaSupport ?? 0) / Math.max(1, homeSupport?.coreSupporters ?? 1)) * 0.08 + ((homeCommercial?.digitalReach ?? 0) + (awayCommercial?.digitalReach ?? 0)) / 100;
+  const reputationFactor =
+    1 + ((homeSupport?.footballReputation ?? 5) + (awaySupport?.footballReputation ?? 5)) / 100;
+  const audienceFactor =
+    1 +
+    ((homeSupport?.diasporaSupport ?? 0) / Math.max(1, homeSupport?.coreSupporters ?? 1)) * 0.08 +
+    ((homeCommercial?.digitalReach ?? 0) + (awayCommercial?.digitalReach ?? 0)) / 100;
   const ticketPrice = homeSupport?.standardTicketPrice ?? 250;
-  const sentimentFactor = { VERY_POSITIVE: 1.12, POSITIVE: 1.06, NEUTRAL: 1, NEGATIVE: 0.92, VERY_NEGATIVE: 0.82 }[homeSupport?.sentiment ?? "NEUTRAL"];
-  const priceSensitivity = Math.max(0.55, Math.min(1.25, Math.pow(250 / Math.max(1, ticketPrice), homeCommercial?.ticketPriceElasticity ?? 1)));
+  const sentimentFactor = {
+    VERY_POSITIVE: 1.12,
+    POSITIVE: 1.06,
+    NEUTRAL: 1,
+    NEGATIVE: 0.92,
+    VERY_NEGATIVE: 0.82,
+  }[homeSupport?.sentiment ?? "NEUTRAL"];
+  const priceSensitivity = Math.max(
+    0.55,
+    Math.min(
+      1.25,
+      Math.pow(250 / Math.max(1, ticketPrice), homeCommercial?.ticketPriceElasticity ?? 1),
+    ),
+  );
   const baseDemand =
     (homeSupport?.coreSupporters ?? 800) * 0.18 +
     (homeSupport?.casualSupporters ?? 1000) * 0.04 +
@@ -788,7 +1126,18 @@ export const postMatchdayEconomy = (
     ? Math.max(60, Math.min(capacity, demand.attendance))
     : Math.max(
         120,
-        Math.min(capacity, Math.round(baseDemand * fixtureImportance * reputationFactor * audienceFactor * sentimentFactor * priceSensitivity * (0.8 + rng.next() * 0.4))),
+        Math.min(
+          capacity,
+          Math.round(
+            baseDemand *
+              fixtureImportance *
+              reputationFactor *
+              audienceFactor *
+              sentimentFactor *
+              priceSensitivity *
+              (0.8 + rng.next() * 0.4),
+          ),
+        ),
       );
   const gross = attendance * ticketPrice;
   const homeShare = Math.round(gross * 0.5);
@@ -830,6 +1179,7 @@ export const processClubEconomyMonth = (
   db: GameDatabase,
   input: { date: string; seed: string },
 ): void => {
+  normalizeSupporterCultureMonth(db, input.date);
   expireSponsorships(db, input.date);
   expireCompetitionMediaRights(db, input.date);
   const economy = new ClubEconomyRepository(db);
@@ -865,16 +1215,37 @@ export const processClubEconomyMonth = (
         idempotencyKey: `facility-opex:${input.date}`,
       });
     }
-    const completedProjects = economy.infrastructureProjects(account.clubId).filter((project) => project.status === "COMPLETED");
-    const projectMaintenance = completedProjects.reduce((total, project) => total + project.ongoingCost, 0);
+    const completedProjects = economy
+      .infrastructureProjects(account.clubId)
+      .filter((project) => project.status === "COMPLETED");
+    const projectMaintenance = completedProjects.reduce(
+      (total, project) => total + project.ongoingCost,
+      0,
+    );
     if (projectMaintenance > 0) {
-      const available = (economy.financialAccount(account.clubId)?.cashBalance ?? 0) - reserveFloor(account);
+      const available =
+        (economy.financialAccount(account.clubId)?.cashBalance ?? 0) - reserveFloor(account);
       const funded = available >= projectMaintenance;
-      postClubTransaction(db, { clubId: account.clubId, date: input.date, category: "FACILITY_COST", direction: "DEBIT", amount: projectMaintenance, description: "Infrastructure maintenance and operations", idempotencyKey: `project-maintenance:${input.date}` });
+      postClubTransaction(db, {
+        clubId: account.clubId,
+        date: input.date,
+        category: "FACILITY_COST",
+        direction: "DEBIT",
+        amount: projectMaintenance,
+        description: "Infrastructure maintenance and operations",
+        idempotencyKey: `project-maintenance:${input.date}`,
+      });
       if (!funded && input.date.endsWith("-28")) {
         const current = economy.facilityProfile(account.clubId);
-        if (current) economy.upsertFacilityProfile({ ...current, trainingFacilityQuality: Math.max(0, current.trainingFacilityQuality - 0.08), youthFacilityQuality: Math.max(0, current.youthFacilityQuality - 0.08), medicalFacilityQuality: Math.max(0, current.medicalFacilityQuality - 0.08) });
-        for (const project of completedProjects) economy.upsertInfrastructureProject({ ...project, maintenanceStatus: "DETERIORATING" });
+        if (current)
+          economy.upsertFacilityProfile({
+            ...current,
+            trainingFacilityQuality: Math.max(0, current.trainingFacilityQuality - 0.08),
+            youthFacilityQuality: Math.max(0, current.youthFacilityQuality - 0.08),
+            medicalFacilityQuality: Math.max(0, current.medicalFacilityQuality - 0.08),
+          });
+        for (const project of completedProjects)
+          economy.upsertInfrastructureProject({ ...project, maintenanceStatus: "DETERIORATING" });
       }
     }
     const activeSponsorships = economy
@@ -918,25 +1289,56 @@ export const generateCompetitionMediaRightsOffer = (
   const economy = new ClubEconomyRepository(db);
   const existing = economy.mediaRights(input.competitionSeasonId)[0];
   if (existing) return existing;
-  const season = db.prepare(`SELECT c.name FROM competition_seasons cs JOIN competitions c ON c.id = cs.competition_id WHERE cs.id = ?`).get(input.competitionSeasonId) as { name?: string } | undefined;
-  const clubs = db.prepare("SELECT club_id FROM club_memberships WHERE competition_season_id = ? AND status = 'ACTIVE'").all(input.competitionSeasonId) as Array<{ club_id: EntityId }>;
+  const season = db
+    .prepare(
+      `SELECT c.name FROM competition_seasons cs JOIN competitions c ON c.id = cs.competition_id WHERE cs.id = ?`,
+    )
+    .get(input.competitionSeasonId) as { name?: string } | undefined;
+  const clubs = db
+    .prepare(
+      "SELECT club_id FROM club_memberships WHERE competition_season_id = ? AND status = 'ACTIVE'",
+    )
+    .all(input.competitionSeasonId) as Array<{ club_id: EntityId }>;
   const audience = clubs.reduce((total, row) => {
     const support = economy.supporterProfile(row.club_id);
     const commercial = economy.commercialProfile(row.club_id);
-    return total + (support?.coreSupporters ?? 0) + (support?.diasporaSupport ?? 0) * 1.4 + (commercial?.broadcastAppeal ?? 0) * 120;
+    return (
+      total +
+      (support?.coreSupporters ?? 0) +
+      (support?.diasporaSupport ?? 0) * 1.4 +
+      (commercial?.broadcastAppeal ?? 0) * 120
+    );
   }, 0);
   const rng = new SeededRandom(`${input.seed}:media-offer:${input.competitionSeasonId}`);
-  const firstClubCountry = clubs[0] ? (db.prepare("SELECT country_id FROM clubs WHERE id = ?").get(clubs[0].club_id) as { country_id?: EntityId } | undefined)?.country_id : undefined;
-  const macro = firstClubCountry ? macroEconomyForCountry(db, firstClubCountry, Number(input.date.slice(0, 4))) : undefined;
-  const annualValue = Math.min(4200000, adjustForMacro(280000 + audience * 90 + rng.integer(0, 180000), macro, "broadcastMarketStrength"));
+  const firstClubCountry = clubs[0]
+    ? (
+        db.prepare("SELECT country_id FROM clubs WHERE id = ?").get(clubs[0].club_id) as
+          { country_id?: EntityId } | undefined
+      )?.country_id
+    : undefined;
+  const macro = firstClubCountry
+    ? macroEconomyForCountry(db, firstClubCountry, Number(input.date.slice(0, 4)))
+    : undefined;
+  const annualValue = Math.min(
+    4200000,
+    adjustForMacro(
+      280000 + audience * 90 + rng.integer(0, 180000),
+      macro,
+      "broadcastMarketStrength",
+    ),
+  );
   const rights: CompetitionMediaRights = {
     id: createStableEntityId("competition-media-rights", input.competitionSeasonId),
     competitionSeasonId: input.competitionSeasonId,
-    rightsPartner: (season?.name ?? "Domestic competition").toLowerCase().includes("league") ? "Nepal Football Broadcast Network" : "Nepal Football Streaming Pool",
+    rightsPartner: (season?.name ?? "Domestic competition").toLowerCase().includes("league")
+      ? "Nepal Football Broadcast Network"
+      : "Nepal Football Streaming Pool",
     annualValue,
     streamingShare: 0.35,
     currency,
-    rightsType: (season?.name ?? "").toLowerCase().includes("league") ? "DOMESTIC_AND_STREAMING" : "STREAMING",
+    rightsType: (season?.name ?? "").toLowerCase().includes("league")
+      ? "DOMESTIC_AND_STREAMING"
+      : "STREAMING",
     startDate: input.date,
     endDate: addYears(input.date, 1),
     contractStatus: "OFFERED",
@@ -947,21 +1349,47 @@ export const generateCompetitionMediaRightsOffer = (
   return rights;
 };
 
-export const acceptCompetitionMediaRights = (db: GameDatabase, rightsId: EntityId, date: string): CompetitionMediaRights => {
+export const acceptCompetitionMediaRights = (
+  db: GameDatabase,
+  rightsId: EntityId,
+  date: string,
+): CompetitionMediaRights => {
   const economy = new ClubEconomyRepository(db);
   const rights = economy.mediaRights().find((item) => item.id === rightsId);
-  if (!rights || rights.contractStatus !== "OFFERED") throw new Error("That media-rights offer is no longer available");
+  if (!rights || rights.contractStatus !== "OFFERED")
+    throw new Error("That media-rights offer is no longer available");
   const active = { ...rights, contractStatus: "ACTIVE" as const };
   economy.upsertMediaRights(active);
-  const clubs = db.prepare("SELECT club_id FROM club_memberships WHERE competition_season_id = ? AND status = 'ACTIVE' ORDER BY club_id").all(rights.competitionSeasonId) as Array<{ club_id: EntityId }>;
+  const clubs = db
+    .prepare(
+      "SELECT club_id FROM club_memberships WHERE competition_season_id = ? AND status = 'ACTIVE' ORDER BY club_id",
+    )
+    .all(rights.competitionSeasonId) as Array<{ club_id: EntityId }>;
   const share = clubs.length ? Math.round(rights.annualValue / clubs.length) : 0;
-  for (const club of clubs) postClubTransaction(db, { clubId: club.club_id, date, category: rights.rightsType === "STREAMING" ? "BROADCASTING" : "BROADCASTING", direction: "CREDIT", amount: share, description: `${rights.rightsPartner} media-rights distribution`, relatedEntityId: rights.id, idempotencyKey: `media-rights:${rights.id}:${club.club_id}` });
+  for (const club of clubs)
+    postClubTransaction(db, {
+      clubId: club.club_id,
+      date,
+      category: rights.rightsType === "STREAMING" ? "BROADCASTING" : "BROADCASTING",
+      direction: "CREDIT",
+      amount: share,
+      description: `${rights.rightsPartner} media-rights distribution`,
+      relatedEntityId: rights.id,
+      idempotencyKey: `media-rights:${rights.id}:${club.club_id}`,
+    });
   return active;
 };
 
-export const expireCompetitionMediaRights = (db: GameDatabase, date: string): CompetitionMediaRights[] => {
+export const expireCompetitionMediaRights = (
+  db: GameDatabase,
+  date: string,
+): CompetitionMediaRights[] => {
   const economy = new ClubEconomyRepository(db);
-  const expired = economy.mediaRights().filter((rights) => rights.contractStatus === "ACTIVE" && rights.endDate && rights.endDate < date);
+  const expired = economy
+    .mediaRights()
+    .filter(
+      (rights) => rights.contractStatus === "ACTIVE" && rights.endDate && rights.endDate < date,
+    );
   for (const rights of expired) economy.upsertMediaRights({ ...rights, contractStatus: "EXPIRED" });
   return expired.map((rights) => ({ ...rights, contractStatus: "EXPIRED" as const }));
 };
@@ -973,13 +1401,22 @@ export const postCompetitionMediaRights = (
   const economy = new ClubEconomyRepository(db);
   const existing = economy.mediaRights(input.competitionSeasonId)[0];
   if (existing) return existing;
-  const season = db.prepare(`SELECT c.name FROM competition_seasons cs JOIN competitions c ON c.id = cs.competition_id WHERE cs.id = ?`).get(input.competitionSeasonId) as { name?: string } | undefined;
+  const season = db
+    .prepare(
+      `SELECT c.name FROM competition_seasons cs JOIN competitions c ON c.id = cs.competition_id WHERE cs.id = ?`,
+    )
+    .get(input.competitionSeasonId) as { name?: string } | undefined;
   const name = season?.name ?? "Domestic competition";
-  const annualValue = Math.round((name.toLowerCase().includes("a") ? 1800000 : 900000) + new SeededRandom(`${input.seed}:media:${input.competitionSeasonId}`).integer(0, 400000));
+  const annualValue = Math.round(
+    (name.toLowerCase().includes("a") ? 1800000 : 900000) +
+      new SeededRandom(`${input.seed}:media:${input.competitionSeasonId}`).integer(0, 400000),
+  );
   const rights: CompetitionMediaRights = {
     id: createStableEntityId("competition-media-rights", input.competitionSeasonId),
     competitionSeasonId: input.competitionSeasonId,
-    rightsPartner: name.toLowerCase().includes("league") ? "Nepal Football Broadcast Network" : "Nepal Football Streaming Pool",
+    rightsPartner: name.toLowerCase().includes("league")
+      ? "Nepal Football Broadcast Network"
+      : "Nepal Football Streaming Pool",
     annualValue,
     streamingShare: 0.35,
     currency,
@@ -991,12 +1428,25 @@ export const postCompetitionMediaRights = (
     status: simulationStatus,
   };
   economy.upsertMediaRights(rights);
-  const clubs = db.prepare("SELECT club_id FROM club_memberships WHERE competition_season_id = ? AND status = 'ACTIVE' ORDER BY club_id").all(input.competitionSeasonId) as Array<{ club_id: EntityId }>;
+  const clubs = db
+    .prepare(
+      "SELECT club_id FROM club_memberships WHERE competition_season_id = ? AND status = 'ACTIVE' ORDER BY club_id",
+    )
+    .all(input.competitionSeasonId) as Array<{ club_id: EntityId }>;
   const share = clubs.length ? Math.round(annualValue / clubs.length) : 0;
   for (const club of clubs) {
     const clubId = club.club_id;
     if (share <= 0) continue;
-    postClubTransaction(db, { clubId, date: input.date, category: "BROADCASTING", direction: "CREDIT", amount: share, description: `${name} media-rights distribution`, relatedEntityId: rights.id, idempotencyKey: `media-rights:${rights.id}:${clubId}` });
+    postClubTransaction(db, {
+      clubId,
+      date: input.date,
+      category: "BROADCASTING",
+      direction: "CREDIT",
+      amount: share,
+      description: `${name} media-rights distribution`,
+      relatedEntityId: rights.id,
+      idempotencyKey: `media-rights:${rights.id}:${clubId}`,
+    });
   }
   return rights;
 };
@@ -1621,29 +2071,51 @@ const projectPrerequisites = (type: InfrastructureProjectType): InfrastructurePr
 
 const projectComponents = (type: InfrastructureProjectType): string[] => {
   switch (type) {
-    case "TRAINING_GROUND": return ["two_pitches", "floodlights", "changing_rooms"];
-    case "ACADEMY": return ["youth_pitches", "classrooms", "residence"];
-    case "MEDICAL_ROOM": return ["treatment_room", "diagnostics_suite"];
-    case "RECOVERY_CENTRE": return ["hydrotherapy", "recovery_gym", "physio_rooms"];
-    case "GYM": return ["strength_area", "conditioning_area"];
-    case "STADIUM": case "STAND": return ["seating", "turnstiles", "safety_systems"];
-    case "OFFICE": return ["administration", "commercial_suite"];
-    case "SCOUTING_DEPARTMENT": return ["recruitment_workspace", "data_room"];
-    case "ANALYSIS_ROOM": return ["video_suite", "analyst_workspace"];
-    case "REFURBISHMENT": return ["renewed_core_components"];
-    default: return [type.toLowerCase()];
+    case "TRAINING_GROUND":
+      return ["two_pitches", "floodlights", "changing_rooms"];
+    case "ACADEMY":
+      return ["youth_pitches", "classrooms", "residence"];
+    case "MEDICAL_ROOM":
+      return ["treatment_room", "diagnostics_suite"];
+    case "RECOVERY_CENTRE":
+      return ["hydrotherapy", "recovery_gym", "physio_rooms"];
+    case "GYM":
+      return ["strength_area", "conditioning_area"];
+    case "STADIUM":
+    case "STAND":
+      return ["seating", "turnstiles", "safety_systems"];
+    case "OFFICE":
+      return ["administration", "commercial_suite"];
+    case "SCOUTING_DEPARTMENT":
+      return ["recruitment_workspace", "data_room"];
+    case "ANALYSIS_ROOM":
+      return ["video_suite", "analyst_workspace"];
+    case "REFURBISHMENT":
+      return ["renewed_core_components"];
+    default:
+      return [type.toLowerCase()];
   }
 };
 
 const projectCapacity = (type: InfrastructureProjectType): number =>
-  type === "STADIUM" ? 8000 : type === "STAND" ? 2500 : type === "ACADEMY" ? 36 : type === "TRAINING_GROUND" ? 4 : 1;
+  type === "STADIUM"
+    ? 8000
+    : type === "STAND"
+      ? 2500
+      : type === "ACADEMY"
+        ? 36
+        : type === "TRAINING_GROUND"
+          ? 4
+          : 1;
 
 const assetTypeForProject = (type: InfrastructureProjectType): ClubAsset["assetType"] =>
   type === "STADIUM" || type === "STAND"
     ? "VENUE"
     : type === "TRAINING_GROUND" || type === "ACADEMY"
       ? "TRAINING_GROUND"
-      : type === "OFFICE" ? "BUILDING" : "EQUIPMENT";
+      : type === "OFFICE"
+        ? "BUILDING"
+        : "EQUIPMENT";
 
 const categoryTotals = (
   entries: readonly ClubLedgerEntry[],

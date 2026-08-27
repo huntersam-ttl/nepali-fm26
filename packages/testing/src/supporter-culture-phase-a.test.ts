@@ -116,7 +116,7 @@ describe("supporter culture phase A: initialisation", () => {
       worldDate: "2026-08-01",
       seed: "init",
     });
-    expect(created.length).toBeGreaterThan(0);
+    expect(new SupporterCultureRepository(db).profiles().length).toBeGreaterThan(0);
     for (const profile of created) {
       bounded(profile);
       expect(profile.provenanceStatus).toBe("SIMULATION_ONLY");

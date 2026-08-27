@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   ClubEconomyRepository,
   MatchSessionRepository,
+  SupporterCultureRepository,
   openGameDatabase,
   migrateDatabase,
   type GameDatabase,
@@ -95,6 +96,24 @@ describe("match finalization", () => {
         const data = JSON.parse((event.data_json as string) ?? "{}");
         expect(["MINOR", "NOTABLE", "MAJOR", "CRITICAL"]).toContain(data.importance);
       }
+      const fixture = db
+        .prepare("SELECT home_team_id, away_team_id FROM fixtures WHERE id = ?")
+        .get(target.id) as { home_team_id: EntityId; away_team_id: EntityId };
+      const clubIds = [fixture.home_team_id, fixture.away_team_id].map(
+        (teamId) =>
+          (
+            db.prepare("SELECT club_id FROM teams WHERE id = ?").get(teamId) as {
+              club_id: EntityId;
+            }
+          ).club_id,
+      );
+      expect(
+        clubIds.every((clubId) =>
+          new SupporterCultureRepository(db)
+            .events(clubId, 10)
+            .some((event) => event.type === "MATCH_RESULT"),
+        ),
+      ).toBe(true);
     } finally {
       db.close();
     }
