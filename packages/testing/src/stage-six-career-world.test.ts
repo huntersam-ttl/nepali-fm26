@@ -65,6 +65,12 @@ describe("full Nepal career season simulation", () => {
     expect(inspection.fixtures).toBeGreaterThan(400);
     expect(inspection.playerCareerStats).toBeGreaterThan(0);
     expect(inspection.seasonAwards).toBeGreaterThan(0);
+    const historyRows = db.prepare(
+      "SELECT COUNT(*) AS count, COUNT(DISTINCT id) AS distinctCount FROM training_history_events",
+    ).get() as { count: number; distinctCount: number };
+    expect(historyRows.count).toBeGreaterThan(0);
+    expect(historyRows).toEqual({ count: historyRows.count, distinctCount: historyRows.count });
+    expect(historyRows.count).toBeLessThan(100_000);
     db.close();
   });
 
@@ -109,6 +115,10 @@ describe("full Nepal career season simulation", () => {
     expect(continued.seasons[0]?.matchesPlayed).toBe(153);
     expect(fixtureRows).toEqual({ count: 153, distinctCount: 153 });
     expect(statRows.count).toBeGreaterThan(0);
+    const historyRows = reloaded.prepare(
+      "SELECT COUNT(*) AS count, COUNT(DISTINCT id) AS distinctCount FROM training_history_events",
+    ).get() as { count: number; distinctCount: number };
+    expect(historyRows).toEqual({ count: historyRows.count, distinctCount: historyRows.count });
     reloaded.close();
   });
 

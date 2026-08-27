@@ -1256,6 +1256,16 @@ function developPlayers(
     const state = players.developmentState(stat.personId);
     const potential = players.potential(stat.personId);
     if (!attributes || !state || !potential) continue;
+    /*
+     * Development is a property of elapsed time, not of how many competitions a
+     * player happened to enter. Nepal's competition seasons all end on the same
+     * date, and a club fielding the same squad in (say) the ANFA National
+     * League and the A-Division produces one stats row per competition — so
+     * without this guard the same player was developed twice on the same date,
+     * double-applying attribute and state changes and then colliding on the
+     * canonical training-history event id.
+     */
+    if (state.lastDevelopmentUpdate && state.lastDevelopmentUpdate >= date) continue;
     if (!teamsProcessed.has(stat.teamId)) {
       ensureSensibleDevelopmentPlan(db, date, stat.teamId);
       teamsProcessed.add(stat.teamId);
@@ -1279,6 +1289,7 @@ function developPlayers(
       age,
       date,
       seed,
+      historyScope: `${competitionSeasonId}:${stat.teamId}`,
       individualPlan,
       environment,
       trainingAvailability: availability,

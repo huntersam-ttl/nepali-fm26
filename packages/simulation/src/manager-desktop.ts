@@ -2199,6 +2199,7 @@ const applyDailyTraining = (
       age,
       date,
       seed: `${save.randomSeed}:training:${attributes.personId}:${date}`,
+      historyScope: context.team.id,
       plan,
       individualPlan,
       playingTime,

@@ -32,6 +32,8 @@ export type PlayerDevelopmentInput = {
   age: number;
   date: string;
   seed: string;
+  /** Stable owner of a persisted development cycle (season/team when available). */
+  historyScope?: string;
   plan?: TrainingPlan;
   individualPlan?: IndividualDevelopmentPlan;
   playingTime?: PlayerPlayingTimeSnapshot;
@@ -549,7 +551,7 @@ const history = (
 ): TrainingHistoryEvent => ({
   id: createStableEntityId(
     "training-history-event",
-    `${input.attributes.personId}-${input.date}-${eventType}-${JSON.stringify(data)}`,
+    `${input.historyScope ?? "default"}:${input.attributes.personId}:${input.date}:${eventType}:${JSON.stringify(data)}`,
   ),
   playerId: input.attributes.personId,
   eventType,
