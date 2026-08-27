@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { TransferMarketRepository, openGameDatabase } from "@nepal-football-sim/database";
+import { ClubEconomyRepository, TransferMarketRepository, openGameDatabase } from "@nepal-football-sim/database";
 import type { EntityId } from "@nepal-football-sim/shared-types";
 import {
   completePermanentTransfer,
@@ -12,6 +12,7 @@ import {
   initializeForeignFootballWorldForSave,
   initializeTransferMarketForSave,
   runTransferDiagnostic,
+  simulateTransferWindow,
 } from "@nepal-football-sim/simulation";
 
 /*
@@ -113,6 +114,13 @@ describe("AI personal-terms negotiation", () => {
       completePermanentTransfer(db, offer, WORLD_DATE, "nepal-to-foreign");
       const settled = market.transferOffers().find((item) => item.id === offer.id);
       expect(settled?.status).toBe("COMPLETED");
+      const transferLedger = new ClubEconomyRepository(db)
+        .ledgerEntries()
+        .filter((entry) => entry.relatedEntityId === offer.id);
+      expect(transferLedger.filter((entry) => entry.category === "TRANSFER_EXPENSE")).toHaveLength(1);
+      expect(transferLedger.filter((entry) => entry.category === "TRANSFER_INCOME")).toHaveLength(1);
+      completePermanentTransfer(db, offer, WORLD_DATE, "nepal-to-foreign");
+      expect(new ClubEconomyRepository(db).ledgerEntries().filter((entry) => entry.relatedEntityId === offer.id)).toHaveLength(2);
 
       // The negotiation actually happened: the player was asked twice.
       const rounds = market.negotiationRounds(offer.id);
@@ -185,6 +193,43 @@ describe("AI personal-terms negotiation", () => {
         "PLAYER_REJECTED",
         "COMPETING_OFFER",
       ]).toContain(settled?.status);
+    } finally {
+      db.close();
+    }
+  }, 300000);
+
+  it("settles a contracted context-only player into Nepal through seller and player terms", () => {
+    const databasePath = createWorld("contracted-foreign-to-nepal");
+    const db = open(databasePath);
+    try {
+      const target = nepalPlayer(db);
+      const externalClubId = foreignClub(db).id;
+      const buyer = db.prepare("SELECT id FROM clubs WHERE canonical_external_id LIKE 'NEP-NSL-%' ORDER BY id LIMIT 1").get() as { id: EntityId };
+      const market = new TransferMarketRepository(db);
+      const contract = market.activeContract(target.player_id, WORLD_DATE)!;
+      market.upsertPlayerContract({ ...contract, clubId: externalClubId });
+      market.updatePlayerClub(target.player_id, externalClubId);
+
+      const offer = createTransferOffer(db, {
+        buyingClubId: buyer.id,
+        sellingClubId: externalClubId,
+        playerId: target.player_id,
+        submittedAt: WORLD_DATE,
+        fee: 20_000_000,
+      });
+      expect(evaluateTransferOffer(db, offer, WORLD_DATE, "contracted-foreign-to-nepal").accepted).toBe(true);
+      completePermanentTransfer(db, offer, WORLD_DATE, "contracted-foreign-to-nepal", { preferredCountries: ["NP", "NPL"], expectedPlayingTime: "FIRST_TEAM" });
+      simulateTransferWindow({ db, worldDate: WORLD_DATE, seed: "contracted-foreign-to-nepal", maxClubActions: 0 });
+
+      expect(market.activeContract(target.player_id, WORLD_DATE)?.clubId).toBe(buyer.id);
+      expect(historyCount(db, target.player_id, "TRANSFER_COMPLETED")).toBe(1);
+      expect(market.transferOffers().find((item) => item.id === offer.id)?.status).toBe("COMPLETED");
+      const transferLedger = new ClubEconomyRepository(db).ledgerEntries().filter((entry) => entry.relatedEntityId === offer.id);
+      expect(transferLedger.filter((entry) => entry.category === "TRANSFER_EXPENSE")).toHaveLength(1);
+      expect(transferLedger.filter((entry) => entry.category === "TRANSFER_INCOME")).toHaveLength(1);
+      completePermanentTransfer(db, offer, WORLD_DATE, "contracted-foreign-to-nepal");
+      expect(new ClubEconomyRepository(db).ledgerEntries().filter((entry) => entry.relatedEntityId === offer.id)).toHaveLength(2);
+      expect(market.competitionRegistrations().some((item) => item.playerId === target.player_id && item.clubId === buyer.id && item.status === "ACTIVE")).toBe(true);
     } finally {
       db.close();
     }

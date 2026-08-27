@@ -168,3 +168,17 @@ bounded run window. Africa/South-Asia corridor and loan verification remain foll
 The competing-offer root cause was missing bounded resolution after `COMPETING_OFFER`; offers could
 remain open or be retried against stale state. The targeted closure pass fixes that state transition.
 The integrity test remains 4/4; the broad stage-eight suite remains slow and is not claimed green.
+
+## Bounded Production Audit — 2026-08-27
+
+The focused production audit passed 13/13: Nepal-to-foreign personal-terms settlement, foreign
+free-agent competition, contracted context-only foreign-to-Nepal purchase, identity, reload, and
+starting-market integrity. The contracted reverse case also confirmed one `TRANSFER_EXPENSE`, one
+`TRANSFER_INCOME`, one `TRANSFER_COMPLETED` event, one active Nepal contract, and active canonical
+Nepal registration; repeating completion did not create another ledger entry.
+
+The current full stage-eight attempt was stopped after a 90-second observation window without test
+output and is classified `LEGITIMATE_BROAD`/slow pending per-test instrumentation. Existing corridor
+metadata evaluation passes, but production-level African and South-Asian candidate shortlist
+reachability was not established in this audit. Therefore the activation gate remains `NOT ACTIVE`
+until those corridor proofs are captured. Loans remain a separate feature.
