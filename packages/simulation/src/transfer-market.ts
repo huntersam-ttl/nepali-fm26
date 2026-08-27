@@ -83,7 +83,16 @@ export const initializeTransferMarketForSave = (input: {
   seed: string;
 }): void => {
   const market = new TransferMarketRepository(input.db);
-  if (market.allPlayerContracts().length > 0) {
+  /*
+   * "Any contract exists" was a valid already-initialized sentinel while this
+   * function was the only writer of contracts. World creation now generates
+   * lower-league and youth squads first, and those carry youth contracts, so
+   * the old guard tripped on someone else's rows and returned before a single
+   * imported Nepal player was given a starting contract. Transfer windows are
+   * seeded here and nowhere else, which makes them an unambiguous marker for
+   * "this market has been initialized".
+   */
+  if (market.transferWindows().length > 0) {
     return;
   }
   initializeRecruitmentForSave(input);
@@ -107,8 +116,18 @@ export const initializeTransferMarketForSave = (input: {
     if (!club) {
       continue;
     }
-    const contract = startingContract(input.db, player, club, input.worldDate, input.seed);
-    market.upsertPlayerContract(contract);
+    /*
+     * A player generated during world creation already holds an active youth
+     * contract. Issuing a starting contract on top would leave one player with
+     * two live deals, so the existing agreement stands and only the transfer
+     * status is brought into line.
+     */
+    const existing = market.activeContract(player.playerId, input.worldDate);
+    const contract =
+      existing ?? startingContract(input.db, player, club, input.worldDate, input.seed);
+    if (!existing) {
+      market.upsertPlayerContract(contract);
+    }
     market.upsertTransferStatus(initialTransferStatus(player, contract, input.worldDate));
   }
   refreshClubWageSpend(input.db, input.worldDate);
@@ -255,7 +274,16 @@ export const simulateTransferWindow = (input: {
   seedCompetitionRegistrations(input.db, input.worldDate);
 
   const offers = market.transferOffers();
-  const sampleOffer = offers.find((offer) => market.negotiationRounds(offer.id).length > 0);
+  /*
+   * Sample the fullest negotiation available rather than the first offer that
+   * happens to have a round: an offer still awaiting a response carries only
+   * its opening bid, which is not a representative timeline. Ties break on id
+   * so the diagnostic stays deterministic.
+   */
+  const sampleOffer = offers
+    .map((offer) => ({ offer, rounds: market.negotiationRounds(offer.id).length }))
+    .filter((entry) => entry.rounds > 0)
+    .sort((a, b) => b.rounds - a.rounds || a.offer.id.localeCompare(b.offer.id))[0]?.offer;
   return {
     worldDate: input.worldDate,
     windowDates: market.transferWindows().map((window) => ({
@@ -1770,11 +1798,19 @@ const findLoanCandidate = (
   need: SquadNeed,
   worldDate: string,
 ): { parentClubId: EntityId; playerId: EntityId } | undefined => {
+  const market = new TransferMarketRepository(db);
+  /*
+   * A player already out on loan cannot be loaned again. Selection is
+   * deterministic, so without this the same fringe player is offered to every
+   * club in turn and the second attempt trips the loan guard in `startLoan`.
+   */
+  const alreadyLoaned = new Set(market.activeLoans(worldDate).map((loan) => loan.playerId));
   for (const player of marketPlayers(db)
     .filter((item) => item.currentClubId && item.currentClubId !== clubId)
+    .filter((item) => !alreadyLoaned.has(item.playerId))
     .filter((item) => need.positionGroup === "DEPTH" || item.positionGroup === need.positionGroup)
     .sort((a, b) => a.appearances - b.appearances || a.age - b.age)) {
-    const contract = new TransferMarketRepository(db).activeContract(player.playerId, worldDate);
+    const contract = market.activeContract(player.playerId, worldDate);
     if (contract && ["BACKUP", "PROSPECT", "YOUTH"].includes(contract.squadRole)) {
       return { parentClubId: contract.clubId, playerId: player.playerId };
     }
