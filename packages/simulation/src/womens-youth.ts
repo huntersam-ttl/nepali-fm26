@@ -1,11 +1,39 @@
-import { ClubCreationRepository, ClubEconomyRepository, EventRepository, FederationGovernanceRepository, PlayerRepository, TransferMarketRepository, WorldRepository, YouthRepository, type GameDatabase } from "@nepal-football-sim/database";
-import { createStableEntityId, type ClubDevelopmentProgramme, type CompetitionRegistration, type EntityId, type Team, type VenueRelationship } from "@nepal-football-sim/shared-types";
+import { ClubCreationRepository, ClubEconomyRepository, CompetitionRepository, EventRepository, FederationGovernanceRepository, PlayerRepository, TransferMarketRepository, WorldRepository, YouthRepository, type GameDatabase } from "@nepal-football-sim/database";
+import { createStableEntityId, type ClubDevelopmentProgramme, type CompetitionRegistration, type CompetitionRuleSet, type CompetitionSeason, type EntityId, type Team, type VenueRelationship } from "@nepal-football-sim/shared-types";
 import { runAnnualYouthAndRetirementCycle, type YouthAnnualReport } from "./youth-intake.js";
 import { SeededRandom } from "./rng.js";
 
 const status = "SIMULATION_ONLY" as const;
 const season = (date: string): string => date.slice(0, 4);
 const venueFor = (db: GameDatabase, clubId: EntityId): { id: EntityId } | undefined => (db.prepare("SELECT venue_id AS id FROM venue_relationships WHERE club_id = ? AND status != 'unavailable' ORDER BY id LIMIT 1").get(clubId) as { id: EntityId } | undefined) ?? (db.prepare("SELECT v.id FROM venues v JOIN clubs c ON c.country_id = v.country_id WHERE c.id = ? AND v.status != 'CLOSED' ORDER BY v.capacity DESC, v.id LIMIT 1").get(clubId) as { id: EntityId } | undefined);
+
+export const ensureWomensFootballWorldForSave = (db: GameDatabase, input: { worldDate: string }): { competitionSeason: CompetitionSeason; ruleSet: CompetitionRuleSet; teamIds: EntityId[] } => {
+  const year = Number(input.worldDate.slice(0, 4));
+  const startDate = `${year}-08-01`;
+  const endDate = `${year + 1}-07-31`;
+  const competitionId = createStableEntityId("competition", "nepal-womens-league");
+  const seasonId = createStableEntityId("competition-season", `${competitionId}:${startDate}`);
+  const ruleId = createStableEntityId("competition-rule", seasonId);
+  const federation = db.prepare("SELECT id FROM federations WHERE country_id = (SELECT id FROM countries WHERE iso_code IN ('NP','NPL') LIMIT 1) ORDER BY id LIMIT 1").get() as { id?: EntityId } | undefined;
+  const world = new WorldRepository(db);
+  const competitions = new CompetitionRepository(db);
+  if (!db.prepare("SELECT 1 FROM competitions WHERE id = ?").get(competitionId)) {
+    world.insertCompetition({ id: competitionId, federationId: federation?.id, name: "Nepal Women's League", scope: "domestic", category: "WOMENS_LEAGUE" });
+  }
+  if (!world.getCompetitionSeason(seasonId)) world.insertCompetitionSeason({ id: seasonId, competitionId, name: `Nepal Women's League ${year}`, startDate, endDate });
+  if (!competitions.getRuleSet(seasonId)) competitions.insertRuleSet({ id: ruleId, competitionSeasonId: seasonId, competitionType: "DOUBLE_ROUND_ROBIN", pointsForWin: 3, pointsForDraw: 1, pointsForLoss: 0, tiebreakers: ["points", "goalDifference", "goalsScored", "wins"], numberOfRounds: 2, homeAwayStructure: "double", seasonStartDate: startDate, seasonEndDate: endDate, roundSpacingDays: 7, promotionSlots: 0, relegationSlots: 0, continentalQualificationSlots: 0, promotionEnabled: false, relegationEnabled: false });
+  const teams = db.prepare("SELECT id, club_id FROM teams WHERE level = 'senior' AND gender = 'women' AND club_id IS NOT NULL ORDER BY id").all() as Array<{ id: EntityId; club_id: EntityId }>;
+  for (const team of teams) {
+    world.insertClubMembership({ id: createStableEntityId("womens-membership", `${team.id}:${seasonId}`), clubId: team.club_id, teamId: team.id, competitionId, competitionSeasonId: seasonId, membershipType: "WOMENS_COMPETITION", status: "ACTIVE" });
+    if (!db.prepare("SELECT 1 FROM staff_appointments WHERE team_id = ? AND role = 'HEAD_COACH' AND employment_status = 'ACTIVE' LIMIT 1").get(team.id) && !db.prepare("SELECT 1 FROM staff_vacancies WHERE team_id = ? AND role = 'HEAD_COACH' AND status = 'VACANT' LIMIT 1").get(team.id)) {
+      const name = (db.prepare("SELECT name FROM teams WHERE id = ?").get(team.id) as { name?: string } | undefined)?.name;
+      world.insertStaffVacancy({ id: createStableEntityId("womens-head-coach-vacancy", team.id), organisationType: "TEAM", clubId: team.club_id, teamId: team.id, organisationName: name, role: "HEAD_COACH", required: true, status: "VACANT", openedOn: input.worldDate, reason: "NEW_ROLE" });
+    }
+  }
+  const ruleSet = competitions.getRuleSet(seasonId);
+  if (!ruleSet) throw new Error("Women's competition rule set was not created");
+  return { competitionSeason: { id: seasonId, competitionId, name: `Nepal Women's League ${year}`, startDate, endDate }, ruleSet, teamIds: teams.map((team) => team.id) };
+};
 
 export const createWomensFootballProgramme = (db: GameDatabase, input: { clubId: EntityId; date: string; annualBudget: number; competitionSeasonId?: EntityId }): ClubDevelopmentProgramme => {
   const club = db.prepare("SELECT name FROM clubs WHERE id = ?").get(input.clubId) as { name: string } | undefined; if (!club) throw new Error("Club does not exist");

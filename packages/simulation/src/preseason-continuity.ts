@@ -60,6 +60,7 @@ type RepairClub = {
   teamId?: EntityId;
   countryId: EntityId;
   locationId?: EntityId;
+  gender: "men" | "women";
 };
 
 type Candidate = {
@@ -109,6 +110,7 @@ export const repairPreseasonContinuity = (input: {
         input.db,
         club.clubId,
         input.date,
+        club.gender,
       )) {
         if (current.players >= healthySquadSize && current.goalkeepers >= goalkeeperTarget) break;
         assignPlayer(input.db, club, candidate.playerId, input.date, "contract-restored");
@@ -213,21 +215,23 @@ const contractedPlayersWithoutAssignment = (
   db: GameDatabase,
   clubId: EntityId,
   date: string,
+  gender: "men" | "women",
 ): Candidate[] =>
   db
     .prepare(
       `SELECT pc.player_id, pa.primary_position
       FROM player_contracts pc
       JOIN player_attributes pa ON pa.person_id = pc.player_id
+      JOIN persons p ON p.id = pc.player_id
       LEFT JOIN team_person_assignments active
         ON active.person_id = pc.player_id AND active.role = 'PLAYER' AND active.ended_on IS NULL
       LEFT JOIN player_retirement_states prs
         ON prs.player_id = pc.player_id AND prs.state = 'RETIRED'
-      WHERE pc.club_id = ? AND pc.status = 'ACTIVE' AND pc.start_date <= ? AND pc.end_date >= ?
+      WHERE pc.club_id = ? AND p.gender_presentation = ? AND pc.status = 'ACTIVE' AND pc.start_date <= ? AND pc.end_date >= ?
         AND active.person_id IS NULL AND prs.player_id IS NULL
       ORDER BY pc.squad_role DESC, pc.end_date DESC, pc.player_id`,
     )
-    .all(clubId, date, date)
+    .all(clubId, gender === "women" ? "female" : "male", date, date)
     .map((row: any) => ({
       playerId: row.player_id,
       position: row.primary_position,
@@ -240,7 +244,7 @@ const promoteYouth = (
   date: string,
   position?: string,
 ): boolean => {
-  const candidates = youthCandidates(db, club.clubId, position);
+  const candidates = youthCandidates(db, club.clubId, position, club.gender);
   const candidate = candidates[0];
   if (!candidate) return false;
   assignPlayer(db, club, candidate.playerId, date, "youth-promotion");
@@ -256,7 +260,7 @@ const signFreeAgent = (
   seed: string,
   position?: string,
 ): boolean => {
-  const candidates = freeAgentCandidates(db, position);
+  const candidates = freeAgentCandidates(db, position, club.gender);
   if (candidates.length === 0) return false;
   const rng = new SeededRandom(
     `${seed}:free-agent-repair:${club.clubId}:${date}:${position ?? "any"}`,
@@ -271,24 +275,25 @@ const signFreeAgent = (
   return true;
 };
 
-const youthCandidates = (db: GameDatabase, clubId: EntityId, position?: string): Candidate[] =>
+const youthCandidates = (db: GameDatabase, clubId: EntityId, position?: string, gender: "men" | "women" = "men"): Candidate[] =>
   db
     .prepare(
       `SELECT yps.player_id, pa.primary_position, pa.technical_json, pa.mental_json, pa.physical_json, pa.goalkeeping_json
       FROM youth_player_statuses yps
       JOIN player_attributes pa ON pa.person_id = yps.player_id
+      JOIN persons p ON p.id = yps.player_id
       LEFT JOIN team_person_assignments active
         ON active.person_id = yps.player_id AND active.role = 'PLAYER' AND active.ended_on IS NULL
       LEFT JOIN player_retirement_states prs
         ON prs.player_id = yps.player_id AND prs.state = 'RETIRED'
-      WHERE yps.club_id = ? AND active.person_id IS NULL AND prs.player_id IS NULL
+      WHERE yps.club_id = ? AND p.gender_presentation = ? AND active.person_id IS NULL AND prs.player_id IS NULL
         AND (? IS NULL OR pa.primary_position = ?)
       ORDER BY yps.youth_status DESC, yps.status_since, yps.player_id`,
     )
-    .all(clubId, position ?? null, position ?? null)
+    .all(clubId, gender === "women" ? "female" : "male", position ?? null, position ?? null)
     .map(mapCandidate);
 
-const freeAgentCandidates = (db: GameDatabase, position?: string): Candidate[] =>
+const freeAgentCandidates = (db: GameDatabase, position?: string, gender: "men" | "women" = "men"): Candidate[] =>
   db
     .prepare(
       `SELECT pa.person_id AS player_id, pa.primary_position, pa.technical_json, pa.mental_json,
@@ -301,12 +306,12 @@ const freeAgentCandidates = (db: GameDatabase, position?: string): Candidate[] =
         ON prs.player_id = pa.person_id AND prs.state = 'RETIRED'
       LEFT JOIN player_contracts pc
         ON pc.player_id = pa.person_id AND pc.status = 'ACTIVE'
-      WHERE active.person_id IS NULL AND prs.player_id IS NULL AND pc.player_id IS NULL
+      WHERE p.gender_presentation = ? AND active.person_id IS NULL AND prs.player_id IS NULL AND pc.player_id IS NULL
         AND (? IS NULL OR pa.primary_position = ?)
       ORDER BY p.date_of_birth DESC, pa.person_id
       LIMIT 80`,
     )
-    .all(position ?? null, position ?? null)
+    .all(gender === "women" ? "female" : "male", position ?? null, position ?? null)
     .map(mapCandidate);
 
 const mapCandidate = (row: any): Candidate => ({
@@ -396,7 +401,7 @@ const createEmergencyPlayer = (
     displayName: name,
     dateOfBirth: birthDate(date, rng.integer(19, 26), rng),
     nationalityCountryId: club.countryId,
-    genderPresentation: "male",
+    genderPresentation: club.gender === "women" ? "female" : "male",
     placeOfBirthLocationId: club.locationId,
     hometownLocationId: club.locationId,
     languages: ["Nepali"],
@@ -466,7 +471,9 @@ const competitionSeasonMeta = (
 const memberClubs = (db: GameDatabase, seasonId: EntityId): RepairClub[] =>
   db
     .prepare(
-      `SELECT cm.club_id, c.name AS club_name, c.country_id, c.location_id, MIN(t.id) AS team_id
+      `SELECT cm.club_id, c.name AS club_name, c.country_id, c.location_id,
+        COALESCE(MIN(CASE WHEN t.level = 'senior' THEN t.id END), MIN(t.id)) AS team_id,
+        COALESCE(MIN(CASE WHEN t.level = 'senior' THEN t.gender END), 'men') AS gender
       FROM club_memberships cm
       JOIN clubs c ON c.id = cm.club_id
       LEFT JOIN teams t ON (t.id = cm.team_id OR (cm.team_id IS NULL AND t.club_id = cm.club_id))
@@ -482,6 +489,7 @@ const memberClubs = (db: GameDatabase, seasonId: EntityId): RepairClub[] =>
       countryId: row.country_id,
       locationId: row.location_id ?? undefined,
       teamId: row.team_id ?? undefined,
+      gender: row.gender === "women" ? "women" : "men",
     }));
 
 const squadSnapshot = (
@@ -524,7 +532,8 @@ const shallowestPosition = (db: GameDatabase, club: RepairClub): string | undefi
 const isCoreContinuityCompetition = (name: string): boolean =>
   name === "ANFA National League" ||
   name === "Martyr's Memorial A-Division League" ||
-  name === "Martyr's Memorial B-Division League";
+  name === "Martyr's Memorial B-Division League" ||
+  name === "Nepal Women's League";
 
 const emergencyAttributes = (
   personId: EntityId,

@@ -75,6 +75,7 @@ import {
   runAnnualYouthAndRetirementCycle,
   type YouthAnnualReport,
 } from "./youth-intake.js";
+import { ensureWomensFootballWorldForSave } from "./womens-youth.js";
 import {
   reconcileWorkforceSupply,
   type WorkforceReconciliationReport,
@@ -235,6 +236,7 @@ export const simulateNepalCareer = (input: {
   if (input.transfersEnabled) {
     initializeTransferMarketForSave({ db: input.db, worldDate: save.worldDate, seed: input.seed });
   }
+  ensureWomensFootballWorldForSave(input.db, { worldDate: save.worldDate });
   preseasonReports.push(
     ...repairPreseasonContinuity({
       db: input.db,
