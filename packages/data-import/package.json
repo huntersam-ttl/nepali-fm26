@@ -14,8 +14,13 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
+  "bin": {
+    "validate-world-import": "./dist/global-football-import-cli.js",
+    "dry-run-world-import": "./dist/global-football-import-cli.js"
+  },
   "dependencies": {
     "@nepal-football-sim/shared-types": "workspace:*",
+    "xlsx": "0.18.5",
     "zod": "^3.23.8"
   }
 }
