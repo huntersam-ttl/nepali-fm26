@@ -63,7 +63,7 @@ const idColumns: Record<string, { column: string; prefix: string }> = { PLAYERS:
 const allowedProvenance = new Set(["VERIFIED", "REPORTED", "UNKNOWN"]);
 const allowedConfidence = new Set(["HIGH", "MEDIUM", "LOW"]);
 const positions = new Set(["GK", "RB", "LB", "CB", "DM", "CM", "AM", "RW", "LW", "ST", "UNKNOWN"]);
-const positionAliases: Record<string, string> = { GOALKEEPER: "GK", KEEPER: "GK", DEFENDER: "CB", MIDFIELDER: "CM", ATTACKER: "ST", FORWARD: "ST" };
+const positionAliases: Record<string, string> = { GOALKEEPER: "GK", KEEPER: "GK", DEFENDER: "CB", MIDFIELDER: "CM", ATTACKER: "ST", FORWARD: "ST", RWB: "RB", LWB: "LB", LM: "LW", RM: "RW", DF: "CB", MF: "CM" };
 const countryAliases: Record<string, string> = { "KOREA REPUBLIC": "South Korea", "COTE D'IVOIRE": "Côte d’Ivoire", "CÔTE D’IVOIRE": "Côte d’Ivoire", USA: "United States" };
 
 const text = (value: unknown): string => value == null ? "" : String(value).trim();
@@ -79,9 +79,39 @@ export const parseGlobalFootballWorkbook = (sourcePath: string): ParsedGlobalWor
   for (const sheetName of workbook.SheetNames) {
     const rows = XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[sheetName], { header: 1, raw: true, defval: null });
     const headers = (rows[0] ?? []).map(text);
-    sheets[sheetName] = rows.slice(1).filter((row) => row.some((cell) => text(cell))).map((row) => Object.fromEntries(headers.map((header, index) => [header, row[index] ?? null])));
+    sheets[sheetName] = rows.slice(1).filter((row) => row.some((cell) => text(cell))).map((row) => {
+      // v16 has 23 STAFF rows with an undocumented common-name cell inserted
+      // after full_name. The following date cell makes this repair unambiguous;
+      // no arbitrary column guessing is performed for other row shapes.
+      const repaired = sheetName === "STAFF" && !/^\d{4}-\d{2}-\d{2}$/.test(text(row[2])) && /^\d{4}-\d{2}-\d{2}$/.test(text(row[3])) ? [...row.slice(0, 2), ...row.slice(3, 11), "UNKNOWN", ...row.slice(11)] : row;
+      return Object.fromEntries(headers.map((header, index) => [header, repaired[index] ?? null]));
+    });
   }
   return { sheets, sourcePath };
+};
+
+/** Writes a new workbook containing only deterministic, documented repairs. */
+export const writeReconciledGlobalFootballWorkbook = (sourcePath: string, destinationPath: string): void => {
+  const workbook = XLSX.read(readFileSync(sourcePath), { type: "buffer", cellDates: true, cellFormula: false, cellNF: false, cellStyles: true });
+  const players = workbook.Sheets.PLAYERS;
+  if (players) {
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(players, { header: 1, raw: true, defval: null });
+    for (const row of rows.slice(1)) if (row.length > 7) row[7] = normalizePosition(row[7]);
+    workbook.Sheets.PLAYERS = XLSX.utils.aoa_to_sheet(rows);
+  }
+  const leagues = workbook.Sheets.LEAGUES;
+  if (leagues) {
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(leagues, { header: 1, raw: true, defval: null });
+    for (const row of rows.slice(1)) if (row.length > 11 && text(row[3]).toUpperCase() !== "NEPAL") { row[10] = "NO"; row[11] = "CONTEXT_ONLY"; }
+    workbook.Sheets.LEAGUES = XLSX.utils.aoa_to_sheet(rows);
+  }
+  const staff = workbook.Sheets.STAFF;
+  if (staff) {
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(staff, { header: 1, raw: true, defval: null });
+    const repaired = rows.map((row, index) => index > 0 && !/^\d{4}-\d{2}-\d{2}$/.test(text(row[2])) && /^\d{4}-\d{2}-\d{2}$/.test(text(row[3])) ? [...row.slice(0, 2), ...row.slice(3, 11), "UNKNOWN", ...row.slice(11)] : row);
+    workbook.Sheets.STAFF = XLSX.utils.aoa_to_sheet(repaired);
+  }
+  XLSX.writeFile(workbook, destinationPath, { bookType: "xlsx" });
 };
 
 const normalizeRows = (parsed: ParsedGlobalWorkbook): Record<string, WorkbookRow[]> => {
@@ -110,10 +140,10 @@ const validateRows = (sheets: Record<string, WorkbookRow[]>, findings: ImportFin
       const line = index + 2; const value = text(row[id.column]);
       if (!value || !value.startsWith(id.prefix)) add(findings, "ERROR", `Stable ID must be non-empty and use ${id.prefix} prefix.`, sheet, line, id.column);
       if (seen.has(value)) add(findings, "FATAL", `Duplicate stable ID also appears on row ${seen.get(value)}.`, sheet, line, id.column); else seen.set(value, line);
-      const provenance = text(row.provenance).toUpperCase(); if (!allowedProvenance.has(provenance)) add(findings, "ERROR", "Unsupported provenance; expected VERIFIED, REPORTED, or UNKNOWN.", sheet, line, "provenance");
-      if (sheet !== "SOURCES" && sheet !== "FEDERATIONS" && sheet !== "COMPETITIONS" && !allowedConfidence.has(text(row.confidence).toUpperCase())) add(findings, "ERROR", "Confidence must be HIGH, MEDIUM, or LOW.", sheet, line, "confidence");
+      const provenance = text(row.provenance).toUpperCase(); if (expectedHeaders[sheet]?.includes("provenance") && !allowedProvenance.has(provenance)) add(findings, "ERROR", "Unsupported provenance; expected VERIFIED, REPORTED, or UNKNOWN.", sheet, line, "provenance");
+      if (expectedHeaders[sheet]?.includes("confidence") && !allowedConfidence.has(text(row.confidence).toUpperCase())) add(findings, "ERROR", "Confidence must be HIGH, MEDIUM, or LOW.", sheet, line, "confidence");
       for (const ref of sourceRefs(row)) if (!sourceIds.has(ref)) add(findings, "ERROR", `Referenced source ${ref} does not exist.`, sheet, line);
-      for (const dateField of ["date_of_birth", "start_date", "end_date", "last_verified_date", "publication_date", "retrieval_date"]) if (text(row[dateField]) && !isValidDate(text(row[dateField]))) add(findings, "ERROR", "Date must be ISO YYYY or YYYY-MM-DD and represent a real date.", sheet, line, dateField);
+      for (const dateField of ["date_of_birth", "start_date", "end_date", "last_verified_date", "publication_date", "retrieval_date"]) if (text(row[dateField]) && text(row[dateField]).toUpperCase() !== "UNKNOWN" && !isValidDate(text(row[dateField]))) add(findings, "ERROR", "Date must be ISO YYYY or YYYY-MM-DD and represent a real date.", sheet, line, dateField);
       if (sheet === "PLAYERS" && text(row.primary_position) && !positions.has(text(row.primary_position))) add(findings, "ERROR", "Unknown primary position; use the supported position aliases.", sheet, line, "primary_position");
       if (sheet === "PLAYERS" && normalizeDate(row.date_of_birth) > "2026-08-27") add(findings, "ERROR", "Date of birth cannot be in the future.", sheet, line, "date_of_birth");
       if (sheet === "LEAGUES" && text(row.country).toUpperCase() !== "NEPAL" && (normalizeBoolean(row.is_playable_in_game) === "YES" || text(row.simulation_depth).toUpperCase() === "FULL")) add(findings, "WARNING", "External league will be forced to NO / CONTEXT_ONLY by the import plan.", sheet, line);
