@@ -72,6 +72,7 @@ import {
 } from "./workforce-supply.js";
 import { processOwnershipContinuity } from "./ownership.js";
 import { ensureFederationLeadershipContinuity } from "./federation-politics.js";
+import { advanceMacroEconomyForWorldDate } from "./macro-economy.js";
 
 export type CompetitionSeasonLifecycleStatus =
   | "NOT_STARTED"
@@ -201,6 +202,7 @@ export const simulateNepalCareer = (input: {
     });
   }
   if (economyEnabled) {
+    advanceMacroEconomyForWorldDate(input.db, { date: save.worldDate, seed: input.seed });
     initializeClubEconomyForSave({ db: input.db, worldDate: save.worldDate, seed: input.seed });
   }
   if (input.youthEnabled) {
@@ -369,6 +371,8 @@ const processEconomyForSeasonPeriod = (
   const endYear = Number(input.seasonEndDate.slice(0, 4));
   const startYear = endYear - 1;
   for (const month of [8, 9, 10, 11, 12]) {
+    if (month === 8)
+      advanceMacroEconomyForWorldDate(db, { date: `${startYear}-08-01`, seed: input.seed });
     processClubEconomyMonth(db, {
       date: `${startYear}-${String(month).padStart(2, "0")}-28`,
       seed: `${input.seed}:${month}`,
@@ -381,6 +385,8 @@ const processEconomyForSeasonPeriod = (
     });
   }
   for (const month of [1, 2, 3, 4, 5, 6, 7]) {
+    if (month === 1)
+      advanceMacroEconomyForWorldDate(db, { date: `${endYear}-01-01`, seed: input.seed });
     processClubEconomyMonth(db, {
       date: `${endYear}-${String(month).padStart(2, "0")}-28`,
       seed: `${input.seed}:${month}`,

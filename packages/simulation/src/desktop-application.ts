@@ -30,6 +30,7 @@ import {
   SaveIncompatibleError,
   withAutosaveStamp,
 } from "./save-management.js";
+import { advanceMacroEconomyForWorldDate } from "./macro-economy.js";
 import {
   createEntityId,
   createStableEntityId,
@@ -741,6 +742,8 @@ export class DesktopApplicationService {
           });
         }
       }
+
+      advanceMacroEconomyForWorldDate(db, { date: updated.worldDate, seed: save.randomSeed });
 
       // Autosave foundation: after a configurable number of in-game days, or
       // at a major season transition, into a rotating ring of slot files

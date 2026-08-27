@@ -2,6 +2,7 @@ import type { SaveMetadata, ScheduledEvent } from "@nepal-football-sim/shared-ty
 import { createEntityId } from "@nepal-football-sim/shared-types";
 import type { GameDatabase } from "@nepal-football-sim/database";
 import { EventRepository, updateSaveWorldDate } from "@nepal-football-sim/database";
+import { advanceMacroEconomyForWorldDate } from "./macro-economy.js";
 
 const addDays = (date: string, days: number): string => {
   const parsed = new Date(`${date}T00:00:00.000Z`);
@@ -45,6 +46,10 @@ export class SimulationClock {
 
   advanceDay(): void {
     this.save = updateSaveWorldDate(this.db, this.save, addDays(this.save.worldDate, 1));
+    advanceMacroEconomyForWorldDate(this.db, {
+      date: this.save.worldDate,
+      seed: this.save.randomSeed,
+    });
     this.options.onAdvanceDay?.(this.save.worldDate);
     this.processDueEvents();
   }

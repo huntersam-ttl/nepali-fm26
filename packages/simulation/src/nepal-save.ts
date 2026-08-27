@@ -24,6 +24,7 @@ import {
 } from "@nepal-football-sim/shared-types";
 import { applyFederationComplianceSnapshot } from "./federation-compliance.js";
 import { ensureLowerLeaguePlayableWorld } from "./workforce-supply.js";
+import { advanceMacroEconomyForWorldDate } from "./macro-economy.js";
 
 export type CreateNepalSaveInput = {
   databasePath: string;
@@ -102,6 +103,7 @@ export const createNepalSave = (input: CreateNepalSaveInput): NepalSaveResult =>
       randomSeed: input.randomSeed,
     });
     importNepalWorld(db, dataset);
+    advanceMacroEconomyForWorldDate(db, { date: save.worldDate, seed: input.randomSeed });
     ensureLowerLeaguePlayableWorld({ db, date: save.worldDate, seed: input.randomSeed });
     db.exec("COMMIT;");
 

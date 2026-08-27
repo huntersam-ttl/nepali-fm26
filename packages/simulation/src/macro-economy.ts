@@ -1,12 +1,39 @@
-import { createStableEntityId, type EntityId, type MacroEconomicIndex, type MacroEconomicState } from "@nepal-football-sim/shared-types";
+import {
+  createStableEntityId,
+  type EntityId,
+  type MacroEconomicIndex,
+  type MacroEconomicState,
+} from "@nepal-football-sim/shared-types";
 import { MacroEconomyRepository, type GameDatabase } from "@nepal-football-sim/database";
 import { SeededRandom } from "./rng.js";
 
-const clamp = (value: number, min = 0.65, max = 4): number => Number(Math.max(min, Math.min(max, value)).toFixed(4));
-const nextIndex = (previous: number, annualDrift: number, noise: number): number => clamp(previous + (1 - previous) * 0.006 + annualDrift + noise);
+const clamp = (value: number, min = 0.65, max = 4): number =>
+  Number(Math.max(min, Math.min(max, value)).toFixed(4));
+const nextIndex = (previous: number, annualDrift: number, noise: number): number =>
+  clamp(previous + (1 - previous) * 0.006 + annualDrift + noise);
 
-export const nextMacroEconomicState = (previous: MacroEconomicState | undefined, input: { countryId: EntityId; year: number; seed: string; footballDevelopment?: number; worldEconomicPressure?: number; snapshotDate?: string }): MacroEconomicState => {
-  const base = previous ?? { inflationIndex: 1, wageInflationIndex: 1, playerValueIndex: 1, landPriceIndex: 1, constructionCostIndex: 1, sponsorMarketStrength: 1, broadcastMarketStrength: 1, footballCommercialStrength: 1, exchangeRateToNpr: 1 };
+export const nextMacroEconomicState = (
+  previous: MacroEconomicState | undefined,
+  input: {
+    countryId: EntityId;
+    year: number;
+    seed: string;
+    footballDevelopment?: number;
+    worldEconomicPressure?: number;
+    snapshotDate?: string;
+  },
+): MacroEconomicState => {
+  const base = previous ?? {
+    inflationIndex: 1,
+    wageInflationIndex: 1,
+    playerValueIndex: 1,
+    landPriceIndex: 1,
+    constructionCostIndex: 1,
+    sponsorMarketStrength: 1,
+    broadcastMarketStrength: 1,
+    footballCommercialStrength: 1,
+    exchangeRateToNpr: 1,
+  };
   const rng = new SeededRandom(`macro-economy:${input.seed}:${input.countryId}:${input.year}`);
   const football = Math.max(0, Math.min(10, input.footballDevelopment ?? 0));
   const pressure = Math.max(-1, Math.min(1, input.worldEconomicPressure ?? 0));
@@ -14,17 +41,43 @@ export const nextMacroEconomicState = (previous: MacroEconomicState | undefined,
   const noise = () => (rng.next() - 0.5) * 0.012;
   const footballLift = football * 0.0009;
   return {
-    id: createStableEntityId("macro-economic-state", `${input.countryId}:${input.year}`), countryId: input.countryId, year: input.year,
-    snapshotDate: input.snapshotDate ?? `${input.year}-01-01`, status: "SIMULATION_ONLY",
-    inflationIndex: nextIndex(base.inflationIndex, drift, noise()), wageInflationIndex: nextIndex(base.wageInflationIndex, drift * 1.08 + footballLift, noise()),
-    playerValueIndex: nextIndex(base.playerValueIndex, drift * 0.92 + footballLift * 1.5, noise()), landPriceIndex: nextIndex(base.landPriceIndex, drift * 1.12 + footballLift * 0.5, noise()),
-    constructionCostIndex: nextIndex(base.constructionCostIndex, drift * 1.16 + footballLift * 0.5, noise()), sponsorMarketStrength: nextIndex(base.sponsorMarketStrength, drift * 0.65 + footballLift * 2, noise()),
-    broadcastMarketStrength: nextIndex(base.broadcastMarketStrength, drift * 0.6 + footballLift * 1.8, noise()), footballCommercialStrength: nextIndex(base.footballCommercialStrength, drift * 0.7 + footballLift * 2.2, noise()),
+    id: createStableEntityId("macro-economic-state", `${input.countryId}:${input.year}`),
+    countryId: input.countryId,
+    year: input.year,
+    snapshotDate: input.snapshotDate ?? `${input.year}-01-01`,
+    status: "SIMULATION_ONLY",
+    inflationIndex: nextIndex(base.inflationIndex, drift, noise()),
+    wageInflationIndex: nextIndex(base.wageInflationIndex, drift * 1.08 + footballLift, noise()),
+    playerValueIndex: nextIndex(base.playerValueIndex, drift * 0.92 + footballLift * 1.5, noise()),
+    landPriceIndex: nextIndex(base.landPriceIndex, drift * 1.12 + footballLift * 0.5, noise()),
+    constructionCostIndex: nextIndex(
+      base.constructionCostIndex,
+      drift * 1.16 + footballLift * 0.5,
+      noise(),
+    ),
+    sponsorMarketStrength: nextIndex(
+      base.sponsorMarketStrength,
+      drift * 0.65 + footballLift * 2,
+      noise(),
+    ),
+    broadcastMarketStrength: nextIndex(
+      base.broadcastMarketStrength,
+      drift * 0.6 + footballLift * 1.8,
+      noise(),
+    ),
+    footballCommercialStrength: nextIndex(
+      base.footballCommercialStrength,
+      drift * 0.7 + footballLift * 2.2,
+      noise(),
+    ),
     exchangeRateToNpr: clamp(base.exchangeRateToNpr * (1 + drift * 0.25 + noise() * 0.4)),
   };
 };
 
-export const advanceMacroEconomy = (db: GameDatabase, input: Parameters<typeof nextMacroEconomicState>[1]): MacroEconomicState => {
+export const advanceMacroEconomy = (
+  db: GameDatabase,
+  input: Parameters<typeof nextMacroEconomicState>[1],
+): MacroEconomicState => {
   const repository = new MacroEconomyRepository(db);
   const existing = repository.state(input.countryId, input.year);
   if (existing) return existing;
@@ -33,6 +86,51 @@ export const advanceMacroEconomy = (db: GameDatabase, input: Parameters<typeof n
   return state;
 };
 
-export const macroEconomyForCountry = (db: GameDatabase, countryId: EntityId, year?: number): MacroEconomicState | undefined => new MacroEconomyRepository(db).state(countryId, year);
+/** Advances the single world macro period due for a save. Safe to call from every world tick. */
+export const advanceMacroEconomyForWorldDate = (
+  db: GameDatabase,
+  input: { date: string; seed: string },
+): MacroEconomicState[] => {
+  const repository = new MacroEconomyRepository(db);
+  const period = input.date.slice(0, 4);
+  const previousPeriod = repository.lastProcessedPeriod();
+  const countryIds = (
+    db.prepare("SELECT id FROM countries ORDER BY id").all() as Array<{ id: EntityId }>
+  ).map((row) => row.id);
+  if (countryIds.length === 0 || (previousPeriod !== undefined && period <= previousPeriod))
+    return repository.states();
 
-export const adjustForMacro = (amount: number, state: MacroEconomicState | undefined, index: MacroEconomicIndex): number => Math.round(amount * (state?.[index] ?? 1));
+  const states = countryIds.map((countryId) => {
+    const existing = repository.state(countryId, Number(period));
+    if (existing) return existing;
+    const development = (
+      db
+        .prepare(
+          `SELECT football_popularity AS football_development FROM country_development_profiles
+      WHERE country_id=? AND effective_from <= ? ORDER BY effective_from DESC LIMIT 1`,
+        )
+        .get(countryId, input.date) as { football_development?: number } | undefined
+    )?.football_development;
+    return advanceMacroEconomy(db, {
+      countryId,
+      year: Number(period),
+      seed: input.seed,
+      footballDevelopment: development,
+      snapshotDate: input.date,
+    });
+  });
+  repository.markProcessed(period);
+  return states;
+};
+
+export const macroEconomyForCountry = (
+  db: GameDatabase,
+  countryId: EntityId,
+  year?: number,
+): MacroEconomicState | undefined => new MacroEconomyRepository(db).state(countryId, year);
+
+export const adjustForMacro = (
+  amount: number,
+  state: MacroEconomicState | undefined,
+  index: MacroEconomicIndex,
+): number => Math.round(amount * (state?.[index] ?? 1));
