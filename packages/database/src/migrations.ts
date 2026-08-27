@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 59;
+export const CURRENT_DATABASE_VERSION = 60;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -3084,6 +3084,30 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       CREATE INDEX IF NOT EXISTS idx_federation_corrective_actions_sanction ON federation_corrective_actions(sanction_id);
     `,
   },
+  {
+    version: 60,
+    sql: `
+      CREATE TABLE IF NOT EXISTS fixture_official_assignments (
+        id TEXT PRIMARY KEY,
+        fixture_id TEXT NOT NULL UNIQUE REFERENCES fixtures(id),
+        referee_person_id TEXT REFERENCES persons(id),
+        assistant_referee_1_person_id TEXT REFERENCES persons(id),
+        assistant_referee_2_person_id TEXT REFERENCES persons(id),
+        fourth_official_person_id TEXT REFERENCES persons(id),
+        var_person_id TEXT REFERENCES persons(id),
+        assigned_on TEXT NOT NULL,
+        status TEXT NOT NULL,
+        competition_level TEXT,
+        referee_quality REAL,
+        failure_reason TEXT,
+        provenance_status TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_fixture_official_assignments_date
+        ON fixture_official_assignments(assigned_on);
+      CREATE INDEX IF NOT EXISTS idx_fixture_official_assignments_referee
+        ON fixture_official_assignments(referee_person_id);
+    `,
+  },
 ];
 
 export const migrateDatabase = (db: GameDatabase): number => {
@@ -3121,7 +3145,9 @@ export const pendingMigrationCount = (db: GameDatabase): number => {
   db.exec(
     "CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL);",
   );
-  const rows = db.prepare("SELECT version FROM schema_migrations").all() as Array<{ version: number }>;
+  const rows = db.prepare("SELECT version FROM schema_migrations").all() as Array<{
+    version: number;
+  }>;
   const applied = new Set(rows.map((row) => row.version));
   return migrations.filter((migration) => !applied.has(migration.version)).length;
 };
@@ -3129,7 +3155,6 @@ export const pendingMigrationCount = (db: GameDatabase): number => {
 /** The highest migration version this database has actually applied, or 0 for a schema with no migrations table yet. */
 export const maxAppliedSchemaVersion = (db: GameDatabase): number => {
   const row = db.prepare("SELECT MAX(version) AS maxVersion FROM schema_migrations").get() as
-    | { maxVersion: number | null }
-    | undefined;
+    { maxVersion: number | null } | undefined;
   return row?.maxVersion ?? 0;
 };

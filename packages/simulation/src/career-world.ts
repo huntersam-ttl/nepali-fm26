@@ -40,6 +40,7 @@ import {
   processInternationalForSeasonPeriod,
 } from "./international-football.js";
 import { simulateMatch } from "./match-engine.js";
+import { requireFixtureOfficials } from "./referee-assignment.js";
 import {
   repairPreseasonContinuity,
   type PreseasonContinuityReport,
@@ -368,16 +369,24 @@ const processEconomyForSeasonPeriod = (
       date: `${startYear}-${String(month).padStart(2, "0")}-28`,
       seed: `${input.seed}:${month}`,
     });
-    if (month === 8) processExternalFootballWorldSeason(db, { seasonLabel: String(startYear), seed: input.seed });
-    runClubAiSeasonPlanning(db, { date: `${startYear}-${String(month).padStart(2, "0")}-28`, seed: input.seed });
+    if (month === 8)
+      processExternalFootballWorldSeason(db, { seasonLabel: String(startYear), seed: input.seed });
+    runClubAiSeasonPlanning(db, {
+      date: `${startYear}-${String(month).padStart(2, "0")}-28`,
+      seed: input.seed,
+    });
   }
   for (const month of [1, 2, 3, 4, 5, 6, 7]) {
     processClubEconomyMonth(db, {
       date: `${endYear}-${String(month).padStart(2, "0")}-28`,
       seed: `${input.seed}:${month}`,
     });
-    if (month === 8) processExternalFootballWorldSeason(db, { seasonLabel: String(endYear), seed: input.seed });
-    runClubAiSeasonPlanning(db, { date: `${endYear}-${String(month).padStart(2, "0")}-28`, seed: input.seed });
+    if (month === 8)
+      processExternalFootballWorldSeason(db, { seasonLabel: String(endYear), seed: input.seed });
+    runClubAiSeasonPlanning(db, {
+      date: `${endYear}-${String(month).padStart(2, "0")}-28`,
+      seed: input.seed,
+    });
   }
   closeClubFinancialSeason(db, {
     seasonLabel: String(endYear),
@@ -441,10 +450,19 @@ const simulateCompetitionSeason = (
     recordSquadHealth(squadHealth, awayPlayers, unavailable);
     const result = simulateMatch({
       fixture,
+      refereeAssignment: requireFixtureOfficials(db, fixture, {
+        seed: `${input.seed}:officials:${fixture.id}`,
+        competitionLevel: input.ruleSet.competitionType,
+        usesVar: Boolean(
+          (input.ruleSet.specialRules as Record<string, unknown> | undefined)?.usesVAR,
+        ),
+      }),
       homePlayers,
       awayPlayers,
       seed: `${input.seed}:match:${fixture.round}:${fixture.id}`,
-      requiresWinner: Boolean(input.ruleSet.matchesRequireWinner && (!fixture.tieId || fixture.leg === 2)),
+      requiresWinner: Boolean(
+        input.ruleSet.matchesRequireWinner && (!fixture.tieId || fixture.leg === 2),
+      ),
       winnerResolution: input.ruleSet.winnerResolution,
       allowExtraTime: input.ruleSet.allowExtraTime,
       allowPenalties: input.ruleSet.allowPenalties,
@@ -640,8 +658,7 @@ const firstLegScoreFor = (
        WHERE f.tie_id = ? AND f.leg = 1 AND f.id != ? LIMIT 1`,
     )
     .get(fixture.tieId, fixture.id) as
-    | { home_goals?: number; away_goals?: number; home_team_id?: EntityId }
-    | undefined;
+    { home_goals?: number; away_goals?: number; home_team_id?: EntityId } | undefined;
   if (!firstLeg) return undefined;
   return String(firstLeg.home_team_id) === String(fixture.homeTeamId)
     ? { homeGoals: Number(firstLeg.home_goals ?? 0), awayGoals: Number(firstLeg.away_goals ?? 0) }
@@ -656,7 +673,9 @@ const persistMatchResult = (
   ruleSet: CompetitionRuleSet,
   fixture: FixtureRecord,
 ): void => {
-  const requiresWinner = Boolean(ruleSet.matchesRequireWinner && (!fixture.tieId || fixture.leg === 2));
+  const requiresWinner = Boolean(
+    ruleSet.matchesRequireWinner && (!fixture.tieId || fixture.leg === 2),
+  );
   if (requiresWinner && !result.match.winnerTeamId) {
     throw new Error(`Winner-required fixture ${fixture.id} completed without a winner`);
   }
@@ -1273,8 +1292,7 @@ function developPlayers(
     let environment = environmentByTeam.get(stat.teamId);
     if (!environment) {
       const clubRow = db.prepare("SELECT club_id FROM teams WHERE id = ?").get(stat.teamId) as
-        | { club_id?: EntityId }
-        | undefined;
+        { club_id?: EntityId } | undefined;
       environment = computeDevelopmentEnvironment(db, clubRow?.club_id);
       environmentByTeam.set(stat.teamId, environment);
     }

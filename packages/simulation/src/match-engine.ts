@@ -1,6 +1,7 @@
 import {
   createStableEntityId,
   type EntityId,
+  type FixtureOfficialAssignment,
   type FixtureRecord,
   type InjuryRecord,
   type MatchEvent,
@@ -23,6 +24,7 @@ import { calculateTacticalModifiers, type TacticalMatchModifiers } from "./tacti
 
 export type SimulateMatchInput = {
   fixture: FixtureRecord;
+  refereeAssignment?: FixtureOfficialAssignment;
   homePlayers: readonly PlayerAttributeSet[];
   awayPlayers: readonly PlayerAttributeSet[];
   seed: string;
@@ -103,6 +105,7 @@ export type MatchPeriod =
 export type LiveMatchState = {
   matchId: EntityId;
   fixtureId: EntityId;
+  refereeAssignment?: FixtureOfficialAssignment;
   seed: string;
   /** LCG word. Restoring this reproduces the exact future of the match. */
   rngState: number;
@@ -164,6 +167,12 @@ const EXTRA_TIME_FULL_MINUTES = 120;
 
 export const createMatchState = (input: SimulateMatchInput): LiveMatchState => {
   const environment = { ...DEFAULT_MATCH_ENVIRONMENT, ...input.environment };
+  if (input.refereeAssignment?.refereeQuality !== undefined) {
+    environment.refereeStrictness = Math.max(
+      0.85,
+      Math.min(1.15, 0.85 + input.refereeAssignment.refereeQuality / 300),
+    );
+  }
   const matchId = createStableEntityId("match", `${input.fixture.id}:${input.seed}`);
   const homeSelection = input.homeTacticalSetup
     ? selectTeamFromTacticalSetup({
@@ -188,6 +197,7 @@ export const createMatchState = (input: SimulateMatchInput): LiveMatchState => {
   const state: LiveMatchState = {
     matchId,
     fixtureId: input.fixture.id,
+    refereeAssignment: input.refereeAssignment,
     seed: input.seed,
     rngState: new SeededRandom(input.seed).snapshot(),
     minute: 0,
@@ -218,8 +228,7 @@ export const createMatchState = (input: SimulateMatchInput): LiveMatchState => {
     substitutionLimit: input.substitutionLimit ?? 3,
     requiresWinner: input.requiresWinner,
     winnerResolution: input.winnerResolution ?? "EXTRA_TIME_THEN_PENALTIES",
-    allowExtraTime:
-      input.allowExtraTime ?? input.winnerResolution !== "DIRECT_PENALTIES",
+    allowExtraTime: input.allowExtraTime ?? input.winnerResolution !== "DIRECT_PENALTIES",
     allowPenalties: input.allowPenalties ?? true,
     aggregateFirstLeg: input.aggregateFirstLeg,
   };
@@ -544,7 +553,12 @@ const effectiveAggregateScore = (state: LiveMatchState): { home: number; away: n
 
 /** A knockout tie still level on aggregate at 90' needs extra time. */
 const needsExtraTime = (state: LiveMatchState): boolean => {
-  if (!state.requiresWinner || !state.allowExtraTime || state.winnerResolution === "DIRECT_PENALTIES") return false;
+  if (
+    !state.requiresWinner ||
+    !state.allowExtraTime ||
+    state.winnerResolution === "DIRECT_PENALTIES"
+  )
+    return false;
   const score = effectiveAggregateScore(state);
   return score.home === score.away;
 };

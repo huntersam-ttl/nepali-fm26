@@ -49,7 +49,7 @@ export type OfficialSimulationProfile = {
   personId: EntityId;
   refereeProfileId: EntityId;
   countryId: EntityId;
-  role: "REFEREE" | "ASSISTANT_REFEREE" | "FOURTH_OFFICIAL" | "REFEREE_INSTRUCTOR";
+  role: "REFEREE" | "ASSISTANT_REFEREE" | "FOURTH_OFFICIAL" | "VAR_OFFICIAL" | "REFEREE_INSTRUCTOR";
   gender: "male" | "female";
   /** 1 = top domestic list, 2 = second tier, 3 = entry/regional. */
   level: number;

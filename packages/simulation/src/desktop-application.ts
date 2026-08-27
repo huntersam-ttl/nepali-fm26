@@ -202,6 +202,7 @@ import {
   type AdvanceTarget,
   type MatchFinalizationContext,
 } from "./match-session.js";
+import { requireFixtureOfficials } from "./referee-assignment.js";
 import {
   applyTacticsCommand,
   buildLiveMatchView,
@@ -467,7 +468,10 @@ export class DesktopApplicationService {
       db = openGameDatabase(filePath);
       const integrity = checkSaveIntegrity(db);
       if (!integrity.ok) {
-        throw new SaveIncompatibleError("SAVE_CORRUPT", `This save file is corrupt: ${integrity.detail}`);
+        throw new SaveIncompatibleError(
+          "SAVE_CORRUPT",
+          `This save file is corrupt: ${integrity.detail}`,
+        );
       }
       assertSchemaCompatible(db);
       backupBeforeMigrationIfNeeded(db, filePath);
@@ -618,7 +622,11 @@ export class DesktopApplicationService {
           // first meaningful decision, rather than jumping blindly to the fixture.
           const outcome = advanceManagerCareer(db, save, context);
           stopReason = outcome.stopReason;
-          updated = { ...save, worldDate: outcome.worldDate, lastSavedAt: new Date().toISOString() };
+          updated = {
+            ...save,
+            worldDate: outcome.worldDate,
+            lastSavedAt: new Date().toISOString(),
+          };
           new SaveRepository(db).upsert(updated);
           new ManagerRepository(db).insertInboxItem({
             id: createEntityId(),
@@ -666,7 +674,10 @@ export class DesktopApplicationService {
         const beforeReady = new Set(
           new PlayerRepository(db)
             .attributesForTeam(context.team.id)
-            .filter((attributes) => medicalRepo.activeRehabilitationPlan(attributes.personId)?.stage === "MATCH_READY")
+            .filter(
+              (attributes) =>
+                medicalRepo.activeRehabilitationPlan(attributes.personId)?.stage === "MATCH_READY",
+            )
             .map((attributes) => attributes.personId),
         );
         advanceAllRehabilitationPlans(db, updated);
@@ -696,7 +707,10 @@ export class DesktopApplicationService {
           context.club?.id,
           context.manager.id,
         );
-        for (const concern of [...dynamicsOutcome.raisedConcerns, ...dynamicsOutcome.escalatedConcerns]) {
+        for (const concern of [
+          ...dynamicsOutcome.raisedConcerns,
+          ...dynamicsOutcome.escalatedConcerns,
+        ]) {
           const player = getPerson(db, concern.personId);
           new ManagerRepository(db).insertInboxItem({
             id: createEntityId(),
@@ -708,7 +722,10 @@ export class DesktopApplicationService {
             read: false,
           });
         }
-        for (const promise of [...dynamicsOutcome.keptPromises, ...dynamicsOutcome.brokenPromises]) {
+        for (const promise of [
+          ...dynamicsOutcome.keptPromises,
+          ...dynamicsOutcome.brokenPromises,
+        ]) {
           const player = getPerson(db, promise.personId);
           const kept = promise.status === "KEPT";
           new ManagerRepository(db).insertInboxItem({
@@ -783,7 +800,10 @@ export class DesktopApplicationService {
   saveCareerAs(saveName: string): AppResult<SaveCatalogEntry> {
     return this.withSession((db, save, filePath) => {
       mkdirSync(this.savesDirectory, { recursive: true });
-      const newFilePath = join(this.savesDirectory, `${slug(saveName)}-${Date.now().toString(36)}.sqlite`);
+      const newFilePath = join(
+        this.savesDirectory,
+        `${slug(saveName)}-${Date.now().toString(36)}.sqlite`,
+      );
       try {
         db.exec("PRAGMA wal_checkpoint(TRUNCATE);");
       } catch {
@@ -795,7 +815,11 @@ export class DesktopApplicationService {
       try {
         newDb = openGameDatabase(newFilePath);
         const integrity = checkSaveIntegrity(newDb);
-        if (!integrity.ok) throw appError("DATABASE_ERROR", `New save slot failed an integrity check: ${integrity.detail}`);
+        if (!integrity.ok)
+          throw appError(
+            "DATABASE_ERROR",
+            `New save slot failed an integrity check: ${integrity.detail}`,
+          );
         const now = new Date().toISOString();
         const newSave: SaveMetadata = {
           ...save,
@@ -865,7 +889,9 @@ export class DesktopApplicationService {
    */
   loadAutosaveSlot(slotIndex: number): AppResult<DesktopApplicationState> {
     const listResult = this.withSession((_db, save) => {
-      const slot = listAutosaveSlots(this.savesDirectory, save.id).find((candidate) => candidate.slotIndex === slotIndex);
+      const slot = listAutosaveSlots(this.savesDirectory, save.id).find(
+        (candidate) => candidate.slotIndex === slotIndex,
+      );
       if (!slot) throw appError("SAVE_NOT_FOUND", `Autosave slot ${slotIndex} was not found.`);
       return slot.filePath;
     });
@@ -935,7 +961,9 @@ export class DesktopApplicationService {
   }
 
   getJobCentre(): AppResult<JobCentreView> {
-    return this.withSession((db, save) => buildJobCentreView(db, requirePlayerManagerProfile(db, save)));
+    return this.withSession((db, save) =>
+      buildJobCentreView(db, requirePlayerManagerProfile(db, save)),
+    );
   }
 
   applyForJob(vacancyId: EntityId): AppResult<JobCentreView> {
@@ -944,7 +972,8 @@ export class DesktopApplicationService {
       try {
         applyForJobCommand(db, save, managerProfile, vacancyId);
       } catch (error) {
-        if (error instanceof JobApplicationError) throw appError("INVALID_SELECTION", error.message);
+        if (error instanceof JobApplicationError)
+          throw appError("INVALID_SELECTION", error.message);
         throw error;
       }
       return buildJobCentreView(db, managerProfile);
@@ -1029,11 +1058,20 @@ export class DesktopApplicationService {
     return this.managerCommand((db, save, context) => buildSquadDynamicsView(db, context.team.id));
   }
 
-  respondToConcern(command: { concernId: EntityId; action: ConcernResponseAction }): AppResult<ConcernResponseResult> {
+  respondToConcern(command: {
+    concernId: EntityId;
+    action: ConcernResponseAction;
+  }): AppResult<ConcernResponseResult> {
     return this.managerCommand((db, save, context) => {
       let outcome: ConcernResponseResult["outcome"];
       try {
-        outcome = respondToConcernCommand(db, save, context.manager.id, command.concernId, command.action).outcome;
+        outcome = respondToConcernCommand(
+          db,
+          save,
+          context.manager.id,
+          command.concernId,
+          command.action,
+        ).outcome;
       } catch (error) {
         if (error instanceof ConcernActionError || error instanceof MeetingActionError) {
           throw appError("INVALID_SELECTION", error.message);
@@ -1089,20 +1127,26 @@ export class DesktopApplicationService {
     return this.managerCommand(buildPlayerDevelopmentView);
   }
 
-  createPlayerDevelopmentPlan(command: CreateDevelopmentPlanCommand): AppResult<PlayerDevelopmentView> {
+  createPlayerDevelopmentPlan(
+    command: CreateDevelopmentPlanCommand,
+  ): AppResult<PlayerDevelopmentView> {
     return this.managerCommand((db, save, context) => {
       requireDomainPermission(db, save, context, "TRAINING", "createPlayerDevelopmentPlan");
       try {
         createDevelopmentPlan(db, save, context, command);
       } catch (error) {
-        if (error instanceof DevelopmentPlanError) throw appError("INVALID_SELECTION", error.message);
+        if (error instanceof DevelopmentPlanError)
+          throw appError("INVALID_SELECTION", error.message);
         throw error;
       }
       return buildPlayerDevelopmentView(db, save, context);
     }, true);
   }
 
-  setPlayerDevelopmentPlanStatus(planId: EntityId, status: string): AppResult<PlayerDevelopmentView> {
+  setPlayerDevelopmentPlanStatus(
+    planId: EntityId,
+    status: string,
+  ): AppResult<PlayerDevelopmentView> {
     return this.managerCommand((db, save, context) => {
       requireDomainPermission(db, save, context, "TRAINING", "setPlayerDevelopmentPlanStatus");
       setDevelopmentPlanStatus(db, save, planId, status as "ACTIVE" | "PAUSED" | "COMPLETED");
@@ -1123,7 +1167,8 @@ export class DesktopApplicationService {
           decision: command.decision as "FOLLOW_ADVICE" | "DELAY" | "ACCEPT_RISK",
         });
       } catch (error) {
-        if (error instanceof MedicalDecisionError) throw appError("INVALID_SELECTION", error.message);
+        if (error instanceof MedicalDecisionError)
+          throw appError("INVALID_SELECTION", error.message);
         throw error;
       }
       return buildMedicalCentreView(db, save, context);
@@ -1387,7 +1432,8 @@ export class DesktopApplicationService {
       try {
         applyForStaffVacancy(db, save, vacancyId, personId, salaryAmountMinor, contractMonths);
       } catch (error) {
-        if (error instanceof StaffNegotiationError) throw appError("INVALID_SELECTION", error.message);
+        if (error instanceof StaffNegotiationError)
+          throw appError("INVALID_SELECTION", error.message);
         throw error;
       }
       return buildStaffMarketView(db, save, context);
@@ -1400,7 +1446,8 @@ export class DesktopApplicationService {
         if (accept) acceptStaffApplication(db, save, applicationId);
         else declineStaffApplication(db, save, applicationId);
       } catch (error) {
-        if (error instanceof StaffNegotiationError) throw appError("INVALID_SELECTION", error.message);
+        if (error instanceof StaffNegotiationError)
+          throw appError("INVALID_SELECTION", error.message);
         throw error;
       }
       return buildStaffMarketView(db, save, context);
@@ -1416,7 +1463,8 @@ export class DesktopApplicationService {
       try {
         offerStaffRenewal(db, save, appointmentId, salaryAmountMinor, contractMonths);
       } catch (error) {
-        if (error instanceof StaffNegotiationError) throw appError("INVALID_SELECTION", error.message);
+        if (error instanceof StaffNegotiationError)
+          throw appError("INVALID_SELECTION", error.message);
         throw error;
       }
       return buildStaffMarketView(db, save, context);
@@ -1429,7 +1477,8 @@ export class DesktopApplicationService {
         if (accept) acceptStaffRenewalCounter(db, save, offerId);
         else declineStaffRenewalOffer(db, save, offerId);
       } catch (error) {
-        if (error instanceof StaffNegotiationError) throw appError("INVALID_SELECTION", error.message);
+        if (error instanceof StaffNegotiationError)
+          throw appError("INVALID_SELECTION", error.message);
         throw error;
       }
       return buildStaffMarketView(db, save, context);
@@ -1476,7 +1525,8 @@ export class DesktopApplicationService {
       try {
         assignResponsibility(db, save, context.club!.id, domain, ownerType, ownerAppointmentId);
       } catch (error) {
-        if (error instanceof ResponsibilityError) throw appError("INVALID_SELECTION", error.message);
+        if (error instanceof ResponsibilityError)
+          throw appError("INVALID_SELECTION", error.message);
         throw error;
       }
       return buildStaffHierarchyView(db, context.club!.id);
@@ -1488,7 +1538,8 @@ export class DesktopApplicationService {
       try {
         requestBoardApproval(db, save, context.club!.id, domain);
       } catch (error) {
-        if (error instanceof ResponsibilityError) throw appError("INVALID_SELECTION", error.message);
+        if (error instanceof ResponsibilityError)
+          throw appError("INVALID_SELECTION", error.message);
         throw error;
       }
       return buildStaffHierarchyView(db, context.club!.id);
@@ -1503,7 +1554,15 @@ export class DesktopApplicationService {
   ): AppResult<StaffHierarchyView> {
     return this.managerCommand((db, save, context) => {
       try {
-        createStaffDevelopmentPlan(db, save, context.club!.id, personId, focus, targetLicenceType, clubFunded);
+        createStaffDevelopmentPlan(
+          db,
+          save,
+          context.club!.id,
+          personId,
+          focus,
+          targetLicenceType,
+          clubFunded,
+        );
       } catch (error) {
         if (error instanceof LicenceCourseError) throw appError("INVALID_SELECTION", error.message);
         throw error;
@@ -1639,7 +1698,12 @@ export class DesktopApplicationService {
         const character = new WorldRepository(db).getCareerCharacter(save.playerCharacterId);
         const person = character ? getPerson(db, character.personId) : undefined;
         if (person) {
-          return { ...base, characterName: displayName(person), activeRole: "MANAGER", organisation: "Unemployed" };
+          return {
+            ...base,
+            characterName: displayName(person),
+            activeRole: "MANAGER",
+            organisation: "Unemployed",
+          };
         }
       }
       return base;
@@ -1830,10 +1894,7 @@ const requirePlayerManagerProfile = (db: GameDatabase, save: SaveMetadata): Mana
   return manager;
 };
 
-const buildJobCentreView = (
-  db: GameDatabase,
-  managerProfile: ManagerProfile,
-): JobCentreView => {
+const buildJobCentreView = (db: GameDatabase, managerProfile: ManagerProfile): JobCentreView => {
   const careerWorld = new CareerWorldRepository(db);
   const vacancies: JobVacancyView[] = listVacancies(db, managerProfile).map((listing) => ({
     id: listing.vacancy.id,
@@ -1876,14 +1937,20 @@ const toPromiseView = (promise: ManagerPromise): SquadPromiseView => ({
   status: promise.status,
 });
 
-const buildStaffMarketView = (db: GameDatabase, save: SaveMetadata, context: ManagerContext): StaffMarketView => {
+const buildStaffMarketView = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  context: ManagerContext,
+): StaffMarketView => {
   const clubId = context.club?.id;
   const base = buildStaffList(db, save, context, clubId);
   const market = new StaffMarketRepository(db);
 
   const staff: StaffRowWithContract[] = base.staff.map((row) => {
     const appointment = market.appointmentById(row.appointmentId);
-    const employmentContract = appointment?.contractId ? market.employmentContractById(appointment.contractId) : undefined;
+    const employmentContract = appointment?.contractId
+      ? market.employmentContractById(appointment.contractId)
+      : undefined;
     const performance = market.performanceHistoryForPerson(row.personId);
     return {
       ...row,
@@ -1896,7 +1963,12 @@ const buildStaffMarketView = (db: GameDatabase, save: SaveMetadata, context: Man
   const applications: StaffApplicationView[] = clubId
     ? base.vacancies
         .flatMap((vacancy) => market.applicationsForVacancy(vacancy.id))
-        .filter((application) => application.status === "OFFERED" || application.status === "COUNTERED" || application.status === "PENDING")
+        .filter(
+          (application) =>
+            application.status === "OFFERED" ||
+            application.status === "COUNTERED" ||
+            application.status === "PENDING",
+        )
         .map((application) => {
           const vacancy = market.vacancyById(application.vacancyId);
           return {
@@ -1941,7 +2013,14 @@ const buildStaffMarketView = (db: GameDatabase, save: SaveMetadata, context: Man
       }))
     : [];
 
-  return { staff, vacancies: base.vacancies, candidates: base.candidates, applications, renewalOffers, approaches };
+  return {
+    staff,
+    vacancies: base.vacancies,
+    candidates: base.candidates,
+    applications,
+    renewalOffers,
+    approaches,
+  };
 };
 
 const buildStaffHierarchyView = (db: GameDatabase, clubId: EntityId): StaffHierarchyView => {
@@ -1970,30 +2049,42 @@ const buildStaffHierarchyView = (db: GameDatabase, clubId: EntityId): StaffHiera
     };
   });
 
-  const developmentPlans: StaffDevelopmentPlanView[] = market.developmentPlansForClub(clubId).map((plan) => ({
-    id: plan.id,
-    personId: plan.personId,
-    personName: displayName(getPerson(db, plan.personId)),
-    focus: plan.focus,
-    targetLicenceType: plan.targetLicenceType,
-    targetDate: plan.targetDate,
-    status: plan.status,
-  }));
+  const developmentPlans: StaffDevelopmentPlanView[] = market
+    .developmentPlansForClub(clubId)
+    .map((plan) => ({
+      id: plan.id,
+      personId: plan.personId,
+      personName: displayName(getPerson(db, plan.personId)),
+      focus: plan.focus,
+      targetLicenceType: plan.targetLicenceType,
+      targetDate: plan.targetDate,
+      status: plan.status,
+    }));
 
-  const successionPlans: StaffSuccessionPlanView[] = market.successionPlansForClub(clubId).map((plan) => ({
-    id: plan.id,
-    outgoingAppointmentId: plan.outgoingAppointmentId,
-    personName: displayName(getPerson(db, plan.outgoingPersonId)),
-    role: plan.role,
-    candidateName: plan.candidatePersonId ? displayName(getPerson(db, plan.candidatePersonId)) : undefined,
-    reason: plan.reason,
-  }));
+  const successionPlans: StaffSuccessionPlanView[] = market
+    .successionPlansForClub(clubId)
+    .map((plan) => ({
+      id: plan.id,
+      outgoingAppointmentId: plan.outgoingAppointmentId,
+      personName: displayName(getPerson(db, plan.outgoingPersonId)),
+      role: plan.role,
+      candidateName: plan.candidatePersonId
+        ? displayName(getPerson(db, plan.candidatePersonId))
+        : undefined,
+      reason: plan.reason,
+    }));
 
   return { hierarchy, responsibilities, developmentPlans, successionPlans };
 };
 
-const buildMedicalCentreView = (db: GameDatabase, save: SaveMetadata, context: ManagerContext): MedicalCentreView => {
-  const players = new PlayerRepository(db).attributesForTeam(context.team.id).map((attributes) => attributes.personId);
+const buildMedicalCentreView = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  context: ManagerContext,
+): MedicalCentreView => {
+  const players = new PlayerRepository(db)
+    .attributesForTeam(context.team.id)
+    .map((attributes) => attributes.personId);
   const entries: MedicalCentreEntryView[] = players.map((personId) => {
     const entry = buildMedicalCentreEntry(
       db,
@@ -2038,7 +2129,9 @@ const buildMedicalCentreView = (db: GameDatabase, save: SaveMetadata, context: M
     };
   });
   return {
-    players: entries.filter((entry) => entry.rehabPlan || entry.trainingAvailability !== "FULL" || entry.chronicRisk),
+    players: entries.filter(
+      (entry) => entry.rehabPlan || entry.trainingAvailability !== "FULL" || entry.chronicRisk,
+    ),
     decisionOptions: ["FOLLOW_ADVICE", "DELAY", "ACCEPT_RISK"],
   };
 };
@@ -2051,7 +2144,9 @@ const buildSquadDynamicsView = (db: GameDatabase, teamId: EntityId): SquadDynami
   const activePromises = dynamics.activePromisesForTeam(teamId);
   const promiseByConcernId = new Map(
     activePromises
-      .filter((promise): promise is ManagerPromise & { concernId: EntityId } => Boolean(promise.concernId))
+      .filter((promise): promise is ManagerPromise & { concernId: EntityId } =>
+        Boolean(promise.concernId),
+      )
       .map((promise) => [promise.concernId, toPromiseView(promise)]),
   );
 
@@ -2098,7 +2193,9 @@ const buildSquadDynamicsView = (db: GameDatabase, teamId: EntityId): SquadDynami
   const disputes = dynamics.openDisputesForTeam(teamId).map((dispute) => ({
     ...dispute,
     playerName: displayName(getPerson(db, dispute.personId)),
-    withPlayerName: dispute.withPersonId ? displayName(getPerson(db, dispute.withPersonId)) : undefined,
+    withPlayerName: dispute.withPersonId
+      ? displayName(getPerson(db, dispute.withPersonId))
+      : undefined,
   }));
   return {
     concerns,
@@ -2632,6 +2729,13 @@ const matchHelpers = (
     );
     return {
       fixture,
+      refereeAssignment: requireFixtureOfficials(db, fixture, {
+        seed: `${save.randomSeed}:officials:${fixture.id}`,
+        competitionLevel: context.ruleSet.competitionType,
+        usesVar: Boolean(
+          (context.ruleSet.specialRules as Record<string, unknown> | undefined)?.usesVAR,
+        ),
+      }),
       homePlayers,
       awayPlayers,
       homeTacticalSetup: managerIsHome ? tactic : opponentTactic,

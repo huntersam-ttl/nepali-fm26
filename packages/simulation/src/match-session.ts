@@ -20,6 +20,7 @@ import {
   type TacticalSetup,
 } from "@nepal-football-sim/shared-types";
 import { postMatchdayEconomy } from "./club-economy.js";
+import { requireFixtureOfficials } from "./referee-assignment.js";
 import {
   applySubstitution,
   applyTacticalChange,
@@ -79,7 +80,9 @@ export const startMatchSession = (
     // reroll a result they did not like by leaving and coming back.
     return deserializeMatchState(existing.stateJson);
   }
-  const state = createMatchState(input);
+  const assignment =
+    input.refereeAssignment ?? requireFixtureOfficials(db, input.fixture, { seed: input.seed });
+  const state = createMatchState({ ...input, refereeAssignment: assignment });
   saveMatchSession(db, state, viewMode);
   return state;
 };
