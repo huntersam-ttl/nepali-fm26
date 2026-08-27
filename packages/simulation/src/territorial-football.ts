@@ -348,6 +348,10 @@ const productionTerritorialCompetitions = (db: GameDatabase, date: string, seed:
 };
 
 export const advanceTerritorialDevelopment = (db: GameDatabase, input: { date: string; seed: string }): void => {
+  const provinceCount = Number(
+    (db.prepare("SELECT COUNT(*) AS count FROM locations WHERE kind='province'").get() as { count?: number } | undefined)?.count ?? 0,
+  );
+  if (provinceCount < provinces.length) return;
   const state = initializeNepalTerritorialStructure(db, input.date);
   if (state.districts.some((district) => district.history.some((event) => event.event === "DEVELOPMENT_REVIEW" && event.date === input.date))) return;
   for (const district of state.districts) updateDistrictDevelopment(db, { districtId: district.id, date: input.date, funding: 0, reportedWell: true });

@@ -2,7 +2,7 @@
 
 ## Audit Basis
 
-- **HEAD:** `3f6af3b` (`feat(finance): wire federation rights distribution`). This post-closure
+- **HEAD:** `f96270c` (`feat(territorial): activate district development lifecycle`). This integration
   integration audit re-verified production call sites and persistence against the current tree;
   the protected untracked training-history test remains outside the audit change.
 - **Date:** 2026-08-27.
@@ -39,10 +39,10 @@
 | **DELIBERATELY_LATER**    | 3     |
 | **Total systems audited** | 84    |
 
-The post-closure pass finds that the major simulation spine is now production-reachable: normal
+The integration pass finds that the major simulation spine is now production-reachable: normal
 career progression advances economy, supporters, officials, federation continuity, history,
 international context, manager hiring and commercial settlement. Remaining PARTIAL/MISSING entries
-are chiefly women/youth depth, licensing/territorial activation, presentation services and real-data
+are chiefly presentation services and real-data
 coverage rather than duplicate engines or unexplained money paths.
 
 The second theme is **real-data coverage**: the world ships 573 real players concentrated in the top
@@ -52,13 +52,8 @@ tier, 2 real staff, and 0 real referees.
 
 ## Remaining Feature-Freeze Blockers
 
-1. **Women's playable competition and squads.** The shipped world still has no playable women's
-   competition or women's national-team pathway. This is a medium-scope launch decision, not a
-   blocker to the men's simulation spine.
-2. **Licensing and territorial activation.** The licensing gate and seven-province/77-district
-   systems are implemented, but ordinary career progression does not invoke them or advance
-   territorial competitions. This is the remaining production-integration gap for a complete
-   Nepal pyramid.
+None. Women's playable competition/squads, licensing activation, and territorial activation are
+production-reachable and covered by focused tests.
 
 The training-history collision, referee assignment, supporter and macro cadence, universal
 interaction execution, dynamic history, foreign-world supply, manager interviews, federation
@@ -866,19 +861,19 @@ Feature-freeze blocker: **NO**
 
 ### Club licensing
 
-Status: **PARTIAL**
+Status: **BUILT**
 
 Implemented: full case lifecycle — `openClubLicenceCycle`, `assessClubLicence`,
 `finaliseClubLicence`, `appealClubLicence`, `closeClubLicenceCycle`, and the eligibility gate
 `clubMayEnterCompetition` (`packages/simulation/src/licensing.ts`), including a women's-league
 programme requirement.
 
-Missing: **no production call sites.** `clubMayEnterCompetition` is never consulted by pyramid
-progression or fixture generation, so licensing never restricts entry to any competition.
+Production activation: season rollover assesses and persists every club, and progression applies
+licensing eligibility with deterministic fallback promotion.
 
 Dependencies: pyramid, federation compliance, infrastructure.
 
-Feature-freeze blocker: **YES**
+Feature-freeze blocker: **NO**
 
 ---
 
@@ -905,7 +900,7 @@ Feature-freeze blocker: **NO**
 
 ### Territorial structure: 7 provinces, 77 districts
 
-Status: **PARTIAL**
+Status: **BUILT**
 
 Implemented: full province/district definition and seeding with remoteness, participation, coach and
 referee supply, ground availability, scouting visibility and governance compliance —
@@ -914,28 +909,24 @@ development projects and delayed development effects (`updateDistrictDevelopment
 `createDistrictDevelopmentProject`, `advanceDistrictDevelopmentProject`);
 `packages/database/src/territorial-football-repository.ts`.
 
-Missing: **no production call sites** — `initializeNepalTerritorialStructure` and
-`updateDistrictDevelopment` are referenced only from `territorial-football-phase-a.test.ts`. No live
-save has districts, so district development can never influence player production despite the
-supply layer being ready to consume it.
+Production activation: new Nepal saves initialize the canonical structure; `SimulationClock` and
+career rollover invoke bounded development/project cadence with idempotent funding.
 
 Dependencies: player supply, scouting, grassroots, federation funding.
 
-Feature-freeze blocker: **YES** — this is the declared source of long-term player production and
-ordinary career progression does not activate it.
+Feature-freeze blocker: **NO**
 
 ---
 
 ### District / provincial representative competitions
 
-Status: **MISSING**
+Status: **BUILT**
 
 Implemented: representative team creation and deterministic squad selection from eligible, available,
 _known_ players (`createTerritorialRepresentativeTeam`, `selectTerritorialRepresentativePlayers`).
 
-Missing: no competition, no fixtures, no results, no calendar slot, and no caller for either
-function. `TerritorialRepresentativeTeam.competitionId` is declared and never populated. There is no
-territorial competition pathway and therefore no scouting-visibility pathway from it.
+Production activation: calendar cadence creates stable district, provincial, and national seasons,
+uses existing fixtures/referees/match simulation, records champions, and records player exposure.
 
 Dependencies: territorial structure, fixtures, scouting.
 
@@ -1140,21 +1131,18 @@ Feature-freeze blocker: **NO**
 
 ### Women's clubs and competitions
 
-Status: **PARTIAL**
+Status: **BUILT**
 
 Implemented: 10 women's senior teams in the dataset; women's programme creation, youth pathway and
 competition registration with category validation (`packages/simulation/src/womens-youth.ts`);
 `WOMENS_LEAGUE` is a first-class competition category with its own licensing requirement.
 
-Missing:
-
-- **No `WOMENS_LEAGUE` competition exists in the shipped world** — the five competitions are NSL, A,
-  B, C and the ANFA National League, all men's.
-- No women's squads (0 players), so the teams cannot field a side.
+Production activation: women's competition registration, squads, and season play are initialized
+and exercised by the women's playability regression coverage.
 
 Dependencies: women's player data, women's supply (built).
 
-Feature-freeze blocker: **YES**
+Feature-freeze blocker: **NO**
 
 ---
 
@@ -1571,13 +1559,9 @@ Feature-freeze blocker: **NO**
 
 ## Recommended Remaining Build Order
 
-1. Activate club licensing in competition entry and initialize/advance the territorial structure in
-   ordinary career progression; add the representative competition pathway if it is launch scope.
-2. Decide the women's launch scope, then add the playable women's competition and seeded squads; add
-   the women's national-team path if women's international play is required.
-3. Decide whether chairman and federation-president careers are launch scope; retain them as service
+1. Decide whether chairman and federation-president careers are launch scope; retain them as service
    layers if they are deliberately deferred.
-4. After freeze, run full typecheck/build, deterministic multi-season and 20/50-year simulations,
+2. After freeze, run full typecheck/build, deterministic multi-season and 20/50-year simulations,
    invariant checks, balance tuning, UI/UX, performance, native packaging, legal/data review and
    release QA.
 
@@ -1585,11 +1569,10 @@ Feature-freeze blocker: **NO**
 
 ## Feature Freeze Readiness
 
-**NOT READY.** The only current integration blockers are women's playable competition/squads and the
-licensing/territorial activation path. Core career progression, training-history stability, referee
-assignment, supporter and macro cadence, universal authoritative interactions, dynamic history,
-foreign-world supply, manager interviews, federation continuity and federation rights settlement are
-production-reachable at `3f6af3b`.
+**READY.** No major gameplay blocker remains. New-save initialization, calendar progression,
+licensing, territorial and women's activation, save/reload continuity, core competition flow,
+financial/entity invariants, and deterministic regression coverage are production-reachable at
+`f96270c`.
 
 Non-blocking work includes richer B/C player, staff and referee data, factual foreign-player coverage,
 media, legends, rivalry/VAR effects, government/grassroots automation, balancing and release work.

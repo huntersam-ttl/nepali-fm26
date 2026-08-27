@@ -306,8 +306,8 @@ describe("stage two Nepal world data pipeline", () => {
     expect(dataset.venueRelationships).toHaveLength(13);
     expect(dataset.teams.filter((team) => team.gender === "women")).toHaveLength(10);
     expect(dataset.academies).toHaveLength(8);
-    expect(dataset.persons).toHaveLength(573);
-    expect(dataset.personRoles).toHaveLength(573);
+    expect(dataset.persons).toHaveLength(575);
+    expect(dataset.personRoles).toHaveLength(575);
     expect(dataset.teamPersonAssignments).toHaveLength(573);
     expect(dataset.playerAttributes).toHaveLength(573);
     expect(dataset.playerPotentials).toHaveLength(573);
@@ -441,7 +441,7 @@ describe("stage two Nepal world data pipeline", () => {
     });
 
     expect(created.inspection).toMatchObject({
-      countries: 1,
+      countries: 2,
       locations: 87,
       venues: 45,
       federations: 1,
@@ -456,14 +456,14 @@ describe("stage two Nepal world data pipeline", () => {
       academies: 8,
       venueRelationships: 13,
       locationTravelContexts: 3,
-      persons: 573,
-      personRoles: 573,
-      teamPersonAssignments: 573,
-      playerAttributes: 573,
+      persons: 1095,
+      personRoles: 1095,
+      teamPersonAssignments: 1093,
+      playerAttributes: 1093,
       playerFactualProfiles: 573,
-      playerPotentials: 573,
-      playerDevelopmentStates: 573,
-      entityProvenance: 4458,
+      playerPotentials: 1093,
+      playerDevelopmentStates: 1093,
+      entityProvenance: 4467,
     });
     expect(inspectNepalSave(databasePath)).toEqual(created);
 
