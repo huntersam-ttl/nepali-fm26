@@ -270,9 +270,13 @@ export const processForeignFootballWorldSeason = (input: {
 export const initializeExternalLeagueSeasons = (db: GameDatabase, seasonEndDate: string, seed: string): void => {
   const year = seasonEndDate.slice(0, 4);
   const contexts = new GlobalFootballContextRepository(db);
-  for (const league of contexts.leagues()) {
-    if (contexts.seasons(league.leagueId).some((season) => season.seasonLabel === year)) continue;
-    const clubs = contexts.clubs().filter((club) => club.leagueId === league.leagueId).sort((a, b) => a.clubId.localeCompare(b.clubId));
+  const leagues = contexts.leagues();
+  const clubsByLeague = new Map<EntityId, ReturnType<GlobalFootballContextRepository["clubs"]>>();
+  for (const club of contexts.clubs()) clubsByLeague.set(club.leagueId, [...(clubsByLeague.get(club.leagueId) ?? []), club]);
+  const completedSeasons = new Set(contexts.seasons().filter((season) => season.seasonLabel === year).map((season) => season.leagueId));
+  for (const league of leagues) {
+    if (completedSeasons.has(league.leagueId)) continue;
+    const clubs = (clubsByLeague.get(league.leagueId) ?? []).sort((a, b) => a.clubId.localeCompare(b.clubId));
     if (clubs.length === 0) continue;
     const rng = new SeededRandom(`${seed}:external-league:${league.leagueId}:${year}`);
     const ordered = [...clubs].sort((a, b) => (b.reputation + rng.next() * 8) - (a.reputation + rng.next() * 8) || a.clubId.localeCompare(b.clubId));

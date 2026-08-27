@@ -218,11 +218,19 @@ export const simulateNepalCareer = (input: {
       seed: input.seed,
     });
   }
-  initializeForeignFootballWorldForSave({
-    db: input.db,
-    worldDate: save.worldDate,
-    seed: `${input.seed}:foreign-world`,
-  });
+  // An applied global dataset is the authoritative external world for this
+  // save. Legacy saves without the marker retain the generated 11-market
+  // bootstrap for backwards compatibility.
+  const hasAppliedGlobalDataset = Boolean(
+    (input.db.prepare("SELECT 1 FROM global_dataset_imports WHERE status = 'ACTIVE' LIMIT 1").get() as { 1?: number } | undefined),
+  );
+  if (!hasAppliedGlobalDataset) {
+    initializeForeignFootballWorldForSave({
+      db: input.db,
+      worldDate: save.worldDate,
+      seed: `${input.seed}:foreign-world`,
+    });
+  }
   if (economyEnabled) {
     advanceMacroEconomyForWorldDate(input.db, { date: save.worldDate, seed: input.seed });
     initializeClubEconomyForSave({ db: input.db, worldDate: save.worldDate, seed: input.seed });
