@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { TransferMarketRepository, openGameDatabase } from "@nepal-football-sim/database";
+import { ClubEconomyRepository, TransferMarketRepository, openGameDatabase } from "@nepal-football-sim/database";
 import {
   acceptTransferOffer,
   createNepalSave,
@@ -11,6 +11,7 @@ import {
   initializeForeignFootballWorldForSave,
   negotiatePlayerTerms,
   resolveCompetingPlayerOffers,
+  simulateTransferWindow,
 } from "@nepal-football-sim/simulation";
 import type { EntityId } from "@nepal-football-sim/shared-types";
 
@@ -72,6 +73,9 @@ describe("competing offers and reverse foreign free-agent closure", () => {
     const market = new TransferMarketRepository(db);
     expect(winner?.buyingClubId).toBe(input.nepalClub);
     expect(market.activeContract(input.playerId, "2026-08-02")?.clubId).toBe(input.nepalClub);
+    simulateTransferWindow({ db, worldDate: "2026-08-02", seed: "reverse-nepal-wins", maxClubActions: 0 });
+    expect(market.competitionRegistrations().some((item) => item.playerId === input.playerId && item.clubId === input.nepalClub && item.status === "ACTIVE")).toBe(true);
+    expect(new ClubEconomyRepository(db).ledgerEntries().filter((entry) => entry.relatedEntityId === nepalOffer.id)).toHaveLength(0);
     expect(market.transferHistory().filter((event) => event.playerId === input.playerId && event.eventType === "FREE_AGENT_SIGNED")).toHaveLength(1);
     expect(market.transferOffers().find((offer) => offer.id === foreignOffer.id)?.status).toBe("REJECTED");
     db.close();

@@ -182,3 +182,17 @@ output and is classified `LEGITIMATE_BROAD`/slow pending per-test instrumentatio
 metadata evaluation passes, but production-level African and South-Asian candidate shortlist
 reachability was not established in this audit. Therefore the activation gate remains `NOT ACTIVE`
 until those corridor proofs are captured. Loans remain a separate feature.
+
+## Final Permanent-Flow Audit — 2026-08-27
+
+The reverse free-agent production regression now verifies an external-affiliated free agent reaches a
+Nepal offer decision, receives one active Nepal contract, one active Nepal competition registration,
+and one `FREE_AGENT_SIGNED` history event. The fee-free path creates no transfer expense/income
+ledger entry, and reload/repeated progression preserve the single outcome. Contracted reverse purchase,
+forward settlement, and both competing-offer outcomes remain green.
+
+The existing recruitment search is bounded and knowledge-gated, but corridor metadata is currently
+only exercised by the corridor evaluator; it is not connected to a production imported-player
+Africa/South-Asia shortlist generator. No nationality bypass or fake production proof was added.
+Global context therefore remains `NOT ACTIVE`; the next required implementation is the bounded
+region-aware recruitment candidate path, followed by its negative cases. Loans remain separate.
