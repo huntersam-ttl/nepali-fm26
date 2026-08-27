@@ -107,3 +107,29 @@ export type WorldSustainabilityReport = {
   violations: string[];
   sustainable: boolean;
 };
+
+export type LowerLeagueClubCoverage = {
+  clubId: EntityId;
+  division: "B" | "C";
+  realPlayers: number;
+  generatedStartingPlayers: number;
+  realStaff: number;
+  generatedStaff: number;
+  playableSquad: boolean;
+};
+
+export type LowerLeagueCoverageReport = {
+  generatedOn: ISODate;
+  realPlayers: number;
+  bDivisionRealPlayers: number;
+  cDivisionRealPlayers: number;
+  generatedStartingPlayers: number;
+  freeAgents: number;
+  unknownClub: number;
+  realStaff: number;
+  bDivisionHeadCoaches: number;
+  cDivisionHeadCoaches: number;
+  generatedLowerLeagueManagers: number;
+  clubs: LowerLeagueClubCoverage[];
+  provenanceStatus: WorkforceProvenance;
+};

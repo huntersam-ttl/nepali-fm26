@@ -23,6 +23,7 @@ import {
   type FederationComplianceSnapshotSeed,
 } from "@nepal-football-sim/shared-types";
 import { applyFederationComplianceSnapshot } from "./federation-compliance.js";
+import { ensureLowerLeaguePlayableWorld } from "./workforce-supply.js";
 
 export type CreateNepalSaveInput = {
   databasePath: string;
@@ -101,6 +102,7 @@ export const createNepalSave = (input: CreateNepalSaveInput): NepalSaveResult =>
       randomSeed: input.randomSeed,
     });
     importNepalWorld(db, dataset);
+    ensureLowerLeaguePlayableWorld({ db, date: save.worldDate, seed: input.randomSeed });
     db.exec("COMMIT;");
 
     const inspection = new WorldRepository(db).inspectWorld();

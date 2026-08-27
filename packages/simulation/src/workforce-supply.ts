@@ -10,6 +10,8 @@ import {
   type WorkforceDemandSnapshot,
   type WorkforcePopulation,
   type WorkforceRoleCount,
+  type LowerLeagueCoverageReport,
+  type LowerLeagueClubCoverage,
   type WorldSustainabilityReport,
 } from "@nepal-football-sim/shared-types";
 import {
@@ -61,6 +63,18 @@ const CORE_STAFF_ROLES: FootballStaffRole[] = [
   "SCOUT",
   "YOUTH_COACH",
 ];
+
+const lowerLeagueClubs = (db: GameDatabase): Array<{ clubId: EntityId; teamId: EntityId; division: "B" | "C" }> =>
+  (db.prepare(`
+    SELECT DISTINCT c.id AS club_id, t.id AS team_id,
+      CASE WHEN lower(comp.name) LIKE '%b-division%' THEN 'B' ELSE 'C' END AS division
+    FROM club_memberships cm
+    JOIN clubs c ON c.id = cm.club_id
+    JOIN competitions comp ON comp.id = cm.competition_id
+    JOIN teams t ON t.id = COALESCE(cm.team_id, (SELECT id FROM teams t2 WHERE t2.club_id=c.id AND lower(t2.level)='senior' AND lower(t2.gender)='men' ORDER BY id LIMIT 1))
+    WHERE cm.status='ACTIVE' AND (lower(comp.name) LIKE '%b-division%' OR lower(comp.name) LIKE '%c-division%')
+    ORDER BY c.id
+  `).all() as Array<{ club_id: EntityId; team_id: EntityId; division: "B" | "C" }>).map((row) => ({ clubId: row.club_id, teamId: row.team_id, division: row.division }));
 
 // ---------------------------------------------------------------------------
 // World counting helpers (indexed queries only - no per-day full scans)
@@ -778,6 +792,86 @@ export const initializeWorkforceSupplyForSave = (input: {
     created,
   );
   return created;
+};
+
+/**
+ * Completes only structurally under-covered B/C clubs on a new or legacy save.
+ * Factual imports are never replaced; generated depth uses the normal youth
+ * generator and therefore receives normal origins, contracts, development,
+ * and later release/transfer behaviour.
+ */
+export const ensureLowerLeaguePlayableWorld = (input: {
+  db: GameDatabase;
+  date: string;
+  seed: string;
+  targetSquadSize?: number;
+}): LowerLeagueClubCoverage[] => {
+  const db = input.db;
+  const countryId = nepalCountryId(db);
+  if (!countryId) return [];
+  db.exec(`CREATE TABLE IF NOT EXISTS lower_league_bootstrap (club_id TEXT PRIMARY KEY, completed_on TEXT NOT NULL, generated_count INTEGER NOT NULL, provenance_status TEXT NOT NULL)`);
+  const target = Math.max(11, Math.min(25, input.targetSquadSize ?? 20));
+  const world = new WorldRepository(db);
+  const results: LowerLeagueClubCoverage[] = [];
+  for (const club of lowerLeagueClubs(db)) {
+    const alreadyRun = db.prepare("SELECT club_id FROM lower_league_bootstrap WHERE club_id=?").get(club.clubId);
+    if (!alreadyRun) {
+      let generated = 0;
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        const active = scalar(db, "SELECT COUNT(*) AS n FROM team_person_assignments WHERE team_id=? AND role='PLAYER' AND ended_on IS NULL", club.teamId);
+        const positions = db.prepare("SELECT COUNT(*) AS total, SUM(CASE WHEN pa.primary_position='GK' THEN 1 ELSE 0 END) AS goalkeepers, SUM(CASE WHEN pa.primary_position IN ('CB','RB','LB') THEN 1 ELSE 0 END) AS defenders, SUM(CASE WHEN pa.primary_position IN ('DM','CM','AM') THEN 1 ELSE 0 END) AS midfielders, SUM(CASE WHEN pa.primary_position IN ('RW','LW','ST') THEN 1 ELSE 0 END) AS attackers FROM player_attributes pa JOIN team_person_assignments tpa ON tpa.person_id=pa.person_id WHERE tpa.team_id=? AND tpa.role='PLAYER' AND tpa.ended_on IS NULL").get(club.teamId) as { total?: number; goalkeepers?: number; defenders?: number; midfielders?: number; attackers?: number };
+        if (active >= target && Number(positions.goalkeepers ?? 0) > 0 && Number(positions.defenders ?? 0) > 0 && Number(positions.midfielders ?? 0) > 0 && Number(positions.attackers ?? 0) > 0) break;
+        const before = scalar(db, "SELECT COUNT(*) AS n FROM generated_player_origins g JOIN team_person_assignments tpa ON tpa.person_id=g.player_id WHERE tpa.team_id=? AND tpa.role='PLAYER' AND tpa.ended_on IS NULL", club.teamId);
+        const report = generateYouthCohort({ db, countryId, clubId: club.clubId, teamId: club.teamId, date: input.date, seasonLabel: input.date.slice(0, 4), seed: `${input.seed}:lower:${club.clubId}:${attempt}`, count: Math.min(8, target - active), cohortKey: `lower-league-bootstrap:${club.clubId}:${attempt}` });
+        generated += Math.max(0, report.generatedPlayers ?? 0);
+        const unassigned = db.prepare("SELECT g.player_id FROM generated_player_origins g LEFT JOIN team_person_assignments tpa ON tpa.person_id=g.player_id AND tpa.role='PLAYER' AND tpa.ended_on IS NULL WHERE g.club_id=? AND g.generated_on=? AND tpa.person_id IS NULL ORDER BY g.player_id").all(club.clubId, input.date) as Array<{ player_id: EntityId }>;
+        for (const player of unassigned) world.insertTeamPersonAssignment({ id: createStableEntityId("lower-league-bootstrap-assignment", `${player.player_id}:${club.teamId}`), personId: player.player_id, teamId: club.teamId, role: "PLAYER", startedOn: input.date });
+        const after = scalar(db, "SELECT COUNT(*) AS n FROM generated_player_origins g JOIN team_person_assignments tpa ON tpa.person_id=g.player_id WHERE tpa.team_id=? AND tpa.role='PLAYER' AND tpa.ended_on IS NULL", club.teamId);
+        if (after <= before) break;
+      }
+      const positionalFallbacks: Array<{ position: "GK" | "CB" | "CM" | "ST"; predicate: string }> = [
+        { position: "GK", predicate: "primary_position='GK'" },
+        { position: "CB", predicate: "primary_position IN ('CB','RB','LB')" },
+        { position: "CM", predicate: "primary_position IN ('DM','CM','AM')" },
+        { position: "ST", predicate: "primary_position IN ('RW','LW','ST')" },
+      ];
+      const usedFallbackPlayers: EntityId[] = [];
+      for (const fallback of positionalFallbacks) {
+        const covered = scalar(db, `SELECT COUNT(*) AS n FROM player_attributes pa JOIN team_person_assignments tpa ON tpa.person_id=pa.person_id JOIN generated_player_origins gpo ON gpo.player_id=pa.person_id WHERE tpa.team_id=? AND tpa.role='PLAYER' AND tpa.ended_on IS NULL AND ${fallback.predicate}`, club.teamId);
+        if (covered > 0) continue;
+        const excluded = usedFallbackPlayers.length > 0 ? `AND pa.person_id NOT IN (${usedFallbackPlayers.map(() => "?").join(",")})` : "";
+        const candidate = db.prepare(`SELECT pa.person_id FROM player_attributes pa JOIN team_person_assignments tpa ON tpa.person_id=pa.person_id JOIN generated_player_origins gpo ON gpo.player_id=pa.person_id WHERE tpa.team_id=? AND tpa.role='PLAYER' AND tpa.ended_on IS NULL ${excluded} ORDER BY pa.person_id LIMIT 1`).get(club.teamId, ...usedFallbackPlayers) as { person_id?: EntityId } | undefined;
+        if (candidate?.person_id) {
+          db.prepare("UPDATE player_attributes SET primary_position=? WHERE person_id=?").run(fallback.position, candidate.person_id);
+          usedFallbackPlayers.push(candidate.person_id);
+        }
+      }
+      db.prepare("INSERT INTO lower_league_bootstrap VALUES (?,?,?,?)").run(club.clubId, input.date, generated, "SIMULATION_ONLY");
+    }
+    if (!db.prepare("SELECT 1 FROM staff_appointments WHERE club_id=? AND role='HEAD_COACH' AND employment_status='ACTIVE' LIMIT 1").get(club.clubId) && !db.prepare("SELECT 1 FROM staff_vacancies WHERE club_id=? AND role='HEAD_COACH' AND status='VACANT' LIMIT 1").get(club.clubId)) {
+      world.insertStaffVacancy({ id: createStableEntityId("lower-league-head-coach-vacancy", club.clubId), organisationType: "CLUB", clubId: club.clubId, teamId: club.teamId, role: "HEAD_COACH", required: true, status: "VACANT", openedOn: input.date, reason: "NEW_ROLE" });
+    }
+    const playerCounts = db.prepare(`SELECT COUNT(DISTINCT CASE WHEN gpo.player_id IS NULL THEN tpa.person_id END) AS real_players, COUNT(DISTINCT gpo.player_id) AS generated_players FROM team_person_assignments tpa LEFT JOIN generated_player_origins gpo ON gpo.player_id=tpa.person_id WHERE tpa.team_id=? AND tpa.role='PLAYER' AND tpa.ended_on IS NULL`).get(club.teamId) as { real_players?: number; generated_players?: number };
+    const staffCounts = db.prepare(`SELECT COUNT(DISTINCT CASE WHEN ssp.person_id IS NULL THEN sa.person_id END) AS real_staff, COUNT(DISTINCT ssp.person_id) AS generated_staff FROM staff_appointments sa LEFT JOIN staff_simulation_profiles ssp ON ssp.person_id=sa.person_id WHERE sa.club_id=? AND sa.employment_status='ACTIVE'`).get(club.clubId) as { real_staff?: number; generated_staff?: number };
+    const positions = db.prepare("SELECT COUNT(*) AS total, SUM(CASE WHEN pa.primary_position='GK' THEN 1 ELSE 0 END) AS goalkeepers, SUM(CASE WHEN pa.primary_position IN ('CB','RB','LB') THEN 1 ELSE 0 END) AS defenders, SUM(CASE WHEN pa.primary_position IN ('DM','CM','AM') THEN 1 ELSE 0 END) AS midfielders, SUM(CASE WHEN pa.primary_position IN ('RW','LW','ST') THEN 1 ELSE 0 END) AS attackers FROM player_attributes pa JOIN team_person_assignments tpa ON tpa.person_id=pa.person_id WHERE tpa.team_id=? AND tpa.role='PLAYER' AND tpa.ended_on IS NULL").get(club.teamId) as { total?: number; goalkeepers?: number; defenders?: number; midfielders?: number; attackers?: number };
+    results.push({ clubId: club.clubId, division: club.division, realPlayers: Number(playerCounts.real_players ?? 0), generatedStartingPlayers: Number(playerCounts.generated_players ?? 0), realStaff: Number(staffCounts.real_staff ?? 0), generatedStaff: Number(staffCounts.generated_staff ?? 0), playableSquad: Number(positions.total ?? 0) >= 11 && Number(positions.goalkeepers ?? 0) > 0 && Number(positions.defenders ?? 0) > 0 && Number(positions.midfielders ?? 0) > 0 && Number(positions.attackers ?? 0) > 0 });
+  }
+  return results;
+};
+
+export const lowerLeagueCoverageReport = (input: { db: GameDatabase; date: string }): LowerLeagueCoverageReport => {
+  const clubs = ensureLowerLeaguePlayableWorld({ db: input.db, date: input.date, seed: `coverage:${input.date}` });
+  const db = input.db;
+  const realPlayerTotal = scalar(db, "SELECT COUNT(DISTINCT pr.person_id) AS n FROM person_roles pr LEFT JOIN generated_player_origins gpo ON gpo.player_id=pr.person_id WHERE pr.role='PLAYER' AND pr.active_to IS NULL AND gpo.player_id IS NULL");
+  const freeAgents = scalar(db, "SELECT COUNT(DISTINCT pr.person_id) AS n FROM person_roles pr LEFT JOIN team_person_assignments tpa ON tpa.person_id=pr.person_id AND tpa.role='PLAYER' AND tpa.ended_on IS NULL WHERE pr.role='PLAYER' AND pr.active_to IS NULL AND tpa.person_id IS NULL");
+  const unknownClub = scalar(db, "SELECT COUNT(DISTINCT pr.person_id) AS n FROM person_roles pr LEFT JOIN team_person_assignments tpa ON tpa.person_id=pr.person_id AND tpa.role='PLAYER' AND tpa.ended_on IS NULL LEFT JOIN generated_player_origins gpo ON gpo.player_id=pr.person_id WHERE pr.role='PLAYER' AND pr.active_to IS NULL AND gpo.player_id IS NULL AND tpa.person_id IS NULL");
+  const realStaff = scalar(db, "SELECT COUNT(DISTINCT sa.person_id) AS n FROM staff_appointments sa LEFT JOIN staff_simulation_profiles ssp ON ssp.person_id=sa.person_id WHERE sa.employment_status='ACTIVE' AND ssp.person_id IS NULL");
+  const bDivisionRealPlayers = clubs.filter((club) => club.division === "B").reduce((sum, club) => sum + club.realPlayers, 0);
+  const cDivisionRealPlayers = clubs.filter((club) => club.division === "C").reduce((sum, club) => sum + club.realPlayers, 0);
+  const bDivisionHeadCoaches = scalar(db, "SELECT COUNT(DISTINCT sa.person_id) AS n FROM staff_appointments sa JOIN club_memberships cm ON cm.club_id=sa.club_id JOIN competitions c ON c.id=cm.competition_id WHERE sa.role='HEAD_COACH' AND sa.employment_status='ACTIVE' AND lower(c.name) LIKE '%b-division%'");
+  const cDivisionHeadCoaches = scalar(db, "SELECT COUNT(DISTINCT sa.person_id) AS n FROM staff_appointments sa JOIN club_memberships cm ON cm.club_id=sa.club_id JOIN competitions c ON c.id=cm.competition_id WHERE sa.role='HEAD_COACH' AND sa.employment_status='ACTIVE' AND lower(c.name) LIKE '%c-division%'");
+  const generatedLowerLeagueManagers = scalar(db, "SELECT COUNT(DISTINCT sa.person_id) AS n FROM staff_appointments sa JOIN staff_simulation_profiles ssp ON ssp.person_id=sa.person_id JOIN club_memberships cm ON cm.club_id=sa.club_id JOIN competitions c ON c.id=cm.competition_id WHERE sa.role='HEAD_COACH' AND sa.employment_status='ACTIVE' AND (lower(c.name) LIKE '%b-division%' OR lower(c.name) LIKE '%c-division%')");
+  return { generatedOn: input.date, realPlayers: realPlayerTotal, bDivisionRealPlayers, cDivisionRealPlayers, generatedStartingPlayers: clubs.reduce((sum, club) => sum + club.generatedStartingPlayers, 0), freeAgents, unknownClub, realStaff, bDivisionHeadCoaches, cDivisionHeadCoaches, generatedLowerLeagueManagers, clubs, provenanceStatus: "SIMULATION_ONLY" };
 };
 
 // ---------------------------------------------------------------------------
