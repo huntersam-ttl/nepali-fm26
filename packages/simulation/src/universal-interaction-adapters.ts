@@ -1,6 +1,14 @@
 import type { EntityId, InteractionAction, InteractionLinkedDomainType, UniversalInteraction } from "@nepal-football-sim/shared-types";
-import { UniversalInteractionRepository, type GameDatabase, TransferMarketRepository } from "@nepal-football-sim/database";
-import { completePermanentTransfer } from "./transfer-market.js";
+import { CareerWorldRepository, ClubEconomyRepository, CommercialRightsRepository, FederationComplianceRepository, FederationGovernanceRepository, GovernmentRepository, ManagerRepository, SquadDynamicsRepository, StaffMarketRepository, UniversalInteractionRepository, type GameDatabase, TransferMarketRepository } from "@nepal-football-sim/database";
+import { approveFederationGrant, completeCorrectiveAction, disburseFederationGrant } from "./federation-compliance.js";
+import { createInfrastructureProject, setClubBudget } from "./club-economy.js";
+import { loadSave } from "@nepal-football-sim/database";
+import { completePermanentTransfer, createTransferOffer } from "./transfer-market.js";
+import { hireStaff, offerStaffRenewal } from "./staff-market.js";
+import { respondToConcern } from "./squad-dynamics.js";
+import { reviewGovernmentFunding, submitGovernmentFunding } from "./government.js";
+import { createFederationProject } from "./federation-governance.js";
+import { awardCommercialRights } from "./commercial-rights.js";
 import { openUniversalInteraction, submitUniversalInteractionAction } from "./universal-interactions.js";
 
 /** A deliberately small boundary: authoritative domain services remain the writers. */
@@ -48,8 +56,10 @@ export const resolveLinkedDomainResult = (db: GameDatabase, reference: Universal
   if (reference.type === "TRANSFER_OFFER" || reference.type === "TRANSFER_DEAL") return new TransferMarketRepository(db).transferOffers().some((offer) => offer.id === reference.canonicalId);
   const tables: Partial<Record<InteractionLinkedDomainType, string>> = {
     CONTRACT: "player_contracts", CONTRACT_NEGOTIATION: "player_contracts", PLAYER_PROMISE: "manager_promises",
-    PLAYER_CONCERN: "player_concerns", INFRASTRUCTURE_PROJECT: "infrastructure_projects", FEDERATION_GRANT: "federation_grants",
-    COMMERCIAL_DEAL: "federation_commercial_contracts",
+    PLAYER_CONCERN: "player_concerns", INFRASTRUCTURE_PROJECT: "infrastructure_projects", FACILITY_REQUEST: "infrastructure_projects",
+    STAFF_CONTRACT: "staff_employment_contracts", FEDERATION_GRANT: "federation_grants",
+    FEDERATION_CORRECTIVE_ACTION: "federation_corrective_actions", GOVERNMENT_SUPPORT: "government_funding_applications",
+    COMMERCIAL_DEAL: "federation_commercial_rights_offers",
   };
   const table = tables[reference.type];
   return table ? exists(db, table, reference.canonicalId) : true;
@@ -68,7 +78,7 @@ const genericAdapter: UniversalInteractionAdapter = {
 const adapterFor = (type: string): UniversalInteractionAdapter => ({ ...genericAdapter, type, canOpen: (db, context) => {
   // Negotiations may be opened before a contract/deal exists; participants and
   // the domain-specific authority check are then the source of truth.
-  if (type === "CONTRACT_NEGOTIATION" || type === "TRANSFER_NEGOTIATION") return Boolean(context.initiator.entityId && context.counterpart.entityId);
+  if (["CONTRACT_NEGOTIATION", "TRANSFER_NEGOTIATION", "STAFF_CONTRACT", "FACILITY_REQUEST", "BOARD_REQUEST", "FEDERATION_PROJECT", "GOVERNMENT_SUPPORT"].includes(type)) return Boolean(context.initiator.entityId && context.counterpart.entityId);
   return genericAdapter.canOpen(db, context);
 } });
 
@@ -117,21 +127,179 @@ export const submitInteractionAction = (db: GameDatabase, input: Parameters<type
   const repo = new UniversalInteractionRepository(db);
   const current = repo.session(input.interactionId);
   if (!current) throw new Error("Interaction not found");
-  if (current.execution?.status === "APPLIED") return current;
+  if (current.execution?.status === "APPLIED" || current.execution?.status === "ALREADY_APPLIED") return current;
   if (current.execution?.status === "FAILED" && current.stage === "CANCELLED") return current;
-  const next = submitUniversalInteractionAction(db, input);
-  if (next.stage !== "ACCEPTED" || !current.linkedReference) return next;
-  if (current.linkedReference.type !== "TRANSFER_OFFER" && current.linkedReference.type !== "TRANSFER_DEAL") return { ...next, execution: { status: "PENDING", idempotencyKey: `interaction:${next.id}:accepted` } };
-  const offer = new TransferMarketRepository(db).transferOffers().find((item) => item.id === current.linkedReference?.canonicalId);
-  if (!offer) return { ...next, stage: "CANCELLED", outcome: "Authoritative transfer offer no longer exists", execution: { status: "FAILED", idempotencyKey: `interaction:${next.id}:accepted`, error: "TRANSFER_OFFER_NOT_FOUND" } };
+  const next = current.stage === "ACCEPTED" && current.execution?.status === "PENDING"
+    ? current
+    : submitUniversalInteractionAction(db, input);
+  if (next.stage !== "ACCEPTED") return next;
+  if (next.execution?.status === "APPLIED" || next.execution?.status === "ALREADY_APPLIED") return next;
+  if (!next.linkedReference) return markPending(repo, next);
+  db.exec("SAVEPOINT universal_interaction_execution;");
   try {
-    completePermanentTransfer(db, offer, input.date, input.seed);
-    const updated = new TransferMarketRepository(db).transferOffers().find((item) => item.id === offer.id);
-    if (updated?.status !== "COMPLETED") throw new Error("Authoritative transfer operation did not complete");
-    const applied = { ...next, linkedReference: { ...current.linkedReference, resultId: offer.id }, execution: { status: "APPLIED" as const, resultId: offer.id, idempotencyKey: `interaction:${next.id}:accepted` } };
+    const result = executeAcceptedInteraction(db, next, input.date, input.seed);
+    db.exec("RELEASE SAVEPOINT universal_interaction_execution;");
+    const applied = {
+      ...next,
+      linkedReference: { ...next.linkedReference, resultId: result.id },
+      promiseIds: result.promiseId ? [...new Set([...next.promiseIds, result.promiseId])] : next.promiseIds,
+      execution: { status: result.already ? "ALREADY_APPLIED" as const : "APPLIED" as const, resultId: result.id, idempotencyKey: `interaction:${next.id}:accepted` },
+      outcome: result.note ?? next.outcome,
+    };
     repo.upsert(applied); return applied;
   } catch (error) {
-    const failed = { ...next, stage: "CANCELLED" as const, availableActions: [], outcome: "Authoritative transfer operation failed", execution: { status: "FAILED" as const, idempotencyKey: `interaction:${next.id}:accepted`, error: error instanceof Error ? error.message : String(error) } };
+    db.exec("ROLLBACK TO SAVEPOINT universal_interaction_execution;");
+    db.exec("RELEASE SAVEPOINT universal_interaction_execution;");
+    const failed = { ...next, stage: "CANCELLED" as const, availableActions: [], outcome: "Authoritative domain operation failed", execution: { status: "FAILED" as const, idempotencyKey: `interaction:${next.id}:accepted`, error: error instanceof Error ? error.message : String(error) } };
     repo.upsert(failed); return failed;
   }
+};
+
+const markPending = (repo: UniversalInteractionRepository, session: UniversalInteraction): UniversalInteraction => {
+  const pending = { ...session, execution: { status: "PENDING" as const, idempotencyKey: `interaction:${session.id}:accepted` } };
+  repo.upsert(pending);
+  return pending;
+};
+
+type ExecutionResult = { id: EntityId; already?: boolean; promiseId?: EntityId; note?: string };
+const offerNumber = (session: UniversalInteraction, ...keys: string[]): number | undefined => {
+  for (const key of keys) {
+    const value = session.offers[key] ?? session.demands[key];
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+  }
+  return undefined;
+};
+const offerText = (session: UniversalInteraction, ...keys: string[]): string | undefined => {
+  for (const key of keys) {
+    const value = session.offers[key] ?? session.demands[key];
+    if (typeof value === "string") return value;
+  }
+  return undefined;
+};
+const managerHasAuthority = (db: GameDatabase, personId: EntityId, clubId: EntityId, date: string): boolean => Boolean(db.prepare(`SELECT 1 FROM manager_contracts mc JOIN manager_profiles mp ON mp.id=mc.manager_profile_id WHERE mp.person_id=? AND mc.club_id=? AND mc.status='ACTIVE' AND mc.contract_start<=? AND (mc.contract_end IS NULL OR mc.contract_end>=?) LIMIT 1`).get(personId, clubId, date, date));
+const saveFor = (db: GameDatabase, session: UniversalInteraction) => loadSave(db, session.saveId);
+
+const executeAcceptedInteraction = (db: GameDatabase, session: UniversalInteraction, date: string, seed: string): ExecutionResult => {
+  const reference = session.linkedReference!;
+  if (reference.type === "TRANSFER_OFFER" || reference.type === "TRANSFER_DEAL") {
+    const offer = new TransferMarketRepository(db).transferOffers().find((item) => item.id === reference.canonicalId);
+    if (!offer) throw new Error("TRANSFER_OFFER_NOT_FOUND");
+    if (offer.status === "COMPLETED") return { id: offer.id, already: true };
+    completePermanentTransfer(db, offer, date, seed);
+    const updated = new TransferMarketRepository(db).transferOffers().find((item) => item.id === offer.id);
+    if (updated?.status !== "COMPLETED") throw new Error("TRANSFER_OPERATION_NOT_COMPLETED");
+    return { id: offer.id };
+  }
+  if (reference.type === "CONTRACT_NEGOTIATION") {
+    const clubId = session.organisationId;
+    if (!clubId) throw new Error("CONTRACT_CLUB_NOT_FOUND");
+    if (session.initiator.type === "MANAGER" && !managerHasAuthority(db, session.initiator.entityId, clubId, date)) throw new Error("STALE_MANAGER_AUTHORITY");
+    const market = new TransferMarketRepository(db);
+    const existing = market.activeContract(reference.canonicalId, date);
+    if (existing?.clubId === clubId && session.initiator.type === "PLAYER") return { id: existing.id, already: true };
+    const offer = createTransferOffer(db, { buyingClubId: clubId, sellingClubId: existing?.clubId, playerId: reference.canonicalId, submittedAt: date, fee: offerNumber(session, "transferFee", "fee") });
+    completePermanentTransfer(db, offer, date, seed);
+    const contract = market.activeContract(reference.canonicalId, date);
+    if (!contract || contract.clubId !== clubId) throw new Error("CONTRACT_OPERATION_NOT_COMPLETED");
+    return { id: contract.id };
+  }
+  if (reference.type === "CONTRACT") {
+    const contract = new TransferMarketRepository(db).allPlayerContracts().find((item) => item.id === reference.canonicalId && item.status === "ACTIVE");
+    if (!contract) throw new Error("CONTRACT_NOT_ACTIONABLE");
+    return { id: contract.id, already: true };
+  }
+  if (reference.type === "STAFF_CONTRACT") {
+    const clubId = session.organisationId;
+    if (!clubId) throw new Error("STAFF_CLUB_NOT_FOUND");
+    if (session.initiator.type === "MANAGER" && !managerHasAuthority(db, session.initiator.entityId, clubId, date)) throw new Error("STALE_MANAGER_AUTHORITY");
+    const market = new StaffMarketRepository(db);
+    const appointment = market.appointmentById(reference.canonicalId) ?? market.activeAppointment(reference.canonicalId);
+    const save = saveFor(db, session);
+    if (appointment?.clubId === clubId && appointment.contractId) {
+      const offer = offerStaffRenewal(db, save, appointment.id, Math.max(0, offerNumber(session, "salary", "wage") ?? market.employmentContractById(appointment.contractId)?.salaryAmountMinor ?? 0), Math.max(1, Math.round(offerNumber(session, "contractMonths", "months") ?? 24)));
+      if (offer.status !== "ACCEPTED") throw new Error(`STAFF_RENEWAL_${offer.status}`);
+      return { id: appointment.contractId };
+    }
+    const role = (offerText(session, "role") ?? "ASSISTANT_COACH") as Parameters<typeof hireStaff>[5];
+    const hired = hireStaff(db, save, clubId, undefined, reference.canonicalId, role, Math.max(0, offerNumber(session, "salary", "wage") ?? 0), Math.max(1, Math.round(offerNumber(session, "contractMonths", "months") ?? 24)));
+    if (!hired.contractId) throw new Error("STAFF_CONTRACT_NOT_CREATED");
+    return { id: hired.contractId };
+  }
+  if (reference.type === "PLAYER_CONCERN" || reference.type === "PLAYER_PROMISE") {
+    const concernId = reference.canonicalId;
+    const dynamics = new SquadDynamicsRepository(db);
+    if (reference.type === "PLAYER_PROMISE") {
+      const promise = dynamics.promiseById(reference.canonicalId);
+      if (promise) return { id: promise.id, already: true };
+    }
+    const concern = dynamics.concernById(concernId);
+    if (!concern) throw new Error("PLAYER_CONCERN_NOT_FOUND");
+    const response = dynamics.responsesForConcern(concernId).find((item) => item.managerProfileId === new ManagerRepository(db).getProfileByPerson(session.initiator.entityId)?.id && item.occurredOn === date);
+    if (response) return { id: response.id, already: true, promiseId: response.promiseId };
+    const profile = new ManagerRepository(db).getProfileByPerson(session.initiator.entityId);
+    if (!profile) throw new Error("MANAGER_PROFILE_NOT_FOUND");
+    if (session.initiator.type === "MANAGER" && session.organisationId && !managerHasAuthority(db, session.initiator.entityId, session.organisationId, date)) throw new Error("STALE_MANAGER_AUTHORITY");
+    const action = (offerText(session, "responseAction", "action") ?? "REASSURE") as Parameters<typeof respondToConcern>[4];
+    const result = respondToConcern(db, saveFor(db, session), profile.id, concernId, action);
+    return { id: result.id, promiseId: result.promiseId };
+  }
+  if (reference.type === "FACILITY_REQUEST" || reference.type === "INFRASTRUCTURE_PROJECT") {
+    const clubId = session.organisationId;
+    if (!clubId) throw new Error("FACILITY_CLUB_NOT_FOUND");
+    const existing = new ClubEconomyRepository(db).infrastructureProjects(clubId).find((project) => project.id === reference.canonicalId);
+    if (existing) return { id: existing.id, already: true };
+    const project = createInfrastructureProject(db, { clubId, projectType: (offerText(session, "projectType") ?? "REFURBISHMENT") as Parameters<typeof createInfrastructureProject>[1]["projectType"], date, seed, financing: { clubCash: 1 } });
+    return { id: project.id };
+  }
+  if (reference.type === "BOARD_REQUEST") {
+    const clubId = session.organisationId;
+    if (!clubId || !managerHasAuthority(db, session.initiator.entityId, clubId, date)) throw new Error("STALE_MANAGER_AUTHORITY");
+    const category = (offerText(session, "category") ?? (session.subject.toLowerCase().includes("wage") ? "WAGE_BUDGET" : "TRANSFER_BUDGET")) as Parameters<typeof setClubBudget>[1]["category"];
+    const economy = new ClubEconomyRepository(db);
+    const current = economy.budgets(clubId).find((budget) => budget.category === category && budget.status === "ACTIVE");
+    if (!current) throw new Error("CLUB_BUDGET_NOT_FOUND");
+    const target = offerNumber(session, "amount", "budget", category === "WAGE_BUDGET" ? "wageBudget" : "transferBudget");
+    if (target === undefined || target < current.usedAmount) throw new Error("INVALID_BUDGET_REQUEST");
+    const budget = setClubBudget(db, { clubId, seasonLabel: current.seasonLabel, category, amount: target });
+    return { id: budget.id };
+  }
+  if (reference.type === "FEDERATION_GRANT" || reference.type === "FEDERATION_FUNDING") {
+    const grant = new FederationComplianceRepository(db).grant(reference.canonicalId);
+    if (!grant) throw new Error("FEDERATION_GRANT_NOT_FOUND");
+    if (["ACTIVE", "PARTIALLY_DISBURSED"].includes(grant.status) && grant.remainingAmount <= 0) return { id: grant.id, already: true };
+    if (offerNumber(session, "disbursement", "amount") !== undefined && ["APPROVED", "PARTIALLY_DISBURSED", "ACTIVE", "REPORTING_DUE"].includes(grant.status)) return { id: disburseFederationGrant(db, grant.id, { date, amount: offerNumber(session, "disbursement", "amount")! }).id };
+    return { id: approveFederationGrant(db, grant.id, { date, approvedAmount: offerNumber(session, "approvedAmount", "amount") ?? grant.approvedAmount }).id };
+  }
+  if (reference.type === "FEDERATION_CORRECTIVE_ACTION") return { id: completeCorrectiveAction(db, reference.canonicalId, { date, evidence: offerText(session, "evidence") ?? session.subject }).id };
+  if (reference.type === "FEDERATION_PROJECT") {
+    const federationId = session.organisationId;
+    if (!federationId) throw new Error("FEDERATION_NOT_FOUND");
+    const existing = new FederationGovernanceRepository(db).projects(federationId).find((project) => project.id === reference.canonicalId);
+    if (existing) return { id: existing.id, already: true };
+    const project = createFederationProject(db, { federationId, projectType: (offerText(session, "projectType") ?? "TECHNICAL_CENTRE") as Parameters<typeof createFederationProject>[1]["projectType"], name: offerText(session, "name") ?? session.subject, date, seed });
+    return { id: project.id };
+  }
+  if (reference.type === "GOVERNMENT_SUPPORT") {
+    const repo = new GovernmentRepository(db);
+    const application = repo.applications().find((item) => item.id === reference.canonicalId);
+    if (!application) throw new Error("GOVERNMENT_APPLICATION_NOT_FOUND");
+    if (application.status === "COMPLETED" || application.status === "APPROVED") return { id: application.id, already: true };
+    if (application.status === "PROPOSED") return { id: submitGovernmentFunding(db, application.id).id };
+    return { id: reviewGovernmentFunding(db, { applicationId: application.id, reviewedOn: date, evidence: { federationCredibility: session.trust, projectQuality: session.leverage, footballPerformance: session.relationshipState, existingCommitments: session.pressure } }).id };
+  }
+  if (reference.type === "JOB_SECURITY") {
+    const clubId = session.organisationId;
+    const confidence = clubId ? new CareerWorldRepository(db).boardConfidence(clubId) : undefined;
+    if (!clubId || !confidence) throw new Error("BOARD_CONFIDENCE_NOT_FOUND");
+    const updated = { ...confidence, confidence: Math.max(0, Math.min(100, confidence.confidence + Math.round(offerNumber(session, "confidenceDelta") ?? 2))), lastEvaluatedOn: date };
+    new CareerWorldRepository(db).upsertBoardConfidence(updated);
+    return { id: clubId };
+  }
+  if (reference.type === "COMMERCIAL_DEAL") {
+    const offer = new CommercialRightsRepository(db).offers().find((item) => item.id === reference.canonicalId);
+    if (!offer) throw new Error("COMMERCIAL_OFFER_NOT_FOUND");
+    if (offer.status === "ACTIVE") return { id: offer.id, already: true };
+    return { id: awardCommercialRights(db, { offerId: offer.id, date, startDate: date }).id };
+  }
+  throw new Error(`NO_AUTHORITATIVE_HANDLER_${reference.type}`);
 };
