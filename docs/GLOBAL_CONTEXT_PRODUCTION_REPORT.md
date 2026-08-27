@@ -103,3 +103,24 @@ The integrity test passes 4/4. The broader stage-eight suite exceeded the bounde
 
 Complete deterministic player-term acceptance for one Nepal-to-foreign offer, then run bidirectional
 finance/history/reload validation. Loans remain a separate enhancement.
+
+## Nepal → Foreign E2E
+
+After the initial seller-accepted offer, the next normal market tick resumed player terms and
+completed one permanent transfer. The player’s external affiliation and one transfer-history row
+were persisted; the same canonical identity was retained.
+
+## Foreign → Nepal E2E
+
+The bounded Nepal free-agent selection can choose an imported foreign candidate, but a complete
+contract, registration, finance, history, and reload proof is still outstanding.
+
+## Player/Agent Decision
+
+The production export path uses existing player-term scoring with explicit career incentives for
+the deterministic scenario; it does not make foreign destinations universally acceptable.
+
+## Stage-Eight Runtime / Corridors / Loans
+
+The starting-integrity regression remains 4/4 green. The broader stage-eight suite still exceeds the
+bounded run window. Africa/South-Asia corridor and loan verification remain follow-up work.

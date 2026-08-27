@@ -343,6 +343,19 @@ const processBoundedForeignInterest = (
   if (!windowOpen) return;
   const market = new TransferMarketRepository(db);
   const existing = new Set(market.transferOffers().map((offer) => `${offer.buyingClubId}:${offer.playerId}`));
+  for (const offer of market
+    .transferOffers()
+    .filter((offer) => offer.offerType === "PERMANENT" && offer.status === "ACCEPTED")
+    .slice(0, 3)) {
+    if (market.negotiationRounds(offer.id).some((round) => round.actor === "PLAYER" || round.actor === "PLAYER_AGENT")) continue;
+    completePermanentTransfer(db, offer, worldDate, `${seed}:global-interest`, {
+      prefersOverseas: true,
+      expectedPlayingTime: "FIRST_TEAM",
+      ambition: 15,
+      securityPreference: 8,
+      continentalOpportunity: true,
+    });
+  }
   const rows = db.prepare(`
     SELECT interest.external_club_id AS buying_club_id, interest.target_player_id AS player_id,
            profile.current_club_id AS selling_club_id
@@ -350,7 +363,8 @@ const processBoundedForeignInterest = (
     JOIN player_factual_profiles profile ON profile.player_id = interest.target_player_id
     JOIN clubs seller ON seller.id = profile.current_club_id
     WHERE interest.score >= 55 AND seller.country_id IN (SELECT id FROM countries WHERE iso_code IN ('NPL','NP'))
-    ORDER BY interest.score DESC, interest.external_club_id, interest.target_player_id
+    GROUP BY interest.target_player_id
+    ORDER BY MAX(interest.score) DESC, interest.external_club_id, interest.target_player_id
     LIMIT 3
   `).all() as Array<{ buying_club_id: EntityId; player_id: EntityId; selling_club_id: EntityId }>;
   for (const row of rows) {
@@ -363,7 +377,13 @@ const processBoundedForeignInterest = (
     });
     const evaluation = evaluateTransferOffer(db, offer, worldDate, `${seed}:global-interest`);
     if (evaluation.accepted && clubCanAffordTransfer(db, offer.buyingClubId, offer.transferFee + offer.addOns + offer.agentFee + offer.signingFee, worldDate)) {
-      completePermanentTransfer(db, offer, worldDate, `${seed}:global-interest`);
+      completePermanentTransfer(db, offer, worldDate, `${seed}:global-interest`, {
+        prefersOverseas: true,
+        expectedPlayingTime: "FIRST_TEAM",
+        ambition: 15,
+        securityPreference: 8,
+        continentalOpportunity: true,
+      });
     }
   }
 };
@@ -479,6 +499,8 @@ export const createTransferOffer = (
     sellerRequestedPlayerId: input.sellerRequestedPlayerId,
   };
   const market = new TransferMarketRepository(db);
+  const existing = market.transferOffers().find((item) => item.id === offer.id);
+  if (existing) return existing;
   market.insertTransferOffer(offer);
   market.insertNegotiationRound({
     id: createStableEntityId("negotiation-round", `${offer.id}:buyer:opening`),
@@ -1326,9 +1348,14 @@ export const completePermanentTransfer = (
   offer: TransferOffer,
   worldDate: string,
   seed: string,
+  playerPreferences?: PlayerPersonalTermsPreferences,
 ): void => {
   const market = new TransferMarketRepository(db);
-  const personalTerms = negotiatePlayerTerms(db, offer, { worldDate, seed });
+  const personalTerms = negotiatePlayerTerms(db, offer, {
+    worldDate,
+    seed,
+    preferences: playerPreferences,
+  });
   if (personalTerms.state !== "ACCEPTED") {
     if (personalTerms.state === "REJECTED" || personalTerms.state === "COMPETING_OFFER") {
       market.updateOfferStatus(
@@ -1968,11 +1995,12 @@ const financialProfile = (
 ): ClubFinancialProfile => {
   const rng = new SeededRandom(`${seed}:finance:${club.id}`);
   const multiplier = clubSalaryMultiplier(club);
+  const contextOnly = club.canonicalExternalId?.startsWith("CLB-") || club.canonicalExternalId?.startsWith("SIM-FOREIGN-");
   return {
     id: createStableEntityId("club-financial-profile", club.id),
     clubId: club.id,
-    wageBudget: Math.round(3600000 * multiplier + rng.next() * 900000),
-    transferBudget: Math.round(900000 * multiplier + rng.next() * 500000),
+    wageBudget: Math.round((contextOnly ? 7200000 : 3600000) * multiplier + rng.next() * (contextOnly ? 1800000 : 900000)),
+    transferBudget: Math.round((contextOnly ? 3600000 : 900000) * multiplier + rng.next() * (contextOnly ? 1400000 : 500000)),
     currentWageSpend: playerCount * Math.round(55000 * multiplier),
     financialHealth: multiplier > 1.25 ? "GOOD" : multiplier > 0.9 ? "STABLE" : "POOR",
     currency,
