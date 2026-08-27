@@ -196,3 +196,49 @@ only exercised by the corridor evaluator; it is not connected to a production im
 Africa/South-Asia shortlist generator. No nationality bypass or fake production proof was added.
 Global context therefore remains `NOT ACTIVE`; the next required implementation is the bounded
 region-aware recruitment candidate path, followed by its negative cases. Loans remain separate.
+
+## Region-Aware Candidate Generation
+
+The normal AI transfer-candidate path now resolves player market region from canonical country
+metadata, intersects it with the club recruitment profile, preserves scouting knowledge gates, and
+caps regional candidates at 12 before the existing position/quality selection. Generated context
+players use the same resolver as factual players; no player-name or nationality signing shortcut was
+added.
+
+## Africa Corridor
+
+Targeted scouting progression reaches an eligible Nigerian context player through the bounded
+regional candidate path. An invalid position filter excludes candidates normally. This is generated
+context coverage, not real imported-workbook coverage.
+
+## South Asia Corridor
+
+Targeted scouting progression reaches an eligible Indian context player through the same path. The
+candidate remains subject to knowledge and position filtering.
+
+## Knowledge / Affordability Gates
+
+Region access does not create knowledge or registration. Existing offer valuation, affordability,
+terms, and registration gates remain downstream and authoritative.
+
+## Candidate Bounds
+
+Regional shortlist output is capped at 12 (hard maximum 24 through the helper); the AI offer path
+selects from at most four ranked candidates. No transfer frequency tuning was performed.
+
+## Imported Data Participation
+
+The repository fixture contains no imported workbook dataset; the new test therefore uses generated
+foreign context players. Real imported-player participation remains an explicit follow-up proof.
+
+## Regression Status
+
+Selected transfer regressions pass 12/12, the focused stage-eight transfer tests pass 2/2, and the
+4/4 integrity suite remains green. Full stage-eight is still broad/slow and was not rerun to
+completion in this pass.
+
+## Production Activation Decision
+
+`NOT ACTIVE`: generated corridor reachability is proven, but imported-data corridor participation,
+production negative cases, and full stage-eight classification remain incomplete. Loans remain the
+next separate transfer feature after this closure.

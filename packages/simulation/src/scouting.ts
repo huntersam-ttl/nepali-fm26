@@ -3,6 +3,7 @@ import {
   type ClubRecruitmentProfile,
   type ClubShortlistItem,
   type EntityId,
+  type ExternalFootballRegion,
   type KnowledgeConfidence,
   type KnowledgeRange,
   type PlayerDiscoveryStatus,
@@ -62,6 +63,25 @@ export type RecruitmentSearchResult = {
   estimatedAbility?: KnowledgeRange;
   estimatedPotential?: string;
   recentAppearances?: number;
+  marketRegion?: ExternalFootballRegion;
+};
+
+const REGION_COUNTRIES: Record<ExternalFootballRegion, readonly string[]> = {
+  SOUTH_ASIA: ["NP", "NPL", "IN", "BD", "MV", "BT", "PK", "LK", "AF"],
+  WIDER_ASIA: ["CN", "HK", "MO", "MN", "KP", "KR", "TW", "JP"],
+  MIDDLE_EAST: ["AE", "SA", "QA", "IR", "IQ", "IL", "JO", "KW", "OM", "BH", "YE"],
+  AUSTRALIA: ["AU", "NZ", "FJ", "PG"],
+  EUROPE: ["GB", "IE", "FR", "DE", "ES", "IT", "PT", "NL", "BE", "CH", "AT", "SE", "NO", "DK", "FI", "IS", "PL", "CZ", "SK", "HU", "RO", "BG", "GR", "HR", "RS", "UA", "TR"],
+  AFRICA: ["NG", "GH", "CM", "SN", "CI", "ZA", "KE", "TZ", "UG", "ET", "MA", "DZ", "TN", "EG", "ZM", "ZW", "MZ", "AO", "CD", "CG", "RW"],
+  SOUTH_AMERICA: ["BR", "AR", "UY", "CL", "CO", "PE", "EC", "BO", "PY", "VE"],
+  NORTH_CENTRAL_AMERICA: ["US", "CA", "MX", "CR", "PA", "HN", "GT", "SV", "JM", "HT"],
+  OCEANIA: ["WS", "TO", "VU", "SB"],
+};
+
+export const countryToRecruitmentRegion = (value?: string): ExternalFootballRegion | undefined => {
+  const normalized = value?.trim().toUpperCase();
+  if (!normalized) return undefined;
+  return (Object.entries(REGION_COUNTRIES).find(([, countries]) => countries.includes(normalized))?.[0] ?? undefined) as ExternalFootballRegion | undefined;
 };
 
 export type ScoutingDiagnostic = {
@@ -184,6 +204,45 @@ export const searchPlayersForClub = (
         levelRank[b.knowledgeLevel] - levelRank[a.knowledgeLevel] ||
         String(a.playerId).localeCompare(String(b.playerId)),
     );
+};
+
+export const marketRegionForPlayer = (db: GameDatabase, playerId: EntityId): ExternalFootballRegion | undefined => {
+  const row = db.prepare(`
+    SELECT co.iso_code AS iso_code
+    FROM persons p
+    LEFT JOIN player_factual_profiles pfp ON pfp.player_id = p.id
+    LEFT JOIN player_contracts pc ON pc.player_id = p.id AND pc.status = 'ACTIVE'
+    LEFT JOIN clubs c ON c.id = COALESCE(pfp.current_club_id, pc.club_id)
+    LEFT JOIN countries co ON co.id = c.country_id
+    WHERE p.id = ?
+  `).get(playerId) as { iso_code?: string } | undefined;
+  return countryToRecruitmentRegion(row?.iso_code);
+};
+
+export const accessibleRecruitmentRegions = (db: GameDatabase, clubId: EntityId): ExternalFootballRegion[] => {
+  const profile = new RecruitmentRepository(db).clubRecruitmentProfile(clubId);
+  if (!profile) return [];
+  if (profile.networkReach === "GLOBAL") return Object.keys(REGION_COUNTRIES) as ExternalFootballRegion[];
+  const regions: ExternalFootballRegion[] = ["SOUTH_ASIA"];
+  if (profile.networkReach === "SOUTH_ASIA" || profile.internationalKnowledge >= 0.2) regions.push("WIDER_ASIA");
+  if (profile.internationalKnowledge >= 0.2) regions.push("AFRICA");
+  if (profile.internationalKnowledge >= 0.28 && profile.networkReach !== "REGIONAL") regions.push("EUROPE");
+  return regions;
+};
+
+export const searchRegionalCandidatesForClub = (
+  db: GameDatabase,
+  clubId: EntityId,
+  filters: RecruitmentSearchFilters = {},
+  worldDate = "2026-08-01",
+  limit = 12,
+): RecruitmentSearchResult[] => {
+  const accessible = new Set(accessibleRecruitmentRegions(db, clubId));
+  return searchPlayersForClub(db, clubId, filters, worldDate)
+    .map((candidate) => ({ ...candidate, marketRegion: marketRegionForPlayer(db, candidate.playerId) }))
+    .filter((candidate) => candidate.marketRegion && accessible.has(candidate.marketRegion))
+    .sort((a, b) => String(a.marketRegion).localeCompare(String(b.marketRegion)) || String(a.playerId).localeCompare(String(b.playerId)))
+    .slice(0, Math.max(1, Math.min(limit, 24)));
 };
 
 export const createScoutingAssignment = (
@@ -718,7 +777,7 @@ const truePlayers = (db: GameDatabase, playerIds?: readonly EntityId[]): TruePla
         COALESCE(SUM(pss.yellow_cards), 0) AS yellow_cards,
         COALESCE(SUM(pss.red_cards), 0) AS red_cards
       FROM persons p
-      JOIN player_factual_profiles pfp ON pfp.player_id = p.id
+      LEFT JOIN player_factual_profiles pfp ON pfp.player_id = p.id
       LEFT JOIN player_attributes pa ON pa.person_id = p.id
       LEFT JOIN team_person_assignments tpa ON tpa.person_id = p.id AND tpa.role = 'PLAYER'
       LEFT JOIN player_season_stats pss ON pss.person_id = p.id
@@ -745,7 +804,7 @@ const playersForClub = (db: GameDatabase, clubId: EntityId): TruePlayer[] =>
         COALESCE(SUM(pss.yellow_cards), 0) AS yellow_cards,
         COALESCE(SUM(pss.red_cards), 0) AS red_cards
       FROM persons p
-      JOIN player_factual_profiles pfp ON pfp.player_id = p.id
+      LEFT JOIN player_factual_profiles pfp ON pfp.player_id = p.id
       LEFT JOIN player_attributes pa ON pa.person_id = p.id
       LEFT JOIN team_person_assignments tpa ON tpa.person_id = p.id AND tpa.role = 'PLAYER'
       LEFT JOIN player_season_stats pss ON pss.person_id = p.id

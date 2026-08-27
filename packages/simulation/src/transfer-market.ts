@@ -32,7 +32,11 @@ import {
 import { clubCanAffordTransfer, clubCanAffordWage, recordTransferEconomy } from "./club-economy.js";
 import { applySupporterTransferOutcome } from "./supporter-culture.js";
 import { SeededRandom } from "./rng.js";
-import { initializeRecruitmentForSave, searchPlayersForClub } from "./scouting.js";
+import {
+  initializeRecruitmentForSave,
+  searchPlayersForClub,
+  searchRegionalCandidatesForClub,
+} from "./scouting.js";
 
 type MarketPlayer = {
   playerId: EntityId;
@@ -2071,7 +2075,8 @@ const createAiTransferOffer = (
   worldDate: string,
   seed: string,
 ): TransferOffer | undefined => {
-  const candidates = searchPlayersForClub(db, clubId, {}, worldDate)
+  const regionalCandidates = searchRegionalCandidatesForClub(db, clubId, {}, worldDate, 12);
+  const candidates = (regionalCandidates.length > 0 ? regionalCandidates : searchPlayersForClub(db, clubId, {}, worldDate))
     .filter((candidate) => candidate.clubId && candidate.clubId !== clubId)
     .filter(
       (candidate) =>
