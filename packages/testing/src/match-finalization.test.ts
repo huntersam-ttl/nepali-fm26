@@ -11,7 +11,7 @@ import {
   type GameDatabase,
 } from "@nepal-football-sim/database";
 import { DesktopApplicationService } from "@nepal-football-sim/simulation";
-import type { EntityId } from "@nepal-football-sim/shared-types";
+import { createStableEntityId, type EntityId } from "@nepal-football-sim/shared-types";
 
 const WORLD_DATASET = resolve("data/nepal/2026-08/club-registry.json");
 
@@ -95,6 +95,18 @@ describe("match finalization", () => {
       for (const event of events) {
         const data = JSON.parse((event.data_json as string) ?? "{}");
         expect(["MINOR", "NOTABLE", "MAJOR", "CRITICAL"]).toContain(data.importance);
+      }
+      expect(
+        db
+          .prepare("SELECT event_type FROM historical_events WHERE id = ?")
+          .get(createStableEntityId("history", `MATCH:${match.id}`)),
+      ).toEqual({ event_type: "MATCH_COMPLETED" });
+      if (Number(match.home_goals) !== Number(match.away_goals)) {
+        expect(
+          db
+            .prepare("SELECT COUNT(*) AS count FROM football_record_history WHERE source_id = ?")
+            .get(match.id),
+        ).toMatchObject({ count: 1 });
       }
       const fixture = db
         .prepare("SELECT home_team_id, away_team_id FROM fixtures WHERE id = ?")

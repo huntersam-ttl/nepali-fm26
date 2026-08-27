@@ -14,6 +14,7 @@ import {
   CompetitionRepository,
   PlayerRepository,
   SupporterCultureRepository,
+  FootballHistoryRepository,
   WorldRepository,
   loadSave,
   updateSaveWorldDate,
@@ -74,6 +75,7 @@ import {
 import { processOwnershipContinuity } from "./ownership.js";
 import { ensureFederationLeadershipContinuity } from "./federation-politics.js";
 import { advanceMacroEconomyForWorldDate } from "./macro-economy.js";
+import { recordCompetitionSeasonHistory, recordFootballMatchHistory } from "./football-history.js";
 import {
   evolveSupporterCultureSeason,
   initializeSupporterCultureForSave,
@@ -519,6 +521,7 @@ const simulateCompetitionSeason = (
     });
     allResults.push(result);
     persistMatchResult(db, result, input.season.id, fixture.scheduledDate, input.ruleSet, fixture);
+    recordFootballMatchHistory(db, fixture, result, fixture.scheduledDate);
     if (input.economyEnabled) {
       postMatchdayEconomy(db, fixture, fixture.scheduledDate, input.seed);
     }
@@ -546,6 +549,13 @@ const simulateCompetitionSeason = (
   const champion = standings[0];
   if (fixtures.every((fixture) => fixture.status === "played" || matchExists(db, fixture.id))) {
     persistChampionAndAwards(db, input, champion, finalPlayerStats);
+    recordCompetitionSeasonHistory(db, {
+      seasonId: input.season.id,
+      seasonName: input.season.name,
+      championTeamId: champion?.teamId,
+      championClubId: champion ? clubIdForTeam(db, champion.teamId) : undefined,
+      date: input.ruleSet.seasonEndDate,
+    });
     markSeasonState(db, input.season, "COMPLETED", {
       currentRound: Math.max(...fixtures.map((fixture) => fixture.round), 0),
       championClubId: champion ? clubIdForTeam(db, champion.teamId) : undefined,
@@ -1234,6 +1244,15 @@ function persistChampionAndAwards(
       teamId: champion.teamId,
       decidedOn: input.ruleSet.seasonEndDate,
     });
+    new FootballHistoryRepository(db).record({
+      recordType: "COMPETITION_HIGHEST_POINTS",
+      scopeId: input.season.id,
+      holderId: champion.teamId,
+      value: champion.points,
+      achievedOn: input.ruleSet.seasonEndDate,
+      sourceId: input.season.id,
+      provenanceStatus: "SIMULATION_ONLY",
+    });
   }
   for (const [awardType, award] of [
     ["TOP_SCORER", awardFromStats(stats, "goals")],
@@ -1248,6 +1267,15 @@ function persistChampionAndAwards(
     ["PLAYER_OF_SEASON", awardFromStats(stats, "averageRating")],
   ] as const) {
     if (!award) continue;
+    new FootballHistoryRepository(db).record({
+      recordType: `COMPETITION_${awardType}`,
+      scopeId: input.season.id,
+      holderId: award.personId,
+      value: award.value,
+      achievedOn: input.ruleSet.seasonEndDate,
+      sourceId: input.season.id,
+      provenanceStatus: "SIMULATION_ONLY",
+    });
     db.prepare(
       `INSERT INTO season_awards
       (id, competition_season_id, award_type, person_id, team_id, value, decided_on)

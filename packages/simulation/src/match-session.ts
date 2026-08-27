@@ -41,6 +41,7 @@ import {
   applyMatchSupporterOutcome,
   initializeSupporterCultureForSave,
 } from "./supporter-culture.js";
+import { recordFootballMatchHistory } from "./football-history.js";
 
 export type MatchFinalizationContext = {
   fixture: FixtureRecord;
@@ -276,6 +277,12 @@ export const finalizeMatch = (
           : undefined,
       });
     }
+    recordFootballMatchHistory(
+      db,
+      context.fixture,
+      result,
+      result.match.playedDate ?? context.fixture.scheduledDate,
+    );
 
     competition.insertMatch(result.match, economy?.attendance);
     for (const event of orderedEvents(state)) {
