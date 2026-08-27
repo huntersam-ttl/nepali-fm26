@@ -3,6 +3,7 @@ import { createEntityId } from "@nepal-football-sim/shared-types";
 import type { GameDatabase } from "@nepal-football-sim/database";
 import { EventRepository, updateSaveWorldDate } from "@nepal-football-sim/database";
 import { advanceMacroEconomyForWorldDate } from "./macro-economy.js";
+import { advanceTerritorialDevelopment } from "./territorial-football.js";
 
 const addDays = (date: string, days: number): string => {
   const parsed = new Date(`${date}T00:00:00.000Z`);
@@ -50,6 +51,9 @@ export class SimulationClock {
       date: this.save.worldDate,
       seed: this.save.randomSeed,
     });
+    if (this.save.worldDate.endsWith("-28")) {
+      advanceTerritorialDevelopment(this.db, { date: this.save.worldDate, seed: this.save.randomSeed });
+    }
     this.options.onAdvanceDay?.(this.save.worldDate);
     this.processDueEvents();
   }

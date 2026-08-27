@@ -85,6 +85,7 @@ import { ensureFederationLeadershipContinuity } from "./federation-politics.js";
 import { advanceMacroEconomyForWorldDate } from "./macro-economy.js";
 import { recordCompetitionSeasonHistory, recordFootballMatchHistory } from "./football-history.js";
 import { processClubLicensingForSeason } from "./licensing.js";
+import { advanceTerritorialDevelopment } from "./territorial-football.js";
 import {
   evolveSupporterCultureSeason,
   initializeSupporterCultureForSave,
@@ -386,6 +387,10 @@ export const simulateNepalCareer = (input: {
       db: input.db,
       seasonEndDate: latestSeasonEnd(activeSeasons),
       seed: `${input.seed}:foreign-world:${index}`,
+    });
+    advanceTerritorialDevelopment(input.db, {
+      date: latestSeasonEnd(activeSeasons),
+      seed: `${input.seed}:territorial:${index}`,
     });
     preseasonReports.push(
       ...repairPreseasonContinuity({

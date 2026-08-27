@@ -14,6 +14,8 @@ import {
 } from "@nepal-football-sim/shared-types";
 import {
   CompetitionRepository,
+  FederationComplianceRepository,
+  FederationGovernanceRepository,
   PlayerRepository,
   TerritorialFootballRepository,
   type GameDatabase,
@@ -27,6 +29,7 @@ import {
   type CompletedCompetitionSeason,
   type PyramidProgressionResult,
 } from "./pyramid-progression.js";
+import { postFederationTransaction } from "./federation-governance.js";
 import type {
   CompetitionRelationship,
   CompetitionRuleSet,
@@ -141,6 +144,9 @@ const provinces: Array<[string, string[]]> = [
 ];
 const clean = (value: string) => value.toLowerCase().replace(/ district| province|\s+/g, "");
 const clamp = (value: number) => Math.max(0, Math.min(100, Math.round(value)));
+const monthNumber = (date: string) => Number(date.slice(5, 7));
+const monthsBetween = (from: string, to: string) =>
+  (Number(to.slice(0, 4)) - Number(from.slice(0, 4))) * 12 + monthNumber(to) - monthNumber(from);
 
 export const lowerLeagueFinanceMultiplier = (
   division: "A" | "B" | "C",
@@ -181,7 +187,7 @@ export const initializeNepalTerritorialStructure = (
       ].includes(name)
         ? 80
         : 35;
-      const district: DistrictFootballUnit = {
+      const seededDistrict: DistrictFootballUnit = {
         id: createStableEntityId("nepal-district", name),
         name,
         provinceId,
@@ -208,6 +214,7 @@ export const initializeNepalTerritorialStructure = (
         ],
         provenanceStatus: "SIMULATION_ONLY",
       };
+      const district = repo.district(seededDistrict.id) ?? seededDistrict;
       repo.upsertDistrict(district);
       result.push(district);
       return district;
@@ -225,9 +232,128 @@ export const initializeNepalTerritorialStructure = (
       history: [{ date, event: "PROVINCIAL_UNIT_INITIALISED" }],
       provenanceStatus: "SIMULATION_ONLY",
     };
-    repo.upsertProvince(provincial);
+    repo.upsertProvince(repo.province(provinceId) ?? provincial);
   }
   return { districts: repo.districts(), provinces: repo.provinces() };
+};
+
+const territorialCompetitionConfig = (input: {
+  id: EntityId;
+  name: string;
+  level: TerritorialCompetitionConfig["level"];
+  participantType: TerritorialCompetitionConfig["participantType"];
+  format: TerritorialCompetitionConfig["format"];
+  start: string;
+  end: string;
+  qualifierCount?: number;
+}): TerritorialCompetitionConfig => ({
+  id: input.id,
+  name: input.name,
+  level: input.level,
+  participantType: input.participantType,
+  format: input.format,
+  qualifierCount: input.qualifierCount,
+  seasonStartDate: input.start,
+  seasonEndDate: input.end,
+  roundSpacingDays: 3,
+  winnerRequired: input.format === "KNOCKOUT",
+  eligibility: { residence: true, developmentRegistration: true },
+  provenanceStatus: "SIMULATION_ONLY",
+});
+
+const productionTerritorialProject = (db: GameDatabase, date: string, seed: string): void => {
+  const territorial = new TerritorialFootballRepository(db);
+  const existing = territorial.projects().filter((project) => !["COMPLETED", "REJECTED", "CANCELLED"].includes(project.status));
+  for (const project of existing) {
+    if (project.status === "ACTIVE" && monthsBetween(project.createdOn, date) >= project.durationMonths) {
+      const completed = advanceDistrictDevelopmentProject(db, project.id, {
+        date,
+        status: "COMPLETED",
+        reportingStatus: "ACCEPTED",
+        outcome: "DELIVERED_WITH_BOUNDED_DEVELOPMENT_EFFECT",
+      });
+      updateDistrictDevelopment(db, {
+        districtId: completed.districtId,
+        date,
+        funding: completed.federationContribution,
+        reportedWell: true,
+      });
+    }
+  }
+  if (existing.length > 0) return;
+  const federation = db.prepare("SELECT id FROM federations ORDER BY id LIMIT 1").get() as { id?: EntityId } | undefined;
+  if (!federation?.id) return;
+  const account = new FederationGovernanceRepository(db).financialAccount(federation.id);
+  if (!account || account.cashBalance < 2000000) return;
+  const sanctions = new FederationComplianceRepository(db).activeSanctionsForFederation(federation.id);
+  if (sanctions.some((sanction) => sanction.consequences.includes("FUNDING_FROZEN") || sanction.consequences.includes("NEW_GRANTS_BLOCKED"))) return;
+  const district = territorial.districts().sort((a, b) => {
+    const need = (item: DistrictFootballUnit) =>
+      100 - item.developmentReputation + item.remoteness * 0.15 + (100 - item.groundAvailability) * 0.2 + (100 - item.governanceCompliance) * 0.1;
+    return need(b) - need(a) || a.id.localeCompare(b.id);
+  })[0];
+  if (!district) return;
+  const amount = 100000;
+  const project = createDistrictDevelopmentProject(db, {
+    districtId: district.id,
+    provinceId: district.provinceId,
+    projectType: "GRASSROOTS_FACILITY",
+    requestedBudget: amount,
+    districtContribution: 0,
+    provinceContribution: 0,
+    municipalityContribution: 0,
+    federationContribution: amount,
+    durationMonths: 6,
+    milestones: ["SITE_REVIEW", "DELIVERY_REPORT"],
+    conditions: ["FEDERATION_AUDIT"],
+    createdOn: date,
+  });
+  postFederationTransaction(db, {
+    federationId: federation.id,
+    date,
+    category: "INFRASTRUCTURE",
+    direction: "DEBIT",
+    amount,
+    description: "Territorial district development project funded",
+    relatedEntityId: project.id,
+    idempotencyKey: `territorial-project:${project.id}`,
+  });
+  advanceDistrictDevelopmentProject(db, project.id, { date, status: "ACTIVE" });
+  void seed;
+};
+
+const productionTerritorialCompetitions = (db: GameDatabase, date: string, seed: string): void => {
+  const year = date.slice(0, 4);
+  const start = `${year}-01-01`;
+  const end = date;
+  const repo = new TerritorialFootballRepository(db);
+  const configurations = [
+    territorialCompetitionConfig({ id: createStableEntityId("territorial-competition", "district"), name: "National District Championship", level: "DISTRICT", participantType: "DISTRICT", format: "KNOCKOUT", start, end }),
+    territorialCompetitionConfig({ id: createStableEntityId("territorial-competition", "provincial"), name: "Provincial Representative Championship", level: "PROVINCIAL", participantType: "PROVINCE", format: "LEAGUE", qualifierCount: 2, start, end }),
+    territorialCompetitionConfig({ id: createStableEntityId("territorial-competition", "national"), name: "National Territorial Championship", level: "NATIONAL", participantType: "PROVINCE", format: "KNOCKOUT", start, end }),
+  ];
+  for (const config of configurations) {
+    const seasonId = createStableEntityId("territorial-season", `${config.id}:${year}`);
+    let season = repo.competitionSeason(seasonId) ?? initializeTerritorialCompetition(db, { config, seasonLabel: year, seed: `${seed}:${config.id}` });
+    for (const fixture of new CompetitionRepository(db).fixtures(season.id)) {
+      if (!db.prepare("SELECT id FROM matches WHERE fixture_id=?").get(fixture.id)) simulateTerritorialFixture(db, { fixtureId: fixture.id, seasonId: season.id, seed: `${seed}:${fixture.id}` });
+    }
+    season = advanceTerritorialCompetition(db, { seasonId: season.id, date, seed: `${seed}:${config.id}` }).season;
+    if (season.status === "COMPLETED") {
+      const champion = season.championTeamId;
+      const championTeam = champion ? repo.team(champion) : undefined;
+      if (championTeam) repo.upsertTeam({ ...championTeam, history: [...championTeam.history, { date, event: "TERRITORIAL_CHAMPION", playerIds: championTeam.playerIds }] });
+    }
+  }
+};
+
+export const advanceTerritorialDevelopment = (db: GameDatabase, input: { date: string; seed: string }): void => {
+  const state = initializeNepalTerritorialStructure(db, input.date);
+  if (state.districts.some((district) => district.history.some((event) => event.event === "DEVELOPMENT_REVIEW" && event.date === input.date))) return;
+  for (const district of state.districts) updateDistrictDevelopment(db, { districtId: district.id, date: input.date, funding: 0, reportedWell: true });
+  productionTerritorialProject(db, input.date, input.seed);
+  const month = monthNumber(input.date);
+  if (month === 7 || month === 8) productionTerritorialCompetitions(db, input.date, input.seed);
 };
 
 export const createDistrictDevelopmentProject = (
