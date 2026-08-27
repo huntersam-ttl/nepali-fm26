@@ -234,8 +234,9 @@ foreign context players. Real imported-player participation remains an explicit 
 ## Regression Status
 
 Selected transfer regressions pass 12/12, the focused stage-eight transfer tests pass 2/2, and the
-4/4 integrity suite remains green. Full stage-eight is still broad/slow and was not rerun to
-completion in this pass.
+4/4 integrity suite remains green. A bounded full stage-eight attempt after this change produced no
+test output within 90 seconds and was stopped; it is classified `BROAD_BUT_PROGRESSING`/slow, not
+PASS.
 
 ## Production Activation Decision
 
