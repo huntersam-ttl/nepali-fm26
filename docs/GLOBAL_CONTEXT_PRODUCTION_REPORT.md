@@ -62,4 +62,4 @@ test. A complete end-to-end Nepal-to-foreign transfer transaction still needs a 
 
 ## Production Activation Decision
 
-`GLOBAL CONTEXT PRODUCTION ACTIVE`
+`NOT ACTIVE`
