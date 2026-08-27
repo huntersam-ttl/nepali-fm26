@@ -8,3 +8,22 @@ export const assessClubNetworkConflicts=(records:readonly MultiClubOwnershipReco
 export const evaluateRelatedPartyTransfer=(input:{fee:number;askingRange:{min:number;max:number};playerKnownToBuyer:boolean;registrationAllowed:boolean}):{allowed:boolean;relatedParty:true;reason:string}=>{const within=input.fee>=input.askingRange.min*.85&&input.fee<=input.askingRange.max*1.1;const allowed=within&&input.playerKnownToBuyer&&input.registrationAllowed;return {allowed,relatedParty:true,reason:allowed?"Market-value range and normal registration checks passed":"Normal valuation, knowledge, or registration checks failed"};};
 export const evaluatePartnershipPathway=(input:{relationshipStrength:number;playerQuality:number;clubNeed:number;scoutingKnowledge:number;registrationAllowed:boolean}):{eligible:boolean;reason:string}=>{const score=input.relationshipStrength*.25+input.playerQuality*.25+input.clubNeed*.2+input.scoutingKnowledge*.3;const eligible=input.registrationAllowed&&score>=55;return {eligible,reason:eligible?"Existing relationship, knowledge, need, and quality support a pathway":"Pathway requires stronger knowledge, need, quality, or registration compliance"};};
 export const recommendNetworkStrategy=(input:{wealth:number;footballReputation:number;commercialAccess:number;developmentNeed:number;distanceFactor:number}):OwnershipNetworkStrategy=>input.developmentNeed>=70?"DEVELOPMENT_CLUB":input.commercialAccess>=70?"COMMERCIAL_MARKET_CLUB":input.wealth>=70&&input.footballReputation>=60?"FLAGSHIP_CLUB":input.distanceFactor<=40?"PATHWAY_CLUB":"ACADEMY_TECHNICAL_PARTNER";
+
+export const evaluateInternationalPartnership=(input:{nepalClubReputation:number;academyQuality:number;continentalExposure:number;commercialReach:number;foreignClubReputation:number;relationshipHistory:number}):{eligible:boolean;score:number;reason:string}=>{
+  const score=Math.max(0,Math.min(100,input.nepalClubReputation*.2+input.academyQuality*.2+input.continentalExposure*.18+input.commercialReach*.12+input.foreignClubReputation*.18+input.relationshipHistory*.12));
+  return {eligible:score>=52,score,reason:score>=52?"The clubs have a credible sporting, commercial, and relationship fit":"The proposal needs stronger sporting or strategic fit"};
+};
+
+export const activateClubPartnership=(db:GameDatabase,partnershipId:EntityId,input:{date:string;eligibility:{eligible:boolean;score:number}}):InternationalClubPartnership=>{
+  if(!input.eligibility.eligible) throw new Error("Partnership proposal is not eligible");
+  const current=new ClubNetworkRepository(db).partnerships().find((value)=>value.id===partnershipId);
+  if(!current) throw new Error("Partnership proposal does not exist");
+  const strength=Math.max(0,Math.min(100,Math.round(input.eligibility.score)));
+  db.prepare("UPDATE international_club_partnerships SET relationship_strength=?,status='ACTIVE',start_date=? WHERE id=?").run(strength,input.date,partnershipId);
+  return {...current,relationshipStrength:strength,status:"ACTIVE",startDate:input.date};
+};
+
+export const boundedPartnershipBenefits=(partnership:InternationalClubPartnership):{scouting:number;development:number;loanPreference:number;commercial:number}=>{
+  const strength=Math.max(0,Math.min(100,partnership.relationshipStrength))/100;
+  return {scouting:partnership.partnershipType==="SCOUTING"?strength*.2:0,development:["ACADEMY","YOUTH_DEVELOPMENT","TECHNICAL","TRAINING"].includes(partnership.partnershipType)?strength*.12:0,loanPreference:["LOAN","LOAN_PLAYER_PATHWAY"].includes(partnership.partnershipType)?strength*.18:0,commercial:partnership.partnershipType==="COMMERCIAL"?strength*.08:0};
+};

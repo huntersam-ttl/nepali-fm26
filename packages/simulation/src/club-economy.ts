@@ -1576,6 +1576,9 @@ export const runChairmanDemo = (input: {
   initializeClubEconomyForSave(input);
   const club = input.clubId ? clubById(input.db, input.clubId) : allClubs(input.db)[0];
   if (!club) throw new Error("No club available for chairman demo");
+  if (isExternalContextClub(input.db, club.id)) {
+    throw new Error("Context-only external clubs cannot be managed or owned by the player.");
+  }
   const person = createDemoChairman(input.db, club, input.worldDate);
   const economy = new ClubEconomyRepository(input.db);
   economy.upsertPersonalFinancialProfile({
@@ -1655,6 +1658,9 @@ export const runChairmanDemo = (input: {
     permissions: chairmanPermissions(),
   };
 };
+
+const isExternalContextClub = (db: GameDatabase, clubId: EntityId): boolean =>
+  Boolean((db.prepare("SELECT canonical_external_id AS value FROM clubs WHERE id = ?").get(clubId) as { value?: string } | undefined)?.value?.startsWith("SIM-FOREIGN-"));
 
 export const chairmanPermissions = (): string[] => [
   "FINANCE",

@@ -5,12 +5,14 @@ import {
 } from "@nepal-football-sim/shared-types";
 import {
   WorkforceSupplyRepository,
+  GlobalFootballContextRepository,
   WorldRepository,
   type GameDatabase,
 } from "@nepal-football-sim/database";
 import { generateAiStaff } from "./staff-market.js";
 import { initializeTransferMarketForSave } from "./transfer-market.js";
 import { generateYouthCohort } from "./youth-intake.js";
+import { SeededRandom } from "./rng.js";
 
 /**
  * A deliberately small foreign layer. Nepal gets the detailed simulation;
@@ -25,6 +27,8 @@ const FOREIGN_MARKETS = [
   ["PK", "Pakistan"],
   ["LK", "Sri Lanka"],
   ["AF", "Afghanistan"],
+  ["NG", "Nigeria"],
+  ["GH", "Ghana"],
   ["JP", "Japan"],
   ["AE", "United Arab Emirates"],
 ] as const;
@@ -45,6 +49,31 @@ const FOREIGN_BOOTSTRAP_LABEL = "foreign-world-bootstrap";
 const FOREIGN_BOOTSTRAP_KIND = "FOREIGN_WORLD_BOOTSTRAP";
 const FOREIGN_BOOTSTRAP_COHORT = "foreign-market";
 const FOREIGN_REPLENISHMENT_KIND = "FOREIGN_WORLD_REPLENISHMENT";
+
+const confederationFor = (isoCode: string): "AFC" | "CAF" | "CONCACAF" | "CONMEBOL" | "OFC" | "UEFA" =>
+  ["NG", "GH"].includes(isoCode) ? "CAF" : ["IN", "BD", "BT", "MV", "PK", "LK", "AF", "JP", "AE"].includes(isoCode) ? "AFC" : "UEFA";
+
+const contextForClub = (db: GameDatabase, clubId: EntityId) =>
+  new GlobalFootballContextRepository(db).clubs().find((club) => club.clubId === clubId);
+
+export const isContextOnlyClub = (db: GameDatabase, clubId: EntityId): boolean =>
+  Boolean(contextForClub(db, clubId) ?? (db.prepare("SELECT canonical_external_id AS id FROM clubs WHERE id = ?").get(clubId) as { id?: string } | undefined)?.id?.startsWith("SIM-FOREIGN-"));
+
+const ensureExternalLeagueContext = (db: GameDatabase, input: { isoCode: string; countryId: EntityId; countryName: string; date: string }): { federationId: EntityId; leagueId: EntityId } => {
+  const world = new WorldRepository(db);
+  const contexts = new GlobalFootballContextRepository(db);
+  const federationId = createStableEntityId("external-federation", input.isoCode);
+  if (!db.prepare("SELECT 1 FROM federations WHERE id = ?").get(federationId)) {
+    world.insertFederation({ id: federationId, countryId: input.countryId, name: `${input.countryName} Football Association` });
+  }
+  contexts.upsertFederation({ federationId, countryId: input.countryId, confederation: confederationFor(input.isoCode), reputation: input.isoCode === "JP" ? 7 : 4, simulationDepth: "CONTEXT_ONLY", updatedOn: input.date });
+  const leagueId = createStableEntityId("external-league", input.isoCode);
+  if (!db.prepare("SELECT 1 FROM competitions WHERE id = ?").get(leagueId)) {
+    world.insertCompetition({ id: leagueId, federationId, name: `${input.countryName} Context League`, scope: "domestic", category: "PYRAMID_LEAGUE" });
+  }
+  contexts.upsertLeague({ leagueId, federationId, countryId: input.countryId, tier: 1, reputation: input.isoCode === "JP" ? 7 : 4, simulationDepth: "CONTEXT_ONLY", continentalQualification: true });
+  return { federationId, leagueId };
+};
 
 /**
  * Authoritative squad size for a foreign club.
@@ -103,10 +132,11 @@ export const initializeForeignFootballWorldForSave = (input: {
   seed: string;
 }): void => {
   const world = new WorldRepository(input.db);
-  const foreignClubs: Array<{ clubId: EntityId; teamId: EntityId; countryId: EntityId }> = [];
+  const foreignClubs: Array<{ clubId: EntityId; teamId: EntityId; countryId: EntityId; federationId: EntityId; leagueId: EntityId }> = [];
 
   for (const [isoCode, countryName] of FOREIGN_MARKETS) {
     const countryId = countryIdFor(input.db, isoCode, countryName);
+    const externalLeague = ensureExternalLeagueContext(input.db, { isoCode, countryId, countryName, date: input.worldDate });
     const canonicalExternalId = `SIM-FOREIGN-${isoCode}`;
     let club = input.db
       .prepare("SELECT id FROM clubs WHERE canonical_external_id = ? LIMIT 1")
@@ -138,7 +168,8 @@ export const initializeForeignFootballWorldForSave = (input: {
       .prepare("SELECT id FROM teams WHERE club_id = ? AND level = 'senior' ORDER BY id LIMIT 1")
       .get(club.id) as { id: EntityId } | undefined;
     if (!team) continue;
-    foreignClubs.push({ clubId: club.id, teamId: team.id, countryId });
+    new GlobalFootballContextRepository(input.db).upsertClub({ clubId: club.id, leagueId: externalLeague.leagueId, federationId: externalLeague.federationId, countryId, reputation: isoCode === "JP" ? 70 : 45, financialBand: isoCode === "JP" ? "HIGH" : "MEDIUM", academyStrength: isoCode === "JP" ? 70 : 45, scoutingReach: isoCode === "JP" ? 65 : 40, recruitmentRegions: ["SOUTH_ASIA", "WIDER_ASIA"], simulationDepth: "CONTEXT_ONLY" });
+    foreignClubs.push({ clubId: club.id, teamId: team.id, countryId, federationId: externalLeague.federationId, leagueId: externalLeague.leagueId });
   }
 
   // The transfer repository is initialized before generated players add
@@ -191,6 +222,7 @@ export const processForeignFootballWorldSeason = (input: {
   seasonEndDate: string;
   seed: string;
 }): void => {
+  initializeExternalLeagueSeasons(input.db, input.seasonEndDate, input.seed);
   const clubs = input.db
     .prepare(
       `SELECT c.id AS club_id, c.country_id, t.id AS team_id
@@ -231,6 +263,49 @@ export const processForeignFootballWorldSeason = (input: {
     }
     seedForeignStaff(input.db, club.country_id, club.club_id, input.seasonEndDate, input.seed);
   }
+  updateForeignScoutingInterest(input.db, { date: input.seasonEndDate, seed: input.seed });
+};
+
+/** Runs a coarse external league update: one seeded table outcome per league, no fixtures or match events. */
+export const initializeExternalLeagueSeasons = (db: GameDatabase, seasonEndDate: string, seed: string): void => {
+  const year = seasonEndDate.slice(0, 4);
+  const contexts = new GlobalFootballContextRepository(db);
+  for (const league of contexts.leagues()) {
+    if (contexts.seasons(league.leagueId).some((season) => season.seasonLabel === year)) continue;
+    const clubs = contexts.clubs().filter((club) => club.leagueId === league.leagueId).sort((a, b) => a.clubId.localeCompare(b.clubId));
+    if (clubs.length === 0) continue;
+    const rng = new SeededRandom(`${seed}:external-league:${league.leagueId}:${year}`);
+    const ordered = [...clubs].sort((a, b) => (b.reputation + rng.next() * 8) - (a.reputation + rng.next() * 8) || a.clubId.localeCompare(b.clubId));
+    contexts.upsertSeason({ id: createStableEntityId("external-league-season", `${league.leagueId}:${year}`), leagueId: league.leagueId, seasonLabel: year, championClubId: ordered[0]?.clubId, continentalQualifierClubIds: ordered.slice(0, 2).map((club) => club.clubId), relegatedClubIds: ordered.length > 2 ? ordered.slice(-1).map((club) => club.clubId) : [], completedOn: seasonEndDate, status: "COMPLETED", provenanceStatus: "SIMULATION_ONLY" });
+    for (const club of clubs) {
+      const movement = club.clubId === ordered[0]?.clubId ? 0.6 : club.clubId === ordered.at(-1)?.clubId ? -0.4 : 0.1;
+      contexts.upsertClub({ ...club, reputation: Math.max(0, Math.min(100, club.reputation + movement)) });
+    }
+  }
+};
+
+/** Records bounded foreign-club awareness of high-signal Nepal players without exposing hidden ability. */
+export const updateForeignScoutingInterest = (db: GameDatabase, input: { date: string; seed: string }): void => {
+  const contexts = new GlobalFootballContextRepository(db);
+  const foreignPlayers = db.prepare(`SELECT DISTINCT a.person_id AS player_id, c.id AS club_id FROM team_person_assignments a JOIN teams t ON t.id = a.team_id JOIN clubs c ON c.id = t.club_id WHERE a.role = 'PLAYER' AND a.ended_on IS NULL AND c.canonical_external_id LIKE 'SIM-FOREIGN-%'`).all() as Array<{ player_id: EntityId; club_id: EntityId }>;
+  for (const player of foreignPlayers) {
+    const club = contexts.clubs().find((item) => item.clubId === player.club_id);
+    if (club) contexts.upsertPlayer({ playerId: player.player_id, clubId: player.club_id, region: club.recruitmentRegions[0] ?? "WIDER_ASIA", reputation: club.reputation, interestLevel: "UNKNOWN", careerState: "ACTIVE", updatedOn: input.date });
+  }
+  const targets = db.prepare(`SELECT p.player_id AS player_id, p.current_club_id AS club_id FROM player_factual_profiles p JOIN clubs c ON c.id = p.current_club_id WHERE c.canonical_external_id NOT LIKE 'SIM-FOREIGN-%' ORDER BY p.player_id LIMIT 12`).all() as Array<{ player_id: EntityId; club_id: EntityId }>;
+  for (const club of contexts.clubs().filter((item) => item.scoutingReach >= 40)) {
+    for (const target of targets.slice(0, club.scoutingReach >= 60 ? 2 : 1)) {
+      const score = Math.max(0, Math.min(100, club.scoutingReach * 0.45 + 35));
+      contexts.upsertInterest({ id: createStableEntityId("foreign-scouting-interest", `${club.clubId}:${target.player_id}`), externalClubId: club.clubId, targetPlayerId: target.player_id, level: score >= 70 ? "INTERESTED" : "MONITORING", score, firstObservedOn: input.date, lastObservedOn: input.date, provenanceStatus: "SIMULATION_ONLY" });
+    }
+  }
+};
+
+export const evaluateForeignRecruitmentCorridor = (input: { sourceRegion: string; destinationRegion: string; playerReputation: number; clubReputation: number; scoutingReach: number; partnershipStrength?: number }): { eligible: boolean; score: number; corridor: "AFRICA_TO_NEPAL" | "SOUTH_ASIA_REGIONAL" | "NEPAL_TO_ASIA" | "GENERAL" } => {
+  const regional = input.sourceRegion === "AFRICA" && input.destinationRegion === "NEPAL" ? 16 : input.sourceRegion === "SOUTH_ASIA" || input.destinationRegion === "SOUTH_ASIA" ? 12 : 0;
+  const score = Math.max(0, Math.min(100, input.playerReputation * 0.35 + input.clubReputation * 0.25 + input.scoutingReach * 0.25 + (input.partnershipStrength ?? 0) * 0.15 + regional));
+  const corridor = input.sourceRegion === "AFRICA" && input.destinationRegion === "NEPAL" ? "AFRICA_TO_NEPAL" : input.sourceRegion === "SOUTH_ASIA" || input.destinationRegion === "SOUTH_ASIA" ? "SOUTH_ASIA_REGIONAL" : input.destinationRegion === "WIDER_ASIA" ? "NEPAL_TO_ASIA" : "GENERAL";
+  return { eligible: score >= 45, score, corridor };
 };
 
 const seedForeignStaff = (

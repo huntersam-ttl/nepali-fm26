@@ -26,6 +26,7 @@ import { createManagerContract } from "./manager-career.js";
 import { supporterBoardPressureModifier } from "./supporter-culture.js";
 import { interviewManagerForApplication } from "./manager-interviews.js";
 import { SeededRandom } from "./rng.js";
+import { isContextOnlyClub } from "./foreign-football-world.js";
 
 type SqlRow = Record<string, any>;
 
@@ -480,6 +481,9 @@ export const applyForJob = (
   if (!vacancy || vacancy.status !== "OPEN") {
     throw new JobApplicationError("VACANCY_NOT_OPEN", "That vacancy is no longer open.");
   }
+  if (vacancy.clubId && isContextOnlyClub(db, vacancy.clubId)) {
+    throw new JobApplicationError("NOT_ELIGIBLE", "Context-only external clubs cannot become player-managed careers.");
+  }
   const alreadyApplied = careerWorld
     .applicationsForManager(managerProfile.id)
     .some((application) => application.vacancyId === vacancyId && (application.status === "OFFERED" || application.status === "ACCEPTED"));
@@ -534,6 +538,9 @@ export const acceptJobOffer = (
   const vacancy = careerWorld.vacancy(application.vacancyId);
   if (!vacancy || vacancy.status !== "OPEN") {
     throw new JobOfferError("OFFER_NOT_PENDING", "That job has already been filled.");
+  }
+  if (vacancy.clubId && isContextOnlyClub(db, vacancy.clubId)) {
+    throw new JobOfferError("OFFER_NOT_PENDING", "Context-only external clubs cannot become player-managed careers.");
   }
 
   const contract = createManagerContract({

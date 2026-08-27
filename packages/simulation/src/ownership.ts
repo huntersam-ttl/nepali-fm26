@@ -68,6 +68,8 @@ export const createOwnershipEnquiry = (
     throw new Error("Ownership percentage is invalid");
   if (!db.prepare("SELECT 1 FROM clubs WHERE id = ?").get(input.clubId))
     throw new Error("Club does not exist");
+  if ((db.prepare("SELECT canonical_external_id AS value FROM clubs WHERE id = ?").get(input.clubId) as { value?: string } | undefined)?.value?.startsWith("SIM-FOREIGN-"))
+    throw new Error("Context-only external clubs cannot be owned by the player.");
   const value: OwnershipAcquisitionOffer = {
     id: createStableEntityId(
       "ownership-offer",

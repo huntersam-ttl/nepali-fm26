@@ -2785,7 +2785,7 @@ export type FederationAiDecision = {
   status: "SIMULATION_ONLY";
 };
 
-export type ExternalFootballRegion = "SOUTH_ASIA" | "WIDER_ASIA" | "MIDDLE_EAST" | "AUSTRALIA" | "EUROPE";
+export type ExternalFootballRegion = "SOUTH_ASIA" | "WIDER_ASIA" | "MIDDLE_EAST" | "AUSTRALIA" | "EUROPE" | "AFRICA" | "SOUTH_AMERICA" | "NORTH_CENTRAL_AMERICA" | "OCEANIA";
 
 export type ExternalFootballRegionProfile = {
   id: EntityId;

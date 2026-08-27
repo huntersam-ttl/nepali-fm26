@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 61;
+export const CURRENT_DATABASE_VERSION = 62;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -3141,6 +3141,44 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       );
       CREATE INDEX IF NOT EXISTS idx_ownership_history_club
         ON club_ownership_history(club_id, start_date, id);
+    `,
+  },
+  {
+    version: 62,
+    sql: `
+      CREATE TABLE IF NOT EXISTS external_federation_context (
+        federation_id TEXT PRIMARY KEY REFERENCES federations(id), country_id TEXT NOT NULL REFERENCES countries(id),
+        confederation TEXT NOT NULL, reputation REAL NOT NULL, simulation_depth TEXT NOT NULL, updated_on TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS external_league_context (
+        league_id TEXT PRIMARY KEY REFERENCES competitions(id), federation_id TEXT NOT NULL REFERENCES federations(id),
+        country_id TEXT NOT NULL REFERENCES countries(id), tier INTEGER NOT NULL, reputation REAL NOT NULL,
+        simulation_depth TEXT NOT NULL, continental_qualification INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS external_club_context (
+        club_id TEXT PRIMARY KEY REFERENCES clubs(id), league_id TEXT NOT NULL REFERENCES competitions(id),
+        federation_id TEXT NOT NULL REFERENCES federations(id), country_id TEXT NOT NULL REFERENCES countries(id),
+        reputation REAL NOT NULL, financial_band TEXT NOT NULL, academy_strength REAL NOT NULL,
+        scouting_reach REAL NOT NULL, recruitment_regions_json TEXT NOT NULL, simulation_depth TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS external_league_seasons (
+        id TEXT PRIMARY KEY, league_id TEXT NOT NULL REFERENCES competitions(id), season_label TEXT NOT NULL,
+        champion_club_id TEXT REFERENCES clubs(id), qualifier_club_ids_json TEXT NOT NULL,
+        relegated_club_ids_json TEXT NOT NULL, completed_on TEXT NOT NULL, status TEXT NOT NULL,
+        provenance_status TEXT NOT NULL, UNIQUE(league_id, season_label)
+      );
+      CREATE TABLE IF NOT EXISTS external_player_context (
+        player_id TEXT PRIMARY KEY REFERENCES persons(id), club_id TEXT REFERENCES clubs(id), region TEXT NOT NULL,
+        reputation REAL NOT NULL, interest_level TEXT NOT NULL, career_state TEXT NOT NULL,
+        available_on TEXT, updated_on TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS foreign_scouting_interest (
+        id TEXT PRIMARY KEY, external_club_id TEXT NOT NULL REFERENCES clubs(id), target_player_id TEXT NOT NULL REFERENCES persons(id),
+        level TEXT NOT NULL, score REAL NOT NULL, first_observed_on TEXT NOT NULL, last_observed_on TEXT NOT NULL,
+        provenance_status TEXT NOT NULL, UNIQUE(external_club_id, target_player_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_external_club_context_league ON external_club_context(league_id);
+      CREATE INDEX IF NOT EXISTS idx_foreign_interest_target ON foreign_scouting_interest(target_player_id, level);
     `,
   },
 ];
