@@ -24,6 +24,8 @@ import {
   closeClubFinancialSeason,
   initializeClubEconomyForSave,
   postCompetitionPrizeMoney,
+  acceptCompetitionMediaRights,
+  generateCompetitionMediaRightsOffer,
   postMatchdayEconomy,
   processClubEconomyMonth,
 } from "./club-economy.js";
@@ -63,6 +65,7 @@ import { calculateStandings, sortStandings, summarizePlayerStats } from "./stand
 import { initializeTransferMarketForSave, simulateTransferWindow } from "./transfer-market.js";
 import { runClubAiSeasonPlanning } from "./ai-club-strategy.js";
 import { processExternalFootballWorldSeason } from "./external-football-world.js";
+import { settleFederationMediaRightsForCompetition } from "./media-rights.js";
 import {
   initializeForeignFootballWorldForSave,
   processForeignFootballWorldSeason,
@@ -576,6 +579,23 @@ const simulateCompetitionSeason = (
       completedAt: input.ruleSet.seasonEndDate,
     });
     if (input.economyEnabled) {
+      const competitionRights = generateCompetitionMediaRightsOffer(db, {
+        competitionSeasonId: input.season.id,
+        date: input.ruleSet.seasonEndDate,
+        seed: input.seed,
+      });
+      if (competitionRights.contractStatus === "OFFERED") {
+        acceptCompetitionMediaRights(db, competitionRights.id, input.ruleSet.seasonEndDate);
+      }
+      const federationId = (db.prepare("SELECT federation_id AS id FROM competitions WHERE id = (SELECT competition_id FROM competition_seasons WHERE id = ?)").get(input.season.id) as { id?: EntityId } | undefined)?.id;
+      if (federationId) {
+        settleFederationMediaRightsForCompetition(db, {
+          federationId,
+          competitionSeasonId: input.season.id,
+          date: input.ruleSet.seasonEndDate,
+          seed: input.seed,
+        });
+      }
       postCompetitionPrizeMoney(db, {
         competitionSeasonId: input.season.id,
         date: input.ruleSet.seasonEndDate,

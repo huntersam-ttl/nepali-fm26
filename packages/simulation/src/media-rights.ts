@@ -1,5 +1,5 @@
 import { createStableEntityId, type BroadcasterProfile, type EntityId, type FederationMediaRightsOffer, type FederationMediaRightsPackage } from "@nepal-football-sim/shared-types";
-import { MediaRightsRepository, type GameDatabase } from "@nepal-football-sim/database";
+import { ClubEconomyRepository, MediaRightsRepository, type GameDatabase } from "@nepal-football-sim/database";
 import { postFederationTransaction } from "./federation-governance.js";
 
 export type MediaRightsEvidence = { competitionReputation: number; nationalTeamRelevance: number; audience: number; sponsorValue: number; internationalInterest: number };
@@ -33,3 +33,43 @@ export const awardMediaRights = (db: GameDatabase, input: { offerId: EntityId; d
 };
 
 export const expireMediaRights = (db: GameDatabase, date: string): FederationMediaRightsOffer[] => { const repo=new MediaRightsRepository(db); const expired=repo.offers().filter((item) => item.status === "ACTIVE" && item.endDate && item.endDate < date); for (const offer of expired) repo.upsertOffer({ ...offer, status:"EXPIRED" }); return expired.map((offer) => ({ ...offer, status:"EXPIRED" as const })); };
+
+/** Production season hook for the existing federation broadcaster ledger. */
+export const settleFederationMediaRightsForCompetition = (db: GameDatabase, input: { federationId: EntityId; competitionSeasonId: EntityId; date: string; seed: string }): FederationMediaRightsOffer | undefined => {
+  const repo = new MediaRightsRepository(db);
+  const existingPackage = repo.packages(input.federationId).find((item) => item.competitionId === input.competitionSeasonId);
+  const existingOffer = existingPackage ? repo.offers(existingPackage.id)[0] : undefined;
+  if (existingOffer?.status === "ACTIVE") return existingOffer;
+  const broadcaster = repo.broadcasters()[0] ?? {
+    id: createStableEntityId("broadcaster", "Himal Broadcast Network"),
+    name: "Himal Broadcast Network",
+    marketReach: 42,
+    reliability: 78,
+    financialStrength: 45,
+    productionCapability: 48,
+    domesticReach: 58,
+    internationalReach: 18,
+    provenanceStatus: "SIMULATION_ONLY" as const,
+  };
+  if (!repo.broadcaster(broadcaster.id)) repo.upsertBroadcaster(broadcaster);
+  const clubs = db.prepare("SELECT club_id FROM club_memberships WHERE competition_season_id = ? AND status = 'ACTIVE' ORDER BY club_id").all(input.competitionSeasonId) as Array<{ club_id: EntityId }>;
+  const audience = clubs.reduce((total, row) => total + (new ClubEconomyRepository(db).supporterProfile(row.club_id)?.coreSupporters ?? 0), 0);
+  const rightsPackage = existingPackage ?? {
+    id: createStableEntityId("media-rights-package", `${input.federationId}:competition:${input.competitionSeasonId}`),
+    federationId: input.federationId,
+    name: `Competition broadcast rights ${input.date.slice(0, 4)}`,
+    category: "DOMESTIC_TV" as const,
+    competitionId: input.competitionSeasonId,
+    availableFrom: input.date,
+    availableTo: addYears(input.date, 1),
+    status: "AVAILABLE" as const,
+    retainedByFederation: false,
+    provenanceStatus: "SIMULATION_ONLY" as const,
+  };
+  if (!existingPackage) repo.upsertPackage(rightsPackage);
+  const offer = existingOffer ?? calculateMediaRightsOffer({ packageId: rightsPackage.id, federationId: input.federationId, broadcaster, rightsPackage, evidence: { competitionReputation: Math.min(100, 35 + clubs.length * 2), nationalTeamRelevance: 35, audience, sponsorValue: 48, internationalInterest: 20 }, offeredOn: input.date });
+  if (!existingOffer) repo.upsertOffer(offer);
+  return awardMediaRights(db, { offerId: offer.id, date: input.date, startDate: input.date, endDate: rightsPackage.availableTo });
+};
+
+const addYears = (date: string, years: number): string => { const value = new Date(`${date}T00:00:00.000Z`); value.setUTCFullYear(value.getUTCFullYear() + years); return value.toISOString().slice(0, 10); };
