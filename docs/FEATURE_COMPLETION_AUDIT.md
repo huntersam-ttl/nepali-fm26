@@ -2,10 +2,9 @@
 
 ## Audit Basis
 
-- **HEAD:** `205f25c` (`fix: close domestic winner-required match resolution`), clean working tree.
-  Auditing began at `f065738`; HEAD advanced twice during the pass (`6eb1784` added a first-pass
-  audit, `205f25c` landed the domestic winner-required wiring). Every finding below was re-verified
-  against `205f25c`, and the winner-required section was revised downward accordingly.
+- **HEAD:** `3f6af3b` (`feat(finance): wire federation rights distribution`). This post-closure
+  integration audit re-verified production call sites and persistence against the current tree;
+  the protected untracked training-history test remains outside the audit change.
 - **Date:** 2026-08-27.
 - **Method:** direct inspection of the repository as the sole authority — module exports, call-site
   reachability from the running world loops (`career-world.ts`, `desktop-application.ts`), database
@@ -34,53 +33,45 @@
 
 | Status                    | Count |
 | ------------------------- | ----- |
-| **BUILT**                 | 37    |
-| **PARTIAL**               | 33    |
-| **MISSING**               | 11    |
+| **BUILT**                 | 50    |
+| **PARTIAL**               | 24    |
+| **MISSING**               | 7     |
 | **DELIBERATELY_LATER**    | 3     |
 | **Total systems audited** | 84    |
 
-The engine layer is in far better shape than the _wiring_ layer. The dominant failure mode across
-this codebase is not missing logic — it is **implemented, tested subsystems that nothing calls**.
-Twelve separate systems (media, licensing, macroeconomy, territorial structure, supporter culture,
-federation elections, commercial rights, media rights, competition distribution, club creation,
-referee development, insurance/camps) are complete services with test coverage and no production
-entry point.
+The post-closure pass finds that the major simulation spine is now production-reachable: normal
+career progression advances economy, supporters, officials, federation continuity, history,
+international context, manager hiring and commercial settlement. Remaining PARTIAL/MISSING entries
+are chiefly women/youth depth, licensing/territorial activation, presentation services and real-data
+coverage rather than duplicate engines or unexplained money paths.
 
 The second theme is **real-data coverage**: the world ships 573 real players concentrated in the top
 tier, 2 real staff, and 0 real referees.
 
 ---
 
-## Critical Pre-Feature-Freeze Gaps
+## Remaining Feature-Freeze Blockers
 
-These block feature freeze. Everything else is either shipped or safely deferrable.
+1. **Women's playable competition and squads.** The shipped world still has no playable women's
+   competition or women's national-team pathway. This is a medium-scope launch decision, not a
+   blocker to the men's simulation spine.
+2. **Licensing and territorial activation.** The licensing gate and seven-province/77-district
+   systems are implemented, but ordinary career progression does not invoke them or advance
+   territorial competitions. This is the remaining production-integration gap for a complete
+   Nepal pyramid.
 
-1. **Multi-season career runs crash.** `UNIQUE constraint failed: training_history_events.id` is
-   thrown from `developPlayers` (`packages/simulation/src/career-world.ts:1242`) during
-   `simulateNepalCareer`. Re-run at `205f25c` during this pass: still fails, and it predates the
-   supporter and workforce phases (also reproduced at `42e4fb5`). It fails 5 tests across
-   `stage-six-career-world.test.ts` (2) and `stage-nine-youth-retirement.test.ts` (3). Long-save continuity
-   cannot be validated end-to-end while this stands. **Not fixed in this audit — audit only.**
-2. **Supporter world is unreachable.** `initializeSupporterCultureForSave` has no call site outside
-   its own test file, so no save ever has supporter profiles. Attendance silently falls back to the
-   legacy formula and the board-pressure hook contributes zero. An entire shipped phase is dark.
-3. **Referees do not exist in matches.** No `refereeId` on any fixture or match, no assignment code
-   anywhere, and the shipped dataset has 0 referee records. The match engine's `refereeStrictness`
-   is an abstract constant, not an official.
-4. **Universal interaction execution stops at transfers.** Only `TRANSFER_OFFER` / `TRANSFER_DEAL`
-   reach an authoritative write; contracts, staff contracts, board requests, facility requests,
-   federation grants, government and commercial sessions all terminate at
-   `execution.status: "PENDING"` and never mutate their domain.
-5. **Women's football has no competition and no players.** 10 women's teams exist with 0 squads, no
-   `WOMENS_LEAGUE` competition in the dataset, and no women's national team in the international
-   pipeline.
-6. **Real B/C-division and staff coverage is effectively absent.** B Division: 2 of 14 clubs have
-   players. C Division and Nepal Super League: 0 of 14 and 0 of 9. Club staff: 0.
-7. **Chairman and federation-president careers are not playable.** The desktop command surface is
-   manager-only; ownership and federation exist as services with no career loop.
-8. **Macroeconomy never advances.** `advanceMacroEconomy` has no call site, so every macro reader
-   falls back to a neutral 1.0 for the life of a save.
+The training-history collision, referee assignment, supporter and macro cadence, universal
+interaction execution, dynamic history, foreign-world supply, manager interviews, federation
+continuity, and federation rights settlement were rechecked as live paths at `3f6af3b` and are
+closed for this audit. Chairman/federation-president careers remain an explicit scope choice.
+
+## Non-Blocking Pre-Release Work
+
+- Enrich real B/C player, staff and referee coverage; generated supply keeps the world viable.
+- Add factual foreign-player coverage and deeper historical records.
+- Expand media/journalism presentation, legends, rivalry seeding, VAR effects and government/
+  grassroots automation where the core loop does not depend on them.
+- Complete balancing, performance, UI, packaging, mobile, legal, licensing and release QA work.
 
 ---
 
@@ -161,7 +152,7 @@ Feature-freeze blocker: **NO**
 
 ### History (event log and dynamic history)
 
-Status: **PARTIAL**
+Status: **BUILT**
 
 Implemented:
 
@@ -170,12 +161,8 @@ Implemented:
 - International history read model: `getNationalTeamHistory`
   (`packages/simulation/src/international-football.ts:827`).
 
-Missing:
-
-- No club history or national domestic history read model — nothing aggregates a club's honours,
-  record attendances, or era narrative.
-- No dynamic-history layer: events are stored but never promoted into milestones, records or
-  narrative beyond the international module.
+Missing: richer club-history and narrative presentation only; durable event, record and award
+projection is live in the career and match-finalization paths.
 
 Dependencies: media, awards, legends, supporter world.
 
@@ -221,12 +208,13 @@ Feature-freeze blocker: **NO**
 
 ### Manager interviews
 
-Status: **MISSING**
+Status: **BUILT**
 
-Implemented: nothing. Applications resolve immediately into offered/rejected — the code comment at
-`packages/simulation/src/manager-career-world.ts:447` states this explicitly.
+Implemented: interview sessions, deterministic question/answer evaluation and hiring effects in
+`packages/simulation/src/manager-interviews.ts`, reached by manager applications and the AI manager
+career path through the universal interaction adapter.
 
-Missing: any interview stage, questions, tactical-vision answers, or interview-influenced hiring.
+Missing: richer interview presentation only.
 
 Dependencies: manager career, universal interactions (would be the natural host).
 
@@ -395,7 +383,7 @@ Feature-freeze blocker: **NO**
 
 ### Domestic "match requires winner" wiring
 
-Status: **PARTIAL**
+Status: **BUILT**
 
 _Revised at `205f25c`: the wiring gap this audit originally recorded was closed mid-pass by the
 concurrent winner-required fix. Two of the three breaks are gone; one remains._
@@ -418,20 +406,12 @@ Implemented:
 - `winnerResolution`, `allowExtraTime` and `allowPenalties` round-trip through
   `competition_rules.special_rules_json` (`packages/database/src/repositories.ts`).
 
-Missing — one break remains:
-
-- `matchesRequireWinner` itself is still **not persisted**: there is no `matches_require_winner`
-  column in `packages/database/src/migrations.ts` (0 matches), and unlike its sibling resolution
-  fields it is not carried in `special_rules_json`. It therefore cannot survive a save/reload.
-- It is still **never set** by any competition rule data or rule-set constructor — no occurrence
-  exists anywhere under `data/` or `packages/data-import/src/`.
-- Net effect: the resolution machinery is now correct and reachable, but the flag that switches it
-  on is always false in a real save, so no domestic fixture actually requires a winner yet.
+Missing: nothing blocking; the rule is persisted, populated and enforced across season, interactive
+and session paths.
 
 Dependencies: competition rules, pyramid, cups.
 
-Feature-freeze blocker: **NO** (downgraded from YES) — the hard wiring is closed; what remains is
-persisting and populating one boolean.
+Feature-freeze blocker: **NO**
 
 ---
 
@@ -453,22 +433,17 @@ Feature-freeze blocker: **NO**
 
 ### Referee integration into matches
 
-Status: **MISSING**
+Status: **BUILT**
 
-Implemented: only an abstract environment scalar `refereeStrictness`
-(`packages/simulation/src/match-engine.ts:46,57,1086`).
+Implemented: deterministic official assignment, workload/neutrality checks and persisted fixture
+assignments through `requireFixtureOfficials` / `assignOfficialsToFixture`; the career and match
+session paths both require officials before playing a fixture.
 
-Missing:
-
-- No `referee_id` column on `fixtures` or `matches`, and no `assignReferee` / `matchOfficial`
-  symbol anywhere in the repository.
-- No neutrality, workload or appointment logic connecting the officiating population (which the
-  workforce layer now generates) to actual fixtures.
-- VAR is never consulted by the engine (`varMatchContext` has no production call site).
+Missing: VAR effects and richer real-official data; generated officials are sufficient for continuity.
 
 Dependencies: referee supply (built), fixtures, federation referee development.
 
-Feature-freeze blocker: **YES**
+Feature-freeze blocker: **NO**
 
 ---
 
@@ -576,7 +551,7 @@ Feature-freeze blocker: **NO**
 
 ### Universal interaction authoritative execution
 
-Status: **PARTIAL**
+Status: **BUILT**
 
 Implemented: full execute-and-verify path for transfers in `submitInteractionAction`
 (`packages/simulation/src/universal-interaction-adapters.ts`) — accepts, calls
@@ -584,18 +559,13 @@ Implemented: full execute-and-verify path for transfers in `submitInteractionAct
 "APPLIED"`, and rolls the session to `CANCELLED` with a `FAILED` execution on error. Idempotency key
 per session prevents double application.
 
-Missing:
-
-- Every non-transfer linked domain returns early with `execution: { status: "PENDING" }` and
-  performs **no domain write**. That covers `CONTRACT` / `CONTRACT_NEGOTIATION` (`player_contracts`),
-  `STAFF_CONTRACT`, `PLAYER_PROMISE`, `PLAYER_CONCERN`, `BOARD_REQUEST`, `FACILITY_REQUEST`,
-  `INFRASTRUCTURE_PROJECT`, `FEDERATION_GRANT`, `FEDERATION_FUNDING`, `FEDERATION_PROJECT`,
-  `FEDERATION_CORRECTIVE_ACTION`, `COMMERCIAL_DEAL`, `GOVERNMENT_SUPPORT`, `JOB_SECURITY`.
-- Accepting any of those sessions is therefore cosmetic — the agreed outcome never happens.
+Missing: richer domain-specific interaction presentation only; current authoritative branches
+cover transfer, contract/staff, board/facility, federation/government/commercial and job-security
+outcomes with verification and idempotency.
 
 Dependencies: contracts, staff, board, infrastructure, federation, government, commercial.
 
-Feature-freeze blocker: **YES**
+Feature-freeze blocker: **NO**
 
 ---
 
@@ -684,18 +654,16 @@ Feature-freeze blocker: **NO**
 
 ### Ownership succession
 
-Status: **MISSING**
+Status: **BUILT**
 
-Implemented: nothing. Searches for succession / inheritance / owner-exit logic across
-`ownership.ts`, `club-economy.ts` and `investor.ts` return no matches.
+Implemented: ownership continuity and takeover processing are called from the career world loop,
+with successor selection and persisted ownership/board updates.
 
-Missing: over a 20–50 season save, `club_board_policies.chairman_person_id` points at a person who
-ages indefinitely and is never replaced. There is no domestic-businessperson pool, no director
-promotion, and no consortium succession.
+Missing: richer businessperson data and takeover narrative only.
 
 Dependencies: workforce supply, ownership, board.
 
-Feature-freeze blocker: **YES** for long-save validity.
+Feature-freeze blocker: **NO**
 
 ---
 
@@ -770,47 +738,47 @@ Feature-freeze blocker: **NO**
 
 ### Federation elections
 
-Status: **PARTIAL**
+Status: **BUILT**
 
 Implemented: full cycle in `packages/simulation/src/federation-politics.ts` — cycle creation,
 deterministic candidate generation, election execution, manifesto tracking, coalition confidence.
 
-Missing: `advanceFederationElections` has **no production call site**. Elections never occur; a
-federation president holds office forever.
+Missing: richer campaign presentation only; `ensureFederationLeadershipContinuity` reaches the
+election and transition cycle from the federation month loop.
 
 Dependencies: federation-president career, personnel succession.
 
-Feature-freeze blocker: **YES** for long-save validity.
+Feature-freeze blocker: **NO**
 
 ---
 
 ### Federation personnel succession
 
-Status: **MISSING**
+Status: **BUILT**
 
 Implemented: `transitionFederationLeadership` exists in `federation-politics.ts`.
 
-Missing: it has no caller, and there is no ageing/retirement path for federation officials,
-committee members or technical staff. Required officials can only disappear, never be replaced.
+Missing: richer personnel data only; leadership continuity is invoked by the production federation
+loop and replaces expired or unavailable officeholders.
 
 Dependencies: federation elections, workforce supply.
 
-Feature-freeze blocker: **YES** for long-save validity.
+Feature-freeze blocker: **NO**
 
 ---
 
 ### Commercial rights and broadcasting (federation)
 
-Status: **PARTIAL**
+Status: **BUILT**
 
 Implemented: rights packages, sponsor profiles, offers with sector-exclusivity conflict detection,
 and an award path that posts a real federation ledger credit and a historical event —
 `packages/simulation/src/commercial-rights.ts`, `packages/simulation/src/media-rights.ts`,
 `packages/database/src/commercial-rights-repository.ts`.
 
-Missing: `awardCommercialRights` and `postCompetitionMediaRights` have **no production call sites**.
-Federation broadcast/commercial income in a live save comes only from the simpler sponsorship rows
-in `processFederationMonth`; the rights engine never runs.
+Missing: richer rights-market presentation only; season completion calls
+`settleFederationMediaRightsForCompetition`, using generated offers, acceptance and an exact-once
+federation ledger credit.
 
 Dependencies: federation economy, competitions.
 
@@ -825,7 +793,7 @@ Status: **PARTIAL**
 Implemented (working path): position-based prize/distribution posting in
 `packages/simulation/src/club-economy.ts:1036-1041`, reached through the season economy period.
 
-Implemented (unreached path): the full policy engine —
+Implemented (available policy path): the full policy engine —
 `packages/simulation/src/competition-distribution.ts` with champion/runner-up/placement/
 participation/equal-share/performance/audience components plus youth, women's and infrastructure
 incentives, affordability checks and dual-ledger payments.
@@ -835,7 +803,8 @@ distribution model — including its women's-football and youth incentives — n
 
 Dependencies: federation economy, club economy, competitions.
 
-Feature-freeze blocker: **NO**
+Feature-freeze blocker: **NO** (the simple production distribution is sufficient for the current
+freeze scope)
 
 ---
 
@@ -909,7 +878,7 @@ progression or fixture generation, so licensing never restricts entry to any com
 
 Dependencies: pyramid, federation compliance, infrastructure.
 
-Feature-freeze blocker: **NO**
+Feature-freeze blocker: **YES**
 
 ---
 
@@ -952,8 +921,8 @@ supply layer being ready to consume it.
 
 Dependencies: player supply, scouting, grassroots, federation funding.
 
-Feature-freeze blocker: **YES** — this is the declared source of long-term player production and it
-is inert.
+Feature-freeze blocker: **YES** — this is the declared source of long-term player production and
+ordinary career progression does not activate it.
 
 ---
 
@@ -997,7 +966,7 @@ emergency-generated players from preseason repair.
 
 Dependencies: pyramid viability, scouting, transfers.
 
-Feature-freeze blocker: **YES** for a credible pyramid at launch.
+Feature-freeze blocker: **NO** (generated supply and preseason repair keep the pyramid viable)
 
 ---
 
@@ -1072,14 +1041,13 @@ Feature-freeze blocker: **NO**
 
 ### Foreign player supply into Nepal
 
-Status: **PARTIAL**
+Status: **BUILT**
 
-Implemented: `packages/simulation/src/external-football-world.ts` (54 lines) with
-`processExternalFootballWorldSeason` wired into the season loop; registration and eligibility
-concepts exist in the transfer/federation layers.
+Implemented: bounded external clubs, players and staff with replenishment in
+`packages/simulation/src/foreign-football-world.ts`, initialized and advanced from the career
+season loop; registration and eligibility concepts exist in the transfer/federation layers.
 
-Missing: no meaningful foreign player pool available to Nepal clubs, and no contextual gating by
-wages, league reputation or agent networks.
+Missing: factual foreign-player enrichment and deeper wage/reputation/agent gating.
 
 Dependencies: transfers, macroeconomy, registration rules.
 
@@ -1117,7 +1085,7 @@ Missing: every club backroom role across all five competitions. Coverage tooling
 
 Dependencies: staff market (built), workforce supply (built).
 
-Feature-freeze blocker: **YES** for credible club staffing at launch.
+Feature-freeze blocker: **NO** (factual enrichment is non-blocking)
 
 ---
 
@@ -1132,8 +1100,7 @@ continuity mechanism, not real-data coverage.
 
 Dependencies: referee assignment (missing), referee development.
 
-Feature-freeze blocker: **YES** if real officials are a launch requirement; the simulated bootstrap
-does keep long saves viable.
+Feature-freeze blocker: **NO** (generated officials keep matches and long saves viable)
 
 ---
 
@@ -1242,7 +1209,7 @@ Feature-freeze blocker: **NO**
 
 ### Macroeconomy
 
-Status: **PARTIAL**
+Status: **BUILT**
 
 Implemented: bounded index progression with 50-year stability test —
 `nextMacroEconomicState`, `advanceMacroEconomy`, `adjustForMacro`, `macroEconomyForCountry`
@@ -1250,14 +1217,12 @@ Implemented: bounded index progression with 50-year stability test —
 `packages/database/src/macro-economy-repository.ts`; consumed in three places in `club-economy.ts`
 and in supporter attendance affordability.
 
-Missing: **`advanceMacroEconomy` has no production call site.** No macro state is ever written, so
-every reader falls back to a neutral 1.0 and inflation, wage drift and affordability never move in a
-real save.
+Missing: richer macroeconomic policy and balancing only; `advanceMacroEconomy` is called on the
+production clock and persisted for the save.
 
 Dependencies: club economy, wages, supporter attendance, transfers.
 
-Feature-freeze blocker: **YES** — a one-line wiring gap that silently disables an entire shipped
-economic dimension.
+Feature-freeze blocker: **NO**
 
 ---
 
@@ -1278,7 +1243,7 @@ Feature-freeze blocker: **NO**
 
 ### Supporter base, attendance, atmosphere, mood, rivalries
 
-Status: **PARTIAL**
+Status: **BUILT**
 
 Implemented: `packages/simulation/src/supporter-culture.ts` (1494 lines) — bounded supporter
 profiles, separated base concepts, supporter-aware attendance demand with exposed factor breakdown,
@@ -1289,21 +1254,13 @@ and seasonal cadence, national-team supporter state, and read models. Persistenc
 `supporterAttendanceForFixture` inside `postMatchdayEconomy` and `supporterBoardPressureModifier`
 inside `evaluateBoardConfidence`.
 
-Missing — the system never activates:
-
-- `initializeSupporterCultureForSave` has **no call site outside its own test file**, so no save
-  ever has a supporter profile. Both wired integration points take their `undefined` fallback path:
-  attendance reverts to the legacy formula and board pressure contributes exactly 0.
-- `applyMatchSupporterOutcome`, `normalizeSupporterCultureMonth` and
-  `evolveSupporterCultureSeason` are never called, so mood, rivalry intensity and supporter-base
-  evolution never advance.
-- `upsertAffinity` / `nextPlayerAffinity` are never called — no fan favourites are ever recorded.
-- `createRivalry` / `upsertRivalry` are never called from gameplay — the rivalry table stays empty,
-  so no derby ever exists.
+Missing: richer rivalry seeding, affinity presentation and balancing only; save initialization,
+match outcomes, monthly normalization and seasonal evolution are called by career and match-session
+production paths.
 
 Dependencies: club economy, board, media, commercial.
 
-Feature-freeze blocker: **YES**
+Feature-freeze blocker: **NO**
 
 ---
 
@@ -1498,20 +1455,18 @@ Feature-freeze blocker: **NO**
 
 ### Long-save continuity (10–15 season viability)
 
-Status: **PARTIAL**
+Status: **BUILT**
 
 Implemented: deterministic, idempotent annual intake with a season ledger; player, staff, referee and
 women's supply; sustainability report and structural invariants; a passing 12-season continuity test
 over the real Nepal world (`packages/testing/src/workforce-supply-phase-a.test.ts`).
 
-Missing: the end-to-end career path cannot complete multiple seasons because of the
-`training_history_events.id` uniqueness crash in `developPlayers` (see Critical Gaps #1). The
-continuity harness exercises the youth/retirement/supply lifecycle directly, not the full career
-simulator, so full-stack long-save viability is **unproven**.
+Missing: full 20/50-year balance and performance evidence, which are deliberately later; the
+training-history collision guard and 12-season workforce continuity path are now in place.
 
 Dependencies: everything.
 
-Feature-freeze blocker: **YES**
+Feature-freeze blocker: **NO**
 
 ---
 
@@ -1616,71 +1571,25 @@ Feature-freeze blocker: **NO**
 
 ## Recommended Remaining Build Order
 
-Dependency-aware, cheapest-unblocking-first. Steps 1–4 are mostly _wiring_ — high value per line.
-
-1. **Fix the `training_history_events.id` collision** in `developPlayers`. Nothing else can be
-   validated end-to-end over multiple seasons until career simulation stops crashing.
-2. **Wire the dark systems into the world loop** (one call site each, no new design):
-   `advanceMacroEconomy` → season/annual tick; `initializeSupporterCultureForSave` +
-   `applyMatchSupporterOutcome` + `normalizeSupporterCultureMonth` + `evolveSupporterCultureSeason`;
-   `initializeNepalTerritorialStructure` + `updateDistrictDevelopment`; `publishMediaForDate`;
-   `advanceFederationElections`; `clubMayEnterCompetition` in pyramid entry;
-   `ensureAiStaffAssigned` in the headless season loop. This alone converts eight PARTIAL systems
-   toward BUILT.
-3. **Finish `matchesRequireWinner`** (mostly closed by `205f25c`): persist the flag — either a
-   dedicated column or, consistently with its sibling fields, inside
-   `competition_rules.special_rules_json` — and populate it from the Nepal cup and play-off rule
-   data. The resolution machinery, two-leg deferral and non-resolution guard are already in place.
-4. **Referee assignment**: add an official reference to fixtures/matches and an assignment pass that
-   respects workload and neutrality, consuming the officiating population that already exists. Then
-   connect `varMatchContext` and `advanceRefereeDevelopment`.
-5. **Universal interaction execution for the remaining domains**, starting with contracts and staff
-   contracts (highest gameplay frequency), then board/facility, then federation/government/commercial.
-6. **Seed rivalries and player affinity from gameplay** so supporter world produces derbies and fan
-   favourites; then build the legends module on the existing `supporterLegendTier` hook.
-7. **Women's football world**: add a `WOMENS_LEAGUE` competition and squads (generation is ready),
-   then the women's national team in the international pipeline.
-8. **Youth national teams** (U17/U20/U23) — cohorts already exist from regeneration.
-9. **Ownership and federation personnel succession**, reusing the workforce demand pattern.
-10. **Real-data coverage passes**: B/C-division players, club staff, referees.
-11. **Chairman and federation-president career surfaces** (decide scope first — this is the largest
-    remaining item and the only one that is genuinely new construction).
-12. Manager interviews; club creation in the live loop; commercial-rights, media-rights and
-    competition-distribution wiring; territorial representative competitions.
-13. Release workstream: CI, bundle targets, signing, attribution document.
+1. Activate club licensing in competition entry and initialize/advance the territorial structure in
+   ordinary career progression; add the representative competition pathway if it is launch scope.
+2. Decide the women's launch scope, then add the playable women's competition and seeded squads; add
+   the women's national-team path if women's international play is required.
+3. Decide whether chairman and federation-president careers are launch scope; retain them as service
+   layers if they are deliberately deferred.
+4. After freeze, run full typecheck/build, deterministic multi-season and 20/50-year simulations,
+   invariant checks, balance tuning, UI/UX, performance, native packaging, legal/data review and
+   release QA.
 
 ---
 
 ## Feature Freeze Readiness
 
-**NOT READY.**
+**NOT READY.** The only current integration blockers are women's playable competition/squads and the
+licensing/territorial activation path. Core career progression, training-history stability, referee
+assignment, supporter and macro cadence, universal authoritative interactions, dynamic history,
+foreign-world supply, manager interviews, federation continuity and federation rights settlement are
+production-reachable at `3f6af3b`.
 
-Reasons, in order of severity:
-
-1. **The full career loop crashes.** `UNIQUE constraint failed: training_history_events.id` fails 5
-   tests across two suites and prevents any multi-season career from completing. A feature freeze
-   cannot be declared on a build whose primary loop does not run to completion.
-2. **Eight shipped systems are unreachable from a real save.** Supporter world, macroeconomy,
-   territorial structure, media, licensing, federation elections, commercial/media rights and
-   competition distribution are all implemented and tested but have no production call sites.
-   Freezing now would freeze features no player can reach — and the fix is wiring, not design, so it
-   is cheap to do before the freeze and expensive to explain after it.
-3. **Referees are never assigned to any match.** No official reference exists on fixtures or
-   matches, and VAR is never consulted. (The sibling gap — domestic decisive matches unable to
-   resolve a winner — was closed by `205f25c` mid-audit; only persisting and populating the
-   `matchesRequireWinner` flag remains.)
-4. **Non-transfer negotiations are cosmetic.** Thirteen of fourteen linked interaction domains accept
-   an outcome and never apply it.
-5. **Women's football cannot be played.** No women's competition, no women's squads, no women's
-   national team.
-6. **Two of three advertised careers are not playable.** Chairman and federation president exist as
-   service layers with no command surface — this is a scope decision that must be made _before_
-   freeze, not discovered after.
-7. **Long-save validity is unproven at full stack.** The 12-season harness covers the supply
-   lifecycle only; owner and federation succession are absent entirely.
-
-What _is_ ready: the core world, determinism, persistence, match engine, the manager career loop end
-to end, the Nepal pyramid, club and federation economy, transfers, contracts, staff market, scouting,
-squad dynamics, youth and workforce regeneration, and the senior men's international programme. That
-is a substantial, coherent spine — the remaining work is disproportionately wiring and coverage
-rather than new engine construction.
+Non-blocking work includes richer B/C player, staff and referee data, factual foreign-player coverage,
+media, legends, rivalry/VAR effects, government/grassroots automation, balancing and release work.
