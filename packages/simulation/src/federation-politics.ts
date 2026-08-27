@@ -40,13 +40,15 @@ export const generateFederationCandidates = (db: GameDatabase, input: { cycleId:
 const priorityMap: Record<string, FederationStrategicPriority> = { NATIONAL_TEAM_PERFORMANCE: "NATIONAL_TEAM_PERFORMANCE", YOUTH_ELITE_DEVELOPMENT: "YOUTH_ELITE_DEVELOPMENT", CLUB_PROFESSIONALISATION: "CLUB_PROFESSIONALISATION", GRASSROOTS_EXPANSION: "GRASSROOTS_EXPANSION", WOMENS_FOOTBALL: "WOMENS_FOOTBALL", COACH_EDUCATION: "COACH_EDUCATION", INFRASTRUCTURE: "INFRASTRUCTURE", COMMERCIAL_GROWTH: "COMMERCIAL_GROWTH", INTERNATIONAL_EXPOSURE: "INTERNATIONAL_EXPOSURE" };
 
 export const runFederationElection = (db: GameDatabase, input: { cycleId: EntityId; date: string; seed: string }): FederationElectionResult => {
-  const politics = new FederationPoliticsRepository(db); const cycle = politics.cycles().find((item) => item.id === input.cycleId); if (!cycle) throw new Error("Election cycle not found");
+  const politics = new FederationPoliticsRepository(db); const existingResult = politics.results().find((item) => item.cycleId === input.cycleId); if (existingResult) return existingResult; const cycle = politics.cycles().find((item) => item.id === input.cycleId); if (!cycle) throw new Error("Election cycle not found");
   const candidates = generateFederationCandidates(db, { cycleId: cycle.id, federationId: cycle.federationId, date: input.date, seed: input.seed }).filter((item) => item.status === "ELIGIBLE"); if (!candidates.length) throw new Error("No eligible federation candidates");
   const governance = new FederationGovernanceRepository(db); const profile = governance.profile(cycle.federationId); const account = governance.financialAccount(cycle.federationId); const scores = candidates.map((candidate) => ({ candidate, score: candidate.supportBase * 0.42 + candidate.reputation * 0.2 + candidate.committeeInfluence * 1.7 + Object.values(candidate.votingBlocs).reduce((sum, value) => sum + value, 0) * 0.8 + (candidate.incumbent ? (profile?.governanceStability ?? 5) * 0.18 + (account?.financialHealth === "INSOLVENT" ? -1.4 : 0.5) : 0) }));
   scores.sort((a, b) => b.score - a.score || a.candidate.id.localeCompare(b.candidate.id)); const total = scores.reduce((sum, item) => sum + Math.max(0.1, item.score), 0); const votes = Object.fromEntries(scores.map((item) => [item.candidate.id, Number((Math.max(0.1, item.score) / total).toFixed(6))])); const winner = scores[0].candidate;
   for (const candidate of candidates) politics.upsertCandidate({ ...candidate, status: candidate.id === winner.id ? "ELECTED" : "DEFEATED" });
-  for (const tenure of governance.leadershipTenures(cycle.federationId).filter((item) => item.role === "FEDERATION_PRESIDENT" && item.status === "ACTIVE")) governance.upsertLeadershipTenure({ ...tenure, termEnd: input.date, status: "FORMER" });
+  for (const tenure of governance.leadershipTenures(cycle.federationId).filter((item) => item.role === "FEDERATION_PRESIDENT" && (item.status === "ACTIVE" || item.status === "INTERIM"))) governance.upsertLeadershipTenure({ ...tenure, termEnd: input.date, status: "FORMER" });
   governance.upsertLeadershipTenure({ id: createStableEntityId("federation-leadership", `${cycle.federationId}:${winner.personId}:${input.date}`), personId: winner.personId, federationId: cycle.federationId, role: "FEDERATION_PRESIDENT", termStart: input.date, termEnd: addYears(input.date, cycle.termYears), status: "ACTIVE", provenanceStatus: status });
+  db.prepare("UPDATE staff_appointments SET employment_status='ENDED', end_date=? WHERE federation_id=? AND role='FEDERATION_PRESIDENT' AND employment_status='ACTIVE'").run(input.date, cycle.federationId);
+  db.prepare("INSERT OR IGNORE INTO staff_appointments (id,person_id,organisation_type,federation_id,role,start_date,employment_status) VALUES (?,?,?,?,?,?,?)").run(createStableEntityId("staff-appointment", `${winner.personId}:${cycle.federationId}:federation-president:${input.date}`), winner.personId, "FEDERATION", cycle.federationId, "FEDERATION_PRESIDENT", input.date, "ACTIVE");
   const result: FederationElectionResult = { id: createStableEntityId("federation-election-result", cycle.id), cycleId: cycle.id, federationId: cycle.federationId, winnerCandidateId: winner.id, electedPersonId: winner.personId, votes, decidedAt: input.date, status: "COMPLETED", provenanceStatus: status }; politics.upsertResult(result); politics.upsertCycle({ ...cycle, status: "COMPLETED" });
   const activePriorities = governance.strategyPriorities(cycle.federationId).filter((item) => item.status === "ACTIVE"); for (const priority of activePriorities) governance.upsertStrategyPriority({ ...priority, effectiveTo: input.date, status: "INACTIVE" });
   for (const [key, weight] of Object.entries(winner.manifesto)) { const priority = priorityMap[key]; if (!priority) continue; governance.upsertStrategyPriority({ id: createStableEntityId("federation-strategy", `${cycle.federationId}:${priority}:${input.date}`), federationId: cycle.federationId, priority, weight, effectiveFrom: input.date, status: "ACTIVE", provenanceStatus: status }); }
@@ -63,6 +65,32 @@ export const advanceFederationElections = (db: GameDatabase, input: { date: stri
   const politics = new FederationPoliticsRepository(db); const results: FederationElectionResult[] = [];
   for (const cycle of politics.cycles().filter((item) => item.status !== "COMPLETED" && item.electionDate <= input.date)) results.push(runFederationElection(db, { cycleId: cycle.id, date: cycle.electionDate, seed: input.seed }));
   return results;
+};
+
+/** Keeps the existing election lifecycle reachable during normal world progression. */
+export const ensureFederationLeadershipContinuity = (db: GameDatabase, input: { date: string; seed: string }): FederationElectionResult[] => {
+  const governance = new FederationGovernanceRepository(db);
+  const politics = new FederationPoliticsRepository(db);
+  for (const federation of db.prepare("SELECT id,country_id FROM federations ORDER BY id").all() as Array<{ id: EntityId; country_id: EntityId }>) {
+    let active = governance.leadershipTenures(federation.id).find((item) => item.role === "FEDERATION_PRESIDENT" && item.status === "ACTIVE");
+    if (active?.termEnd && active.termEnd <= input.date) {
+      governance.upsertLeadershipTenure({ ...active, status: "FORMER" });
+      active = undefined;
+    }
+    const cycles = politics.cycles(federation.id);
+    const pending = cycles.find((cycle) => cycle.status !== "COMPLETED");
+    if (!pending) {
+      const electionDate = active?.termEnd ?? addDays(input.date, 30);
+      createFederationElectionCycle(db, { federationId: federation.id, electionDate });
+    }
+    const nextCycle = politics.cycles(federation.id).find((cycle) => cycle.status !== "COMPLETED");
+    if (!active && nextCycle && !governance.leadershipTenures(federation.id).some((item) => item.role === "FEDERATION_PRESIDENT" && item.status === "INTERIM")) {
+      const interimId = createStableEntityId("person", `federation-interim:${federation.id}:${nextCycle.id}`);
+      const interim = ensurePerson(db, interimId, "Simulation Federation Interim", federation.country_id, input.date);
+      governance.upsertLeadershipTenure({ id: createStableEntityId("federation-leadership", `${federation.id}:${interim.id}:${nextCycle.id}:interim`), personId: interim.id, federationId: federation.id, role: "FEDERATION_PRESIDENT", termStart: input.date, termEnd: nextCycle.electionDate, status: "INTERIM", provenanceStatus: status });
+    }
+  }
+  return advanceFederationElections(db, input);
 };
 
 const committeeFor = (area: FederationGovernanceProposal["policyArea"]): FederationGovernanceProposal["targetCommittee"] => ({ COMPETITION: "COMPETITION_COMMITTEE", DEVELOPMENT: "TECHNICAL_COMMITTEE", INFRASTRUCTURE: "FINANCE_COMMITTEE", GRANTS: "FINANCE_COMMITTEE", COMMERCIAL: "COMMERCIAL_COMMITTEE" })[area] as FederationGovernanceProposal["targetCommittee"];

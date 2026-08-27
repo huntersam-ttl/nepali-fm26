@@ -71,6 +71,7 @@ import {
   type WorkforceReconciliationReport,
 } from "./workforce-supply.js";
 import { processOwnershipContinuity } from "./ownership.js";
+import { ensureFederationLeadershipContinuity } from "./federation-politics.js";
 
 export type CompetitionSeasonLifecycleStatus =
   | "NOT_STARTED"
@@ -406,11 +407,13 @@ const processFederationForSeasonPeriod = (
   const startYear = endYear - 1;
   for (const month of [8, 9, 10, 11, 12]) {
     const date = `${startYear}-${String(month).padStart(2, "0")}-28`;
+    ensureFederationLeadershipContinuity(db, { date, seed: `${input.seed}:federation-leadership` });
     processFederationMonth(db, { date, seed: `${input.seed}:${month}` });
     runFederationComplianceAiForAllFederations(db, date);
   }
   for (const month of [1, 2, 3, 4, 5, 6, 7]) {
     const date = `${endYear}-${String(month).padStart(2, "0")}-28`;
+    ensureFederationLeadershipContinuity(db, { date, seed: `${input.seed}:federation-leadership` });
     processFederationMonth(db, { date, seed: `${input.seed}:${month}` });
     runFederationComplianceAiForAllFederations(db, date);
   }
