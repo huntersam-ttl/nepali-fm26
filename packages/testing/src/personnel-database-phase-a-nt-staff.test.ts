@@ -55,7 +55,7 @@ describe("Nepal personnel database phase A — verified national-team head coach
     expect(neupaneAppointment?.employmentStatus).toBe("ACTIVE");
 
     const arenaPerson = world.getPerson(arenaId);
-    expect(arenaPerson.dateOfBirth).toBeUndefined(); // UNKNOWN fact must not become a fabricated date
+    expect(arenaPerson?.dateOfBirth).toBeUndefined(); // UNKNOWN fact must not become a fabricated date
     db.close();
   });
 

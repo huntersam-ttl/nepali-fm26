@@ -14,9 +14,9 @@ import {
   trainingAvailabilityFor,
 } from "@nepal-football-sim/simulation";
 import { createStableEntityId } from "@nepal-football-sim/shared-types";
+import type { DevelopmentEnvironment } from "@nepal-football-sim/simulation";
 import type {
   Country,
-  DevelopmentEnvironment,
   FixtureRecord,
   IndividualDevelopmentPlan,
   Person,

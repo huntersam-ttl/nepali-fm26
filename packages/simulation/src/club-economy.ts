@@ -884,10 +884,14 @@ export const cancelInfrastructureProject = (
   const project = economy.infrastructureProjects().find((item) => item.id === projectId);
   if (!project || ["COMPLETED", "CANCELLED"].includes(project.status))
     throw new Error("That infrastructure project cannot be cancelled");
-  const sunkCost = economy
+  const ledgerSunkCost = economy
     .ledgerEntries(project.clubId)
     .filter((entry) => entry.relatedEntityId === project.id && entry.category === "FACILITY_COST")
     .reduce((total, entry) => total + entry.amount, 0);
+  // Funding already committed to a project remains sunk even when cancellation
+  // happens before the first construction installment is posted (for example,
+  // a debt-funded project cancelled while still in financing).
+  const sunkCost = Math.max(ledgerSunkCost, project.fundingCommitted ?? 0);
   const cancelled = {
     ...project,
     status: "CANCELLED" as const,

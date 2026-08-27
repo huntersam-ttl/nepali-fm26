@@ -1,7 +1,9 @@
 import { evaluateGovernmentFunding } from "@nepal-football-sim/simulation";
 import { describe, expect, it } from "vitest";
+import type { EntityId } from "@nepal-football-sim/shared-types";
 
-const institution = { id:"nsc", name:"National Sports Council", institutionType:"NATIONAL_SPORTS_COUNCIL", profile:{budgetCapacity:100000,committedBudget:10000,footballPriority:80,credibilityTowardFederation:70,infrastructurePriority:90,youthWomenPriority:60}, provenanceStatus:"SIMULATION_ONLY" } as const;
+const id = (value: string) => value as EntityId;
+const institution = { id:id("nsc"), name:"National Sports Council", institutionType:"NATIONAL_SPORTS_COUNCIL", profile:{budgetCapacity:100000,committedBudget:10000,footballPriority:80,credibilityTowardFederation:70,infrastructurePriority:90,youthWomenPriority:60}, provenanceStatus:"SIMULATION_ONLY" } as const;
 
 describe("government funding phase A", () => {
   it("makes deterministic capacity- and evidence-based conditional decisions", () => {
