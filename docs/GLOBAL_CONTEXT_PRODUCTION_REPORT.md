@@ -511,4 +511,53 @@ stage-eight instrumentation remain follow-up work. Existing partnership and
 Africa/South Asia candidate coverage remain unchanged and green in their
 focused regressions.
 
+## Bounded AI Loan Recall — 2026-08-28
+
+### AI Loan Recall
+
+The existing annual `runClubAiSeasonPlanning` cadence now reviews a club's active
+outbound loans and can request a recall through the canonical `recallLoan` command.
+No direct test-only or parallel recall path was added.
+
+### Recall Decision Signals
+
+The decision uses parent-club active loans, `recallAllowed`, the agreement date
+window, and a matching `HIGH` same-position squad need. Outbound loanees are
+excluded from parent depth counts while the loan is active.
+
+### Bounded Evaluation
+
+Evaluation is deterministic and bounded to four active loans per club/tick and
+one recall request per club/tick. No random choice, foreign-club scan, or new
+loan rule was introduced.
+
+### Diagnostics
+
+Persisted AI decision context records active loans considered, recall-eligible,
+agreement/date rejections, squad-need candidates, recalls requested, and recalls
+completed. The action list records review and completed emergency recall signals.
+
+### Stage-Eight Instrumentation
+
+The test harness reports file start/end, test start/end, elapsed milliseconds,
+world bootstraps, canonical seed initializations, and transfer bootstraps. The
+targeted two-test rerun passed 2/2 in 45.29s: 2 world bootstraps, 0 canonical
+seed initializations, and 2 transfer bootstraps.
+
+### Stage-Eight Classification
+
+The controlled full run completed 15/17 tests before the owned runner was
+stopped. The last completed test was the Phase D loan-terms case (21.850s); the
+slowest completed test was 29.404s. The 15th test, the three-season career
+case, remained CPU-active without completion. Classification: **SLOW_BUT_PROGRESSING**,
+not a full-suite PASS.
+
+### Remaining Loan Depth
+
+The bounded AI recall path is production-ready and focused recall, loan,
+permanent-transfer, global, corridor, typecheck, build, and targeted stage-eight
+gates are green. Development/minutes-based loan signal attribution is **NOT
+CURRENTLY MODELED** in the AI decision path. Long-save proof remains intentionally
+unrun. Next planned task: Remaining Planned Feature Inventory.
+
 `GLOBAL CONTEXT PRODUCTION ACTIVE.`

@@ -440,8 +440,15 @@ export const analyzeSquadNeeds = (
   clubId: EntityId,
   worldDate: string,
 ): SquadNeedReport => {
-  const players = playersForClub(db, clubId);
-  const contracts = new TransferMarketRepository(db).activeContractsForClub(clubId, worldDate);
+  const market = new TransferMarketRepository(db);
+  const contracts = market.activeContractsForClub(clubId, worldDate);
+  const activePlayerIds = new Set(contracts.map((contract) => contract.playerId));
+  const outboundLoanPlayerIds = new Set(
+    market.activeLoansForParent(clubId, worldDate).map((loan) => loan.playerId),
+  );
+  const players = playersForClub(db, clubId).filter(
+    (player) => activePlayerIds.has(player.playerId) && !outboundLoanPlayerIds.has(player.playerId),
+  );
   const byGroup = new Map<string, number>();
   for (const player of players) {
     byGroup.set(player.positionGroup, (byGroup.get(player.positionGroup) ?? 0) + 1);
@@ -2819,6 +2826,29 @@ const marketPlayers = (db: GameDatabase): MarketPlayer[] =>
 
 const marketPlayer = (db: GameDatabase, playerId: EntityId): MarketPlayer | undefined =>
   marketPlayers(db).find((player) => player.playerId === playerId);
+
+export const positionGroupForPlayer = (
+  db: GameDatabase,
+  playerId: EntityId,
+): string | undefined => {
+  const row = db
+    .prepare(
+      `SELECT pa.primary_position, pfp.factual_json, pfp.simulation_json
+       FROM persons p
+       LEFT JOIN player_attributes pa ON pa.person_id = p.id
+       LEFT JOIN player_factual_profiles pfp ON pfp.player_id = p.id
+       WHERE p.id = ?`,
+    )
+    .get(playerId) as
+    | { primary_position?: string; factual_json?: string; simulation_json?: string }
+    | undefined;
+  if (!row) return undefined;
+  const factual = JSON.parse(row.factual_json ?? "{}");
+  const simulation = JSON.parse(row.simulation_json ?? "{}");
+  const position =
+    simulation.simulationPrimaryPosition ?? row.primary_position ?? factual.primary_position;
+  return position ? positionGroup(position) : undefined;
+};
 
 const playersForClub = (db: GameDatabase, clubId: EntityId): MarketPlayer[] =>
   marketPlayers(db).filter(

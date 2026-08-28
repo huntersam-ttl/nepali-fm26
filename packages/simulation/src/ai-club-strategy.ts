@@ -9,6 +9,7 @@ import { ClubEconomyRepository, TransferMarketRepository, type GameDatabase } fr
 import { createInfrastructureProject } from "./club-economy.js";
 import { preferredForeignMarkets } from "./external-football-world.js";
 import { createProcurementRequest, selectProcurementOffer } from "./clubmart.js";
+import { analyzeSquadNeeds, positionGroupForPlayer, recallLoan } from "./transfer-market.js";
 
 const seasonLabel = (date: string): string => date.slice(0, 4);
 
@@ -52,6 +53,68 @@ const prioritiesFor = (policy: ClubBoardPolicy, health: string, identity: ClubSt
   return Object.fromEntries(Object.entries(priorities).map(([key, value]) => [key, Number(value.toFixed(3))]));
 };
 
+export type AiLoanRecallDiagnostics = {
+  activeLoansConsidered: number;
+  recallEligible: number;
+  recallRejectedByAgreementOrDate: number;
+  squadNeedCandidates: number;
+  recallsRequested: number;
+  recallsCompleted: number;
+};
+
+const MAX_RECALL_EVALUATIONS_PER_CLUB = 4;
+const MAX_RECALLS_PER_CLUB = 1;
+
+const reviewAiLoanRecalls = (
+  db: GameDatabase,
+  market: TransferMarketRepository,
+  clubId: EntityId,
+  worldDate: string,
+): AiLoanRecallDiagnostics => {
+  const diagnostics: AiLoanRecallDiagnostics = {
+    activeLoansConsidered: 0,
+    recallEligible: 0,
+    recallRejectedByAgreementOrDate: 0,
+    squadNeedCandidates: 0,
+    recallsRequested: 0,
+    recallsCompleted: 0,
+  };
+  const loans = market
+    .activeLoansForParent(clubId, worldDate)
+    .slice(0, MAX_RECALL_EVALUATIONS_PER_CLUB);
+  if (loans.length === 0) return diagnostics;
+  const needs = analyzeSquadNeeds(db, clubId, worldDate).needs;
+  for (const loan of loans) {
+    diagnostics.activeLoansConsidered += 1;
+    const eligible =
+      loan.recallAllowed && worldDate >= loan.startDate && worldDate < loan.endDate;
+    if (!eligible) {
+      diagnostics.recallRejectedByAgreementOrDate += 1;
+      continue;
+    }
+    diagnostics.recallEligible += 1;
+    const positionGroup = positionGroupForPlayer(db, loan.playerId);
+    const squadNeed = needs.find(
+      (need) => need.positionGroup === positionGroup && need.severity === "HIGH",
+    );
+    if (!squadNeed) continue;
+    diagnostics.squadNeedCandidates += 1;
+    if (diagnostics.recallsRequested >= MAX_RECALLS_PER_CLUB) continue;
+    diagnostics.recallsRequested += 1;
+    try {
+      const recalled = recallLoan(db, {
+        loanId: loan.id,
+        parentClubId: clubId,
+        worldDate,
+      });
+      if (recalled.status === "ENDED") diagnostics.recallsCompleted += 1;
+    } catch {
+      // The canonical command remains authoritative if state changed between review and action.
+    }
+  }
+  return diagnostics;
+};
+
 export const runClubAiSeasonPlanning = (db: GameDatabase, input: { date: string; seed: string }): ClubAiDecision[] => {
   if (!input.date.endsWith("-08-28")) return [];
   const economy = new ClubEconomyRepository(db);
@@ -79,6 +142,7 @@ export const runClubAiSeasonPlanning = (db: GameDatabase, input: { date: string;
     const activeProjects = economy.infrastructureProjects(clubId).filter((project) => !["COMPLETED", "CANCELLED"].includes(project.status));
     const procurement = economy.assets(clubId).filter((asset) => asset.assetType === "EQUIPMENT");
     const sponsorships = economy.sponsorships(clubId).filter((item) => item.status === "ACTIVE" && item.endDate >= input.date);
+    const loanRecall = reviewAiLoanRecalls(db, market, clubId, input.date);
     const actions = [
       contracts.length < 18 ? "ASSESS_SQUAD_NEEDS" : "REVIEW_SQUAD_DEPTH",
       contracts.filter((contract) => contract.endDate <= `${Number(input.date.slice(0, 4)) + 1}-08-28`).length > 0 ? "PRIORITISE_RENEWALS" : "MONITOR_CONTRACTS",
@@ -86,6 +150,8 @@ export const runClubAiSeasonPlanning = (db: GameDatabase, input: { date: string;
       priorities.youth >= priorities.squad ? "PROTECT_YOUTH_PATHWAY" : "RECRUIT_PUBLICLY_IDENTIFIED_SQUAD_NEEDS",
       sponsorships.length === 0 ? "REVIEW_COMMERCIAL_OFFERS" : "RETAIN_COMMERCIAL_PARTNERS",
     ];
+    if (loanRecall.activeLoansConsidered > 0) actions.push("REVIEW_ACTIVE_LOAN_RECALLS");
+    if (loanRecall.recallsCompleted > 0) actions.push("RECALL_ON_LOAN_FOR_SQUAD_EMERGENCY");
     const movement = (db.prepare("SELECT movement_type FROM competition_movements WHERE club_id = ? ORDER BY rowid DESC LIMIT 1").get(clubId) as { movement_type?: string } | undefined)?.movement_type;
     if (movement === "PROMOTED") actions.push("CONSOLIDATE_AFTER_PROMOTION");
     if (movement === "RELEGATED") actions.push("REBUILD_AFTER_RELEGATION");
@@ -123,7 +189,7 @@ export const runClubAiSeasonPlanning = (db: GameDatabase, input: { date: string;
       actions,
       identity,
       identityStrength,
-      context: { financialHealth: account.financialHealth, cash: account.cashBalance, reputation, commercialReputation, squadContracts: contracts.length, activeProjects: activeProjects.length, strategicIdentity: identity, identityStrength, previousIdentity: previous?.identity ?? "", lastMovement: movement ?? "NONE", foreignSource: foreignMarkets.source, foreignDestination: foreignMarkets.destination },
+      context: { financialHealth: account.financialHealth, cash: account.cashBalance, reputation, commercialReputation, squadContracts: contracts.length, activeProjects: activeProjects.length, strategicIdentity: identity, identityStrength, previousIdentity: previous?.identity ?? "", lastMovement: movement ?? "NONE", foreignSource: foreignMarkets.source, foreignDestination: foreignMarkets.destination, activeLoansConsidered: loanRecall.activeLoansConsidered, recallEligible: loanRecall.recallEligible, recallRejectedByAgreementOrDate: loanRecall.recallRejectedByAgreementOrDate, squadNeedCandidates: loanRecall.squadNeedCandidates, recallsRequested: loanRecall.recallsRequested, recallsCompleted: loanRecall.recallsCompleted },
       status: "SIMULATION_ONLY",
     };
     economy.upsertAiDecision(decision);

@@ -3928,6 +3928,18 @@ export class TransferMarketRepository {
       .map(mapPlayerLoan);
   }
 
+  activeLoansForParent(parentClubId: EntityId, date: string): PlayerLoanRecord[] {
+    return this.db
+      .prepare(
+        `SELECT * FROM player_loans
+         WHERE parent_club_id = ? AND status = 'ACTIVE'
+           AND start_date <= ? AND end_date >= ?
+         ORDER BY start_date, id`,
+      )
+      .all(parentClubId, date, date)
+      .map(mapPlayerLoan);
+  }
+
   endingLoans(date: string): PlayerLoanRecord[] {
     return this.db
       .prepare("SELECT * FROM player_loans WHERE status = 'ACTIVE' AND end_date <= ?")

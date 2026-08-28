@@ -1,7 +1,15 @@
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "vitest";
 import {
   TransferMarketRepository,
   WorldRepository,
@@ -39,6 +47,55 @@ import {
 
 const tempDirs: string[] = [];
 const registryPath = resolve(process.cwd(), "data/nepal/2026-08/club-registry.json");
+const stageEightStartedAt = Date.now();
+let stageEightWorldBootstraps = 0;
+let stageEightCanonicalSeedInitializations = 0;
+let stageEightTransferBootstraps = 0;
+const stageEightTestStarts = new Map<string, number>();
+const stageEightTestCounters = new Map<
+  string,
+  { world: number; canonical: number; transfer: number }
+>();
+
+beforeAll(() => {
+  process.stderr.write("[stage-eight] file start\n");
+});
+
+beforeEach(({ task }) => {
+  process.stderr.write(`[stage-eight] test start name="${task.name}"\n`);
+  stageEightTestStarts.set(task.id, Date.now());
+  stageEightTestCounters.set(task.id, {
+    world: stageEightWorldBootstraps,
+    canonical: stageEightCanonicalSeedInitializations,
+    transfer: stageEightTransferBootstraps,
+  });
+});
+
+afterEach(({ task }) => {
+  const startedAt = stageEightTestStarts.get(task.id) ?? Date.now();
+  const before = stageEightTestCounters.get(task.id) ?? {
+    world: stageEightWorldBootstraps,
+    canonical: stageEightCanonicalSeedInitializations,
+    transfer: stageEightTransferBootstraps,
+  };
+  process.stderr.write(
+    `[stage-eight] test end name="${task.name}" elapsedMs=${Date.now() - startedAt} ` +
+      `worldBootstraps=${stageEightWorldBootstraps - before.world} ` +
+      `canonicalSeedInitializations=${stageEightCanonicalSeedInitializations - before.canonical} ` +
+      `transferBootstraps=${stageEightTransferBootstraps - before.transfer}\n`,
+  );
+  stageEightTestStarts.delete(task.id);
+  stageEightTestCounters.delete(task.id);
+});
+
+afterAll(() => {
+  process.stderr.write(
+    `[stage-eight] file end elapsedMs=${Date.now() - stageEightStartedAt} ` +
+      `worldBootstraps=${stageEightWorldBootstraps} ` +
+      `canonicalSeedInitializations=${stageEightCanonicalSeedInitializations} ` +
+      `transferBootstraps=${stageEightTransferBootstraps}\n`,
+  );
+});
 
 const tempDbPath = (): string => {
   const dir = mkdtempSync(join(tmpdir(), "nepal-football-transfers-"));
@@ -47,16 +104,20 @@ const tempDbPath = (): string => {
 };
 
 const createSave = (seed: string): string => {
+  stageEightWorldBootstraps += 1;
   const databasePath = tempDbPath();
+  const globalSeedPath = null;
+  if (globalSeedPath !== null) stageEightCanonicalSeedInitializations += 1;
   createNepalSave({
     databasePath,
     dataset: JSON.parse(readFileSync(registryPath, "utf8")) as unknown,
     saveName: `Transfers ${seed}`,
     gameVersion: "0.2.0",
     randomSeed: seed,
-    globalSeedPath: null,
+    globalSeedPath,
   });
   const db = openGameDatabase(databasePath);
+  stageEightTransferBootstraps += 1;
   initializeTransferMarketForSave({ db, worldDate: "2026-08-01", seed });
   db.close();
   return databasePath;
