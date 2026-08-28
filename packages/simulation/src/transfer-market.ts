@@ -2777,7 +2777,7 @@ const initialTransferStatus = (
   updatedAt: worldDate,
 });
 
-const marketPlayers = (db: GameDatabase): MarketPlayer[] =>
+const marketPlayers = (db: GameDatabase, playerId?: EntityId): MarketPlayer[] =>
   db
     .prepare(
       /*
@@ -2799,11 +2799,12 @@ const marketPlayers = (db: GameDatabase): MarketPlayer[] =>
       LEFT JOIN player_contracts pc ON pc.player_id = p.id AND pc.status = 'ACTIVE'
       LEFT JOIN team_person_assignments tpa ON tpa.person_id = p.id AND tpa.role = 'PLAYER' AND tpa.ended_on IS NULL
       LEFT JOIN player_season_stats pss ON pss.person_id = p.id
-      WHERE pa.person_id IS NOT NULL OR pfp.player_id IS NOT NULL
+      WHERE (pa.person_id IS NOT NULL OR pfp.player_id IS NOT NULL)
+        AND (? IS NULL OR p.id = ?)
       GROUP BY p.id
       ORDER BY p.full_name, p.id`,
     )
-    .all()
+    .all(playerId ?? null, playerId ?? null)
     .map((row: any) => {
       const simulation = JSON.parse(row.simulation_json ?? "{}");
       const factual = JSON.parse(row.factual_json ?? "{}");
@@ -2824,8 +2825,14 @@ const marketPlayers = (db: GameDatabase): MarketPlayer[] =>
       };
     });
 
+/*
+ * One player used to cost a full market build: every row queried, its JSON
+ * parsed and mapped, then all but one discarded. That runs inside per-player
+ * and per-club loops, so the market initialization was quadratic in the squad
+ * population.
+ */
 const marketPlayer = (db: GameDatabase, playerId: EntityId): MarketPlayer | undefined =>
-  marketPlayers(db).find((player) => player.playerId === playerId);
+  marketPlayers(db, playerId)[0];
 
 export const positionGroupForPlayer = (
   db: GameDatabase,
