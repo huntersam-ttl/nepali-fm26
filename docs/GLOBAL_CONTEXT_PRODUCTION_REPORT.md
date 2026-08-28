@@ -118,6 +118,42 @@ Forward settlement remains on the existing idempotent ledger path; a new exact-o
 
 The existing canonical person/player identity path is preserved.
 
+## External Domestic Outcomes
+
+Context leagues persist one champion, qualifier set, relegation context, and bounded club-reputation movement per league/season.
+
+## Continental Qualification
+
+Persisted domestic qualifier slots are the only input to lightweight continental context; no foreign fixtures are generated.
+
+## Continental Competition Context
+
+Each eligible confederation receives one deterministic seasonal context winner and runner-up, keyed by confederation and season in history.
+
+## Reputation Effects
+
+Winner, runner-up, and participation effects are bounded and update canonical external club/player reputation.
+
+## History
+
+One `EXTERNAL_CONTINENTAL_CONTEXT` historical event stores participants and outcome; replay is idempotent.
+
+## Sanction Integration
+
+Nepal clubs are not inserted into external context competitions, so existing Nepal-side sanction and competition authority remain authoritative.
+
+## Nepal Integration
+
+Updated external reputations flow into existing scouting and transfer consumers without special Nepal transfer odds.
+
+## Performance
+
+Processing groups persisted qualifier lists by confederation only; it creates no fixture, lineup, or club-by-competition expansion.
+
+## Remaining Context Gaps
+
+Global club tournaments are LATER; partnerships, networks, and sell-on execution remain separate P1 work.
+
 ## History
 
 The winning free-agent path writes one `FREE_AGENT_SIGNED` event; rejected competitors do not.

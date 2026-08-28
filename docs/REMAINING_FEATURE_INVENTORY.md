@@ -11,9 +11,9 @@ audit, plus the eight explicit high-risk overlays requested for this pass. Statu
 
 | Status | Count |
 | --- | ---: |
-| COMPLETE | 59 |
+| COMPLETE | 60 |
 | BUILT_NOT_PROVEN | 1 |
-| PARTIAL | 25 |
+| PARTIAL | 24 |
 | MISSING | 3 |
 | LATER | 4 |
 | **Total** | **92** |
@@ -46,6 +46,7 @@ The following systems are COMPLETE:
 - Nepal A/B/C pyramid, promotion, relegation, and memberships; club licensing; lower-league finance and squad viability; territorial structure; district/provincial representative competitions; district infrastructure projects.
 - Youth intake, development, retirement, and late developers; free agents; foreign player supply into Nepal; player regeneration and long-save supply; staff/referee regeneration and long-save supply.
 - Global generated-player lifecycle: context-only external players now persist through deterministic development, peak/decline, affiliation/free-agent reconciliation, retirement, replenishment, and reload-safe future-star emergence without simulating proprietary foreign leagues.
+- External/global competition context: persisted domestic qualifiers now resolve into deterministic, history-backed continental context with bounded club/player reputation effects.
 - Women's clubs and competitions; macroeconomy; personal wealth; supporter base, attendance, atmosphere, and mood; awards. The separate rivalry system remains PARTIAL.
 - AI squad planning, transfers, and contracts; AI federation and national-team automation; senior-men, senior-women, and U17/U20/U23 national teams and international competition.
 - Stadium, training, youth, medical, and technical infrastructure; desktop runtime and SQLite; legal and data provenance.
@@ -77,10 +78,8 @@ High-risk overlays:
    have bounded external vacancy processing, staff employment history, contract closure,
    retirement/replacement, imported-staff visibility, and Nepal refill after an outgoing move;
    they remain non-playable and do not receive a full foreign payroll simulation.
-2. **Continental/global competition context — PARTIAL.** Nepal's senior international path
-   covers SAFF, AFC Asian Cup, and World Cup qualification. External leagues store seeded
-   champion, qualifier, relegation, and reputation outcomes, but external continental/global
-   club competitions and their seasonal reputation effects are not simulated.
+2. **Global club tournaments — LATER.** Continental context is lightweight and seasonal;
+   no detailed intercontinental club tournament is currently planned.
 4. **International partnerships — PARTIAL / persisted-only.** The type vocabulary exists for
    `SCOUTING`, `TECHNICAL`, `YOUTH_DEVELOPMENT`, `ACADEMY`, `STAFF_EXCHANGE`, `TRAINING`,
    `LOAN_PLAYER_PATHWAY`, `LOAN`, `PREFERRED_TRANSFER`, `COMMERCIAL`, and `FRIENDLY_TOUR`.

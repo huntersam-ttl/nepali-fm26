@@ -7,6 +7,7 @@ import {
   WorkforceSupplyRepository,
   GlobalFootballContextRepository,
   PlayerRepository,
+  EventRepository,
   WorldRepository,
   type GameDatabase,
 } from "@nepal-football-sim/database";
@@ -260,6 +261,7 @@ export const processForeignFootballWorldSeason = (input: {
     lastSavedAt: `${input.seasonEndDate}T00:00:00.000Z`,
   };
   initializeExternalLeagueSeasons(input.db, input.seasonEndDate, input.seed);
+  processExternalContinentalContexts(input.db, input.seasonEndDate, input.seed);
   const refillDomesticStaff = claimForeignCycle(input.db, {
     seasonLabel: input.seasonEndDate.slice(0, 4),
     kind: "FOREIGN_WORLD_DOMESTIC_STAFF_REFILL",
@@ -591,6 +593,53 @@ export const initializeExternalLeagueSeasons = (db: GameDatabase, seasonEndDate:
       const movement = club.clubId === ordered[0]?.clubId ? 0.6 : club.clubId === ordered.at(-1)?.clubId ? -0.4 : 0.1;
       contexts.upsertClub({ ...club, reputation: Math.max(0, Math.min(100, club.reputation + movement)) });
     }
+  }
+};
+
+/**
+ * One deterministic continental context outcome per confederation/season.
+ * Participants come only from persisted domestic qualifier slots: no foreign
+ * fixtures, lineups or match events are created.  Historical events are the
+ * durable result key, so reopening a save cannot reroll reputation awards.
+ */
+export const processExternalContinentalContexts = (db: GameDatabase, date: string, seed: string): void => {
+  const contexts = new GlobalFootballContextRepository(db);
+  const year = date.slice(0, 4);
+  const federationById = new Map(contexts.federations().map((federation) => [federation.federationId, federation]));
+  const clubById = new Map(contexts.clubs().map((club) => [club.clubId, club]));
+  const qualifiers = new Map<string, EntityId[]>();
+  for (const season of contexts.seasons().filter((season) => season.seasonLabel === year)) {
+    const league = contexts.leagues().find((item) => item.leagueId === season.leagueId);
+    const federation = league ? federationById.get(league.federationId) : undefined;
+    if (!league?.continentalQualification || !federation) continue;
+    const bucket = qualifiers.get(federation.confederation) ?? [];
+    bucket.push(...season.continentalQualifierClubIds);
+    qualifiers.set(federation.confederation, bucket);
+  }
+  const events = new EventRepository(db);
+  for (const [confederation, ids] of qualifiers) {
+    const participants = [...new Set(ids)].filter((id) => clubById.has(id)).sort();
+    if (participants.length < 2) continue;
+    const eventId = createStableEntityId("history", `EXTERNAL_CONTINENTAL_CONTEXT:${confederation}:${year}`);
+    if (db.prepare("SELECT 1 FROM historical_events WHERE id = ?").get(eventId)) continue;
+    const rng = new SeededRandom(`${seed}:external-continental:${confederation}:${year}`);
+    const ordered = [...participants].sort((a, b) => {
+      const left = clubById.get(a)!, right = clubById.get(b)!;
+      return (right.reputation + rng.next() * 5) - (left.reputation + rng.next() * 5) || a.localeCompare(b);
+    });
+    const champion = ordered[0]!;
+    const runnerUp = ordered[1];
+    for (const clubId of ordered) {
+      const club = clubById.get(clubId)!;
+      const delta = clubId === champion ? 2.4 : clubId === runnerUp ? 0.9 : 0.2;
+      contexts.upsertClub({ ...club, reputation: round(clamp(club.reputation + delta, 0, 100)) });
+      for (const player of contexts.players().filter((player) => player.clubId === clubId && player.careerState === "ACTIVE")) {
+        contexts.upsertPlayer({ ...player, reputation: round(clamp(player.reputation + (clubId === champion ? 0.7 : 0.15), 0, 100)), updatedOn: date });
+      }
+    }
+    events.insertHistoricalEvent({ id: eventId, occurredOn: date, eventType: "EXTERNAL_CONTINENTAL_CONTEXT", involvedEntities: [
+      { id: champion, type: "club" }, ...(runnerUp ? [{ id: runnerUp, type: "club" as const }] : []),
+    ], title: `${confederation} context champion`, data: { season: year, confederation, championClubId: champion, runnerUpClubId: runnerUp, participantClubIds: ordered }, importance: "medium", scope: "world" });
   }
 };
 
