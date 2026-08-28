@@ -1960,9 +1960,43 @@ export class StaffMarketRepository {
         WHERE NOT EXISTS (
           SELECT 1 FROM staff_appointments sa
           WHERE sa.person_id = sp.person_id AND sa.employment_status = 'ACTIVE'
-        )`,
+        ) AND COALESCE(sp.availability, 'AVAILABLE') != 'RETIRED'`,
       )
       .all()
+      .map(mapStaffProfile);
+  }
+
+  /**
+   * A deliberately capped hiring pool.  The caller supplies the hiring club so
+   * Nepal clubs see externally employed staff before generic free agents, while
+   * CONTEXT_ONLY clubs see Nepal-employed staff first.  This is a shortlist,
+   * not a global staff-discovery scan.
+   */
+  staffCandidatesForClub(clubId: EntityId, role: FootballStaffRole, limit: number): StaffProfile[] {
+    const targetIsExternal = Boolean(
+      this.db.prepare("SELECT 1 FROM external_club_context WHERE club_id = ? LIMIT 1").get(clubId),
+    );
+    return this.db
+      .prepare(
+        `SELECT sp.* FROM staff_profiles sp
+         JOIN persons p ON p.id = sp.person_id
+         LEFT JOIN staff_appointments sa
+           ON sa.person_id = sp.person_id AND sa.employment_status = 'ACTIVE'
+         LEFT JOIN external_club_context current_external ON current_external.club_id = sa.club_id
+         LEFT JOIN countries nationality ON nationality.id = p.nationality_country_id
+         WHERE (sp.preferred_role = ? OR sp.preferred_role IS NULL)
+           AND COALESCE(sp.availability, 'AVAILABLE') != 'RETIRED'
+         ORDER BY
+           CASE
+             WHEN ? = 1 AND nationality.iso_code IN ('NP', 'NPL') AND sa.id IS NOT NULL THEN 0
+             WHEN ? = 0 AND current_external.club_id IS NOT NULL THEN 0
+             WHEN sa.id IS NULL THEN 1
+             ELSE 2
+           END,
+           sp.person_id
+         LIMIT ?`,
+      )
+      .all(role, Number(targetIsExternal), Number(targetIsExternal), Math.max(1, limit))
       .map(mapStaffProfile);
   }
 
@@ -2234,6 +2268,13 @@ export class StaffMarketRepository {
     return this.db
       .prepare("SELECT * FROM staff_employment_contracts WHERE club_id = ? AND status = 'ACTIVE'")
       .all(clubId)
+      .map(mapStaffEmploymentContractRow);
+  }
+
+  activeEmploymentContracts(): StaffEmploymentContract[] {
+    return this.db
+      .prepare("SELECT * FROM staff_employment_contracts WHERE status = 'ACTIVE' ORDER BY club_id, person_id")
+      .all()
       .map(mapStaffEmploymentContractRow);
   }
 

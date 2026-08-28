@@ -9,7 +9,13 @@ import {
   WorldRepository,
   type GameDatabase,
 } from "@nepal-football-sim/database";
-import { generateAiStaff } from "./staff-market.js";
+import {
+  ensureAiStaffAssigned,
+  ensureExternalStaffVacancies,
+  evaluateAllStaffContracts,
+  generateAiStaff,
+  processExternalStaffVacancies,
+} from "./staff-market.js";
 import { initializeTransferMarketForSave } from "./transfer-market.js";
 import { generateYouthCohort } from "./youth-intake.js";
 import { SeededRandom } from "./rng.js";
@@ -193,6 +199,7 @@ export const initializeForeignFootballWorldForSave = (input: {
       })
     ) {
       seedForeignStaff(input.db, club.countryId, club.clubId, input.worldDate, input.seed);
+      ensureExternalStaffVacancies(input.db, club.clubId, FOREIGN_ROLES, input.worldDate);
       continue;
     }
     /*
@@ -215,7 +222,20 @@ export const initializeForeignFootballWorldForSave = (input: {
       });
     }
     seedForeignStaff(input.db, club.countryId, club.clubId, input.worldDate, input.seed);
+    ensureExternalStaffVacancies(input.db, club.clubId, FOREIGN_ROLES, input.worldDate);
   }
+  // Context clubs get only their actual bootstrap vacancies processed.  The
+  // capped staff-market worker supplies the decision and contract path.
+  processExternalStaffVacancies(input.db, {
+    id: createStableEntityId("foreign-staff-bootstrap-save", input.seed),
+    name: "Foreign staff bootstrap",
+    worldDate: input.worldDate,
+    databaseVersion: 64,
+    gameVersion: "simulation",
+    randomSeed: input.seed,
+    createdAt: `${input.worldDate}T00:00:00.000Z`,
+    lastSavedAt: `${input.worldDate}T00:00:00.000Z`,
+  });
 };
 
 export const processForeignFootballWorldSeason = (input: {
@@ -223,6 +243,16 @@ export const processForeignFootballWorldSeason = (input: {
   seasonEndDate: string;
   seed: string;
 }): void => {
+  const staffSave = {
+    id: createStableEntityId("foreign-staff-season-save", `${input.seed}:${input.seasonEndDate}`),
+    name: "Foreign staff season",
+    worldDate: input.seasonEndDate,
+    databaseVersion: 64,
+    gameVersion: "simulation",
+    randomSeed: input.seed,
+    createdAt: `${input.seasonEndDate}T00:00:00.000Z`,
+    lastSavedAt: `${input.seasonEndDate}T00:00:00.000Z`,
+  };
   initializeExternalLeagueSeasons(input.db, input.seasonEndDate, input.seed);
   const clubs = input.db
     .prepare(
@@ -263,7 +293,13 @@ export const processForeignFootballWorldSeason = (input: {
       });
     }
     seedForeignStaff(input.db, club.country_id, club.club_id, input.seasonEndDate, input.seed);
+    ensureExternalStaffVacancies(input.db, club.club_id, FOREIGN_ROLES, input.seasonEndDate);
   }
+  evaluateAllStaffContracts(input.db, staffSave);
+  processExternalStaffVacancies(input.db, staffSave);
+  // If an external move vacated a Nepal support role, the normal domestic AI
+  // refill runs on the same seasonal cadence rather than leaving it empty.
+  ensureAiStaffAssigned(input.db, staffSave, undefined);
   updateForeignScoutingInterest(input.db, { date: input.seasonEndDate, seed: input.seed });
   considerForeignInternationalTrials(input.db, {
     worldDate: input.seasonEndDate,

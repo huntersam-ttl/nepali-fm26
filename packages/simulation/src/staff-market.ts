@@ -97,6 +97,10 @@ const LICENCE_RANK: Record<string, number> = {
   AFC_B: 3,
   AFC_A: 4,
   AFC_PRO: 5,
+  UEFA_C: 2,
+  UEFA_B: 3,
+  UEFA_A: 4,
+  UEFA_PRO: 5,
 };
 
 /** Roles with no entry require no licence at all (medical/recruitment/analysis staff). */
@@ -180,6 +184,18 @@ export const clubCanAffordSalary = (db: GameDatabase, clubId: EntityId, salaryAm
   const finances = new TransferMarketRepository(db).clubFinancialProfile(clubId);
   if (!finances) return true; // No modelled budget: don't block hiring on missing data.
   return finances.wageBudget - finances.currentWageSpend >= salaryAmountMinor;
+};
+
+/** The domestic finance ledger is authoritative; CONTEXT_ONLY clubs have no full payroll model. */
+const adjustClubWageSpend = (db: GameDatabase, clubId: EntityId | undefined, deltaMinor: number): void => {
+  if (!clubId || deltaMinor === 0) return;
+  const finances = new TransferMarketRepository(db);
+  const profile = finances.clubFinancialProfile(clubId);
+  if (!profile) return;
+  finances.upsertClubFinancialProfile({
+    ...profile,
+    currentWageSpend: Math.max(0, profile.currentWageSpend + deltaMinor),
+  });
 };
 
 // ---------------------------------------------------------------------------
@@ -308,7 +324,7 @@ const logStaffHistory = (
 
 export class StaffActionError extends Error {
   constructor(
-    readonly code: "NOT_ELIGIBLE" | "CANNOT_AFFORD" | "ALREADY_EMPLOYED" | "APPOINTMENT_NOT_FOUND" | "VACANCY_NOT_FOUND",
+    readonly code: "NOT_ELIGIBLE" | "CANNOT_AFFORD" | "ALREADY_EMPLOYED" | "RETIRED" | "APPOINTMENT_NOT_FOUND" | "VACANCY_NOT_FOUND",
     message: string,
   ) {
     super(message);
@@ -331,6 +347,9 @@ export const hireStaff = (
     throw new StaffActionError("ALREADY_EMPLOYED", "That person is already employed elsewhere.");
   }
   const profile = market.staffProfile(personId);
+  if (profile?.availability === "RETIRED") {
+    throw new StaffActionError("RETIRED", "Retired staff cannot be hired.");
+  }
   const licences = market.staffLicencesForPerson(personId);
   const eligibility = staffEligibility(role, profile, licences);
   if (!eligibility.eligible) {
@@ -369,6 +388,10 @@ export const hireStaff = (
   const world = new WorldRepository(db);
   world.insertStaffAppointment(appointment);
   market.upsertEmploymentContract(contract);
+  adjustClubWageSpend(db, clubId, salaryAmountMinor);
+  if (profile && profile.availability !== "EMPLOYED") {
+    world.insertStaffProfile({ ...profile, availability: "EMPLOYED" });
+  }
 
   const vacancy = market.openVacancyForRole(clubId, role);
   if (vacancy) {
@@ -381,6 +404,42 @@ export const hireStaff = (
     description: `Joined as ${role.replace(/_/g, " ").toLowerCase()}.`,
   });
   return appointment;
+};
+
+/**
+ * Closes the one active job before a staff member takes another.  Moves use
+ * this shared transition whether the destination is Nepal or CONTEXT_ONLY,
+ * so an employment history is never forked and wage spend cannot linger.
+ */
+const releaseStaffForMove = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  appointment: StaffAppointment,
+  description: string,
+): void => {
+  const market = new StaffMarketRepository(db);
+  const worldDate = save.worldDate;
+  market.updateAppointmentStatus(appointment.id, "FORMER", worldDate);
+  if (appointment.contractId) {
+    const contract = market.employmentContractById(appointment.contractId);
+    if (contract?.status === "ACTIVE") {
+      market.upsertEmploymentContract({ ...contract, status: "RESIGNED", contractEnd: worldDate });
+      adjustClubWageSpend(db, contract.clubId, -contract.salaryAmountMinor);
+    }
+  }
+  if (appointment.clubId) {
+    openStaffVacancy(db, appointment.clubId, appointment.role, "RESIGNED", worldDate);
+  }
+  const profile = market.staffProfile(appointment.personId);
+  if (profile && profile.availability !== "RETIRED") {
+    new WorldRepository(db).insertStaffProfile({ ...profile, availability: "AVAILABLE" });
+  }
+  logStaffHistory(db, appointment.personId, "STAFF_LEFT", worldDate, {
+    appointmentId: appointment.id,
+    clubId: appointment.clubId,
+    teamId: appointment.teamId,
+    description,
+  });
 };
 
 /** Manager-initiated dismissal: ends the appointment and contract, and reopens the role as a vacancy. */
@@ -398,7 +457,10 @@ export const dismissStaff = (
   market.updateAppointmentStatus(appointmentId, "FORMER", worldDate);
   if (appointment.contractId) {
     const contract = market.employmentContractById(appointment.contractId);
-    if (contract) market.upsertEmploymentContract({ ...contract, status: "TERMINATED", contractEnd: worldDate });
+    if (contract?.status === "ACTIVE") {
+      market.upsertEmploymentContract({ ...contract, status: "TERMINATED", contractEnd: worldDate });
+      adjustClubWageSpend(db, contract.clubId, -contract.salaryAmountMinor);
+    }
   }
   if (appointment.clubId) {
     openStaffVacancy(db, appointment.clubId, appointment.role, "DISMISSED", worldDate);
@@ -409,7 +471,39 @@ export const dismissStaff = (
     teamId: appointment.teamId,
     description: `Dismissed from ${appointment.role.replace(/_/g, " ").toLowerCase()}.`,
   });
+  const profile = market.staffProfile(appointment.personId);
+  if (profile && profile.availability !== "RETIRED") {
+    new WorldRepository(db).insertStaffProfile({ ...profile, availability: "AVAILABLE" });
+  }
   return { ...appointment, employmentStatus: "FORMER", endDate: worldDate };
+};
+
+/** Retires a staff person, preserving the closed employment and refillable vacancy. */
+export const retireStaff = (db: GameDatabase, save: SaveMetadata, personId: EntityId): void => {
+  const market = new StaffMarketRepository(db);
+  const appointment = market.activeAppointment(personId);
+  const worldDate = save.worldDate;
+  if (appointment) {
+    market.updateAppointmentStatus(appointment.id, "FORMER", worldDate);
+    if (appointment.contractId) {
+      const contract = market.employmentContractById(appointment.contractId);
+      if (contract?.status === "ACTIVE") {
+        market.upsertEmploymentContract({ ...contract, status: "RETIRED", contractEnd: worldDate });
+        adjustClubWageSpend(db, contract.clubId, -contract.salaryAmountMinor);
+      }
+    }
+    if (appointment.clubId) openStaffVacancy(db, appointment.clubId, appointment.role, "RESIGNED", worldDate);
+    logStaffHistory(db, personId, "STAFF_LEFT", worldDate, {
+      appointmentId: appointment.id,
+      clubId: appointment.clubId,
+      teamId: appointment.teamId,
+      description: `Retired from ${appointment.role.replace(/_/g, " ").toLowerCase()}.`,
+    });
+  }
+  const profile = market.staffProfile(personId);
+  if (profile) new WorldRepository(db).insertStaffProfile({ ...profile, availability: "RETIRED" });
+  db.prepare("UPDATE person_roles SET active_to = ? WHERE person_id = ? AND role = 'STAFF' AND active_to IS NULL")
+    .run(worldDate, personId);
 };
 
 // ---------------------------------------------------------------------------
@@ -452,6 +546,7 @@ export const evaluateStaffContracts = (
       outcome.renewed.push(renewed);
     } else {
       market.upsertEmploymentContract({ ...contract, status: "EXPIRED" });
+      adjustClubWageSpend(db, contract.clubId, -contract.salaryAmountMinor);
       const appointment = market.activeAppointment(contract.personId);
       if (appointment) {
         market.updateAppointmentStatus(appointment.id, "CONTRACT_EXPIRED", contract.contractEnd);
@@ -474,8 +569,10 @@ export const evaluateStaffContracts = (
 /** Runs the expiry/renewal check across every senior club, not just the player's — this is
  * what makes contract expiry and free-agent movement a world-wide fact, not a player-only one. */
 export const evaluateAllStaffContracts = (db: GameDatabase, save: SaveMetadata): StaffContractTickOutcome => {
-  const teams = seniorTeams(db, save.worldDate);
-  const clubIds = new Set(teams.map((team) => team.clubId).filter((id): id is EntityId => Boolean(id)));
+  const market = new StaffMarketRepository(db);
+  const clubIds = new Set(
+    market.activeEmploymentContracts().map((contract) => contract.clubId).filter((id): id is EntityId => Boolean(id)),
+  );
   const combined: StaffContractTickOutcome = { renewed: [], expired: [] };
   for (const clubId of clubIds) {
     const outcome = evaluateStaffContracts(db, save, clubId);
@@ -567,6 +664,161 @@ export const ensureAiStaffAssigned = (
 };
 
 // ---------------------------------------------------------------------------
+// CONTEXT_ONLY club mobility and replenishment
+// ---------------------------------------------------------------------------
+
+/** Hard bounds keep external personnel context lightweight and deterministic. */
+export const MAX_STAFF_CANDIDATES_PER_VACANCY = 8;
+export const MAX_EXTERNAL_STAFF_VACANCIES_PER_CADENCE = 8;
+
+/**
+ * Returns the existing staff-market shortlist for one vacancy.  It is capped
+ * in SQL and filtered through the same eligibility gate used by hiring; no
+ * club-by-club scan of the global staff population is performed.
+ */
+export const shortlistStaffCandidates = (
+  db: GameDatabase,
+  clubId: EntityId,
+  role: FootballStaffRole,
+  maxCandidates = MAX_STAFF_CANDIDATES_PER_VACANCY,
+): StaffProfile[] => {
+  const market = new StaffMarketRepository(db);
+  return market
+    .staffCandidatesForClub(clubId, role, Math.min(MAX_STAFF_CANDIDATES_PER_VACANCY, maxCandidates))
+    .filter((profile) => staffEligibility(role, profile, market.staffLicencesForPerson(profile.personId)).eligible);
+};
+
+/** Opens only a genuine CONTEXT_ONLY staffing need; callers never pre-fill all global clubs. */
+export const ensureExternalStaffVacancies = (
+  db: GameDatabase,
+  clubId: EntityId,
+  roles: FootballStaffRole[],
+  worldDate: string,
+): StaffVacancy[] => {
+  const isExternal = Boolean(
+    db.prepare("SELECT 1 FROM external_club_context WHERE club_id = ? LIMIT 1").get(clubId),
+  );
+  if (!isExternal) return [];
+  const market = new StaffMarketRepository(db);
+  const team = db
+    .prepare("SELECT id FROM teams WHERE club_id = ? AND level = 'senior' ORDER BY id LIMIT 1")
+    .get(clubId) as { id?: EntityId } | undefined;
+  const vacancies: StaffVacancy[] = [];
+  for (const role of roles) {
+    if (market.activeAppointmentsForClub(clubId).some((appointment) => appointment.role === role)) continue;
+    if (market.openVacancyForRole(clubId, role)) continue;
+    vacancies.push(openStaffVacancy(db, clubId, role, "NEW_ROLE", worldDate));
+    const vacancy = vacancies[vacancies.length - 1]!;
+    if (!vacancy.teamId && team?.id) {
+      market.upsertVacancy({ ...vacancy, teamId: team.id });
+    }
+  }
+  return vacancies;
+};
+
+const externalOfferMultiplier = (db: GameDatabase, clubId: EntityId): number => {
+  const row = db.prepare("SELECT financial_band FROM external_club_context WHERE club_id = ?").get(clubId) as
+    | { financial_band?: string }
+    | undefined;
+  return row?.financial_band === "ELITE" ? 1.9 : row?.financial_band === "HIGH" ? 1.65 : row?.financial_band === "LOW" ? 1.25 : 1.45;
+};
+
+const generateExternalStaffCandidate = (
+  db: GameDatabase,
+  vacancy: StaffVacancy,
+  worldDate: string,
+): StaffProfile | undefined => {
+  if (!vacancy.clubId) return undefined;
+  const club = db
+    .prepare("SELECT country_id FROM external_club_context WHERE club_id = ?")
+    .get(vacancy.clubId) as { country_id?: EntityId } | undefined;
+  if (!club?.country_id) return undefined;
+  const generated = generateAiStaff(
+    `external-staff-replacement:${vacancy.id}:${vacancy.role}`,
+    worldDate,
+    club.country_id,
+    vacancy.role,
+  );
+  const world = new WorldRepository(db);
+  if (!world.getPerson(generated.person.id)) {
+    world.insertPerson(generated.person);
+    world.insertPersonRole({
+      id: createStableEntityId("person-role", `${generated.person.id}:STAFF`),
+      personId: generated.person.id,
+      role: "STAFF",
+      activeFrom: worldDate,
+    });
+    world.insertStaffProfile(generated.profile);
+    world.insertStaffSimulationProfile(generated.simulation);
+    for (const licence of generated.licences) world.insertStaffLicence(licence);
+  }
+  return new StaffMarketRepository(db).staffProfile(generated.person.id);
+};
+
+export type ExternalStaffVacancyOutcome = {
+  vacancyId: EntityId;
+  personId?: EntityId;
+  applicationStatus?: StaffApplicationStatus;
+  generatedReplacement: boolean;
+};
+
+/**
+ * One deterministic shortlist and one staff decision per genuine external
+ * vacancy.  The appointment is still created by apply/accept/hire, so Nepal
+ * departures, rejections, contracts and history all share the domestic path.
+ */
+export const processExternalStaffVacancies = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  maxVacancies = MAX_EXTERNAL_STAFF_VACANCIES_PER_CADENCE,
+): ExternalStaffVacancyOutcome[] => {
+  const market = new StaffMarketRepository(db);
+  const vacancies = db
+    .prepare(
+      `SELECT sv.id FROM staff_vacancies sv
+       JOIN external_club_context ecc ON ecc.club_id = sv.club_id
+       WHERE sv.status = 'VACANT'
+       ORDER BY sv.opened_on, sv.id
+       LIMIT ?`,
+    )
+    .all(Math.max(1, Math.min(MAX_EXTERNAL_STAFF_VACANCIES_PER_CADENCE, maxVacancies))) as Array<{ id: EntityId }>;
+  const outcomes: ExternalStaffVacancyOutcome[] = [];
+  for (const { id } of vacancies) {
+    const vacancy = market.vacancyById(id);
+    if (!vacancy?.clubId) continue;
+    let candidates = shortlistStaffCandidates(db, vacancy.clubId, vacancy.role, MAX_STAFF_CANDIDATES_PER_VACANCY);
+    let generatedReplacement = false;
+    if (candidates.length === 0) {
+      const generated = generateExternalStaffCandidate(db, vacancy, save.worldDate);
+      if (generated) {
+        candidates = [generated];
+        generatedReplacement = true;
+      }
+    }
+    const candidate = candidates[0];
+    if (!candidate) {
+      outcomes.push({ vacancyId: vacancy.id, generatedReplacement });
+      continue;
+    }
+    const salary = Math.round(
+      estimateSalaryExpectation(vacancy.role, market.staffLicencesForPerson(candidate.personId), candidate.reputation) *
+        externalOfferMultiplier(db, vacancy.clubId),
+    );
+    const application = applyForStaffVacancy(db, save, vacancy.id, candidate.personId, salary);
+    if (application.status === "OFFERED" || application.status === "COUNTERED") {
+      acceptStaffApplication(db, save, application.id);
+    }
+    outcomes.push({
+      vacancyId: vacancy.id,
+      personId: candidate.personId,
+      applicationStatus: application.status,
+      generatedReplacement,
+    });
+  }
+  return outcomes;
+};
+
+// ---------------------------------------------------------------------------
 // Player -> staff career-transition compatibility
 // ---------------------------------------------------------------------------
 
@@ -637,6 +889,10 @@ export const staffCareerHistory = (db: GameDatabase, personId: EntityId): StaffC
 
 /** How prestigious a club looks to a prospective employee — board ambition plus league standing. */
 export const clubReputationScore = (db: GameDatabase, clubId: EntityId, worldDate: string): number => {
+  const external = db
+    .prepare("SELECT reputation FROM external_club_context WHERE club_id = ? LIMIT 1")
+    .get(clubId) as { reputation?: number } | undefined;
+  if (external?.reputation !== undefined) return clamp(Number(external.reputation), 0, 100);
   let score = 50;
   const policy = new ClubEconomyRepository(db).boardPolicy(clubId);
   if (policy) {
@@ -752,10 +1008,31 @@ export const staffInterestScore = (
     }
   }
 
-  if (!isDomesticPerson(db, personId)) {
-    // A foreign move needs to be worth the upheaval, not just adequate.
+  const personCountry = db.prepare("SELECT nationality_country_id FROM persons WHERE id = ?").get(personId) as
+    | { nationality_country_id?: EntityId }
+    | undefined;
+  const clubCountry = db.prepare("SELECT country_id FROM clubs WHERE id = ?").get(clubId) as
+    | { country_id?: EntityId }
+    | undefined;
+  if (personCountry?.nationality_country_id && clubCountry?.country_id && personCountry.nationality_country_id !== clubCountry.country_id) {
+    // Relocation is symmetric: a foreign coach moving to Nepal and a Nepali
+    // coach moving abroad both need a materially better offer.
     score += salaryRatio >= 1.3 ? 10 : -20;
     reasons.push(salaryRatio >= 1.3 ? "Salary justifies relocating abroad." : "Not enough on offer to relocate abroad.");
+  }
+
+  const externalReach = db
+    .prepare("SELECT recruitment_regions_json FROM external_club_context WHERE club_id = ? LIMIT 1")
+    .get(clubId) as { recruitment_regions_json?: string } | undefined;
+  if (externalReach && isDomesticPerson(db, personId)) {
+    const regions = JSON.parse(externalReach.recruitment_regions_json ?? "[]") as string[];
+    if (regions.includes("SOUTH_ASIA")) {
+      score += 12;
+      reasons.push("The club has established South Asian recruitment reach.");
+    } else {
+      score -= 12;
+      reasons.push("The club has limited recruitment reach in the staff member's region.");
+    }
   }
 
   return { score: clamp(Math.round(score), 0, 100), reasons };
@@ -789,19 +1066,24 @@ export const applyForStaffVacancy = (
     throw new StaffNegotiationError("VACANCY_NOT_FOUND", "That vacancy is no longer open.");
   }
   const worldDate = save.worldDate;
+  const profile = market.staffProfile(personId);
+  const licences = market.staffLicencesForPerson(personId);
+  const eligibility = staffEligibility(vacancy.role, profile, licences);
+  const canAfford = clubCanAffordSalary(db, vacancy.clubId, proposedSalaryMinor);
   const interest = staffInterestScore(db, personId, vacancy.clubId, vacancy.role, proposedSalaryMinor, worldDate);
   const rng = new SeededRandom(`staff-application:${vacancyId}:${personId}:${worldDate}`);
   const roll = rng.next() * 100;
 
   let status: StaffApplicationStatus;
   let counterSalaryMinor: number | undefined;
-  if (interest.score - roll * 0.3 >= 60) {
+  if (profile?.availability === "RETIRED" || !eligibility.eligible || !canAfford) {
+    status = "REJECTED";
+  } else if (interest.score - roll * 0.3 >= 60) {
     status = "OFFERED";
   } else if (interest.score - roll * 0.3 >= 35) {
     status = "COUNTERED";
-    const licences = market.staffLicencesForPerson(personId);
     counterSalaryMinor = Math.round(
-      Math.max(proposedSalaryMinor, estimateSalaryExpectation(vacancy.role, licences, market.staffProfile(personId)?.reputation)) * 1.12,
+      Math.max(proposedSalaryMinor, estimateSalaryExpectation(vacancy.role, licences, profile?.reputation)) * 1.12,
     );
   } else {
     status = "REJECTED";
@@ -841,6 +1123,15 @@ export const acceptStaffApplication = (
   }
   const salary =
     application.status === "COUNTERED" ? application.counterSalaryMinor! : application.offeredSalaryMinor!;
+  const previous = market.activeAppointment(application.personId);
+  if (previous && previous.clubId !== vacancy.clubId) {
+    releaseStaffForMove(
+      db,
+      save,
+      previous,
+      `Resigned to join ${vacancy.role.replace(/_/g, " ").toLowerCase()} employment at another club.`,
+    );
+  }
   const appointment = hireStaff(db, save, vacancy.clubId, vacancy.teamId, application.personId, vacancy.role, salary, contractMonths);
   market.insertApplication({ ...application, status: "ACCEPTED", decidedOn: save.worldDate });
   return appointment;
@@ -920,6 +1211,7 @@ const finalizeRenewal = (
   if (appointment.contractId) {
     const contract = market.employmentContractById(appointment.contractId);
     if (contract) {
+      adjustClubWageSpend(db, contract.clubId, salaryAmountMinor - contract.salaryAmountMinor);
       market.upsertEmploymentContract({ ...contract, salaryAmountMinor, contractEnd, status: "ACTIVE" });
     }
   }
@@ -1206,8 +1498,10 @@ export const evaluateStaffPoaching = (db: GameDatabase, save: SaveMetadata, play
 const findPoachTarget = (db: GameDatabase, excludeClubId: EntityId, role: FootballStaffRole): StaffAppointment | undefined => {
   const row = db
     .prepare(
-      `SELECT * FROM staff_appointments
-      WHERE role = ? AND employment_status = 'ACTIVE' AND (club_id IS NULL OR club_id != ?)
+      `SELECT sa.* FROM staff_appointments sa
+      LEFT JOIN external_club_context ecc ON ecc.club_id = sa.club_id
+      WHERE sa.role = ? AND sa.employment_status = 'ACTIVE' AND (sa.club_id IS NULL OR sa.club_id != ?)
+      ORDER BY CASE WHEN ecc.club_id IS NOT NULL THEN 0 ELSE 1 END, sa.person_id
       LIMIT 1`,
     )
     .get(role, excludeClubId) as SqlRow | undefined;
@@ -1233,20 +1527,7 @@ const resolvePoach = (db: GameDatabase, save: SaveMetadata, approach: StaffAppro
   market.insertApproach({ ...approach, status: "ACCEPTED", decidedOn: worldDate });
 
   if (target.employmentStatus === "ACTIVE") {
-    market.updateAppointmentStatus(target.id, "FORMER", worldDate);
-    if (target.contractId) {
-      const contract = market.employmentContractById(target.contractId);
-      if (contract) market.upsertEmploymentContract({ ...contract, status: "RESIGNED", contractEnd: worldDate });
-    }
-    if (target.clubId) {
-      openStaffVacancy(db, target.clubId, target.role, "RESIGNED", worldDate);
-    }
-    logStaffHistory(db, target.personId, "STAFF_LEFT", worldDate, {
-      appointmentId: target.id,
-      clubId: target.clubId,
-      teamId: target.teamId,
-      description: "Resigned to join another club for a better opportunity.",
-    });
+    releaseStaffForMove(db, save, target, "Resigned to join another club for a better opportunity.");
   }
   hireStaff(db, save, approach.fromClubId, undefined, approach.personId, approach.role, approach.offeredSalaryMinor);
 };

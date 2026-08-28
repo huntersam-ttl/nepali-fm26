@@ -768,7 +768,7 @@ export type StaffProfile = {
   reputation?: string;
   countryKnowledge: EntityId[];
   clubKnowledge: EntityId[];
-  availability?: "AVAILABLE" | "EMPLOYED" | "UNKNOWN";
+  availability?: "AVAILABLE" | "EMPLOYED" | "RETIRED" | "UNKNOWN";
   workEligibilityStatus?: "ELIGIBLE" | "REQUIRES_PERMIT" | "UNKNOWN";
 };
 
@@ -3940,7 +3940,7 @@ export type StaffApplication = {
   counterSalaryMinor?: number;
 };
 
-export type StaffEmploymentContractStatus = "ACTIVE" | "EXPIRED" | "TERMINATED" | "RESIGNED";
+export type StaffEmploymentContractStatus = "ACTIVE" | "EXPIRED" | "TERMINATED" | "RESIGNED" | "RETIRED";
 
 /**
  * The employment contract behind a `StaffAppointment` (referenced by its

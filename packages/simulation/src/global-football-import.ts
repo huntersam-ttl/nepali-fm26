@@ -1,5 +1,5 @@
 import { GlobalFootballContextRepository, type GameDatabase, WorldRepository } from "@nepal-football-sim/database";
-import { createStableEntityId, type EntityId, type ExternalFederationContext } from "@nepal-football-sim/shared-types";
+import { createStableEntityId, type EntityId, type ExternalFederationContext, type FootballStaffRole } from "@nepal-football-sim/shared-types";
 import type { GlobalImportPlan, WorkbookRow } from "@nepal-football-sim/data-import";
 
 export type GlobalImportApplyCounts = Record<string, number>;
@@ -45,6 +45,15 @@ const canonicalClub = (db: GameDatabase, externalId: string, officialName: strin
   return byName?.id ? { id: byName.id, action: "MAPPED" } : { id: createStableEntityId("import-club", externalId), action: "NEW" };
 };
 
+/** Preserve the reported licence family while mapping its rank into the shared eligibility ladder. */
+const internalStaffLicence = (raw: string): { licenceType: string; issuer: string } | undefined => {
+  const normalised = raw.trim().toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_|_$/g, "");
+  if (!normalised || normalised === "UNKNOWN") return undefined;
+  const family = normalised.includes("UEFA") ? "UEFA" : normalised.includes("AFC") ? "AFC" : "OTHER";
+  const level = normalised.includes("PRO") ? "PRO" : normalised.match(/(?:^|_)([ABCD])(?:_|$)/)?.[1];
+  return level ? { licenceType: family === "OTHER" ? `AFC_${level}` : `${family}_${level}`, issuer: family === "OTHER" ? raw.trim() : family } : undefined;
+};
+
 /** Applies a validated plan to an isolated starting-world database transactionally. */
 export const applyGlobalFootballImportToDatabase = (db: GameDatabase, plan: GlobalImportPlan): GlobalImportApplyCounts => {
   const counts: GlobalImportApplyCounts = { inserted_federations: 0, mapped_federations: 0, inserted_leagues: 0, mapped_leagues: 0, inserted_competitions: 0, mapped_competitions: 0, inserted_clubs: 0, mapped_clubs: 0, inserted_players: 0, mapped_existing_players: 0, inserted_staff: 0, mapped_staff: 0, player_club_history_rows: plan.playerClubHistory.length, nepal_foreign_player_links: plan.nepalForeignPlayers.length, skipped_manual_review_rows: plan.manualReviewExternalIds.length, conflicts: 0, unchanged_noop_rows: 0 };
@@ -58,8 +67,48 @@ export const applyGlobalFootballImportToDatabase = (db: GameDatabase, plan: Glob
     for (const row of plan.clubs) { const external = value(row, "club_external_id"), name = value(row, "official_name"), countryId = country(value(row, "country")), resolved = canonicalClub(db, external, name, countryId); if (resolved.action === "NEW") { world.insertClub({ id: resolved.id, name, officialName: name, shortName: value(row, "common_name") || name, canonicalExternalId: external, countryId, ownershipType: "PRIVATE", organisationType: "CLUB", foundedYear: Number(value(row, "founded_year")) || undefined }); counts.inserted_clubs++; } else counts.mapped_clubs++; clubs.set(external, resolved.id); clubNames.set(key(name), external); clubNames.set(key(value(row, "common_name")), external); }
     for (const row of plan.clubs) { const external = value(row, "club_external_id"), clubId = clubs.get(external)!, federationId = federations.get(value(row, "national_federation")) ?? findFederation(db, value(row, "national_federation"), country(value(row, "country"))), leagueId = leagueNames.get(key(value(row, "league"))); const teamId = createStableEntityId("import-team", external); teams.set(external, teamId); if (!db.prepare("SELECT 1 FROM teams WHERE id=?").get(teamId)) world.insertTeam({ id: teamId, clubId, federationId, name: `${value(row, "common_name") || value(row, "official_name")} Senior Men`, canonicalExternalId: `${external}-MEN`, level: "senior", gender: "men" }); if (value(row, "country").toUpperCase() !== "NEPAL" && leagueId && federationId) contexts.upsertClub({ clubId, leagueId, federationId, countryId: country(value(row, "country")), reputation: 40, financialBand: "MEDIUM", academyStrength: 35, scoutingReach: 50, recruitmentRegions: ["WIDER_ASIA"], simulationDepth: "CONTEXT_ONLY" }); }
     for (const row of plan.players) { const external = value(row, "player_external_id"), imported = importPerson(db, external, value(row, "full_name"), value(row, "date_of_birth"), value(row, "nationality")); persons.set(external, imported.personId); const clubExternal = clubNames.get(key(value(row, "current_club"))) ?? value(row, "current_club"), clubId = clubs.get(clubExternal) ?? (clubExternal ? (db.prepare("SELECT id FROM clubs WHERE lower(official_name)=lower(?) LIMIT 1").get(clubExternal) as { id?: EntityId } | undefined)?.id : undefined); const profileId = createStableEntityId("import-player-factual", external); db.prepare("INSERT INTO player_factual_profiles (id,player_id,canonical_external_id,current_club_id,factual_json,simulation_json,evidence_json,record_status,confidence_level,last_verified) VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(canonical_external_id) DO UPDATE SET current_club_id=excluded.current_club_id,factual_json=excluded.factual_json,evidence_json=excluded.evidence_json,record_status=excluded.record_status,confidence_level=excluded.confidence_level,last_verified=excluded.last_verified").run(profileId, imported.personId, external, clubId ?? null, JSON.stringify(row), JSON.stringify({}), JSON.stringify({ sourceIds: [value(row, "source_1_id"), value(row, "source_2_id")].filter(Boolean) }), value(row, "provenance") || "UNKNOWN", value(row, "confidence") || "LOW", value(row, "last_verified_date") || null); if (clubId && value(row, "nationality").toUpperCase() !== "NEPAL") { contexts.upsertPlayer({ playerId: imported.personId, clubId, region: "WIDER_ASIA", reputation: 30, interestLevel: "UNKNOWN", careerState: "ACTIVE", updatedOn: "2026-08-27" }); const teamId = teams.get(clubExternal); if (teamId) db.prepare("INSERT OR IGNORE INTO team_person_assignments (id,person_id,team_id,role,started_on,ended_on) VALUES (?,?,?,?,?,NULL)").run(createStableEntityId("import-player-assignment", external), imported.personId, teamId, "PLAYER", "2026-08-27"); } if (imported.action === "NEW") counts.inserted_players++; else counts.mapped_existing_players++; }
-    for (const row of plan.staff) { const external = value(row, "staff_external_id"), imported = importPerson(db, external, value(row, "full_name"), value(row, "date_of_birth"), value(row, "nationality")); persons.set(external, imported.personId); const roleId = createStableEntityId("import-person-role", external); if (!db.prepare("SELECT 1 FROM person_roles WHERE id=?").get(roleId)) world.insertPersonRole({ id: roleId, personId: imported.personId, role: "STAFF", activeFrom: value(row, "last_verified_date") || "2026-08-27" }); const profileId = createStableEntityId("import-staff-profile", external); db.prepare("INSERT INTO staff_profiles (id,person_id,preferred_role,availability,work_eligibility_status,country_knowledge_json,club_knowledge_json) VALUES (?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET preferred_role=excluded.preferred_role").run(profileId, imported.personId, value(row, "role"), "UNKNOWN", "UNKNOWN", "[]", "[]"); if (imported.action === "NEW") counts.inserted_staff++; else counts.mapped_staff++; }
-    for (const row of [...plan.sources, ...plan.playerClubHistory, ...plan.nepalForeignPlayers]) db.prepare("INSERT OR REPLACE INTO global_dataset_import_records (dataset_version,entity_type,external_id,canonical_id,action,provenance,payload_json) VALUES (?,?,?,?,?,?,?)").run(plan.datasetVersion, row.source_id ? "SOURCES" : row.history_external_id ? "PLAYER_CLUB_HISTORY" : row.record_external_id ? "NEPAL_FOREIGN_PLAYERS" : "UNKNOWN", value(row, "source_id") || value(row, "history_external_id") || value(row, "record_external_id"), value(row, "player_external_id") || value(row, "club_external_id") || value(row, "source_id"), "UNCHANGED", value(row, "provenance") || "UNKNOWN", JSON.stringify(row));
+    for (const row of plan.staff) {
+      const external = value(row, "staff_external_id");
+      const imported = importPerson(db, external, value(row, "full_name"), value(row, "date_of_birth"), value(row, "nationality"));
+      persons.set(external, imported.personId);
+      const date = value(row, "last_verified_date") || "2026-08-27";
+      const roleId = createStableEntityId("import-person-role", external);
+      if (!db.prepare("SELECT 1 FROM person_roles WHERE id=?").get(roleId)) {
+        world.insertPersonRole({ id: roleId, personId: imported.personId, role: "STAFF", activeFrom: date });
+      }
+      const role = value(row, "role") as FootballStaffRole;
+      const clubExternal = clubNames.get(key(value(row, "current_club_or_federation")));
+      const clubId = clubExternal ? clubs.get(clubExternal) : undefined;
+      const profileId = createStableEntityId("import-staff-profile", external);
+      world.insertStaffProfile({
+        id: profileId,
+        personId: imported.personId,
+        preferredRole: role,
+        countryKnowledge: [],
+        clubKnowledge: clubId ? [clubId] : [],
+        availability: clubId ? "EMPLOYED" : "AVAILABLE",
+        workEligibilityStatus: "UNKNOWN",
+      });
+      const licence = internalStaffLicence(value(row, "coaching_licence"));
+      if (licence && !db.prepare("SELECT 1 FROM staff_licences WHERE id=?").get(createStableEntityId("import-staff-licence", external))) {
+        world.insertStaffLicence({ id: createStableEntityId("import-staff-licence", external), personId: imported.personId, licenceType: licence.licenceType, issuer: licence.issuer, issueDate: date, status: "VERIFIED" });
+      }
+      if (clubId) {
+        const appointmentId = createStableEntityId("import-staff-appointment", external);
+        if (!db.prepare("SELECT 1 FROM staff_appointments WHERE id=?").get(appointmentId)) {
+          world.insertStaffAppointment({ id: appointmentId, personId: imported.personId, organisationType: "CLUB", clubId, teamId: teams.get(clubExternal!), role, startDate: date, employmentStatus: "ACTIVE" });
+        }
+      }
+      if (imported.action === "NEW") counts.inserted_staff++; else counts.mapped_staff++;
+    }
+    for (const row of [...plan.sources, ...plan.staff, ...plan.playerClubHistory, ...plan.nepalForeignPlayers]) {
+      const entityType = row.source_id ? "SOURCES" : row.staff_external_id ? "STAFF" : row.history_external_id ? "PLAYER_CLUB_HISTORY" : row.record_external_id ? "NEPAL_FOREIGN_PLAYERS" : "UNKNOWN";
+      const externalId = value(row, "source_id") || value(row, "staff_external_id") || value(row, "history_external_id") || value(row, "record_external_id");
+      const canonicalId = entityType === "STAFF"
+        ? persons.get(value(row, "staff_external_id")) ?? externalId
+        : value(row, "player_external_id") || value(row, "club_external_id") || value(row, "source_id");
+      db.prepare("INSERT OR REPLACE INTO global_dataset_import_records (dataset_version,entity_type,external_id,canonical_id,action,provenance,payload_json) VALUES (?,?,?,?,?,?,?)").run(plan.datasetVersion, entityType, externalId, canonicalId, "UNCHANGED", value(row, "provenance") || "UNKNOWN", JSON.stringify(row));
+    }
     db.prepare("INSERT INTO global_dataset_imports (dataset_version,source_path,applied_on,status) VALUES (?,?,?,?) ON CONFLICT(dataset_version) DO UPDATE SET source_path=excluded.source_path,applied_on=excluded.applied_on,status=excluded.status").run(plan.datasetVersion, plan.sourcePath, "2026-08-27", "ACTIVE");
     transaction.exec("COMMIT"); return counts;
   } catch (error) { transaction.exec("ROLLBACK"); throw error; }

@@ -10,9 +10,9 @@ audit, plus the eight explicit high-risk overlays requested for this pass. Statu
 
 | Status | Count |
 | --- | ---: |
-| COMPLETE | 55 |
+| COMPLETE | 56 |
 | BUILT_NOT_PROVEN | 1 |
-| PARTIAL | 27 |
+| PARTIAL | 26 |
 | MISSING | 5 |
 | LATER | 4 |
 | **Total** | **92** |
@@ -70,10 +70,11 @@ Legacy partials:
 
 High-risk overlays:
 
-1. **Foreign staff movement — PARTIAL.** Foreign staff profiles are generated and the staff
-   interest function recognizes relocation economics. External clubs do not receive active
-   staff appointments, the headless career loop does not run staff hiring/renewal/poaching,
-   and no end-to-end two-way foreign staff contract/history/replacement flow is proven.
+1. **Foreign staff movement — COMPLETE.** Existing staff identities now move through the
+   normal vacancy/application/decision/contract path in both directions. CONTEXT_ONLY clubs
+   have bounded external vacancy processing, staff employment history, contract closure,
+   retirement/replacement, imported-staff visibility, and Nepal refill after an outgoing move;
+   they remain non-playable and do not receive a full foreign payroll simulation.
 2. **Global generated-player lifecycle — PARTIAL.** Foreign seasonal replenishment is live,
    deterministic, and idempotent, but only shortage top-ups are modeled. External context
    players are written as `ACTIVE`; development/decline, retirement, free-agent transition,
@@ -101,7 +102,7 @@ High-risk overlays:
 | Candidate | Unit | Integration | Production flow | Reload |
 | --- | --- | --- | --- | --- |
 | Trials | invitation, response, knowledge, expiry, offer handoff | 4 focused lifecycle tests | scouting cadence, seasonal AI, and external-interest paths | active and completed reload |
-| Foreign staff movement | interest/application/poach helpers | local staff-market only | desktop staff cadence only | local staff records only |
+| Foreign staff movement | vacancy, decision, contract, retirement helpers | two-way CONTEXT_ONLY moves and replacement | desktop and seasonal context cadence | contracts/history/replacements reload |
 | Global generated lifecycle | youth/workforce generation | foreign idempotency/replenishment | seasonal shortage top-up | bootstrap/replenishment idempotency |
 | External competition context | external profile helpers | global-context season persistence | career seasonal cadence | context rows reload |
 | Partnerships | pathway/evaluation helpers | one SCOUTING activation | no production consumer | no partnership reload proof |
@@ -114,9 +115,10 @@ High-risk overlays:
 - Women's player data in the shipped factual dataset; women's national team; U17/U20/U23
   national teams; legends and cult heroes; real referee database.
 
-The real staff entry is now PARTIAL: the canonical seed has 149 verified staff rows, but all
-are `HEAD_COACH` records and the importer does not create complete club/federation appointments.
-The referee entry remains MISSING. Generated supply is the active continuity mechanism.
+The real staff entry remains role-limited: the canonical seed has 149 verified `HEAD_COACH`
+rows. Suitable club-linked entries now become factual staff appointments and participate in the
+same bounded hiring pipeline as generated staff; federation-only roles remain outside this club
+mobility pass. The referee entry remains MISSING. Generated supply is the active continuity mechanism.
 Women's and age-group national football remain gameplay gaps.
 
 ## Later / Explicitly Deferred
@@ -139,11 +141,10 @@ No long save, balance run, UI/UX pass, or optimization was performed.
 
 ## Final Feature Passes Before Freeze
 
-- **P0 — scope and core closure:** the international-trials scope gate is closed: cross-border
-  foreign-player → Nepal and Nepal-player → context-only foreign evaluation are supported;
-  domestic trials are out of scope. Next define and implement the minimum two-way foreign-staff
-  mobility lifecycle with contracts, history, replacement, and reload evidence. Then resolve the
-  women's and age-group international scope, including only the required data, selection,
+- **P0 — scope and core closure:** the international-trials and two-way foreign-staff scope gates
+  are closed: foreign-player → Nepal and Nepal-player → context-only foreign evaluation are
+  supported, and club staff can move through shared employment records. Next resolve the women's
+  and age-group international scope, including only the required data, selection,
   fixtures/results, eligibility, persistence, and progression surfaces.
 - **P1 — connected-world depth:** connect global player development/decline/retirement and
   external competition context; add production consumers for partnership types and multi-club
@@ -162,8 +163,7 @@ is being marked green automatically.
 ## Feature Freeze Decision
 
 **NO — not ready for a true feature freeze.** The core manager spine is production-reachable,
-but foreign staff movement/global lifecycle/competition
-context/partnership/network/sell-on systems are meaningful PARTIALs, women's and age-group
-international systems remain MISSING, and long-save performance is BUILT_NOT_PROVEN. Freeze
+but global lifecycle/competition context/partnership/network/sell-on systems are meaningful
+PARTIALs, women's and age-group international systems remain MISSING, and long-save performance is BUILT_NOT_PROVEN. Freeze
 can be reconsidered after the P0 scope decisions and proof tasks are closed. The current
 uncommitted repository work remains untouched.
