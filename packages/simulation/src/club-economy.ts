@@ -29,6 +29,7 @@ import {
   type OwnerInvestmentForm,
   type OwnerInvestmentTransaction,
   type Person,
+  type PlayerLoanRecord,
   type SponsorshipContract,
   type SponsorshipType,
   type TransferOffer,
@@ -1188,11 +1189,13 @@ export const processClubEconomyMonth = (
   expireSponsorships(db, input.date);
   expireCompetitionMediaRights(db, input.date);
   const economy = new ClubEconomyRepository(db);
+  const market = new TransferMarketRepository(db);
+  const loanWages = activeLoanWageSettlements(market, input.date);
+  const outboundLoanPlayers = new Set(loanWages.map((item) => item.loan.playerId));
   for (const account of economy.financialAccounts()) {
-    const contracts = new TransferMarketRepository(db).activeContractsForClub(
-      account.clubId,
-      input.date,
-    );
+    const contracts = market
+      .activeContractsForClub(account.clubId, input.date)
+      .filter((contract) => !outboundLoanPlayers.has(contract.playerId));
     const monthlyWages = Math.round(
       contracts.reduce((total, contract) => total + contract.salary, 0) / 12,
     );
@@ -1284,7 +1287,95 @@ export const processClubEconomyMonth = (
     }
     postMerchandiseRevenue(db, { clubId: account.clubId, date: input.date, seed: input.seed });
   }
+  for (const item of loanWages) {
+    const parentPaid = postLoanWageShare(db, {
+      clubId: item.loan.parentClubId,
+      date: input.date,
+      amount: item.parentShare,
+      description: "Loan parent wage share",
+      relatedEntityId: item.loan.id,
+      idempotencyKey: `loan-payroll-parent:${item.loan.id}:${input.date}`,
+    });
+    const destinationPaid = postLoanWageShare(db, {
+      clubId: item.loan.loanClubId,
+      date: input.date,
+      amount: item.destinationShare,
+      description: "Loan destination wage share",
+      relatedEntityId: item.loan.id,
+      idempotencyKey: `loan-payroll-destination:${item.loan.id}:${input.date}`,
+    });
+    if (parentPaid)
+      economy.addBudgetUsage(
+        item.loan.parentClubId,
+        seasonLabel(input.date),
+        "WAGE_BUDGET",
+        item.parentShare,
+      );
+    if (destinationPaid)
+      economy.addBudgetUsage(
+        item.loan.loanClubId,
+        seasonLabel(input.date),
+        "WAGE_BUDGET",
+        item.destinationShare,
+      );
+  }
   advanceInfrastructureProjects(db, input);
+};
+
+type LoanWageSettlement = {
+  loan: PlayerLoanRecord;
+  total: number;
+  parentShare: number;
+  destinationShare: number;
+};
+
+const activeLoanWageSettlements = (
+  market: TransferMarketRepository,
+  date: string,
+): LoanWageSettlement[] =>
+  market.activeLoans(date).map((loan) => {
+    const percentage = loan.wageContributionPercent;
+    if (!Number.isFinite(percentage) || percentage < 0 || percentage > 100) {
+      throw new Error("Loan wage contribution must be between 0 and 100");
+    }
+    const contract = market.activeContract(loan.playerId, date);
+    if (!contract || contract.clubId !== loan.parentClubId) {
+      throw new Error("Active loan is missing its parent-club contract for payroll");
+    }
+    const total = Math.round(contract.salary / 12);
+    const destinationShare = Math.round((total * percentage) / 100);
+    return {
+      loan,
+      total,
+      destinationShare,
+      parentShare: total - destinationShare,
+    };
+  });
+
+const postLoanWageShare = (
+  db: GameDatabase,
+  input: {
+    clubId: EntityId;
+    date: string;
+    amount: number;
+    description: string;
+    relatedEntityId: EntityId;
+    idempotencyKey: string;
+  },
+): boolean => {
+  const existing = db
+    .prepare(
+      `SELECT 1 FROM club_ledger_entries
+       WHERE club_id = ? AND entry_date = ? AND category = 'PLAYER_WAGES'
+         AND direction = 'DEBIT' AND related_entity_id = ? LIMIT 1`,
+    )
+    .get(input.clubId, input.date, input.relatedEntityId);
+  postClubTransaction(db, {
+    ...input,
+    category: "PLAYER_WAGES",
+    direction: "DEBIT",
+  });
+  return !existing;
 };
 
 export const generateCompetitionMediaRightsOffer = (

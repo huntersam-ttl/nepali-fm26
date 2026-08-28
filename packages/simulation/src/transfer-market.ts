@@ -1665,6 +1665,9 @@ export const startLoan = (
   } = {},
 ): PlayerLoanRecord => {
   const market = new TransferMarketRepository(db);
+  if (parentClubId === loanClubId) {
+    throw new Error("A loan requires different parent and destination clubs");
+  }
   const parentContract = market.activeContract(playerId, worldDate);
   if (!parentContract || parentContract.clubId !== parentClubId) {
     throw new Error("A loan requires an active parent-club contract");
@@ -1672,7 +1675,30 @@ export const startLoan = (
   if (market.activeLoans(worldDate).some((loan) => loan.playerId === playerId)) {
     throw new Error("Player already has an active loan");
   }
-  const loanFee = Math.max(0, options.loanFee ?? 0);
+  const requestedEndDate = options.endDate ?? addMonths(worldDate, 6);
+  if (requestedEndDate < worldDate || requestedEndDate > parentContract.endDate) {
+    throw new Error("Loan end date must be within the parent contract");
+  }
+  const requestedWageContribution = options.wageContributionPercent ?? 55;
+  if (
+    !Number.isFinite(requestedWageContribution) ||
+    requestedWageContribution < 0 ||
+    requestedWageContribution > 100
+  ) {
+    throw new Error("Loan wage contribution must be between 0 and 100");
+  }
+  const requestedLoanFee = options.loanFee ?? 0;
+  if (!Number.isFinite(requestedLoanFee) || requestedLoanFee < 0) {
+    throw new Error("Loan fee must be a finite non-negative amount");
+  }
+  const requestedPurchaseOption = options.purchaseOption;
+  if (
+    requestedPurchaseOption !== undefined &&
+    (!Number.isFinite(requestedPurchaseOption) || requestedPurchaseOption <= 0)
+  ) {
+    throw new Error("Purchase option must be a finite positive amount");
+  }
+  const loanFee = Math.round(requestedLoanFee);
   if (loanFee > 0 && !clubCanAffordTransfer(db, loanClubId, loanFee, worldDate)) {
     throw new Error("Loan club cannot afford the loan fee");
   }
@@ -1685,16 +1711,17 @@ export const startLoan = (
     loanClubId,
     playerId,
     startDate: worldDate,
-    endDate: options.endDate ?? addMonths(worldDate, 6),
-    wageContributionPercent: Math.max(0, Math.min(100, options.wageContributionPercent ?? 55)),
+    endDate: requestedEndDate,
+    wageContributionPercent: requestedWageContribution,
     loanFee,
     playingTimeExpectation: options.playingTimeExpectation ?? "ROTATION",
     recallAllowed: options.recallAllowed ?? true,
-    purchaseOption: options.purchaseOption,
+    purchaseOption: requestedPurchaseOption,
     status: "ACTIVE",
   };
   market.upsertLoan(loan);
   movePlayerAssignment(db, playerId, loanClubId, worldDate);
+  closePlayerRegistrations(db, playerId, parentClubId, "CONTRACTED", worldDate);
   registerLoanPlayer(db, loan, worldDate);
   if (loan.loanFee && loan.loanFee > 0) {
     postClubTransaction(db, {
@@ -1919,29 +1946,124 @@ export const signFreeAgent = (
   return new TransferMarketRepository(db).activeContract(playerId, worldDate)?.clubId === clubId;
 };
 
-export const endLoan = (db: GameDatabase, loan: PlayerLoanRecord, worldDate: string): void => {
+export type LoanTerminationReason =
+  | "NORMAL_EXPIRY"
+  | "RECALL"
+  | "PERMANENT_OPTION_PURCHASE";
+
+const finishLoan = (
+  db: GameDatabase,
+  loan: PlayerLoanRecord,
+  worldDate: string,
+  reason: LoanTerminationReason,
+  returnToParent: boolean,
+): boolean => {
   const market = new TransferMarketRepository(db);
-  market.upsertLoan({ ...loan, status: "ENDED" });
-  movePlayerAssignment(db, loan.playerId, loan.parentClubId, worldDate);
-  db
-    .prepare(
-      `UPDATE competition_registrations
-       SET status = 'EXPIRED',
-           registered_until = CASE
-             WHEN registered_until IS NULL OR registered_until > ? THEN ?
-             ELSE registered_until
-           END
-       WHERE player_id = ? AND registration_type = 'LOAN' AND status = 'ACTIVE'`,
-    )
-    .run(worldDate, worldDate, loan.playerId);
+  const persisted = market.loan(loan.id);
+  if (!persisted || persisted.status !== "ACTIVE") return false;
+  market.upsertLoan({ ...persisted, status: "ENDED" });
+  if (returnToParent) {
+    movePlayerAssignment(db, persisted.playerId, persisted.parentClubId, worldDate);
+  }
+  closePlayerRegistrations(db, persisted.playerId, persisted.loanClubId, "LOAN", worldDate);
+  if (returnToParent) {
+    registerContractedPlayer(db, persisted.playerId, persisted.parentClubId, worldDate);
+  }
   market.insertTransferHistoryEvent({
-    id: createStableEntityId("transfer-history", `${loan.playerId}:loan-ended:${worldDate}`),
-    playerId: loan.playerId,
-    clubId: loan.parentClubId,
-    relatedClubId: loan.loanClubId,
+    id: createStableEntityId(
+      "transfer-history",
+      `${persisted.id}:loan-ended:${reason}`,
+    ),
+    playerId: persisted.playerId,
+    clubId: persisted.parentClubId,
+    relatedClubId: persisted.loanClubId,
     eventType: "LOAN_ENDED",
     occurredOn: worldDate,
+    data: { terminationReason: reason },
   });
+  return true;
+};
+
+export const endLoan = (
+  db: GameDatabase,
+  loan: PlayerLoanRecord,
+  worldDate: string,
+): void => {
+  finishLoan(db, loan, worldDate, "NORMAL_EXPIRY", true);
+};
+
+export const recallLoan = (
+  db: GameDatabase,
+  input: { loanId: EntityId; parentClubId: EntityId; worldDate: string },
+): PlayerLoanRecord => {
+  const market = new TransferMarketRepository(db);
+  const loan = market.loan(input.loanId);
+  if (!loan || loan.status !== "ACTIVE") throw new Error("Loan is no longer active");
+  if (loan.parentClubId !== input.parentClubId) {
+    throw new Error("Only the parent club can recall a player");
+  }
+  if (input.worldDate < loan.startDate) throw new Error("Loan recall is too early");
+  if (input.worldDate >= loan.endDate) throw new Error("Loan has reached its expiry date");
+  if (!loan.recallAllowed) throw new Error("This loan does not allow recall");
+  finishLoan(db, loan, input.worldDate, "RECALL", true);
+  return market.loan(loan.id)!;
+};
+
+export type LoanOptionExerciseResult = {
+  completed: boolean;
+  loan: PlayerLoanRecord;
+  offer: TransferOffer;
+};
+
+export const exerciseLoanOption = (
+  db: GameDatabase,
+  input: {
+    loanId: EntityId;
+    loanClubId: EntityId;
+    worldDate: string;
+    seed: string;
+  },
+): LoanOptionExerciseResult => {
+  const market = new TransferMarketRepository(db);
+  const loan = market.loan(input.loanId);
+  if (!loan || loan.status !== "ACTIVE") throw new Error("Loan is no longer active");
+  if (loan.loanClubId !== input.loanClubId) {
+    throw new Error("Only the destination club can exercise the purchase option");
+  }
+  if (input.worldDate < loan.startDate) throw new Error("Purchase option is not yet eligible");
+  if (input.worldDate >= loan.endDate) throw new Error("Purchase option has expired with the loan");
+  if (!loan.purchaseOption || !Number.isFinite(loan.purchaseOption) || loan.purchaseOption <= 0) {
+    throw new Error("This loan has no purchase option");
+  }
+  if (!clubCanAffordTransfer(db, loan.loanClubId, loan.purchaseOption, input.worldDate)) {
+    throw new Error("Destination club cannot afford the purchase option");
+  }
+  const offer = createTransferOffer(db, {
+    buyingClubId: loan.loanClubId,
+    sellingClubId: loan.parentClubId,
+    playerId: loan.playerId,
+    submittedAt: input.worldDate,
+    fee: loan.purchaseOption,
+    installments: 0,
+    addOns: 0,
+    sellOnPercentage: 0,
+  });
+  if (!["SUBMITTED", "ACCEPTED", "PLAYER_ACCEPTED"].includes(offer.status)) {
+    return { completed: false, loan, offer };
+  }
+  market.updateOfferStatus(offer.id, "ACCEPTED");
+  completePermanentTransfer(db, offer, input.worldDate, `${input.seed}:loan-option:${loan.id}`);
+  const settledOffer = new TransferMarketRepository(db)
+    .transferOffers()
+    .find((item) => item.id === offer.id)!;
+  if (settledOffer.status === "COMPLETED") {
+    finishLoan(db, loan, input.worldDate, "PERMANENT_OPTION_PURCHASE", false);
+  }
+  return {
+    completed: settledOffer.status === "COMPLETED",
+    loan: new TransferMarketRepository(db).loan(loan.id)!,
+    offer: settledOffer,
+  };
 };
 
 export type ClubTransferIdentity =
@@ -2236,6 +2358,63 @@ const registerLoanPlayer = (
       registrationType: "LOAN",
       registeredFrom: worldDate,
       registeredUntil: season.end_date < loan.endDate ? season.end_date : loan.endDate,
+      status: "ACTIVE",
+    });
+  }
+};
+
+const closePlayerRegistrations = (
+  db: GameDatabase,
+  playerId: EntityId,
+  clubId: EntityId,
+  registrationType: "CONTRACTED" | "LOAN",
+  worldDate: string,
+): void => {
+  db
+    .prepare(
+      `UPDATE competition_registrations
+       SET status = 'EXPIRED',
+           registered_until = CASE
+             WHEN registered_until IS NULL OR registered_until > ? THEN ?
+             ELSE registered_until
+           END
+       WHERE player_id = ? AND club_id = ? AND registration_type = ? AND status = 'ACTIVE'`,
+    )
+    .run(worldDate, worldDate, playerId, clubId, registrationType);
+};
+
+const registerContractedPlayer = (
+  db: GameDatabase,
+  playerId: EntityId,
+  clubId: EntityId,
+  worldDate: string,
+): void => {
+  const market = new TransferMarketRepository(db);
+  const seasons = db
+    .prepare(
+      `SELECT DISTINCT cs.id AS season_id, cs.end_date
+       FROM club_memberships cm
+       JOIN competition_seasons cs ON cs.id = cm.competition_season_id
+       WHERE cm.club_id = ? AND cm.status = 'ACTIVE'
+         AND cs.start_date <= ? AND cs.end_date >= ?
+       ORDER BY cs.id`,
+    )
+    .all(clubId, worldDate, worldDate) as Array<{
+    season_id: EntityId;
+    end_date: string;
+  }>;
+  for (const season of seasons) {
+    market.upsertCompetitionRegistration({
+      id: createStableEntityId(
+        "competition-registration",
+        `${playerId}:${season.season_id}:contracted`,
+      ),
+      playerId,
+      clubId,
+      competitionSeasonId: season.season_id,
+      registrationType: "CONTRACTED",
+      registeredFrom: worldDate,
+      registeredUntil: season.end_date,
       status: "ACTIVE",
     });
   }

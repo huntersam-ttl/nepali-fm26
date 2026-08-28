@@ -54,6 +54,7 @@ const createSave = (seed: string): string => {
     saveName: `Transfers ${seed}`,
     gameVersion: "0.2.0",
     randomSeed: seed,
+    globalSeedPath: null,
   });
   const db = openGameDatabase(databasePath);
   initializeTransferMarketForSave({ db, worldDate: "2026-08-01", seed });

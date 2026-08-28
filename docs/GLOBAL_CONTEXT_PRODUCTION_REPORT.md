@@ -441,3 +441,74 @@ and build pass. The full stage-eight suite exceeded its bounded observation wind
 slow/unresolved. Option-to-buy execution, recall commands, recurring wage settlement, and long-save
 stage-eight proof remain follow-up depth. This addendum supersedes earlier historical notes that
 described imported coverage or loan support as pending.
+
+## Loan Lifecycle Closure — 2026-08-28
+
+### Recurring Loan Wage Settlement
+
+Active loans now participate in the existing club payroll cadence. The parent
+contract's current authoritative annual salary is converted to the existing
+monthly wage amount, then split with the persisted destination contribution
+percentage. The parent share is the exact remainder, so rounding preserves
+`parent share + destination share = total obligation`. Payroll queries active
+loans due on the requested date only; historical loans are not scanned.
+
+### Wage Exact-Once and Finance
+
+Each parent and destination wage share uses a stable loan/payroll-period
+ledger key and related loan ID. Repeating a payroll date, including after the
+database is reopened, does not create another `PLAYER_WAGES` entry or budget
+usage. Loan fees remain separate one-off `LOAN_PAYMENT` entries. The focused
+wage regression also confirms two loan-fee entries and four wage-share entries
+across two periods.
+
+### Recall
+
+`recallLoan` is the canonical command path. It requires an active agreement,
+the parent club, an eligible date, and `recallAllowed`; absent agreement fields
+such as an earliest recall window were not invented. A valid recall marks the
+loan ended with `LOAN_ENDED` reason data, returns the player to the parent,
+closes the destination `LOAN` registration, restores parent registration when
+the existing competition rules provide one, and stops future loan wages. No
+fee refund is created.
+
+### Option-to-Buy
+
+`exerciseLoanOption` requires the active destination club, an eligible date, a
+positive persisted option, and affordability. It creates a normal permanent
+offer and delegates player/agent terms, contract creation, identity movement,
+history, registration, and transfer finance to `completePermanentTransfer`.
+On completion the loan is terminal with `PERMANENT_OPTION_PURCHASE`, the
+temporary registration is closed, the destination contracted registration is
+active, and exactly one `TRANSFER_COMPLETED` event is present. No
+`FREE_AGENT_SIGNED` event or second transfer is created. Failed, unauthorized,
+unaffordable, and no-option exercises leave the loan and transfer state intact.
+
+### Terminal States and Persistence
+
+All terminal transitions use one persisted active-loan guard and one stable
+history identity. `NORMAL_EXPIRY`, `RECALL`, and
+`PERMANENT_OPTION_PURCHASE` are mutually exclusive; stale expiry/recall calls
+are no-ops or rejected after a prior terminal transition. Focused recall and
+option cases reload the database and preserve the player identity, destination
+or parent state, contract, registration, loan status, and single history
+outcomes.
+
+### Validation
+
+`transfer-loan-lifecycle.test.ts` passes 4/4. Existing global-loan,
+personal-terms, and transfer-integrity regressions pass 14/14; targeted
+stage-eight loan cases pass 2/2. The full stage-eight file was attempted for a
+bounded roughly 90-second window, showed ongoing progress, and was stopped
+without completion; it is not claimed as PASS. Root typecheck, build, and
+diff-check pass. No long-save validation, balancing, UI work, or new global data
+was run.
+
+### Remaining Loan Depth
+
+The command path is production-ready. A bounded AI recall trigger and broader
+stage-eight instrumentation remain follow-up work. Existing partnership and
+Africa/South Asia candidate coverage remain unchanged and green in their
+focused regressions.
+
+`GLOBAL CONTEXT PRODUCTION ACTIVE.`

@@ -3914,6 +3914,11 @@ export class TransferMarketRepository {
       );
   }
 
+  loan(id: EntityId): PlayerLoanRecord | undefined {
+    const row = this.db.prepare("SELECT * FROM player_loans WHERE id = ?").get(id) as any;
+    return row ? mapPlayerLoan(row) : undefined;
+  }
+
   activeLoans(date: string): PlayerLoanRecord[] {
     return this.db
       .prepare(
