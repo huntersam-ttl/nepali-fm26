@@ -6,6 +6,7 @@ import {
 import {
   WorkforceSupplyRepository,
   GlobalFootballContextRepository,
+  PlayerRepository,
   WorldRepository,
   type GameDatabase,
 } from "@nepal-football-sim/database";
@@ -20,6 +21,8 @@ import { initializeTransferMarketForSave } from "./transfer-market.js";
 import { generateYouthCohort } from "./youth-intake.js";
 import { SeededRandom } from "./rng.js";
 import { considerForeignInternationalTrials } from "./international-trials.js";
+import { createInitialDevelopmentState, updatePlayerDevelopment } from "./player-development.js";
+import { generateSimulationPlayerProfile } from "./player-profile-generation.js";
 
 /**
  * A deliberately small foreign layer. Nepal gets the detailed simulation;
@@ -224,6 +227,9 @@ export const initializeForeignFootballWorldForSave = (input: {
     seedForeignStaff(input.db, club.countryId, club.clubId, input.worldDate, input.seed);
     ensureExternalStaffVacancies(input.db, club.clubId, FOREIGN_ROLES, input.worldDate);
   }
+  // Context is created with the people, not only after the first seasonal
+  // update, so a freshly opened save already has a continuous external pool.
+  synchronizeExternalPlayerContexts(input.db, input.worldDate);
   // Context clubs get only their actual bootstrap vacancies processed.  The
   // capped staff-market worker supplies the decision and contract path.
   processExternalStaffVacancies(input.db, {
@@ -254,6 +260,17 @@ export const processForeignFootballWorldSeason = (input: {
     lastSavedAt: `${input.seasonEndDate}T00:00:00.000Z`,
   };
   initializeExternalLeagueSeasons(input.db, input.seasonEndDate, input.seed);
+  const refillDomesticStaff = claimForeignCycle(input.db, {
+    seasonLabel: input.seasonEndDate.slice(0, 4),
+    kind: "FOREIGN_WORLD_DOMESTIC_STAFF_REFILL",
+    contextKey: "domestic-ai-staff",
+    date: input.seasonEndDate,
+  });
+  synchronizeExternalPlayerContexts(input.db, input.seasonEndDate);
+  advanceExternalPlayerLifecycles(input.db, {
+    date: input.seasonEndDate,
+    seed: input.seed,
+  });
   const clubs = input.db
     .prepare(
       `SELECT c.id AS club_id, c.country_id, t.id AS team_id
@@ -299,13 +316,260 @@ export const processForeignFootballWorldSeason = (input: {
   processExternalStaffVacancies(input.db, staffSave);
   // If an external move vacated a Nepal support role, the normal domestic AI
   // refill runs on the same seasonal cadence rather than leaving it empty.
-  ensureAiStaffAssigned(input.db, staffSave, undefined);
+  if (refillDomesticStaff) ensureAiStaffAssigned(input.db, staffSave, undefined);
   updateForeignScoutingInterest(input.db, { date: input.seasonEndDate, seed: input.seed });
   considerForeignInternationalTrials(input.db, {
     worldDate: input.seasonEndDate,
     seed: `${input.seed}:foreign-trials`,
     maxCandidates: 2,
   });
+};
+
+/**
+ * Makes the deliberately light external world continuous without fabricating
+ * foreign fixtures.  Every active player attached to a context-only club gets
+ * the same persisted attributes, potential and development-state model used
+ * by the playable world; retired players are reconciled from the canonical
+ * person role exactly once.  The small monthly steps preserve a visible
+ * youth-to-prime-to-decline curve while keeping the external layer bounded.
+ */
+export const advanceExternalPlayerLifecycles = (
+  db: GameDatabase,
+  input: { date: string; seed: string },
+): { developed: number; retired: number } => {
+  const contexts = new GlobalFootballContextRepository(db);
+  const players = new PlayerRepository(db);
+  const clubs = new Map(contexts.clubs().map((club) => [club.clubId, club]));
+  let developed = 0;
+  let retired = 0;
+
+  for (const context of contexts.players()) {
+    const role = db
+      .prepare("SELECT active_to FROM person_roles WHERE person_id = ? AND role = 'PLAYER' ORDER BY active_from DESC LIMIT 1")
+      .get(context.playerId) as { active_to?: string | null } | undefined;
+    if (role?.active_to && role.active_to <= input.date) {
+      if (context.careerState !== "RETIRED") retired += 1;
+      contexts.upsertPlayer({
+        ...context,
+        clubId: undefined,
+        careerState: "RETIRED",
+        availableOn: undefined,
+        updatedOn: input.date,
+      });
+      continue;
+    }
+    if (!role) continue;
+
+    const activeClubId = activeClubForPlayer(db, context.playerId);
+    const currentContext = {
+      ...context,
+      clubId: activeClubId,
+      careerState: activeClubId ? ("ACTIVE" as const) : ("FREE_AGENT" as const),
+      availableOn: activeClubId ? undefined : context.availableOn ?? input.date,
+    };
+
+    const person = new WorldRepository(db).getPerson(context.playerId);
+    let attributes = players.getAttributes(context.playerId);
+    if (!attributes && person) {
+      // Imported external records intentionally retain factual identity and
+      // provenance.  This creates only their missing simulation adjunct, using
+      // the canonical generated-profile calibration rather than inventing a
+      // parallel rating model.
+      const generated = generateSimulationPlayerProfile(
+        {
+          playerKey: context.playerId,
+          clubKey: currentContext.clubId ?? "external-free-agent",
+          fullName: person.fullName,
+          dateOfBirth: person.dateOfBirth,
+          age: person.dateOfBirth ? ageOn(person.dateOfBirth, input.date) : undefined,
+        },
+        `${input.seed}:external-imported-profile`,
+      );
+      attributes = {
+        ...generated.attributes,
+        id: createStableEntityId("external-player-attribute", context.playerId),
+        personId: context.playerId,
+      };
+      players.insertAttributes(attributes);
+      players.insertPotential({
+        ...generated.hiddenTraits,
+        id: createStableEntityId("external-player-potential", context.playerId),
+        playerId: context.playerId,
+      });
+    }
+    if (!attributes) continue;
+    const age = person?.dateOfBirth ? ageOn(person.dateOfBirth, input.date) : 24;
+    let state = players.developmentState(context.playerId) ?? createInitialDevelopmentState(attributes, age, input.date);
+    let potential = players.potential(context.playerId);
+    if (!potential) {
+      const ability = averageAttributes(attributes);
+      const rng = new SeededRandom(`${input.seed}:external-potential:${context.playerId}`);
+      potential = {
+        id: createStableEntityId("external-player-potential", context.playerId),
+        playerId: context.playerId,
+        potentialCeiling: round(clamp(ability + 1.5 + rng.next() * 4.5, ability, 20)),
+        developmentRate: round(0.7 + rng.next() * 0.7),
+        volatility: round(0.45 + rng.next() * 0.65),
+        professionalism: round(0.65 + rng.next() * 0.65),
+        status: "SIMULATION_ONLY",
+      };
+      players.insertPotential(potential);
+    }
+
+    let currentAttributes = attributes;
+    let cursor = state.lastDevelopmentUpdate ?? input.date;
+    while (cursor < input.date) {
+      const nextDate = addDays(cursor, 28) > input.date ? input.date : addDays(cursor, 28);
+      const club = currentContext.clubId ? clubs.get(currentContext.clubId) : undefined;
+      const environment = club
+        ? {
+            trainingQuality: 0.82 + club.academyStrength / 500,
+            coachingQuality: 0.86 + club.reputation / 550,
+            facilitiesEffect: 0.84 + club.academyStrength / 600,
+            moraleModifier: 0.96,
+            competitionMultiplier: 0.93 + club.reputation / 900,
+          }
+        : { trainingQuality: 0.9, coachingQuality: 0.9, facilitiesEffect: 0.9, moraleModifier: 0.94, competitionMultiplier: 0.92 };
+      const result = updatePlayerDevelopment({
+        attributes: currentAttributes,
+        state,
+        potential,
+        age: person?.dateOfBirth ? ageOn(person.dateOfBirth, nextDate) : age,
+        date: nextDate,
+        seed: `${input.seed}:external-lifecycle`,
+        historyScope: `external:${context.playerId}`,
+        environment,
+        periodDays: 28,
+      });
+      currentAttributes = result.updatedAttributes;
+      state = result.updatedState;
+      players.upsertAttributes(currentAttributes);
+      players.upsertDevelopmentState(state);
+      for (const event of result.historyEvents) players.insertTrainingHistoryEvent(event);
+      cursor = nextDate;
+    }
+    const clubReputation = currentContext.clubId ? clubs.get(currentContext.clubId)?.reputation ?? 35 : 20;
+    const abilityReputation = averageAttributes(currentAttributes) * 6;
+    contexts.upsertPlayer({
+      ...currentContext,
+      reputation: round(clamp(context.reputation * 0.55 + abilityReputation * 0.3 + clubReputation * 0.15, 0, 100)),
+      updatedOn: input.date,
+    });
+    if (shouldRetireExternalPlayer({ playerId: context.playerId, age, position: attributes.primaryPosition, date: input.date, seed: input.seed })) {
+      retireExternalPlayer(db, context, input.date);
+      retired += 1;
+      continue;
+    }
+    if (cursor === input.date && state.lastDevelopmentUpdate === input.date) developed += 1;
+  }
+  return { developed, retired };
+};
+
+const activeClubForPlayer = (db: GameDatabase, playerId: EntityId): EntityId | undefined => {
+  const assignment = db
+    .prepare(
+      `SELECT t.club_id AS club_id FROM team_person_assignments a
+       JOIN teams t ON t.id = a.team_id
+       WHERE a.person_id = ? AND a.role = 'PLAYER' AND a.ended_on IS NULL
+       ORDER BY a.started_on DESC LIMIT 1`,
+    )
+    .get(playerId) as { club_id?: EntityId } | undefined;
+  if (assignment?.club_id) return assignment.club_id;
+  return (db
+    .prepare("SELECT club_id FROM player_contracts WHERE player_id = ? AND status = 'ACTIVE' ORDER BY start_date DESC LIMIT 1")
+    .get(playerId) as { club_id?: EntityId } | undefined)?.club_id;
+};
+
+const shouldRetireExternalPlayer = (input: {
+  playerId: EntityId;
+  age: number;
+  position: string;
+  date: string;
+  seed: string;
+}): boolean => {
+  if (input.age < 31) return false;
+  const threshold = input.position === "GK" ? 35 : 32;
+  const probability = clamp((input.age - threshold + 1) * 0.18, 0, 0.88);
+  return new SeededRandom(`${input.seed}:external-retirement:${input.playerId}:${input.date}`).next() < probability;
+};
+
+const retireExternalPlayer = (
+  db: GameDatabase,
+  context: ReturnType<GlobalFootballContextRepository["players"]>[number],
+  date: string,
+): void => {
+  db.prepare(
+    "UPDATE person_roles SET active_to = ? WHERE person_id = ? AND role = 'PLAYER' AND active_to IS NULL",
+  ).run(date, context.playerId);
+  db.prepare("UPDATE team_person_assignments SET ended_on = ? WHERE person_id = ? AND ended_on IS NULL").run(date, context.playerId);
+  db.prepare("UPDATE player_contracts SET status = 'TERMINATED' WHERE player_id = ? AND status = 'ACTIVE'").run(context.playerId);
+  new GlobalFootballContextRepository(db).upsertPlayer({
+    ...context,
+    clubId: undefined,
+    careerState: "RETIRED",
+    availableOn: undefined,
+    updatedOn: date,
+  });
+};
+
+/** Registers all current context-club players before lifecycle processing. */
+const synchronizeExternalPlayerContexts = (db: GameDatabase, date: string): void => {
+  const contexts = new GlobalFootballContextRepository(db);
+  const clubs = new Map(contexts.clubs().map((club) => [club.clubId, club]));
+  const assigned = db
+    .prepare(
+      `SELECT person_id AS player_id, club_id FROM (
+         SELECT a.person_id, t.club_id
+         FROM team_person_assignments a
+         JOIN teams t ON t.id = a.team_id
+         WHERE a.role = 'PLAYER' AND a.ended_on IS NULL
+         UNION
+         SELECT player_id AS person_id, club_id
+         FROM player_contracts
+         WHERE status = 'ACTIVE'
+       )`,
+    )
+    .all() as Array<{ player_id: EntityId; club_id: EntityId }>;
+  const known = new Map(contexts.players().map((player) => [player.playerId, player]));
+  for (const player of assigned) {
+    const club = clubs.get(player.club_id);
+    if (!club) continue;
+    const current = known.get(player.player_id);
+    contexts.upsertPlayer({
+      playerId: player.player_id,
+      clubId: player.club_id,
+      region: current?.region ?? club.recruitmentRegions[0] ?? "WIDER_ASIA",
+      reputation: current?.reputation ?? club.reputation,
+      interestLevel: current?.interestLevel ?? "UNKNOWN",
+      careerState: "ACTIVE",
+      updatedOn: date,
+    });
+  }
+};
+
+const averageAttributes = (attributes: NonNullable<ReturnType<PlayerRepository["getAttributes"]>>): number => {
+  const values = [
+    ...Object.values(attributes.technical),
+    ...Object.values(attributes.mental),
+    ...Object.values(attributes.physical),
+    ...(attributes.primaryPosition === "GK" ? Object.values(attributes.goalkeeping) : []),
+  ];
+  return values.reduce((sum, value) => sum + value, 0) / Math.max(1, values.length);
+};
+
+const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
+const round = (value: number): number => Math.round(value * 100) / 100;
+const addDays = (date: string, days: number): string => {
+  const value = new Date(`${date}T00:00:00.000Z`);
+  value.setUTCDate(value.getUTCDate() + days);
+  return value.toISOString().slice(0, 10);
+};
+const ageOn = (dateOfBirth: string, date: string): number => {
+  const birth = new Date(`${dateOfBirth}T00:00:00.000Z`);
+  const on = new Date(`${date}T00:00:00.000Z`);
+  let age = on.getUTCFullYear() - birth.getUTCFullYear();
+  if (on.getUTCMonth() < birth.getUTCMonth() || (on.getUTCMonth() === birth.getUTCMonth() && on.getUTCDate() < birth.getUTCDate())) age -= 1;
+  return age;
 };
 
 /** Runs a coarse external league update: one seeded table outcome per league, no fixtures or match events. */
@@ -333,10 +597,12 @@ export const initializeExternalLeagueSeasons = (db: GameDatabase, seasonEndDate:
 /** Records bounded foreign-club awareness of high-signal Nepal players without exposing hidden ability. */
 export const updateForeignScoutingInterest = (db: GameDatabase, input: { date: string; seed: string }): void => {
   const contexts = new GlobalFootballContextRepository(db);
+  const knownPlayers = new Map(contexts.players().map((player) => [player.playerId, player]));
   const foreignPlayers = db.prepare(`SELECT DISTINCT a.person_id AS player_id, c.id AS club_id FROM team_person_assignments a JOIN teams t ON t.id = a.team_id JOIN clubs c ON c.id = t.club_id WHERE a.role = 'PLAYER' AND a.ended_on IS NULL AND c.canonical_external_id LIKE 'SIM-FOREIGN-%'`).all() as Array<{ player_id: EntityId; club_id: EntityId }>;
   for (const player of foreignPlayers) {
     const club = contexts.clubs().find((item) => item.clubId === player.club_id);
-    if (club) contexts.upsertPlayer({ playerId: player.player_id, clubId: player.club_id, region: club.recruitmentRegions[0] ?? "WIDER_ASIA", reputation: club.reputation, interestLevel: "UNKNOWN", careerState: "ACTIVE", updatedOn: input.date });
+    const existing = knownPlayers.get(player.player_id);
+    if (club) contexts.upsertPlayer({ playerId: player.player_id, clubId: player.club_id, region: existing?.region ?? club.recruitmentRegions[0] ?? "WIDER_ASIA", reputation: existing?.reputation ?? club.reputation, interestLevel: existing?.interestLevel ?? "UNKNOWN", careerState: "ACTIVE", updatedOn: input.date });
   }
   const targets = db.prepare(`SELECT p.player_id AS player_id, p.current_club_id AS club_id FROM player_factual_profiles p JOIN clubs c ON c.id = p.current_club_id JOIN countries country ON country.id = c.country_id WHERE country.iso_code IN ('NPL','NP') ORDER BY p.player_id LIMIT 12`).all() as Array<{ player_id: EntityId; club_id: EntityId }>;
   for (const club of contexts.clubs().filter((item) => item.scoutingReach >= 40)) {

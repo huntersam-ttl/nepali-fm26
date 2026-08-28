@@ -11,9 +11,9 @@ audit, plus the eight explicit high-risk overlays requested for this pass. Statu
 
 | Status | Count |
 | --- | ---: |
-| COMPLETE | 58 |
+| COMPLETE | 59 |
 | BUILT_NOT_PROVEN | 1 |
-| PARTIAL | 26 |
+| PARTIAL | 25 |
 | MISSING | 3 |
 | LATER | 4 |
 | **Total** | **92** |
@@ -45,6 +45,7 @@ The following systems are COMPLETE:
 - Ownership succession; board pressure; federation governance and economy; federation compliance, sanctions, and reinstatement; federation elections; federation personnel succession; federation commercial rights and broadcasting.
 - Nepal A/B/C pyramid, promotion, relegation, and memberships; club licensing; lower-league finance and squad viability; territorial structure; district/provincial representative competitions; district infrastructure projects.
 - Youth intake, development, retirement, and late developers; free agents; foreign player supply into Nepal; player regeneration and long-save supply; staff/referee regeneration and long-save supply.
+- Global generated-player lifecycle: context-only external players now persist through deterministic development, peak/decline, affiliation/free-agent reconciliation, retirement, replenishment, and reload-safe future-star emergence without simulating proprietary foreign leagues.
 - Women's clubs and competitions; macroeconomy; personal wealth; supporter base, attendance, atmosphere, and mood; awards. The separate rivalry system remains PARTIAL.
 - AI squad planning, transfers, and contracts; AI federation and national-team automation; senior-men, senior-women, and U17/U20/U23 national teams and international competition.
 - Stadium, training, youth, medical, and technical infrastructure; desktop runtime and SQLite; legal and data provenance.
@@ -76,11 +77,7 @@ High-risk overlays:
    have bounded external vacancy processing, staff employment history, contract closure,
    retirement/replacement, imported-staff visibility, and Nepal refill after an outgoing move;
    they remain non-playable and do not receive a full foreign payroll simulation.
-2. **Global generated-player lifecycle — PARTIAL.** Foreign seasonal replenishment is live,
-   deterministic, and idempotent, but only shortage top-ups are modeled. External context
-   players are written as `ACTIVE`; development/decline, retirement, free-agent transition,
-   and future-star replacement are not connected to the global context record.
-3. **Continental/global competition context — PARTIAL.** Nepal's senior international path
+2. **Continental/global competition context — PARTIAL.** Nepal's senior international path
    covers SAFF, AFC Asian Cup, and World Cup qualification. External leagues store seeded
    champion, qualifier, relegation, and reputation outcomes, but external continental/global
    club competitions and their seasonal reputation effects are not simulated.
@@ -105,7 +102,7 @@ High-risk overlays:
 | Trials | invitation, response, knowledge, expiry, offer handoff | 4 focused lifecycle tests | scouting cadence, seasonal AI, and external-interest paths | active and completed reload |
 | Women / youth internationals | category-aware selection, age/availability/eligibility filters, shared fixture/result records | women and U17 end-to-end, sanctions, age-out, senior pathway | bounded seasonal SAFF/AFC calendar | squads, results, caps, history, and repeated progression |
 | Foreign staff movement | vacancy, decision, contract, retirement helpers | two-way CONTEXT_ONLY moves and replacement | desktop and seasonal context cadence | contracts/history/replacements reload |
-| Global generated lifecycle | youth/workforce generation | foreign idempotency/replenishment | seasonal shortage top-up | bootstrap/replenishment idempotency |
+| Global generated lifecycle | canonical attributes, potential, development, retirement, and context records | focused lifecycle/reload/determinism coverage | seasonal context lifecycle plus bounded replenishment | identity, retirement, development, and replenishment reload-safe |
 | External competition context | external profile helpers | global-context season persistence | career seasonal cadence | context rows reload |
 | Partnerships | pathway/evaluation helpers | one SCOUTING activation | no production consumer | no partnership reload proof |
 | Multi-club | conflict/pathway helpers | none | none | repository only |
@@ -146,8 +143,7 @@ No long save, balance run, UI/UX pass, or optimization was performed.
 - **P0 — scope and core closure:** empty. International trials, two-way foreign staff movement,
   and women/youth international football are production-reachable with focused proof. This does
   not imply a feature freeze.
-- **P1 — connected-world depth:** connect global player development/decline/retirement and
-  external competition context; add production consumers for partnership types and multi-club
+- **P1 — connected-world depth:** extend external competition context; add production consumers for partnership types and multi-club
   effects; implement sell-on resale settlement if retained in scope. Wire the remaining
   production gaps for AI staff, government/distribution, referee development/VAR, camps,
   media/rivalries, club creation/takeovers, and diaspora as their scope is confirmed.
@@ -163,7 +159,7 @@ is being marked green automatically.
 ## Feature Freeze Decision
 
 **NO — not ready for a true feature freeze.** The core manager spine is production-reachable,
-but global lifecycle/competition context/partnership/network/sell-on systems are meaningful
+but external competition context/partnership/network/sell-on systems are meaningful
 PARTIALs and long-save performance is BUILT_NOT_PROVEN. Freeze can be reconsidered only after
 the remaining P1 production passes and proof tasks are closed. The current uncommitted
 repository work remains untouched.
