@@ -53,16 +53,25 @@ const scalar = (databasePath: string, sql: string): number => {
   }
 };
 
+/*
+ * The market manages simulated players — those carrying attributes. The global
+ * dataset also contributes context-only factual identities with no attributes,
+ * which are reference records rather than squad members, so the invariant is
+ * scoped to what the market actually manages.
+ */
 const PLAYERS_WITH_RESOLVABLE_CLUB = `
   SELECT COUNT(*) n FROM player_factual_profiles pfp
+  JOIN player_attributes pa ON pa.person_id = pfp.player_id
   JOIN clubs c ON c.id = pfp.current_club_id`;
 
 const RESOLVABLE_PLAYERS_WITHOUT_CONTRACT = `
   SELECT COUNT(*) n FROM player_factual_profiles pfp
+  JOIN player_attributes pa ON pa.person_id = pfp.player_id
   JOIN clubs c ON c.id = pfp.current_club_id
   WHERE NOT EXISTS (
     SELECT 1 FROM player_contracts pc
     WHERE pc.player_id = pfp.player_id AND pc.status = 'ACTIVE')`;
+
 
 const PLAYERS_WITH_MULTIPLE_ACTIVE_CONTRACTS = `
   SELECT COUNT(*) n FROM (
@@ -154,7 +163,9 @@ describe("starting transfer market integrity", () => {
       try {
         const row = db
           .prepare(
-            "SELECT player_id FROM player_factual_profiles WHERE current_club_id IS NOT NULL ORDER BY player_id LIMIT 1",
+            `SELECT pfp.player_id FROM player_factual_profiles pfp
+             JOIN player_attributes pa ON pa.person_id = pfp.player_id
+             WHERE pfp.current_club_id IS NOT NULL ORDER BY pfp.player_id LIMIT 1`,
           )
           .get() as { player_id: string };
         db.prepare("UPDATE player_factual_profiles SET current_club_id = NULL WHERE player_id = ?").run(
@@ -183,6 +194,7 @@ describe("starting transfer market integrity", () => {
     }
 
     // The rest of the squad is unaffected.
+    // Only the player deliberately detached above is left without a contract.
     expect(scalar(databasePath, RESOLVABLE_PLAYERS_WITHOUT_CONTRACT)).toBe(0);
   }, 300000);
 });

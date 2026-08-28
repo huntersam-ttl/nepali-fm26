@@ -46,3 +46,30 @@ promoted to VERIFIED.
 Import enriches a starting world. It must be selected before creating a career and must not inject
 new factual identities into an in-progress save automatically. The workbook is never imported at
 game startup, and external clubs remain `CONTEXT_ONLY`.
+
+## Canonical Seed and Runtime Data Policy
+
+The workbook is an **import input**, not a runtime dependency. It lives outside the repository, so a
+fresh checkout could never build the global world from it — the dataset previously existed only
+inside whichever database an operator had run APPLY against.
+
+The runtime source is now a committed artifact:
+
+- **Source of truth for research/import:** the approved reconciled workbook (XLSX), outside the repo.
+- **Source of truth for runtime/new saves:** `data/global/football-world-v16.seed.json`.
+- **Regeneration:** `pnpm --filter @nepal-football-sim/data-import global:seed <xlsx>` runs the same
+  validated dry-run the importer already performs and writes the normalized plan. It refuses to write
+  when the workbook produces fatal or error findings, and the same approved workbook produces an
+  equivalent artifact each time.
+
+Consequences:
+
+- No XLSX is parsed at game runtime, and nothing reads `/tmp` or developer-local files.
+- The seed records its own path, so runtime can never reach back to the workbook.
+- The dataset version (`football_world_import_v16_reconciled_final`) is stored per world in
+  `global_dataset_imports`, and application is idempotent by that version.
+- A new save receives the dataset automatically during initialization; no separate import command.
+- **Existing careers are not rewritten.** The seed is applied only at save creation, so an
+  in-progress world keeps the dataset it started with.
+- `createNepalSave` accepts `globalSeedPath: null` to build a Nepal-only world for fixtures and
+  focused tests.
