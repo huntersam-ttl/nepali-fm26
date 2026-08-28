@@ -421,3 +421,23 @@ required before a new clone can consume them.
 Focused canonical fixture coverage is 2/2, generated corridor coverage remains green, and no loans,
 long-save, UI, or workbook re-import was run in this pass. The broad stage-eight suite remains
 classified slow/unresolved rather than claimed green; loans remain the next separate feature.
+
+## Loan Pathways Closure Addendum — 2026-08-28
+
+The canonical global seed now supplies deterministic simulation-only contracts for imported `CLB-*`
+context clubs. This preserves factual identity and context-only playability while making verified
+Africa and South Asia players visible to the existing loan/purchase market. Imported positions fall
+back to factual primary position when gameplay attributes are absent.
+
+The six-test `transfer-global-loans` suite passes: imported Nigeria/India visibility, foreign→Nepal
+and Nepal→foreign loans, reload/expiry/return identity, duplicate/no-parent rejection, contracted
+foreign purchase, and normal market-tick loan creation. Loan fees are affordability-checked and
+persisted as exactly-once `LOAN_PAYMENT` debit/credit entries; wage contribution, recall, and option
+terms remain persisted on the loan record. Active destination-season `LOAN` registrations expire on
+return. Context metadata now also protects imported external clubs from chairman/ownership actions.
+
+Validation: canonical/import/corridor/workbook/context/integrity coverage is green; root typecheck
+and build pass. The full stage-eight suite exceeded its bounded observation window and remains
+slow/unresolved. Option-to-buy execution, recall commands, recurring wage settlement, and long-save
+stage-eight proof remain follow-up depth. This addendum supersedes earlier historical notes that
+described imported coverage or loan support as pending.

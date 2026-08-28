@@ -29,7 +29,12 @@ import {
   TransferMarketRepository,
   type GameDatabase,
 } from "@nepal-football-sim/database";
-import { clubCanAffordTransfer, clubCanAffordWage, recordTransferEconomy } from "./club-economy.js";
+import {
+  clubCanAffordTransfer,
+  clubCanAffordWage,
+  postClubTransaction,
+  recordTransferEconomy,
+} from "./club-economy.js";
 import { applySupporterTransferOutcome } from "./supporter-culture.js";
 import { SeededRandom } from "./rng.js";
 import {
@@ -138,10 +143,12 @@ export const initializeTransferMarketForSave = (input: {
     if (!club) {
       continue;
     }
-    // Imported external players remain context-visible free agents until an
-    // ordinary offer gives them a contract; only Nepal squads are bootstrapped
-    // into the detailed domestic market.
-    if (!['NP', 'NPL'].includes(countryCodes.get(club.countryId) ?? '')) continue;
+    const domesticClub = ['NP', 'NPL'].includes(countryCodes.get(club.countryId) ?? '');
+    // Imported context clubs have factual identities but no real contract
+    // terms. Give their players deterministic simulation-only agreements so
+    // the global loan and purchase pathways can see them without claiming
+    // that a source supplied the financial terms.
+    if (!domesticClub && !club.canonicalExternalId?.startsWith('CLB-')) continue;
     /*
      * A player generated during world creation already holds an active youth
      * contract. Issuing a starting contract on top would leave one player with
@@ -1665,6 +1672,10 @@ export const startLoan = (
   if (market.activeLoans(worldDate).some((loan) => loan.playerId === playerId)) {
     throw new Error("Player already has an active loan");
   }
+  const loanFee = Math.max(0, options.loanFee ?? 0);
+  if (loanFee > 0 && !clubCanAffordTransfer(db, loanClubId, loanFee, worldDate)) {
+    throw new Error("Loan club cannot afford the loan fee");
+  }
   const loan: PlayerLoanRecord = {
     id: createStableEntityId(
       "player-loan",
@@ -1676,7 +1687,7 @@ export const startLoan = (
     startDate: worldDate,
     endDate: options.endDate ?? addMonths(worldDate, 6),
     wageContributionPercent: Math.max(0, Math.min(100, options.wageContributionPercent ?? 55)),
-    loanFee: Math.max(0, options.loanFee ?? 0),
+    loanFee,
     playingTimeExpectation: options.playingTimeExpectation ?? "ROTATION",
     recallAllowed: options.recallAllowed ?? true,
     purchaseOption: options.purchaseOption,
@@ -1684,6 +1695,29 @@ export const startLoan = (
   };
   market.upsertLoan(loan);
   movePlayerAssignment(db, playerId, loanClubId, worldDate);
+  registerLoanPlayer(db, loan, worldDate);
+  if (loan.loanFee && loan.loanFee > 0) {
+    postClubTransaction(db, {
+      clubId: loan.loanClubId,
+      date: worldDate,
+      category: "LOAN_PAYMENT",
+      direction: "DEBIT",
+      amount: loan.loanFee,
+      description: "Loan fee paid",
+      relatedEntityId: loan.id,
+      idempotencyKey: `loan-fee-buy:${loan.id}`,
+    });
+    postClubTransaction(db, {
+      clubId: loan.parentClubId,
+      date: worldDate,
+      category: "LOAN_PAYMENT",
+      direction: "CREDIT",
+      amount: loan.loanFee,
+      description: "Loan fee received",
+      relatedEntityId: loan.id,
+      idempotencyKey: `loan-fee-sell:${loan.id}`,
+    });
+  }
   market.insertTransferHistoryEvent({
     id: createStableEntityId("transfer-history", `${playerId}:loan:${worldDate}:${seed}`),
     playerId,
@@ -1889,6 +1923,17 @@ export const endLoan = (db: GameDatabase, loan: PlayerLoanRecord, worldDate: str
   const market = new TransferMarketRepository(db);
   market.upsertLoan({ ...loan, status: "ENDED" });
   movePlayerAssignment(db, loan.playerId, loan.parentClubId, worldDate);
+  db
+    .prepare(
+      `UPDATE competition_registrations
+       SET status = 'EXPIRED',
+           registered_until = CASE
+             WHEN registered_until IS NULL OR registered_until > ? THEN ?
+             ELSE registered_until
+           END
+       WHERE player_id = ? AND registration_type = 'LOAN' AND status = 'ACTIVE'`,
+    )
+    .run(worldDate, worldDate, loan.playerId);
   market.insertTransferHistoryEvent({
     id: createStableEntityId("transfer-history", `${loan.playerId}:loan-ended:${worldDate}`),
     playerId: loan.playerId,
@@ -2153,11 +2198,47 @@ const findLoanCandidate = (
     .filter((item) => need.positionGroup === "DEPTH" || item.positionGroup === need.positionGroup)
     .sort((a, b) => a.appearances - b.appearances || a.age - b.age)) {
     const contract = market.activeContract(player.playerId, worldDate);
-    if (contract && ["BACKUP", "PROSPECT", "YOUTH"].includes(contract.squadRole)) {
+    if (contract && ["BACKUP", "PROSPECT", "YOUTH", "ROTATION"].includes(contract.squadRole)) {
       return { parentClubId: contract.clubId, playerId: player.playerId };
     }
   }
   return undefined;
+};
+
+const registerLoanPlayer = (
+  db: GameDatabase,
+  loan: PlayerLoanRecord,
+  worldDate: string,
+): void => {
+  const market = new TransferMarketRepository(db);
+  const seasons = db
+    .prepare(
+      `SELECT DISTINCT cs.id AS season_id, cs.end_date
+       FROM club_memberships cm
+       JOIN competition_seasons cs ON cs.id = cm.competition_season_id
+       WHERE cm.club_id = ? AND cm.status = 'ACTIVE'
+         AND cs.start_date <= ? AND cs.end_date >= ?
+       ORDER BY cs.id`,
+    )
+    .all(loan.loanClubId, worldDate, worldDate) as Array<{
+    season_id: EntityId;
+    end_date: string;
+  }>;
+  for (const season of seasons) {
+    market.upsertCompetitionRegistration({
+      id: createStableEntityId(
+        "competition-registration",
+        `${loan.playerId}:${season.season_id}:loan`,
+      ),
+      playerId: loan.playerId,
+      clubId: loan.loanClubId,
+      competitionSeasonId: season.season_id,
+      registrationType: "LOAN",
+      registeredFrom: worldDate,
+      registeredUntil: season.end_date < loan.endDate ? season.end_date : loan.endDate,
+      status: "ACTIVE",
+    });
+  }
 };
 
 const shouldRenew = (db: GameDatabase, contract: PlayerContractRecord, seed: string): boolean => {
@@ -2523,22 +2604,24 @@ const marketPlayers = (db: GameDatabase): MarketPlayer[] =>
        */
       `SELECT p.id AS player_id, p.full_name, p.date_of_birth,
         COALESCE(pfp.current_club_id, MAX(pc.club_id)) AS current_club_id,
-        pfp.simulation_json, pa.primary_position, tpa.team_id,
+        pfp.simulation_json, pfp.factual_json, pa.primary_position, tpa.team_id,
         COALESCE(SUM(pss.appearances), 0) AS appearances,
         COALESCE(SUM(pss.goals), 0) AS goals
       FROM persons p
-      JOIN player_attributes pa ON pa.person_id = p.id
+      LEFT JOIN player_attributes pa ON pa.person_id = p.id
       LEFT JOIN player_factual_profiles pfp ON pfp.player_id = p.id
       LEFT JOIN player_contracts pc ON pc.player_id = p.id AND pc.status = 'ACTIVE'
       LEFT JOIN team_person_assignments tpa ON tpa.person_id = p.id AND tpa.role = 'PLAYER' AND tpa.ended_on IS NULL
       LEFT JOIN player_season_stats pss ON pss.person_id = p.id
+      WHERE pa.person_id IS NOT NULL OR pfp.player_id IS NOT NULL
       GROUP BY p.id
       ORDER BY p.full_name, p.id`,
     )
     .all()
     .map((row: any) => {
       const simulation = JSON.parse(row.simulation_json ?? "{}");
-      const position = simulation.simulationPrimaryPosition ?? row.primary_position;
+      const factual = JSON.parse(row.factual_json ?? "{}");
+      const position = simulation.simulationPrimaryPosition ?? row.primary_position ?? factual.primary_position;
       return {
         playerId: row.player_id,
         fullName: row.full_name,

@@ -35,6 +35,7 @@ import {
 } from "@nepal-football-sim/shared-types";
 import {
   ClubEconomyRepository,
+  GlobalFootballContextRepository,
   TransferMarketRepository,
   WorldRepository,
   type GameDatabase,
@@ -1660,7 +1661,12 @@ export const runChairmanDemo = (input: {
 };
 
 const isExternalContextClub = (db: GameDatabase, clubId: EntityId): boolean =>
-  Boolean((db.prepare("SELECT canonical_external_id AS value FROM clubs WHERE id = ?").get(clubId) as { value?: string } | undefined)?.value?.startsWith("SIM-FOREIGN-"));
+  Boolean(
+    new GlobalFootballContextRepository(db)
+      .clubs()
+      .some((club) => club.clubId === clubId && club.simulationDepth === "CONTEXT_ONLY") ||
+      (db.prepare("SELECT canonical_external_id AS value FROM clubs WHERE id = ?").get(clubId) as { value?: string } | undefined)?.value?.startsWith("SIM-FOREIGN-"),
+  );
 
 export const chairmanPermissions = (): string[] => [
   "FINANCE",

@@ -38,6 +38,7 @@ const createWorld = (seed: string): string => {
     saveName: `Loans ${seed}`,
     gameVersion: "0.2.0",
     randomSeed: seed,
+    globalSeedPath: resolve(process.cwd(), "data/global/football-world-v16.seed.json"),
   });
   const db = openGameDatabase(databasePath);
   try {
@@ -110,6 +111,30 @@ afterEach(() => {
 });
 
 describe("global loan pathways", () => {
+  it("keeps canonical imported Africa and South Asia players in the loan market", () => {
+    const databasePath = createWorld("imported-loan-candidates");
+    const db = openGameDatabase(databasePath);
+    try {
+      const candidates = db
+        .prepare(
+          `SELECT pfp.canonical_external_id AS externalId, co.iso_code AS isoCode,
+                  pc.club_id AS clubId
+           FROM player_factual_profiles pfp
+           JOIN clubs c ON c.id = pfp.current_club_id
+           JOIN countries co ON co.id = c.country_id
+           JOIN player_contracts pc ON pc.player_id = pfp.player_id AND pc.status = 'ACTIVE'
+           WHERE co.iso_code IN ('NGA','IND')
+           ORDER BY pfp.canonical_external_id`,
+        )
+        .all() as Array<{ externalId: string; isoCode: string; clubId: EntityId }>;
+      expect(candidates.some((candidate) => candidate.isoCode === "NGA")).toBe(true);
+      expect(candidates.some((candidate) => candidate.isoCode === "IND")).toBe(true);
+      expect(candidates.every((candidate) => isContextOnlyClub(db, candidate.clubId))).toBe(true);
+    } finally {
+      db.close();
+    }
+  }, 300000);
+
   it("loans a foreign player to a Nepal club and returns them once at expiry", () => {
     const databasePath = createWorld("foreign-to-nepal");
     let playerId: EntityId;
@@ -127,6 +152,7 @@ describe("global loan pathways", () => {
       const loan = startLoan(db, parentClubId, nepalClubId, playerId, WORLD_DATE, "loan", {
         endDate: "2027-01-31",
         wageContributionPercent: 60,
+        loanFee: 125000,
       });
 
       // One player, temporarily registered in Nepal, still owned abroad.
@@ -136,6 +162,17 @@ describe("global loan pathways", () => {
       const market = new TransferMarketRepository(db);
       expect(market.activeContract(playerId, WORLD_DATE)?.clubId).toBe(parentClubId);
       expect(loan.wageContributionPercent).toBe(60);
+      expect(loan.loanFee).toBe(125000);
+      expect(
+        db
+          .prepare(
+            "SELECT direction, amount FROM club_ledger_entries WHERE related_entity_id = ? AND category = 'LOAN_PAYMENT' ORDER BY direction",
+          )
+          .all(loan.id),
+      ).toEqual([
+        { direction: "CREDIT", amount: 125000 },
+        { direction: "DEBIT", amount: 125000 },
+      ]);
       expect(historyCount(db, playerId, "LOAN_STARTED")).toBe(1);
       expect(db.prepare("SELECT COUNT(*) n FROM persons WHERE id = ?").get(playerId)).toEqual({
         n: 1,
@@ -342,6 +379,7 @@ describe("contracted foreign player purchase", () => {
       // The window runs the whole market, and foreign-club players are now part
       // of the candidate pool it draws from.
       expect(report.offers).toBeGreaterThan(0);
+      expect(report.loans).toBeGreaterThan(0);
       const market = new TransferMarketRepository(db);
       expect(market.transferHistory().length).toBeGreaterThan(before);
 

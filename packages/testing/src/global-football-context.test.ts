@@ -11,7 +11,7 @@ const registryPath = resolve(process.cwd(), "data/nepal/2026-08/club-registry.js
 const save = (): { path: string; directory: string } => {
   const directory = mkdtempSync(join(tmpdir(), "global-context-"));
   const path = join(directory, "career.sqlite");
-  createNepalSave({ databasePath: path, dataset: JSON.parse(readFileSync(registryPath, "utf8")) as unknown, saveName: "Global context", gameVersion: "test", randomSeed: "global-context" });
+  createNepalSave({ databasePath: path, dataset: JSON.parse(readFileSync(registryPath, "utf8")) as unknown, saveName: "Global context", gameVersion: "test", randomSeed: "global-context", globalSeedPath: null });
   return { path, directory };
 };
 
