@@ -228,7 +228,7 @@ export const respondToInternationalTrial = (
   const repository = new InternationalTrialsRepository(db);
   const trial = repository.get(input.trialId);
   if (!trial) throw new Error("International trial invitation does not exist");
-  if (trial.state === "INVITED" && input.responseDate >= trial.endDate) {
+  if (["INVITED", "ACTIVE"].includes(trial.state) && input.responseDate >= trial.endDate) {
     processInternationalTrials(db, { worldDate: input.responseDate });
   }
   const current = repository.get(input.trialId)!;
