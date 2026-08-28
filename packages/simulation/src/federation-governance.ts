@@ -678,12 +678,14 @@ export const selectNationalTeamSquad = (
   const team = input.nationalTeamId
     ? teamById(db, input.nationalTeamId)
     : seniorMenNationalTeam(db, input.federationId);
+  if (!nationalTeamParticipationAllowed(db, input.federationId)) return [];
   const federation = federationById(db, input.federationId);
   const players = eligiblePlayerAttributes(
     db,
     federation.countryId,
     input.federationId,
     input.date,
+    team,
   );
   const selected = balancedSelection(players, input.size ?? 23);
   const repo = new FederationGovernanceRepository(db);
@@ -707,6 +709,15 @@ export const selectNationalTeamSquad = (
   return callups;
 };
 
+/** A federation-wide participation sanction applies to every national-team category. */
+export const nationalTeamParticipationAllowed = (
+  db: GameDatabase,
+  federationId: EntityId,
+): boolean =>
+  !new FederationComplianceRepository(db)
+    .activeSanctionsForFederation(federationId)
+    .some((sanction) => sanction.consequences.includes("NATIONAL_TEAM_PARTICIPATION_BLOCKED"));
+
 export const scheduleFriendly = (
   db: GameDatabase,
   input: {
@@ -721,6 +732,7 @@ export const scheduleFriendly = (
     ? teamById(db, input.nationalTeamId)
     : seniorMenNationalTeam(db, input.federationId);
   const rng = seeded(input.seed, `${input.opponentName}:${input.date}`);
+  const participationAllowed = nationalTeamParticipationAllowed(db, input.federationId);
   const fixture: NationalTeamFixture = {
     id: createStableEntityId(
       "national-team-fixture",
@@ -731,7 +743,7 @@ export const scheduleFriendly = (
     opponentName: input.opponentName,
     fixtureDate: input.date,
     fixtureType: "FRIENDLY",
-    status: "SCHEDULED",
+    status: participationAllowed ? "SCHEDULED" : "CANCELLED",
     estimatedCost: Math.round(850000 + rng.next() * 350000),
     estimatedRevenue: Math.round(550000 + rng.next() * 500000),
     currency,
@@ -749,6 +761,12 @@ export const playNationalTeamFixture = (
   const repo = new FederationGovernanceRepository(db);
   const fixture = repo.nationalTeamFixtures().find((item) => item.id === fixtureId);
   if (!fixture) throw new Error(`National team fixture ${fixtureId} not found`);
+  if (fixture.status === "PLAYED" || fixture.status === "CANCELLED") return fixture;
+  if (!nationalTeamParticipationAllowed(db, fixture.federationId)) {
+    const cancelled = { ...fixture, status: "CANCELLED" as const };
+    repo.upsertNationalTeamFixture(cancelled);
+    return cancelled;
+  }
   const callups = repo
     .nationalTeamCallups(fixture.nationalTeamId)
     .filter((item) => item.callupDate <= fixture.fixtureDate && item.status === "CALLED_UP")
@@ -1952,33 +1970,84 @@ const federationReport = (
   };
 };
 
+type NationalTeamSelectionCandidate = PlayerAttributeSet & {
+  internationalSelectionScore: number;
+};
+
 const eligiblePlayerAttributes = (
   db: GameDatabase,
   countryId: EntityId,
   federationId: EntityId,
   date: string,
+  team: Team,
 ): PlayerAttributeSet[] => {
   const repo = new FederationGovernanceRepository(db);
-  const players = allPlayerAttributes(db);
-  const personRows = db
-    .prepare("SELECT id, nationality_country_id, second_nationality_country_id FROM persons")
-    .all() as Array<{
-    id: EntityId;
-    nationality_country_id: EntityId;
-    second_nationality_country_id?: EntityId | null;
-  }>;
-  const eligible = new Set<EntityId>();
-  for (const person of personRows) {
-    const status =
-      person.nationality_country_id === countryId
+  const priorEligibility = new Map(
+    repo.internationalEligibilities(federationId).map((item) => [item.playerId, item]),
+  );
+  const retired = new Set(
+    (
+      db
+        .prepare(
+          "SELECT player_id FROM international_retirements WHERE national_team_id = ? AND status = 'RETIRED_INTERNATIONAL'",
+        )
+        .all(team.id) as Array<{ player_id: EntityId }>
+    ).map((row) => row.player_id),
+  );
+  const seniorCallups =
+    team.level === "senior"
+      ? new Set<EntityId>()
+      : new Set(
+          (
+            db
+              .prepare(
+                `SELECT c.player_id
+                 FROM national_team_callups c
+                 JOIN teams t ON t.id = c.national_team_id
+                 WHERE t.federation_id = ? AND t.level = 'senior' AND t.gender = 'men'
+                   AND c.status = 'CALLED_UP' AND c.callup_date <= ?`,
+              )
+              .all(federationId, date) as Array<{ player_id: EntityId }>
+          ).map((row) => row.player_id),
+        );
+  const rows = db
+    .prepare(
+      `SELECT pa.*, p.nationality_country_id, p.second_nationality_country_id,
+        p.gender_presentation, p.date_of_birth,
+        COALESCE((SELECT s.fitness FROM player_availability_states s WHERE s.person_id = p.id ORDER BY s.updated_on DESC LIMIT 1), 100) AS fitness,
+        COALESCE((SELECT s.form_modifier FROM player_availability_states s WHERE s.person_id = p.id ORDER BY s.updated_on DESC LIMIT 1), 0) AS form_modifier
+      FROM player_attributes pa
+      JOIN persons p ON p.id = pa.person_id
+      JOIN person_roles pr ON pr.person_id = p.id AND pr.role = 'PLAYER' AND pr.active_to IS NULL
+      WHERE (p.nationality_country_id = ? OR p.second_nationality_country_id = ?)
+        AND (? = 'women' AND p.gender_presentation = 'female'
+          OR ? != 'women' AND COALESCE(p.gender_presentation, 'male') != 'female')
+        AND NOT EXISTS (
+          SELECT 1 FROM injuries i
+          WHERE i.person_id = p.id AND i.date_occurred <= ? AND i.expected_recovery_date >= ?
+        )
+        AND COALESCE((SELECT s.availability FROM player_availability_states s WHERE s.person_id = p.id ORDER BY s.updated_on DESC LIMIT 1), 'AVAILABLE') = 'AVAILABLE'
+      ORDER BY pa.person_id`,
+    )
+    .all(countryId, countryId, team.gender, team.gender, date, date) as Array<any>;
+
+  return rows.flatMap((row): NationalTeamSelectionCandidate[] => {
+    if (retired.has(row.person_id) || seniorCallups.has(row.person_id)) return [];
+    const existing = priorEligibility.get(row.person_id);
+    const derivedStatus =
+      row.nationality_country_id === countryId
         ? "ELIGIBLE"
-        : person.second_nationality_country_id === countryId
+        : row.second_nationality_country_id === countryId
           ? "DOCUMENTATION_REQUIRED"
           : "UNKNOWN";
-    if (status !== "UNKNOWN") {
+    const status =
+      existing && ["CAP_TIED", "INELIGIBLE", "DOCUMENTATION_REQUIRED"].includes(existing.status)
+        ? existing.status
+        : derivedStatus;
+    if (!existing || existing.status !== status) {
       repo.upsertInternationalEligibility({
-        id: createStableEntityId("international-eligibility", `${federationId}:${person.id}`),
-        playerId: person.id,
+        id: createStableEntityId("international-eligibility", `${federationId}:${row.person_id}`),
+        playerId: row.person_id,
         federationId,
         status,
         documentationStatus: status === "ELIGIBLE" ? "CONFIRMED" : "IN_PROGRESS",
@@ -1986,10 +2055,48 @@ const eligiblePlayerAttributes = (
         lastReviewedAt: date,
         provenanceStatus: status === "ELIGIBLE" ? "REPORTED" : simulationStatus,
       });
-      eligible.add(person.id);
     }
-  }
-  return players.filter((player) => eligible.has(player.personId));
+    if (status !== "ELIGIBLE" || !eligibleForNationalTeamAge(row.date_of_birth, team.level, date)) {
+      return [];
+    }
+    const player: NationalTeamSelectionCandidate = {
+      id: row.id,
+      personId: row.person_id,
+      primaryPosition: row.primary_position,
+      secondaryPositions: JSON.parse(row.secondary_positions_json ?? "[]"),
+      technical: JSON.parse(row.technical_json),
+      mental: JSON.parse(row.mental_json),
+      physical: JSON.parse(row.physical_json),
+      goalkeeping: JSON.parse(row.goalkeeping_json),
+      internationalSelectionScore: 0,
+    };
+    player.internationalSelectionScore =
+      basePlayerScore(player) +
+      Math.max(-2, Math.min(2, (Number(row.fitness) - 70) / 15)) +
+      Number(row.form_modifier) * 0.12;
+    return [player];
+  });
+};
+
+const eligibleForNationalTeamAge = (
+  dateOfBirth: string | undefined | null,
+  level: Team["level"],
+  referenceDate: string,
+): boolean => {
+  const maximumAge = level === "u23" ? 23 : level === "u20" ? 20 : level === "u17" ? 17 : undefined;
+  if (maximumAge === undefined) return true;
+  if (!dateOfBirth) return false;
+  const birth = new Date(`${dateOfBirth}T00:00:00Z`);
+  const reference = new Date(`${referenceDate}T00:00:00Z`);
+  if (Number.isNaN(birth.getTime()) || Number.isNaN(reference.getTime())) return false;
+  const age =
+    reference.getUTCFullYear() -
+    birth.getUTCFullYear() -
+    (reference.getUTCMonth() < birth.getUTCMonth() ||
+    (reference.getUTCMonth() === birth.getUTCMonth() && reference.getUTCDate() < birth.getUTCDate())
+      ? 1
+      : 0);
+  return age >= 0 && age <= maximumAge;
 };
 
 const allPlayerAttributes = (db: GameDatabase): PlayerAttributeSet[] =>
@@ -2036,6 +2143,13 @@ const balancedSelection = (
 };
 
 const playerScore = (player: PlayerAttributeSet): number => {
+  const internationalScore = (player as Partial<NationalTeamSelectionCandidate>)
+    .internationalSelectionScore;
+  if (internationalScore !== undefined) return internationalScore;
+  return basePlayerScore(player);
+};
+
+const basePlayerScore = (player: PlayerAttributeSet): number => {
   const technical = average(Object.values(player.technical));
   const mental = average(Object.values(player.mental));
   const physical = average(Object.values(player.physical));

@@ -7,9 +7,35 @@ const status = "SIMULATION_ONLY" as const;
 const staffPerson = (db: GameDatabase, id: EntityId, name: string, countryId: EntityId, date: string): Person => { const world = new WorldRepository(db); const existing = world.getPerson(id); if (existing) return existing; const person: Person = { id, fullName: name, displayName: name, dateOfBirth: "1978-01-01", nationalityCountryId: countryId, genderPresentation: "unknown", languages: ["Nepali", "English"] }; world.insertPerson(person); world.insertPersonRole({ id: createStableEntityId("person-role", `${id}:STAFF`), personId: id, role: "STAFF", activeFrom: date }); return person; };
 
 export const ensureNationalTeamStaffStructure = (db: GameDatabase, input: { federationId: EntityId; nationalTeamId: EntityId; date: string }): Array<{ role: FootballStaffRole; personId: EntityId }> => {
-  const countryId = (db.prepare("SELECT country_id FROM federations WHERE id=?").get(input.federationId) as { country_id: EntityId } | undefined)?.country_id; if (!countryId) throw new Error("Federation not found");
-  const roles: Array<[FootballStaffRole, string]> = [["NATIONAL_TEAM_HEAD_COACH", "National Team Head Coach"], ["NATIONAL_TEAM_ASSISTANT", "National Team Assistant"], ["SPORTS_SCIENTIST", "National Team Performance Coach"], ["NATIONAL_TEAM_PHYSIO", "National Team Medical Lead"], ["NATIONAL_TEAM_ANALYST", "National Team Scout Analyst"]]; const world = new WorldRepository(db); const result: Array<{ role: FootballStaffRole; personId: EntityId }> = [];
-  for (const [role, name] of roles) { const existing = db.prepare("SELECT person_id FROM staff_appointments WHERE team_id=? AND role=? AND employment_status='ACTIVE' ORDER BY id LIMIT 1").get(input.nationalTeamId, role) as { person_id: EntityId } | undefined; const personId = existing?.person_id ?? createStableEntityId("person", `national-team-staff:${input.nationalTeamId}:${role}`); if (!existing) { staffPerson(db, personId, name, countryId, input.date); const profile: StaffProfile = { id: createStableEntityId("staff-profile", personId), personId, preferredRole: role, salaryExpectation: "NATIONAL_TEAM_SCALE", reputation: "SIMULATION_ONLY", countryKnowledge: [countryId], clubKnowledge: [], availability: "EMPLOYED", workEligibilityStatus: "ELIGIBLE" }; world.insertStaffProfile(profile); world.insertStaffAppointment({ id: createStableEntityId("staff-appointment", `${input.nationalTeamId}:${role}`), personId, organisationType: "NATIONAL_TEAM", teamId: input.nationalTeamId, federationId: input.federationId, role, startDate: input.date, employmentStatus: "ACTIVE" }); } result.push({ role, personId }); }
+  const countryId = (db.prepare("SELECT country_id FROM federations WHERE id=?").get(input.federationId) as { country_id: EntityId } | undefined)?.country_id;
+  if (!countryId) throw new Error("Federation not found");
+  const team = db.prepare("SELECT name, level, gender FROM teams WHERE id=?").get(input.nationalTeamId) as { name: string; level: string; gender: string } | undefined;
+  if (!team) throw new Error("National team not found");
+  const organisationNames = [team.name];
+  if (team.level === "senior" && team.gender === "women") organisationNames.push("Nepal Women's Senior National Team");
+  const roles: Array<[FootballStaffRole, string]> = [["NATIONAL_TEAM_HEAD_COACH", "National Team Head Coach"], ["NATIONAL_TEAM_ASSISTANT", "National Team Assistant"], ["SPORTS_SCIENTIST", "National Team Performance Coach"], ["NATIONAL_TEAM_PHYSIO", "National Team Medical Lead"], ["NATIONAL_TEAM_ANALYST", "National Team Scout Analyst"]];
+  const world = new WorldRepository(db);
+  const result: Array<{ role: FootballStaffRole; personId: EntityId }> = [];
+  for (const [role, name] of roles) {
+    const existing = db.prepare(
+      `SELECT id, person_id, team_id FROM staff_appointments
+       WHERE role = ? AND employment_status = 'ACTIVE'
+         AND (team_id = ? OR (team_id IS NULL AND federation_id = ? AND organisation_name IN (${organisationNames.map(() => "?").join(",")})))
+       ORDER BY CASE WHEN team_id = ? THEN 0 ELSE 1 END, id
+       LIMIT 1`,
+    ).get(role, input.nationalTeamId, input.federationId, ...organisationNames, input.nationalTeamId) as { id: EntityId; person_id: EntityId; team_id?: EntityId } | undefined;
+    if (existing && existing.team_id !== input.nationalTeamId) {
+      db.prepare("UPDATE staff_appointments SET team_id = ? WHERE id = ?").run(input.nationalTeamId, existing.id);
+    }
+    const personId = existing?.person_id ?? createStableEntityId("person", `national-team-staff:${input.nationalTeamId}:${role}`);
+    if (!existing) {
+      staffPerson(db, personId, name, countryId, input.date);
+      const profile: StaffProfile = { id: createStableEntityId("staff-profile", personId), personId, preferredRole: role, salaryExpectation: "NATIONAL_TEAM_SCALE", reputation: "SIMULATION_ONLY", countryKnowledge: [countryId], clubKnowledge: [], availability: "EMPLOYED", workEligibilityStatus: "ELIGIBLE" };
+      world.insertStaffProfile(profile);
+      world.insertStaffAppointment({ id: createStableEntityId("staff-appointment", `${input.nationalTeamId}:${role}`), personId, organisationType: "NATIONAL_TEAM", teamId: input.nationalTeamId, federationId: input.federationId, role, startDate: input.date, employmentStatus: "ACTIVE" });
+    }
+    result.push({ role, personId });
+  }
   return result;
 };
 

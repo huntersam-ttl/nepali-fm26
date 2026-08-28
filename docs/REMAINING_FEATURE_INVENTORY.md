@@ -2,18 +2,19 @@
 
 ## Snapshot
 
-Audit date: 2026-08-28. Repository: `/Users/cc/nepali-fm26`. Trial closure pass based on
-HEAD `c63a412`; the pre-existing untracked `nepali-fm26/` entry remains untouched.
+Audit date: 2026-08-28. Repository: `/Users/cc/nepali-fm26`. Women/youth international
+closure pass based on HEAD `d12afb9`; the pre-existing untracked `nepali-fm26/` entry
+remains untouched.
 
 The inventory has 92 normalized entries: the 84 row-level entries in the previous feature
 audit, plus the eight explicit high-risk overlays requested for this pass. Statuses are:
 
 | Status | Count |
 | --- | ---: |
-| COMPLETE | 56 |
+| COMPLETE | 58 |
 | BUILT_NOT_PROVEN | 1 |
 | PARTIAL | 26 |
-| MISSING | 5 |
+| MISSING | 3 |
 | LATER | 4 |
 | **Total** | **92** |
 
@@ -34,7 +35,7 @@ scope work.
 
 ## Complete Systems
 
-The following 55 systems are COMPLETE:
+The following systems are COMPLETE:
 
 - Core world state and persistent entities; deterministic RNG; calendar and time; save/load, autosaves, and schema compatibility.
 - History and dynamic history; character creation; manager career; manager interviews; career reputation and history.
@@ -45,7 +46,7 @@ The following 55 systems are COMPLETE:
 - Nepal A/B/C pyramid, promotion, relegation, and memberships; club licensing; lower-league finance and squad viability; territorial structure; district/provincial representative competitions; district infrastructure projects.
 - Youth intake, development, retirement, and late developers; free agents; foreign player supply into Nepal; player regeneration and long-save supply; staff/referee regeneration and long-save supply.
 - Women's clubs and competitions; macroeconomy; personal wealth; supporter base, attendance, atmosphere, and mood; awards. The separate rivalry system remains PARTIAL.
-- AI squad planning, transfers, and contracts; AI federation and senior-men national-team automation; senior-men national teams and international competition.
+- AI squad planning, transfers, and contracts; AI federation and national-team automation; senior-men, senior-women, and U17/U20/U23 national teams and international competition.
 - Stadium, training, youth, medical, and technical infrastructure; desktop runtime and SQLite; legal and data provenance.
 
 ## Built but Not Proven
@@ -102,6 +103,7 @@ High-risk overlays:
 | Candidate | Unit | Integration | Production flow | Reload |
 | --- | --- | --- | --- | --- |
 | Trials | invitation, response, knowledge, expiry, offer handoff | 4 focused lifecycle tests | scouting cadence, seasonal AI, and external-interest paths | active and completed reload |
+| Women / youth internationals | category-aware selection, age/availability/eligibility filters, shared fixture/result records | women and U17 end-to-end, sanctions, age-out, senior pathway | bounded seasonal SAFF/AFC calendar | squads, results, caps, history, and repeated progression |
 | Foreign staff movement | vacancy, decision, contract, retirement helpers | two-way CONTEXT_ONLY moves and replacement | desktop and seasonal context cadence | contracts/history/replacements reload |
 | Global generated lifecycle | youth/workforce generation | foreign idempotency/replenishment | seasonal shortage top-up | bootstrap/replenishment idempotency |
 | External competition context | external profile helpers | global-context season persistence | career seasonal cadence | context rows reload |
@@ -112,14 +114,14 @@ High-risk overlays:
 
 ## Missing Systems
 
-- Women's player data in the shipped factual dataset; women's national team; U17/U20/U23
-  national teams; legends and cult heroes; real referee database.
+- Women's player data in the shipped factual dataset; legends and cult heroes; real referee database.
 
 The real staff entry remains role-limited: the canonical seed has 149 verified `HEAD_COACH`
 rows. Suitable club-linked entries now become factual staff appointments and participate in the
 same bounded hiring pipeline as generated staff; federation-only roles remain outside this club
 mobility pass. The referee entry remains MISSING. Generated supply is the active continuity mechanism.
-Women's and age-group national football remain gameplay gaps.
+Women's factual player-data coverage remains separate from the now-complete women’s international
+production path.
 
 ## Later / Explicitly Deferred
 
@@ -141,11 +143,9 @@ No long save, balance run, UI/UX pass, or optimization was performed.
 
 ## Final Feature Passes Before Freeze
 
-- **P0 — scope and core closure:** the international-trials and two-way foreign-staff scope gates
-  are closed: foreign-player → Nepal and Nepal-player → context-only foreign evaluation are
-  supported, and club staff can move through shared employment records. Next resolve the women's
-  and age-group international scope, including only the required data, selection,
-  fixtures/results, eligibility, persistence, and progression surfaces.
+- **P0 — scope and core closure:** empty. International trials, two-way foreign staff movement,
+  and women/youth international football are production-reachable with focused proof. This does
+  not imply a feature freeze.
 - **P1 — connected-world depth:** connect global player development/decline/retirement and
   external competition context; add production consumers for partnership types and multi-club
   effects; implement sell-on resale settlement if retained in scope. Wire the remaining
@@ -164,6 +164,6 @@ is being marked green automatically.
 
 **NO — not ready for a true feature freeze.** The core manager spine is production-reachable,
 but global lifecycle/competition context/partnership/network/sell-on systems are meaningful
-PARTIALs, women's and age-group international systems remain MISSING, and long-save performance is BUILT_NOT_PROVEN. Freeze
-can be reconsidered after the P0 scope decisions and proof tasks are closed. The current
-uncommitted repository work remains untouched.
+PARTIALs and long-save performance is BUILT_NOT_PROVEN. Freeze can be reconsidered only after
+the remaining P1 production passes and proof tasks are closed. The current uncommitted
+repository work remains untouched.

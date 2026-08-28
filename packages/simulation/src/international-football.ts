@@ -17,6 +17,7 @@ import {
   type NationalTeamCohesion,
   type NationalTeamDuty,
   type NationalTeamFixture,
+  type NationalTeamType,
   type PlayerAttributeSet,
   type PlayerPosition,
   type SimulationWorldRanking,
@@ -30,10 +31,12 @@ import {
 import {
   closeFederationFinancialSeason,
   initializeFederationGovernanceForSave,
+  nationalTeamParticipationAllowed,
   postFederationTransaction,
   selectNationalTeamSquad,
 } from "./federation-governance.js";
 import { simulateMatch } from "./match-engine.js";
+import { ensureNationalTeamStaffStructure } from "./national-team-management.js";
 import { SeededRandom } from "./rng.js";
 
 const simulationStatus = "SIMULATION_ONLY" as const;
@@ -51,6 +54,51 @@ type RegistryTeam = {
   homeAdvantage: number;
   populationTalentBase: number;
 };
+
+export type InternationalCompetitionKey =
+  | "SAFF"
+  | "ASIAN_CUP_QUALIFICATION"
+  | "ASIAN_CUP"
+  | "AFC_WORLD_CUP_QUALIFICATION"
+  | "WORLD_CUP"
+  | "SAFF_WOMEN"
+  | "AFC_WOMENS_ASIAN_CUP_QUALIFICATION"
+  | "SAFF_U23"
+  | "SAFF_U20"
+  | "SAFF_U17";
+
+const supportedNationalTeamTypes: NationalTeamType[] = [
+  "SENIOR_MEN",
+  "SENIOR_WOMEN",
+  "U23",
+  "U20",
+  "U17",
+];
+
+const teamTypeForCompetitionKey = (key: InternationalCompetitionKey): NationalTeamType => {
+  if (key === "SAFF_WOMEN" || key === "AFC_WOMENS_ASIAN_CUP_QUALIFICATION") {
+    return "SENIOR_WOMEN";
+  }
+  if (key === "SAFF_U23") return "U23";
+  if (key === "SAFF_U20") return "U20";
+  if (key === "SAFF_U17") return "U17";
+  return "SENIOR_MEN";
+};
+
+const isRegionalCompetition = (key: InternationalCompetitionKey): boolean =>
+  key === "SAFF" || key.startsWith("SAFF_");
+
+const profileName = (countryName: string, teamType: NationalTeamType): string =>
+  `${countryName} ${
+    teamType === "SENIOR_MEN"
+      ? "Senior Men"
+      : teamType === "SENIOR_WOMEN"
+        ? "Senior Women"
+        : `${teamType} Men`
+  }`;
+
+const profileStrengthMultiplier = (teamType: NationalTeamType): number =>
+  teamType === "SENIOR_WOMEN" ? 0.84 : teamType === "U23" ? 0.91 : teamType === "U20" ? 0.86 : teamType === "U17" ? 0.8 : 1;
 
 export type FastExternalMatchResult = {
   homeGoals: number;
@@ -408,26 +456,36 @@ export const initializeInternationalFootballForSave = (input: {
   initializeFederationGovernanceForSave(input);
   const repo = new InternationalFootballRepository(input.db);
   ensureExternalCountries(input.db);
-  const nepalTeamId = seniorMenNationalTeamId(input.db);
   for (const item of registry) {
     const countryId = countryIdByIso(input.db, item.isoCode);
-    const profile: InternationalTeamProfile = {
-      id: createStableEntityId("international-team-profile", `${item.isoCode}:SENIOR_MEN`),
-      countryId,
-      nationalTeamId: item.isoCode === "NP" ? nepalTeamId : undefined,
-      name: `${item.countryName} Senior Men`,
-      teamType: "SENIOR_MEN",
-      confederation: item.confederation,
-      region: item.region,
-      simulationReputation: item.reputation,
-      simulationStrength: item.strength,
-      homeAdvantageProfile: item.homeAdvantage,
-      developmentLevel: item.development,
-      formRating: 50,
-      lastUpdated: input.worldDate,
-      provenanceStatus: item.isoCode === "NP" ? factualIdentityStatus : simulationStatus,
-    };
-    repo.upsertTeamProfile(profile);
+    for (const teamType of supportedNationalTeamTypes) {
+      const multiplier = profileStrengthMultiplier(teamType);
+      const profile: InternationalTeamProfile = {
+        id: createStableEntityId("international-team-profile", `${item.isoCode}:${teamType}`),
+        countryId,
+        nationalTeamId:
+          item.isoCode === "NP" ? nationalTeamIdForType(input.db, teamType) : undefined,
+        name: profileName(item.countryName, teamType),
+        teamType,
+        confederation: item.confederation,
+        region: item.region,
+        simulationReputation: Math.round(item.reputation * multiplier),
+        simulationStrength: Math.round(item.strength * multiplier),
+        homeAdvantageProfile: item.homeAdvantage,
+        developmentLevel: Math.round(item.development * multiplier),
+        formRating: 50,
+        lastUpdated: input.worldDate,
+        provenanceStatus: item.isoCode === "NP" ? factualIdentityStatus : simulationStatus,
+      };
+      repo.upsertTeamProfile(profile);
+      if (profile.nationalTeamId) {
+        ensureNationalTeamStaffStructure(input.db, {
+          federationId: anfaFederation(input.db).id,
+          nationalTeamId: profile.nationalTeamId,
+          date: input.worldDate,
+        });
+      }
+    }
     repo.upsertDevelopmentProfile({
       id: createStableEntityId("international-development-profile", `${item.isoCode}:2026`),
       countryId,
@@ -448,12 +506,7 @@ export const initializeInternationalFootballForSave = (input: {
 export const createInternationalCompetitionEdition = (
   db: GameDatabase,
   input: {
-    competitionKey:
-      | "SAFF"
-      | "ASIAN_CUP_QUALIFICATION"
-      | "ASIAN_CUP"
-      | "AFC_WORLD_CUP_QUALIFICATION"
-      | "WORLD_CUP";
+    competitionKey: InternationalCompetitionKey;
     cycle: string;
     startDate: string;
     seed: string;
@@ -462,7 +515,7 @@ export const createInternationalCompetitionEdition = (
   initializeInternationalFootballForSave({ db, worldDate: input.startDate, seed: input.seed });
   const repo = new InternationalFootballRepository(db);
   const competition = competitionByKey(repo, input.competitionKey);
-  const endDate = addDays(input.startDate, input.competitionKey === "SAFF" ? 18 : 90);
+  const endDate = addDays(input.startDate, isRegionalCompetition(input.competitionKey) ? 18 : 90);
   const edition: InternationalCompetitionEdition = {
     id: createStableEntityId("international-edition", `${competition.id}:${input.cycle}`),
     competitionId: competition.id,
@@ -617,9 +670,9 @@ export const simulateInternationalMatch = (
   if (match.status === "PLAYED") return match;
   const home = required(repo.teamProfile(match.homeTeamProfileId), "home profile");
   const away = required(repo.teamProfile(match.awayTeamProfileId), "away profile");
-  const nepal = nepalProfile(repo);
+  const nepalNationalTeamId = home.nationalTeamId ?? away.nationalTeamId;
   const result =
-    home.id === nepal.id || away.id === nepal.id
+    nepalNationalTeamId
       ? simulateNepalInternationalMatch(db, match, home, away, seed)
       : fastExternalMatch(home, away, {
           seed,
@@ -718,14 +771,14 @@ const ensureNepalDutyForEdition = (
   seed: string,
 ): void => {
   const repo = new InternationalFootballRepository(db);
-  const nepal = nepalProfile(repo);
-  if (
-    !repo.participants(edition.id).some((participant) => participant.teamProfileId === nepal.id)
-  ) {
-    return;
-  }
+  const nepal = repo
+    .participants(edition.id)
+    .map((participant) => repo.teamProfile(participant.teamProfileId))
+    .find((profile): profile is InternationalTeamProfile => Boolean(profile?.nationalTeamId));
+  if (!nepal?.nationalTeamId) return;
   const federation = anfaFederation(db);
-  const nationalTeamId = seniorMenNationalTeamId(db);
+  const nationalTeamId = nepal.nationalTeamId;
+  if (!nationalTeamParticipationAllowed(db, federation.id)) return;
   selectNationalTeamSquad(db, {
     federationId: federation.id,
     nationalTeamId,
@@ -734,6 +787,10 @@ const ensureNepalDutyForEdition = (
     seed: `${seed}:edition-squad:${edition.id}`,
     size: 26,
   });
+  const callups = new FederationGovernanceRepository(db)
+    .nationalTeamCallups(nationalTeamId)
+    .filter((callup) => callup.callupDate <= edition.startDate && callup.status === "CALLED_UP");
+  if (callups.length === 0) return;
   createDutyForCurrentCallups(
     db,
     nationalTeamId,
@@ -748,34 +805,38 @@ export const calculateSimulationWorldRanking = (
   date: string,
 ): SimulationWorldRanking[] => {
   const repo = new InternationalFootballRepository(db);
-  const profiles = repo.teamProfiles();
-  const points = profiles
-    .map((profile) => ({
-      profile,
-      points:
-        profile.simulationStrength * 9 +
-        profile.simulationReputation * 4 +
-        profile.formRating * 2 +
-        profile.developmentLevel,
-    }))
-    .sort((a, b) => b.points - a.points || a.profile.name.localeCompare(b.profile.name));
-  const confederationCounts = new Map<FootballConfederation, number>();
-  const rankings = points.map((item, index) => {
-    const confederationRank = (confederationCounts.get(item.profile.confederation) ?? 0) + 1;
-    confederationCounts.set(item.profile.confederation, confederationRank);
-    const ranking: SimulationWorldRanking = {
-      id: createStableEntityId("simulation-world-ranking", `${item.profile.id}:${date}`),
-      teamProfileId: item.profile.id,
-      rankingDate: date,
-      rank: index + 1,
-      points: round(item.points),
-      confederationRank,
-      reputation: round(item.profile.simulationReputation),
-      provenanceStatus: simulationStatus,
-    };
-    repo.upsertRanking(ranking);
-    return ranking;
-  });
+  const rankings: SimulationWorldRanking[] = [];
+  for (const teamType of supportedNationalTeamTypes) {
+    const points = repo
+      .teamProfiles()
+      .filter((profile) => profile.teamType === teamType)
+      .map((profile) => ({
+        profile,
+        points:
+          profile.simulationStrength * 9 +
+          profile.simulationReputation * 4 +
+          profile.formRating * 2 +
+          profile.developmentLevel,
+      }))
+      .sort((a, b) => b.points - a.points || a.profile.name.localeCompare(b.profile.name));
+    const confederationCounts = new Map<FootballConfederation, number>();
+    for (const [index, item] of points.entries()) {
+      const confederationRank = (confederationCounts.get(item.profile.confederation) ?? 0) + 1;
+      confederationCounts.set(item.profile.confederation, confederationRank);
+      const ranking: SimulationWorldRanking = {
+        id: createStableEntityId("simulation-world-ranking", `${item.profile.id}:${date}`),
+        teamProfileId: item.profile.id,
+        rankingDate: date,
+        rank: index + 1,
+        points: round(item.points),
+        confederationRank,
+        reputation: round(item.profile.simulationReputation),
+        provenanceStatus: simulationStatus,
+      };
+      repo.upsertRanking(ranking);
+      rankings.push(ranking);
+    }
+  }
   return rankings;
 };
 
@@ -824,14 +885,20 @@ export const runNationalTeamCamp = (
   return camp;
 };
 
-export const getNationalTeamHistory = (db: GameDatabase): InternationalHistory => {
+export const getNationalTeamHistory = (
+  db: GameDatabase,
+  nationalTeamId = seniorMenNationalTeamId(db),
+): InternationalHistory => {
   const repo = new InternationalFootballRepository(db);
-  const nepal = nepalProfile(repo);
+  const nepal = required(
+    repo.teamProfiles().find((profile) => profile.nationalTeamId === nationalTeamId),
+    `national team profile ${nationalTeamId}`,
+  );
   const matches = repo
     .matches()
     .filter((match) => match.homeTeamProfileId === nepal.id || match.awayTeamProfileId === nepal.id)
     .filter((match) => match.status === "PLAYED");
-  const appearances = new FederationGovernanceRepository(db).nationalTeamAppearances();
+  const appearances = new FederationGovernanceRepository(db).nationalTeamAppearances(nationalTeamId);
   const byPlayer = new Map<EntityId, { playerId: EntityId; caps: number; goals: number }>();
   for (const appearance of appearances) {
     const current = byPlayer.get(appearance.playerId) ?? {
@@ -873,12 +940,44 @@ export const processInternationalForSeasonPeriod = (
       startDate: `${endYear}-09-01`,
       seed: input.seed,
     });
+    plans.push({
+      competitionKey: "SAFF_WOMEN",
+      cycle: String(endYear),
+      startDate: `${endYear}-10-04`,
+      seed: input.seed,
+    });
+    plans.push({
+      competitionKey: "SAFF_U23",
+      cycle: String(endYear),
+      startDate: `${endYear}-07-07`,
+      seed: input.seed,
+    });
+  }
+  if (endYear % 2 === 1) {
+    plans.push({
+      competitionKey: "SAFF_U20",
+      cycle: String(endYear),
+      startDate: `${endYear}-07-07`,
+      seed: input.seed,
+    });
+    plans.push({
+      competitionKey: "SAFF_U17",
+      cycle: String(endYear),
+      startDate: `${endYear}-10-04`,
+      seed: input.seed,
+    });
   }
   if (endYear % 4 === 3) {
     plans.push({
       competitionKey: "ASIAN_CUP_QUALIFICATION",
       cycle: String(endYear + 1),
       startDate: `${endYear}-03-20`,
+      seed: input.seed,
+    });
+    plans.push({
+      competitionKey: "AFC_WOMENS_ASIAN_CUP_QUALIFICATION",
+      cycle: String(endYear + 1),
+      startDate: `${endYear}-05-20`,
       seed: input.seed,
     });
   }
@@ -900,32 +999,24 @@ export const processInternationalForSeasonPeriod = (
   }
   for (const plan of plans) {
     const edition = createInternationalCompetitionEdition(db, plan);
-    const nationalTeamId = seniorMenNationalTeamId(db);
-    const federation = anfaFederation(db);
-    selectNationalTeamSquad(db, {
-      federationId: federation.id,
-      nationalTeamId,
-      date: addDays(edition.startDate, -7),
-      programme: edition.name,
-      seed: `${input.seed}:squad:${edition.id}`,
-      size: 26,
-    });
-    createDutyForCurrentCallups(
-      db,
-      nationalTeamId,
-      edition,
-      addDays(edition.startDate, -7),
-      addDays(edition.endDate, 3),
-    );
-    runNationalTeamCamp(db, {
-      federationId: federation.id,
-      nationalTeamId,
-      competitionEditionId: edition.id,
-      startDate: addDays(edition.startDate, -6),
-      endDate: addDays(edition.startDate, -1),
-      focus: "TACTICAL_FAMILIARITY",
-      seed: input.seed,
-    });
+    ensureNepalDutyForEdition(db, edition, `${input.seed}:squad:${edition.id}`);
+    const nationalTeam = new InternationalFootballRepository(db)
+      .participants(edition.id)
+      .map((participant) =>
+        new InternationalFootballRepository(db).teamProfile(participant.teamProfileId),
+      )
+      .find((profile): profile is InternationalTeamProfile => Boolean(profile?.nationalTeamId));
+    if (nationalTeam?.nationalTeamId) {
+      runNationalTeamCamp(db, {
+        federationId: anfaFederation(db).id,
+        nationalTeamId: nationalTeam.nationalTeamId,
+        competitionEditionId: edition.id,
+        startDate: addDays(edition.startDate, -6),
+        endDate: addDays(edition.startDate, -1),
+        focus: "TACTICAL_FAMILIARITY",
+        seed: input.seed,
+      });
+    }
     advanceInternationalCompetition(db, edition.id, `${input.seed}:edition:${edition.id}`);
   }
   calculateSimulationWorldRanking(db, input.seasonEndDate);
@@ -1072,17 +1163,44 @@ const seedCompetitionShells = (repo: InternationalFootballRepository): void => {
       cadenceYears: 4,
       provenanceStatus: simulationStatus,
     },
+    {
+      id: createStableEntityId("international-competition", "SAFF_WOMEN"),
+      name: "SAFF Women's Championship",
+      competitionType: "REGIONAL_CHAMPIONSHIP",
+      confederation: "AFC",
+      region: "SAFF",
+      cadenceYears: 2,
+      provenanceStatus: simulationStatus,
+    },
+    {
+      id: createStableEntityId("international-competition", "AFC_WOMENS_ASIAN_CUP_QUALIFICATION"),
+      name: "AFC Women's Asian Cup Qualification",
+      competitionType: "QUALIFIER",
+      confederation: "AFC",
+      region: "GLOBAL",
+      cadenceYears: 4,
+      provenanceStatus: simulationStatus,
+    },
+    ...(["U23", "U20", "U17"] as const).map((ageGroup) => ({
+      id: createStableEntityId("international-competition", `SAFF_${ageGroup}`),
+      name: `SAFF ${ageGroup} Championship`,
+      competitionType: "REGIONAL_CHAMPIONSHIP" as const,
+      confederation: "AFC" as const,
+      region: "SAFF" as const,
+      cadenceYears: 2,
+      provenanceStatus: simulationStatus,
+    })),
   ];
   rows.forEach((competition) => repo.upsertCompetition(competition));
 };
 
 const stageRules = (
   edition: InternationalCompetitionEdition,
-  key: Parameters<typeof createInternationalCompetitionEdition>[1]["competitionKey"],
+  key: InternationalCompetitionKey,
 ): InternationalCompetitionStage[] => {
-  const groupCount = key === "SAFF" ? 2 : key === "ASIAN_CUP" ? 4 : 3;
-  const groupSize = key === "SAFF" ? 4 : 4;
-  const teamsToAdvance = key === "SAFF" ? 2 : key === "ASIAN_CUP_QUALIFICATION" ? 1 : 2;
+  const groupCount = isRegionalCompetition(key) ? 2 : key === "ASIAN_CUP" ? 4 : 3;
+  const groupSize = 4;
+  const teamsToAdvance = isRegionalCompetition(key) ? 2 : key.includes("QUALIFICATION") ? 1 : 2;
   const tiebreakers: InternationalTiebreaker[] = [
     "POINTS",
     "GOAL_DIFFERENCE",
@@ -1117,7 +1235,7 @@ const stageRules = (
     {
       id: createStableEntityId("international-stage", `${edition.id}:knockout`),
       ...base,
-      name: key === "SAFF" ? "Semi-Final and Final" : "Knockout Stage",
+      name: isRegionalCompetition(key) ? "Semi-Final and Final" : "Knockout Stage",
       stageOrder: 2,
       formatType: "SINGLE_ELIMINATION",
       groupCount: 1,
@@ -1133,21 +1251,30 @@ const stageRules = (
 const seedParticipants = (
   db: GameDatabase,
   edition: InternationalCompetitionEdition,
-  key: Parameters<typeof createInternationalCompetitionEdition>[1]["competitionKey"],
+  key: InternationalCompetitionKey,
 ): void => {
   const repo = new InternationalFootballRepository(db);
+  const teamType = teamTypeForCompetitionKey(key);
+  const federation = anfaFederation(db);
   const profiles = repo
     .teamProfiles()
     .filter((profile) => {
-      if (key === "SAFF") return profile.region === "SAFF";
+      if (profile.teamType !== teamType) return false;
+      if (isRegionalCompetition(key)) return profile.region === "SAFF";
       if (key === "WORLD_CUP") return profile.confederation !== undefined;
       return profile.confederation === "AFC";
     })
     .sort((a, b) => b.simulationReputation - a.simulationReputation);
-  const limit = key === "SAFF" ? 7 : key === "ASIAN_CUP" ? 16 : key === "WORLD_CUP" ? 16 : 12;
-  const selected = profiles.slice(0, limit);
-  const nepal = profiles.find((profile) => profile.name === "Nepal Senior Men");
-  if (nepal && !selected.some((profile) => profile.id === nepal.id)) {
+  const limit = isRegionalCompetition(key) ? 7 : key === "ASIAN_CUP" ? 16 : key === "WORLD_CUP" ? 16 : 12;
+  const selected = profiles
+    .filter((profile) => profile.nationalTeamId === undefined || nationalTeamParticipationAllowed(db, federation.id))
+    .slice(0, limit);
+  const nepal = profiles.find((profile) => Boolean(profile.nationalTeamId));
+  if (
+    nepal &&
+    nationalTeamParticipationAllowed(db, federation.id) &&
+    !selected.some((profile) => profile.id === nepal.id)
+  ) {
     selected[selected.length - 1] = nepal;
   }
   selected.forEach((profile) => {
@@ -1171,7 +1298,8 @@ const simulateNepalInternationalMatch = (
   seed: string,
 ): FastExternalMatchResult => {
   const federation = anfaFederation(db);
-  const nationalTeamId = seniorMenNationalTeamId(db);
+  const nationalTeamId = home.nationalTeamId ?? away.nationalTeamId;
+  if (!nationalTeamId) throw new Error("Nepal international match is missing its national team");
   selectNationalTeamSquad(db, {
     federationId: federation.id,
     nationalTeamId,
@@ -1413,6 +1541,12 @@ const groupStandings = (
 
 const ensureExternalCountries = (db: GameDatabase): void => {
   for (const item of registry) {
+    if (
+      item.isoCode === "NP" &&
+      db.prepare("SELECT 1 FROM countries WHERE iso_code = 'NPL' LIMIT 1").get()
+    ) {
+      continue;
+    }
     db.prepare("INSERT OR IGNORE INTO countries (id, name, iso_code) VALUES (?, ?, ?)").run(
       createStableEntityId("country", item.isoCode),
       item.countryName,
@@ -1693,13 +1827,19 @@ const recordInternationalHistory = (db: GameDatabase, editionId: EntityId): void
     "edition",
   );
   const participants = repo.participants(editionId);
-  const nepal = nepalProfile(repo);
-  const nepalParticipant = participants.find((item) => item.teamProfileId === nepal.id);
+  const nepal = participants
+    .map((participant) => repo.teamProfile(participant.teamProfileId))
+    .find((profile): profile is InternationalTeamProfile => Boolean(profile?.nationalTeamId));
+  const nepalParticipant = nepal
+    ? participants.find((item) => item.teamProfileId === nepal.id)
+    : undefined;
+  const eventId = createStableEntityId("historical-event", `international:${editionId}`);
+  if (db.prepare("SELECT 1 FROM historical_events WHERE id = ?").get(eventId)) return;
   new EventRepository(db).insertHistoricalEvent({
-    id: createStableEntityId("historical-event", `international:${editionId}`),
+    id: eventId,
     occurredOn: edition.endDate,
     eventType: "INTERNATIONAL_EDITION_COMPLETED",
-    involvedEntities: [{ type: "country", id: nepal.countryId }],
+    involvedEntities: nepal ? [{ type: "country", id: nepal.countryId }] : [],
     title: `${edition.name} completed`,
     data: {
       nepalPlacement: nepalParticipant?.finalPlacement,
@@ -1711,14 +1851,26 @@ const recordInternationalHistory = (db: GameDatabase, editionId: EntityId): void
 };
 
 const countryIdByIso = (db: GameDatabase, isoCode: string): EntityId => {
-  const row = db.prepare("SELECT id FROM countries WHERE iso_code = ?").get(isoCode) as
-    { id: EntityId } | undefined;
+  const row = db
+    .prepare(
+      `SELECT id FROM countries
+       WHERE iso_code = ? OR (? = 'NP' AND iso_code = 'NPL')
+       ORDER BY CASE WHEN iso_code = 'NPL' THEN 0 ELSE 1 END
+       LIMIT 1`,
+    )
+    .get(isoCode, isoCode) as { id: EntityId } | undefined;
   if (!row) throw new Error(`Country ${isoCode} missing`);
   return row.id;
 };
 
 const anfaFederation = (db: GameDatabase): Federation => {
-  const row = db.prepare("SELECT * FROM federations ORDER BY name LIMIT 1").get() as any;
+  const row = db
+    .prepare(
+      `SELECT f.* FROM federations f JOIN countries c ON c.id = f.country_id
+       WHERE c.iso_code IN ('NPL', 'NP')
+       ORDER BY CASE WHEN c.iso_code = 'NPL' THEN 0 ELSE 1 END, f.name LIMIT 1`,
+    )
+    .get() as any;
   if (!row) throw new Error("No federation found");
   return {
     id: row.id,
@@ -1731,10 +1883,23 @@ const anfaFederation = (db: GameDatabase): Federation => {
 const seniorMenNationalTeamId = (db: GameDatabase): EntityId => {
   const row = db
     .prepare(
-      "SELECT id FROM teams WHERE federation_id IS NOT NULL AND level = 'senior' AND gender = 'men' ORDER BY name LIMIT 1",
+      "SELECT id FROM teams WHERE federation_id = ? AND club_id IS NULL AND level = 'senior' AND gender = 'men' ORDER BY name LIMIT 1",
     )
-    .get() as { id: EntityId } | undefined;
+    .get(anfaFederation(db).id) as { id: EntityId } | undefined;
   if (!row) throw new Error("Senior men's national team missing");
+  return row.id;
+};
+
+const nationalTeamIdForType = (db: GameDatabase, teamType: NationalTeamType): EntityId => {
+  if (teamType === "SENIOR_MEN") return seniorMenNationalTeamId(db);
+  const level = teamType === "SENIOR_WOMEN" ? "senior" : teamType.toLowerCase();
+  const gender = teamType === "SENIOR_WOMEN" ? "women" : "men";
+  const row = db
+    .prepare(
+      "SELECT id FROM teams WHERE federation_id = ? AND club_id IS NULL AND level = ? AND gender = ? ORDER BY name LIMIT 1",
+    )
+    .get(anfaFederation(db).id, level, gender) as { id: EntityId } | undefined;
+  if (!row) throw new Error(`${teamType} national team missing`);
   return row.id;
 };
 
@@ -1752,7 +1917,7 @@ const nepalRanking = (db: GameDatabase, date: string): SimulationWorldRanking | 
 
 const competitionByKey = (
   repo: InternationalFootballRepository,
-  key: Parameters<typeof createInternationalCompetitionEdition>[1]["competitionKey"],
+  key: InternationalCompetitionKey,
 ): InternationalCompetition =>
   required(
     repo
@@ -1764,9 +1929,9 @@ const competitionByKey = (
   );
 
 const hostCountries = (
-  key: Parameters<typeof createInternationalCompetitionEdition>[1]["competitionKey"],
+  key: InternationalCompetitionKey,
 ): EntityId[] => {
-  if (key === "SAFF") return [createStableEntityId("country", "NP")];
+  if (isRegionalCompetition(key)) return [createStableEntityId("country", "NP")];
   if (key === "ASIAN_CUP") return [createStableEntityId("country", "QA")];
   if (key === "WORLD_CUP") return [createStableEntityId("country", "US")];
   return [];
