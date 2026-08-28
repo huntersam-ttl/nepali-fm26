@@ -38,7 +38,10 @@ const importPerson = (db: GameDatabase, externalId: string, fullName: string, do
 const canonicalClub = (db: GameDatabase, externalId: string, officialName: string, countryId: EntityId): { id: EntityId; action: "NEW" | "MAPPED" } => {
   const existing = db.prepare("SELECT id FROM clubs WHERE canonical_external_id=? LIMIT 1").get(externalId) as { id?: EntityId } | undefined;
   if (existing?.id) return { id: existing.id, action: "MAPPED" };
-  const byName = db.prepare("SELECT id FROM clubs WHERE lower(official_name)=lower(?) AND country_id=? LIMIT 1").get(officialName, countryId) as { id?: EntityId } | undefined;
+  /* Most canonical Nepal clubs carry only `name`; `official_name` is optional
+   * and set for a handful. Matching the official name alone therefore missed
+   * the existing club and created a second Nepal identity for it. */
+  const byName = db.prepare("SELECT id FROM clubs WHERE (lower(official_name)=lower(?) OR lower(name)=lower(?)) AND country_id=? LIMIT 1").get(officialName, officialName, countryId) as { id?: EntityId } | undefined;
   return byName?.id ? { id: byName.id, action: "MAPPED" } : { id: createStableEntityId("import-club", externalId), action: "NEW" };
 };
 

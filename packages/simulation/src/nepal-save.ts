@@ -27,6 +27,7 @@ import { ensureLowerLeaguePlayableWorld } from "./workforce-supply.js";
 import { advanceMacroEconomyForWorldDate } from "./macro-economy.js";
 import { initializeSupporterCultureForSave } from "./supporter-culture.js";
 import { initializeNepalTerritorialStructure } from "./territorial-football.js";
+import { applyCanonicalGlobalDatasetSeed } from "./global-football-seed.js";
 
 export type CreateNepalSaveInput = {
   databasePath: string;
@@ -35,6 +36,11 @@ export type CreateNepalSaveInput = {
   gameVersion: string;
   randomSeed: string;
   worldDate?: string;
+  /**
+   * Canonical global dataset seed. Defaults to the repository artifact; pass
+   * null to build a Nepal-only world (fixtures and focused tests do this).
+   */
+  globalSeedPath?: string | null;
 };
 
 export type NepalSaveResult = {
@@ -110,6 +116,17 @@ export const createNepalSave = (input: CreateNepalSaveInput): NepalSaveResult =>
     ensureLowerLeaguePlayableWorld({ db, date: save.worldDate, seed: input.randomSeed });
     initializeSupporterCultureForSave({ db, worldDate: save.worldDate, seed: input.randomSeed });
     db.exec("COMMIT;");
+
+    /*
+     * The global dataset is applied after the Nepal world is committed, so the
+     * importer reconciles against canonical Nepal identities rather than
+     * creating parallel ones, and so its own transaction does not nest inside
+     * this one. Existing careers are untouched: this runs only at save
+     * creation, and the dataset version is recorded on the save's world.
+     */
+    if (input.globalSeedPath !== null) {
+      applyCanonicalGlobalDatasetSeed(db, { seedPath: input.globalSeedPath });
+    }
 
     const inspection = new WorldRepository(db).inspectWorld();
     db.close();

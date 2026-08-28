@@ -373,3 +373,51 @@ closure is not proven through direct helper calls alone.
 
 Non-blocking: option-to-buy and recall exist on the loan record but have no AI pathway; imported
 Africa/South Asia corridor proof still needs a canonical imported seed artifact, tracked above.
+
+## Canonical Imported Seed/Test Fixture — 2026-08-28
+
+The missing imported corridor coverage was caused by `APPLY_ONLY_TO_EPHEMERAL_DB` plus
+`DATASET_METADATA_ONLY`: the approved workbook plan was validated/applied in an isolated database,
+but no repository-owned canonical imported entity artifact was available to the test bootstrap.
+The raw XLSX remains outside runtime tests.
+
+`data/global/football_world_import_v16_reconciled_fixture.json` is a deterministic, version-linked
+subset of the approved `football_world_import_v16` representation. It contains five real verified
+player rows selected by stable external ID and their referenced context-only clubs, leagues,
+federations, competitions, sources, and import-plan actions. It preserves factual `VERIFIED`
+provenance and source IDs; it does not invent gameplay ratings or make external entities playable.
+
+## Fresh-Checkout Availability
+
+A fresh database created by `createNepalSave` can load the repository fixture through the canonical
+seed adapter and `applyGlobalFootballImportToDatabase`; no `/tmp` path, workbook parser, or
+developer-local database is required. The smoke test also initializes the normal generated foreign
+world and recruitment profiles after the canonical import, demonstrating coexistence on a new save.
+
+## Imported Africa Proof
+
+Verified `PLY-001259` (Nigeria, Enyimba FC) is imported through the production importer, receives a
+normal scouting assignment/tick, and appears in the Nepal regional shortlist with `AFRICA` market
+region. The regional cap remains 12.
+
+## Imported South Asia Proof
+
+Verified `PLY-000614` (India, Mohun Bagan) follows the same importer, scouting, and bounded shortlist
+path with `SOUTH_ASIA` market region. No nationality-specific recruitment branch was added.
+
+## Negative Cases / Imported-Generated Parity
+
+Verified `PLY-001258` (Nigeria, Enyimba FC) and `PLY-000617` (India, Mohun Bagan) are same-corridor
+goalkeepers excluded by ordinary exact-position filters; `PLY-000130` is Nigerian but contracted in
+Germany and is excluded as `EUROPE`. Imported and generated Nigerian candidates share the same
+scouting result shape, region resolver, knowledge gate, and shortlist path; identity/source provenance
+is the only data-origin difference. External club and league context rows remain `CONTEXT_ONLY`.
+
+## Production Activation
+
+`GLOBAL CONTEXT PRODUCTION ACTIVE` for the proven canonical-import and bounded recruitment corridor
+in the current worktree. The authored files remain unstaged/uncommitted so the normal commit is still
+required before a new clone can consume them.
+Focused canonical fixture coverage is 2/2, generated corridor coverage remains green, and no loans,
+long-save, UI, or workbook re-import was run in this pass. The broad stage-eight suite remains
+classified slow/unresolved rather than claimed green; loans remain the next separate feature.

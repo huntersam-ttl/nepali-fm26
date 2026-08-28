@@ -68,15 +68,15 @@ export type RecruitmentSearchResult = {
 };
 
 const REGION_COUNTRIES: Record<ExternalFootballRegion, readonly string[]> = {
-  SOUTH_ASIA: ["NP", "NPL", "IN", "BD", "MV", "BT", "PK", "LK", "AF"],
-  WIDER_ASIA: ["CN", "HK", "MO", "MN", "KP", "KR", "TW", "JP"],
-  MIDDLE_EAST: ["AE", "SA", "QA", "IR", "IQ", "IL", "JO", "KW", "OM", "BH", "YE"],
-  AUSTRALIA: ["AU", "NZ", "FJ", "PG"],
-  EUROPE: ["GB", "IE", "FR", "DE", "ES", "IT", "PT", "NL", "BE", "CH", "AT", "SE", "NO", "DK", "FI", "IS", "PL", "CZ", "SK", "HU", "RO", "BG", "GR", "HR", "RS", "UA", "TR"],
-  AFRICA: ["NG", "GH", "CM", "SN", "CI", "ZA", "KE", "TZ", "UG", "ET", "MA", "DZ", "TN", "EG", "ZM", "ZW", "MZ", "AO", "CD", "CG", "RW"],
-  SOUTH_AMERICA: ["BR", "AR", "UY", "CL", "CO", "PE", "EC", "BO", "PY", "VE"],
-  NORTH_CENTRAL_AMERICA: ["US", "CA", "MX", "CR", "PA", "HN", "GT", "SV", "JM", "HT"],
-  OCEANIA: ["WS", "TO", "VU", "SB"],
+  SOUTH_ASIA: ["NP", "NPL", "IN", "IND", "BD", "BGD", "MV", "MDV", "BT", "BTN", "PK", "PAK", "LK", "LKA", "AF", "AFG"],
+  WIDER_ASIA: ["CN", "CHN", "HK", "HKG", "MO", "MAC", "MN", "MNG", "KP", "PRK", "KR", "KOR", "TW", "TPE", "JP", "JPN"],
+  MIDDLE_EAST: ["AE", "ARE", "SA", "SAU", "QA", "QAT", "IR", "IRN", "IQ", "IRQ", "IL", "ISR", "JO", "JOR", "KW", "KWT", "OM", "OMN", "BH", "BHR", "YE", "YEM"],
+  AUSTRALIA: ["AU", "AUS", "NZ", "NZL", "FJ", "FJI", "PG", "PNG"],
+  EUROPE: ["GB", "GBR", "IE", "IRL", "FR", "FRA", "DE", "DEU", "ES", "ESP", "IT", "ITA", "PT", "PRT", "NL", "NLD", "BE", "BEL", "CH", "CHE", "AT", "AUT", "SE", "SWE", "NO", "NOR", "DK", "DNK", "FI", "FIN", "IS", "ISL", "PL", "POL", "CZ", "CZE", "SK", "SVK", "HU", "HUN", "RO", "ROU", "BG", "BGR", "GR", "GRC", "HR", "HRV", "RS", "SRB", "UA", "UKR", "TR", "TUR"],
+  AFRICA: ["NG", "NGA", "GH", "GHA", "CM", "CMR", "SN", "SEN", "CI", "CIV", "ZA", "ZAF", "KE", "KEN", "TZ", "TZA", "UG", "UGA", "ET", "ETH", "MA", "MAR", "DZ", "DZA", "TN", "TUN", "EG", "EGY", "ZM", "ZMB", "ZW", "ZWE", "MZ", "MOZ", "AO", "AGO", "CD", "COD", "CG", "COG", "RW", "RWA"],
+  SOUTH_AMERICA: ["BR", "BRA", "AR", "ARG", "UY", "URY", "CL", "CHL", "CO", "COL", "PE", "PER", "EC", "ECU", "BO", "BOL", "PY", "PRY", "VE", "VEN"],
+  NORTH_CENTRAL_AMERICA: ["US", "USA", "CA", "CAN", "MX", "MEX", "CR", "CRI", "PA", "PAN", "HN", "HND", "GT", "GTM", "SV", "SLV", "JM", "JAM", "HT", "HTI"],
+  OCEANIA: ["WS", "WSM", "TO", "TON", "VU", "VUT", "SB", "SLB"],
 };
 
 export const countryToRecruitmentRegion = (value?: string): ExternalFootballRegion | undefined => {
@@ -875,6 +875,7 @@ const mapTruePlayer = (row: any): TruePlayer => {
   const mental = JSON.parse(row.mental_json ?? "{}");
   const physical = JSON.parse(row.physical_json ?? "{}");
   const goalkeeping = JSON.parse(row.goalkeeping_json ?? "{}");
+  const factualPosition = factual.primary_position as PlayerPosition | undefined;
   return {
     playerId: row.player_id,
     fullName: row.full_name,
@@ -882,8 +883,8 @@ const mapTruePlayer = (row: any): TruePlayer => {
     currentClubId: row.current_club_id ?? undefined,
     teamId: row.team_id ?? undefined,
     nationality: factual.nationality,
-    factualPositionGroup: factual.factualPositionGroup,
-    simulationPosition: simulation.simulationPrimaryPosition ?? row.primary_position ?? "MID",
+    factualPositionGroup: factual.factualPositionGroup ?? (factualPosition ? positionGroup(factualPosition) : undefined),
+    simulationPosition: simulation.simulationPrimaryPosition ?? row.primary_position ?? factualPosition ?? "MID",
     currentAbility:
       simulation.currentAbility ?? (Object.keys({ ...technical, ...mental, ...physical }).length > 0 ? averageObject({ ...technical, ...mental, ...physical }) : 7),
     potentialAbility: simulation.potentialAbility ?? 10,
