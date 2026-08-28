@@ -34,3 +34,4 @@ export * from "./football-history-repository.js";
 export * from "./workforce-supply-repository.js";
 export * from "./referee-assignment-repository.js";
 export * from "./global-football-context-repository.js";
+export * from "./international-trials-repository.js";

@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 63;
+export const CURRENT_DATABASE_VERSION = 64;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -3192,6 +3192,35 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
         canonical_id TEXT NOT NULL, action TEXT NOT NULL, provenance TEXT NOT NULL, payload_json TEXT NOT NULL,
         PRIMARY KEY(dataset_version, entity_type, external_id)
       );
+    `,
+  },
+  {
+    version: 64,
+    sql: `
+      CREATE TABLE IF NOT EXISTS international_trials (
+        id TEXT PRIMARY KEY,
+        player_id TEXT NOT NULL REFERENCES persons(id),
+        host_club_id TEXT NOT NULL REFERENCES clubs(id),
+        current_club_id_at_invitation TEXT REFERENCES clubs(id),
+        parent_club_permission_granted INTEGER NOT NULL DEFAULT 0,
+        invited_on TEXT NOT NULL,
+        start_date TEXT NOT NULL,
+        end_date TEXT NOT NULL,
+        invitation_status TEXT NOT NULL,
+        player_response TEXT NOT NULL,
+        state TEXT NOT NULL,
+        source TEXT NOT NULL,
+        reason TEXT,
+        decided_on TEXT,
+        completed_on TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_international_trials_host_state
+        ON international_trials(host_club_id, state, end_date);
+      CREATE INDEX IF NOT EXISTS idx_international_trials_due
+        ON international_trials(state, end_date);
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_international_trials_active_pair
+        ON international_trials(player_id, host_club_id)
+        WHERE state IN ('INVITED', 'ACTIVE');
     `,
   },
 ];

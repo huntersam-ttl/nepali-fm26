@@ -10,6 +10,7 @@ import { createInfrastructureProject } from "./club-economy.js";
 import { preferredForeignMarkets } from "./external-football-world.js";
 import { createProcurementRequest, selectProcurementOffer } from "./clubmart.js";
 import { analyzeSquadNeeds, positionGroupForPlayer, recallLoan } from "./transfer-market.js";
+import { considerInternationalTrialsForClub } from "./international-trials.js";
 
 const seasonLabel = (date: string): string => date.slice(0, 4);
 
@@ -143,6 +144,12 @@ export const runClubAiSeasonPlanning = (db: GameDatabase, input: { date: string;
     const procurement = economy.assets(clubId).filter((asset) => asset.assetType === "EQUIPMENT");
     const sponsorships = economy.sponsorships(clubId).filter((item) => item.status === "ACTIVE" && item.endDate >= input.date);
     const loanRecall = reviewAiLoanRecalls(db, market, clubId, input.date);
+    const trialReviews = considerInternationalTrialsForClub(db, {
+      clubId,
+      worldDate: input.date,
+      seed: `${input.seed}:trials:${clubId}`,
+      maxCandidates: 2,
+    });
     const actions = [
       contracts.length < 18 ? "ASSESS_SQUAD_NEEDS" : "REVIEW_SQUAD_DEPTH",
       contracts.filter((contract) => contract.endDate <= `${Number(input.date.slice(0, 4)) + 1}-08-28`).length > 0 ? "PRIORITISE_RENEWALS" : "MONITOR_CONTRACTS",
@@ -150,6 +157,7 @@ export const runClubAiSeasonPlanning = (db: GameDatabase, input: { date: string;
       priorities.youth >= priorities.squad ? "PROTECT_YOUTH_PATHWAY" : "RECRUIT_PUBLICLY_IDENTIFIED_SQUAD_NEEDS",
       sponsorships.length === 0 ? "REVIEW_COMMERCIAL_OFFERS" : "RETAIN_COMMERCIAL_PARTNERS",
     ];
+    if (trialReviews.length > 0) actions.push("REVIEW_INTERNATIONAL_TRIALS");
     if (loanRecall.activeLoansConsidered > 0) actions.push("REVIEW_ACTIVE_LOAN_RECALLS");
     if (loanRecall.recallsCompleted > 0) actions.push("RECALL_ON_LOAN_FOR_SQUAD_EMERGENCY");
     const movement = (db.prepare("SELECT movement_type FROM competition_movements WHERE club_id = ? ORDER BY rowid DESC LIMIT 1").get(clubId) as { movement_type?: string } | undefined)?.movement_type;

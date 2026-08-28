@@ -2,19 +2,18 @@
 
 ## Snapshot
 
-Audit date: 2026-08-28. Repository: `/Users/cc/nepali-fm26`. HEAD: `892cb7e`.
-This is a read-only product audit; no production code, tests, data, or the pre-existing
-untracked `nepali-fm26/` entry was changed.
+Audit date: 2026-08-28. Repository: `/Users/cc/nepali-fm26`. Trial closure pass based on
+HEAD `c63a412`; the pre-existing untracked `nepali-fm26/` entry remains untouched.
 
 The inventory has 92 normalized entries: the 84 row-level entries in the previous feature
 audit, plus the eight explicit high-risk overlays requested for this pass. Statuses are:
 
 | Status | Count |
 | --- | ---: |
-| COMPLETE | 54 |
+| COMPLETE | 55 |
 | BUILT_NOT_PROVEN | 1 |
 | PARTIAL | 27 |
-| MISSING | 6 |
+| MISSING | 5 |
 | LATER | 4 |
 | **Total** | **92** |
 
@@ -35,13 +34,13 @@ scope work.
 
 ## Complete Systems
 
-The following 54 systems are COMPLETE:
+The following 55 systems are COMPLETE:
 
 - Core world state and persistent entities; deterministic RNG; calendar and time; save/load, autosaves, and schema compatibility.
 - History and dynamic history; character creation; manager career; manager interviews; career reputation and history.
 - Core match engine; quick sim, key events, and text live; stoppage time, extra time, penalties, and aggregates; domestic match-requires-winner wiring; fixture integration; referee integration.
 - Tactics, squad selection, training, and player development; scouting; transfers and contracts; staff market, contracts, and licences; player concerns, promises, and squad meetings.
-- Universal interaction sessions; universal interaction authoritative execution; club economy, budgets, and wages; infrastructure and construction lifecycle; club sponsorship and commercial.
+- Universal interaction sessions; universal interaction authoritative execution; club economy, budgets, and wages; infrastructure and construction lifecycle; club sponsorship and commercial; international trials.
 - Ownership succession; board pressure; federation governance and economy; federation compliance, sanctions, and reinstatement; federation elections; federation personnel succession; federation commercial rights and broadcasting.
 - Nepal A/B/C pyramid, promotion, relegation, and memberships; club licensing; lower-league finance and squad viability; territorial structure; district/provincial representative competitions; district infrastructure projects.
 - Youth intake, development, retirement, and late developers; free agents; foreign player supply into Nepal; player regeneration and long-save supply; staff/referee regeneration and long-save supply.
@@ -101,7 +100,7 @@ High-risk overlays:
 
 | Candidate | Unit | Integration | Production flow | Reload |
 | --- | --- | --- | --- | --- |
-| Trials | none beyond `TRIAL` activity enum | none | none | none |
+| Trials | invitation, response, knowledge, expiry, offer handoff | 4 focused lifecycle tests | scouting cadence, seasonal AI, and external-interest paths | active and completed reload |
 | Foreign staff movement | interest/application/poach helpers | local staff-market only | desktop staff cadence only | local staff records only |
 | Global generated lifecycle | youth/workforce generation | foreign idempotency/replenishment | seasonal shortage top-up | bootstrap/replenishment idempotency |
 | External competition context | external profile helpers | global-context season persistence | career seasonal cadence | context rows reload |
@@ -112,9 +111,6 @@ High-risk overlays:
 
 ## Missing Systems
 
-- **International trials.** The repository has a `TRIAL` activity value and historical import
-  rows only. No invitation, temporary evaluation, scouting-knowledge gain, contract exclusion,
-  expiry, or offer path exists.
 - Women's player data in the shipped factual dataset; women's national team; U17/U20/U23
   national teams; legends and cult heroes; real referee database.
 
@@ -143,11 +139,12 @@ No long save, balance run, UI/UX pass, or optimization was performed.
 
 ## Final Feature Passes Before Freeze
 
-- **P0 — scope and core closure:** decide whether chairman, federation-president, women's
-  international, and youth-national careers are launch scope; if yes, implement production
-  command/cadence paths, seed required women's data, and prove save/reload. Implement the
-  international-trials lifecycle and the two-way foreign-staff lifecycle with contracts,
-  history, replacement, and reload evidence.
+- **P0 — scope and core closure:** the international-trials scope gate is closed: cross-border
+  foreign-player → Nepal and Nepal-player → context-only foreign evaluation are supported;
+  domestic trials are out of scope. Next define and implement the minimum two-way foreign-staff
+  mobility lifecycle with contracts, history, replacement, and reload evidence. Then resolve the
+  women's and age-group international scope, including only the required data, selection,
+  fixtures/results, eligibility, persistence, and progression surfaces.
 - **P1 — connected-world depth:** connect global player development/decline/retirement and
   external competition context; add production consumers for partnership types and multi-club
   effects; implement sell-on resale settlement if retained in scope. Wire the remaining
@@ -165,7 +162,7 @@ is being marked green automatically.
 ## Feature Freeze Decision
 
 **NO — not ready for a true feature freeze.** The core manager spine is production-reachable,
-but international trials are MISSING, foreign staff movement/global lifecycle/competition
+but foreign staff movement/global lifecycle/competition
 context/partnership/network/sell-on systems are meaningful PARTIALs, women's and age-group
 international systems remain MISSING, and long-save performance is BUILT_NOT_PROVEN. Freeze
 can be reconsidered after the P0 scope decisions and proof tasks are closed. The current

@@ -20,3 +20,4 @@ export * from "./supporter-culture.js";
 export * from "./workforce-supply.js";
 export * from "./referee-assignment.js";
 export * from "./global-football-context.js";
+export * from "./international-trials.js";

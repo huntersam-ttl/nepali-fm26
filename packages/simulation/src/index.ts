@@ -53,6 +53,7 @@ export * from "./rng.js";
 export * from "./save-management.js";
 export * from "./season-engine.js";
 export * from "./scouting.js";
+export * from "./international-trials.js";
 export * from "./scouting-phase-b.js";
 export * from "./squad-dynamics.js";
 export * from "./staff-market.js";

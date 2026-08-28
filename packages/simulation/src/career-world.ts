@@ -64,6 +64,7 @@ import {
 import { calculateStandings, sortStandings, summarizePlayerStats } from "./standings.js";
 import { initializeTransferMarketForSave, simulateTransferWindow } from "./transfer-market.js";
 import { runClubAiSeasonPlanning } from "./ai-club-strategy.js";
+import { processInternationalTrials } from "./international-trials.js";
 import { processExternalFootballWorldSeason } from "./external-football-world.js";
 import { settleFederationMediaRightsForCompetition } from "./media-rights.js";
 import {
@@ -569,6 +570,7 @@ const simulateCompetitionSeason = (
     }
     recordMatchKnowledge(db, fixture, result, fixture.scheduledDate, input.seed);
     simulateScoutingDay({ db, worldDate: fixture.scheduledDate, seed: input.seed });
+    processInternationalTrials(db, { worldDate: fixture.scheduledDate });
     playedThisRun += 1;
   }
 

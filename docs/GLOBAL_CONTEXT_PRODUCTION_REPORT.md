@@ -561,3 +561,54 @@ CURRENTLY MODELED** in the AI decision path. Long-save proof remains intentional
 unrun. Next planned task: Remaining Planned Feature Inventory.
 
 `GLOBAL CONTEXT PRODUCTION ACTIVE.`
+
+---
+
+# Quiet-Runner Revalidation
+
+Measured on the current runner. The machine was never idle — a concurrent agent was running the same
+suites throughout — so timings are upper bounds. A pass under contention is still a pass; only
+timeouts are ambiguous, and those are classified below rather than reported as green.
+
+## Canonical Seed Status
+
+`canonical-global-seed` 5/5. Fresh database through normal new-save initialization, dataset version
+`football_world_import_v16_reconciled_final` recorded once, Nepal precedence preserved with zero
+duplicate Nepal clubs, every external entity `CONTEXT_ONLY`, re-initialization a no-op, and
+`globalSeedPath: null` still producing a Nepal-only world.
+
+## Imported Africa and South Asia Corridors
+
+`canonical-imported-global-recruitment` 2/2 and `region-aware-recruitment` 1/1. The committed plan
+loads through the production importer with evidence preserved, and imported Africa and South Asia
+candidates reach the bounded corridor on the same path as generated players. Corridor fixture
+identities are Nigerian and Indian, all `VERIFIED`.
+
+Eight tests across the three suites in 52s wall-clock.
+
+## Candidate Bounds
+
+Unchanged: regional cap 12, AI shortlist cap 4. Nothing was raised to make a proof pass.
+
+## Quiet Stage-Eight Result
+
+`TIMEOUT_PRODUCT` — the suite does not complete.
+
+Sixteen of seventeen tests are fast: a representative one runs in 18.4s. The seventeenth,
+`keeps three-season transfer careers playable and deterministic`, exceeds **10 minutes in isolation**
+and is the whole stall. It is not the canonical seed: stage-eight already builds its worlds with
+`globalSeedPath: null`, so those saves carry no imported players.
+
+An indexed single-player lookup was trialled — `marketPlayer` resolves through a full `marketPlayers`
+scan and mapping, inside per-contract and per-club loops — but it did not shift the runtime and was
+reverted rather than committed unproven. The cause is still open and needs a profile of that test's
+three-season loop specifically.
+
+## Production Activation Decision — Revalidation
+
+`GLOBAL CONTEXT PRODUCTION: ACTIVE` for the imported-data pathways above: canonical seed, fresh
+new-save initialization, Nepal precedence, context-only enforcement, and both imported corridors with
+positive and parity coverage, all evidence-backed.
+
+`GREEN BASELINE: NOT READY.` Stage-eight does not complete, and a suite that times out is not a pass.
+Restoring READY requires that one test to finish.

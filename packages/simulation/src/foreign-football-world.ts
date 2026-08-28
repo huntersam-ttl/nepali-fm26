@@ -13,6 +13,7 @@ import { generateAiStaff } from "./staff-market.js";
 import { initializeTransferMarketForSave } from "./transfer-market.js";
 import { generateYouthCohort } from "./youth-intake.js";
 import { SeededRandom } from "./rng.js";
+import { considerForeignInternationalTrials } from "./international-trials.js";
 
 /**
  * A deliberately small foreign layer. Nepal gets the detailed simulation;
@@ -264,6 +265,11 @@ export const processForeignFootballWorldSeason = (input: {
     seedForeignStaff(input.db, club.country_id, club.club_id, input.seasonEndDate, input.seed);
   }
   updateForeignScoutingInterest(input.db, { date: input.seasonEndDate, seed: input.seed });
+  considerForeignInternationalTrials(input.db, {
+    worldDate: input.seasonEndDate,
+    seed: `${input.seed}:foreign-trials`,
+    maxCandidates: 2,
+  });
 };
 
 /** Runs a coarse external league update: one seeded table outcome per league, no fixtures or match events. */
@@ -300,7 +306,7 @@ export const updateForeignScoutingInterest = (db: GameDatabase, input: { date: s
   for (const club of contexts.clubs().filter((item) => item.scoutingReach >= 40)) {
     for (const target of targets.slice(0, club.scoutingReach >= 60 ? 2 : 1)) {
       const score = Math.max(0, Math.min(100, club.scoutingReach * 0.45 + 35));
-      contexts.upsertInterest({ id: createStableEntityId("foreign-scouting-interest", `${club.clubId}:${target.player_id}`), externalClubId: club.clubId, targetPlayerId: target.player_id, level: score >= 70 ? "INTERESTED" : "MONITORING", score, firstObservedOn: input.date, lastObservedOn: input.date, provenanceStatus: "SIMULATION_ONLY" });
+      contexts.upsertInterest({ id: createStableEntityId("foreign-scouting-interest", `${club.clubId}:${target.player_id}`), externalClubId: club.clubId, targetPlayerId: target.player_id, level: score >= 60 ? "INTERESTED" : "MONITORING", score, firstObservedOn: input.date, lastObservedOn: input.date, provenanceStatus: "SIMULATION_ONLY" });
     }
   }
 };

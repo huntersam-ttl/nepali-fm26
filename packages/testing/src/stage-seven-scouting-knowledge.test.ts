@@ -34,6 +34,7 @@ const createSave = (seed: string): string => {
     saveName: `Scouting ${seed}`,
     gameVersion: "0.2.0",
     randomSeed: seed,
+    globalSeedPath: null,
   });
   return databasePath;
 };

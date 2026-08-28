@@ -122,15 +122,12 @@ export const initializeRecruitmentForSave = (input: {
   seed: string;
 }): void => {
   const recruitment = new RecruitmentRepository(input.db);
-  const globalDatasetActive = Boolean(
-    input.db.prepare("SELECT 1 FROM global_dataset_imports WHERE status = 'ACTIVE' LIMIT 1").get(),
-  );
   for (const club of clubs(input.db)) {
     recruitment.upsertClubRecruitmentProfile(defaultClubRecruitmentProfile(club, input.seed));
     // External clubs use the bounded global-context scouting layer. Seeding
     // full player knowledge for every imported club is both redundant and
     // quadratic; Nepal clubs retain the normal detailed knowledge bootstrap.
-    if (globalDatasetActive || club.canonicalExternalId?.startsWith("CLB-") || club.canonicalExternalId?.startsWith("SIM-FOREIGN-")) continue;
+    if (club.canonicalExternalId?.startsWith("CLB-") || club.canonicalExternalId?.startsWith("SIM-FOREIGN-")) continue;
     seedClubKnowledge(input.db, club.id, input.worldDate, input.seed);
   }
 };
@@ -184,6 +181,34 @@ export const getPlayerKnowledge = (
   clubId: EntityId,
   playerId: EntityId,
 ): PlayerKnowledge | undefined => new RecruitmentRepository(db).playerKnowledge(clubId, playerId);
+
+/**
+ * Applies the bounded extra evaluation earned by a completed trial. This is
+ * deliberately the same knowledge projection used by scouting reports; a
+ * trial improves familiarity and confidence without exposing raw attributes.
+ */
+export const recordTrialObservation = (
+  db: GameDatabase,
+  input: { clubId: EntityId; playerId: EntityId; observedAt: string; seed: string },
+): PlayerKnowledge | undefined => {
+  const player = truePlayer(db, input.playerId);
+  if (!player) return undefined;
+  const recruitment = new RecruitmentRepository(db);
+  const existing = recruitment.playerKnowledge(input.clubId, input.playerId);
+  const currentLevel = existing?.knowledgeLevel ?? "NONE";
+  const nextLevel = levels[Math.min(levels.length - 1, levelRank[currentLevel] + 2)]!;
+  const knowledge = knowledgeFor(player, input.clubId, {
+    level: nextLevel,
+    discoveryStatus: "SCOUTED",
+    confidence: levelRank[nextLevel] >= levelRank.GOOD ? "HIGH" : "MEDIUM",
+    sourceType: "TRIAL",
+    observations: (existing?.observations ?? 0) + 4,
+    date: input.observedAt,
+    seed: `${input.seed}:trial:${input.clubId}:${input.playerId}`,
+  });
+  recruitment.upsertPlayerKnowledge(knowledge);
+  return knowledge;
+};
 
 export const searchPlayersForClub = (
   db: GameDatabase,
