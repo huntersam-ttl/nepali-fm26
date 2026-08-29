@@ -541,6 +541,8 @@ const synchronizeExternalPlayerContexts = (db: GameDatabase, date: string): void
     )
     .all() as Array<{ player_id: EntityId; club_id: EntityId }>;
   const known = new Map(contexts.players().map((player) => [player.playerId, player]));
+  const players = new PlayerRepository(db);
+  const world = new WorldRepository(db);
   for (const player of assigned) {
     const club = clubs.get(player.club_id);
     if (!club) continue;
@@ -549,12 +551,67 @@ const synchronizeExternalPlayerContexts = (db: GameDatabase, date: string): void
       playerId: player.player_id,
       clubId: player.club_id,
       region: current?.region ?? club.recruitmentRegions[0] ?? "WIDER_ASIA",
-      reputation: current?.reputation ?? club.reputation,
+      /* An already-registered player keeps the standing they have earned; only
+       * a first registration is initialized. */
+      reputation:
+        current?.reputation ??
+        startingReputationFor(db, players, world, player.player_id, club.reputation, date),
       interestLevel: current?.interestLevel ?? "UNKNOWN",
       careerState: "ACTIVE",
       updatedOn: date,
     });
   }
+};
+
+/**
+ * Standing a newly registered external player starts with.
+ *
+ * Registration previously copied the club's reputation onto the player, so
+ * every fifteen-year-old at a strong context club began as famous as the club
+ * itself — above the world median before kicking a ball, with nothing left to
+ * earn.
+ *
+ * Reputation is now the player's own: ability carries it, career stage damps it
+ * so a teenager starts obscure, and the club contributes a bounded share of
+ * visibility rather than the whole value. A prospect at a famous club is better
+ * known than the same prospect at a modest one, and an exceptional player at a
+ * modest club still outranks their peers.
+ */
+const CLUB_VISIBILITY_SHARE = 0.2;
+
+export const initialExternalPlayerReputation = (input: {
+  ability: number;
+  age: number;
+  clubReputation: number;
+  seedKey: string;
+}): number => {
+  const quality = Math.max(0, input.ability) * 5;
+  /* Recognition arrives with a career, not with a birthday: a 15-year-old
+   * carries a third of what ability alone would suggest, reaching full weight
+   * in the mid-twenties. */
+  const careerStage = Math.max(0.35, Math.min(1, (input.age - 14) / 10));
+  const clubVisibility = Math.max(0, input.clubReputation) * CLUB_VISIBILITY_SHARE;
+  const variance = (new SeededRandom(`external-reputation:${input.seedKey}`).next() - 0.5) * 4;
+  return round(clamp(quality * careerStage + clubVisibility + variance, 5, 95));
+};
+
+/** Resolves a player's own ability and age, then asks the initializer. */
+const startingReputationFor = (
+  db: GameDatabase,
+  players: PlayerRepository,
+  world: WorldRepository,
+  playerId: EntityId,
+  clubReputation: number,
+  date: string,
+): number => {
+  const attributes = players.getAttributes(playerId);
+  const person = world.getPerson(playerId);
+  return initialExternalPlayerReputation({
+    ability: attributes ? averageAttributes(attributes) : 7,
+    age: person?.dateOfBirth ? ageOn(person.dateOfBirth, date) : 24,
+    clubReputation,
+    seedKey: playerId,
+  });
 };
 
 const averageAttributes = (attributes: NonNullable<ReturnType<PlayerRepository["getAttributes"]>>): number => {
@@ -659,7 +716,7 @@ export const updateForeignScoutingInterest = (db: GameDatabase, input: { date: s
   for (const player of foreignPlayers) {
     const club = contexts.clubs().find((item) => item.clubId === player.club_id);
     const existing = knownPlayers.get(player.player_id);
-    if (club) contexts.upsertPlayer({ playerId: player.player_id, clubId: player.club_id, region: existing?.region ?? club.recruitmentRegions[0] ?? "WIDER_ASIA", reputation: existing?.reputation ?? club.reputation, interestLevel: existing?.interestLevel ?? "UNKNOWN", careerState: "ACTIVE", updatedOn: input.date });
+    if (club) contexts.upsertPlayer({ playerId: player.player_id, clubId: player.club_id, region: existing?.region ?? club.recruitmentRegions[0] ?? "WIDER_ASIA", reputation: existing?.reputation ?? startingReputationFor(db, new PlayerRepository(db), new WorldRepository(db), player.player_id, club.reputation, input.date), interestLevel: existing?.interestLevel ?? "UNKNOWN", careerState: "ACTIVE", updatedOn: input.date });
   }
   const targets = db.prepare(`SELECT p.player_id AS player_id, p.current_club_id AS club_id FROM player_factual_profiles p JOIN clubs c ON c.id = p.current_club_id JOIN countries country ON country.id = c.country_id WHERE country.iso_code IN ('NPL','NP') ORDER BY p.player_id LIMIT 12`).all() as Array<{ player_id: EntityId; club_id: EntityId }>;
   for (const club of contexts.clubs().filter((item) => item.scoutingReach >= 40)) {
