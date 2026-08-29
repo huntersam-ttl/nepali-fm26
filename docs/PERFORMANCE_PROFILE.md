@@ -117,3 +117,26 @@ minutes for 20 seasons and ~169 minutes for 50 seasons, before growth overhead.
 
 Timings taken while another agent is running suites are not usable — the observed distortion was
 11–25x. Confirm the machine is idle before recording any performance figure.
+
+## Federation National-Team Resolution Pass
+
+The seeded career previously aborted on 2026-12-05 with `FOREIGN KEY constraint failed` in
+`insertNationalTeamAppearance`. The cause was not performance. `seniorMenNationalTeam` selected a
+federation's senior men's team without requiring `club_id IS NULL`, so an imported confederation
+row such as AFC resolved a club-backed team (`Al Ahli Senior Men`) as its national team. That team
+had no country-eligible players, `selectNationalTeamSquad` returned zero call-ups, and `selectTeam`
+filled the XI with transient replacement players whose IDs (`<teamId>:replacement:<n>`) are
+deliberately absent from `persons`. The appearance writer then persisted them into a person-keyed
+column.
+
+Two invariants now hold. A federation national team must satisfy `club_id IS NULL`, matching the
+predicate `nationalTeamIdForType` already used. Transient replacement players may play a match but
+must never reach person-keyed history; both national-team appearance writers filter to canonical
+persons before insert. `updateCohesion` was already safe because it is fed from call-ups.
+
+The canonical seeded one-season run now completes: save creation 6.5s, season 296.5s, total 303.0s,
+reaching world date 2027-07-31 with 3,588 people, 1,593 players and 573 clubs. It recorded 165
+national-team appearances, zero orphaned or synthetic appearance rows, zero club-backed national
+fixtures, and a clean `PRAGMA foreign_key_check`. Per-phase timings were not separately
+instrumented in this run; the earlier 202.8s breakdown predates several later feature commits, so
+the two totals are not directly comparable. Classification remains **SLOW_BUT_COMPLETES**.
