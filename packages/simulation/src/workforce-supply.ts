@@ -93,32 +93,71 @@ const nepalCountryId = (db: GameDatabase): EntityId | undefined =>
       { id?: EntityId } | undefined
   )?.id;
 
+/*
+ * The detailed Nepal world is not every club in the database. The canonical
+ * global dataset adds hundreds of CONTEXT_ONLY clubs with senior squads, and
+ * counting those as clubs needing Nepal workforce supply asked for a squad and
+ * a backroom staff for each of them — and then generated Nepal youth into
+ * foreign clubs that are only meant to be a backdrop. External clubs have their
+ * own lightweight lifecycle; this boundary keeps them out of this one.
+ *
+ * Country is the authoritative test. Context registration alone is not enough:
+ * a handful of imported clubs never received a context row because their league
+ * did not resolve, and they leaked into the detailed world through it.
+ */
+const PLAYABLE_CLUB = `EXISTS (
+      SELECT 1 FROM countries co WHERE co.id = c.country_id AND co.iso_code IN ('NP', 'NPL')
+    )
+     AND NOT EXISTS (SELECT 1 FROM external_club_context ecc WHERE ecc.club_id = c.id)
+     AND (c.canonical_external_id IS NULL OR c.canonical_external_id NOT LIKE 'SIM-FOREIGN-%')`;
+
 /**
+ * Supply counted the same way demand is: players available to the playable
+ * world. External identities carry the PLAYER role too, so counting every role
+ * in the database made Nepal look ~2.5x better staffed than it is and would
+ * have hidden a genuine domestic shortage behind a foreign population.
+ *
  * Players are counted by gender presentation. Legacy imported people predate
  * the field, so an unset presentation on a men's-team player reads as male
  * rather than being silently dropped from demand.
  */
+const PLAYABLE_SQUAD_MEMBER = `EXISTS (
+      SELECT 1 FROM team_person_assignments tpa
+      JOIN teams t ON t.id = tpa.team_id
+      JOIN clubs c ON c.id = t.club_id
+      WHERE tpa.person_id = pr.person_id AND tpa.role = 'PLAYER' AND tpa.ended_on IS NULL
+        AND ${PLAYABLE_CLUB}
+    )`;
+
 const activePlayerCount = (db: GameDatabase, gender: "male" | "female"): number =>
   gender === "female"
     ? scalar(
         db,
         `SELECT COUNT(*) n FROM person_roles pr JOIN persons p ON p.id = pr.person_id
-         WHERE pr.role = 'PLAYER' AND pr.active_to IS NULL AND p.gender_presentation = 'female'`,
+         WHERE pr.role = 'PLAYER' AND pr.active_to IS NULL AND p.gender_presentation = 'female'
+           AND ${PLAYABLE_SQUAD_MEMBER}`,
       )
     : scalar(
         db,
         `SELECT COUNT(*) n FROM person_roles pr JOIN persons p ON p.id = pr.person_id
          WHERE pr.role = 'PLAYER' AND pr.active_to IS NULL
-           AND (p.gender_presentation IS NULL OR p.gender_presentation = 'male')`,
+           AND (p.gender_presentation IS NULL OR p.gender_presentation = 'male')
+           AND ${PLAYABLE_SQUAD_MEMBER}`,
       );
 
 const activeSeniorTeams = (db: GameDatabase, gender: "men" | "women"): number =>
-  scalar(db, "SELECT COUNT(*) n FROM teams WHERE level = 'senior' AND gender = ?", gender);
+  scalar(
+    db,
+    `SELECT COUNT(*) n FROM teams t JOIN clubs c ON c.id = t.club_id
+     WHERE t.level = 'senior' AND t.gender = ? AND ${PLAYABLE_CLUB}`,
+    gender,
+  );
 
 const activeClubCount = (db: GameDatabase): number =>
   scalar(
     db,
-    "SELECT COUNT(DISTINCT club_id) n FROM teams WHERE level = 'senior' AND gender = 'men' AND club_id IS NOT NULL",
+    `SELECT COUNT(DISTINCT t.club_id) n FROM teams t JOIN clubs c ON c.id = t.club_id
+     WHERE t.level = 'senior' AND t.gender = 'men' AND ${PLAYABLE_CLUB}`,
   );
 
 const scheduledFixtureCount = (db: GameDatabase, fromDate: string, toDate: string): number =>
@@ -158,10 +197,12 @@ const projectedPlayerExits = (
     .prepare(
       gender === "female"
         ? `SELECT p.date_of_birth AS dob FROM person_roles pr JOIN persons p ON p.id = pr.person_id
-           WHERE pr.role = 'PLAYER' AND pr.active_to IS NULL AND p.gender_presentation = 'female'`
+           WHERE pr.role = 'PLAYER' AND pr.active_to IS NULL AND p.gender_presentation = 'female'
+             AND ${PLAYABLE_SQUAD_MEMBER}`
         : `SELECT p.date_of_birth AS dob FROM person_roles pr JOIN persons p ON p.id = pr.person_id
            WHERE pr.role = 'PLAYER' AND pr.active_to IS NULL
-             AND (p.gender_presentation IS NULL OR p.gender_presentation = 'male')`,
+             AND (p.gender_presentation IS NULL OR p.gender_presentation = 'male')
+             AND ${PLAYABLE_SQUAD_MEMBER}`,
     )
     .all() as Array<{ dob?: string }>;
   let expected = 0;
@@ -657,7 +698,8 @@ export const reconcileWorkforceSupply = (input: {
   if (womenNeed > 0) {
     const womensTeams = db
       .prepare(
-        "SELECT id, club_id FROM teams WHERE level = 'senior' AND gender = 'women' AND club_id IS NOT NULL ORDER BY id",
+        `SELECT t.id, t.club_id FROM teams t JOIN clubs c ON c.id = t.club_id
+         WHERE t.level = 'senior' AND t.gender = 'women' AND ${PLAYABLE_CLUB} ORDER BY t.id`,
       )
       .all() as Array<{ id: EntityId; club_id: EntityId }>;
     if (womensTeams.length > 0) {
@@ -691,6 +733,7 @@ export const reconcileWorkforceSupply = (input: {
       .prepare(
         `SELECT c.id AS club_id, MIN(t.id) AS team_id FROM clubs c
          JOIN teams t ON t.club_id = c.id AND t.level = 'senior' AND t.gender = 'men'
+         WHERE ${PLAYABLE_CLUB}
          GROUP BY c.id ORDER BY c.id`,
       )
       .all() as Array<{ club_id: EntityId; team_id: EntityId }>;

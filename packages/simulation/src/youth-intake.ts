@@ -119,8 +119,18 @@ export const initializeYouthSystemForSave = (input: {
   for (const academy of academies(input.db)) {
     youth.upsertAcademySimulationProfile(academyProfile(academy, input.seed));
   }
+  /*
+   * The set of clubs that already have a profile is read once. Re-reading every
+   * academy profile inside the loop made this quadratic in club count, which
+   * only became visible when the canonical global dataset raised that count
+   * from tens to hundreds — and this runs on every youth cohort generated.
+   */
+  const profiledClubs = new Set(
+    youth.academyProfiles().map((profile) => profile.clubId).filter(Boolean),
+  );
   for (const club of youthClubs(input.db)) {
-    if (!youth.academyProfiles().some((profile) => profile.clubId === club.id)) {
+    if (!profiledClubs.has(club.id)) {
+      profiledClubs.add(club.id);
       youth.upsertAcademySimulationProfile(clubFallbackProfile(club, input.seed));
     }
   }
