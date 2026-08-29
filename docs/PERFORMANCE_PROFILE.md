@@ -97,6 +97,22 @@ key failure inserting `national_team_appearances`; it did not complete. Classifi
 **PERFORMANCE_BLOCKER** pending that federation-path correction and a clean one-season run. No
 long-save validation was started.
 
+## Determinism and Federation Closure Pass
+
+The prior federation determinism test was not comparing identical saves: its two fixtures used
+different `randomSeed` values. Reusing the same initial save seed makes the two-season diagnostic
+outputs identical. Federation compliance iteration now has stable ID ordering. The measured
+performance hotspot was `runFederationAiSeasonPlanning` being called once per federation inside
+the monthly federation loop, repeating a federation-wide scan quadratically. It now runs once per
+month.
+
+The canonical seeded one-season run completed in 202.8s (down from 267.5s), with initialization
+12.4s, competitions 100.2s, economy 34.9s, federation 26.9s, international 10.2s, and external
+world 2.8s. It produced five reports and 182 fixtures; `PRAGMA foreign_key_check` was clean. The
+run had 3,552 people and 573 clubs after lifecycle generation. This is **SLOW_BUT_COMPLETES** for
+the bounded pass, but long-save validation remains impractical: a linear projection is ~67.6
+minutes for 20 seasons and ~169 minutes for 50 seasons, before growth overhead.
+
 ## Measurement Guidance
 
 Timings taken while another agent is running suites are not usable — the observed distortion was
