@@ -121,7 +121,21 @@ export const runClubAiSeasonPlanning = (db: GameDatabase, input: { date: string;
   const economy = new ClubEconomyRepository(db);
   const market = new TransferMarketRepository(db);
   const decisions: ClubAiDecision[] = [];
-  const clubs = db.prepare("SELECT id FROM clubs ORDER BY id").all() as Array<{ id: EntityId }>;
+  // Context-only foreign clubs have economy records so global market and
+  // reporting paths can see them, but they do not run Nepal's detailed AI
+  // planning/scouting/trial cadence. Keeping the scope in SQL prevents the
+  // per-club candidate scan from widening with the imported world.
+  const clubs = db
+    .prepare(
+      `SELECT c.id
+       FROM clubs c
+       WHERE NOT EXISTS (
+         SELECT 1 FROM external_club_context ecc
+         WHERE ecc.club_id = c.id AND ecc.simulation_depth = 'CONTEXT_ONLY'
+       )
+       ORDER BY c.id`,
+    )
+    .all() as Array<{ id: EntityId }>;
   for (const { id: clubId } of clubs) {
     const account = economy.financialAccount(clubId);
     const policy = economy.boardPolicy(clubId);

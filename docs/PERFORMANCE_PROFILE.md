@@ -76,9 +76,26 @@ broken — every previous "timeout" was a command budget shorter than the suite,
 
 ## Remaining Bottlenecks
 
-None that meet a P0/P1 bar. The open question is test design rather than engine performance: proving
-determinism by simulating twelve seasons is expensive, and a shorter deterministic assertion would
-recover most of the runtime. That is a decision about test intent, not an optimization.
+## Seeded Career Root-Cause Pass
+
+The matched canonical-seed comparison found a real scope defect in the seasonal AI phase. The
+control save contained 1,095 people and 57 clubs; the seeded save contained 2,700 people and 573
+clubs. Core competition-only careers remained close (36.9s control versus 43.0s seeded for 153
+matches). Economy initialization was 3.2s versus 9.7s, and one monthly economy tick was 0.3s versus
+1.5s.
+
+The first disproportionate phase was `runClubAiSeasonPlanning`: before the fix, the seeded run
+remained beyond 30s while the control completed in 11.3s. Its SQL selected every club with an
+economy account, including context-only imported clubs, then invoked regional candidate and trial
+scans per club. This was `ENTITY_SCOPE_WIDENING` plus `GLOBAL_SCAN_BEFORE_CAP`, not a canonical seed
+problem. The query now excludes `external_club_context.simulation_depth = 'CONTEXT_ONLY'`. After the
+fix, isolated AI timing was 8.3s control versus 18.6s seeded, and a focused regression proved zero
+AI decision history for context-only clubs.
+
+A full one-season seeded career reached federation AI after 220.6s but then hit an existing foreign-
+key failure inserting `national_team_appearances`; it did not complete. Classification remains
+**PERFORMANCE_BLOCKER** pending that federation-path correction and a clean one-season run. No
+long-save validation was started.
 
 ## Measurement Guidance
 
