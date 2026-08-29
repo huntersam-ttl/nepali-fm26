@@ -827,7 +827,7 @@ Feature-freeze blocker: **NO**
 
 ### Insurance, welfare and training camps
 
-Status: **PARTIAL**
+Status: **COMPLETE**
 
 Implemented: `packages/simulation/src/insurance.ts`,
 `packages/simulation/src/training-camps.ts`, `packages/simulation/src/national-team-compensation.ts`
@@ -836,12 +836,16 @@ production-reachable through the international cadence: canonical call-ups recei
 cohesion preparation, federation cost is debited exactly once, and a reload-safe
 `NATIONAL_TEAM_CAMP_COMPLETED` event is recorded.
 
-Missing: federation welfare remains without a production call site. Club preseason commercial
-camps remain covered by their existing production path; no duplicate camp system is introduced
-here. Club insurance policy lifecycle is now production-reachable through annual club planning:
+Club preseason commercial camps remain covered by their existing production path; no duplicate
+camp system is introduced here. Club insurance policy lifecycle is production-reachable through
+annual club planning:
 bounded policy creation/renewal, affordability and overlap guards, date-based expiry, and
-reload-safe lifecycle history. The insurance claim trigger remains production-reachable for
-persisted match injuries when an active club policy covers the event.
+reload-safe lifecycle history. The insurance claim trigger is production-reachable for persisted
+match injuries when an active club policy covers the event. Severe persisted Nepal-club match
+injuries also invoke the federation welfare programme: insurance is applied first, then bounded
+residual medical support is debited from federation MEDICAL and credited to the employing club,
+with stable history and exact-once replay protection. No separate federation welfare requirement
+remains in this row.
 
 Dependencies: federation economy, national teams, medical.
 

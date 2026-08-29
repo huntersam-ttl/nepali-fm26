@@ -11,9 +11,9 @@ audit, plus the eight explicit high-risk overlays requested for this pass. Statu
 
 | Status | Count |
 | --- | ---: |
-| COMPLETE | 68 |
+| COMPLETE | 69 |
 | BUILT_NOT_PROVEN | 1 |
-| PARTIAL | 16 |
+| PARTIAL | 15 |
 | MISSING | 3 |
 | LATER | 4 |
 | **Total** | **92** |
@@ -78,7 +78,7 @@ Legacy partials:
 - Chairman/owner career; federation-president career; role transitions, authority, and permissions.
 - Career default match-view wiring; club creation and new clubs; takeover/ownership lifecycle.
 - Grants, restricted funds, and government/NSC relationship; prize money and revenue sharing.
-- Insurance and welfare (club policy lifecycle now production-wired; federation welfare remains); the national-team camp slice is COMPLETE; diaspora and Nepalis abroad.
+- Insurance and welfare; the national-team camp slice and federation severe-injury welfare programme are COMPLETE; diaspora and Nepalis abroad.
 - Real Nepal player database and provenance; real staff database; girls development, schools, grassroots, and academies.
 - media and journalism; rivalries; AI chairman.
 - Tauri shell/native packaging; performance.
@@ -148,16 +148,16 @@ production path.
   loan scope is contract, wages, recall, expiry, return, and option-to-buy.
 - Final 20/50-year balancing; mobile; final release workflow.
 
-## Final Reconciliation (HEAD `0a54c21`)
+## Final Reconciliation (HEAD `d0d1ce4`)
 
 The 92 normalized rows were rechecked against source reachability and focused production tests.
-The mechanical status total is now 68 COMPLETE, 1 BUILT_NOT_PROVEN, 16 PARTIAL, 3 MISSING,
+The mechanical status total is now 69 COMPLETE, 1 BUILT_NOT_PROVEN, 15 PARTIAL, 3 MISSING,
 and 4 LATER. The BUILT_NOT_PROVEN row is long-save continuity only: its 12-season structural
 proof exists, while the 20/50-season performance and durability gates are intentionally not run.
 
-The 16 PARTIAL rows are: chairman/owner career; federation-president career; role transitions and
+The 15 PARTIAL rows are: chairman/owner career; federation-president career; role transitions and
 authority; default match-view wiring; club creation; takeover lifecycle; grants/government
-distribution; prize/revenue sharing; insurance/welfare (club policy lifecycle production-wired; federation welfare remains);
+distribution; prize/revenue sharing;
 real Nepal player coverage; diaspora/Nepalis abroad; girls development/schools/grassroots;
 media/journalism; rivalries; AI chairman; and the role-limited real staff
 dataset. The three MISSING rows are women's factual player data, legends/cult heroes, and a real
