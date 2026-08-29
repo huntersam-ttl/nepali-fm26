@@ -664,3 +664,62 @@ positive and parity coverage, all evidence-backed.
 
 `GREEN BASELINE: NOT READY.` Stage-eight does not complete, and a suite that times out is not a pass.
 Restoring READY requires that one test to finish.
+
+---
+
+# External Context Reconciliation
+
+Read-first reconciliation of the broader external world against source and tests at
+`f5c4f4e`. No external-context code was changed.
+
+## Production Wiring — verified by call chain
+
+`career-world.ts:404` calls `processForeignFootballWorldSeason` in the season rollover, and that
+one entry point fans out to the whole external layer:
+
+- `initializeExternalLeagueSeasons`
+- `processExternalContinentalContexts`
+- `synchronizeExternalPlayerContexts`
+- `advanceExternalPlayerLifecycles`
+- `updateForeignScoutingInterest`
+
+None of these has any other production caller, so the career loop is the single path and the
+layer is genuinely reachable rather than helper-only.
+
+## Performance Boundary — measured
+
+On an idle machine, over 1,430 external players:
+
+| Step | Time |
+| --- | --- |
+| `createNepalSave` (seeded world) | 5.6s |
+| External seasonal pass #1 | 2.5s |
+| External seasonal pass #2 | 2.2s |
+
+The external layer is lightweight and bounded, as designed — no detailed foreign fixtures,
+training, or squad management.
+
+## Unmeasured Cost — a Nepal season on a seeded world
+
+A single **Nepal career season** on a canonical-seeded world did not complete within ~30 minutes,
+against ~116s for the same season on a Nepal-only world. The external seasonal pass accounts for
+about 2s of that, so the cost is in the Nepal per-player passes now iterating a world that also
+holds ~1,565 external identities.
+
+This is a new datum, not a regression in the external layer, and it bears directly on the
+long-save gate. A production-flow test driving `simulateNepalCareer` was written and then withdrawn
+rather than committed: at that runtime it would not be run, and an unrun test is not proof.
+
+## Classification
+
+- Player lifecycle, replacement generation, starting reputation, reputation progression,
+  future-star emergence, external competitions, clubs, staff, transfers, loans, trials, and the
+  CONTEXT_ONLY boundary: **COMPLETE**, each covered by focused suites.
+- Production flow from a normal career: **BUILT, PROVEN BY CALL CHAIN AND SUBSYSTEM TESTS**, not by
+  an end-to-end career test. Closing that last link needs the seeded-career cost above addressed
+  first.
+
+## Remaining External-Context Gap
+
+One, and it is proof debt rather than missing behaviour: an end-to-end career-driven assertion that
+the outside world advances. Everything it would assert is already covered at the subsystem level.
