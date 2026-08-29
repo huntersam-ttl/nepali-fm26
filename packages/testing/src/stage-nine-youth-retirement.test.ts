@@ -236,12 +236,53 @@ describe("youth intake and retirement foundation", () => {
     });
     const final = report.populationBySeason.at(-1)!;
 
-    expect(report.totals.generatedPlayers).toBeGreaterThan(800);
-    expect(report.totals.generatedPlayers).toBeLessThan(1800);
+    /*
+     * Intake recurs every season, so both "players generated so far" figures grow
+     * with the run and cannot be held under a constant. What must stay bounded is
+     * the yearly cohort: a duplicated generator or a widened club scope shows up
+     * there first, which a cumulative cap only catches long after the fact.
+     */
+    const seasons = 20;
+    const perSeasonFloor = 40;
+    const perSeasonCeiling = 150;
+    const cohorts = report.seasons.map((season) => season.generatedPlayers);
+    expect(Math.min(...cohorts)).toBeGreaterThanOrEqual(perSeasonFloor);
+    expect(Math.max(...cohorts)).toBeLessThanOrEqual(perSeasonCeiling);
+    expect(report.totals.generatedPlayers).toBeGreaterThan(seasons * perSeasonFloor);
+    expect(report.totals.generatedPlayers).toBeLessThan(seasons * perSeasonCeiling);
+
+    // Exactly one annual intake per season, and never one for a foreign club.
+    expect(
+      db
+        .prepare(
+          "SELECT season_label FROM youth_intake_events WHERE source = 'ANNUAL_INTAKE' GROUP BY season_label",
+        )
+        .all(),
+    ).toHaveLength(seasons);
+    expect(
+      db
+        .prepare(
+          `SELECT COUNT(*) AS count FROM youth_intake_events e
+           JOIN clubs c ON c.id = e.club_id
+           LEFT JOIN countries co ON co.id = c.country_id
+           WHERE e.source = 'ANNUAL_INTAKE' AND (co.iso_code IS NULL OR co.iso_code NOT IN ('NP', 'NPL'))`,
+        )
+        .get(),
+    ).toEqual({ count: 0 });
+
+    // Every generated person traces back to a recorded intake event.
+    const bootstrapPlayers = (
+      db
+        .prepare(
+          "SELECT COALESCE(SUM(players_generated), 0) AS total FROM youth_intake_events WHERE source = 'BOOTSTRAP_SQUAD_REPAIR'",
+        )
+        .get() as { total: number }
+    ).total;
+    expect(final.generatedPlayers).toBe(report.totals.generatedPlayers + bootstrapPlayers);
+
     expect(report.totals.highestPotential).toBeLessThan(16);
     expect(final.averageAge).toBeGreaterThan(17);
     expect(final.averageAge).toBeLessThan(28);
-    expect(final.generatedPlayers).toBeLessThan(1800);
     expect(final.clubSquadSizes.every((club) => club.players < 60)).toBe(true);
     expect(report.seasons.every((season) => Number(season.positionsGenerated.GK ?? 0) > 0)).toBe(
       true,
