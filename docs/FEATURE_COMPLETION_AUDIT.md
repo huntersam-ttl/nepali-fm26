@@ -1114,14 +1114,19 @@ Feature-freeze blocker: **NO**
 
 ### VAR
 
-Status: **PARTIAL**
+Status: **COMPLETE**
 
 Implemented: full programme lifecycle with feasibility gating, readiness assessment, scope
 resolution and per-match availability — `assessVarReadiness`, `advanceVarProgramme`,
-`varMatchContext` (`packages/simulation/src/referee-development.ts`).
+`varMatchContext` (`packages/simulation/src/referee-development.ts`). The existing competition
+`usesVAR` flag now reaches referee assignment, and an assigned VAR official reaches the normal
+match engine's deterministic goal-review hook. Confirmed and overturned decisions emit an
+ordered `VAR_CHECK` event; overturns correct the canonical match score and player goal/assist
+state. No-VAR fixtures retain the original path.
 
-Missing: `varMatchContext` has **no production call site**; the match engine never asks whether VAR
-is available, so the programme has no effect on any match.
+Missing: nothing within the bounded goal-review scope. Offside, penalty, and red-card reviews
+remain outside scope because those incidents are not yet modeled as authoritative reviewable
+decisions by the match engine.
 
 Dependencies: referee assignment, match engine.
 
