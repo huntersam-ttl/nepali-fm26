@@ -11,6 +11,7 @@ import { preferredForeignMarkets } from "./external-football-world.js";
 import { createProcurementRequest, selectProcurementOffer } from "./clubmart.js";
 import { analyzeSquadNeeds, positionGroupForPlayer, recallLoan } from "./transfer-market.js";
 import { considerInternationalTrialsForClub } from "./international-trials.js";
+import { manageClubInsuranceForSeason } from "./insurance.js";
 
 const seasonLabel = (date: string): string => date.slice(0, 4);
 
@@ -140,6 +141,7 @@ export const runClubAiSeasonPlanning = (db: GameDatabase, input: { date: string;
     const account = economy.financialAccount(clubId);
     const policy = economy.boardPolicy(clubId);
     if (!account || !policy) continue;
+    const insurance = manageClubInsuranceForSeason(db, { clubId, date: input.date });
     const objective = objectiveFor(policy, account.financialHealth, account.cashBalance);
     const previous = economy.aiDecisions(clubId).at(-1);
     const ownership = (db.prepare("SELECT ownership_type FROM clubs WHERE id = ?").get(clubId) as { ownership_type?: string } | undefined)?.ownership_type ?? "UNKNOWN";
@@ -171,6 +173,7 @@ export const runClubAiSeasonPlanning = (db: GameDatabase, input: { date: string;
       priorities.youth >= priorities.squad ? "PROTECT_YOUTH_PATHWAY" : "RECRUIT_PUBLICLY_IDENTIFIED_SQUAD_NEEDS",
       sponsorships.length === 0 ? "REVIEW_COMMERCIAL_OFFERS" : "RETAIN_COMMERCIAL_PARTNERS",
     ];
+    if (insurance) actions.push(insurance.status === "ACTIVE" && insurance.startDate === input.date ? "ACTIVATE_INJURY_INSURANCE" : "RETAIN_INJURY_INSURANCE");
     if (trialReviews.length > 0) actions.push("REVIEW_INTERNATIONAL_TRIALS");
     if (loanRecall.activeLoansConsidered > 0) actions.push("REVIEW_ACTIVE_LOAN_RECALLS");
     if (loanRecall.recallsCompleted > 0) actions.push("RECALL_ON_LOAN_FOR_SQUAD_EMERGENCY");

@@ -78,7 +78,7 @@ Legacy partials:
 - Chairman/owner career; federation-president career; role transitions, authority, and permissions.
 - Career default match-view wiring; club creation and new clubs; takeover/ownership lifecycle.
 - Grants, restricted funds, and government/NSC relationship; prize money and revenue sharing.
-- Insurance and welfare; the national-team camp slice is COMPLETE; diaspora and Nepalis abroad.
+- Insurance and welfare (club policy lifecycle now production-wired; federation welfare remains); the national-team camp slice is COMPLETE; diaspora and Nepalis abroad.
 - Real Nepal player database and provenance; real staff database; girls development, schools, grassroots, and academies.
 - media and journalism; rivalries; AI chairman.
 - Tauri shell/native packaging; performance.
@@ -157,7 +157,7 @@ proof exists, while the 20/50-season performance and durability gates are intent
 
 The 16 PARTIAL rows are: chairman/owner career; federation-president career; role transitions and
 authority; default match-view wiring; club creation; takeover lifecycle; grants/government
-distribution; prize/revenue sharing; insurance/welfare;
+distribution; prize/revenue sharing; insurance/welfare (club policy lifecycle production-wired; federation welfare remains);
 real Nepal player coverage; diaspora/Nepalis abroad; girls development/schools/grassroots;
 media/journalism; rivalries; AI chairman; and the role-limited real staff
 dataset. The three MISSING rows are women's factual player data, legends/cult heroes, and a real

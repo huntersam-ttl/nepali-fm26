@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { ClubEconomyRepository, openGameDatabase } from "@nepal-football-sim/database";
+import { ClubEconomyRepository, InsuranceRepository, openGameDatabase } from "@nepal-football-sim/database";
 import type { EntityId } from "@nepal-football-sim/shared-types";
 import { createNepalSave, initializeClubEconomyForSave, runClubAiSeasonPlanning } from "@nepal-football-sim/simulation";
 
@@ -36,6 +36,10 @@ describe("AI world and long-term decision-making phase A", () => {
     const identities = new ClubEconomyRepository(first).aiDecisions().map((decision) => decision.identity);
     expect(new Set(identities).size).toBeGreaterThan(1);
     expect(new ClubEconomyRepository(first).aiDecisions(clubId).map((decision) => decision.identity)).toEqual([a[0].identity, a[1].identity, a[2].identity]);
+    const policies = new InsuranceRepository(first).policies(clubId);
+    expect(policies).toHaveLength(3);
+    expect(policies.map((policy) => policy.status)).toEqual(["EXPIRED", "EXPIRED", "ACTIVE"]);
+    expect(first.prepare("SELECT COUNT(*) AS count FROM historical_events WHERE event_type IN ('INSURANCE_POLICY_ACTIVATED','INSURANCE_POLICY_RENEWED','INSURANCE_POLICY_EXPIRED')").get()).toEqual({ count: 5 });
     first.close(); second.close();
     const reloaded = openGameDatabase(firstPath);
     expect(new ClubEconomyRepository(reloaded).aiDecisions(clubId)).toHaveLength(3);
