@@ -831,10 +831,14 @@ Status: **PARTIAL**
 
 Implemented: `packages/simulation/src/insurance.ts`,
 `packages/simulation/src/training-camps.ts`, `packages/simulation/src/national-team-compensation.ts`
-with their repositories, all unit-tested.
+with their repositories, all unit-tested. National-team competition preparation camps are now
+production-reachable through the international cadence: canonical call-ups receive bounded
+cohesion preparation, federation cost is debited exactly once, and a reload-safe
+`NATIONAL_TEAM_CAMP_COMPLETED` event is recorded.
 
-Missing: no production call sites for camp creation or insurance policy lifecycle — these never
-occur in a live save.
+Missing: insurance policy lifecycle and welfare remain without production call sites. Club
+preseason commercial camps remain covered by their existing production path; no duplicate camp
+system is introduced here.
 
 Dependencies: federation economy, national teams, medical.
 

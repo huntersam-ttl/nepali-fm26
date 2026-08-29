@@ -16,6 +16,7 @@ import {
   getNationalTeamHistory,
   initializeInternationalFootballForSave,
   runInternationalDiagnostic,
+  runNationalTeamCamp,
   scheduleInternationalFixtures,
   seedInternationalDraw,
   simulateNepalCareer,
@@ -194,6 +195,39 @@ describe("international football foundation", () => {
     expect(second.wins).toBe(first.wins);
     expect(second.rankingEnd).toBe(first.rankingEnd);
     expect(second.externalOpponentsUsed).toEqual(first.externalOpponentsUsed);
+    const firstRepo = new InternationalFootballRepository(firstDb);
+    const camps = firstRepo.camps();
+    expect(camps.length).toBeGreaterThan(0);
+    expect(firstRepo.cohesion(camps[0]!.nationalTeamId).length).toBeGreaterThan(0);
+    expect(
+      firstDb
+        .prepare("SELECT COUNT(*) AS count FROM historical_events WHERE event_type = ?")
+        .get("NATIONAL_TEAM_CAMP_COMPLETED") as { count: number },
+    ).toHaveProperty("count", camps.length);
+    const camp = camps[0]!;
+    const historyBefore = firstDb
+      .prepare("SELECT COUNT(*) AS count FROM historical_events WHERE event_type = ?")
+      .get("NATIONAL_TEAM_CAMP_COMPLETED") as { count: number };
+    const ledgerBefore = new FederationGovernanceRepository(firstDb)
+      .ledgerEntries(camp.federationId)
+      .filter((entry) => entry.relatedEntityId === camp.id);
+    runNationalTeamCamp(firstDb, {
+      federationId: camp.federationId,
+      nationalTeamId: camp.nationalTeamId,
+      competitionEditionId: camp.competitionEditionId,
+      startDate: camp.startDate,
+      endDate: camp.endDate,
+      focus: camp.focus,
+      seed: "replay",
+    });
+    const historyAfter = firstDb
+      .prepare("SELECT COUNT(*) AS count FROM historical_events WHERE event_type = ?")
+      .get("NATIONAL_TEAM_CAMP_COMPLETED") as { count: number };
+    const ledgerAfter = new FederationGovernanceRepository(firstDb)
+      .ledgerEntries(camp.federationId)
+      .filter((entry) => entry.relatedEntityId === camp.id);
+    expect(historyAfter.count).toBe(historyBefore.count);
+    expect(ledgerAfter.length).toBe(ledgerBefore.length);
     firstDb.close();
     secondDb.close();
   });

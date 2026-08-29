@@ -78,7 +78,7 @@ Legacy partials:
 - Chairman/owner career; federation-president career; role transitions, authority, and permissions.
 - Career default match-view wiring; club creation and new clubs; takeover/ownership lifecycle.
 - Grants, restricted funds, and government/NSC relationship; prize money and revenue sharing.
-- Insurance, welfare, and training camps; diaspora and Nepalis abroad.
+- Insurance and welfare; the national-team camp slice is COMPLETE; diaspora and Nepalis abroad.
 - Real Nepal player database and provenance; real staff database; girls development, schools, grassroots, and academies.
 - media and journalism; rivalries; AI staff hiring; AI chairman.
 - Tauri shell/native packaging; performance.
@@ -157,7 +157,7 @@ proof exists, while the 20/50-season performance and durability gates are intent
 
 The 17 PARTIAL rows are: chairman/owner career; federation-president career; role transitions and
 authority; default match-view wiring; club creation; takeover lifecycle; grants/government
-distribution; prize/revenue sharing; insurance/welfare/camps;
+distribution; prize/revenue sharing; insurance/welfare;
 real Nepal player coverage; diaspora/Nepalis abroad; girls development/schools/grassroots;
 media/journalism; rivalries; AI staff hiring; AI chairman; and the role-limited real staff
 dataset. The three MISSING rows are women's factual player data, legends/cult heroes, and a real
@@ -203,7 +203,7 @@ validation/performance debt, not a missing gameplay engine.
   not imply a feature freeze.
 - **P1 — connected-world depth:** extend external competition context; wire the remaining
   `TRAINING` partnership type and effects outside the bounded player-pathway scope;
-  production gaps for AI staff, government/distribution, camps,
+  production gaps for AI staff, government/distribution,
   media/rivalries, club creation/takeovers, and diaspora as their scope is confirmed.
 - **P2 — proof and release:** add a repeatable performance benchmark, then run the bounded
   20-year gate before any 50-year run; complete factual-data enrichment, packaging/CI, UI

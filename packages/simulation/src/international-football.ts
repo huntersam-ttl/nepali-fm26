@@ -852,12 +852,16 @@ export const runNationalTeamCamp = (
     seed: string;
   },
 ): NationalTeamCamp => {
+  const repo = new InternationalFootballRepository(db);
+  const campId = createStableEntityId(
+    "national-team-camp",
+    `${input.nationalTeamId}:${input.startDate}:${input.focus}`,
+  );
+  const existing = repo.camps().find((camp) => camp.id === campId);
+  if (existing) return existing;
   const rng = new SeededRandom(`${input.seed}:camp:${input.startDate}`);
   const camp: NationalTeamCamp = {
-    id: createStableEntityId(
-      "national-team-camp",
-      `${input.nationalTeamId}:${input.startDate}:${input.focus}`,
-    ),
+    id: campId,
     federationId: input.federationId,
     nationalTeamId: input.nationalTeamId,
     competitionEditionId: input.competitionEditionId,
@@ -870,7 +874,6 @@ export const runNationalTeamCamp = (
     cohesionGain: round(1.5 + rng.next() * 2.5),
     provenanceStatus: simulationStatus,
   };
-  const repo = new InternationalFootballRepository(db);
   repo.upsertCamp(camp);
   postFederationTransaction(db, {
     federationId: input.federationId,
@@ -882,6 +885,39 @@ export const runNationalTeamCamp = (
     relatedEntityId: camp.id,
     idempotencyKey: `camp:${camp.id}`,
   });
+  const callups = new FederationGovernanceRepository(db)
+    .nationalTeamCallups(input.nationalTeamId)
+    .filter((callup) => callup.callupDate <= camp.startDate && callup.status === "CALLED_UP")
+    .slice(-26);
+  updateCohesion(
+    db,
+    input.nationalTeamId,
+    callups.map((callup) => callup.playerId),
+    camp.endDate,
+    camp.cohesionGain,
+  );
+  const historyId = createStableEntityId("historical-event", `camp:${camp.id}`);
+  if (!db.prepare("SELECT 1 FROM historical_events WHERE id = ?").get(historyId)) {
+    new EventRepository(db).insertHistoricalEvent({
+      id: historyId,
+      occurredOn: camp.endDate,
+      eventType: "NATIONAL_TEAM_CAMP_COMPLETED",
+      involvedEntities: [
+        { id: camp.federationId, type: "federation" },
+        { id: camp.nationalTeamId, type: "team" },
+      ],
+      title: "National team camp completed",
+      data: {
+        startDate: camp.startDate,
+        endDate: camp.endDate,
+        focus: camp.focus,
+        participantCount: callups.length,
+        cohesionGain: camp.cohesionGain,
+      },
+      importance: "medium",
+      scope: "federation",
+    });
+  }
   return camp;
 };
 
@@ -1312,9 +1348,31 @@ const simulateNepalInternationalMatch = (
     .nationalTeamCallups(nationalTeamId)
     .filter((callup) => callup.callupDate <= match.matchDate && callup.status === "CALLED_UP")
     .slice(-23);
-  const nepalPlayers = playerAttributes(db).filter((player) =>
+  const latestCamp = new InternationalFootballRepository(db)
+    .camps()
+    .filter(
+      (camp) =>
+        camp.nationalTeamId === nationalTeamId &&
+        camp.status === "COMPLETED" &&
+        camp.endDate <= match.matchDate,
+    )
+    .sort((a, b) => b.endDate.localeCompare(a.endDate) || b.id.localeCompare(a.id))[0];
+  const campTeamworkBoost = latestCamp ? Math.min(3, latestCamp.cohesionGain / 2) : 0;
+  const nepalPlayers = playerAttributes(db)
+    .filter((player) =>
     callups.some((callup) => callup.playerId === player.personId),
-  );
+    )
+    .map((player) =>
+      campTeamworkBoost > 0
+        ? {
+            ...player,
+            mental: {
+              ...player.mental,
+              teamwork: Math.min(100, player.mental.teamwork + campTeamworkBoost),
+            },
+          }
+        : player,
+    );
   const nepalIsHome = home.nationalTeamId === nationalTeamId;
   const result = simulateMatch({
     fixture: {
