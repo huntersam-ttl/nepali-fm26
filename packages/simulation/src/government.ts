@@ -1,5 +1,6 @@
 import { createStableEntityId, type GovernmentFundingApplication, type GovernmentInstitution, type GovernmentFundingType } from "@nepal-football-sim/shared-types";
 import { GovernmentRepository, type GameDatabase } from "@nepal-football-sim/database";
+import { postFederationTransaction } from "./federation-governance.js";
 
 export type GovernmentFundingEvidence = {
   federationCredibility: number;
@@ -64,6 +65,54 @@ export const reviewGovernmentFunding = (db: GameDatabase, input: { applicationId
   const decision = evaluateGovernmentFunding({ institution, requestedAmount: application.requestedAmount, fundingType: application.fundingType, evidence: input.evidence });
   const reviewed: GovernmentFundingApplication = { ...application, status: decision.status, approvedAmount: decision.approvedAmount, conditions: decision.conditions, decidedOn: input.reviewedOn, decisionReason: decision.reason };
   repo.upsertApplication(reviewed);
-  if (decision.approvedAmount && ["APPROVED", "CONDITIONAL"].includes(decision.status)) repo.upsertInstitution({ ...institution, profile: { ...institution.profile, committedBudget: institution.profile.committedBudget + decision.approvedAmount } });
+  if (decision.approvedAmount && ["APPROVED", "CONDITIONAL"].includes(decision.status)) {
+    repo.upsertInstitution({ ...institution, profile: { ...institution.profile, committedBudget: institution.profile.committedBudget + decision.approvedAmount } });
+    settleApprovedFunding(db, reviewed, decision.approvedAmount, input.reviewedOn);
+  }
   return reviewed;
+};
+
+/**
+ * Government money only becomes football money once the federation actually holds it.
+ * Approval used to move the institution's committed budget alone, so an approved grant
+ * never entered the modelled economy. It enters through the same external-income route
+ * FIFA and AFC grants already use, carrying the funding type as its restriction so the
+ * money stays tied to the purpose it was granted for.
+ */
+const settleApprovedFunding = (
+  db: GameDatabase,
+  application: GovernmentFundingApplication,
+  approvedAmount: number,
+  date: string,
+): void => {
+  if (!application.federationId) return;
+  postFederationTransaction(db, {
+    federationId: application.federationId,
+    date,
+    category: "GOVERNMENT_GRANT",
+    direction: "CREDIT",
+    amount: approvedAmount,
+    description: `government funding received for ${application.fundingType.replaceAll("_", " ").toLowerCase()}`,
+    relatedEntityId: application.id,
+    restrictionTag: restrictionTagFor(application.fundingType),
+    // One settlement per application, so re-reviewing cannot credit the money twice.
+    idempotencyKey: `government-funding:${application.id}`,
+  });
+};
+
+const restrictionTagFor = (fundingType: GovernmentFundingType): string | undefined => {
+  switch (fundingType) {
+    case "FEDERATION_OPERATIONS":
+      return undefined;
+    case "NATIONAL_TEAM_PREPARATION":
+      return "national-team";
+    case "INFRASTRUCTURE":
+    case "REGIONAL_GROUND":
+    case "MUNICIPAL_LAND_OR_VENUE":
+      return "infrastructure";
+    case "WOMENS_FOOTBALL":
+      return "womens-football";
+    case "YOUTH_GRASSROOTS":
+      return "development";
+  }
 };
