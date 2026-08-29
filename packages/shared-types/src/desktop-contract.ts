@@ -16,6 +16,7 @@ import type {
   InfrastructureProject,
   InfrastructureProjectType,
   SponsorshipContract,
+  SimulationClubRecord,
 } from "./domain.js";
 
 /**
@@ -231,6 +232,7 @@ export type DesktopRuntimeApi = {
   getCareerHeader(): Promise<AppResult<CareerHeader>>;
   getCareerRoles(): Promise<AppResult<CareerRoleState>>;
   switchActiveCareerRole(targetRole: CareerRole): Promise<AppResult<CareerHeader>>;
+  foundClub(name: string, locationName: string): Promise<AppResult<SimulationClubRecord>>;
   implementFederationGovernanceProposal(proposalId: EntityId): Promise<AppResult<FederationGovernanceProposal>>;
   setClubBudget(clubId: EntityId, seasonLabel: string, category: ClubBudgetCategory, amount: number): Promise<AppResult<ClubBudget>>;
   createInfrastructureProject(clubId: EntityId, projectType: InfrastructureProjectType): Promise<AppResult<InfrastructureProject>>;

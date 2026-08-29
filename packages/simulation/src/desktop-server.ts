@@ -154,6 +154,8 @@ const dispatch = (
       return service.getCareerRoles();
     case "switchActiveCareerRole":
       return service.switchActiveCareerRole(body.targetRole as CareerRole);
+    case "foundClub":
+      return service.foundClub(body.name as string, body.locationName as string);
     case "implementFederationGovernanceProposal":
       return service.implementFederationGovernanceProposal(body.proposalId as EntityId);
     case "setClubBudget":

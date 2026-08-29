@@ -3,7 +3,7 @@
 ## Snapshot
 
 Audit date: 2026-08-29. Repository: `/Users/cc/nepali-fm26`. Final reconciliation based on
-HEAD `837e819`; the pre-existing untracked `nepali-fm26/` entry
+HEAD `1f6f3c5`; the pre-existing untracked `nepali-fm26/` entry
 remains untouched.
 
 The inventory has 92 normalized entries: the 84 row-level entries in the previous feature
@@ -11,9 +11,9 @@ audit, plus the eight explicit high-risk overlays requested for this pass. Statu
 
 | Status | Count |
 | --- | ---: |
-| COMPLETE | 69 |
+| COMPLETE | 70 |
 | BUILT_NOT_PROVEN | 1 |
-| PARTIAL | 15 |
+| PARTIAL | 14 |
 | MISSING | 3 |
 | LATER | 4 |
 | **Total** | **92** |
@@ -48,6 +48,7 @@ The following systems are COMPLETE:
 - Global generated-player lifecycle: context-only external players now persist through deterministic development, peak/decline, affiliation/free-agent reconciliation, retirement, replenishment, and reload-safe future-star emergence without simulating proprietary foreign leagues.
 - External/global competition context: persisted domestic qualifiers now resolve into deterministic, history-backed continental context with bounded club/player reputation effects.
 - Women's clubs and competitions; macroeconomy; personal wealth; supporter base, attendance, atmosphere, and mood; awards. Stored rivalry-to-match production context is now wired; broader rivalry seeding and evolution remains PARTIAL.
+- Owner-founded club creation is production-wired through the desktop runtime: a chairman creates a new Nepal `SIMULATION_ONLY` playable club with founder control, canonical finance, senior team, facilities, venue, history, and staff vacancies. It remains unregistered until the existing admission path is used.
 - AI squad planning, transfers, and contracts; AI federation and national-team automation; senior-men, senior-women, and U17/U20/U23 national teams and international competition.
 - Stadium, training, youth, medical, and technical infrastructure; desktop runtime and SQLite; legal and data provenance.
 
@@ -79,7 +80,7 @@ Legacy partials:
 - Federation-president proposal submission now has a Nepal/FULL role-facing command adapter
   and approved-proposal implementation now has a Nepal/FULL role-facing command adapter that delegates to the canonical proposal service; a complete playable federation-president
   career and broader command surface remain PARTIAL.
-- Career default match-view wiring; club creation and new clubs; takeover/ownership lifecycle.
+- Career default match-view wiring; takeover/ownership lifecycle.
 - Grants, restricted funds, and government/NSC relationship; prize money and revenue sharing. The annual
   AI club-support slice now pays a bounded, deterministic set of playable domestic clubs through the
   canonical federation/club ledgers; government funding and broader distribution policy remain PARTIAL.
@@ -157,16 +158,16 @@ production path.
   loan scope is contract, wages, recall, expiry, return, and option-to-buy.
 - Final 20/50-year balancing; mobile; final release workflow.
 
-## Final Reconciliation (HEAD `837e819`)
+## Final Reconciliation (HEAD `1f6f3c5`)
 
 The 92 normalized rows were rechecked against source reachability and focused production tests.
-The mechanical status total is now 69 COMPLETE, 1 BUILT_NOT_PROVEN, 15 PARTIAL, 3 MISSING,
+The mechanical status total is now 70 COMPLETE, 1 BUILT_NOT_PROVEN, 14 PARTIAL, 3 MISSING,
 and 4 LATER. The BUILT_NOT_PROVEN row is long-save continuity only: its 12-season structural
 proof exists, while the 20/50-season performance and durability gates are intentionally not run.
 
-The 15 PARTIAL rows are: chairman/owner career (including bounded budget setting, infrastructure approval, and sponsorship approval/rejection, but not a complete chairman command surface); federation-president career (including the
+The 14 PARTIAL rows are: chairman/owner career (including bounded budget setting, infrastructure approval, and sponsorship approval/rejection, but not a complete chairman command surface); federation-president career (including the
 bounded proposal submission and approved-proposal implementation command adapters, but not a complete playable career); broader role transitions
-and authority (bounded active-role switching is complete); default match-view wiring; club creation; takeover lifecycle; grants/government
+and authority (bounded active-role switching is complete); default match-view wiring; takeover lifecycle; grants/government
 distribution (including the bounded annual playable-club support slice); prize/revenue sharing;
 real Nepal player coverage; diaspora/Nepalis abroad; girls development/schools/grassroots;
 media/journalism (bounded notable-event and major-transfer publishing are complete, but the broader journalism
@@ -215,7 +216,7 @@ validation/performance debt, not a missing gameplay engine.
 - **P1 — connected-world depth:** extend external competition context; wire the remaining
   `TRAINING` partnership type and effects outside the bounded player-pathway scope;
   production gaps for government/distribution,
-  media/rivalries, club creation/takeovers, and diaspora as their scope is confirmed.
+  media/rivalries, takeover lifecycle, and diaspora as their scope is confirmed.
 - **P2 — proof and release:** add a repeatable performance benchmark, then run the bounded
   20-year gate before any 50-year run; complete factual-data enrichment, packaging/CI, UI
   conveniences, legends, balance, legal attribution, and release QA.

@@ -8,6 +8,7 @@ import {
   createStableEntityId,
   type Club,
   type ClubMembership,
+  type ClubOwnershipStake,
   type EntityId,
   type SimulationClubLifecycleEvent,
   type SimulationClubRecord,
@@ -231,6 +232,46 @@ export const createSimulationClub = (
       seed: input.seed,
     });
   return record;
+};
+
+export const foundSimulationClub = (
+  db: GameDatabase,
+  input: CreateSimulationClubInput & {
+    founderPersonId: EntityId;
+    founderName: string;
+    callerRole: "MANAGER" | "CHAIRMAN_OWNER" | "FEDERATION_PRESIDENT";
+  },
+): SimulationClubRecord => {
+  if (input.callerRole !== "CHAIRMAN_OWNER")
+    throw new Error("Only the active chairman/owner may found a club");
+  if (!db.prepare("SELECT 1 FROM persons WHERE id = ?").get(input.founderPersonId))
+    throw new Error("Founding owner does not exist");
+  const duplicate = db
+    .prepare(
+      `SELECT c.id FROM clubs c
+       JOIN countries co ON co.id = c.country_id
+       WHERE co.iso_code IN ('NP', 'NPL') AND lower(trim(c.name)) = lower(trim(?))
+       LIMIT 1`,
+    )
+    .get(input.name);
+  if (duplicate) throw new Error("A Nepal club with this name already exists");
+  const club = createSimulationClub(db, { ...input, ownershipType: "PRIVATE" });
+  const ownership: ClubOwnershipStake = {
+    id: createStableEntityId("club-ownership-stake", `${club.clubId}:${input.founderPersonId}:founder`),
+    clubId: club.clubId,
+    holderType: "PERSON",
+    holderId: input.founderPersonId,
+    holderName: input.founderName,
+    role: "MAJORITY_OWNER",
+    percentage: 100,
+    votingPercentage: 100,
+    startDate: input.foundedOn,
+    status: "ACTIVE",
+    ownershipModel: "BUYABLE",
+    provenanceStatus: status,
+  };
+  new ClubEconomyRepository(db).upsertOwnershipStake(ownership);
+  return club;
 };
 
 export const admitSimulationClub = (

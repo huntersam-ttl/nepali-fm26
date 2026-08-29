@@ -47,6 +47,7 @@ import {
   type InfrastructureProject,
   type InfrastructureProjectType,
   type SponsorshipContract,
+  type SimulationClubRecord,
   type Club,
   type CompetitionRuleSet,
   type CompetitionSeason,
@@ -230,6 +231,7 @@ import { suitability } from "./team-selection.js";
 import { activeCareerRole, heldCareerRoles, switchActiveCareerRole } from "./career-control.js";
 import { implementFederationGovernanceProposalCommand } from "./federation-politics.js";
 import { acceptSponsorOfferCommand, createInfrastructureProjectCommand, rejectSponsorOfferCommand, setClubBudgetCommand } from "./club-economy.js";
+import { foundSimulationClub } from "./club-creation.js";
 import {
   ManagerCommandError,
   advanceManagerCareer,
@@ -543,6 +545,42 @@ export class DesktopApplicationService {
       const updated = loadSave(db, save.id);
       this.writeCatalogEntry(this.catalogEntry(db, updated, filePath));
       return careerHeader(db, updated);
+    });
+  }
+
+  foundClub(name: string, locationName: string): AppResult<SimulationClubRecord> {
+    return this.withSession((db, save, filePath) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER") {
+        throw appError("ROLE_NOT_AUTHORIZED", "Only the active chairman/owner may found a club.");
+      }
+      const location = db.prepare(
+        `SELECT l.id FROM locations l JOIN countries co ON co.id = l.country_id
+         WHERE co.iso_code IN ('NP', 'NPL') AND l.kind IN ('district', 'municipality', 'city')
+           AND lower(trim(l.name)) = lower(trim(?)) ORDER BY l.id LIMIT 1`,
+      ).get(locationName) as { id?: EntityId } | undefined;
+      if (!location?.id) throw appError("INVALID_SELECTION", "Choose a Nepal district, municipality, or city.");
+      const person = db.prepare("SELECT display_name, full_name FROM persons WHERE id = ?").get(personId) as { display_name?: string; full_name?: string } | undefined;
+      if (!person) throw appError("SAVE_CORRUPT", "The founding owner is missing.");
+      db.exec("BEGIN IMMEDIATE;");
+      let founded: SimulationClubRecord;
+      try {
+        founded = foundSimulationClub(db, {
+          name,
+          locationId: location.id,
+          foundedOn: save.worldDate,
+          seed: `${save.randomSeed}:found-club`,
+          founderPersonId: personId,
+          founderName: person.display_name ?? person.full_name ?? personId,
+          callerRole: "CHAIRMAN_OWNER",
+        });
+        db.exec("COMMIT;");
+      } catch (error) {
+        db.exec("ROLLBACK;");
+        throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "Club could not be founded.");
+      }
+      this.writeCatalogEntry(this.catalogEntry(db, loadSave(db, save.id), filePath));
+      return founded;
     });
   }
 
