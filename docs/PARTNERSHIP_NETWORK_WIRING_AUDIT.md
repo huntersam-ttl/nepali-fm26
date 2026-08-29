@@ -98,6 +98,24 @@ reciprocal credit and no shared wallet, sponsor contract, or automatic deal is
 created. External partners remain `CONTEXT_ONLY`; multi-club ownership and
 friendly-tour paths are not consulted or mutated.
 
+### FRIENDLY_TOUR
+
+`PRODUCTION_ACTIVE`
+
+Production consumer: `packages/simulation/src/club-economy.ts` →
+`planPreseasonCommercialTour` → existing `runPreseasonCommercialCamp`.
+
+The stored direction is Nepal/receiving `from_club_id` → preferred external
+opponent or market `to_club_id`. The planner resolves active records once,
+limits candidates to four, ranks relationship strength and partner quality,
+and derives the partner country as destination context. It does not create a
+fixture or guarantee a tour: the existing camp, cost, revenue, exposure, and
+history machinery remains authoritative. The planning preference is distinct
+from monthly `COMMERCIAL_PARTNERSHIP_INCOME`, creates no scouting knowledge,
+and leaves external partners `CONTEXT_ONLY`. There is currently no club
+friendly scheduler or club-fixture simulator; the planner is the narrow
+reusable seam for future scheduling cadence.
+
 ### MULTI-CLUB
 
 ## Multi-Club Production

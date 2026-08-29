@@ -297,6 +297,33 @@ export type CommercialPartnershipSettlement = {
   partnershipCount: number;
 };
 
+export type PreseasonCommercialTourPlan = {
+  partnershipId: EntityId;
+  partnerClubId: EntityId;
+  destination: string;
+  candidateCount: number;
+};
+
+export const planPreseasonCommercialTour = (
+  db: GameDatabase,
+  input: { clubId: EntityId; date: string },
+): PreseasonCommercialTourPlan | undefined => {
+  const partnerships = new ClubNetworkRepository(db)
+    .activeFriendlyTourPartnerships(input.clubId, input.date)
+    .slice(0, 4);
+  if (partnerships.length === 0) return undefined;
+  const contexts = new Map(new GlobalFootballContextRepository(db).clubs().map((club) => [club.clubId, club.reputation]));
+  const economy = new ClubEconomyRepository(db);
+  const ranked = partnerships.map((partnership) => {
+    const partnerSupport = economy.supporterProfile(partnership.toClubId);
+    const reputation = contexts.get(partnership.toClubId) ?? (partnerSupport?.footballReputation ?? 4) * 10;
+    const country = db.prepare("SELECT country.name AS name FROM clubs club JOIN countries country ON country.id = club.country_id WHERE club.id = ?").get(partnership.toClubId) as { name?: string } | undefined;
+    return { partnership, reputation, destination: country?.name ?? "International partner market" };
+  }).sort((left, right) => right.partnership.relationshipStrength - left.partnership.relationshipStrength || right.reputation - left.reputation || left.partnership.id.localeCompare(right.partnership.id));
+  const selected = ranked[0]!;
+  return { partnershipId: selected.partnership.id, partnerClubId: selected.partnership.toClubId, destination: selected.destination, candidateCount: ranked.length };
+};
+
 export const commercialPartnershipIncome = (
   db: GameDatabase,
   clubId: EntityId,
@@ -348,15 +375,18 @@ export const runPreseasonCommercialCamp = (
   },
 ): PreseasonCommercialCamp => {
   const economy = new ClubEconomyRepository(db);
+  const campId = createStableEntityId(
+    "commercial-camp",
+    `${input.clubId}:${input.startDate}:${input.destination}`,
+  );
+  const existing = economy.commercialCamps(input.clubId).find((camp) => camp.id === campId);
+  if (existing) return existing;
   const commercial = economy.commercialProfile(input.clubId);
   const support = economy.supporterProfile(input.clubId);
   const reach = Math.round((commercial?.digitalReach ?? 2) + (support?.diasporaSupport ?? 0) / 500);
   const cost = Math.round(85000 + reach * 22000);
   const camp: PreseasonCommercialCamp = {
-    id: createStableEntityId(
-      "commercial-camp",
-      `${input.clubId}:${input.startDate}:${input.destination}`,
-    ),
+    id: campId,
     clubId: input.clubId,
     destination: input.destination,
     startDate: input.startDate,

@@ -3,7 +3,7 @@ import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
 import { ClubEconomyRepository, ClubNetworkRepository, GlobalFootballContextRepository, openGameDatabase } from "@nepal-football-sim/database";
-import { activateClubPartnership, commercialPartnershipIncome, createClubPartnership, createNepalSave, createSeasonMembership, initializeClubEconomyForSave, initializeForeignFootballWorldForSave, postMatchdayEconomy, postMerchandiseRevenue, processClubEconomyMonth, runPreseasonCommercialCamp, setClubTicketPrice } from "@nepal-football-sim/simulation";
+import { activateClubPartnership, commercialPartnershipIncome, createClubPartnership, createNepalSave, createSeasonMembership, initializeClubEconomyForSave, initializeForeignFootballWorldForSave, planPreseasonCommercialTour, postMatchdayEconomy, postMerchandiseRevenue, processClubEconomyMonth, runPreseasonCommercialCamp, setClubTicketPrice } from "@nepal-football-sim/simulation";
 import type { EntityId, FixtureRecord } from "@nepal-football-sim/shared-types";
 
 const dirs: string[] = [];
@@ -75,6 +75,37 @@ describe("commercial football world phase C", () => {
     expect(commercialPartnershipIncome(db, home.id, "2026-08-02").amount).toBe(0);
     db.close(); const reloaded = openGameDatabase(path);
     expect(new ClubEconomyRepository(reloaded).ledgerEntries(home.id).filter((entry) => entry.category === "COMMERCIAL_PARTNERSHIP_INCOME")).toHaveLength(1);
+    reloaded.close();
+  });
+
+  it("uses an active friendly-tour partnership as bounded preseason destination context", () => {
+    const path = makeSave("friendly-tour-partnership"); const db = openGameDatabase(path);
+    initializeForeignFootballWorldForSave({ db, worldDate: "2026-08-01", seed: "friendly-tour-partnership" });
+    initializeClubEconomyForSave({ db, worldDate: "2026-08-01", seed: "friendly-tour-partnership" });
+    const home = db.prepare("SELECT c.id FROM clubs c JOIN countries country ON country.id = c.country_id WHERE country.iso_code = 'NP' ORDER BY c.id LIMIT 1").get() as { id: EntityId };
+    const external = new GlobalFootballContextRepository(db).clubs()[0]!;
+    expect(planPreseasonCommercialTour(db, { clubId: home.id, date: "2026-08-01" })).toBeUndefined();
+    const proposal = createClubPartnership(db, { fromClubId: home.id, toClubId: external.clubId, partnershipType: "FRIENDLY_TOUR", relationshipStrength: 0, startDate: "2026-08-01" });
+    activateClubPartnership(db, proposal.id, { date: "2026-08-01", eligibility: { eligible: true, score: 70 } });
+    const plan = planPreseasonCommercialTour(db, { clubId: home.id, date: "2026-08-01" });
+    expect(plan?.partnerClubId).toBe(external.clubId);
+    expect(plan?.partnershipId).toBe(proposal.id);
+    expect(plan?.candidateCount).toBe(1);
+    expect(plan?.destination).toBeTruthy();
+    const camp = runPreseasonCommercialCamp(db, { clubId: home.id, destination: plan!.destination, startDate: "2026-08-01", endDate: "2026-08-07", seed: "friendly-tour-partnership" });
+    const economy = new ClubEconomyRepository(db);
+    const ledgerCount = economy.ledgerEntries(home.id).length;
+    expect(runPreseasonCommercialCamp(db, { clubId: home.id, destination: plan!.destination, startDate: "2026-08-01", endDate: "2026-08-07", seed: "different-replay-seed" }).id).toBe(camp.id);
+    expect(economy.ledgerEntries(home.id)).toHaveLength(ledgerCount);
+    expect(economy.commercialCamps(home.id)[0]?.destination).toBe(plan!.destination);
+    expect(economy.commercialHistory(home.id).some((event) => event.eventType === "TOUR")).toBe(true);
+    expect(camp.cost).toBeGreaterThan(0);
+    expect(new ClubEconomyRepository(db).ledgerEntries(home.id).filter((entry) => entry.category === "COMMERCIAL_PARTNERSHIP_INCOME")).toEqual([]);
+    db.prepare("UPDATE international_club_partnerships SET status='SUSPENDED' WHERE id=?").run(proposal.id);
+    expect(planPreseasonCommercialTour(db, { clubId: home.id, date: "2026-08-02" })).toBeUndefined();
+    db.close(); const reloaded = openGameDatabase(path);
+    expect(planPreseasonCommercialTour(reloaded, { clubId: home.id, date: "2026-08-01" })).toBeUndefined();
+    expect(new ClubEconomyRepository(reloaded).commercialCamps(home.id)[0]?.id).toBe(camp.id);
     reloaded.close();
   });
 });
