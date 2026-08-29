@@ -1342,14 +1342,22 @@ const allPlayersForRetirement = (
 }> =>
   db
     .prepare(
+      /*
+       * One row per player. A person can hold more than one open PLAYER role and
+       * more than one factual profile, and the join then multiplied them out: the
+       * same player was retired several times in a pass, writing the identical
+       * retirement history event twice and colliding on its deterministic ID.
+       */
       `SELECT p.id AS player_id, p.date_of_birth, pa.primary_position,
         pa.technical_json, pa.mental_json, pa.physical_json, pa.goalkeeping_json,
-        pfp.current_club_id
+        MIN(pfp.current_club_id) AS current_club_id
       FROM person_roles pr
       JOIN persons p ON p.id = pr.person_id
       JOIN player_attributes pa ON pa.person_id = p.id
       LEFT JOIN player_factual_profiles pfp ON pfp.player_id = p.id
-      WHERE pr.role = 'PLAYER' AND pr.active_to IS NULL`,
+      WHERE pr.role = 'PLAYER' AND pr.active_to IS NULL
+      GROUP BY p.id
+      ORDER BY p.id`,
     )
     .all()
     .map((row: any) => {
