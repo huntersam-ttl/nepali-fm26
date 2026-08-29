@@ -70,6 +70,7 @@ import { settleFederationInjuryWelfare, settleMatchInjuryInsurance } from "./ins
 import { processInternationalTrials } from "./international-trials.js";
 import { processExternalFootballWorldSeason } from "./external-football-world.js";
 import { settleFederationMediaRightsForCompetition } from "./media-rights.js";
+import { settleApprovedCompetitionDistributions } from "./competition-distribution.js";
 import {
   initializeForeignFootballWorldForSave,
   processForeignFootballWorldSeason,
@@ -659,6 +660,10 @@ const simulateCompetitionSeason = (
         });
       }
       postCompetitionPrizeMoney(db, {
+        competitionSeasonId: input.season.id,
+        date: input.ruleSet.seasonEndDate,
+      });
+      settleApprovedCompetitionDistributions(db, {
         competitionSeasonId: input.season.id,
         date: input.ruleSet.seasonEndDate,
       });

@@ -2,6 +2,7 @@ import { createStableEntityId, type CompetitionDistributionPayment, type Competi
 import { CompetitionDistributionRepository, FederationGovernanceRepository, type GameDatabase } from "@nepal-football-sim/database";
 import { postClubTransaction } from "./club-economy.js";
 import { postFederationTransaction } from "./federation-governance.js";
+import { PLAYABLE_CLUB_PREDICATE } from "./playable-world.js";
 
 export type DistributionStanding = { clubId: EntityId; position: number; performance: number; audience?: number; youthEligible?: boolean; womensEligible?: boolean; infrastructureEligible?: boolean };
 export type DistributionLine = { clubId: EntityId; amount: number; reason: string };
@@ -14,3 +15,73 @@ export const calculateCompetitionDistribution=(input:{policy:CompetitionDistribu
 export const createDistributionPolicy=(db:GameDatabase,input:Omit<CompetitionDistributionPolicy,"id"|"status"|"provenanceStatus">):CompetitionDistributionPolicy=>{const policy={...input,id:createStableEntityId("competition-distribution-policy",`${input.competitionSeasonId}:${input.version}`),status:"PROPOSED" as const,provenanceStatus:"SIMULATION_ONLY" as const};validateDistributionPolicy(policy);new CompetitionDistributionRepository(db).upsertPolicy(policy);return policy;};
 
 export const applyCompetitionDistribution=(db:GameDatabase,input:{policy:CompetitionDistributionPolicy;date:string;standings:readonly DistributionStanding[]}):CompetitionDistributionPayment[]=>{validateDistributionPolicy(input.policy);const repo=new CompetitionDistributionRepository(db);if(input.policy.status!=="APPROVED"&&input.policy.status!=="APPLIED")throw new Error("Distribution policy is not approved");const lines=calculateCompetitionDistribution(input);const existing=repo.payments(input.policy.id);if(existing.length)return existing;const account=new FederationGovernanceRepository(db).financialAccount(input.policy.federationId);const total=lines.reduce((sum,line)=>sum+line.amount,0);if(!account||account.cashBalance<total)throw new Error("Federation cannot afford the approved competition distribution");const payments:CompetitionDistributionPayment[]=[];for(const line of lines){const federationEntry=postFederationTransaction(db,{federationId:input.policy.federationId,date:input.date,category:"PRIZE_DISTRIBUTION",direction:"DEBIT",amount:line.amount,description:`${line.reason} distribution`,relatedEntityId:line.clubId,idempotencyKey:`distribution:${input.policy.id}:${line.clubId}:${line.reason}`});const clubEntry=postClubTransaction(db,{clubId:line.clubId,date:input.date,category:"PRIZE_MONEY",direction:"CREDIT",amount:line.amount,description:`Competition distribution: ${line.reason}`,relatedEntityId:input.policy.competitionSeasonId,idempotencyKey:`distribution:${input.policy.id}:${line.clubId}:${line.reason}`});const payment={id:createStableEntityId("competition-distribution-payment",`${input.policy.id}:${line.clubId}:${line.reason}`),policyId:input.policy.id,competitionSeasonId:input.policy.competitionSeasonId,federationId:input.policy.federationId,clubId:line.clubId,amount:line.amount,reason:line.reason,paidOn:input.date,federationLedgerEntryId:federationEntry.id,clubLedgerEntryId:clubEntry.id,provenanceStatus:"SIMULATION_ONLY" as const};repo.insertPayment(payment);payments.push(payment);}repo.upsertPolicy({...input.policy,status:"APPLIED"});return payments;};
+
+export const settleApprovedCompetitionDistributions = (
+  db: GameDatabase,
+  input: { competitionSeasonId: EntityId; date: string },
+): CompetitionDistributionPayment[] => {
+  const repository = new CompetitionDistributionRepository(db);
+  const policies = repository
+    .policies(input.competitionSeasonId)
+    .filter((policy) => policy.status === "APPROVED");
+  if (!policies.length) return [];
+  const standings = db
+    .prepare(
+      `SELECT ranked.club_id AS club_id, ranked.position, ranked.points,
+              EXISTS (SELECT 1 FROM club_development_programmes p
+                      WHERE p.club_id = ranked.club_id AND p.programme_type = 'YOUTH_PATHWAY'
+                        AND p.status = 'ACTIVE') AS youth_eligible,
+              EXISTS (SELECT 1 FROM teams wt
+                      WHERE wt.club_id = ranked.club_id AND wt.gender = 'women'
+                        AND wt.level = 'senior') AS womens_eligible
+       FROM (
+         SELECT c.id AS club_id, ls.points,
+                ROW_NUMBER() OVER (
+                  ORDER BY ls.points DESC, ls.goal_difference DESC,
+                           ls.goals_for DESC, ls.team_id
+                ) AS position
+         FROM league_standings ls
+         JOIN teams t ON t.id = ls.team_id
+         JOIN clubs c ON c.id = t.club_id
+         JOIN club_memberships cm ON cm.club_id = c.id
+           AND cm.competition_season_id = ls.competition_season_id
+           AND cm.status = 'ACTIVE'
+         WHERE ls.competition_season_id = ? AND ${PLAYABLE_CLUB_PREDICATE}
+       ) ranked
+       ORDER BY ranked.position, ranked.club_id`,
+    )
+    .all(input.competitionSeasonId) as Array<{
+    club_id: EntityId;
+    position: number;
+    points: number;
+    youth_eligible: number;
+    womens_eligible: number;
+  }>;
+  if (!standings.length) return [];
+  const distributionStandings: DistributionStanding[] = standings.map((row) => ({
+    clubId: row.club_id,
+    position: row.position,
+    performance: row.points,
+    youthEligible: Boolean(row.youth_eligible),
+    womensEligible: Boolean(row.womens_eligible),
+  }));
+  const payments: CompetitionDistributionPayment[] = [];
+  for (const policy of policies) {
+    db.exec("SAVEPOINT competition_distribution_settlement");
+    try {
+      payments.push(
+        ...applyCompetitionDistribution(db, {
+          policy,
+          date: input.date,
+          standings: distributionStandings,
+        }),
+      );
+      db.exec("RELEASE SAVEPOINT competition_distribution_settlement");
+    } catch (error) {
+      db.exec("ROLLBACK TO SAVEPOINT competition_distribution_settlement");
+      db.exec("RELEASE SAVEPOINT competition_distribution_settlement");
+      throw error;
+    }
+  }
+  return payments;
+};
