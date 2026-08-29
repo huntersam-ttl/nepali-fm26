@@ -375,6 +375,48 @@ export const simulateMatch = (input: SimulateMatchInput): MatchResult =>
   toMatchResult(runMatchToCompletion(createMatchState(input)));
 
 /**
+ * VAR is intentionally limited to the incidents the engine can currently
+ * review authoritatively: goals. The local RNG keeps review outcomes
+ * deterministic without changing the match's primary simulation stream.
+ */
+const reviewGoalWithVar = (
+  state: LiveMatchState,
+  minute: number,
+  attacking: RuntimeTeam,
+  shooterId: EntityId,
+  assisterId?: EntityId,
+): void => {
+  const varPersonId = state.refereeAssignment?.varPersonId;
+  if (!varPersonId) return;
+
+  const reviewRng = new SeededRandom(`${state.seed}:var:${state.matchId}:${minute}:${shooterId}`);
+  if (reviewRng.next() >= 0.25) return;
+
+  const overturn = reviewRng.next() < 0.2;
+  const shooterState = playerState(attacking, shooterId);
+  if (overturn) {
+    if (attacking === state.home) state.homeGoals -= 1;
+    else state.awayGoals -= 1;
+    shooterState.goals -= 1;
+    shooterState.rating -= 0.55;
+    if (assisterId) {
+      const assisterState = playerState(attacking, assisterId);
+      assisterState.assists -= 1;
+      assisterState.keyPasses -= 1;
+      assisterState.rating -= 0.25;
+    }
+  }
+
+  pushEvent(state, minute, "VAR_CHECK", attacking.teamId, shooterId, assisterId, {
+    incident: "GOAL",
+    originalDecision: "GOAL_ALLOWED",
+    finalDecision: overturn ? "GOAL_DISALLOWED" : "GOAL_ALLOWED",
+    outcome: overturn ? "OVERTURNED" : "CONFIRMED",
+    varPersonId,
+  });
+};
+
+/**
  * One simulated minute. The order of random draws here is load-bearing: it
  * defines the match, so it must not be reordered without regenerating the
  * engine regression baseline.
@@ -452,6 +494,7 @@ const simulateMinute = (state: LiveMatchState, rng: SeededRandom, minute: number
         if (assister) {
           pushEvent(state, minute, "ASSIST", attacking.teamId, assister.personId, shooter.personId);
         }
+        reviewGoalWithVar(state, minute, attacking, shooter.personId, assister?.personId);
       } else {
         const keeper = defending.selection.find((player) => player.position === "GK");
         if (keeper) {
@@ -1143,6 +1186,7 @@ const IMPORTANCE: Record<string, MatchEventImportance> = {
   PENALTY_SHOOTOUT_KICK: "MAJOR",
   PENALTY_SHOOTOUT_COMPLETE: "CRITICAL",
   GOAL: "CRITICAL",
+  VAR_CHECK: "MAJOR",
   OWN_GOAL: "CRITICAL",
   PENALTY_SCORED: "CRITICAL",
   PENALTY_MISSED: "CRITICAL",
