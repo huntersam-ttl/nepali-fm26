@@ -25,6 +25,7 @@ import {
   type TransferValuationSnapshot,
 } from "@nepal-football-sim/shared-types";
 import {
+  ClubNetworkRepository,
   RecruitmentRepository,
   TransferMarketRepository,
   type GameDatabase,
@@ -2308,7 +2309,7 @@ const isNepalClub = (db: GameDatabase, clubId: EntityId): boolean =>
     db.prepare("SELECT 1 FROM clubs c JOIN countries country ON country.id=c.country_id WHERE c.id=? AND country.iso_code IN ('NP','NPL')").get(clubId),
   );
 
-const findLoanCandidate = (
+export const findLoanCandidateForClub = (
   db: GameDatabase,
   clubId: EntityId,
   need: SquadNeed,
@@ -2321,11 +2322,14 @@ const findLoanCandidate = (
    * club in turn and the second attempt trips the loan guard in `startLoan`.
    */
   const alreadyLoaned = new Set(market.activeLoans(worldDate).map((loan) => loan.playerId));
+  const partnerParentClubs = new Set(
+    new ClubNetworkRepository(db).activeLoanPartnerships(clubId, worldDate).map((partnership) => partnership.toClubId),
+  );
   for (const player of marketPlayers(db)
     .filter((item) => item.currentClubId && item.currentClubId !== clubId)
     .filter((item) => !alreadyLoaned.has(item.playerId))
     .filter((item) => need.positionGroup === "DEPTH" || item.positionGroup === need.positionGroup)
-    .sort((a, b) => a.appearances - b.appearances || a.age - b.age)) {
+    .sort((a, b) => Number(partnerParentClubs.has(b.currentClubId!)) - Number(partnerParentClubs.has(a.currentClubId!)) || a.appearances - b.appearances || a.age - b.age || String(a.playerId).localeCompare(String(b.playerId)))) {
     const contract = market.activeContract(player.playerId, worldDate);
     if (contract && ["BACKUP", "PROSPECT", "YOUTH", "ROTATION"].includes(contract.squadRole)) {
       return { parentClubId: contract.clubId, playerId: player.playerId };
@@ -2333,6 +2337,8 @@ const findLoanCandidate = (
   }
   return undefined;
 };
+
+const findLoanCandidate = findLoanCandidateForClub;
 
 const registerLoanPlayer = (
   db: GameDatabase,

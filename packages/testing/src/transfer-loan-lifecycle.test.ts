@@ -4,12 +4,16 @@ import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   ClubEconomyRepository,
+  ClubNetworkRepository,
   TransferMarketRepository,
   openGameDatabase,
 } from "@nepal-football-sim/database";
 import type { EntityId } from "@nepal-football-sim/shared-types";
 import {
   createNepalSave,
+  activateClubPartnership,
+  createClubPartnership,
+  findLoanCandidateForClub,
   endLoan,
   exerciseLoanOption,
   initializeClubEconomyForSave,
@@ -121,6 +125,41 @@ afterEach(() => {
 });
 
 describe("loan lifecycle closure", () => {
+  it("ranks an active directional LOAN partner without bypassing the canonical loan path", () => {
+    const databasePath = createWorld("loan-partnership");
+    const db = openGameDatabase(databasePath);
+    try {
+      const first = foreignContract(db);
+      const borrower = nepalClubWithCompetition(db);
+      const baseline = findLoanCandidateForClub(db, borrower, { positionGroup: "DEPTH", severity: "LOW", reason: "partnership test" }, WORLD_DATE);
+      expect(baseline).toBeDefined();
+      const parents = db.prepare("SELECT DISTINCT pc.club_id AS clubId FROM player_contracts pc JOIN clubs c ON c.id=pc.club_id WHERE pc.status='ACTIVE' AND c.canonical_external_id LIKE 'SIM-FOREIGN-%' ORDER BY pc.club_id").all() as Array<{ clubId: EntityId }>;
+      const partner = parents.find((candidate) => candidate.clubId !== baseline!.parentClubId);
+      expect(partner).toBeDefined();
+      const proposal = createClubPartnership(db, { fromClubId: borrower, toClubId: partner!.clubId, partnershipType: "LOAN", relationshipStrength: 0, startDate: WORLD_DATE, endDate: "2026-08-15" });
+      activateClubPartnership(db, proposal.id, { date: WORLD_DATE, eligibility: { eligible: true, score: 60 } });
+      const active = new ClubNetworkRepository(db).activeLoanPartnerships(borrower, WORLD_DATE);
+      expect(active.map((item) => item.toClubId)).toContain(partner!.clubId);
+      expect(new ClubNetworkRepository(db).activeLoanPartnerships(borrower, "2026-08-16")).toEqual([]);
+      const preferred = findLoanCandidateForClub(db, borrower, { positionGroup: "DEPTH", severity: "LOW", reason: "partnership test" }, WORLD_DATE);
+      expect(preferred).toBeDefined();
+      expect(preferred!.parentClubId).toBe(partner!.clubId);
+      expect(preferred!.parentClubId).not.toBe(first.clubId);
+      db.prepare("UPDATE international_club_partnerships SET status='SUSPENDED' WHERE id=?").run(proposal.id);
+      expect(new ClubNetworkRepository(db).activeLoanPartnerships(borrower, WORLD_DATE)).toEqual([]);
+      expect(findLoanCandidateForClub(db, borrower, { positionGroup: "DEPTH", severity: "LOW", reason: "partnership test" }, WORLD_DATE)?.parentClubId).toBe(baseline!.parentClubId);
+      expect(new ClubNetworkRepository(db).activeLoanPartnerships(borrower, "2026-07-01")).toEqual([]);
+      const loan = startLoan(db, preferred!.parentClubId, borrower, preferred!.playerId, WORLD_DATE, "loan-partnership", {
+        endDate: "2027-01-31",
+        loanFee: 0,
+      });
+      expect(new TransferMarketRepository(db).loan(loan.id)?.status).toBe("ACTIVE");
+      expect(teamClub(db, preferred!.playerId)).toBe(borrower);
+    } finally {
+      db.close();
+    }
+  }, 300000);
+
   it("settles parent and destination wages once per payroll period, separately from the loan fee", () => {
     const databasePath = createWorld("loan-wages");
     const db = openGameDatabase(databasePath);
