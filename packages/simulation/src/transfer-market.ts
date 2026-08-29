@@ -37,6 +37,7 @@ import {
   recordTransferEconomy,
 } from "./club-economy.js";
 import { applySupporterTransferOutcome } from "./supporter-culture.js";
+import { evaluateRelatedPartyTransfer } from "./club-networks.js";
 import { SeededRandom } from "./rng.js";
 import {
   initializeRecruitmentForSave,
@@ -576,6 +577,20 @@ export const evaluateTransferOffer = (
   seed: string,
 ): { accepted: boolean; reason: string } => {
   const market = new TransferMarketRepository(db);
+  const network = new ClubNetworkRepository(db);
+  if (offer.sellingClubId && network.hasSameCompetitionConflict(offer.buyingClubId, offer.sellingClubId, worldDate)) {
+    market.updateOfferStatus(offer.id, "REJECTED");
+    market.insertNegotiationRound({
+      id: createStableEntityId("negotiation-round", `${offer.id}:governance:same-competition`),
+      offerId: offer.id,
+      roundNumber: market.negotiationRounds(offer.id).length + 1,
+      actor: "SYSTEM",
+      action: "REJECT",
+      message: "Rejected: related clubs cannot complete a transfer while sharing a competition",
+      createdAt: worldDate,
+    });
+    return { accepted: false, reason: "related clubs share a competition" };
+  }
   const valuation = offer.sellerInternalValue
     ? {
         internalValue: offer.sellerInternalValue,
@@ -588,6 +603,27 @@ export const evaluateTransferOffer = (
         worldDate,
       });
   const packageValue = calculateTransferPackageValue(offer);
+  if (offer.sellingClubId && network.areRelatedClubs(offer.buyingClubId, offer.sellingClubId, worldDate)) {
+    const relatedParty = evaluateRelatedPartyTransfer({
+      fee: packageValue,
+      askingRange: valuation.askingRange,
+      playerKnownToBuyer: Boolean(offer.buyerPerceivedValue),
+      registrationAllowed: true,
+    });
+    if (!relatedParty.allowed) {
+      market.updateOfferStatus(offer.id, "REJECTED");
+      market.insertNegotiationRound({
+        id: createStableEntityId("negotiation-round", `${offer.id}:governance:related-party`),
+        offerId: offer.id,
+        roundNumber: market.negotiationRounds(offer.id).length + 1,
+        actor: "SYSTEM",
+        action: "REJECT",
+        message: `Rejected: ${relatedParty.reason}`,
+        createdAt: worldDate,
+      });
+      return { accepted: false, reason: relatedParty.reason };
+    }
+  }
   const repeatedLowballs = market
     .transferOffers()
     .filter(
@@ -2251,6 +2287,7 @@ const createAiTransferOffer = (
   seed: string,
 ): TransferOffer | undefined => {
   const regionalCandidates = searchRegionalCandidatesForClub(db, clubId, {}, worldDate, 12);
+  const relatedClubIds = new Set(new ClubNetworkRepository(db).activeRelatedClubIds(clubId, worldDate));
   const candidates = (regionalCandidates.length > 0 ? regionalCandidates : searchPlayersForClub(db, clubId, {}, worldDate))
     .filter((candidate) => candidate.clubId && candidate.clubId !== clubId)
     .filter(
@@ -2260,6 +2297,7 @@ const createAiTransferOffer = (
     .filter((candidate) => (candidate.estimatedAbility?.max ?? 0) >= 7)
     .sort(
       (a, b) =>
+        Number(relatedClubIds.has(b.clubId!)) - Number(relatedClubIds.has(a.clubId!)) ||
         (b.estimatedAbility?.max ?? 0) - (a.estimatedAbility?.max ?? 0) ||
         String(a.playerId).localeCompare(String(b.playerId)),
     );
@@ -2322,9 +2360,12 @@ export const findLoanCandidateForClub = (
    * club in turn and the second attempt trips the loan guard in `startLoan`.
    */
   const alreadyLoaned = new Set(market.activeLoans(worldDate).map((loan) => loan.playerId));
-  const partnerParentClubs = new Set(
-    new ClubNetworkRepository(db).activeLoanPartnerships(clubId, worldDate).map((partnership) => partnership.toClubId),
-  );
+  const network = new ClubNetworkRepository(db);
+  const relatedParentClubs = new Set(network.activeRelatedClubIds(clubId, worldDate));
+  const partnerParentClubs = new Set([
+    ...relatedParentClubs,
+    ...network.activeLoanPartnerships(clubId, worldDate).map((partnership) => partnership.toClubId),
+  ]);
   for (const player of marketPlayers(db)
     .filter((item) => item.currentClubId && item.currentClubId !== clubId)
     .filter((item) => !alreadyLoaned.has(item.playerId))

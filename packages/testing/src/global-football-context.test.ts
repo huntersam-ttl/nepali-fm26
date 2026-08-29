@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ClubNetworkRepository, GlobalFootballContextRepository, openGameDatabase } from "@nepal-football-sim/database";
-import { accessibleRecruitmentRegions, activateClubPartnership, boundedPartnershipBenefits, createClubPartnership, createNepalSave, createOwnershipEnquiry, evaluateForeignRecruitmentCorridor, evaluateInternationalPartnership, initializeForeignFootballWorldForSave, initializeRecruitmentForSave, isContextOnlyClub, processForeignFootballWorldSeason, runChairmanDemo, searchRegionalCandidatesForClub } from "@nepal-football-sim/simulation";
+import { accessibleRecruitmentRegions, activateClubPartnership, boundedPartnershipBenefits, calculateTransferValuation, createClubPartnership, createNetworkOwnership, createNepalSave, createOwnershipEnquiry, createTransferOffer, evaluateForeignRecruitmentCorridor, evaluateInternationalPartnership, evaluateTransferOffer, initializeForeignFootballWorldForSave, initializeRecruitmentForSave, isContextOnlyClub, marketRegionForPlayer, processForeignFootballWorldSeason, runChairmanDemo, searchRegionalCandidatesForClub } from "@nepal-football-sim/simulation";
 import { createStableEntityId, type EntityId } from "@nepal-football-sim/shared-types";
 
 const registryPath = resolve(process.cwd(), "data/nepal/2026-08/club-registry.json");
@@ -89,7 +89,7 @@ describe("global football context", () => {
     activateClubPartnership(db, proposal.id, { date: "2026-08-01", eligibility: { eligible: true, score: 60 } });
     const repo = new ClubNetworkRepository(db);
     expect(repo.activeScoutingPartnerships(nepaliClub.id, "2026-08-01")).toHaveLength(1);
-    expect(accessibleRecruitmentRegions(db, nepaliClub.id, "2026-08-01")).toContain("AFRICA");
+    expect(accessibleRecruitmentRegions(db, nepaliClub.id, "2026-08-01")).toContain(marketRegionForPlayer(db, player.id));
     const found = searchRegionalCandidatesForClub(db, nepaliClub.id, { clubId: external.id }, "2026-08-01", 12).find((item) => item.playerId === player.id)!;
     expect(found).toBeTruthy();
     expect(found.knowledgeLevel).toBe("MINIMAL");
@@ -105,6 +105,38 @@ describe("global football context", () => {
     db.close();
     const reloaded = openGameDatabase(created.path);
     expect(accessibleRecruitmentRegions(reloaded, nepaliClub.id, "2026-08-01")).not.toContain("AFRICA");
+    reloaded.close();
+    rmSync(created.directory, { recursive: true, force: true });
+  });
+
+  it("wires related ownership into bounded scouting and transfer review", () => {
+    const created = save();
+    const db = openGameDatabase(created.path);
+    initializeForeignFootballWorldForSave({ db, worldDate: "2026-08-01", seed: "multi-club" });
+    initializeRecruitmentForSave({ db, worldDate: "2026-08-01", seed: "multi-club" });
+    const nepaliClub = db.prepare("SELECT id FROM clubs WHERE canonical_external_id NOT LIKE 'SIM-FOREIGN-%' ORDER BY id LIMIT 1").get() as { id: EntityId };
+    const external = new GlobalFootballContextRepository(db).clubs()[0]!;
+    const player = db.prepare("SELECT p.id FROM persons p LEFT JOIN player_factual_profiles pfp ON pfp.player_id=p.id LEFT JOIN player_contracts pc ON pc.player_id=p.id AND pc.status='ACTIVE' WHERE COALESCE(pfp.current_club_id, pc.club_id)=? ORDER BY p.id LIMIT 1").get(external.clubId) as { id: EntityId };
+    const ownerGroupId = createStableEntityId("owner-group", "multi-club-test");
+    createNetworkOwnership(db, { ownerGroupId, clubId: nepaliClub.id, stakePercentage: 60, acquisitionDate: "2026-08-01", strategy: "PATHWAY_CLUB" });
+    createNetworkOwnership(db, { ownerGroupId, clubId: external.clubId, stakePercentage: 60, acquisitionDate: "2026-08-01", strategy: "DEVELOPMENT_CLUB" });
+    const network = new ClubNetworkRepository(db);
+    expect(network.activeRelatedClubIds(nepaliClub.id, "2026-08-01")).toEqual([external.clubId]);
+    expect(accessibleRecruitmentRegions(db, nepaliClub.id, "2026-08-01")).toContain(marketRegionForPlayer(db, player.id));
+    const partnership = createClubPartnership(db, { fromClubId: nepaliClub.id, toClubId: external.clubId, partnershipType: "SCOUTING", relationshipStrength: 0, startDate: "2026-08-01" });
+    activateClubPartnership(db, partnership.id, { date: "2026-08-01", eligibility: { eligible: true, score: 60 } });
+    const found = searchRegionalCandidatesForClub(db, nepaliClub.id, { clubId: external.clubId }, "2026-08-01", 12).filter((item) => item.playerId === player.id);
+    expect(found).toHaveLength(1);
+    expect(found[0]!.knowledgeLevel).toBe("MINIMAL");
+    const valuation = calculateTransferValuation(db, { playerId: player.id, buyingClubId: nepaliClub.id, sellingClubId: external.clubId, worldDate: "2026-08-01" });
+    const fair = createTransferOffer(db, { buyingClubId: nepaliClub.id, sellingClubId: external.clubId, playerId: player.id, submittedAt: "2026-08-01", fee: valuation.askingRange.min, addOns: 0, sellOnPercentage: 0 });
+    expect(evaluateTransferOffer(db, fair, "2026-08-01", "multi-club-fair").accepted).toBe(true);
+    const abusive = createTransferOffer(db, { buyingClubId: nepaliClub.id, sellingClubId: external.clubId, playerId: player.id, submittedAt: "2026-08-02", fee: 1, addOns: 0, sellOnPercentage: 0 });
+    expect(evaluateTransferOffer(db, abusive, "2026-08-02", "multi-club-abusive").accepted).toBe(false);
+    expect(isContextOnlyClub(db, external.clubId)).toBe(true);
+    db.close();
+    const reloaded = openGameDatabase(created.path);
+    expect(new ClubNetworkRepository(reloaded).activeRelatedClubIds(nepaliClub.id, "2026-08-01")).toEqual([external.clubId]);
     reloaded.close();
     rmSync(created.directory, { recursive: true, force: true });
   });

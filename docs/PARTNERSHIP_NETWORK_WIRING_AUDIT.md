@@ -69,7 +69,27 @@ automatic loans or bypass those rules.
 
 ### MULTI-CLUB
 
-`PARTIAL`
+## Multi-Club Production
+
+- Scouting network: `PRODUCTION_ACTIVE` — related clubs expose a bounded
+  region/player discovery signal through the existing scouting path.
+- Player pathways: `PRODUCTION_ACTIVE` — related clubs receive deterministic,
+  bounded candidate preference for permanent transfers and loans.
+- Related-party transfers: `PRODUCTION_ACTIVE` — existing market-value review
+  runs at offer evaluation; abusive packages are rejected.
+- Related-party loans: `PRODUCTION_ACTIVE` — preference only; canonical loan
+  terms, consent, registration, finance, recall, and options remain required.
+- Finance separation: `PRODUCTION_ACTIVE` — canonical per-club ledgers remain
+  authoritative; no ownership wallet exists.
+- Governance: `PRODUCTION_ACTIVE` — same-competition related-club transfers
+  are rejected and the existing conflict model remains available for flags.
+- Staff exchanges: `PARTIAL` — existing technical partnership placements are
+  unchanged; no implicit permanent staff movement is added.
+- Academy collaboration: `PARTIAL` — existing academy/youth machinery remains
+  partnership-driven; ownership does not create duplicate programmes.
+
+Foreign related clubs remain `CONTEXT_ONLY`. Ownership relations are derived
+and do not create persisted partnership records.
 
 ### SELL-ON
 

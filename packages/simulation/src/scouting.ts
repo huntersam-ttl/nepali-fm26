@@ -257,6 +257,10 @@ export const accessibleRecruitmentRegions = (db: GameDatabase, clubId: EntityId,
     const region = clubRegion(db, partnership.toClubId);
     if (region && !regions.includes(region)) regions.push(region);
   }
+  for (const relatedClubId of new ClubNetworkRepository(db).activeRelatedClubIds(clubId, worldDate)) {
+    const region = clubRegion(db, relatedClubId);
+    if (region && !regions.includes(region)) regions.push(region);
+  }
   return regions;
 };
 
@@ -269,7 +273,10 @@ export const searchRegionalCandidatesForClub = (
 ): RecruitmentSearchResult[] => {
   const partnerships = activeScoutingPartnerships(db, clubId, worldDate);
   const accessible = new Set(accessibleRecruitmentRegions(db, clubId, worldDate));
-  const partnerClubIds = new Set(partnerships.map((partnership) => partnership.toClubId));
+  const partnerClubIds = new Set([
+    ...partnerships.map((partnership) => partnership.toClubId),
+    ...new ClubNetworkRepository(db).activeRelatedClubIds(clubId, worldDate),
+  ]);
   const visible = searchPlayersForClub(db, clubId, filters, worldDate);
   // A partnership supplies a small discovery signal for players at the actual
   // partner club. It is derived per search, not accumulated in save state, and

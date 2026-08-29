@@ -87,9 +87,11 @@ High-risk overlays:
    consumes them. SCOUTING, TECHNICAL, YOUTH_DEVELOPMENT, ACADEMY, TRAINING,
    LOAN_PLAYER_PATHWAY, LOAN, and COMMERCIAL are persisted-only benefit paths; STAFF_EXCHANGE,
    PREFERRED_TRANSFER, and FRIENDLY_TOUR currently have no behavior beyond storage.
-5. **Multi-club ownership/network effects — PARTIAL / persisted-only.** Ownership records,
-   conflict detection, and related-party/pathway evaluators are unit-tested. No production
-   caller applies network effects to loans, recruitment, finance, or governance restrictions.
+5. **Multi-club ownership/network effects — COMPLETE for the bounded P1 player-pathway scope.**
+   Ownership records resolve active related clubs into existing scouting, transfer, and loan
+   candidate flows; related-party valuation and same-competition safeguards are enforced at
+   offer evaluation; finance remains per-club and foreign clubs remain `CONTEXT_ONLY`.
+   Staff exchanges and academy collaboration remain partial and partnership-driven.
 6. **Sell-on clauses — PARTIAL / persisted-only.** `sellOnPercentage` is negotiated and
    persisted on transfer offers. There is no durable clause attached to a completed transfer,
    no later resale trigger, and no exact-once sell-on ledger payout.
@@ -104,7 +106,7 @@ High-risk overlays:
 | Global generated lifecycle | canonical attributes, potential, development, retirement, and context records | focused lifecycle/reload/determinism coverage | seasonal context lifecycle plus bounded replenishment | identity, retirement, development, and replenishment reload-safe |
 | External competition context | external profile helpers | global-context season persistence | career seasonal cadence | context rows reload |
 | Partnerships | pathway/evaluation helpers | one SCOUTING activation | no production consumer | no partnership reload proof |
-| Multi-club | conflict/pathway helpers | none | none | repository only |
+| Multi-club | ownership lookup, pathway, valuation, governance helpers | imported external club, scouting, offer review, reload | scouting/transfer/loan candidate paths and offer governance | ownership lookup reload |
 | Sell-on | offer persistence | no resale flow | no consumer | offer reload only |
 | Loan development attribution | none | none | none | none |
 
@@ -142,8 +144,9 @@ No long save, balance run, UI/UX pass, or optimization was performed.
 - **P0 — scope and core closure:** empty. International trials, two-way foreign staff movement,
   and women/youth international football are production-reachable with focused proof. This does
   not imply a feature freeze.
-- **P1 — connected-world depth:** extend external competition context; add production consumers for partnership types and multi-club
-  effects; implement sell-on resale settlement if retained in scope. Wire the remaining
+- **P1 — connected-world depth:** extend external competition context; wire the remaining
+  partnership types and multi-club effects outside the bounded player-pathway scope;
+  implement sell-on resale settlement if retained in scope. Wire the remaining
   production gaps for AI staff, government/distribution, referee development/VAR, camps,
   media/rivalries, club creation/takeovers, and diaspora as their scope is confirmed.
 - **P2 — proof and release:** add a repeatable performance benchmark, then run the bounded
