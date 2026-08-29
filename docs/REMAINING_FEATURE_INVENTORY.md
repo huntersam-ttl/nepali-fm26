@@ -53,6 +53,18 @@ The following systems are COMPLETE:
 
 ## Built but Not Proven
 
+### Core training closure
+
+Core player training is `COMPLETE_BUT_DOC_STALE` as a remaining-P1 label, not a
+missing production system. `advanceManagerCareer` consumes the persisted team
+plan on each normal day, passes staff/facility environment into the canonical
+development model, updates bounded fatigue/fitness/development, rolls seeded
+training injuries through the normal injury repository, and records stable
+training history. Eligibility excludes injured or unavailable training through
+the existing availability model. Focused phase-A/phase-B and history/reload
+tests cover these paths. Detailed AI-club training is not a separate current
+design requirement; foreign clubs remain on lightweight context development.
+
 ### Long-save continuity (10–15 season viability)
 
 The annual youth/retirement and workforce reconciliation path is live and a 12-season
@@ -92,7 +104,8 @@ High-risk overlays:
    persisted-only benefit paths. STAFF_EXCHANGE is satisfied by the existing TECHNICAL
    international-placement programme; LOAN_PLAYER_PATHWAY is satisfied by the canonical LOAN
    engine plus bounded partnership and related-club preference. TRAINING remains a separate
-   out-of-scope P1 partnership type.
+   explicitly deferred partnership type, distinct from the already-complete core player-training
+   system.
 5. **Multi-club ownership/network effects — COMPLETE for the bounded P1 player-pathway scope.**
    Ownership records resolve active related clubs into existing scouting, transfer, and loan
    candidate flows; related-party valuation and same-competition safeguards are enforced at
