@@ -67,6 +67,20 @@ remain authoritative. The canonical `startLoan` path still owns terms,
 finance, assignment, recall, and purchase options; partnerships do not create
 automatic loans or bypass those rules.
 
+### PREFERRED_TRANSFER
+
+`PRODUCTION_ACTIVE`
+
+Production consumer: `packages/simulation/src/transfer-market.ts` →
+`findPermanentTransferCandidatesForClub` / `simulateTransferWindow`.
+
+The stored direction is borrower/buyer `from_club_id` → preferred source
+`to_club_id`. Active records add a bounded, derived MINIMAL candidate source
+and deterministic ranking preference; fees, wages, seller decisions, player
+terms, registration, affordability, competing offers, and history remain
+canonical. Preferred transfer does not create scouting or loan state, discounts,
+automatic moves, or foreign-club playability.
+
 ### MULTI-CLUB
 
 ## Multi-Club Production

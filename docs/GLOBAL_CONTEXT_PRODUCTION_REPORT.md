@@ -152,7 +152,7 @@ Processing groups persisted qualifier lists by confederation only; it creates no
 
 ## Remaining Context Gaps
 
-Global club tournaments are LATER; partnerships, networks, and sell-on execution remain separate P1 work.
+Global club tournaments are LATER; remaining partnership types and broader network depth remain separate P1 work.
 
 ## History
 

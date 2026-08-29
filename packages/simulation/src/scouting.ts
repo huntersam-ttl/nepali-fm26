@@ -308,6 +308,36 @@ export const searchRegionalCandidatesForClub = (
     .slice(0, Math.max(1, Math.min(limit, 24)));
 };
 
+/** Derived, minimal candidate access for an active preferred-transfer source. */
+export const searchPreferredTransferCandidatesForClub = (
+  db: GameDatabase,
+  clubId: EntityId,
+  partnerClubIds: readonly EntityId[],
+  worldDate = "2026-08-01",
+): RecruitmentSearchResult[] => {
+  const recruitment = new RecruitmentRepository(db);
+  const results: RecruitmentSearchResult[] = [];
+  const seen = new Set<EntityId>();
+  for (const partnerClubId of [...new Set(partnerClubIds)].sort()) {
+    for (const player of playersForClub(db, partnerClubId)) {
+      if (seen.has(player.playerId)) continue;
+      seen.add(player.playerId);
+      const existing = recruitment.playerKnowledge(clubId, player.playerId);
+      const knowledge = existing ?? knowledgeFor(player, clubId, {
+        level: "MINIMAL",
+        discoveryStatus: "DISCOVERED",
+        confidence: "LOW",
+        sourceType: "PUBLIC",
+        observations: 1,
+        date: worldDate,
+        seed: `preferred-transfer:${clubId}:${player.playerId}`,
+      });
+      results.push(searchResult(player, knowledge));
+    }
+  }
+  return results;
+};
+
 const activeScoutingPartnerships = (
   db: GameDatabase,
   clubId: EntityId,

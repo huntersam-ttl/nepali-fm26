@@ -43,6 +43,7 @@ import { SeededRandom } from "./rng.js";
 import {
   initializeRecruitmentForSave,
   searchPlayersForClub,
+  searchPreferredTransferCandidatesForClub,
   searchRegionalCandidatesForClub,
 } from "./scouting.js";
 
@@ -2343,6 +2344,36 @@ export const respondToPlayerTransferRequest = (
   return updated;
 };
 
+export const findPermanentTransferCandidatesForClub = (
+  db: GameDatabase,
+  clubId: EntityId,
+  need: SquadNeed,
+  worldDate: string,
+) => {
+  const regionalCandidates = searchRegionalCandidatesForClub(db, clubId, {}, worldDate, 12);
+  const network = new ClubNetworkRepository(db);
+  const preferredClubIds = new Set(network.activePreferredTransferPartnerships(clubId, worldDate).map((partnership) => partnership.toClubId));
+  const preferredCandidates = searchPreferredTransferCandidatesForClub(db, clubId, [...preferredClubIds], worldDate);
+  const relatedClubIds = new Set(network.activeRelatedClubIds(clubId, worldDate));
+  const baseCandidates = regionalCandidates.length > 0 ? regionalCandidates : searchPlayersForClub(db, clubId, {}, worldDate);
+  const candidates = [...new Map([...baseCandidates, ...preferredCandidates].map((candidate) => [candidate.playerId, candidate])).values()]
+    .filter((candidate) => candidate.clubId && candidate.clubId !== clubId)
+    .filter(
+      (candidate) =>
+        need.positionGroup === "DEPTH" || candidate.publicPositionGroup === need.positionGroup,
+    )
+    .filter((candidate) => (candidate.estimatedAbility?.max ?? 0) >= 7 || preferredClubIds.has(candidate.clubId!))
+    .sort(
+      (a, b) =>
+        Number(preferredClubIds.has(b.clubId!)) - Number(preferredClubIds.has(a.clubId!)) ||
+        Number(relatedClubIds.has(b.clubId!)) - Number(relatedClubIds.has(a.clubId!)) ||
+        (b.estimatedAbility?.max ?? 0) - (a.estimatedAbility?.max ?? 0) ||
+        String(a.playerId).localeCompare(String(b.playerId)),
+    )
+    .slice(0, 12);
+  return candidates;
+};
+
 const createAiTransferOffer = (
   db: GameDatabase,
   clubId: EntityId,
@@ -2350,21 +2381,7 @@ const createAiTransferOffer = (
   worldDate: string,
   seed: string,
 ): TransferOffer | undefined => {
-  const regionalCandidates = searchRegionalCandidatesForClub(db, clubId, {}, worldDate, 12);
-  const relatedClubIds = new Set(new ClubNetworkRepository(db).activeRelatedClubIds(clubId, worldDate));
-  const candidates = (regionalCandidates.length > 0 ? regionalCandidates : searchPlayersForClub(db, clubId, {}, worldDate))
-    .filter((candidate) => candidate.clubId && candidate.clubId !== clubId)
-    .filter(
-      (candidate) =>
-        need.positionGroup === "DEPTH" || candidate.publicPositionGroup === need.positionGroup,
-    )
-    .filter((candidate) => (candidate.estimatedAbility?.max ?? 0) >= 7)
-    .sort(
-      (a, b) =>
-        Number(relatedClubIds.has(b.clubId!)) - Number(relatedClubIds.has(a.clubId!)) ||
-        (b.estimatedAbility?.max ?? 0) - (a.estimatedAbility?.max ?? 0) ||
-        String(a.playerId).localeCompare(String(b.playerId)),
-    );
+  const candidates = findPermanentTransferCandidatesForClub(db, clubId, need, worldDate);
   const rng = new SeededRandom(`${seed}:offer:${clubId}:${need.positionGroup}`);
   const candidate = candidates[Math.floor(rng.next() * Math.min(candidates.length, 4))];
   if (!candidate?.clubId) {

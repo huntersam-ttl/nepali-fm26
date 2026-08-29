@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ClubNetworkRepository, GlobalFootballContextRepository, openGameDatabase } from "@nepal-football-sim/database";
-import { accessibleRecruitmentRegions, activateClubPartnership, boundedPartnershipBenefits, calculateTransferValuation, createClubPartnership, createNetworkOwnership, createNepalSave, createOwnershipEnquiry, createTransferOffer, evaluateForeignRecruitmentCorridor, evaluateInternationalPartnership, evaluateTransferOffer, initializeForeignFootballWorldForSave, initializeRecruitmentForSave, isContextOnlyClub, marketRegionForPlayer, processForeignFootballWorldSeason, runChairmanDemo, searchRegionalCandidatesForClub } from "@nepal-football-sim/simulation";
+import { accessibleRecruitmentRegions, activateClubPartnership, boundedPartnershipBenefits, calculateTransferValuation, createClubPartnership, createNetworkOwnership, createNepalSave, createOwnershipEnquiry, createTransferOffer, evaluateForeignRecruitmentCorridor, evaluateInternationalPartnership, evaluateTransferOffer, findPermanentTransferCandidatesForClub, initializeForeignFootballWorldForSave, initializeRecruitmentForSave, isContextOnlyClub, marketRegionForPlayer, processForeignFootballWorldSeason, runChairmanDemo, searchRegionalCandidatesForClub } from "@nepal-football-sim/simulation";
 import { createStableEntityId, type EntityId } from "@nepal-football-sim/shared-types";
 
 const registryPath = resolve(process.cwd(), "data/nepal/2026-08/club-registry.json");
@@ -138,6 +138,30 @@ describe("global football context", () => {
     const reloaded = openGameDatabase(created.path);
     expect(new ClubNetworkRepository(reloaded).activeRelatedClubIds(nepaliClub.id, "2026-08-01")).toEqual([external.clubId]);
     reloaded.close();
+    rmSync(created.directory, { recursive: true, force: true });
+  });
+
+  it("uses directional preferred-transfer partnerships only as bounded candidate access", () => {
+    const created = save();
+    const db = openGameDatabase(created.path);
+    initializeForeignFootballWorldForSave({ db, worldDate: "2026-08-01", seed: "preferred-transfer" });
+    initializeRecruitmentForSave({ db, worldDate: "2026-08-01", seed: "preferred-transfer" });
+    const nepaliClub = db.prepare("SELECT id FROM clubs WHERE canonical_external_id NOT LIKE 'SIM-FOREIGN-%' ORDER BY id LIMIT 1").get() as { id: EntityId };
+    const external = new GlobalFootballContextRepository(db).clubs()[0]!;
+    const baseline = findPermanentTransferCandidatesForClub(db, nepaliClub.id, { positionGroup: "DEPTH", severity: "LOW", reason: "preferred transfer" }, "2026-08-01");
+    const partnership = createClubPartnership(db, { fromClubId: nepaliClub.id, toClubId: external.clubId, partnershipType: "PREFERRED_TRANSFER", relationshipStrength: 0, startDate: "2026-08-01", endDate: "2026-08-15" });
+    activateClubPartnership(db, partnership.id, { date: "2026-08-01", eligibility: { eligible: true, score: 70 } });
+    const network = new ClubNetworkRepository(db);
+    expect(network.activePreferredTransferPartnerships(nepaliClub.id, "2026-08-01").map((item) => item.toClubId)).toEqual([external.clubId]);
+    const preferred = findPermanentTransferCandidatesForClub(db, nepaliClub.id, { positionGroup: "DEPTH", severity: "LOW", reason: "preferred transfer" }, "2026-08-01");
+    expect(preferred.length).toBeLessThanOrEqual(12);
+    expect(preferred.findIndex((item) => item.clubId === external.clubId)).toBeGreaterThanOrEqual(0);
+    expect(preferred.findIndex((item) => item.clubId === external.clubId)).toBeLessThanOrEqual(Math.max(0, baseline.findIndex((item) => item.clubId === external.clubId)));
+    expect(network.activePreferredTransferPartnerships(nepaliClub.id, "2026-08-16")).toEqual([]);
+    db.prepare("UPDATE international_club_partnerships SET status='SUSPENDED' WHERE id=?").run(partnership.id);
+    expect(network.activePreferredTransferPartnerships(nepaliClub.id, "2026-08-01")).toEqual([]);
+    expect(findPermanentTransferCandidatesForClub(db, nepaliClub.id, { positionGroup: "DEPTH", severity: "LOW", reason: "preferred transfer" }, "2026-08-01")).toEqual(baseline);
+    db.close();
     rmSync(created.directory, { recursive: true, force: true });
   });
 });
