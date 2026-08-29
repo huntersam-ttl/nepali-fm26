@@ -12,7 +12,7 @@ import {
   migrateDatabase,
   type GameDatabase,
 } from "@nepal-football-sim/database";
-import { DesktopApplicationService } from "@nepal-football-sim/simulation";
+import { createRivalry, DesktopApplicationService } from "@nepal-football-sim/simulation";
 import { createStableEntityId, type EntityId } from "@nepal-football-sim/shared-types";
 
 const WORLD_DATASET = resolve("data/nepal/2026-08/club-registry.json");
@@ -147,6 +147,65 @@ describe("match finalization", () => {
       const mediaStories = new MediaRepository(db).stories();
       expect(mediaStories.filter((story) => story.sourceEntityId === createStableEntityId("history", "production-media-hook"))).toHaveLength(1);
       expect(mediaStories.filter((story) => story.sourceEntityId === createStableEntityId("history", `MATCH:${match.id}`))).toHaveLength(0);
+    } finally {
+      db.close();
+    }
+    expect(service.loadCareer(saveId).ok).toBe(true);
+  }, 180_000);
+
+  it("surfaces a stored rivalry through match history and production media", () => {
+    const fixtures = service.getFixtures();
+    expect(fixtures.ok).toBe(true);
+    if (!fixtures.ok) return;
+    const target = fixtures.data.upcoming[0]!;
+
+    service.closeCareer();
+    const prepared = openSave();
+    const fixture = prepared
+      .prepare("SELECT home_team_id, away_team_id FROM fixtures WHERE id = ?")
+      .get(target.id) as { home_team_id: EntityId; away_team_id: EntityId };
+    const homeClubId = (
+      prepared.prepare("SELECT club_id FROM teams WHERE id = ?").get(fixture.home_team_id) as {
+        club_id: EntityId;
+      }
+    ).club_id;
+    const awayClubId = (
+      prepared.prepare("SELECT club_id FROM teams WHERE id = ?").get(fixture.away_team_id) as {
+        club_id: EntityId;
+      }
+    ).club_id;
+    const storedRivalry = createRivalry({
+      clubId: homeClubId,
+      rivalClubId: awayClubId,
+      origin: "HISTORIC",
+      date: target.date,
+    });
+    const supporterCulture = new SupporterCultureRepository(prepared);
+    supporterCulture.upsertRivalry(storedRivalry);
+    expect(supporterCulture.rivalry(awayClubId, homeClubId)?.id).toBe(storedRivalry.id);
+    prepared.close();
+
+    expect(service.loadCareer(saveId).ok).toBe(true);
+    expect(service.quickSimMatch(target.id).ok).toBe(true);
+    service.closeCareer();
+
+    const db = openSave();
+    try {
+      const match = db.prepare("SELECT id FROM matches WHERE fixture_id = ?").get(target.id) as {
+        id: EntityId;
+      };
+      const historyId = createStableEntityId("history", `MATCH:${match.id}`);
+      const history = db
+        .prepare("SELECT title, importance, data_json FROM historical_events WHERE id = ?")
+        .get(historyId) as { title: string; importance: string; data_json: string };
+      expect(history.title).toBe("Rivalry match completed");
+      expect(history.importance).toBe("high");
+      expect(JSON.parse(history.data_json)).toMatchObject({ rivalryId: storedRivalry.id });
+      const story = new MediaRepository(db)
+        .stories()
+        .find((candidate) => candidate.sourceEntityId === historyId);
+      expect(story).toBeDefined();
+      expect(story?.importance).toBeGreaterThanOrEqual(4);
     } finally {
       db.close();
     }

@@ -239,17 +239,18 @@ export const finalizeMatch = (
 
     const homeClubId = clubIdForTeam(db, context.fixture.homeTeamId);
     const awayClubId = clubIdForTeam(db, context.fixture.awayTeamId);
+    let matchRivalry: ReturnType<SupporterCultureRepository["rivalry"]>;
     if (homeClubId && awayClubId) {
       initializeSupporterCultureForSave({
         db,
         worldDate: result.match.playedDate ?? context.fixture.scheduledDate,
         seed: context.save?.randomSeed ?? context.seed,
       });
-      const rivalry = new SupporterCultureRepository(db).rivalry(homeClubId, awayClubId);
+      matchRivalry = new SupporterCultureRepository(db).rivalry(homeClubId, awayClubId);
       const homeGoals = result.match.homeGoals ?? 0;
       const awayGoals = result.match.awayGoals ?? 0;
       const resultDelta = homeGoals === awayGoals ? 0 : homeGoals > awayGoals ? 1 : -1;
-      const rivalryEvent = rivalry
+      const rivalryEvent = matchRivalry
         ? {
             date: result.match.playedDate ?? context.fixture.scheduledDate,
             met: true,
@@ -262,7 +263,7 @@ export const finalizeMatch = (
         opponentClubId: awayClubId,
         date: result.match.playedDate ?? context.fixture.scheduledDate,
         performanceVsExpectation: resultDelta * 12 + (homeGoals - awayGoals) * 3,
-        derbyResult: rivalry ? (resultDelta as -1 | 0 | 1) : undefined,
+        derbyResult: matchRivalry ? (resultDelta as -1 | 0 | 1) : undefined,
         rivalryEvent,
         attendance: economy?.attendance,
         capacity: economy?.capacity,
@@ -273,8 +274,8 @@ export const finalizeMatch = (
         opponentClubId: homeClubId,
         date: result.match.playedDate ?? context.fixture.scheduledDate,
         performanceVsExpectation: -resultDelta * 12 + (awayGoals - homeGoals) * 3,
-        derbyResult: rivalry ? (-resultDelta as -1 | 0 | 1) : undefined,
-        rivalryEvent: rivalry
+        derbyResult: matchRivalry ? (-resultDelta as -1 | 0 | 1) : undefined,
+        rivalryEvent: matchRivalry
           ? { ...rivalryEvent!, date: result.match.playedDate ?? context.fixture.scheduledDate }
           : undefined,
       });
@@ -284,6 +285,7 @@ export const finalizeMatch = (
       context.fixture,
       result,
       result.match.playedDate ?? context.fixture.scheduledDate,
+      matchRivalry,
     );
     // Publish only existing notable history events; the media publisher owns
     // the importance threshold and stable source-event idempotency.

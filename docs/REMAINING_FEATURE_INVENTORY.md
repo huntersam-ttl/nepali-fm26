@@ -3,7 +3,7 @@
 ## Snapshot
 
 Audit date: 2026-08-29. Repository: `/Users/cc/nepali-fm26`. Final reconciliation based on
-HEAD `1ea3cb9`; the pre-existing untracked `nepali-fm26/` entry
+HEAD `115b6dd`; the pre-existing untracked `nepali-fm26/` entry
 remains untouched.
 
 The inventory has 92 normalized entries: the 84 row-level entries in the previous feature
@@ -47,7 +47,7 @@ The following systems are COMPLETE:
 - Youth intake, development, retirement, and late developers; free agents; foreign player supply into Nepal; player regeneration and long-save supply; staff/referee regeneration and long-save supply.
 - Global generated-player lifecycle: context-only external players now persist through deterministic development, peak/decline, affiliation/free-agent reconciliation, retirement, replenishment, and reload-safe future-star emergence without simulating proprietary foreign leagues.
 - External/global competition context: persisted domestic qualifiers now resolve into deterministic, history-backed continental context with bounded club/player reputation effects.
-- Women's clubs and competitions; macroeconomy; personal wealth; supporter base, attendance, atmosphere, and mood; awards. The separate rivalry system remains PARTIAL.
+- Women's clubs and competitions; macroeconomy; personal wealth; supporter base, attendance, atmosphere, and mood; awards. Stored rivalry-to-match production context is now wired; broader rivalry seeding and evolution remains PARTIAL.
 - AI squad planning, transfers, and contracts; AI federation and national-team automation; senior-men, senior-women, and U17/U20/U23 national teams and international competition.
 - Stadium, training, youth, medical, and technical infrastructure; desktop runtime and SQLite; legal and data provenance.
 
@@ -85,7 +85,7 @@ Legacy partials:
 - Real Nepal player database and provenance; role-limited real staff database (the verified
   Nepal senior-men national-team head-coach relationship is now production-wired); girls
   development, schools, grassroots, and academies.
-- media and journalism (notable-event publishing is now production-wired); rivalries; AI chairman.
+- media and journalism (notable-event publishing is now production-wired); rivalries (stored relationships now reach match history/media, with broader seeding/evolution remaining partial); AI chairman.
 - Tauri shell/native packaging; performance.
 
 High-risk overlays:
@@ -155,7 +155,7 @@ production path.
   loan scope is contract, wages, recall, expiry, return, and option-to-buy.
 - Final 20/50-year balancing; mobile; final release workflow.
 
-## Final Reconciliation (HEAD `1ea3cb9`)
+## Final Reconciliation (HEAD `115b6dd`)
 
 The 92 normalized rows were rechecked against source reachability and focused production tests.
 The mechanical status total is now 69 COMPLETE, 1 BUILT_NOT_PROVEN, 15 PARTIAL, 3 MISSING,
@@ -168,7 +168,7 @@ authority; default match-view wiring; club creation; takeover lifecycle; grants/
 distribution; prize/revenue sharing;
 real Nepal player coverage; diaspora/Nepalis abroad; girls development/schools/grassroots;
 media/journalism (bounded notable-event publishing is complete, but the broader journalism
-surface remains partial); rivalries; AI chairman; and the role-limited real staff
+surface remains partial); rivalries (stored match context is wired, broader rivalry surface remains partial); AI chairman; and the role-limited real staff
 dataset. The three MISSING rows are women's factual player data, legends/cult heroes, and a real
 referee database. The four LATER rows are global club tournaments, loan-development/minutes
 attribution, mobile, and final release workflow.

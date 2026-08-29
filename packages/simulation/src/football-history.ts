@@ -1,5 +1,6 @@
 import {
   createStableEntityId,
+  type ClubRivalry,
   type EntityId,
   type FixtureRecord,
   type MatchResult,
@@ -15,6 +16,7 @@ export const recordFootballMatchHistory = (
   fixture: FixtureRecord,
   result: MatchResult,
   playedDate: string,
+  rivalry?: Pick<ClubRivalry, "id" | "intensity">,
 ): void => {
   const eventId = createStableEntityId("history", `MATCH:${result.match.id}`);
   if (!db.prepare("SELECT 1 FROM historical_events WHERE id=?").get(eventId)) {
@@ -29,14 +31,15 @@ export const recordFootballMatchHistory = (
         { type: "team", id: fixture.awayTeamId },
         { type: "competitionSeason", id: fixture.competitionSeasonId as EntityId },
       ],
-      title: "Competitive match completed",
+      title: rivalry ? "Rivalry match completed" : "Competitive match completed",
       data: {
         fixtureId: fixture.id,
         homeGoals,
         awayGoals,
         winnerTeamId: result.match.winnerTeamId,
+        ...(rivalry ? { rivalryId: rivalry.id, rivalryIntensity: rivalry.intensity } : {}),
       },
-      importance: fixture.round >= 20 ? "high" : "low",
+      importance: rivalry || fixture.round >= 20 ? "high" : "low",
       scope: "world",
     });
     const margin = Math.abs(homeGoals - awayGoals);

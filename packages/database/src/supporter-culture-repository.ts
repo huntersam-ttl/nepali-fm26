@@ -106,8 +106,14 @@ export class SupporterCultureRepository {
 
   rivalry(clubId: EntityId, rivalClubId: EntityId): ClubRivalry | undefined {
     const row = this.db
-      .prepare("SELECT * FROM club_rivalries WHERE club_id = ? AND rival_club_id = ?")
-      .get(clubId, rivalClubId) as any;
+      .prepare(
+        `SELECT * FROM club_rivalries
+         WHERE (club_id = ? AND rival_club_id = ?)
+            OR (club_id = ? AND rival_club_id = ?)
+         ORDER BY intensity DESC, id
+         LIMIT 1`,
+      )
+      .get(clubId, rivalClubId, rivalClubId, clubId) as any;
     return row ? rivalry(row) : undefined;
   }
 
