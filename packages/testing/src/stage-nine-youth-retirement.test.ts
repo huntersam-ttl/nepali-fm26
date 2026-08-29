@@ -54,7 +54,15 @@ describe("youth intake and retirement foundation", () => {
       seed: "origin-flags",
     });
     const youth = new YouthRepository(db);
-    const origins = youth.generatedPlayerOrigins();
+    /*
+     * Save creation bootstraps lower-league squads through the same generator, so
+     * the origins table also holds those players. Only the annual intake's own
+     * origins belong in this comparison.
+     */
+    const annualEventIds = new Set(youth.annualIntakeEvents("2026").map((event) => event.id));
+    const origins = youth
+      .generatedPlayerOrigins()
+      .filter((origin) => origin.intakeEventId && annualEventIds.has(origin.intakeEventId));
 
     expect(report.generatedPlayers).toBeGreaterThan(40);
     expect(report.generatedPlayers).toBeLessThan(120);
@@ -118,8 +126,10 @@ describe("youth intake and retirement foundation", () => {
   });
 
   it("is deterministic for the same save seed and does not regenerate after reload", () => {
-    const firstPath = createSave("deterministic-a");
-    const secondPath = createSave("deterministic-b");
+    // Both fixtures must share a save seed; differing seeds give differing
+    // bootstrap squads, and the intake then dedupes against different names.
+    const firstPath = createSave("deterministic-save");
+    const secondPath = createSave("deterministic-save");
     const first = openGameDatabase(firstPath);
     const second = openGameDatabase(secondPath);
     const firstReport = runAnnualYouthAndRetirementCycle({
@@ -147,9 +157,15 @@ describe("youth intake and retirement foundation", () => {
       seed: "same-youth-seed",
     });
     expect(rerun.generatedPlayers).toBe(firstReport.generatedPlayers);
-    expect(new YouthRepository(reloaded).generatedPlayerOrigins()).toHaveLength(
-      firstReport.generatedPlayers,
+    const reloadedYouth = new YouthRepository(reloaded);
+    const reloadedAnnual = new Set(
+      reloadedYouth.annualIntakeEvents("2026").map((event) => event.id),
     );
+    expect(
+      reloadedYouth
+        .generatedPlayerOrigins()
+        .filter((origin) => origin.intakeEventId && reloadedAnnual.has(origin.intakeEventId)),
+    ).toHaveLength(firstReport.generatedPlayers);
     reloaded.close();
   });
 

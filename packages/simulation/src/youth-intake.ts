@@ -18,6 +18,7 @@ import {
   type StaffAppointment,
   type TeamPersonAssignment,
   type YouthPlayerStatus,
+  type YouthIntakeSource,
 } from "@nepal-football-sim/shared-types";
 import {
   EventRepository,
@@ -248,17 +249,17 @@ export const generateYouthCohort = (input: {
   count: number;
   gender?: GeneratedYouthGender;
   cohortKey?: string;
+  source?: YouthIntakeSource;
 }): YouthAnnualReport => {
   initializeYouthSystemForSave({ db: input.db, worldDate: input.date, seed: input.seed });
   const youth = new YouthRepository(input.db);
   const academyRows = academies(input.db);
-  const club = input.clubId
-    ? youthClubs(input.db)
-        .map((row) =>
-          row.id === input.clubId ? { ...row, teamId: input.teamId ?? row.teamId } : row,
-        )
-        .find((row) => row.id === input.clubId)
-    : undefined;
+  /*
+   * Resolved by ID rather than from the playable-world list: the foreign world
+   * generates cohorts for CONTEXT_ONLY clubs, which that list deliberately omits.
+   * Scope belongs to the annual cycle's club iteration, not to a targeted lookup.
+   */
+  const club = input.clubId ? youthClubById(input.db, input.clubId, input.teamId) : undefined;
   const academy = input.academyId
     ? academyRows.find((row) => row.id === input.academyId)
     : club
@@ -284,6 +285,7 @@ export const generateYouthCohort = (input: {
     seenNames: existingNames(input.db),
     gender: input.gender,
     cohortKey: input.cohortKey,
+    source: input.source,
   });
 };
 
@@ -339,6 +341,8 @@ const generateIntakeForSource = (input: {
    * person IDs and intake events never collide.
    */
   cohortKey?: string;
+  /** Which event this cohort belongs to; defaults to the club's annual intake. */
+  source?: YouthIntakeSource;
 }): YouthAnnualReport => {
   const youth = new YouthRepository(input.db);
   const rng = new SeededRandom(input.seed);
@@ -359,6 +363,7 @@ const generateIntakeForSource = (input: {
     intakeDate: input.date,
     seasonLabel: input.seasonLabel,
     intakeType,
+    source: input.source ?? "ANNUAL_INTAKE",
     playersGenerated: 0,
     averageCurrentAbility: 0,
     averagePotential: 0,
@@ -412,6 +417,7 @@ const generateIntakeForSource = (input: {
     intakeDate: input.date,
     seasonLabel: input.seasonLabel,
     intakeType,
+    source: input.source ?? "ANNUAL_INTAKE",
     playersGenerated: generated.length,
     averageCurrentAbility,
     averagePotential,
@@ -1252,6 +1258,32 @@ const youthClubs = (db: GameDatabase): YouthClub[] =>
       teamId: row.team_id ?? undefined,
     }));
 
+const youthClubById = (
+  db: GameDatabase,
+  clubId: EntityId,
+  teamId?: EntityId,
+): YouthClub | undefined => {
+  const row = db
+    .prepare(
+      `SELECT c.*, MIN(t.id) AS team_id
+      FROM clubs c
+      LEFT JOIN teams t ON t.club_id = c.id AND t.level = 'senior'
+      WHERE c.id = ?
+      GROUP BY c.id`,
+    )
+    .get(clubId) as any;
+  if (!row) return undefined;
+  return {
+    id: row.id,
+    name: row.name,
+    countryId: row.country_id,
+    locationId: row.location_id ?? undefined,
+    canonicalExternalId: row.canonical_external_id ?? undefined,
+    ownershipType: row.ownership_type,
+    teamId: teamId ?? row.team_id ?? undefined,
+  };
+};
+
 const academies = (db: GameDatabase): YouthAcademy[] =>
   db
     .prepare("SELECT * FROM academies ORDER BY name")
@@ -1442,9 +1474,8 @@ const summarizeExistingSeason = (
   date: string,
 ): YouthAnnualReport => {
   const report = blankAnnualReport(nepalIntakeDateFor(date), seasonLabel);
-  const events = new YouthRepository(db)
-    .youthIntakeEvents()
-    .filter((event) => event.seasonLabel === seasonLabel);
+  // Squad repair during save creation is not the club's annual intake.
+  const events = new YouthRepository(db).annualIntakeEvents(seasonLabel);
   report.intakeEvents = events.length;
   report.generatedPlayers = events.reduce((total, event) => total + event.playersGenerated, 0);
   report.averageCurrentAbility = average(events.map((event) => event.averageCurrentAbility));
