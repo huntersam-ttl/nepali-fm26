@@ -1603,6 +1603,16 @@ const updateCohesion = (
   }
 };
 
+/** Restricts a candidate list to IDs that exist as canonical persons. */
+const canonicalPersonIds = (db: GameDatabase, personIds: readonly EntityId[]): Set<EntityId> => {
+  if (personIds.length === 0) return new Set();
+  const placeholders = personIds.map(() => "?").join(",");
+  const rows = db
+    .prepare(`SELECT id FROM persons WHERE id IN (${placeholders})`)
+    .all(...personIds) as Array<{ id: EntityId }>;
+  return new Set(rows.map((row) => row.id));
+};
+
 const persistNationalFixtureAndAppearances = (
   db: GameDatabase,
   federation: Federation,
@@ -1633,7 +1643,15 @@ const persistNationalFixtureAndAppearances = (
   };
   const repo = new FederationGovernanceRepository(db);
   repo.upsertNationalTeamFixture(fixture);
-  for (const state of states.filter((item) => item.teamId === nationalTeamId)) {
+  // Match lineup repair may field transient replacement players when the squad is
+  // short. Those IDs are deliberately absent from `persons`, so they must never
+  // reach person-keyed national-team history.
+  const selected = states.filter((item) => item.teamId === nationalTeamId);
+  const canonical = canonicalPersonIds(
+    db,
+    selected.map((item) => item.personId),
+  );
+  for (const state of selected.filter((item) => canonical.has(item.personId))) {
     const appearance: NationalTeamAppearance = {
       id: createStableEntityId("national-team-appearance", `${match.id}:${state.personId}`),
       nationalTeamId,

@@ -38,6 +38,7 @@ import {
   CompetitionRepository,
   FederationComplianceRepository,
   FederationGovernanceRepository,
+  WorkforceSupplyRepository,
   WorldRepository,
   YouthRepository,
   type GameDatabase,
@@ -934,6 +935,72 @@ export const runRefereeProgramme = (
   return programme;
 };
 
+/** Annual bounded development for active domestic officials. */
+const runFederationRefereeDevelopment = (
+  db: GameDatabase,
+  federation: Federation,
+  date: string,
+  seed: string,
+): void => {
+  if (!date.endsWith("-09-28")) return;
+  if (federation.id !== anfaFederation(db).id) return;
+  const governance = new FederationGovernanceRepository(db);
+  const existing = governance
+    .refereeDevelopmentProgrammes(federation.id)
+    .find((programme) => programme.programmeType === "TRAINING" && programme.startDate === date);
+  if (existing) return;
+
+  const workforce = new WorkforceSupplyRepository(db);
+  const participants = workforce
+    .activeOfficials("REFEREE")
+    .filter((official) => official.countryId === federation.countryId)
+    .sort(
+      (a, b) =>
+        a.quality - b.quality ||
+        b.potential - a.potential ||
+        a.personId.localeCompare(b.personId),
+    )
+    .slice(0, 4);
+  if (participants.length === 0) return;
+
+  const account = governance.financialAccount(federation.id);
+  const cost = participants.length * 22000;
+  if (!account || account.cashBalance - cost < reserveFloor(account)) return;
+
+  const programme = runRefereeProgramme(db, {
+    federationId: federation.id,
+    programmeType: "TRAINING",
+    startDate: date,
+    seed,
+    capacity: participants.length,
+  });
+  governance.upsertRefereeDevelopmentProgramme({
+    ...programme,
+    refereesAdvanced: participants.length,
+  });
+
+  for (const official of participants) {
+    const qualityGain = Math.min(0.8, Math.max(0.2, (official.potential - official.quality) * 0.04));
+    workforce.upsertOfficial({
+      ...official,
+      quality: Math.min(100, Number((official.quality + qualityGain).toFixed(2))),
+      fitness: Math.min(100, Number((official.fitness + 0.5).toFixed(2))),
+      experience: Math.min(100, Number((official.experience + 0.35).toFixed(2))),
+    });
+    new WorldRepository(db).insertStaffHistoryEvent({
+      id: createStableEntityId(
+        "staff-history",
+        `${official.personId}:referee-development:${programme.id}`,
+      ),
+      personId: official.personId,
+      eventType: "REFEREE_DEVELOPMENT_COMPLETED",
+      occurredOn: programme.endDate,
+      federationId: federation.id,
+      description: `Completed bounded federation referee development (${programme.programmeType}).`,
+    });
+  }
+};
+
 export const getFederationKPIs = (
   db: GameDatabase,
   federationId = anfaFederation(db).id,
@@ -997,6 +1064,7 @@ export const processFederationMonth = (
     runFederationAiSeasonPlanning(db, { date: input.date, seed: input.seed });
   }
   for (const federation of allFederations(db)) {
+    runFederationRefereeDevelopment(db, federation, input.date, input.seed);
     const activeSponsorships = repo
       .federationSponsorships(federation.id)
       .filter(
