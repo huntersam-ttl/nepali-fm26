@@ -125,7 +125,7 @@ High-risk overlays:
 | Women / youth internationals | category-aware selection, age/availability/eligibility filters, shared fixture/result records | women and U17 end-to-end, sanctions, age-out, senior pathway | bounded seasonal SAFF/AFC calendar | squads, results, caps, history, and repeated progression |
 | Foreign staff movement | vacancy, decision, contract, retirement helpers | two-way CONTEXT_ONLY moves and replacement | desktop and seasonal context cadence | contracts/history/replacements reload |
 | Global generated lifecycle | canonical attributes, potential, development, retirement, and context records | focused lifecycle/reload/determinism coverage | seasonal context lifecycle plus bounded replenishment | identity, retirement, development, and replenishment reload-safe |
-| External competition context | external profile helpers | global-context season persistence | career seasonal cadence | context rows reload |
+| External competition context | external profile helpers | global-context season persistence | career seasonal cadence seam (`career-external-context.test.ts`) | context rows reload |
 | Partnerships | pathway/evaluation helpers and lifecycle | all eight bounded production types, expiry, and reload | bounded production consumers | partnership-specific reload and expiry coverage |
 | Multi-club | ownership lookup, pathway, valuation, governance helpers | imported external club, scouting, offer review, reload | scouting/transfer/loan candidate paths and offer governance | ownership lookup reload |
 | Sell-on | offer persistence and entitlement | resale, exact-once ledger/history settlement | canonical permanent-transfer completion | clause and settlement reload |

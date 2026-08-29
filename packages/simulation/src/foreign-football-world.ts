@@ -60,6 +60,7 @@ const FOREIGN_BOOTSTRAP_LABEL = "foreign-world-bootstrap";
 const FOREIGN_BOOTSTRAP_KIND = "FOREIGN_WORLD_BOOTSTRAP";
 const FOREIGN_BOOTSTRAP_COHORT = "foreign-market";
 const FOREIGN_REPLENISHMENT_KIND = "FOREIGN_WORLD_REPLENISHMENT";
+const FOREIGN_SEASON_KIND = "FOREIGN_WORLD_SEASON";
 
 const confederationFor = (isoCode: string): "AFC" | "CAF" | "CONCACAF" | "CONMEBOL" | "OFC" | "UEFA" =>
   ["NG", "GH"].includes(isoCode) ? "CAF" : ["IN", "BD", "BT", "MV", "PK", "LK", "AF", "JP", "AE"].includes(isoCode) ? "AFC" : "UEFA";
@@ -250,6 +251,19 @@ export const processForeignFootballWorldSeason = (input: {
   seasonEndDate: string;
   seed: string;
 }): void => {
+  // The career rollover is a once-per-season boundary. Claim it before any
+  // downstream reputation, lifecycle, staff, or scouting writes so a retry
+  // after reload cannot advance the same outside season twice.
+  if (
+    !claimForeignCycle(input.db, {
+      seasonLabel: input.seasonEndDate.slice(0, 4),
+      kind: FOREIGN_SEASON_KIND,
+      contextKey: "global-external-world",
+      date: input.seasonEndDate,
+    })
+  ) {
+    return;
+  }
   const staffSave = {
     id: createStableEntityId("foreign-staff-season-save", `${input.seed}:${input.seasonEndDate}`),
     name: "Foreign staff season",

@@ -715,11 +715,21 @@ rather than committed: at that runtime it would not be run, and an unrun test is
 - Player lifecycle, replacement generation, starting reputation, reputation progression,
   future-star emergence, external competitions, clubs, staff, transfers, loans, trials, and the
   CONTEXT_ONLY boundary: **COMPLETE**, each covered by focused suites.
-- Production flow from a normal career: **BUILT, PROVEN BY CALL CHAIN AND SUBSYSTEM TESTS**, not by
-  an end-to-end career test. Closing that last link needs the seeded-career cost above addressed
-  first.
+- Production flow from a normal career: **COMPLETE at the bounded production seam**, proven by the
+  career rollover seam test below; a full seeded-career test remains intentionally excluded because
+  of the measured cost above.
 
-## Remaining External-Context Gap
+## Career Orchestration Proof
 
-One, and it is proof debt rather than missing behaviour: an end-to-end career-driven assertion that
-the outside world advances. Everything it would assert is already covered at the subsystem level.
+The final production-flow seam is now covered without driving the pathological full seeded Nepal
+season. `simulateNepalCareer` reaches `processCareerExternalWorldSeason` at the rollover boundary,
+passing `latestSeasonEnd(activeSeasons)` and the deterministic `foreign-world` seed; that seam calls
+the canonical `processForeignFootballWorldSeason` chain. The focused SQLite test in
+`packages/testing/src/career-external-context.test.ts` proves a real seasonal call persists external
+league seasons, player contexts, scouting interest, and context-only clubs with the supplied date.
+Re-entering the same season/seed is a no-op through the existing intake claim, so downstream rows do
+not advance twice. No full Nepal career season, 20/50-year save, or detailed foreign fixture
+simulation is claimed by this proof.
+
+The broader external-context gap is therefore closed at the production caller seam. The separate
+long-save/performance gate remains intentionally unstarted.

@@ -179,6 +179,19 @@ type RunnableSeason = {
   teamIds: EntityId[];
 };
 
+/**
+ * The canonical external-world phase used by the career season rollover.
+ * Keeping this tiny seam explicit lets production-flow tests exercise the
+ * real caller boundary without simulating a full Nepal season.
+ */
+export const processCareerExternalWorldSeason = (input: {
+  db: GameDatabase;
+  seasonEndDate: string;
+  seed: string;
+}): void => {
+  processForeignFootballWorldSeason(input);
+};
+
 const entityCache = new WeakMap<GameDatabase, { persons: Set<EntityId>; teams: Set<EntityId> }>();
 
 export const simulateNepalCareer = (input: {
@@ -401,7 +414,7 @@ export const simulateNepalCareer = (input: {
         seed: `${input.seed}:international:${index}`,
       });
     }
-    processForeignFootballWorldSeason({
+    processCareerExternalWorldSeason({
       db: input.db,
       seasonEndDate: latestSeasonEnd(activeSeasons),
       seed: `${input.seed}:foreign-world:${index}`,
