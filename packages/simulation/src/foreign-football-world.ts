@@ -61,6 +61,8 @@ const FOREIGN_BOOTSTRAP_KIND = "FOREIGN_WORLD_BOOTSTRAP";
 const FOREIGN_BOOTSTRAP_COHORT = "foreign-market";
 const FOREIGN_REPLENISHMENT_KIND = "FOREIGN_WORLD_REPLENISHMENT";
 const FOREIGN_SEASON_KIND = "FOREIGN_WORLD_SEASON";
+const DIASPORA_SEASON_KIND = "FOREIGN_WORLD_DIASPORA_PRODUCTION";
+const DIASPORA_ANNUAL_CAP = 2;
 
 const confederationFor = (isoCode: string): "AFC" | "CAF" | "CONCACAF" | "CONMEBOL" | "OFC" | "UEFA" =>
   ["NG", "GH"].includes(isoCode) ? "CAF" : ["IN", "BD", "BT", "MV", "PK", "LK", "AF", "JP", "AE"].includes(isoCode) ? "AFC" : "UEFA";
@@ -295,6 +297,7 @@ export const processForeignFootballWorldSeason = (input: {
        ORDER BY c.id`,
     )
     .all() as Array<{ club_id: EntityId; country_id: EntityId; team_id: EntityId }>;
+  produceDiasporaPlayers(input, clubs);
   for (const club of clubs) {
     const year = input.seasonEndDate.slice(0, 4);
     const players = foreignSquadSize(input.db, club.club_id, club.team_id);
@@ -339,6 +342,43 @@ export const processForeignFootballWorldSeason = (input: {
     seed: `${input.seed}:foreign-trials`,
     maxCandidates: 2,
   });
+};
+
+/** Fictional Nepal-primary players on existing CONTEXT_ONLY clubs. */
+const produceDiasporaPlayers = (
+  input: { db: GameDatabase; seasonEndDate: string; seed: string },
+  clubs: Array<{ club_id: EntityId; country_id: EntityId; team_id: EntityId }>,
+): void => {
+  const year = input.seasonEndDate.slice(0, 4);
+  if (!claimForeignCycle(input.db, {
+    seasonLabel: year,
+    kind: DIASPORA_SEASON_KIND,
+    contextKey: "nepal-diaspora",
+    date: input.seasonEndDate,
+  })) return;
+  const nepal = input.db
+    .prepare("SELECT id FROM countries WHERE iso_code IN ('NP', 'NPL') ORDER BY CASE iso_code WHEN 'NP' THEN 0 ELSE 1 END LIMIT 1")
+    .get() as { id?: EntityId } | undefined;
+  if (!nepal?.id) return;
+  const ordered = [...clubs].sort((a, b) => {
+    const left = new SeededRandom(`${input.seed}:diaspora:${year}:${a.club_id}`).next();
+    const right = new SeededRandom(`${input.seed}:diaspora:${year}:${b.club_id}`).next();
+    return left - right || a.club_id.localeCompare(b.club_id);
+  });
+  for (const club of ordered.slice(0, DIASPORA_ANNUAL_CAP)) {
+    generateYouthCohort({
+      db: input.db,
+      countryId: nepal.id,
+      clubId: club.club_id,
+      teamId: club.team_id,
+      date: input.seasonEndDate,
+      seasonLabel: year,
+      seed: `${input.seed}:diaspora:${year}:${club.club_id}`,
+      count: 1,
+      cohortKey: `diaspora-${year}`,
+      originOverride: "DIASPORA_YOUTH",
+    });
+  }
 };
 
 /**

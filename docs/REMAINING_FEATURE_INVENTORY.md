@@ -3,7 +3,7 @@
 ## Snapshot
 
 Audit date: 2026-08-29. Repository: `/Users/cc/nepali-fm26`. Final reconciliation based on
-HEAD `2b89755`; the pre-existing untracked `nepali-fm26/` entry
+HEAD `84b5b81`; the pre-existing untracked `nepali-fm26/` entry
 remains untouched.
 
 The inventory has 92 normalized entries: the 84 row-level entries in the previous feature
@@ -11,9 +11,9 @@ audit, plus the eight explicit high-risk overlays requested for this pass. Statu
 
 | Status | Count |
 | --- | ---: |
-| COMPLETE | 70 |
+| COMPLETE | 71 |
 | BUILT_NOT_PROVEN | 1 |
-| PARTIAL | 14 |
+| PARTIAL | 13 |
 | MISSING | 3 |
 | LATER | 4 |
 | **Total** | **92** |
@@ -85,7 +85,8 @@ Legacy partials:
   AI club-support slice now pays a bounded, deterministic set of playable domestic clubs through the
   canonical federation/club ledgers, and approved competition distributions now settle at season finalization;
   government funding and policy creation/approval remain PARTIAL.
-- Insurance and welfare; the national-team camp slice and federation severe-injury welfare programme are COMPLETE; diaspora and Nepalis abroad.
+- Insurance and welfare; the national-team camp slice and federation severe-injury welfare programme are COMPLETE.
+- Diaspora and Nepalis abroad — COMPLETE for bounded generated Nepal-primary players: the annual CONTEXT_ONLY foreign-world lifecycle now produces a deterministic cap of two fictional SIMULATION_ONLY players, assigns them to existing foreign clubs, and reuses the canonical youth/profile/contract/development, scouting search, and national-team eligibility consumers. Detailed foreign youth/league simulation remains out of scope.
 - Real Nepal player database and provenance; role-limited real staff database (the verified
   Nepal senior-men national-team head-coach relationship is now production-wired); girls
   development, schools, grassroots, and academies.

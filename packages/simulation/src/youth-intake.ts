@@ -250,6 +250,7 @@ export const generateYouthCohort = (input: {
   gender?: GeneratedYouthGender;
   cohortKey?: string;
   source?: YouthIntakeSource;
+  originOverride?: PlayerOriginType;
 }): YouthAnnualReport => {
   initializeYouthSystemForSave({ db: input.db, worldDate: input.date, seed: input.seed });
   const youth = new YouthRepository(input.db);
@@ -286,6 +287,7 @@ export const generateYouthCohort = (input: {
     gender: input.gender,
     cohortKey: input.cohortKey,
     source: input.source,
+    originOverride: input.originOverride,
   });
 };
 
@@ -343,6 +345,7 @@ const generateIntakeForSource = (input: {
   cohortKey?: string;
   /** Which event this cohort belongs to; defaults to the club's annual intake. */
   source?: YouthIntakeSource;
+  originOverride?: PlayerOriginType;
 }): YouthAnnualReport => {
   const youth = new YouthRepository(input.db);
   const rng = new SeededRandom(input.seed);
@@ -373,7 +376,7 @@ const generateIntakeForSource = (input: {
     data: { pending: true },
   });
   for (let index = 0; index < input.count; index += 1) {
-    const origin = originTypeFor(input.academy, input.club, rng);
+    const origin = input.originOverride ?? originTypeFor(input.academy, input.club, rng);
     const player = createGeneratedYouth({
       ...input,
       index,
