@@ -1354,7 +1354,7 @@ Status: **COMPLETE**
 Implemented: `ensureAiStaffAssigned` and `evaluateAllStaffContracts` fill core backroom roles from
 free agents first and only generate a person when nobody suitable exists, with affordability checks.
 
-The existing monthly club-economy cadence now evaluates contracts and fills genuine vacancies in
+The existing seasonal August club-economy cadence now evaluates contracts and fills genuine vacancies in
 the headless career simulator (`packages/simulation/src/career-world.ts`), while retaining the
 desktop player-club exclusion and canonical qualification, wage, contract, appointment, and
 history paths. The career regression now asserts production staffing and reload continuity;
