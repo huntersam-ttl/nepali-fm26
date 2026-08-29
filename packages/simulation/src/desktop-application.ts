@@ -170,6 +170,8 @@ import {
   ensureAiStaffAssigned,
   evaluateAllStaffContracts,
   evaluateLicenceCourses,
+  completeTechnicalPartnershipPlacements,
+  planTechnicalPartnershipPlacements,
   evaluateStaffDevelopmentPlans,
   evaluateStaffPerformance,
   evaluateStaffPoaching,
@@ -658,6 +660,8 @@ export class DesktopApplicationService {
         evaluateAllStaffContracts(db, updated);
         if (context.club?.id) evaluateStaffPerformance(db, updated, context.club.id);
         evaluateLicenceCourses(db, updated);
+        completeTechnicalPartnershipPlacements(db, updated);
+        if (context.club?.id) planTechnicalPartnershipPlacements(db, updated, context.club.id);
         evaluateStaffPoaching(db, updated, context.club?.id);
         if (context.club?.id) {
           defaultResponsibilitiesForClub(db, updated, context.club.id);

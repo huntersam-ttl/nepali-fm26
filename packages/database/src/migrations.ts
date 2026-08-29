@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 64;
+export const CURRENT_DATABASE_VERSION = 65;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -3221,6 +3221,28 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       CREATE UNIQUE INDEX IF NOT EXISTS uq_international_trials_active_pair
         ON international_trials(player_id, host_club_id)
         WHERE state IN ('INVITED', 'ACTIVE');
+    `,
+  },
+  {
+    version: 65,
+    sql: `
+      CREATE TABLE IF NOT EXISTS staff_technical_placements (
+        id TEXT PRIMARY KEY,
+        person_id TEXT NOT NULL REFERENCES persons(id),
+        home_club_id TEXT NOT NULL REFERENCES clubs(id),
+        partner_club_id TEXT NOT NULL REFERENCES clubs(id),
+        partnership_id TEXT NOT NULL REFERENCES international_club_partnerships(id),
+        programme_type TEXT NOT NULL,
+        start_date TEXT NOT NULL,
+        end_date TEXT NOT NULL,
+        status TEXT NOT NULL,
+        development_applied INTEGER NOT NULL DEFAULT 0,
+        completed_on TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_staff_technical_placements_person
+        ON staff_technical_placements(person_id, status);
+      CREATE INDEX IF NOT EXISTS idx_staff_technical_placements_due
+        ON staff_technical_placements(status, end_date);
     `,
   },
 ];

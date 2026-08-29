@@ -781,6 +781,7 @@ export type StaffHistoryEvent = {
     | "MANAGER_RESIGNED"
     | "STAFF_JOINED"
     | "STAFF_LEFT"
+    | "INTERNATIONAL_PLACEMENT_COMPLETED"
     | "FEDERATION_OFFICIAL_APPOINTED"
     | "FEDERATION_OFFICIAL_LEFT"
     | "REFEREE_PROMOTED"
@@ -792,6 +793,20 @@ export type StaffHistoryEvent = {
   federationId?: EntityId;
   academyId?: EntityId;
   description?: string;
+};
+
+export type StaffTechnicalPlacement = {
+  id: EntityId;
+  personId: EntityId;
+  homeClubId: EntityId;
+  partnerClubId: EntityId;
+  partnershipId: EntityId;
+  programmeType: "INTERNATIONAL_PLACEMENT";
+  startDate: ISODate;
+  endDate: ISODate;
+  status: "ACTIVE" | "COMPLETED" | "CANCELLED";
+  developmentApplied: boolean;
+  completedOn?: ISODate;
 };
 
 export type Competition = {

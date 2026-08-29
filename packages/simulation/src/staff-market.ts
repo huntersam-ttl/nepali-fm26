@@ -1,5 +1,6 @@
 import {
   ClubEconomyRepository,
+  ClubNetworkRepository,
   StaffMarketRepository,
   TransferMarketRepository,
   WorldRepository,
@@ -29,6 +30,7 @@ import {
   type StaffResponsibilityDomain,
   type StaffResponsibilityOwnerType,
   type StaffSimulationProfile,
+  type StaffTechnicalPlacement,
   type StaffSuccessionPlan,
   type StaffVacancy,
   type StaffVacancyReason,
@@ -661,6 +663,88 @@ export const ensureAiStaffAssigned = (
       }
     }
   }
+};
+
+const TECHNICAL_PLACEMENT_ROLES = new Set<FootballStaffRole>([
+  "HEAD_COACH", "ASSISTANT_COACH", "FIRST_TEAM_COACH", "GOALKEEPER_COACH",
+  "FITNESS_COACH", "SET_PIECE_COACH", "YOUTH_COACH", "ACADEMY_DIRECTOR",
+  "SCOUT", "CHIEF_SCOUT", "ANALYST", "HEAD_ANALYST", "SPORTING_DIRECTOR",
+  "TECHNICAL_DIRECTOR", "DIRECTOR_OF_FOOTBALL",
+]);
+const TECHNICAL_PLACEMENT_DAYS = 30;
+const MAX_TECHNICAL_PLACEMENTS_PER_CLUB_SEASON = 2;
+
+const technicalPartnerCountry = (db: GameDatabase, partnerClubId: EntityId): EntityId | undefined =>
+  (db.prepare("SELECT country_id FROM clubs WHERE id=? LIMIT 1").get(partnerClubId) as { country_id?: EntityId } | undefined)?.country_id;
+
+/** Plans at most two partner-club placements per home club and season. */
+export const planTechnicalPartnershipPlacements = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  clubId: EntityId,
+  maxPlacements = MAX_TECHNICAL_PLACEMENTS_PER_CLUB_SEASON,
+): StaffTechnicalPlacement[] => {
+  const networks = new ClubNetworkRepository(db);
+  const partnerships = networks.activeTechnicalPartnerships(clubId, save.worldDate);
+  if (partnerships.length === 0) return [];
+  const market = new StaffMarketRepository(db);
+  const year = save.worldDate.slice(0, 4);
+  const seasonCount = market.technicalPlacementsForClub(clubId).filter((item) => item.startDate.startsWith(year)).length;
+  const remaining = Math.max(0, Math.min(maxPlacements, MAX_TECHNICAL_PLACEMENTS_PER_CLUB_SEASON) - seasonCount);
+  if (remaining === 0) return [];
+  const planned: StaffTechnicalPlacement[] = [];
+  for (const appointment of market.activeAppointmentsForClub(clubId)) {
+    if (planned.length >= remaining || !TECHNICAL_PLACEMENT_ROLES.has(appointment.role)) continue;
+    if (market.activeTechnicalPlacementForPerson(appointment.personId)) continue;
+    const partnership = partnerships[planned.length % partnerships.length]!;
+    if (!technicalPartnerCountry(db, partnership.toClubId)) continue;
+    const placement: StaffTechnicalPlacement = {
+      id: createStableEntityId("staff-technical-placement", `${clubId}:${appointment.personId}:${partnership.id}:${save.worldDate}`),
+      personId: appointment.personId,
+      homeClubId: clubId,
+      partnerClubId: partnership.toClubId,
+      partnershipId: partnership.id,
+      programmeType: "INTERNATIONAL_PLACEMENT",
+      startDate: save.worldDate,
+      endDate: addDays(save.worldDate, TECHNICAL_PLACEMENT_DAYS),
+      status: "ACTIVE",
+      developmentApplied: false,
+    };
+    market.upsertTechnicalPlacement(placement);
+    planned.push(placement);
+  }
+  return planned;
+};
+
+/** Completes due placements once, improving an existing staff profile in place. */
+export const completeTechnicalPartnershipPlacements = (
+  db: GameDatabase,
+  save: SaveMetadata,
+): StaffTechnicalPlacement[] => {
+  const market = new StaffMarketRepository(db);
+  const completed: StaffTechnicalPlacement[] = [];
+  for (const placement of market.dueTechnicalPlacements(save.worldDate)) {
+    if (placement.developmentApplied) continue;
+    const profile = market.staffProfile(placement.personId);
+    const appointment = market.activeAppointment(placement.personId);
+    const countryId = technicalPartnerCountry(db, placement.partnerClubId);
+    if (!profile || !appointment || appointment.clubId !== placement.homeClubId || !countryId) continue;
+    const nextCountries = profile.countryKnowledge.includes(countryId)
+      ? profile.countryKnowledge
+      : [...profile.countryKnowledge, countryId];
+    new WorldRepository(db).insertStaffProfile({ ...profile, countryKnowledge: nextCountries });
+    const simulation = market.staffSimulationProfile(placement.personId);
+    if (simulation) market.updateStaffSimulationProfile({ ...simulation, coachingTechnical: Math.min(20, simulation.coachingTechnical + 1) });
+    const finished: StaffTechnicalPlacement = { ...placement, status: "COMPLETED", developmentApplied: true, completedOn: save.worldDate };
+    market.upsertTechnicalPlacement(finished);
+    logStaffHistory(db, placement.personId, "INTERNATIONAL_PLACEMENT_COMPLETED", save.worldDate, {
+      clubId: placement.homeClubId,
+      appointmentId: appointment.id,
+      description: `Completed technical placement with partner club ${placement.partnerClubId}.`,
+    });
+    completed.push(finished);
+  }
+  return completed;
 };
 
 // ---------------------------------------------------------------------------

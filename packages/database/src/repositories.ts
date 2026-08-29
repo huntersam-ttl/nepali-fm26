@@ -91,6 +91,7 @@ import type {
   StaffResponsibility,
   StaffResponsibilityLogEntry,
   StaffSimulationProfile,
+  StaffTechnicalPlacement,
   StaffSuccessionPlan,
   StaffVacancy,
   Team,
@@ -1920,6 +1921,27 @@ export class StaffMarketRepository {
     return row ? mapStaffSimulationProfile(row) : undefined;
   }
 
+  updateStaffSimulationProfile(profile: StaffSimulationProfile): void {
+    this.db.prepare(`UPDATE staff_simulation_profiles SET coaching_technical=?, coaching_tactical=?, coaching_physical=?, coaching_mental=?, goalkeeping=?, youth_development=?, man_management=? WHERE person_id=?`).run(profile.coachingTechnical, profile.coachingTactical, profile.coachingPhysical, profile.coachingMental, profile.goalkeeping, profile.youthDevelopment, profile.manManagement, profile.personId);
+  }
+
+  upsertTechnicalPlacement(placement: StaffTechnicalPlacement): void {
+    this.db.prepare(`INSERT INTO staff_technical_placements (id,person_id,home_club_id,partner_club_id,partnership_id,programme_type,start_date,end_date,status,development_applied,completed_on) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,development_applied=excluded.development_applied,completed_on=excluded.completed_on`).run(placement.id, placement.personId, placement.homeClubId, placement.partnerClubId, placement.partnershipId, placement.programmeType, placement.startDate, placement.endDate, placement.status, placement.developmentApplied ? 1 : 0, placement.completedOn ?? null);
+  }
+
+  technicalPlacementsForClub(clubId: EntityId): StaffTechnicalPlacement[] {
+    return (this.db.prepare("SELECT * FROM staff_technical_placements WHERE home_club_id=? ORDER BY start_date,id").all(clubId) as any[]).map(mapStaffTechnicalPlacementRow);
+  }
+
+  activeTechnicalPlacementForPerson(personId: EntityId): StaffTechnicalPlacement | undefined {
+    const row = this.db.prepare("SELECT * FROM staff_technical_placements WHERE person_id=? AND status='ACTIVE'").get(personId) as any;
+    return row ? mapStaffTechnicalPlacementRow(row) : undefined;
+  }
+
+  dueTechnicalPlacements(worldDate: string): StaffTechnicalPlacement[] {
+    return (this.db.prepare("SELECT * FROM staff_technical_placements WHERE status='ACTIVE' AND end_date<=? ORDER BY end_date,id").all(worldDate) as any[]).map(mapStaffTechnicalPlacementRow);
+  }
+
   staffLicencesForPerson(personId: EntityId): StaffLicence[] {
     return this.db
       .prepare("SELECT * FROM staff_licences WHERE person_id = ?")
@@ -2614,6 +2636,20 @@ const mapStaffDevelopmentPlanRow = (row: any): StaffDevelopmentPlan => ({
   createdOn: row.created_on,
   targetDate: row.target_date,
   status: row.status,
+});
+
+const mapStaffTechnicalPlacementRow = (row: any): StaffTechnicalPlacement => ({
+  id: row.id,
+  personId: row.person_id,
+  homeClubId: row.home_club_id,
+  partnerClubId: row.partner_club_id,
+  partnershipId: row.partnership_id,
+  programmeType: row.programme_type,
+  startDate: row.start_date,
+  endDate: row.end_date,
+  status: row.status,
+  developmentApplied: Boolean(row.development_applied),
+  completedOn: row.completed_on ?? undefined,
 });
 
 const mapStaffSuccessionPlanRow = (row: any): StaffSuccessionPlan => ({

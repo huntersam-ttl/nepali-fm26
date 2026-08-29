@@ -24,17 +24,15 @@ ended records are ignored by the consumer.
 
 ### TECHNICAL
 
-`METADATA_ONLY_BY_SCOPE`
+`PRODUCTION_ACTIVE` — international staff placements / study visits
 
-The current design and inventory define the `TECHNICAL` partnership vocabulary,
-proposal/activation, and bounded benefit metadata, but do not specify a
-production staff-market, coaching-knowledge, or development-environment
-consumer. Existing staff mobility already has normal vacancy, eligibility,
-finance, contract, and CONTEXT_ONLY flows, but no partnership hook. No effect
-is added in this slice to avoid inventing automatic staff access or a
-development modifier. A future slice should first confirm the intended
-consumer and directionality, then wire one bounded effect through that existing
-system.
+The production consumer is the staff seasonal planning/completion cadence:
+active `TECHNICAL` partnerships permit at most two eligible employed technical
+staff placements per home club/year. A placement is temporary and persisted;
+completion applies one bounded coaching-technical improvement and partner-
+country knowledge, then records staff history. Employment and contracts remain
+with the home club, and the partner remains `CONTEXT_ONLY`. Technical does not
+provide automatic staff-hiring access.
 
 ### MULTI-CLUB
 
