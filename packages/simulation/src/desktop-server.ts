@@ -27,6 +27,7 @@ import type {
   TransferRequestCommand,
   TransferRequestResponseCommand,
   TransferLoanCommand,
+  ClubBudgetCategory,
 } from "@nepal-football-sim/shared-types";
 import { DesktopApplicationService, type DesktopRuntimeOptions } from "./desktop-application.js";
 
@@ -154,6 +155,8 @@ const dispatch = (
       return service.switchActiveCareerRole(body.targetRole as CareerRole);
     case "implementFederationGovernanceProposal":
       return service.implementFederationGovernanceProposal(body.proposalId as EntityId);
+    case "setClubBudget":
+      return service.setClubBudget(body.clubId as EntityId, body.seasonLabel as string, body.category as ClubBudgetCategory, body.amount as number);
     case "getHomeDashboard":
       return service.getHomeDashboard();
     case "continueCareer":

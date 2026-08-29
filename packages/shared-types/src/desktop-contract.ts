@@ -11,6 +11,8 @@ import type {
   SaveMetadata,
   TacticalSetup,
   FederationGovernanceProposal,
+  ClubBudget,
+  ClubBudgetCategory,
 } from "./domain.js";
 
 /**
@@ -227,6 +229,7 @@ export type DesktopRuntimeApi = {
   getCareerRoles(): Promise<AppResult<CareerRoleState>>;
   switchActiveCareerRole(targetRole: CareerRole): Promise<AppResult<CareerHeader>>;
   implementFederationGovernanceProposal(proposalId: EntityId): Promise<AppResult<FederationGovernanceProposal>>;
+  setClubBudget(clubId: EntityId, seasonLabel: string, category: ClubBudgetCategory, amount: number): Promise<AppResult<ClubBudget>>;
   getHomeDashboard(): Promise<AppResult<DesktopApplicationState>>;
   continueCareer(): Promise<AppResult<DesktopApplicationState>>;
   quickSimMatch(fixtureId?: EntityId): Promise<AppResult<DesktopApplicationState>>;

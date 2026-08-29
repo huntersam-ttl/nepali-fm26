@@ -500,6 +500,27 @@ export const setClubBudget = (
   return budget;
 };
 
+/** Role-facing adapter for a controlling chairman's existing club budget action. */
+export const setClubBudgetCommand = (
+  db: GameDatabase,
+  input: {
+    clubId: EntityId;
+    personId: EntityId;
+    callerRole: "MANAGER" | "CHAIRMAN_OWNER" | "FEDERATION_PRESIDENT";
+    seasonLabel: string;
+    category: ClubBudgetCategory;
+    amount: number;
+  },
+): ClubBudget => {
+  if (input.callerRole !== "CHAIRMAN_OWNER") throw new Error("Only the active chairman/owner may set a club budget");
+  const club = db.prepare("SELECT c.id FROM clubs c JOIN countries co ON co.id=c.country_id WHERE c.id=? AND co.iso_code IN ('NP','NPL')").get(input.clubId) as { id?: EntityId } | undefined;
+  if (!club) throw new Error("Club budget commands are unavailable for context-only clubs");
+  const controllingStake = db.prepare("SELECT 1 FROM club_ownership_stakes WHERE club_id=? AND holder_type='PERSON' AND holder_id=? AND status='ACTIVE' AND percentage>=51 LIMIT 1").get(input.clubId, input.personId);
+  if (!controllingStake) throw new Error("Only a controlling owner may set this club budget");
+  if (!Number.isFinite(input.amount) || input.amount < 0) throw new Error("Budget amount must be a non-negative number");
+  return setClubBudget(db, input);
+};
+
 export const investPersonalFunds = (
   db: GameDatabase,
   input: {

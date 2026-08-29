@@ -6,6 +6,8 @@ import type {
   CareerRole,
   CareerRoleState,
   FederationGovernanceProposal,
+  ClubBudget,
+  ClubBudgetCategory,
   DesktopApplicationState,
   DesktopRuntimeApi,
   EntityId,
@@ -117,6 +119,7 @@ const bindCommands = (call: CommandCaller): DesktopRuntimeApi => ({
   getCareerRoles: () => call<CareerRoleState>("getCareerRoles"),
   switchActiveCareerRole: (targetRole: CareerRole) => call<CareerHeader>("switchActiveCareerRole", { targetRole }),
   implementFederationGovernanceProposal: (proposalId: EntityId) => call<FederationGovernanceProposal>("implementFederationGovernanceProposal", { proposalId }),
+  setClubBudget: (clubId: EntityId, seasonLabel: string, category: ClubBudgetCategory, amount: number) => call<ClubBudget>("setClubBudget", { clubId, seasonLabel, category, amount }),
   getHomeDashboard: () => call<DesktopApplicationState>("getHomeDashboard"),
   continueCareer: () => call<DesktopApplicationState>("continueCareer"),
   quickSimMatch: (fixtureId?: EntityId) =>

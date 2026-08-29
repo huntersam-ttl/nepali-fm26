@@ -42,6 +42,8 @@ import {
   type CareerRole,
   type CareerRoleState,
   type FederationGovernanceProposal,
+  type ClubBudget,
+  type ClubBudgetCategory,
   type Club,
   type CompetitionRuleSet,
   type CompetitionSeason,
@@ -224,6 +226,7 @@ import {
 import { suitability } from "./team-selection.js";
 import { activeCareerRole, heldCareerRoles, switchActiveCareerRole } from "./career-control.js";
 import { implementFederationGovernanceProposalCommand } from "./federation-politics.js";
+import { setClubBudgetCommand } from "./club-economy.js";
 import {
   ManagerCommandError,
   advanceManagerCareer,
@@ -555,6 +558,20 @@ export class DesktopApplicationService {
         });
       } catch (error) {
         throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "Proposal could not be implemented.");
+      }
+    });
+  }
+
+  setClubBudget(clubId: EntityId, seasonLabel: string, category: ClubBudgetCategory, amount: number): AppResult<ClubBudget> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER") {
+        throw appError("ROLE_NOT_AUTHORIZED", "Only the active chairman/owner may set club budgets.");
+      }
+      try {
+        return setClubBudgetCommand(db, { clubId, personId, callerRole: "CHAIRMAN_OWNER", seasonLabel, category, amount });
+      } catch (error) {
+        throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "Club budget could not be set.");
       }
     });
   }
