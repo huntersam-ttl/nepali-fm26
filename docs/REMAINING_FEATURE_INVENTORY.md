@@ -2,8 +2,8 @@
 
 ## Snapshot
 
-Audit date: 2026-08-28. Repository: `/Users/cc/nepali-fm26`. Women/youth international
-closure pass based on HEAD `d12afb9`; the pre-existing untracked `nepali-fm26/` entry
+Audit date: 2026-08-29. Repository: `/Users/cc/nepali-fm26`. Final reconciliation based on
+HEAD `895346b`; the pre-existing untracked `nepali-fm26/` entry
 remains untouched.
 
 The inventory has 92 normalized entries: the 84 row-level entries in the previous feature
@@ -55,8 +55,8 @@ The following systems are COMPLETE:
 
 ### Core training closure
 
-Core player training is `COMPLETE_BUT_DOC_STALE` as a remaining-P1 label, not a
-missing production system. `advanceManagerCareer` consumes the persisted team
+Core player training is **COMPLETE**; the former `COMPLETE_BUT_DOC_STALE` label was
+stale, not a missing production system. `advanceManagerCareer` consumes the persisted team
 plan on each normal day, passes staff/facility environment into the canonical
 development model, updates bounded fatigue/fitness/development, rolls seeded
 training injuries through the normal injury repository, and records stable
@@ -148,6 +148,33 @@ production path.
   loan scope is contract, wages, recall, expiry, return, and option-to-buy.
 - Final 20/50-year balancing; mobile; final release workflow.
 
+## Final Reconciliation (HEAD `895346b`)
+
+The 92 normalized rows were rechecked against source reachability and focused production tests.
+The mechanical status total remains 65 COMPLETE, 1 BUILT_NOT_PROVEN, 19 PARTIAL, 3 MISSING,
+and 4 LATER. The BUILT_NOT_PROVEN row is long-save continuity only: its 12-season structural
+proof exists, while the 20/50-season performance and durability gates are intentionally not run.
+
+The 19 PARTIAL rows are: chairman/owner career; federation-president career; role transitions and
+authority; default match-view wiring; club creation; takeover lifecycle; grants/government
+distribution; prize/revenue sharing; federation referee development; insurance/welfare/camps;
+real Nepal player coverage; diaspora/Nepalis abroad; girls development/schools/grassroots;
+VAR; media/journalism; rivalries; AI staff hiring; AI chairman; and the role-limited real staff
+dataset. The three MISSING rows are women's factual player data, legends/cult heroes, and a real
+referee database. The four LATER rows are global club tournaments, loan-development/minutes
+attribution, mobile, and final release workflow.
+
+Rows corrected since the prior narrative: core training, district infrastructure, women/youth
+internationals, bounded global context, the eight partnership/network types, multi-club pathways,
+and sell-on settlement are COMPLETE. Deeper tournaments, ownership-specific academy effects, and
+TRAINING partnership benefits remain outside the bounded release slice and are not duplicate
+systems to build here.
+
+Feature freeze remains **NO**: P0 unresolved must-build count is 0, but concrete P1 production
+gaps remain in governance/ownership depth, factual coverage, federation support systems, and
+AI/media/VAR surfaces. Performance is separate release debt: the seeded season completes in
+202.8s, but long-save validation is not authorized at the current projection.
+
 ## Performance Notes
 
 The instrumented stage-eight three-season test is classified **REAL_SIMULATION_COST**:
@@ -158,7 +185,9 @@ evidence that repeated bootstrap is the primary cause. No database N+1 diagnosis
 for the unfinished full-suite tail. The controlled broad run completed 15/17 tests before
 being stopped and is **SLOW_BUT_PROGRESSING**, not a suite PASS.
 
-No long save, balance run, UI/UX pass, or optimization was performed.
+No 20/50-year save or balance run was performed. The latest bounded seeded-season optimization
+reduced runtime from 267.5s to 202.8s; see `docs/PERFORMANCE_PROFILE.md`. This is release
+validation/performance debt, not a missing gameplay engine.
 
 ## Final Feature Passes Before Freeze
 
@@ -180,7 +209,7 @@ is being marked green automatically.
 
 ## Feature Freeze Decision
 
-**NO — not ready for a true feature freeze.** The core manager spine is production-reachable,
-but external competition context and long-save performance remain incomplete. Freeze can be
-reconsidered only after the remaining P1 production passes and proof tasks are closed. The
-current uncommitted repository work remains untouched.
+**NO — not ready for a true feature freeze.** The bounded core and global-context slices are
+production-reachable, but the P1 production gaps listed above remain. Long-save performance is
+separately a release-readiness gate, not evidence that those complete gameplay systems are
+missing. The current uncommitted repository work remains untouched.
