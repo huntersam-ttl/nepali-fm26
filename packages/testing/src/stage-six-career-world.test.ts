@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { WorldRepository, openGameDatabase } from "@nepal-football-sim/database";
+import { StaffMarketRepository, WorldRepository, openGameDatabase } from "@nepal-football-sim/database";
 import { createNepalSave, simulateNepalCareer } from "@nepal-football-sim/simulation";
 
 const tempDirs: string[] = [];
@@ -142,7 +142,15 @@ describe("full Nepal career season simulation", () => {
     });
 
     expect(stripPath(firstReport)).toEqual(stripPath(secondReport));
+    const staff = new StaffMarketRepository(first);
+    expect(staff.activeEmploymentContracts().length).toBeGreaterThan(0);
+    const appointmentsBeforeReload = staff.activeEmploymentContracts().map((contract) => contract.id).sort();
     first.close();
+    const reloaded = openGameDatabase(firstPath);
+    expect(new StaffMarketRepository(reloaded).activeEmploymentContracts().map((contract) => contract.id).sort()).toEqual(
+      appointmentsBeforeReload,
+    );
+    reloaded.close();
     second.close();
   });
 });

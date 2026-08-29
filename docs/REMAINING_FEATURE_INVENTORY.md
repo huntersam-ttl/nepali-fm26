@@ -11,9 +11,9 @@ audit, plus the eight explicit high-risk overlays requested for this pass. Statu
 
 | Status | Count |
 | --- | ---: |
-| COMPLETE | 67 |
+| COMPLETE | 68 |
 | BUILT_NOT_PROVEN | 1 |
-| PARTIAL | 17 |
+| PARTIAL | 16 |
 | MISSING | 3 |
 | LATER | 4 |
 | **Total** | **92** |
@@ -80,7 +80,7 @@ Legacy partials:
 - Grants, restricted funds, and government/NSC relationship; prize money and revenue sharing.
 - Insurance and welfare; the national-team camp slice is COMPLETE; diaspora and Nepalis abroad.
 - Real Nepal player database and provenance; real staff database; girls development, schools, grassroots, and academies.
-- media and journalism; rivalries; AI staff hiring; AI chairman.
+- media and journalism; rivalries; AI chairman.
 - Tauri shell/native packaging; performance.
 
 High-risk overlays:
@@ -148,18 +148,18 @@ production path.
   loan scope is contract, wages, recall, expiry, return, and option-to-buy.
 - Final 20/50-year balancing; mobile; final release workflow.
 
-## Final Reconciliation (HEAD `3df30c6`)
+## Final Reconciliation (HEAD `7447f26`)
 
 The 92 normalized rows were rechecked against source reachability and focused production tests.
-The mechanical status total is now 67 COMPLETE, 1 BUILT_NOT_PROVEN, 17 PARTIAL, 3 MISSING,
+The mechanical status total is now 68 COMPLETE, 1 BUILT_NOT_PROVEN, 16 PARTIAL, 3 MISSING,
 and 4 LATER. The BUILT_NOT_PROVEN row is long-save continuity only: its 12-season structural
 proof exists, while the 20/50-season performance and durability gates are intentionally not run.
 
-The 17 PARTIAL rows are: chairman/owner career; federation-president career; role transitions and
+The 16 PARTIAL rows are: chairman/owner career; federation-president career; role transitions and
 authority; default match-view wiring; club creation; takeover lifecycle; grants/government
 distribution; prize/revenue sharing; insurance/welfare;
 real Nepal player coverage; diaspora/Nepalis abroad; girls development/schools/grassroots;
-media/journalism; rivalries; AI staff hiring; AI chairman; and the role-limited real staff
+media/journalism; rivalries; AI chairman; and the role-limited real staff
 dataset. The three MISSING rows are women's factual player data, legends/cult heroes, and a real
 referee database. The four LATER rows are global club tournaments, loan-development/minutes
 attribution, mobile, and final release workflow.
@@ -171,7 +171,7 @@ external/duplicate federation rows. Focused production proof covers selection, c
 reload-visible state, and exclusion; assignment continues to consume the same workforce quality.
 
 Rows corrected since the prior narrative: core training, district infrastructure, women/youth
-internationals, bounded global context, VAR goal review, the eight partnership/network types,
+internationals, bounded global context, VAR goal review, AI staff planning, the eight partnership/network types,
 multi-club pathways,
 and sell-on settlement are COMPLETE. Deeper tournaments, ownership-specific academy effects, and
 TRAINING partnership benefits remain outside the bounded release slice and are not duplicate
@@ -203,7 +203,7 @@ validation/performance debt, not a missing gameplay engine.
   not imply a feature freeze.
 - **P1 — connected-world depth:** extend external competition context; wire the remaining
   `TRAINING` partnership type and effects outside the bounded player-pathway scope;
-  production gaps for AI staff, government/distribution,
+  production gaps for government/distribution,
   media/rivalries, club creation/takeovers, and diaspora as their scope is confirmed.
 - **P2 — proof and release:** add a repeatable performance benchmark, then run the bounded
   20-year gate before any 50-year run; complete factual-data enrichment, packaging/CI, UI

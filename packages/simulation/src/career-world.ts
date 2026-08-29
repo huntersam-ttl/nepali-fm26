@@ -8,6 +8,7 @@ import {
   type MatchResult,
   type PlayerAttributeSet,
   type PlayerSeasonStat,
+  type SaveMetadata,
   type TeamSeasonStat,
 } from "@nepal-football-sim/shared-types";
 import {
@@ -64,6 +65,7 @@ import {
 import { calculateStandings, sortStandings, summarizePlayerStats } from "./standings.js";
 import { initializeTransferMarketForSave, simulateTransferWindow } from "./transfer-market.js";
 import { runClubAiSeasonPlanning } from "./ai-club-strategy.js";
+import { ensureAiStaffAssigned, evaluateAllStaffContracts } from "./staff-market.js";
 import { processInternationalTrials } from "./international-trials.js";
 import { processExternalFootballWorldSeason } from "./external-football-world.js";
 import { settleFederationMediaRightsForCompetition } from "./media-rights.js";
@@ -397,7 +399,7 @@ export const simulateNepalCareer = (input: {
       );
     }
     if (economyEnabled) {
-      processEconomyForSeasonPeriod(input.db, {
+      processEconomyForSeasonPeriod(input.db, save, {
         seasonEndDate: latestSeasonEnd(activeSeasons),
         seed: `${input.seed}:economy:${index}`,
       });
@@ -469,6 +471,7 @@ const latestSeasonEnd = (seasons: readonly RunnableSeason[]): string =>
 
 const processEconomyForSeasonPeriod = (
   db: GameDatabase,
+  save: SaveMetadata,
   input: { seasonEndDate: string; seed: string },
 ): void => {
   const endYear = Number(input.seasonEndDate.slice(0, 4));
@@ -486,6 +489,9 @@ const processEconomyForSeasonPeriod = (
       date: `${startYear}-${String(month).padStart(2, "0")}-28`,
       seed: input.seed,
     });
+    if (month === 8) {
+      runAiStaffPlanning(db, save, `${startYear}-${String(month).padStart(2, "0")}-28`);
+    }
   }
   for (const month of [1, 2, 3, 4, 5, 6, 7]) {
     if (month === 1)
@@ -506,6 +512,12 @@ const processEconomyForSeasonPeriod = (
     date: input.seasonEndDate,
   });
   processOwnershipContinuity(db, { date: input.seasonEndDate, seed: `${input.seed}:ownership` });
+};
+
+const runAiStaffPlanning = (db: GameDatabase, save: SaveMetadata, date: string): void => {
+  const planningSave = { ...save, worldDate: date };
+  evaluateAllStaffContracts(db, planningSave);
+  ensureAiStaffAssigned(db, planningSave, undefined);
 };
 
 const processFederationForSeasonPeriod = (

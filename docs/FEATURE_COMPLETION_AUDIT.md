@@ -1349,15 +1349,19 @@ Feature-freeze blocker: **NO**
 
 ### AI staff hiring
 
-Status: **PARTIAL**
+Status: **COMPLETE**
 
 Implemented: `ensureAiStaffAssigned` and `evaluateAllStaffContracts` fill core backroom roles from
 free agents first and only generate a person when nobody suitable exists, with affordability checks.
 
-Missing: both are called **only** from the desktop `continueCareer` path
-(`packages/simulation/src/desktop-application.ts:648-649`). The headless season simulator
-(`career-world.ts`) never runs them, so multi-season background worlds and diagnostics evolve with
-unstaffed AI clubs.
+The existing monthly club-economy cadence now evaluates contracts and fills genuine vacancies in
+the headless career simulator (`packages/simulation/src/career-world.ts`), while retaining the
+desktop player-club exclusion and canonical qualification, wage, contract, appointment, and
+history paths. The career regression now asserts production staffing and reload continuity;
+staff-market, persistence, and deterministic regressions cover the underlying path.
+
+Missing: nothing within bounded Nepal/FULL-club staff planning. AI chairman strategy remains a
+separate partial system.
 
 Dependencies: staff market, club economy.
 
