@@ -13,6 +13,7 @@ export const ensureNationalTeamStaffStructure = (db: GameDatabase, input: { fede
   if (!team) throw new Error("National team not found");
   const organisationNames = [team.name];
   if (team.level === "senior" && team.gender === "women") organisationNames.push("Nepal Women's Senior National Team");
+  const useImportedSeniorMenCoach = team.level === "senior" && team.gender === "men";
   const roles: Array<[FootballStaffRole, string]> = [["NATIONAL_TEAM_HEAD_COACH", "National Team Head Coach"], ["NATIONAL_TEAM_ASSISTANT", "National Team Assistant"], ["SPORTS_SCIENTIST", "National Team Performance Coach"], ["NATIONAL_TEAM_PHYSIO", "National Team Medical Lead"], ["NATIONAL_TEAM_ANALYST", "National Team Scout Analyst"]];
   const world = new WorldRepository(db);
   const result: Array<{ role: FootballStaffRole; personId: EntityId }> = [];
@@ -27,11 +28,35 @@ export const ensureNationalTeamStaffStructure = (db: GameDatabase, input: { fede
     if (existing && existing.team_id !== input.nationalTeamId) {
       db.prepare("UPDATE staff_appointments SET team_id = ? WHERE id = ?").run(input.nationalTeamId, existing.id);
     }
-    const personId = existing?.person_id ?? createStableEntityId("person", `national-team-staff:${input.nationalTeamId}:${role}`);
+    /*
+     * The global seed may already contain a verified current Nepal staff
+     * identity. Reuse it before creating the gameplay-only fallback, so the
+     * appointment relationship does not erase factual coverage at the point
+     * where national-team gameplay becomes active.
+     */
+    const imported = !existing && useImportedSeniorMenCoach && role === "NATIONAL_TEAM_HEAD_COACH"
+      ? db.prepare(
+        `SELECT canonical_id AS person_id
+         FROM global_dataset_import_records
+         WHERE entity_type = 'STAFF'
+           AND provenance IN ('VERIFIED', 'REPORTED', 'ESTIMATED')
+           AND (json_extract(payload_json, '$.role') = ?
+                OR (? = 'NATIONAL_TEAM_HEAD_COACH' AND json_extract(payload_json, '$.role') = 'HEAD_COACH'))
+           AND lower(json_extract(payload_json, '$.current_club_or_federation')) = 'nepal national team'
+         ORDER BY CASE provenance WHEN 'VERIFIED' THEN 0 WHEN 'REPORTED' THEN 1 ELSE 2 END, canonical_id
+         LIMIT 1`,
+      ).get(role, role) as { person_id?: EntityId } | undefined
+      : undefined;
+    const factualPersonId = imported?.person_id;
+    const personId = existing?.person_id ?? factualPersonId ?? createStableEntityId("person", `national-team-staff:${input.nationalTeamId}:${role}`);
     if (!existing) {
-      staffPerson(db, personId, name, countryId, input.date);
-      const profile: StaffProfile = { id: createStableEntityId("staff-profile", personId), personId, preferredRole: role, salaryExpectation: "NATIONAL_TEAM_SCALE", reputation: "SIMULATION_ONLY", countryKnowledge: [countryId], clubKnowledge: [], availability: "EMPLOYED", workEligibilityStatus: "ELIGIBLE" };
-      world.insertStaffProfile(profile);
+      if (!factualPersonId) {
+        staffPerson(db, personId, name, countryId, input.date);
+        const profile: StaffProfile = { id: createStableEntityId("staff-profile", personId), personId, preferredRole: role, salaryExpectation: "NATIONAL_TEAM_SCALE", reputation: "SIMULATION_ONLY", countryKnowledge: [countryId], clubKnowledge: [], availability: "EMPLOYED", workEligibilityStatus: "ELIGIBLE" };
+        world.insertStaffProfile(profile);
+      } else {
+        db.prepare("UPDATE staff_profiles SET availability = 'EMPLOYED' WHERE person_id = ?").run(factualPersonId);
+      }
       world.insertStaffAppointment({ id: createStableEntityId("staff-appointment", `${input.nationalTeamId}:${role}`), personId, organisationType: "NATIONAL_TEAM", teamId: input.nationalTeamId, federationId: input.federationId, role, startDate: input.date, employmentStatus: "ACTIVE" });
     }
     result.push({ role, personId });

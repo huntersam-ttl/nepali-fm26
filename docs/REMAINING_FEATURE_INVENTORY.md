@@ -3,7 +3,7 @@
 ## Snapshot
 
 Audit date: 2026-08-29. Repository: `/Users/cc/nepali-fm26`. Final reconciliation based on
-HEAD `895346b`; the pre-existing untracked `nepali-fm26/` entry
+HEAD `1ea3cb9`; the pre-existing untracked `nepali-fm26/` entry
 remains untouched.
 
 The inventory has 92 normalized entries: the 84 row-level entries in the previous feature
@@ -79,7 +79,9 @@ Legacy partials:
 - Career default match-view wiring; club creation and new clubs; takeover/ownership lifecycle.
 - Grants, restricted funds, and government/NSC relationship; prize money and revenue sharing.
 - Insurance and welfare; the national-team camp slice and federation severe-injury welfare programme are COMPLETE; diaspora and Nepalis abroad.
-- Real Nepal player database and provenance; real staff database; girls development, schools, grassroots, and academies.
+- Real Nepal player database and provenance; role-limited real staff database (the verified
+  Nepal senior-men national-team head-coach relationship is now production-wired); girls
+  development, schools, grassroots, and academies.
 - media and journalism; rivalries; AI chairman.
 - Tauri shell/native packaging; performance.
 
@@ -137,8 +139,10 @@ High-risk overlays:
 
 The real staff entry remains role-limited: the canonical seed has 149 verified `HEAD_COACH`
 rows. Suitable club-linked entries now become factual staff appointments and participate in the
-same bounded hiring pipeline as generated staff; federation-only roles remain outside this club
-mobility pass. The referee entry remains MISSING. Generated supply is the active continuity mechanism.
+same bounded hiring pipeline as generated staff; the verified Nepal senior-men national-team
+head coach now resolves to the canonical national-team and federation relationship during
+international initialization. Other federation/national-team roles remain outside this bounded
+pass. The referee entry remains MISSING. Generated supply is the active continuity mechanism.
 Women's factual player-data coverage remains separate from the now-complete women’s international
 production path.
 
@@ -148,7 +152,7 @@ production path.
   loan scope is contract, wages, recall, expiry, return, and option-to-buy.
 - Final 20/50-year balancing; mobile; final release workflow.
 
-## Final Reconciliation (HEAD `a940b4d`)
+## Final Reconciliation (HEAD `1ea3cb9`)
 
 The 92 normalized rows were rechecked against source reachability and focused production tests.
 The mechanical status total is now 69 COMPLETE, 1 BUILT_NOT_PROVEN, 15 PARTIAL, 3 MISSING,

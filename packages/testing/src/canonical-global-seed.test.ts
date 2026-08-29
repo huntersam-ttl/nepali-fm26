@@ -7,6 +7,7 @@ import {
   CANONICAL_GLOBAL_SEED_PATH,
   applyCanonicalGlobalDatasetSeed,
   createNepalSave,
+  initializeInternationalFootballForSave,
 } from "@nepal-football-sim/simulation";
 
 /*
@@ -124,6 +125,27 @@ describe("canonical global dataset seed", () => {
            JOIN external_club_context ecc ON ecc.club_id = cm.club_id`,
         ),
       ).toBe(0);
+    } finally {
+      db.close();
+    }
+  }, 300000);
+
+  it("connects the verified imported Nepal head coach to the production national team", () => {
+    const databasePath = newSave("national-team-staff-link");
+    const db = openGameDatabase(databasePath);
+    try {
+      initializeInternationalFootballForSave({ db, worldDate: "2026-08-01", seed: "national-team-staff-link" });
+      const linked = db.prepare(
+        `SELECT sa.organisation_type, sa.team_id, sa.federation_id, gir.provenance AS record_status, sa.employment_status
+         FROM staff_appointments sa
+         JOIN persons p ON p.id = sa.person_id
+         JOIN global_dataset_import_records gir ON gir.canonical_id = p.id AND gir.entity_type = 'STAFF'
+         WHERE p.full_name = 'Vincenzo Alberto Annese' AND sa.role = 'NATIONAL_TEAM_HEAD_COACH'`,
+      ).get() as { organisation_type: string; team_id: string; federation_id: string; record_status: string; employment_status: string } | undefined;
+      expect(linked).toMatchObject({ organisation_type: "NATIONAL_TEAM", record_status: "VERIFIED", employment_status: "ACTIVE" });
+      expect(linked?.team_id).toBeTruthy();
+      expect(linked?.federation_id).toBeTruthy();
+      expect(db.prepare("SELECT COUNT(*) AS count FROM staff_appointments WHERE person_id = (SELECT id FROM persons WHERE full_name = 'Vincenzo Alberto Annese') AND role = 'NATIONAL_TEAM_HEAD_COACH'").get()).toEqual({ count: 1 });
     } finally {
       db.close();
     }
