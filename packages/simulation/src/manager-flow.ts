@@ -19,6 +19,7 @@ import {
   type GameDatabase,
 } from "@nepal-football-sim/database";
 import { simulateMatch } from "./match-engine.js";
+import { settleMatchInjuryInsurance } from "./insurance.js";
 import { calculateStandings, summarizePlayerStats, summarizeTeamStats } from "./standings.js";
 import { analyzeTacticalShape, validateSelection } from "./tactics.js";
 
@@ -119,6 +120,8 @@ export const persistQuickSimResult = (
     });
     if (state.injuryDuringMatch) {
       players.insertInjury(state.injuryDuringMatch);
+      const clubId = (db.prepare("SELECT club_id AS clubId FROM teams WHERE id = ?").get(state.teamId) as { clubId?: EntityId } | undefined)?.clubId;
+      if (clubId) settleMatchInjuryInsurance(db, { clubId, injury: state.injuryDuringMatch, date: state.injuryDuringMatch.dateOccurred });
     }
   }
   if (input.save) {

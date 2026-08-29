@@ -66,6 +66,7 @@ import { calculateStandings, sortStandings, summarizePlayerStats } from "./stand
 import { initializeTransferMarketForSave, simulateTransferWindow } from "./transfer-market.js";
 import { runClubAiSeasonPlanning } from "./ai-club-strategy.js";
 import { ensureAiStaffAssigned, evaluateAllStaffContracts } from "./staff-market.js";
+import { settleMatchInjuryInsurance } from "./insurance.js";
 import { processInternationalTrials } from "./international-trials.js";
 import { processExternalFootballWorldSeason } from "./external-football-world.js";
 import { settleFederationMediaRightsForCompetition } from "./media-rights.js";
@@ -847,6 +848,9 @@ const persistMatchResult = (
       personExists(db, event.data.personId as EntityId)
     ) {
       players.insertInjury(event.data as any);
+      const injury = event.data as any;
+      const clubId = event.teamId ? clubIdForTeam(db, event.teamId) : undefined;
+      if (clubId) settleMatchInjuryInsurance(db, { clubId, injury, date: injury.dateOccurred });
     }
     if (event.type === "RED_CARD" && event.personId && personExists(db, event.personId)) {
       players.insertSuspension({

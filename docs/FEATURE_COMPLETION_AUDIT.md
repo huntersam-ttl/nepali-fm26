@@ -838,7 +838,8 @@ cohesion preparation, federation cost is debited exactly once, and a reload-safe
 
 Missing: insurance policy lifecycle and welfare remain without production call sites. Club
 preseason commercial camps remain covered by their existing production path; no duplicate camp
-system is introduced here.
+system is introduced here. The insurance claim trigger itself is now production-reachable for
+persisted match injuries when an active club policy covers the event.
 
 Dependencies: federation economy, national teams, medical.
 

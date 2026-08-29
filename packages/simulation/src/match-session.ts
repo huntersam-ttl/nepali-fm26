@@ -21,6 +21,7 @@ import {
   type TacticalSetup,
 } from "@nepal-football-sim/shared-types";
 import { postMatchdayEconomy } from "./club-economy.js";
+import { settleMatchInjuryInsurance } from "./insurance.js";
 import { requireFixtureOfficials } from "./referee-assignment.js";
 import {
   applySubstitution,
@@ -422,6 +423,8 @@ const persistPlayerOutcomes = (
     });
     if (player.injuryDuringMatch) {
       players.insertInjury(player.injuryDuringMatch);
+      const clubId = (db.prepare("SELECT club_id AS clubId FROM teams WHERE id = ?").get(player.teamId) as { clubId?: EntityId } | undefined)?.clubId;
+      if (clubId) settleMatchInjuryInsurance(db, { clubId, injury: player.injuryDuringMatch, date: player.injuryDuringMatch.dateOccurred });
     }
     if (player.redCard && context.fixture.competitionSeasonId) {
       // Dismissals feed the existing competition suspension model.
