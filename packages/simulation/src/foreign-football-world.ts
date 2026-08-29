@@ -361,6 +361,14 @@ export const advanceExternalPlayerLifecycles = (
       continue;
     }
     if (!role) continue;
+    /*
+     * One advance per player per season. Development and the reputation blend
+     * are both relative to current state, so calling this twice for the same
+     * date moved every player a second time — a resumed or replayed season
+     * would quietly compound it. Retirement above is reconciled from the
+     * person role and is already idempotent, so it stays outside this guard.
+     */
+    if (context.updatedOn >= input.date) continue;
 
     const activeClubId = activeClubForPlayer(db, context.playerId);
     const currentContext = {
