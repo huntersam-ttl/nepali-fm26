@@ -228,6 +228,7 @@ describe("youth intake and retirement foundation", () => {
 
   it("keeps a 20-season youth population diagnostic within health bounds", () => {
     const db = openGameDatabase(createSave("twenty-season-population"));
+    const finalDate = "2045-08-15";
     const report = runYouthDiagnostic({
       db,
       startDate: "2026-08-15",
@@ -281,8 +282,42 @@ describe("youth intake and retirement foundation", () => {
     expect(final.generatedPlayers).toBe(report.totals.generatedPlayers + bootstrapPlayers);
 
     expect(report.totals.highestPotential).toBeLessThan(16);
-    expect(final.averageAge).toBeGreaterThan(17);
-    expect(final.averageAge).toBeLessThan(28);
+
+    /*
+     * `final.averageAge` covers every open PLAYER role in the world, including the
+     * imported CONTEXT_ONLY players. Those carry no player_attributes row, so the
+     * retirement query cannot see them, and their ageing is handled by the external
+     * world pass this diagnostic does not run — they simply get twenty years older.
+     * Age health is therefore asserted over the population this cycle governs.
+     */
+    const ageStats = (predicate: string) =>
+      db
+        .prepare(
+          `SELECT AVG(age) AS mean, MAX(age) AS oldest, COUNT(*) AS count FROM (
+             SELECT (CAST(strftime('%Y', ?) AS INTEGER) - CAST(strftime('%Y', p.date_of_birth) AS INTEGER))
+               - (strftime('%m-%d', ?) < strftime('%m-%d', p.date_of_birth)) AS age
+             FROM person_roles pr
+             JOIN persons p ON p.id = pr.person_id
+             WHERE pr.role = 'PLAYER' AND pr.active_to IS NULL AND p.date_of_birth IS NOT NULL
+               AND ${predicate}
+           )`,
+        )
+        .get(finalDate, finalDate) as { mean: number; oldest: number; count: number };
+
+    const nepal = ageStats(
+      "EXISTS (SELECT 1 FROM countries c WHERE c.id = p.nationality_country_id AND c.iso_code IN ('NP', 'NPL'))",
+    );
+    const generated = ageStats(
+      "EXISTS (SELECT 1 FROM generated_player_origins g WHERE g.player_id = p.id)",
+    );
+
+    expect(nepal.count).toBeGreaterThan(500);
+    expect(nepal.mean).toBeGreaterThan(17);
+    expect(nepal.mean).toBeLessThan(28);
+    expect(generated.mean).toBeGreaterThan(17);
+    expect(generated.mean).toBeLessThan(28);
+    // Players this cycle both created and retires must not accumulate past a career.
+    expect(generated.oldest).toBeLessThan(42);
     expect(final.clubSquadSizes.every((club) => club.players < 60)).toBe(true);
     expect(report.seasons.every((season) => Number(season.positionsGenerated.GK ?? 0) > 0)).toBe(
       true,
