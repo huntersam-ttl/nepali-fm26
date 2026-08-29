@@ -2,10 +2,10 @@
 
 ## Audit Basis
 
-- **HEAD:** `f96270c` (`feat(territorial): activate district development lifecycle`). This integration
+- **HEAD:** `a940b4d` (`feat(welfare): add federation player support programme`). This integration
   integration audit re-verified production call sites and persistence against the current tree;
   the protected untracked training-history test remains outside the audit change.
-- **Date:** 2026-08-27.
+- **Date:** 2026-08-29.
 - **Method:** direct inspection of the repository as the sole authority — module exports, call-site
   reachability from the running world loops (`career-world.ts`, `desktop-application.ts`), database
   schema (`packages/database/src/migrations.ts`, 59 versions), and the shipped world dataset
@@ -257,9 +257,9 @@ Implemented:
 
 Missing:
 
-- `advanceFederationElections` and `transitionFederationLeadership` have **no production call
-  sites** — elections never actually run in a save.
-- No playable federation command surface.
+- No playable federation command surface; the headless federation cadence does run election
+  continuity through `ensureFederationLeadershipContinuity` in `career-world.ts`, which creates
+  the next cycle, handles interim leadership, and reaches `advanceFederationElections`.
 
 Dependencies: federation governance, government, national teams.
 
