@@ -336,8 +336,16 @@ export type YouthIntakeEvent = {
   highestPotential: number;
   status: "SIMULATION_ONLY";
   seedKey: string;
+  /**
+   * Which event produced this cohort. Distinct from `status`, which records how
+   * factual the players are: both sources generate SIMULATION_ONLY people.
+   */
+  source: YouthIntakeSource;
   data?: Record<string, unknown>;
 };
+
+/** A club's recurring academy intake, or one-off squad repair during save creation. */
+export type YouthIntakeSource = "ANNUAL_INTAKE" | "BOOTSTRAP_SQUAD_REPAIR";
 
 export type GeneratedPlayerOrigin = {
   id: EntityId;

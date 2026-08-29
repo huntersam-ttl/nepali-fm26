@@ -4235,8 +4235,8 @@ export class YouthRepository {
         `INSERT INTO youth_intake_events
         (id, country_id, club_id, academy_id, intake_date, season_label, intake_type,
           players_generated, average_current_ability, average_potential, highest_potential,
-          status, seed_key, data_json)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          status, seed_key, source, data_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           players_generated = excluded.players_generated,
           average_current_ability = excluded.average_current_ability,
@@ -4258,6 +4258,7 @@ export class YouthRepository {
         event.highestPotential,
         event.status,
         event.seedKey,
+        event.source ?? "ANNUAL_INTAKE",
         event.data ? json.stringify(event.data) : null,
       );
   }
@@ -4269,11 +4270,24 @@ export class YouthRepository {
       .map(mapYouthIntakeEvent);
   }
 
+  /** Whether the canonical annual intake has already run; squad repair does not count. */
   hasIntakeForSeason(seasonLabel: string): boolean {
     const row = this.db
-      .prepare("SELECT COUNT(*) AS count FROM youth_intake_events WHERE season_label = ?")
+      .prepare(
+        "SELECT COUNT(*) AS count FROM youth_intake_events WHERE season_label = ? AND source = 'ANNUAL_INTAKE'",
+      )
       .get(seasonLabel) as any;
     return Number(row?.count ?? 0) > 0;
+  }
+
+  /** Annual intake events for a season, excluding save-creation squad repair. */
+  annualIntakeEvents(seasonLabel: string): YouthIntakeEvent[] {
+    return this.db
+      .prepare(
+        "SELECT * FROM youth_intake_events WHERE season_label = ? AND source = 'ANNUAL_INTAKE' ORDER BY intake_date, id",
+      )
+      .all(seasonLabel)
+      .map(mapYouthIntakeEvent);
   }
 
   insertGeneratedPlayerOrigin(origin: GeneratedPlayerOrigin): void {
@@ -4929,6 +4943,7 @@ const mapYouthIntakeEvent = (row: any): YouthIntakeEvent => ({
   highestPotential: row.highest_potential,
   status: row.status,
   seedKey: row.seed_key,
+  source: row.source ?? "ANNUAL_INTAKE",
   data: json.parse<Record<string, unknown> | undefined>(row.data_json, undefined),
 });
 

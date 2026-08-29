@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 67;
+export const CURRENT_DATABASE_VERSION = 68;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -3286,6 +3286,26 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       );
       CREATE INDEX IF NOT EXISTS idx_sell_on_player_seller_status
         ON sell_on_entitlements(player_id, originating_buyer_club_id, status);
+    `,
+  },
+  {
+    version: 68,
+    /*
+     * Youth cohort generation serves two different events. A club's recurring
+     * academy intake is the canonical annual one; lower-league squad repair at
+     * save creation reuses the same generator to make rosters viable. Both were
+     * recorded identically, so annual reporting and the once-per-season guard
+     * counted squad repair as the club's intake.
+     *
+     * Existing rows default to ANNUAL_INTAKE: every save written before this
+     * migration recorded only that meaning in its own terms, and bootstrap rows
+     * in those saves are indistinguishable without re-deriving them.
+     */
+    sql: `
+      ALTER TABLE youth_intake_events
+        ADD COLUMN source TEXT NOT NULL DEFAULT 'ANNUAL_INTAKE';
+      CREATE INDEX IF NOT EXISTS idx_youth_intake_season_source
+        ON youth_intake_events(season_label, source);
     `,
   },
 ];
