@@ -10,6 +10,7 @@ import type {
   PlayerAttributeSet,
   SaveMetadata,
   TacticalSetup,
+  FederationGovernanceProposal,
 } from "./domain.js";
 
 /**
@@ -225,6 +226,7 @@ export type DesktopRuntimeApi = {
   getCareerHeader(): Promise<AppResult<CareerHeader>>;
   getCareerRoles(): Promise<AppResult<CareerRoleState>>;
   switchActiveCareerRole(targetRole: CareerRole): Promise<AppResult<CareerHeader>>;
+  implementFederationGovernanceProposal(proposalId: EntityId): Promise<AppResult<FederationGovernanceProposal>>;
   getHomeDashboard(): Promise<AppResult<DesktopApplicationState>>;
   continueCareer(): Promise<AppResult<DesktopApplicationState>>;
   quickSimMatch(fixtureId?: EntityId): Promise<AppResult<DesktopApplicationState>>;

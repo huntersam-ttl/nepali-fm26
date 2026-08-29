@@ -142,6 +142,21 @@ export const implementFederationGovernanceProposal = (db: GameDatabase, proposal
   const implemented = { ...proposal, status: "IMPLEMENTED" as const }; repo.upsertProposal(implemented); return implemented;
 };
 
+/** Role-facing adapter for implementing an already-approved proposal. */
+export const implementFederationGovernanceProposalCommand = (
+  db: GameDatabase,
+  input: { proposalId: EntityId; personId: EntityId; callerRole: "MANAGER" | "CHAIRMAN_OWNER" | "FEDERATION_PRESIDENT"; date: string },
+): FederationGovernanceProposal => {
+  if (input.callerRole !== "FEDERATION_PRESIDENT") throw new Error("Only the federation president may implement a governance proposal");
+  const proposal = new FederationGovernancePhaseBRepository(db).proposals().find((item) => item.id === input.proposalId);
+  if (!proposal) throw new Error("Governance proposal not found");
+  const country = db.prepare("SELECT co.iso_code FROM federations f JOIN countries co ON co.id=f.country_id WHERE f.id=?").get(proposal.federationId) as { iso_code?: string } | undefined;
+  if (!country || !["NP", "NPL"].includes(country.iso_code ?? "")) throw new Error("Governance commands are unavailable for context-only federations");
+  const active = new FederationGovernanceRepository(db).leadershipTenures(proposal.federationId).some((item) => item.personId === input.personId && item.role === "FEDERATION_PRESIDENT" && item.status === "ACTIVE");
+  if (!active) throw new Error("Only the active president of this federation may implement a proposal");
+  return implementFederationGovernanceProposal(db, input.proposalId, input.date);
+};
+
 export const updateFederationManifesto = (db: GameDatabase, input: { federationId: EntityId; date: string; progressByPolicy: Record<string, number> }): FederationManifestoCommitment[] => {
   const repo = new FederationGovernancePhaseBRepository(db); const updated: FederationManifestoCommitment[] = [];
   for (const commitment of repo.commitments(input.federationId).filter((item) => item.status === "OPEN")) { const progress = Math.max(commitment.progress, Math.min(commitment.targetValue, input.progressByPolicy[commitment.policyArea] ?? commitment.progress)); const done = progress >= commitment.targetValue; const next = { ...commitment, progress, status: done ? "FULFILLED" as const : input.date >= commitment.dueDate ? "BROKEN" as const : "OPEN" as const, lastUpdated: input.date }; repo.upsertCommitment(next); updated.push(next); }

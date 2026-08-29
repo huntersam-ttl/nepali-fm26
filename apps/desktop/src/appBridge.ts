@@ -5,6 +5,7 @@ import type {
   CareerHeader,
   CareerRole,
   CareerRoleState,
+  FederationGovernanceProposal,
   DesktopApplicationState,
   DesktopRuntimeApi,
   EntityId,
@@ -115,6 +116,7 @@ const bindCommands = (call: CommandCaller): DesktopRuntimeApi => ({
   getCareerHeader: () => call<CareerHeader>("getCareerHeader"),
   getCareerRoles: () => call<CareerRoleState>("getCareerRoles"),
   switchActiveCareerRole: (targetRole: CareerRole) => call<CareerHeader>("switchActiveCareerRole", { targetRole }),
+  implementFederationGovernanceProposal: (proposalId: EntityId) => call<FederationGovernanceProposal>("implementFederationGovernanceProposal", { proposalId }),
   getHomeDashboard: () => call<DesktopApplicationState>("getHomeDashboard"),
   continueCareer: () => call<DesktopApplicationState>("continueCareer"),
   quickSimMatch: (fixtureId?: EntityId) =>

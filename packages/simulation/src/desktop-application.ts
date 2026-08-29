@@ -41,6 +41,7 @@ import {
   type CareerHeader,
   type CareerRole,
   type CareerRoleState,
+  type FederationGovernanceProposal,
   type Club,
   type CompetitionRuleSet,
   type CompetitionSeason,
@@ -222,6 +223,7 @@ import {
 } from "./tactics.js";
 import { suitability } from "./team-selection.js";
 import { activeCareerRole, heldCareerRoles, switchActiveCareerRole } from "./career-control.js";
+import { implementFederationGovernanceProposalCommand } from "./federation-politics.js";
 import {
   ManagerCommandError,
   advanceManagerCareer,
@@ -535,6 +537,25 @@ export class DesktopApplicationService {
       const updated = loadSave(db, save.id);
       this.writeCatalogEntry(this.catalogEntry(db, updated, filePath));
       return careerHeader(db, updated);
+    });
+  }
+
+  implementFederationGovernanceProposal(proposalId: EntityId): AppResult<FederationGovernanceProposal> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "FEDERATION_PRESIDENT") {
+        throw appError("ROLE_NOT_AUTHORIZED", "Only the active federation president may implement proposals.");
+      }
+      try {
+        return implementFederationGovernanceProposalCommand(db, {
+          proposalId,
+          personId,
+          callerRole: "FEDERATION_PRESIDENT",
+          date: save.worldDate,
+        });
+      } catch (error) {
+        throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "Proposal could not be implemented.");
+      }
     });
   }
 

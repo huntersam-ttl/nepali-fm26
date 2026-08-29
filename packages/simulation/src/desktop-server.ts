@@ -152,6 +152,8 @@ const dispatch = (
       return service.getCareerRoles();
     case "switchActiveCareerRole":
       return service.switchActiveCareerRole(body.targetRole as CareerRole);
+    case "implementFederationGovernanceProposal":
+      return service.implementFederationGovernanceProposal(body.proposalId as EntityId);
     case "getHomeDashboard":
       return service.getHomeDashboard();
     case "continueCareer":
