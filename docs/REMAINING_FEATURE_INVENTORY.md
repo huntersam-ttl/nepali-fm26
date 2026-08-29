@@ -76,6 +76,9 @@ gate were intentionally not started. This is proof debt, not a new implementatio
 Legacy partials:
 
 - Chairman/owner career; federation-president career; role transitions, authority, and permissions.
+- Federation-president proposal submission now has a Nepal/FULL role-facing command adapter
+  that delegates to the canonical proposal service; a complete playable federation-president
+  career and broader command surface remain PARTIAL.
 - Career default match-view wiring; club creation and new clubs; takeover/ownership lifecycle.
 - Grants, restricted funds, and government/NSC relationship; prize money and revenue sharing.
 - Insurance and welfare; the national-team camp slice and federation severe-injury welfare programme are COMPLETE; diaspora and Nepalis abroad.
@@ -159,7 +162,8 @@ The mechanical status total is now 69 COMPLETE, 1 BUILT_NOT_PROVEN, 15 PARTIAL, 
 and 4 LATER. The BUILT_NOT_PROVEN row is long-save continuity only: its 12-season structural
 proof exists, while the 20/50-season performance and durability gates are intentionally not run.
 
-The 15 PARTIAL rows are: chairman/owner career; federation-president career; role transitions and
+The 15 PARTIAL rows are: chairman/owner career; federation-president career (including the
+bounded proposal command adapter, but not a complete playable career); role transitions and
 authority; default match-view wiring; club creation; takeover lifecycle; grants/government
 distribution; prize/revenue sharing;
 real Nepal player coverage; diaspora/Nepalis abroad; girls development/schools/grassroots;

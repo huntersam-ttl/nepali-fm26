@@ -101,6 +101,29 @@ export const createFederationGovernanceProposal = (db: GameDatabase, input: Omit
   const repo = new FederationGovernancePhaseBRepository(db); repo.upsertProposal(proposal); repo.event({ id: createStableEntityId("federation-governance-event", proposal.id), federationId: input.federationId, date: input.proposedAt, eventType: "PROPOSAL", subjectId: proposal.id, summary: proposal.title, payload: { policyArea: proposal.policyArea }, provenanceStatus: status }); return proposal;
 };
 
+/**
+ * Role-facing command adapter for the already-authoritative proposal service.
+ * The active presidency check remains in createFederationGovernanceProposal;
+ * this boundary only rejects non-presidential callers and context-only targets.
+ */
+export const submitFederationGovernanceProposalCommand = (
+  db: GameDatabase,
+  input: Omit<FederationGovernanceProposal, "id" | "targetCommittee" | "status" | "votes" | "provenanceStatus"> & {
+    callerRole: "MANAGER" | "CHAIRMAN_OWNER" | "FEDERATION_PRESIDENT";
+  },
+): FederationGovernanceProposal => {
+  if (input.callerRole !== "FEDERATION_PRESIDENT") {
+    throw new Error("Only the federation president may submit a governance proposal");
+  }
+  const country = db.prepare(
+    "SELECT co.iso_code FROM federations f JOIN countries co ON co.id = f.country_id WHERE f.id = ?",
+  ).get(input.federationId) as { iso_code?: string } | undefined;
+  if (!country || !["NP", "NPL"].includes(country.iso_code ?? "")) {
+    throw new Error("Governance commands are unavailable for context-only federations");
+  }
+  return createFederationGovernanceProposal(db, input);
+};
+
 export const reviewFederationGovernanceProposal = (db: GameDatabase, proposalId: EntityId, date: string): FederationGovernanceProposal => {
   const repo = new FederationGovernancePhaseBRepository(db); const proposal = repo.proposals().find((item) => item.id === proposalId); if (!proposal || proposal.status !== "PROPOSED") throw new Error("Proposal is not awaiting committee review");
   const reviewed = { ...proposal, status: "COMMITTEE_REVIEW" as const, reviewedAt: date }; repo.upsertProposal(reviewed); repo.event({ id: createStableEntityId("federation-governance-event", `${proposal.id}:review`), federationId: proposal.federationId, date, eventType: "COMMITTEE_REVIEW", subjectId: proposal.id, summary: "Committee review opened", payload: { committee: proposal.targetCommittee }, provenanceStatus: status }); return reviewed;
