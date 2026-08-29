@@ -11,9 +11,9 @@ audit, plus the eight explicit high-risk overlays requested for this pass. Statu
 
 | Status | Count |
 | --- | ---: |
-| COMPLETE | 62 |
+| COMPLETE | 63 |
 | BUILT_NOT_PROVEN | 1 |
-| PARTIAL | 22 |
+| PARTIAL | 21 |
 | MISSING | 3 |
 | LATER | 4 |
 | **Total** | **92** |
@@ -80,14 +80,15 @@ High-risk overlays:
    they remain non-playable and do not receive a full foreign payroll simulation.
 2. **Global club tournaments — LATER.** Continental context is lightweight and seasonal;
    no detailed intercontinental club tournament is currently planned.
-4. **International partnerships — PARTIAL / persisted-only.** The type vocabulary exists for
+4. **International partnerships — PARTIAL / selected production consumers.** The type vocabulary exists for
    `SCOUTING`, `TECHNICAL`, `YOUTH_DEVELOPMENT`, `ACADEMY`, `STAFF_EXCHANGE`, `TRAINING`,
    `LOAN_PLAYER_PATHWAY`, `LOAN`, `PREFERRED_TRANSFER`, `COMMERCIAL`, and `FRIENDLY_TOUR`.
    Proposal/activation and bounded benefit calculation are tested. SCOUTING, TECHNICAL,
    YOUTH_DEVELOPMENT, ACADEMY, and LOAN have production consumers, and PREFERRED_TRANSFER now
-   feeds the canonical permanent-transfer candidate path. TRAINING, LOAN_PLAYER_PATHWAY, and
-   COMMERCIAL remain persisted-only benefit paths; STAFF_EXCHANGE and FRIENDLY_TOUR currently
-   have no behavior beyond storage.
+   feeds the canonical permanent-transfer candidate path. COMMERCIAL now feeds a bounded,
+   idempotent monthly club-economy settlement using partner quality. TRAINING and
+   LOAN_PLAYER_PATHWAY remain persisted-only benefit paths; STAFF_EXCHANGE and FRIENDLY_TOUR
+   currently have no behavior beyond storage.
 5. **Multi-club ownership/network effects — COMPLETE for the bounded P1 player-pathway scope.**
    Ownership records resolve active related clubs into existing scouting, transfer, and loan
    candidate flows; related-party valuation and same-competition safeguards are enforced at
@@ -107,7 +108,7 @@ High-risk overlays:
 | Foreign staff movement | vacancy, decision, contract, retirement helpers | two-way CONTEXT_ONLY moves and replacement | desktop and seasonal context cadence | contracts/history/replacements reload |
 | Global generated lifecycle | canonical attributes, potential, development, retirement, and context records | focused lifecycle/reload/determinism coverage | seasonal context lifecycle plus bounded replenishment | identity, retirement, development, and replenishment reload-safe |
 | External competition context | external profile helpers | global-context season persistence | career seasonal cadence | context rows reload |
-| Partnerships | pathway/evaluation helpers | scouting, preferred-transfer, and prior-slice activations | selected production consumers | partnership-specific reload coverage |
+| Partnerships | pathway/evaluation helpers | scouting, preferred-transfer, commercial, and prior-slice activations | selected production consumers | partnership-specific reload coverage |
 | Multi-club | ownership lookup, pathway, valuation, governance helpers | imported external club, scouting, offer review, reload | scouting/transfer/loan candidate paths and offer governance | ownership lookup reload |
 | Sell-on | offer persistence and entitlement | resale, exact-once ledger/history settlement | canonical permanent-transfer completion | clause and settlement reload |
 | Loan development attribution | none | none | none | none |

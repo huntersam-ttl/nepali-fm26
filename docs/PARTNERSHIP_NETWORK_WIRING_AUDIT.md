@@ -81,6 +81,23 @@ terms, registration, affordability, competing offers, and history remain
 canonical. Preferred transfer does not create scouting or loan state, discounts,
 automatic moves, or foreign-club playability.
 
+### COMMERCIAL
+
+`PRODUCTION_ACTIVE`
+
+Production consumer: `packages/simulation/src/club-economy.ts` →
+`processClubEconomyMonth` / `commercialPartnershipIncome`.
+
+The stored direction is beneficiary `from_club_id` → commercial partner
+`to_club_id`. Active records contribute a modest monthly opportunity settlement
+using partner quality and relationship strength. The effect is limited to four
+active partnerships, capped at 8% of derived commercial value, and produces one
+canonical `COMMERCIAL_PARTNERSHIP_INCOME` credit per club/date. Ledger
+idempotency makes replays and reloads exact-once; the partner receives no
+reciprocal credit and no shared wallet, sponsor contract, or automatic deal is
+created. External partners remain `CONTEXT_ONLY`; multi-club ownership and
+friendly-tour paths are not consulted or mutated.
+
 ### MULTI-CLUB
 
 ## Multi-Club Production

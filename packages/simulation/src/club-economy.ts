@@ -36,6 +36,7 @@ import {
 } from "@nepal-football-sim/shared-types";
 import {
   ClubEconomyRepository,
+  ClubNetworkRepository,
   GlobalFootballContextRepository,
   TransferMarketRepository,
   WorldRepository,
@@ -288,6 +289,52 @@ export const postMerchandiseRevenue = (
     description: "Abstract merchandise sales",
   });
   return amount;
+};
+
+export type CommercialPartnershipSettlement = {
+  amount: number;
+  baseCommercialValue: number;
+  partnershipCount: number;
+};
+
+export const commercialPartnershipIncome = (
+  db: GameDatabase,
+  clubId: EntityId,
+  simulationDate: string,
+): CommercialPartnershipSettlement => {
+  const economy = new ClubEconomyRepository(db);
+  const commercial = economy.commercialProfile(clubId);
+  const support = economy.supporterProfile(clubId);
+  if (!commercial) return { amount: 0, baseCommercialValue: 0, partnershipCount: 0 };
+  const partnerships = new ClubNetworkRepository(db)
+    .activeCommercialPartnerships(clubId, simulationDate)
+    .slice(0, 4);
+  if (partnerships.length === 0)
+    return { amount: 0, baseCommercialValue: 0, partnershipCount: 0 };
+  const externalQuality = new Map(
+    new GlobalFootballContextRepository(db).clubs().map((club) => [club.clubId, club.reputation / 100]),
+  );
+  const baseCommercialValue = Math.max(
+    1000,
+    Math.round(
+      (commercial.digitalReach * 12000 + commercial.merchandiseAppeal * 8000 + commercial.brandStrength * 5000) *
+        (1 + Math.min(0.25, (support?.diasporaSupport ?? 0) / 10000)),
+    ),
+  );
+  const value = partnerships.reduce((total, partnership) => {
+    const partnerSupport = economy.supporterProfile(partnership.toClubId);
+    const quality = Math.max(
+      0.25,
+      Math.min(1, externalQuality.get(partnership.toClubId) ?? ((partnerSupport?.commercialReputation ?? 4) / 10)),
+    );
+    const strength = Math.max(0, Math.min(100, partnership.relationshipStrength)) / 100;
+    return total + baseCommercialValue * 0.08 * strength * (0.75 + quality * 0.5);
+  }, 0);
+  return {
+    amount: Math.min(Math.round(baseCommercialValue * 0.08), Math.round(value)),
+    baseCommercialValue,
+    partnershipCount: partnerships.length,
+  };
 };
 
 export const runPreseasonCommercialCamp = (
@@ -1190,6 +1237,8 @@ export const processClubEconomyMonth = (
   expireCompetitionMediaRights(db, input.date);
   const economy = new ClubEconomyRepository(db);
   const market = new TransferMarketRepository(db);
+  const network = new ClubNetworkRepository(db);
+  const externalClubs = new Map(new GlobalFootballContextRepository(db).clubs().map((club) => [club.clubId, club.reputation]));
   const loanWages = activeLoanWageSettlements(market, input.date);
   const outboundLoanPlayers = new Set(loanWages.map((item) => item.loan.playerId));
   for (const account of economy.financialAccounts()) {
@@ -1284,6 +1333,31 @@ export const processClubEconomyMonth = (
         relatedEntityId: sponsorship.id,
         idempotencyKey: `sponsor-month:${sponsorship.id}:${input.date}`,
       });
+    }
+    const commercialPartnerships = network.activeCommercialPartnerships(account.clubId, input.date).slice(0, 4);
+    if (commercialPartnerships.length > 0) {
+      const commercial = economy.commercialProfile(account.clubId);
+      const support = economy.supporterProfile(account.clubId);
+      const baseCommercialValue = commercial
+        ? Math.max(1000, Math.round((commercial.digitalReach * 12000 + commercial.merchandiseAppeal * 8000 + commercial.brandStrength * 5000) * (1 + Math.min(0.25, (support?.diasporaSupport ?? 0) / 10000))))
+        : 0;
+      const settlement = commercialPartnerships.reduce((total, partnership) => {
+        const partnerSupport = economy.supporterProfile(partnership.toClubId);
+        const quality = Math.max(0.25, Math.min(1, (externalClubs.get(partnership.toClubId) ?? ((partnerSupport?.commercialReputation ?? 4) * 10)) / 100));
+        return total + baseCommercialValue * 0.08 * (Math.max(0, Math.min(100, partnership.relationshipStrength)) / 100) * (0.75 + quality * 0.5);
+      }, 0);
+      const amount = Math.min(Math.round(baseCommercialValue * 0.08), Math.round(settlement));
+      if (amount > 0)
+        postClubTransaction(db, {
+          clubId: account.clubId,
+          date: input.date,
+          category: "COMMERCIAL_PARTNERSHIP_INCOME",
+          direction: "CREDIT",
+          amount,
+          description: "Monthly commercial partnership opportunity settlement",
+          relatedEntityId: commercialPartnerships[0]!.id,
+          idempotencyKey: `commercial-partnership:${account.clubId}:${input.date}`,
+        });
     }
     postMerchandiseRevenue(db, { clubId: account.clubId, date: input.date, seed: input.seed });
   }

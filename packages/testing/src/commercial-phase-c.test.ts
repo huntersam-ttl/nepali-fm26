@@ -2,8 +2,8 @@ import { readFileSync, mkdtempSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
-import { ClubEconomyRepository, openGameDatabase } from "@nepal-football-sim/database";
-import { createNepalSave, createSeasonMembership, initializeClubEconomyForSave, postMatchdayEconomy, postMerchandiseRevenue, runPreseasonCommercialCamp, setClubTicketPrice } from "@nepal-football-sim/simulation";
+import { ClubEconomyRepository, ClubNetworkRepository, GlobalFootballContextRepository, openGameDatabase } from "@nepal-football-sim/database";
+import { activateClubPartnership, commercialPartnershipIncome, createClubPartnership, createNepalSave, createSeasonMembership, initializeClubEconomyForSave, initializeForeignFootballWorldForSave, postMatchdayEconomy, postMerchandiseRevenue, processClubEconomyMonth, runPreseasonCommercialCamp, setClubTicketPrice } from "@nepal-football-sim/simulation";
 import type { EntityId, FixtureRecord } from "@nepal-football-sim/shared-types";
 
 const dirs: string[] = [];
@@ -44,5 +44,37 @@ describe("commercial football world phase C", () => {
     expect(economy.commercialHistory(club.id).length).toBe(3); expect(economy.commercialCamps(club.id)[0]?.destination).toBe("Pokhara");
     db.close(); const reloaded = openGameDatabase(path);
     expect(new ClubEconomyRepository(reloaded).seasonMemberships(club.id)[0]?.id).toBe(membership.id); reloaded.close();
+  });
+
+  it("settles active commercial partnerships once, directionally, and within a bounded cap", () => {
+    const path = makeSave("commercial-partnership"); const db = openGameDatabase(path);
+    initializeForeignFootballWorldForSave({ db, worldDate: "2026-08-01", seed: "commercial-partnership" });
+    initializeClubEconomyForSave({ db, worldDate: "2026-08-01", seed: "commercial-partnership" });
+    const home = db.prepare("SELECT c.id FROM clubs c JOIN countries country ON country.id = c.country_id WHERE country.iso_code = 'NP' ORDER BY c.id LIMIT 1").get() as { id: EntityId };
+    const external = new GlobalFootballContextRepository(db).clubs()[0]!;
+    const network = new ClubNetworkRepository(db);
+    expect(network.activeCommercialPartnerships(home.id, "2026-08-01")).toEqual([]);
+    expect(commercialPartnershipIncome(db, home.id, "2026-08-01").amount).toBe(0);
+    const proposal = createClubPartnership(db, { fromClubId: home.id, toClubId: external.clubId, partnershipType: "COMMERCIAL", relationshipStrength: 0, startDate: "2026-08-01" });
+    activateClubPartnership(db, proposal.id, { date: "2026-08-01", eligibility: { eligible: true, score: 80 } });
+    expect(network.activeCommercialPartnerships(home.id, "2026-08-01")).toHaveLength(1);
+    expect(network.activeCommercialPartnerships(external.clubId, "2026-08-01")).toEqual([]);
+    expect(external.simulationDepth).toBe("CONTEXT_ONLY");
+    const settlement = commercialPartnershipIncome(db, home.id, "2026-08-01");
+    expect(settlement.amount).toBeGreaterThan(0);
+    expect(settlement.amount).toBeLessThanOrEqual(Math.round(settlement.baseCommercialValue * 0.08));
+    processClubEconomyMonth(db, { date: "2026-08-01", seed: "commercial-partnership" });
+    processClubEconomyMonth(db, { date: "2026-08-01", seed: "commercial-partnership" });
+    const economy = new ClubEconomyRepository(db);
+    const entries = economy.ledgerEntries(home.id).filter((entry) => entry.category === "COMMERCIAL_PARTNERSHIP_INCOME");
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.amount).toBe(settlement.amount);
+    expect(economy.ledgerEntries(external.clubId).filter((entry) => entry.category === "COMMERCIAL_PARTNERSHIP_INCOME")).toEqual([]);
+    db.prepare("UPDATE international_club_partnerships SET status='SUSPENDED' WHERE id=?").run(proposal.id);
+    expect(network.activeCommercialPartnerships(home.id, "2026-08-02")).toEqual([]);
+    expect(commercialPartnershipIncome(db, home.id, "2026-08-02").amount).toBe(0);
+    db.close(); const reloaded = openGameDatabase(path);
+    expect(new ClubEconomyRepository(reloaded).ledgerEntries(home.id).filter((entry) => entry.category === "COMMERCIAL_PARTNERSHIP_INCOME")).toHaveLength(1);
+    reloaded.close();
   });
 });
