@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 66;
+export const CURRENT_DATABASE_VERSION = 67;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -3265,6 +3265,27 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
         ON youth_partnership_development_programmes(player_id, status);
       CREATE INDEX IF NOT EXISTS idx_youth_partnership_programmes_due
         ON youth_partnership_development_programmes(status, end_date);
+    `,
+  },
+  {
+    version: 67,
+    sql: `
+      CREATE TABLE IF NOT EXISTS sell_on_entitlements (
+        id TEXT PRIMARY KEY,
+        player_id TEXT NOT NULL REFERENCES persons(id),
+        entitled_club_id TEXT NOT NULL REFERENCES clubs(id),
+        originating_transfer_id TEXT NOT NULL REFERENCES transfer_offers(id),
+        originating_seller_club_id TEXT NOT NULL REFERENCES clubs(id),
+        originating_buyer_club_id TEXT NOT NULL REFERENCES clubs(id),
+        percentage REAL NOT NULL,
+        basis TEXT NOT NULL,
+        status TEXT NOT NULL,
+        settled_transfer_id TEXT REFERENCES transfer_offers(id),
+        settled_on TEXT,
+        UNIQUE(originating_transfer_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_sell_on_player_seller_status
+        ON sell_on_entitlements(player_id, originating_buyer_club_id, status);
     `,
   },
 ];

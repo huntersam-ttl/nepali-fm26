@@ -17,6 +17,7 @@ import {
   type PlayerSquadRole,
   type PlayerTransferStatusRecord,
   type PlayerTransferRequest,
+  type SellOnEntitlement,
   type SquadNeed,
   type SquadNeedReport,
   type TransferConditionalClause,
@@ -1526,6 +1527,63 @@ const revisedPersonalTerms = (
   };
 };
 
+const persistSellOnEntitlement = (db: GameDatabase, offer: TransferOffer): void => {
+  if (!offer.sellingClubId || offer.sellOnPercentage <= 0) return;
+  if (!Number.isFinite(offer.sellOnPercentage) || offer.sellOnPercentage > 100) return;
+  const entitlement: SellOnEntitlement = {
+    id: createStableEntityId("sell-on-entitlement", offer.id),
+    playerId: offer.playerId,
+    entitledClubId: offer.sellingClubId,
+    originatingTransferId: offer.id,
+    originatingSellerClubId: offer.sellingClubId,
+    originatingBuyerClubId: offer.buyingClubId,
+    percentage: offer.sellOnPercentage,
+    basis: "TOTAL_RESALE_FEE",
+    status: "ACTIVE",
+  };
+  new TransferMarketRepository(db).upsertSellOnEntitlement(entitlement);
+};
+
+const settleSellOnEntitlements = (db: GameDatabase, resale: TransferOffer, worldDate: string): void => {
+  if (!resale.sellingClubId) return;
+  const market = new TransferMarketRepository(db);
+  for (const entitlement of market.activeSellOnEntitlements(resale.playerId, resale.sellingClubId)) {
+    const amount = Math.max(0, Math.round(resale.transferFee * entitlement.percentage / 100));
+    if (amount > 0) {
+      postClubTransaction(db, {
+        clubId: resale.sellingClubId,
+        date: worldDate,
+        category: "SELL_ON_PAYMENT",
+        direction: "DEBIT",
+        amount,
+        description: "Sell-on clause payment",
+        relatedEntityId: resale.id,
+        idempotencyKey: `sell-on-payment:${resale.id}:${entitlement.id}:${entitlement.entitledClubId}`,
+      });
+      postClubTransaction(db, {
+        clubId: entitlement.entitledClubId,
+        date: worldDate,
+        category: "SELL_ON_INCOME",
+        direction: "CREDIT",
+        amount,
+        description: "Sell-on clause income",
+        relatedEntityId: resale.id,
+        idempotencyKey: `sell-on-income:${resale.id}:${entitlement.id}:${entitlement.entitledClubId}`,
+      });
+      market.insertTransferHistoryEvent({
+        id: createStableEntityId("transfer-history", `${resale.id}:sell-on:${entitlement.id}`),
+        playerId: resale.playerId,
+        clubId: entitlement.entitledClubId,
+        relatedClubId: resale.sellingClubId,
+        eventType: "SELL_ON_CLAUSE_PAID",
+        occurredOn: worldDate,
+        data: { resaleTransferId: resale.id, originatingTransferId: entitlement.originatingTransferId, amount, percentage: entitlement.percentage },
+      });
+    }
+    market.upsertSellOnEntitlement({ ...entitlement, status: "SETTLED", settledTransferId: resale.id, settledOn: worldDate });
+  }
+};
+
 export const completePermanentTransfer = (
   db: GameDatabase,
   offer: TransferOffer,
@@ -1537,7 +1595,11 @@ export const completePermanentTransfer = (
   const market = new TransferMarketRepository(db);
   const persistedOffer = market.transferOffers().find((item) => item.id === offer.id);
   if (!persistedOffer || persistedOffer.status === "COMPLETED") return;
-  if (market.transferOffers().some((item) => item.playerId === offer.playerId && item.status === "COMPLETED")) {
+  const currentContract = market.activeContract(offer.playerId, worldDate);
+  if (
+    market.transferOffers().some((item) => item.playerId === offer.playerId && item.status === "COMPLETED") &&
+    (!currentContract || !offer.sellingClubId || currentContract.clubId !== offer.sellingClubId)
+  ) {
     market.updateOfferStatus(offer.id, "REJECTED");
     return;
   }
@@ -1632,6 +1694,8 @@ export const completePermanentTransfer = (
     data: { transferFee: offer.transferFee, currency: offer.currency },
   });
   recordTransferEconomy(db, offer, worldDate);
+  settleSellOnEntitlements(db, offer, worldDate);
+  persistSellOnEntitlement(db, offer);
   applySupporterTransferOutcome({
     db,
     buyingClubId: offer.buyingClubId,

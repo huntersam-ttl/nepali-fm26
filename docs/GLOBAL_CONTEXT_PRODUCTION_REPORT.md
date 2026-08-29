@@ -478,6 +478,22 @@ slow/unresolved. Option-to-buy execution, recall commands, recurring wage settle
 stage-eight proof remain follow-up depth. This addendum supersedes earlier historical notes that
 described imported coverage or loan support as pending.
 
+## Sell-On Clauses
+
+Sell-on percentages use the existing total-resale-fee semantics: a 20% clause on a 10,000,000
+resale settles 2,000,000. A completed permanent transfer creates one durable entitlement linked to
+the originating offer, player, seller, buyer, percentage, and basis. A later permanent resale looks
+up only active entitlements for that player whose originating buyer is the current seller.
+
+Settlement runs once from `completePermanentTransfer`: the resale buyer is charged by the existing
+transfer expense entry, the current seller receives the transfer income and pays `SELL_ON_PAYMENT`,
+and the entitled former club receives `SELL_ON_INCOME`. Stable idempotency keys, a settled marker,
+and `SELL_ON_CLAUSE_PAID` history make replay and reload safe. Zero-fee resales produce zero
+sell-on income; failed, cancelled, loan, recall, and registration-only movements do not settle.
+
+The flagship proof covers Nepal → external Club B → external Club C, with reload before resale,
+exact percentage settlement, seller/recipient ledgers, player movement, history, and replay.
+
 ## Loan Lifecycle Closure — 2026-08-28
 
 ### Recurring Loan Wage Settlement

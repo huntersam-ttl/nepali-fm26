@@ -157,6 +157,7 @@ import type {
   TeamSeasonStat,
   TransferHistoryEvent,
   TransferOffer,
+  SellOnEntitlement,
   TransferWindow,
   NegotiationRound,
   PlayerTransferStatusRecord,
@@ -3935,6 +3936,19 @@ export class TransferMarketRepository {
       .map(mapTransferOffer);
   }
 
+  upsertSellOnEntitlement(entitlement: SellOnEntitlement): void {
+    this.db.prepare(`INSERT INTO sell_on_entitlements (id,player_id,entitled_club_id,originating_transfer_id,originating_seller_club_id,originating_buyer_club_id,percentage,basis,status,settled_transfer_id,settled_on) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,settled_transfer_id=excluded.settled_transfer_id,settled_on=excluded.settled_on`).run(entitlement.id, entitlement.playerId, entitlement.entitledClubId, entitlement.originatingTransferId, entitlement.originatingSellerClubId, entitlement.originatingBuyerClubId, entitlement.percentage, entitlement.basis, entitlement.status, entitlement.settledTransferId ?? null, entitlement.settledOn ?? null);
+  }
+
+  sellOnEntitlements(playerId?: EntityId): SellOnEntitlement[] {
+    const rows = (playerId ? this.db.prepare("SELECT * FROM sell_on_entitlements WHERE player_id=? ORDER BY id").all(playerId) : this.db.prepare("SELECT * FROM sell_on_entitlements ORDER BY player_id,id").all()) as any[];
+    return rows.map(mapSellOnEntitlement);
+  }
+
+  activeSellOnEntitlements(playerId: EntityId, sellingClubId: EntityId): SellOnEntitlement[] {
+    return (this.db.prepare("SELECT * FROM sell_on_entitlements WHERE player_id=? AND originating_buyer_club_id=? AND status='ACTIVE' ORDER BY id").all(playerId, sellingClubId) as any[]).map(mapSellOnEntitlement);
+  }
+
   insertNegotiationRound(round: NegotiationRound): void {
     this.db
       .prepare(
@@ -5563,6 +5577,20 @@ const mapTransferOffer = (row: any): TransferOffer => ({
     ? json.parse(row.player_exchanges_json, [])
     : undefined,
   sellerRequestedPlayerId: row.seller_requested_player_id ?? undefined,
+});
+
+const mapSellOnEntitlement = (row: any): SellOnEntitlement => ({
+  id: row.id,
+  playerId: row.player_id,
+  entitledClubId: row.entitled_club_id,
+  originatingTransferId: row.originating_transfer_id,
+  originatingSellerClubId: row.originating_seller_club_id,
+  originatingBuyerClubId: row.originating_buyer_club_id,
+  percentage: row.percentage,
+  basis: row.basis,
+  status: row.status,
+  settledTransferId: row.settled_transfer_id ?? undefined,
+  settledOn: row.settled_on ?? undefined,
 });
 
 const mapNegotiationRound = (row: any): NegotiationRound => ({

@@ -1770,6 +1770,8 @@ export type ClubLedgerCategory =
   | "PRIZE_MONEY"
   | "TRANSFER_INCOME"
   | "TRANSFER_EXPENSE"
+  | "SELL_ON_INCOME"
+  | "SELL_ON_PAYMENT"
   | "PLAYER_WAGES"
   | "STAFF_WAGES"
   | "FACILITY_COST"
@@ -2488,7 +2490,22 @@ export type TransferHistoryEventType =
   | "CONTRACT_RENEWED"
   | "CONTRACT_EXPIRED"
   | "PLAYER_RELEASED"
-  | "TRANSFER_REQUESTED";
+  | "TRANSFER_REQUESTED"
+  | "SELL_ON_CLAUSE_PAID";
+
+export type SellOnEntitlement = {
+  id: EntityId;
+  playerId: EntityId;
+  entitledClubId: EntityId;
+  originatingTransferId: EntityId;
+  originatingSellerClubId: EntityId;
+  originatingBuyerClubId: EntityId;
+  percentage: number;
+  basis: "TOTAL_RESALE_FEE";
+  status: "ACTIVE" | "SETTLED";
+  settledTransferId?: EntityId;
+  settledOn?: ISODate;
+};
 
 export type TransferHistoryEvent = {
   id: EntityId;

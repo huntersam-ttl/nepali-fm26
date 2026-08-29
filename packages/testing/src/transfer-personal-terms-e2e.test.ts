@@ -60,6 +60,11 @@ const foreignClub = (db: ReturnType<typeof open>): { id: EntityId } =>
     )
     .get() as { id: EntityId };
 
+const foreignClubs = (db: ReturnType<typeof open>): Array<{ id: EntityId }> =>
+  db
+    .prepare("SELECT id FROM clubs WHERE canonical_external_id LIKE 'SIM-FOREIGN-%' ORDER BY id LIMIT 3")
+    .all() as Array<{ id: EntityId }>;
+
 /** A contracted Nepal player with a resolvable club, chosen deterministically. */
 const nepalPlayer = (db: ReturnType<typeof open>): { player_id: EntityId; club_id: EntityId } =>
   db
@@ -88,6 +93,56 @@ afterEach(() => {
 });
 
 describe("AI personal-terms negotiation", () => {
+  it("executes a Nepal export sell-on clause on a later foreign resale exactly once", () => {
+    const databasePath = createWorld("sell-on-nepal-export");
+    const db = open(databasePath);
+    const target = nepalPlayer(db);
+    const [foreignB, foreignC] = foreignClubs(db);
+    const market = new TransferMarketRepository(db);
+    const first = createTransferOffer(db, {
+      buyingClubId: foreignB!.id,
+      sellingClubId: target.club_id,
+      playerId: target.player_id,
+      submittedAt: WORLD_DATE,
+      fee: 4_000_000,
+      sellOnPercentage: 20,
+    });
+    expect(evaluateTransferOffer(db, first, WORLD_DATE, "sell-on-first").accepted).toBe(true);
+    completePermanentTransfer(db, first, WORLD_DATE, "sell-on-first", { prefersOverseas: true, expectedPlayingTime: "FIRST_TEAM" }, { salary: 500_000, squadRole: "FIRST_TEAM", contractLengthMonths: 24 });
+    expect(market.sellOnEntitlements(target.player_id)).toMatchObject([{ entitledClubId: target.club_id, percentage: 20, basis: "TOTAL_RESALE_FEE", status: "ACTIVE" }]);
+    db.close();
+
+    const reloaded = open(databasePath);
+    try {
+      const reloadedMarket = new TransferMarketRepository(reloaded);
+      expect(reloadedMarket.sellOnEntitlements(target.player_id)).toHaveLength(1);
+      const resale = createTransferOffer(reloaded, {
+        buyingClubId: foreignC!.id,
+        sellingClubId: foreignB!.id,
+        playerId: target.player_id,
+        submittedAt: "2027-01-01",
+        fee: 10_000_000,
+        sellOnPercentage: 0,
+      });
+      expect(evaluateTransferOffer(reloaded, resale, "2027-01-01", "sell-on-resale").accepted).toBe(true);
+      completePermanentTransfer(reloaded, resale, "2027-01-01", "sell-on-resale", { prefersOverseas: true, expectedPlayingTime: "FIRST_TEAM" }, { salary: 500_000, squadRole: "FIRST_TEAM", contractLengthMonths: 24 });
+      completePermanentTransfer(reloaded, resale, "2027-01-01", "sell-on-resale", { prefersOverseas: true, expectedPlayingTime: "FIRST_TEAM" }, { salary: 500_000, squadRole: "FIRST_TEAM", contractLengthMonths: 24 });
+      const entitlement = reloadedMarket.sellOnEntitlements(target.player_id)[0]!;
+      expect(entitlement.status).toBe("SETTLED");
+      expect(entitlement.settledTransferId).toBe(resale.id);
+      const resaleEntries = new ClubEconomyRepository(reloaded).ledgerEntries().filter((entry) => entry.relatedEntityId === resale.id);
+      expect(resaleEntries.filter((entry) => entry.category === "TRANSFER_EXPENSE")).toHaveLength(1);
+      expect(resaleEntries.filter((entry) => entry.category === "TRANSFER_INCOME")).toHaveLength(1);
+      expect(resaleEntries.filter((entry) => entry.category === "SELL_ON_PAYMENT")).toEqual([expect.objectContaining({ clubId: foreignB!.id, amount: 2_000_000, direction: "DEBIT" })]);
+      expect(resaleEntries.filter((entry) => entry.category === "SELL_ON_INCOME")).toEqual([expect.objectContaining({ clubId: target.club_id, amount: 2_000_000, direction: "CREDIT" })]);
+      expect(historyCount(reloaded, target.player_id, "SELL_ON_CLAUSE_PAID")).toBe(1);
+      expect(reloadedMarket.activeContract(target.player_id, "2027-01-01")?.clubId).toBe(foreignC!.id);
+      expect(reloadedMarket.sellOnEntitlements(target.player_id)).toHaveLength(1);
+    } finally {
+      reloaded.close();
+    }
+  }, 300000);
+
   it("completes a Nepal to foreign transfer through a revised offer, preserving identity", () => {
     const databasePath = createWorld("nepal-to-foreign");
     const db = open(databasePath);

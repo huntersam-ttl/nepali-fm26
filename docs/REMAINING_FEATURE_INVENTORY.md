@@ -11,9 +11,9 @@ audit, plus the eight explicit high-risk overlays requested for this pass. Statu
 
 | Status | Count |
 | --- | ---: |
-| COMPLETE | 60 |
+| COMPLETE | 61 |
 | BUILT_NOT_PROVEN | 1 |
-| PARTIAL | 24 |
+| PARTIAL | 23 |
 | MISSING | 3 |
 | LATER | 4 |
 | **Total** | **92** |
@@ -92,9 +92,10 @@ High-risk overlays:
    candidate flows; related-party valuation and same-competition safeguards are enforced at
    offer evaluation; finance remains per-club and foreign clubs remain `CONTEXT_ONLY`.
    Staff exchanges and academy collaboration remain partial and partnership-driven.
-6. **Sell-on clauses — PARTIAL / persisted-only.** `sellOnPercentage` is negotiated and
-   persisted on transfer offers. There is no durable clause attached to a completed transfer,
-   no later resale trigger, and no exact-once sell-on ledger payout.
+6. **Sell-on clauses — COMPLETE.** Negotiated percentages become durable total-resale-fee
+   entitlements at permanent-transfer completion. Later qualifying resales settle the entitlement
+   exactly once through separate seller-payment and former-club-income ledger entries, with
+   reload-safe history and no payout for failed or non-permanent movement.
 
 ### Remaining-candidate coverage matrix
 
@@ -107,7 +108,7 @@ High-risk overlays:
 | External competition context | external profile helpers | global-context season persistence | career seasonal cadence | context rows reload |
 | Partnerships | pathway/evaluation helpers | one SCOUTING activation | no production consumer | no partnership reload proof |
 | Multi-club | ownership lookup, pathway, valuation, governance helpers | imported external club, scouting, offer review, reload | scouting/transfer/loan candidate paths and offer governance | ownership lookup reload |
-| Sell-on | offer persistence | no resale flow | no consumer | offer reload only |
+| Sell-on | offer persistence and entitlement | resale, exact-once ledger/history settlement | canonical permanent-transfer completion | clause and settlement reload |
 | Loan development attribution | none | none | none | none |
 
 ## Missing Systems
@@ -146,7 +147,7 @@ No long save, balance run, UI/UX pass, or optimization was performed.
   not imply a feature freeze.
 - **P1 — connected-world depth:** extend external competition context; wire the remaining
   partnership types and multi-club effects outside the bounded player-pathway scope;
-  implement sell-on resale settlement if retained in scope. Wire the remaining
+  Wire the remaining
   production gaps for AI staff, government/distribution, referee development/VAR, camps,
   media/rivalries, club creation/takeovers, and diaspora as their scope is confirmed.
 - **P2 — proof and release:** add a repeatable performance benchmark, then run the bounded
@@ -161,7 +162,7 @@ is being marked green automatically.
 ## Feature Freeze Decision
 
 **NO — not ready for a true feature freeze.** The core manager spine is production-reachable,
-but external competition context/partnership/network/sell-on systems are meaningful
+but external competition context/partnership systems are meaningful
 PARTIALs and long-save performance is BUILT_NOT_PROVEN. Freeze can be reconsidered only after
 the remaining P1 production passes and proof tasks are closed. The current uncommitted
 repository work remains untouched.
