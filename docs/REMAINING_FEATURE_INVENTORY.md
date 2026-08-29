@@ -11,9 +11,9 @@ audit, plus the eight explicit high-risk overlays requested for this pass. Statu
 
 | Status | Count |
 | --- | ---: |
-| COMPLETE | 64 |
+| COMPLETE | 65 |
 | BUILT_NOT_PROVEN | 1 |
-| PARTIAL | 20 |
+| PARTIAL | 19 |
 | MISSING | 3 |
 | LATER | 4 |
 | **Total** | **92** |
@@ -80,21 +80,25 @@ High-risk overlays:
    they remain non-playable and do not receive a full foreign payroll simulation.
 2. **Global club tournaments — LATER.** Continental context is lightweight and seasonal;
    no detailed intercontinental club tournament is currently planned.
-4. **International partnerships — PARTIAL / selected production consumers.** The type vocabulary exists for
+4. **International partnerships — COMPLETE for bounded P1 type wiring and lifecycle.** The type vocabulary exists for
    `SCOUTING`, `TECHNICAL`, `YOUTH_DEVELOPMENT`, `ACADEMY`, `STAFF_EXCHANGE`, `TRAINING`,
    `LOAN_PLAYER_PATHWAY`, `LOAN`, `PREFERRED_TRANSFER`, `COMMERCIAL`, and `FRIENDLY_TOUR`.
-   Proposal/activation and bounded benefit calculation are tested. SCOUTING, TECHNICAL,
-   YOUTH_DEVELOPMENT, ACADEMY, and LOAN have production consumers, and PREFERRED_TRANSFER now
+   Proposal/activation, bounded benefit calculation, and expiry/lifecycle enforcement are tested.
+   SCOUTING, TECHNICAL, YOUTH_DEVELOPMENT, ACADEMY, and LOAN have production consumers, and PREFERRED_TRANSFER now
    feeds the canonical permanent-transfer candidate path. COMMERCIAL now feeds a bounded,
    idempotent monthly club-economy settlement using partner quality. FRIENDLY_TOUR now feeds
    a bounded preseason destination planner that hands context to the existing commercial-camp
    machinery; it does not schedule guaranteed fixtures. TRAINING and LOAN_PLAYER_PATHWAY remain
-   persisted-only benefit paths; STAFF_EXCHANGE remains storage-only.
+   persisted-only benefit paths. STAFF_EXCHANGE is satisfied by the existing TECHNICAL
+   international-placement programme; LOAN_PLAYER_PATHWAY is satisfied by the canonical LOAN
+   engine plus bounded partnership and related-club preference. TRAINING remains a separate
+   out-of-scope P1 partnership type.
 5. **Multi-club ownership/network effects — COMPLETE for the bounded P1 player-pathway scope.**
    Ownership records resolve active related clubs into existing scouting, transfer, and loan
    candidate flows; related-party valuation and same-competition safeguards are enforced at
    offer evaluation; finance remains per-club and foreign clubs remain `CONTEXT_ONLY`.
-   Staff exchanges and academy collaboration remain partial and partnership-driven.
+   Technical placements satisfy staff exchange; ownership-specific academy collaboration remains
+   a separate partial nuance while partnership-driven academy behavior is complete.
 6. **Sell-on clauses — COMPLETE.** Negotiated percentages become durable total-resale-fee
    entitlements at permanent-transfer completion. Later qualifying resales settle the entitlement
    exactly once through separate seller-payment and former-club-income ledger entries, with
@@ -109,7 +113,7 @@ High-risk overlays:
 | Foreign staff movement | vacancy, decision, contract, retirement helpers | two-way CONTEXT_ONLY moves and replacement | desktop and seasonal context cadence | contracts/history/replacements reload |
 | Global generated lifecycle | canonical attributes, potential, development, retirement, and context records | focused lifecycle/reload/determinism coverage | seasonal context lifecycle plus bounded replenishment | identity, retirement, development, and replenishment reload-safe |
 | External competition context | external profile helpers | global-context season persistence | career seasonal cadence | context rows reload |
-| Partnerships | pathway/evaluation helpers | scouting, preferred-transfer, commercial, friendly-tour, and prior-slice activations | selected production consumers | partnership-specific reload coverage |
+| Partnerships | pathway/evaluation helpers and lifecycle | all eight bounded production types, expiry, and reload | bounded production consumers | partnership-specific reload and expiry coverage |
 | Multi-club | ownership lookup, pathway, valuation, governance helpers | imported external club, scouting, offer review, reload | scouting/transfer/loan candidate paths and offer governance | ownership lookup reload |
 | Sell-on | offer persistence and entitlement | resale, exact-once ledger/history settlement | canonical permanent-transfer completion | clause and settlement reload |
 | Loan development attribution | none | none | none | none |
@@ -149,7 +153,7 @@ No long save, balance run, UI/UX pass, or optimization was performed.
   and women/youth international football are production-reachable with focused proof. This does
   not imply a feature freeze.
 - **P1 — connected-world depth:** extend external competition context; wire the remaining
-  partnership types and effects outside the bounded player-pathway scope;
+  `TRAINING` partnership type and effects outside the bounded player-pathway scope;
   production gaps for AI staff, government/distribution, referee development/VAR, camps,
   media/rivalries, club creation/takeovers, and diaspora as their scope is confirmed.
 - **P2 — proof and release:** add a repeatable performance benchmark, then run the bounded
@@ -164,7 +168,6 @@ is being marked green automatically.
 ## Feature Freeze Decision
 
 **NO — not ready for a true feature freeze.** The core manager spine is production-reachable,
-but external competition context/partnership systems are meaningful
-PARTIALs and long-save performance is BUILT_NOT_PROVEN. Freeze can be reconsidered only after
-the remaining P1 production passes and proof tasks are closed. The current uncommitted
-repository work remains untouched.
+but external competition context and long-save performance remain incomplete. Freeze can be
+reconsidered only after the remaining P1 production passes and proof tasks are closed. The
+current uncommitted repository work remains untouched.

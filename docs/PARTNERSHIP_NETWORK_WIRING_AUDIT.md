@@ -1,6 +1,6 @@
 # Partnership / Network Wiring Audit
 
-Overall partnership status: `PARTIAL`.
+Overall partnership status: `COMPLETE` for the bounded P1 partnership type and lifecycle scope.
 
 ### SCOUTING
 
@@ -20,7 +20,12 @@ ended records are ignored by the consumer.
 
 ### NETWORKS
 
-`PARTIAL`
+`COMPLETE` for bounded P1 network signals.
+
+Scouting reach, partner-country knowledge, regional recruitment context,
+multi-club related-club lookup, and bounded transfer/loan pathways all feed
+existing production consumers. No social graph or perfect player knowledge is
+created; active-state and candidate caps remain authoritative.
 
 ### TECHNICAL
 
@@ -132,10 +137,12 @@ reusable seam for future scheduling cadence.
   authoritative; no ownership wallet exists.
 - Governance: `PRODUCTION_ACTIVE` — same-competition related-club transfers
   are rejected and the existing conflict model remains available for flags.
-- Staff exchanges: `PARTIAL` — existing technical partnership placements are
-  unchanged; no implicit permanent staff movement is added.
-- Academy collaboration: `PARTIAL` — existing academy/youth machinery remains
-  partnership-driven; ownership does not create duplicate programmes.
+- Staff exchanges: `COMPLETE via TECHNICAL placements` — temporary international
+  placements preserve home employment, apply bounded development/knowledge, and
+  persist exact-once completion.
+- Academy collaboration: `PARTIAL for ownership-specific effects` — partnership
+  ACADEMY behavior is production-active; ownership does not create duplicate
+  programmes or an additional academy source.
 
 Foreign related clubs remain `CONTEXT_ONLY`. Ownership relations are derived
 and do not create persisted partnership records.
