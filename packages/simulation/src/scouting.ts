@@ -16,7 +16,7 @@ import {
   type ScoutingAssignment,
   type ScoutingAssignmentPriority,
 } from "@nepal-football-sim/shared-types";
-import { RecruitmentRepository, type GameDatabase } from "@nepal-football-sim/database";
+import { ClubNetworkRepository, RecruitmentRepository, type GameDatabase } from "@nepal-football-sim/database";
 import { SeededRandom } from "./rng.js";
 type ScoutingCoverage = { clubId: EntityId; reachable: boolean; effectiveQuality: number; budgetAvailable: number; rationale: string };
 
@@ -245,7 +245,7 @@ export const marketRegionForPlayer = (db: GameDatabase, playerId: EntityId): Ext
   return countryToRecruitmentRegion(row?.iso_code);
 };
 
-export const accessibleRecruitmentRegions = (db: GameDatabase, clubId: EntityId): ExternalFootballRegion[] => {
+export const accessibleRecruitmentRegions = (db: GameDatabase, clubId: EntityId, worldDate = "2026-08-01"): ExternalFootballRegion[] => {
   const profile = new RecruitmentRepository(db).clubRecruitmentProfile(clubId);
   if (!profile) return [];
   if (profile.networkReach === "GLOBAL") return Object.keys(REGION_COUNTRIES) as ExternalFootballRegion[];
@@ -253,6 +253,10 @@ export const accessibleRecruitmentRegions = (db: GameDatabase, clubId: EntityId)
   if (profile.networkReach === "SOUTH_ASIA" || profile.internationalKnowledge >= 0.2) regions.push("WIDER_ASIA");
   if (profile.internationalKnowledge >= 0.2) regions.push("AFRICA");
   if (profile.internationalKnowledge >= 0.28 && profile.networkReach !== "REGIONAL") regions.push("EUROPE");
+  for (const partnership of activeScoutingPartnerships(db, clubId, worldDate)) {
+    const region = clubRegion(db, partnership.toClubId);
+    if (region && !regions.includes(region)) regions.push(region);
+  }
   return regions;
 };
 
@@ -263,12 +267,49 @@ export const searchRegionalCandidatesForClub = (
   worldDate = "2026-08-01",
   limit = 12,
 ): RecruitmentSearchResult[] => {
-  const accessible = new Set(accessibleRecruitmentRegions(db, clubId));
-  return searchPlayersForClub(db, clubId, filters, worldDate)
+  const partnerships = activeScoutingPartnerships(db, clubId, worldDate);
+  const accessible = new Set(accessibleRecruitmentRegions(db, clubId, worldDate));
+  const partnerClubIds = new Set(partnerships.map((partnership) => partnership.toClubId));
+  const visible = searchPlayersForClub(db, clubId, filters, worldDate);
+  // A partnership supplies a small discovery signal for players at the actual
+  // partner club. It is derived per search, not accumulated in save state, and
+  // remains MINIMAL so exact knowledge and ordinary filters still govern.
+  const visibleIds = new Set(visible.map((candidate) => candidate.playerId));
+  for (const partnerClubId of partnerClubIds) {
+    for (const player of playersForClub(db, partnerClubId)) {
+      if (!visibleIds.has(player.playerId)) {
+        const derived = searchResult(
+          player,
+          knowledgeFor(player, clubId, {
+            level: "MINIMAL",
+            discoveryStatus: "DISCOVERED",
+            confidence: "LOW",
+            sourceType: "PUBLIC",
+            observations: 1,
+            date: worldDate,
+            seed: `partnership:${clubId}:${player.playerId}`,
+          }),
+        );
+        if (passesFilters(derived, filters, worldDate, db)) visible.push(derived);
+      }
+    }
+  }
+  return visible
     .map((candidate) => candidate)
     .filter((candidate) => candidate.marketRegion && accessible.has(candidate.marketRegion))
     .sort((a, b) => String(a.marketRegion).localeCompare(String(b.marketRegion)) || String(a.playerId).localeCompare(String(b.playerId)))
     .slice(0, Math.max(1, Math.min(limit, 24)));
+};
+
+const activeScoutingPartnerships = (
+  db: GameDatabase,
+  clubId: EntityId,
+  worldDate: string,
+) => new ClubNetworkRepository(db).activeScoutingPartnerships(clubId, worldDate);
+
+const clubRegion = (db: GameDatabase, clubId: EntityId): ExternalFootballRegion | undefined => {
+  const row = db.prepare("SELECT co.iso_code AS iso_code FROM clubs c LEFT JOIN countries co ON co.id = c.country_id WHERE c.id = ? LIMIT 1").get(clubId) as { iso_code?: string } | undefined;
+  return countryToRecruitmentRegion(row?.iso_code);
 };
 
 export const createScoutingAssignment = (
@@ -795,7 +836,7 @@ const truePlayers = (db: GameDatabase, playerIds?: readonly EntityId[]): TruePla
   const where = ids.length > 0 ? `WHERE p.id IN (${ids.map(() => "?").join(",")})` : "";
   return db
     .prepare(
-      `SELECT p.id AS player_id, p.full_name, p.date_of_birth, pfp.current_club_id,
+      `SELECT p.id AS player_id, p.full_name, p.date_of_birth, COALESCE(pfp.current_club_id, pc.club_id) AS current_club_id,
         co.iso_code AS market_region,
         pfp.factual_json, pfp.simulation_json, pa.primary_position, pa.technical_json,
         pa.mental_json, pa.physical_json, pa.goalkeeping_json, tpa.team_id,
@@ -826,7 +867,7 @@ const truePlayer = (db: GameDatabase, playerId: EntityId): TruePlayer | undefine
 const playersForClub = (db: GameDatabase, clubId: EntityId): TruePlayer[] =>
   db
     .prepare(
-      `SELECT p.id AS player_id, p.full_name, p.date_of_birth, pfp.current_club_id,
+      `SELECT p.id AS player_id, p.full_name, p.date_of_birth, COALESCE(pfp.current_club_id, pc.club_id) AS current_club_id,
         co.iso_code AS market_region,
         pfp.factual_json, pfp.simulation_json, pa.primary_position, pa.technical_json,
         pa.mental_json, pa.physical_json, pa.goalkeeping_json, tpa.team_id,
@@ -843,7 +884,7 @@ const playersForClub = (db: GameDatabase, clubId: EntityId): TruePlayer[] =>
       LEFT JOIN countries co ON co.id = c.country_id
       LEFT JOIN team_person_assignments tpa ON tpa.person_id = p.id AND tpa.role = 'PLAYER'
       LEFT JOIN player_season_stats pss ON pss.person_id = p.id
-      WHERE pfp.current_club_id = ?
+      WHERE COALESCE(pfp.current_club_id, pc.club_id) = ?
       GROUP BY p.id
       ORDER BY p.full_name, p.id`,
     )
