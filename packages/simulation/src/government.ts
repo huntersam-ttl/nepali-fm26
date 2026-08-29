@@ -1,4 +1,4 @@
-import { createStableEntityId, type GovernmentFundingApplication, type GovernmentInstitution, type GovernmentFundingType } from "@nepal-football-sim/shared-types";
+import { createStableEntityId, type EntityId, type GovernmentFundingApplication, type GovernmentInstitution, type GovernmentFundingType } from "@nepal-football-sim/shared-types";
 import { GovernmentRepository, type GameDatabase } from "@nepal-football-sim/database";
 import { postFederationTransaction } from "./federation-governance.js";
 
@@ -47,6 +47,55 @@ export const proposeGovernmentFunding = (db: GameDatabase, input: Omit<Governmen
   const application: GovernmentFundingApplication = { ...input, id: createStableEntityId("government-funding", `${input.institutionId}:${input.fundingType}:${input.proposedOn}:${input.projectId ?? input.clubId ?? input.federationId ?? "general"}`), status: "PROPOSED", conditions: [], provenanceStatus: "SIMULATION_ONLY" };
   new GovernmentRepository(db).upsertApplication(application);
   return application;
+};
+
+/**
+ * Annual opportunity surfaced by the federation cadence. This deliberately
+ * stops at PROPOSED: approval and ledger settlement remain the existing
+ * government-funding flow. The amount is a gameplay-only request, not a
+ * factual government allocation.
+ */
+export const proposeAnnualGovernmentFunding = (
+  db: GameDatabase,
+  input: { date: string; seed: string },
+): GovernmentFundingApplication | undefined => {
+  const federation = db.prepare(`
+    SELECT f.id FROM federations f
+    JOIN countries c ON c.id = f.country_id
+    WHERE c.iso_code IN ('NP', 'NPL')
+    ORDER BY f.id LIMIT 1
+  `).get() as { id?: EntityId } | undefined;
+  if (!federation?.id) return undefined;
+  const institutionRepo = new GovernmentRepository(db);
+  const existingInstitution = institutionRepo.institutions("NATIONAL_SPORTS_COUNCIL")[0];
+  const institution = existingInstitution ?? {
+    id: createStableEntityId("government-institution", "nepal-national-sports-council"),
+    name: "National Sports Council",
+    institutionType: "NATIONAL_SPORTS_COUNCIL" as const,
+    profile: {
+      budgetCapacity: 40_000_000,
+      committedBudget: 0,
+      footballPriority: 60,
+      credibilityTowardFederation: 60,
+      infrastructurePriority: 60,
+      youthWomenPriority: 70,
+    },
+    provenanceStatus: "SIMULATION_ONLY" as const,
+  };
+  if (!existingInstitution) institutionRepo.upsertInstitution(institution);
+  const applicationId = createStableEntityId(
+    "government-funding",
+    `${institution.id}:YOUTH_GRASSROOTS:${input.date}:${federation.id}`,
+  );
+  const existing = institutionRepo.applications().find((application) => application.id === applicationId);
+  if (existing) return existing;
+  return proposeGovernmentFunding(db, {
+    institutionId: institution.id,
+    federationId: federation.id,
+    fundingType: "YOUTH_GRASSROOTS",
+    requestedAmount: 5_000_000,
+    proposedOn: input.date,
+  });
 };
 
 export const submitGovernmentFunding = (db: GameDatabase, applicationId: string): GovernmentFundingApplication => {

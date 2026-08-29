@@ -3,7 +3,7 @@
 ## Snapshot
 
 Audit date: 2026-08-30. Repository: `/Users/cc/nepali-fm26`. Final reconciliation based on
-HEAD `a225231`; the pre-existing untracked `nepali-fm26/` entry
+HEAD `b6a087a`; the pre-existing untracked `nepali-fm26/` entry
 remains untouched.
 
 The inventory has 92 normalized entries: the 84 row-level entries in the previous feature
@@ -11,9 +11,9 @@ audit, plus the eight explicit high-risk overlays requested for this pass. Statu
 
 | Status | Count |
 | --- | ---: |
-| COMPLETE | 72 |
+| COMPLETE | 73 |
 | BUILT_NOT_PROVEN | 0 |
-| PARTIAL | 13 |
+| PARTIAL | 12 |
 | MISSING | 3 |
 | LATER | 4 |
 | **Total** | **92** |
@@ -85,9 +85,8 @@ Legacy partials:
   AI club-support slice now pays a bounded, deterministic set of playable domestic clubs through the
   canonical federation/club ledgers, approved competition distributions now settle at season finalization,
   and an approved government funding application now credits the federation through the same external-income
-  route FIFA and AFC grants use, carrying the funding type as its restriction tag. What remains PARTIAL is
-  cadence rather than settlement: nothing in the season loop proposes government funding on the federation's
-  behalf, so the flow is reachable only through the universal-interaction adapter.
+  route FIFA and AFC grants use, carrying the funding type as its restriction tag. The annual federation
+  cadence now surfaces one stable Nepal-only proposal per year without bypassing approval or settlement.
 - Insurance and welfare; the national-team camp slice and federation severe-injury welfare programme are COMPLETE.
 - Diaspora and Nepalis abroad — COMPLETE for bounded generated Nepal-primary players: the annual CONTEXT_ONLY foreign-world lifecycle now produces a deterministic cap of two fictional SIMULATION_ONLY players, assigns them to existing foreign clubs, and reuses the canonical youth/profile/contract/development, scouting search, and national-team eligibility consumers. Detailed foreign youth/league simulation remains out of scope.
 - Real Nepal player database and provenance; role-limited real staff database (the verified
@@ -165,17 +164,17 @@ production path.
   loan scope is contract, wages, recall, expiry, return, and option-to-buy.
 - Final 20/50-year balancing; mobile; final release workflow.
 
-## Final Reconciliation (HEAD `a225231`)
+## Final Reconciliation (HEAD `b6a087a`)
 
 The 92 normalized rows were rechecked against source reachability and focused production tests.
-The mechanical status total is now 72 COMPLETE, 0 BUILT_NOT_PROVEN, 13 PARTIAL, 3 MISSING,
+The mechanical status total is now 73 COMPLETE, 0 BUILT_NOT_PROVEN, 12 PARTIAL, 3 MISSING,
 and 4 LATER. Long-save continuity remains COMPLETE for its implemented structural path; the
 20/50-season performance and durability gates are intentionally not run.
 
 The 13 PARTIAL rows are: chairman/owner career (including bounded budget setting, infrastructure approval, and sponsorship approval/rejection, but not a complete chairman command surface); federation-president career (including the
 bounded proposal submission and approved-proposal implementation command adapters, but not a complete playable career); broader role transitions
 and authority (bounded active-role switching is complete); default match-view wiring; takeover lifecycle; grants/government
-distribution (including the bounded annual playable-club support slice and approved season distribution settlement); government-funding receipt is now complete, but annual government-funding proposal cadence remains; prize/revenue sharing;
+distribution (including the bounded annual playable-club support slice, approved season distribution settlement, and annual government-funding proposal cadence); prize/revenue sharing;
 real Nepal player coverage; girls schools/grassroots/academies;
 media/journalism (bounded notable-event and major-transfer publishing are complete, but the broader journalism
 surface remains partial); rivalries (stored match context is wired, broader rivalry surface remains partial); AI chairman; and the role-limited real staff

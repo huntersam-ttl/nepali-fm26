@@ -10,6 +10,7 @@ import {
 import {
   createNepalSave,
   initializeFederationGovernanceForSave,
+  proposeAnnualGovernmentFunding,
   proposeGovernmentFunding,
   reviewGovernmentFunding,
   submitGovernmentFunding,
@@ -95,6 +96,27 @@ const governmentEntries = (db: ReturnType<typeof openGameDatabase>, federationId
     .filter((entry) => entry.category === "GOVERNMENT_GRANT");
 
 describe("government funding settlement", () => {
+  it("surfaces one Nepal proposal per annual cadence without settling funds", () => {
+    const db = openGameDatabase(seededSave("annual-cadence"));
+    try {
+      initializeFederationGovernanceForSave({ db, worldDate: "2026-08-01", seed: "gov" });
+      const federationId = nepalFederation(db);
+      const before = new FederationGovernanceRepository(db).financialAccount(federationId)!.cashBalance;
+      const first = proposeAnnualGovernmentFunding(db, { date: "2026-08-28", seed: "gov" });
+      expect(first?.status).toBe("PROPOSED");
+      expect(first?.fundingType).toBe("YOUTH_GRASSROOTS");
+      expect(first?.provenanceStatus).toBe("SIMULATION_ONLY");
+      expect(new GovernmentRepository(db).applications()).toHaveLength(1);
+      expect(new FederationGovernanceRepository(db).financialAccount(federationId)!.cashBalance).toBe(before);
+      expect(proposeAnnualGovernmentFunding(db, { date: "2026-08-28", seed: "gov" })?.id).toBe(first?.id);
+      expect(new GovernmentRepository(db).applications()).toHaveLength(1);
+      expect(proposeAnnualGovernmentFunding(db, { date: "2027-08-28", seed: "gov" })?.id).not.toBe(first?.id);
+      expect(new GovernmentRepository(db).applications()).toHaveLength(2);
+    } finally {
+      db.close();
+    }
+  }, 120000);
+
   it("credits the federation when an application is approved", () => {
     const db = openGameDatabase(seededSave("credit"));
     try {

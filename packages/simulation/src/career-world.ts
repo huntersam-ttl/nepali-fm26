@@ -69,6 +69,7 @@ import { ensureAiStaffAssigned, evaluateAllStaffContracts } from "./staff-market
 import { settleFederationInjuryWelfare, settleMatchInjuryInsurance } from "./insurance.js";
 import { processInternationalTrials } from "./international-trials.js";
 import { processExternalFootballWorldSeason } from "./external-football-world.js";
+import { proposeAnnualGovernmentFunding } from "./government.js";
 import { settleFederationMediaRightsForCompetition } from "./media-rights.js";
 import { settleApprovedCompetitionDistributions } from "./competition-distribution.js";
 import {
@@ -532,6 +533,7 @@ const processFederationForSeasonPeriod = (
     const date = `${startYear}-${String(month).padStart(2, "0")}-28`;
     ensureFederationLeadershipContinuity(db, { date, seed: `${input.seed}:federation-leadership` });
     processFederationMonth(db, { date, seed: `${input.seed}:${month}` });
+    if (month === 8) proposeAnnualGovernmentFunding(db, { date, seed: input.seed });
     runFederationComplianceAiForAllFederations(db, date);
   }
   for (const month of [1, 2, 3, 4, 5, 6, 7]) {
