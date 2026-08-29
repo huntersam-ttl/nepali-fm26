@@ -53,13 +53,15 @@ const createWorld = (seed: string): string => {
 
 type Db = ReturnType<typeof openGameDatabase>;
 
-/*
- * Only players carrying simulation attributes can be developed, declined or
- * retired. Imported factual identities are registered as external contexts but
- * have no attributes yet, so they are outside the lifecycle's reach — that gap
- * is reported separately rather than asserted here.
+/** The whole external population: imported identities and generated players alike. */
+const externals = (db: Db) => new GlobalFootballContextRepository(db).players();
+
+/**
+ * Players the lifecycle can currently compute a curve for. Simulation
+ * attributes are created lazily on first pass, so this set grows as the world
+ * is exercised — ability comparisons scope to it, population counts do not.
  */
-const developable = (db: Db): Set<string> =>
+const withAttributes = (db: Db): Set<string> =>
   new Set(
     (
       db
@@ -70,13 +72,6 @@ const developable = (db: Db): Set<string> =>
         .all() as Array<{ id: string }>
     ).map((row) => row.id),
   );
-
-const externals = (db: Db) => {
-  const reachable = developable(db);
-  return new GlobalFootballContextRepository(db)
-    .players()
-    .filter((player) => reachable.has(player.playerId));
-};
 const active = (db: Db) => externals(db).filter((player) => player.careerState !== "RETIRED");
 
 const ability = (db: Db, playerId: EntityId): number | undefined => {
@@ -112,6 +107,7 @@ describe("external player lifecycle", () => {
     const db = openGameDatabase(databasePath);
     try {
       const players = externals(db);
+      const reachable = withAttributes(db);
       expect(players.length).toBeGreaterThan(0);
 
       const ids = players.map((player) => player.playerId);
@@ -125,7 +121,7 @@ describe("external player lifecycle", () => {
           .get(player.playerId) as { id?: EntityId; date_of_birth?: string } | undefined;
         expect(person?.id).toBe(player.playerId);
         expect(person?.date_of_birth).toBeTruthy();
-        expect(ability(db, player.playerId)).toBeGreaterThan(0);
+        if (reachable.has(player.playerId)) expect(ability(db, player.playerId)).toBeGreaterThan(0);
         expect(["ACTIVE", "FREE_AGENT", "RETIRED"]).toContain(player.careerState);
       }
     } finally {
@@ -137,8 +133,12 @@ describe("external player lifecycle", () => {
     const databasePath = createWorld("development");
     const db = openGameDatabase(databasePath);
     try {
+      const population = externals(db).length;
+      const reachable = withAttributes(db);
       const before = new Map(
-        active(db).map((player) => [player.playerId, ability(db, player.playerId) ?? 0]),
+        active(db)
+          .filter((player) => reachable.has(player.playerId))
+          .map((player) => [player.playerId, ability(db, player.playerId) ?? 0]),
       );
       expect(before.size).toBeGreaterThan(0);
 
@@ -148,14 +148,14 @@ describe("external player lifecycle", () => {
       });
       expect(outcome.developed).toBeGreaterThan(0);
 
-      const after = new Map(
-        externals(db).map((player) => [player.playerId, ability(db, player.playerId) ?? 0]),
-      );
+      const after = new Map([...before.keys()].map((id) => [id, ability(db, id as EntityId) ?? 0]));
       const moved = [...before].filter(([id, value]) => (after.get(id) ?? value) !== value);
       expect(moved.length).toBeGreaterThan(0);
 
-      // Nobody is destroyed or duplicated by a lifecycle pass.
-      expect(externals(db).length).toBe(before.size);
+      // Nobody is destroyed or duplicated by a lifecycle pass. Attributes are
+      // created lazily, so the reachable set grows while the population does not.
+      expect(externals(db).length).toBe(population);
+      expect(withAttributes(db).size).toBeGreaterThanOrEqual(before.size);
       for (const [, value] of after) {
         expect(Number.isFinite(value)).toBe(true);
         expect(value).toBeGreaterThan(0);
@@ -170,14 +170,24 @@ describe("external player lifecycle", () => {
     const db = openGameDatabase(databasePath);
     try {
       const start = "2027-06-30";
-      const before = active(db).map((player) => ({
-        id: player.playerId,
-        age: ageOf(db, player.playerId, start) ?? 24,
-        ability: ability(db, player.playerId) ?? 0,
-      }));
+      /*
+       * Warm the world first. Simulation attributes are created lazily, so a
+       * player measured before they have any would show their whole starting
+       * ability as a gain and swamp the comparison.
+       */
+      advanceExternalPlayerLifecycles(db, { date: start, seed: "curve" });
+      const reachable = withAttributes(db);
+      const before = active(db)
+        .filter((player) => reachable.has(player.playerId))
+        .map((player) => ({
+          id: player.playerId,
+          age: ageOf(db, player.playerId, start) ?? 24,
+          ability: ability(db, player.playerId) ?? 0,
+        }));
+      expect(before.length).toBeGreaterThan(0);
 
       // Several seasons, so a career curve has room to show itself.
-      for (const year of [2027, 2028, 2029, 2030]) {
+      for (const year of [2028, 2029, 2030, 2031]) {
         advanceExternalPlayerLifecycles(db, { date: `${year}-06-30`, seed: "curve" });
       }
 
@@ -286,7 +296,7 @@ describe("external player lifecycle", () => {
 
       // Neither collapse nor explosion over five bounded seasons.
       expect(end).toBeGreaterThan(0);
-      expect(end).toBeLessThanOrEqual(start * 3);
+      expect(end).toBeLessThanOrEqual(start);
 
       const positions = db
         .prepare(
