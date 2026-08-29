@@ -55,7 +55,8 @@ export type DesktopAppError = {
 
 export type AppResult<T> = { ok: true; data: T } | { ok: false; error: DesktopAppError };
 
-export type CareerRole = "MANAGER";
+export type CareerRole = "MANAGER" | "CHAIRMAN_OWNER" | "FEDERATION_PRESIDENT";
+export type CareerRoleState = { activeRole: CareerRole; heldRoles: CareerRole[] };
 
 /** Save catalog entry. Readable without opening the full simulation world. */
 export type SaveCatalogEntry = {
@@ -222,6 +223,8 @@ export type DesktopRuntimeApi = {
   loadCareer(saveId: EntityId): Promise<AppResult<DesktopApplicationState>>;
   closeCareer(): Promise<AppResult<{ closed: boolean }>>;
   getCareerHeader(): Promise<AppResult<CareerHeader>>;
+  getCareerRoles(): Promise<AppResult<CareerRoleState>>;
+  switchActiveCareerRole(targetRole: CareerRole): Promise<AppResult<CareerHeader>>;
   getHomeDashboard(): Promise<AppResult<DesktopApplicationState>>;
   continueCareer(): Promise<AppResult<DesktopApplicationState>>;
   quickSimMatch(fixtureId?: EntityId): Promise<AppResult<DesktopApplicationState>>;

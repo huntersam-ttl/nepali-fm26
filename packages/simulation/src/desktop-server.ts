@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from "node:net";
 import type {
   AppResult,
+  CareerRole,
   CareerCreationCommand,
   AdvanceMatchCommand,
   ConcernResponseAction,
@@ -147,6 +148,10 @@ const dispatch = (
       return service.closeCareer();
     case "getCareerHeader":
       return service.getCareerHeader();
+    case "getCareerRoles":
+      return service.getCareerRoles();
+    case "switchActiveCareerRole":
+      return service.switchActiveCareerRole(body.targetRole as CareerRole);
     case "getHomeDashboard":
       return service.getHomeDashboard();
     case "continueCareer":

@@ -39,6 +39,8 @@ import {
   type AutosaveStatusView,
   type CareerCreationCommand,
   type CareerHeader,
+  type CareerRole,
+  type CareerRoleState,
   type Club,
   type CompetitionRuleSet,
   type CompetitionSeason,
@@ -219,6 +221,7 @@ import {
   tacticalPositionToPlayerPosition,
 } from "./tactics.js";
 import { suitability } from "./team-selection.js";
+import { activeCareerRole, heldCareerRoles, switchActiveCareerRole } from "./career-control.js";
 import {
   ManagerCommandError,
   advanceManagerCareer,
@@ -511,6 +514,28 @@ export class DesktopApplicationService {
 
   getCareerHeader(): AppResult<CareerHeader> {
     return this.withSession((db, save) => careerHeader(db, save));
+  }
+
+  getCareerRoles(): AppResult<CareerRoleState> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      const heldRoles = heldCareerRoles(db, personId).map((entry) => entry.role);
+      return { activeRole: activeCareerRole(db, personId), heldRoles };
+    });
+  }
+
+  switchActiveCareerRole(targetRole: CareerRole): AppResult<CareerHeader> {
+    return this.withSession((db, save, filePath) => {
+      const personId = careerPersonId(db, save);
+      try {
+        switchActiveCareerRole(db, personId, targetRole);
+      } catch (error) {
+        throw appError("ROLE_NOT_AUTHORIZED", error instanceof Error ? error.message : "Role is not held.");
+      }
+      const updated = loadSave(db, save.id);
+      this.writeCatalogEntry(this.catalogEntry(db, updated, filePath));
+      return careerHeader(db, updated);
+    });
   }
 
   getHomeDashboard(): AppResult<DesktopApplicationState> {
@@ -940,6 +965,10 @@ export class DesktopApplicationService {
     mutates = false,
   ): AppResult<T> {
     return this.withSession((db, save, filePath) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "MANAGER") {
+        throw appError("ROLE_NOT_AUTHORIZED", "The active career role cannot use manager commands.");
+      }
       const context = managerContext(db, save);
       ensureManagerSystems(db, save, context);
       if (!mutates) return action(db, save, context);
@@ -1630,7 +1659,7 @@ export class DesktopApplicationService {
     const fixtures = fixtureReadModels(db, context, save);
     return {
       save,
-      header: careerHeaderFromContext(save, context),
+      header: careerHeaderFromContext(db, save, context),
       catalogEntry: this.catalogEntry(db, save, filePath),
       home: {
         save,
@@ -1697,7 +1726,7 @@ export class DesktopApplicationService {
         return {
           ...base,
           characterName: displayName(context.managerPerson),
-          activeRole: "MANAGER",
+          activeRole: activeCareerRole(db, context.managerPerson.id),
           organisation: context.club?.name ?? context.team.name,
         };
       }
@@ -1708,7 +1737,7 @@ export class DesktopApplicationService {
           return {
             ...base,
             characterName: displayName(person),
-            activeRole: "MANAGER",
+            activeRole: activeCareerRole(db, person.id),
             organisation: "Unemployed",
           };
         }
@@ -1839,6 +1868,13 @@ const seasonForTeam = (db: GameDatabase, teamId: EntityId): CompetitionSeason =>
     startDate: row.start_date!,
     endDate: row.end_date!,
   };
+};
+
+const careerPersonId = (db: GameDatabase, save: SaveMetadata): EntityId => {
+  if (!save.playerCharacterId) throw appError("SAVE_CORRUPT", "Save has no player character.");
+  const character = new WorldRepository(db).getCareerCharacter(save.playerCharacterId);
+  if (!character) throw appError("SAVE_CORRUPT", "Career character record is missing.");
+  return character.personId;
 };
 
 const managerContext = (db: GameDatabase, save: SaveMetadata) => {
@@ -2224,7 +2260,7 @@ const unemployedCareerHeader = (db: GameDatabase, save: SaveMetadata): CareerHea
     saveName: save.name,
     worldDate: save.worldDate,
     characterName: person ? displayName(person) : "Manager",
-    activeRole: "MANAGER",
+    activeRole: person ? activeCareerRole(db, person.id) : "MANAGER",
   };
 };
 
@@ -2253,15 +2289,15 @@ const buildUnemployedDashboard = (db: GameDatabase, save: SaveMetadata): Manager
 
 const careerHeader = (db: GameDatabase, save: SaveMetadata): CareerHeader => {
   const context = tryManagerContext(db, save);
-  return context ? careerHeaderFromContext(save, context) : unemployedCareerHeader(db, save);
+  return context ? careerHeaderFromContext(db, save, context) : unemployedCareerHeader(db, save);
 };
 
-const careerHeaderFromContext = (save: SaveMetadata, context: ManagerContext): CareerHeader => ({
+const careerHeaderFromContext = (db: GameDatabase, save: SaveMetadata, context: ManagerContext): CareerHeader => ({
   saveId: save.id,
   saveName: save.name,
   worldDate: save.worldDate,
   characterName: displayName(context.managerPerson),
-  activeRole: "MANAGER",
+  activeRole: activeCareerRole(db, context.managerPerson.id),
   clubName: context.club?.name,
   teamName: context.team.name,
   competitionName: context.season.name,
