@@ -2,8 +2,8 @@
 
 ## Snapshot
 
-Audit date: 2026-08-29. Repository: `/Users/cc/nepali-fm26`. Final reconciliation based on
-HEAD `3d3101f`; the pre-existing untracked `nepali-fm26/` entry
+Audit date: 2026-08-30. Repository: `/Users/cc/nepali-fm26`. Final reconciliation based on
+HEAD `a225231`; the pre-existing untracked `nepali-fm26/` entry
 remains untouched.
 
 The inventory has 92 normalized entries: the 84 row-level entries in the previous feature
@@ -165,7 +165,7 @@ production path.
   loan scope is contract, wages, recall, expiry, return, and option-to-buy.
 - Final 20/50-year balancing; mobile; final release workflow.
 
-## Final Reconciliation (HEAD `3d3101f`)
+## Final Reconciliation (HEAD `a225231`)
 
 The 92 normalized rows were rechecked against source reachability and focused production tests.
 The mechanical status total is now 72 COMPLETE, 0 BUILT_NOT_PROVEN, 13 PARTIAL, 3 MISSING,
@@ -175,7 +175,7 @@ and 4 LATER. Long-save continuity remains COMPLETE for its implemented structura
 The 13 PARTIAL rows are: chairman/owner career (including bounded budget setting, infrastructure approval, and sponsorship approval/rejection, but not a complete chairman command surface); federation-president career (including the
 bounded proposal submission and approved-proposal implementation command adapters, but not a complete playable career); broader role transitions
 and authority (bounded active-role switching is complete); default match-view wiring; takeover lifecycle; grants/government
-distribution (including the bounded annual playable-club support slice and approved season distribution settlement); prize/revenue sharing;
+distribution (including the bounded annual playable-club support slice and approved season distribution settlement); government-funding receipt is now complete, but annual government-funding proposal cadence remains; prize/revenue sharing;
 real Nepal player coverage; girls schools/grassroots/academies;
 media/journalism (bounded notable-event and major-transfer publishing are complete, but the broader journalism
 surface remains partial); rivalries (stored match context is wired, broader rivalry surface remains partial); AI chairman; and the role-limited real staff
