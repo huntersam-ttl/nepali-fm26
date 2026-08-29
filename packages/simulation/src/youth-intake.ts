@@ -30,6 +30,7 @@ import {
   type GameDatabase,
 } from "@nepal-football-sim/database";
 import { createInitialDevelopmentState } from "./player-development.js";
+import { PLAYABLE_CLUB_PREDICATE } from "./playable-world.js";
 import { SeededRandom } from "./rng.js";
 import { initializeTransferMarketForSave } from "./transfer-market.js";
 
@@ -1224,12 +1225,19 @@ const secondaryPositions = (position: PlayerPosition, rng: SeededRandom): Player
   return pool.length > 0 && rng.next() < 0.35 ? [rng.pick(pool)] : [];
 };
 
+/*
+ * Youth intake feeds the domestic pyramid, so it is sized against the playable
+ * world. Without this the canonical global dataset made all 573 clubs intake
+ * targets rather than the 63 Nepal clubs, generating domestic youth into
+ * CONTEXT_ONLY backdrop clubs the player never manages.
+ */
 const youthClubs = (db: GameDatabase): YouthClub[] =>
   db
     .prepare(
       `SELECT c.*, MIN(t.id) AS team_id
       FROM clubs c
       LEFT JOIN teams t ON t.club_id = c.id AND t.level = 'senior'
+      WHERE ${PLAYABLE_CLUB_PREDICATE}
       GROUP BY c.id
       ORDER BY c.name`,
     )

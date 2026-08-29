@@ -20,6 +20,7 @@ import {
   WorldRepository,
   type GameDatabase,
 } from "@nepal-football-sim/database";
+import { PLAYABLE_CLUB_PREDICATE } from "./playable-world.js";
 import { SeededRandom } from "./rng.js";
 import { generateYouthCohort } from "./youth-intake.js";
 import { generateAiStaff } from "./staff-market.js";
@@ -105,11 +106,7 @@ const nepalCountryId = (db: GameDatabase): EntityId | undefined =>
  * a handful of imported clubs never received a context row because their league
  * did not resolve, and they leaked into the detailed world through it.
  */
-const PLAYABLE_CLUB = `EXISTS (
-      SELECT 1 FROM countries co WHERE co.id = c.country_id AND co.iso_code IN ('NP', 'NPL')
-    )
-     AND NOT EXISTS (SELECT 1 FROM external_club_context ecc WHERE ecc.club_id = c.id)
-     AND (c.canonical_external_id IS NULL OR c.canonical_external_id NOT LIKE 'SIM-FOREIGN-%')`;
+const PLAYABLE_CLUB = PLAYABLE_CLUB_PREDICATE;
 
 /**
  * Supply counted the same way demand is: players available to the playable
