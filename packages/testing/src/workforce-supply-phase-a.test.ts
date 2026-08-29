@@ -194,6 +194,23 @@ describe("workforce supply phase A: reconciliation", () => {
     expect(first.skippedAlreadyRun).toBe(false);
     expect(first.generatedOfficials + first.generatedStaff).toBeGreaterThan(0);
     expect(first.generatedWomenPlayers).toBeGreaterThan(0);
+    expect(first.generatedWomenPlayers).toBeLessThanOrEqual(12);
+    const girls = db.prepare(`
+      SELECT p.gender_presentation, g.origin_type,
+             EXISTS (
+               SELECT 1 FROM team_person_assignments a
+               JOIN teams t ON t.id = a.team_id
+               WHERE a.person_id = g.player_id AND a.role = 'PLAYER' AND a.ended_on IS NULL
+                 AND t.gender != 'women'
+             ) AS assigned_to_non_women
+      FROM generated_player_origins g
+      JOIN persons p ON p.id = g.player_id
+      WHERE g.origin_type = 'GIRLS_DEVELOPMENT'
+    `).all() as Array<{ gender_presentation: string; origin_type: string; assigned_to_non_women: number }>;
+    expect(girls.length).toBe(first.generatedWomenPlayers);
+    expect(girls.every((girl) => girl.gender_presentation === 'female')).toBe(true);
+    expect(girls.every((girl) => girl.origin_type === 'GIRLS_DEVELOPMENT')).toBe(true);
+    expect(girls.every((girl) => girl.assigned_to_non_women === 0)).toBe(true);
     // Hard caps: a correction may relieve a shortage, never flood the world.
     expect(first.generatedMenPlayers).toBeLessThanOrEqual(60);
     expect(first.generatedWomenPlayers).toBeLessThanOrEqual(60);

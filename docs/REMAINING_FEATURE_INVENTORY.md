@@ -3,7 +3,7 @@
 ## Snapshot
 
 Audit date: 2026-08-29. Repository: `/Users/cc/nepali-fm26`. Final reconciliation based on
-HEAD `4875062`; the pre-existing untracked `nepali-fm26/` entry
+HEAD `3d3101f`; the pre-existing untracked `nepali-fm26/` entry
 remains untouched.
 
 The inventory has 92 normalized entries: the 84 row-level entries in the previous feature
@@ -11,8 +11,8 @@ audit, plus the eight explicit high-risk overlays requested for this pass. Statu
 
 | Status | Count |
 | --- | ---: |
-| COMPLETE | 71 |
-| BUILT_NOT_PROVEN | 1 |
+| COMPLETE | 72 |
+| BUILT_NOT_PROVEN | 0 |
 | PARTIAL | 13 |
 | MISSING | 3 |
 | LATER | 4 |
@@ -83,14 +83,18 @@ Legacy partials:
 - Career default match-view wiring; takeover/ownership lifecycle.
 - Grants, restricted funds, and government/NSC relationship; prize money and revenue sharing. The annual
   AI club-support slice now pays a bounded, deterministic set of playable domestic clubs through the
-  canonical federation/club ledgers, and approved competition distributions now settle at season finalization;
-  government funding and policy creation/approval remain PARTIAL.
+  canonical federation/club ledgers, approved competition distributions now settle at season finalization,
+  and an approved government funding application now credits the federation through the same external-income
+  route FIFA and AFC grants use, carrying the funding type as its restriction tag. What remains PARTIAL is
+  cadence rather than settlement: nothing in the season loop proposes government funding on the federation's
+  behalf, so the flow is reachable only through the universal-interaction adapter.
 - Insurance and welfare; the national-team camp slice and federation severe-injury welfare programme are COMPLETE.
 - Diaspora and Nepalis abroad — COMPLETE for bounded generated Nepal-primary players: the annual CONTEXT_ONLY foreign-world lifecycle now produces a deterministic cap of two fictional SIMULATION_ONLY players, assigns them to existing foreign clubs, and reuses the canonical youth/profile/contract/development, scouting search, and national-team eligibility consumers. Detailed foreign youth/league simulation remains out of scope.
 - Real Nepal player database and provenance; role-limited real staff database (the verified
   Nepal senior-men national-team head-coach relationship is now production-wired); girls
-  development, schools, grassroots, and academies. Bounded SIMULATION_ONLY girls generation
-  is implemented but awaits focused runtime proof.
+  factual player coverage remains separate, while bounded SIMULATION_ONLY girls development
+  generation is now runtime-proven through the annual workforce/youth pipeline; schools,
+  grassroots, and academies remain partial.
 - media and journalism (notable-event and Nepal-involved major-transfer publishing are now production-wired); rivalries (stored relationships now reach match history/media, with broader seeding/evolution remaining partial); AI chairman.
 - Tauri shell/native packaging; performance.
 
@@ -161,18 +165,18 @@ production path.
   loan scope is contract, wages, recall, expiry, return, and option-to-buy.
 - Final 20/50-year balancing; mobile; final release workflow.
 
-## Final Reconciliation (HEAD `4875062`)
+## Final Reconciliation (HEAD `3d3101f`)
 
 The 92 normalized rows were rechecked against source reachability and focused production tests.
-The mechanical status total is now 71 COMPLETE, 1 BUILT_NOT_PROVEN, 13 PARTIAL, 3 MISSING,
-and 4 LATER. The BUILT_NOT_PROVEN row is long-save continuity only: its 12-season structural
-proof exists, while the 20/50-season performance and durability gates are intentionally not run.
+The mechanical status total is now 72 COMPLETE, 0 BUILT_NOT_PROVEN, 13 PARTIAL, 3 MISSING,
+and 4 LATER. Long-save continuity remains COMPLETE for its implemented structural path; the
+20/50-season performance and durability gates are intentionally not run.
 
 The 13 PARTIAL rows are: chairman/owner career (including bounded budget setting, infrastructure approval, and sponsorship approval/rejection, but not a complete chairman command surface); federation-president career (including the
 bounded proposal submission and approved-proposal implementation command adapters, but not a complete playable career); broader role transitions
 and authority (bounded active-role switching is complete); default match-view wiring; takeover lifecycle; grants/government
 distribution (including the bounded annual playable-club support slice and approved season distribution settlement); prize/revenue sharing;
-real Nepal player coverage; girls development/schools/grassroots;
+real Nepal player coverage; girls schools/grassroots/academies;
 media/journalism (bounded notable-event and major-transfer publishing are complete, but the broader journalism
 surface remains partial); rivalries (stored match context is wired, broader rivalry surface remains partial); AI chairman; and the role-limited real staff
 dataset. The three MISSING rows are women's factual player data, legends/cult heroes, and a real
