@@ -43,6 +43,7 @@ import {
   initializeSupporterCultureForSave,
 } from "./supporter-culture.js";
 import { recordFootballMatchHistory } from "./football-history.js";
+import { publishMediaForDate } from "./media.js";
 
 export type MatchFinalizationContext = {
   fixture: FixtureRecord;
@@ -284,6 +285,11 @@ export const finalizeMatch = (
       result,
       result.match.playedDate ?? context.fixture.scheduledDate,
     );
+    // Publish only existing notable history events; the media publisher owns
+    // the importance threshold and stable source-event idempotency.
+    publishMediaForDate(db, {
+      date: result.match.playedDate ?? context.fixture.scheduledDate,
+    });
 
     competition.insertMatch(result.match, economy?.attendance);
     for (const event of orderedEvents(state)) {

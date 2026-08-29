@@ -4,6 +4,8 @@ import { join, resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   ClubEconomyRepository,
+  EventRepository,
+  MediaRepository,
   MatchSessionRepository,
   SupporterCultureRepository,
   openGameDatabase,
@@ -67,6 +69,22 @@ describe("match finalization", () => {
     if (!fixtures.ok) return;
     const target = fixtures.data.upcoming[0]!;
 
+    // Seed one notable event before the real match command. Finalization must
+    // publish it through the normal production hook, not a test-only call.
+    service.closeCareer();
+    const prepared = openSave();
+    new EventRepository(prepared).insertHistoricalEvent({
+      id: createStableEntityId("history", "production-media-hook"),
+      occurredOn: target.date,
+      eventType: "COMPETITION_FINAL",
+      involvedEntities: [],
+      title: "Production media hook event",
+      importance: "high",
+      scope: "club",
+    });
+    prepared.close();
+    expect(service.loadCareer(saveId).ok).toBe(true);
+
     expect(service.quickSimMatch(target.id).ok).toBe(true);
     service.closeCareer();
 
@@ -126,6 +144,9 @@ describe("match finalization", () => {
             .some((event) => event.type === "MATCH_RESULT"),
         ),
       ).toBe(true);
+      const mediaStories = new MediaRepository(db).stories();
+      expect(mediaStories.filter((story) => story.sourceEntityId === createStableEntityId("history", "production-media-hook"))).toHaveLength(1);
+      expect(mediaStories.filter((story) => story.sourceEntityId === createStableEntityId("history", `MATCH:${match.id}`))).toHaveLength(0);
     } finally {
       db.close();
     }

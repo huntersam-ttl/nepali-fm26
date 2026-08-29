@@ -85,7 +85,7 @@ Legacy partials:
 - Real Nepal player database and provenance; role-limited real staff database (the verified
   Nepal senior-men national-team head-coach relationship is now production-wired); girls
   development, schools, grassroots, and academies.
-- media and journalism; rivalries; AI chairman.
+- media and journalism (notable-event publishing is now production-wired); rivalries; AI chairman.
 - Tauri shell/native packaging; performance.
 
 High-risk overlays:
@@ -167,7 +167,8 @@ bounded proposal command adapter, but not a complete playable career); role tran
 authority; default match-view wiring; club creation; takeover lifecycle; grants/government
 distribution; prize/revenue sharing;
 real Nepal player coverage; diaspora/Nepalis abroad; girls development/schools/grassroots;
-media/journalism; rivalries; AI chairman; and the role-limited real staff
+media/journalism (bounded notable-event publishing is complete, but the broader journalism
+surface remains partial); rivalries; AI chairman; and the role-limited real staff
 dataset. The three MISSING rows are women's factual player data, legends/cult heroes, and a real
 referee database. The four LATER rows are global club tournaments, loan-development/minutes
 attribution, mobile, and final release workflow.
