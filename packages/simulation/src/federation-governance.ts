@@ -45,6 +45,7 @@ import {
 } from "@nepal-football-sim/database";
 import { postClubTransaction } from "./club-economy.js";
 import { simulateMatch } from "./match-engine.js";
+import { PLAYABLE_CLUB_PREDICATE } from "./playable-world.js";
 import { SeededRandom } from "./rng.js";
 
 const currency = "NPR";
@@ -277,7 +278,16 @@ export const distributeClubGrant = (
     grantType: FederationGrantDistribution["grantType"];
   },
 ): FederationGrantDistribution => {
-  const account = new FederationGovernanceRepository(db).financialAccount(input.federationId);
+  const repository = new FederationGovernanceRepository(db);
+  const grantId = createStableEntityId(
+    "federation-grant-distribution",
+    `${input.federationId}:${input.clubId}:${input.date}:${input.grantType}`,
+  );
+  const existing = repository
+    .grantDistributions(input.federationId)
+    .find((grant) => grant.id === grantId);
+  if (existing) return existing;
+  const account = repository.financialAccount(input.federationId);
   if (!account) throw new Error(`Federation account missing for ${input.federationId}`);
   if (account.cashBalance - input.amount < reserveFloor(account)) {
     throw new Error("Federation cannot distribute a club grant beyond available cash reserve");
@@ -290,7 +300,7 @@ export const distributeClubGrant = (
     amount: input.amount,
     description: `${input.grantType} paid to club`,
     relatedEntityId: input.clubId,
-    idempotencyKey: `${input.clubId}:${input.grantType}`,
+    idempotencyKey: `${input.clubId}:${input.date}:${input.grantType}`,
   });
   const clubEntry = postClubTransaction(db, {
     clubId: input.clubId,
@@ -300,19 +310,16 @@ export const distributeClubGrant = (
     amount: input.amount,
     description: `${input.grantType} from federation`,
     relatedEntityId: input.federationId,
-    idempotencyKey: `${input.federationId}:${input.grantType}`,
+    idempotencyKey: `${input.federationId}:${input.clubId}:${input.date}:${input.grantType}`,
   });
-  new FederationGovernanceRepository(db).addBudgetUsage(
+  repository.addBudgetUsage(
     input.federationId,
     seasonLabel(input.date),
     "CLUB_SUPPORT",
     input.amount,
   );
   const grant: FederationGrantDistribution = {
-    id: createStableEntityId(
-      "federation-grant-distribution",
-      `${input.federationId}:${input.clubId}:${input.date}:${input.grantType}`,
-    ),
+    id: grantId,
     federationId: input.federationId,
     clubId: input.clubId,
     date: input.date,
@@ -324,8 +331,45 @@ export const distributeClubGrant = (
     status: "POSTED",
     provenanceStatus: simulationStatus,
   };
-  new FederationGovernanceRepository(db).insertGrantDistribution(grant);
+  repository.insertGrantDistribution(grant);
   return grant;
+};
+
+/** Pays a bounded annual support round to playable, active domestic clubs. */
+export const distributeEligibleClubGrants = (
+  db: GameDatabase,
+  input: {
+    federationId: EntityId;
+    date: string;
+    amount: number;
+    grantType: FederationGrantDistribution["grantType"];
+    maxRecipients?: number;
+  },
+): FederationGrantDistribution[] => {
+  if (!Number.isFinite(input.amount) || input.amount <= 0)
+    throw new Error("Club grant amount must be positive");
+  const limit = Math.max(1, Math.floor(input.maxRecipients ?? 4));
+  const candidates = db
+    .prepare(
+      `SELECT c.id
+       FROM clubs c
+       WHERE ${PLAYABLE_CLUB_PREDICATE}
+         AND EXISTS (SELECT 1 FROM club_memberships cm WHERE cm.club_id = c.id AND cm.status = 'ACTIVE')
+         AND EXISTS (SELECT 1 FROM club_financial_accounts cfa WHERE cfa.club_id = c.id)
+       ORDER BY c.id
+       LIMIT ?`,
+    )
+    .all(limit) as Array<{ id: EntityId }>;
+  const account = new FederationGovernanceRepository(db).financialAccount(input.federationId);
+  const available = account
+    ? Math.max(
+        0,
+        Math.floor((account.cashBalance - reserveFloor(account)) / Math.round(input.amount)),
+      )
+    : 0;
+  return candidates
+    .slice(0, available)
+    .map((candidate) => distributeClubGrant(db, { ...input, clubId: candidate.id }));
 };
 
 export const createFederationProject = (
@@ -1786,16 +1830,12 @@ const runFederationAiMonth = (
     });
   }
   if (date.endsWith("-12-28")) {
-    const club = allClubs(db).sort((a, b) => a.name.localeCompare(b.name))[0];
-    if (club) {
-      distributeClubGrant(db, {
-        federationId,
-        clubId: club.id,
-        date,
-        amount: 250000,
-        grantType: "CLUB_DEVELOPMENT_GRANT",
-      });
-    }
+    distributeEligibleClubGrants(db, {
+      federationId,
+      date,
+      amount: 250000,
+      grantType: "CLUB_DEVELOPMENT_GRANT",
+    });
   }
   if (date.endsWith("-11-28")) {
     const team = seniorMenNationalTeam(db, federationId);

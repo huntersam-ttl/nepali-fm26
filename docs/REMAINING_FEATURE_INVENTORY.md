@@ -3,7 +3,7 @@
 ## Snapshot
 
 Audit date: 2026-08-29. Repository: `/Users/cc/nepali-fm26`. Final reconciliation based on
-HEAD `e7614e2`; the pre-existing untracked `nepali-fm26/` entry
+HEAD `837e819`; the pre-existing untracked `nepali-fm26/` entry
 remains untouched.
 
 The inventory has 92 normalized entries: the 84 row-level entries in the previous feature
@@ -80,7 +80,9 @@ Legacy partials:
   and approved-proposal implementation now has a Nepal/FULL role-facing command adapter that delegates to the canonical proposal service; a complete playable federation-president
   career and broader command surface remain PARTIAL.
 - Career default match-view wiring; club creation and new clubs; takeover/ownership lifecycle.
-- Grants, restricted funds, and government/NSC relationship; prize money and revenue sharing.
+- Grants, restricted funds, and government/NSC relationship; prize money and revenue sharing. The annual
+  AI club-support slice now pays a bounded, deterministic set of playable domestic clubs through the
+  canonical federation/club ledgers; government funding and broader distribution policy remain PARTIAL.
 - Insurance and welfare; the national-team camp slice and federation severe-injury welfare programme are COMPLETE; diaspora and Nepalis abroad.
 - Real Nepal player database and provenance; role-limited real staff database (the verified
   Nepal senior-men national-team head-coach relationship is now production-wired); girls
@@ -155,7 +157,7 @@ production path.
   loan scope is contract, wages, recall, expiry, return, and option-to-buy.
 - Final 20/50-year balancing; mobile; final release workflow.
 
-## Final Reconciliation (HEAD `e7614e2`)
+## Final Reconciliation (HEAD `837e819`)
 
 The 92 normalized rows were rechecked against source reachability and focused production tests.
 The mechanical status total is now 69 COMPLETE, 1 BUILT_NOT_PROVEN, 15 PARTIAL, 3 MISSING,
@@ -165,7 +167,7 @@ proof exists, while the 20/50-season performance and durability gates are intent
 The 15 PARTIAL rows are: chairman/owner career (including bounded budget setting, infrastructure approval, and sponsorship approval/rejection, but not a complete chairman command surface); federation-president career (including the
 bounded proposal submission and approved-proposal implementation command adapters, but not a complete playable career); broader role transitions
 and authority (bounded active-role switching is complete); default match-view wiring; club creation; takeover lifecycle; grants/government
-distribution; prize/revenue sharing;
+distribution (including the bounded annual playable-club support slice); prize/revenue sharing;
 real Nepal player coverage; diaspora/Nepalis abroad; girls development/schools/grassroots;
 media/journalism (bounded notable-event and major-transfer publishing are complete, but the broader journalism
 surface remains partial); rivalries (stored match context is wired, broader rivalry surface remains partial); AI chairman; and the role-limited real staff

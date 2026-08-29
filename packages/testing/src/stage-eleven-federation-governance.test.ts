@@ -14,6 +14,7 @@ import {
   applyCompetitionReform,
   createNepalSave,
   distributeClubGrant,
+  distributeEligibleClubGrants,
   federationPresidentPermissions,
   getFederationOverview,
   initializeClubEconomyForSave,
@@ -114,6 +115,35 @@ describe("federation governance foundation", () => {
         .find((entry) => entry.id === grant.clubLedgerEntryId)?.category,
     ).toBe("GRANT");
     expect(new ClubEconomyRepository(db).personalFinancialProfile(federationId)).toBeUndefined();
+    db.close();
+  });
+
+  it("settles a bounded domestic support round once per eligible club", () => {
+    const db = openGameDatabase(createSave("grant-support-round"));
+    initializeClubEconomyForSave({ db, worldDate: "2026-08-01", seed: "grant-support-round" });
+    initializeFederationGovernanceForSave({ db, worldDate: "2026-08-01", seed: "grant-support-round" });
+    const federationId = firstFederationId(db);
+    const repository = new FederationGovernanceRepository(db);
+    const beforeFederation = repository.financialAccount(federationId)!.cashBalance;
+    const first = distributeEligibleClubGrants(db, {
+      federationId,
+      date: "2026-12-28",
+      amount: 250000,
+      grantType: "CLUB_DEVELOPMENT_GRANT",
+      maxRecipients: 3,
+    });
+    expect(first).toHaveLength(3);
+    expect(new Set(first.map((grant) => grant.clubId)).size).toBe(3);
+    expect(repository.financialAccount(federationId)!.cashBalance).toBe(beforeFederation - 750000);
+    expect(distributeEligibleClubGrants(db, {
+      federationId,
+      date: "2026-12-28",
+      amount: 250000,
+      grantType: "CLUB_DEVELOPMENT_GRANT",
+      maxRecipients: 3,
+    })).toEqual(first);
+    expect(repository.grantDistributions(federationId)).toHaveLength(3);
+    expect(repository.ledgerEntries(federationId).filter((entry) => entry.category === "CLUB_GRANTS")).toHaveLength(3);
     db.close();
   });
 
