@@ -938,7 +938,12 @@ export type CompetitionMovement = {
   fromCompetitionSeasonId: EntityId;
   toCompetitionSeasonId: EntityId;
   movementType: CompetitionMovementType;
-  status: "PLANNED" | "APPLIED" | "SUSPENDED" | "INELIGIBLE";
+  /**
+   * REPRIEVED is a relegation that was reconciled away: the division below could
+   * not supply an eligible promotion, so the sporting demotion was not enforced.
+   * It is distinct from INELIGIBLE, which means the club itself failed licensing.
+   */
+  status: "PLANNED" | "APPLIED" | "SUSPENDED" | "INELIGIBLE" | "REPRIEVED";
   reason?: string;
 };
 

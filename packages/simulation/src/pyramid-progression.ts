@@ -42,6 +42,9 @@ export const progressPyramidSeason = (input: PyramidProgressionInput): PyramidPr
   const movements: CompetitionMovement[] = [];
   const historicalEvents: HistoricalEvent[] = [];
   const outgoingClubsByCompetition = new Map<EntityId, Set<EntityId>>();
+  const movementRanks = new Map<EntityId, number>();
+  const movementSeasons = new Map<EntityId, CompetitionSeason>();
+  const promotionSlotsByTarget = new Map<EntityId, number>();
   const byCompetition = new Map(
     input.completedSeasons.map((completed) => [completed.season.competitionId, completed]),
   );
@@ -67,18 +70,36 @@ export const progressPyramidSeason = (input: PyramidProgressionInput): PyramidPr
         if (slots === 0 || targetSeason === undefined) {
           continue;
         }
+        if (movementType === "PROMOTION") {
+          promotionSlotsByTarget.set(
+            relationship.toCompetitionId,
+            (promotionSlotsByTarget.get(relationship.toCompetitionId) ?? 0) + slots,
+          );
+        }
         const sportingSelection = selectedMemberships(completed, relationship, slots);
+        /*
+         * Backfilling with the next eligible club only makes sense upward: it
+         * replaces a promotion that licensing blocked. Applied to relegation it
+         * demoted more clubs than the rule set has relegation slots.
+         */
         const fallbackSelection =
-          input.eligibleClubIds === undefined
+          input.eligibleClubIds === undefined || movementType === "RELEGATION"
             ? []
             : rankedMemberships(completed, relationship)
                 .filter((membership) => input.eligibleClubIds!.has(membership.clubId))
                 .filter((membership) => !sportingSelection.some((selected) => selected.clubId === membership.clubId))
                 .slice(0, Math.max(0, slots - sportingSelection.filter((membership) => input.eligibleClubIds!.has(membership.clubId)).length));
         const selected = [...sportingSelection, ...fallbackSelection];
-        for (const membership of selected) {
+        selected.forEach((membership, rank) => {
+          /*
+           * Licensing decides whether a club may enter a competition, so it gates
+           * upward movement only. A club that finishes in a relegation place is
+           * demoted on sporting merit; failing a licence must never protect it.
+           */
           const eligible =
-            input.eligibleClubIds === undefined || input.eligibleClubIds.has(membership.clubId);
+            movementType === "RELEGATION" ||
+            input.eligibleClubIds === undefined ||
+            input.eligibleClubIds.has(membership.clubId);
           const movement: CompetitionMovement = {
             id: createEntityId(),
             clubId: membership.clubId,
@@ -92,15 +113,63 @@ export const progressPyramidSeason = (input: PyramidProgressionInput): PyramidPr
             reason: eligible ? undefined : "Club eligibility requirements were not met",
           };
           movements.push(movement);
-          historicalEvents.push(movementHistory(movement, completed.season));
-          if (eligible && movementType !== "QUALIFICATION") {
-            const outgoing =
-              outgoingClubsByCompetition.get(completed.season.competitionId) ?? new Set();
-            outgoing.add(membership.clubId);
-            outgoingClubsByCompetition.set(completed.season.competitionId, outgoing);
-          }
-        }
+          // `selected` runs worst-placed first, so a higher rank index is a better finish.
+          movementRanks.set(movement.id, rank);
+          movementSeasons.set(movement.id, completed.season);
+        });
       }
+    }
+  }
+
+  /*
+   * A division keeps its size because the clubs leaving it are replaced by the
+   * clubs entering it. When the division below cannot supply an eligible
+   * promotion, enforcing the demotion anyway would shrink the league, so the
+   * unfilled promotion slots are reconciled into reprieves instead. The slot
+   * count comes from the competition rule set, so no league size is assumed here.
+   */
+  for (const [targetCompetitionId, slots] of promotionSlotsByTarget) {
+    const promoted = movements.filter(
+      (movement) =>
+        movement.movementType === "PROMOTION" &&
+        movement.toCompetitionId === targetCompetitionId &&
+        movement.status === "APPLIED",
+    ).length;
+    let deficit = Math.max(0, slots - promoted);
+    if (deficit === 0) continue;
+    // Best finish first: the club that only just fell into a relegation place.
+    const reprievable = movements
+      .filter(
+        (movement) =>
+          movement.movementType === "RELEGATION" &&
+          movement.fromCompetitionId === targetCompetitionId &&
+          movement.status === "APPLIED",
+      )
+      .sort(
+        (a, b) =>
+          (movementRanks.get(b.id) ?? 0) - (movementRanks.get(a.id) ?? 0) ||
+          a.clubId.localeCompare(b.clubId),
+      );
+    for (const movement of reprievable) {
+      if (deficit === 0) break;
+      movement.status = "REPRIEVED";
+      movement.reason = "Relegation reprieved because no eligible club could be promoted";
+      deficit -= 1;
+    }
+  }
+
+  /*
+   * Outgoing clubs and history are derived after reconciliation so that a
+   * reprieved club is never recorded as having left its division.
+   */
+  for (const movement of movements) {
+    const season = movementSeasons.get(movement.id);
+    if (season === undefined || movement.status !== "APPLIED") continue;
+    historicalEvents.push(movementHistory(movement, season));
+    if (movement.movementType !== "QUALIFICATION") {
+      const outgoing = outgoingClubsByCompetition.get(movement.fromCompetitionId) ?? new Set();
+      outgoing.add(movement.clubId);
+      outgoingClubsByCompetition.set(movement.fromCompetitionId, outgoing);
     }
   }
 
