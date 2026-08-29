@@ -21,6 +21,7 @@ import {
 } from "@nepal-football-sim/shared-types";
 import {
   EventRepository,
+  ClubNetworkRepository,
   PlayerRepository,
   RecruitmentRepository,
   TransferMarketRepository,
@@ -150,7 +151,9 @@ export const runAnnualYouthAndRetirementCycle = (input: {
   const seenNames = existingNames(input.db);
 
   for (const club of clubs) {
-    const profile = profileForClub(profiles, club, academyRows);
+    const baseProfile = profileForClub(profiles, club, academyRows);
+    const academyContext = academyPartnershipDevelopmentContext(input.db, club.id, input.worldDate);
+    const profile = { ...baseProfile, regionalReach: Math.min(10, baseProfile.regionalReach + academyContext.regionalReachBonus) };
     const linkedAcademy = academyForClub(academyRows, club.id);
     const needBoost = squadNeedBoost(input.db, club.id);
     const volume = clamp(
@@ -204,6 +207,16 @@ export const runAnnualYouthAndRetirementCycle = (input: {
   report.retiredPlayers = retirement.retired;
   report.staffTransitions = retirement.staffTransitions;
   return normalizeAnnualReport(report);
+};
+
+/** Derived intake context; never accumulates a permanent academy bonus. */
+export const academyPartnershipDevelopmentContext = (
+  db: GameDatabase,
+  clubId: EntityId,
+  worldDate: string,
+): { active: boolean; regionalReachBonus: number } => {
+  const active = new ClubNetworkRepository(db).activeAcademyPartnerships(clubId, worldDate).length > 0;
+  return { active, regionalReachBonus: active ? 0.6 : 0 };
 };
 
 /**
@@ -1507,7 +1520,7 @@ const positionGroup = (position: PlayerPosition): string => {
   return "FORWARD";
 };
 
-const ageForPlayer = (db: GameDatabase, playerId: EntityId, date: string): number => {
+export const ageForPlayer = (db: GameDatabase, playerId: EntityId, date: string): number => {
   const row = db.prepare("SELECT date_of_birth FROM persons WHERE id = ?").get(playerId) as any;
   return row?.date_of_birth ? ageOn(row.date_of_birth, date) : 18;
 };

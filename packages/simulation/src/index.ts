@@ -63,6 +63,7 @@ export * from "./team-selection.js";
 export * from "./tactics.js";
 export * from "./transfer-market.js";
 export * from "./youth-intake.js";
+export * from "./youth-partnerships.js";
 export * from "./world.js";
 export * from "./investor.js";
 export * from "./licensing.js";

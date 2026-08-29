@@ -34,6 +34,25 @@ country knowledge, then records staff history. Employment and contracts remain
 with the home club, and the partner remains `CONTEXT_ONLY`. Technical does not
 provide automatic staff-hiring access.
 
+### YOUTH_DEVELOPMENT
+
+`PRODUCTION_ACTIVE`
+
+The annual youth planning cadence can create at most two temporary
+`FOREIGN_YOUTH_DEVELOPMENT` programmes per home club/year for eligible youth
+players. Completion records a bounded development/exposure activity and a
+small development-momentum effect, while the player remains registered with
+the home club. Loan and transfer semantics are unchanged.
+
+### ACADEMY
+
+`PRODUCTION_ACTIVE`
+
+Active academy partnerships contribute a derived, capped `regionalReach`
+context to the existing annual academy intake calculation. The context is
+recomputed from active partnership state, does not accumulate, and does not
+guarantee elite or high-potential players.
+
 ### MULTI-CLUB
 
 `PARTIAL`

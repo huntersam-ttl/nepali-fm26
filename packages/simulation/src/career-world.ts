@@ -77,6 +77,7 @@ import {
   type YouthAnnualReport,
 } from "./youth-intake.js";
 import { ensureWomensFootballWorldForSave } from "./womens-youth.js";
+import { completeYouthDevelopmentPartnerships, planYouthDevelopmentPartnerships } from "./youth-partnerships.js";
 import {
   reconcileWorkforceSupply,
   type WorkforceReconciliationReport,
@@ -363,10 +364,18 @@ export const simulateNepalCareer = (input: {
       });
     }
     if (input.youthEnabled) {
+      const youthDate = addDays(latestSeasonEnd(activeSeasons), 45);
+      completeYouthDevelopmentPartnerships(input.db, youthDate);
+      const youthClubs = input.db
+        .prepare("SELECT DISTINCT club_id FROM youth_player_statuses WHERE club_id IS NOT NULL ORDER BY club_id")
+        .all() as Array<{ club_id: EntityId }>;
+      for (const youthClub of youthClubs) {
+        planYouthDevelopmentPartnerships(input.db, { clubId: youthClub.club_id, worldDate: youthDate });
+      }
       youthReports.push(
         runAnnualYouthAndRetirementCycle({
           db: input.db,
-          worldDate: addDays(latestSeasonEnd(activeSeasons), 45),
+          worldDate: youthDate,
           seed: `${input.seed}:youth:${index}`,
           seasonLabel: String(
             new Date(`${latestSeasonEnd(activeSeasons)}T00:00:00.000Z`).getUTCFullYear(),

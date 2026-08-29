@@ -170,6 +170,7 @@ import type {
   TrainingPlan,
   VenueRelationship,
   YouthDevelopmentActivity,
+  YouthPartnershipDevelopmentProgramme,
   YouthIntakeEvent,
   YouthPlayerStatus,
   YouthPlayerStatusRecord,
@@ -4358,6 +4359,23 @@ export class YouthRepository {
       );
   }
 
+  upsertPartnershipDevelopmentProgramme(programme: YouthPartnershipDevelopmentProgramme): void {
+    this.db.prepare(`INSERT INTO youth_partnership_development_programmes (id,player_id,home_club_id,partner_club_id,partnership_id,programme_type,start_date,end_date,status,development_applied,completed_on) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,development_applied=excluded.development_applied,completed_on=excluded.completed_on`).run(programme.id, programme.playerId, programme.homeClubId, programme.partnerClubId, programme.partnershipId, programme.programmeType, programme.startDate, programme.endDate, programme.status, programme.developmentApplied ? 1 : 0, programme.completedOn ?? null);
+  }
+
+  partnershipDevelopmentProgrammesForClub(clubId: EntityId): YouthPartnershipDevelopmentProgramme[] {
+    return (this.db.prepare("SELECT * FROM youth_partnership_development_programmes WHERE home_club_id=? ORDER BY start_date,id").all(clubId) as any[]).map(mapYouthPartnershipDevelopmentProgramme);
+  }
+
+  activePartnershipDevelopmentForPlayer(playerId: EntityId): YouthPartnershipDevelopmentProgramme | undefined {
+    const row = this.db.prepare("SELECT * FROM youth_partnership_development_programmes WHERE player_id=? AND status='ACTIVE'").get(playerId) as any;
+    return row ? mapYouthPartnershipDevelopmentProgramme(row) : undefined;
+  }
+
+  duePartnershipDevelopmentProgrammes(worldDate: string): YouthPartnershipDevelopmentProgramme[] {
+    return (this.db.prepare("SELECT * FROM youth_partnership_development_programmes WHERE status='ACTIVE' AND end_date<=? ORDER BY end_date,id").all(worldDate) as any[]).map(mapYouthPartnershipDevelopmentProgramme);
+  }
+
   upsertRetirementState(record: PlayerRetirementRecord): void {
     this.db
       .prepare(
@@ -4930,6 +4948,20 @@ const mapYouthPlayerStatus = (row: any): YouthPlayerStatusRecord => ({
   academyId: row.academy_id ?? undefined,
   statusSince: row.status_since,
   pathway: json.parse(row.pathway_json, {}),
+});
+
+const mapYouthPartnershipDevelopmentProgramme = (row: any): YouthPartnershipDevelopmentProgramme => ({
+  id: row.id,
+  playerId: row.player_id,
+  homeClubId: row.home_club_id,
+  partnerClubId: row.partner_club_id,
+  partnershipId: row.partnership_id,
+  programmeType: row.programme_type,
+  startDate: row.start_date,
+  endDate: row.end_date,
+  status: row.status,
+  developmentApplied: Boolean(row.development_applied),
+  completedOn: row.completed_on ?? undefined,
 });
 
 const mapPlayerRetirementRecord = (row: any): PlayerRetirementRecord => ({

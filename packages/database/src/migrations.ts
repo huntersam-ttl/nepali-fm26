@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 65;
+export const CURRENT_DATABASE_VERSION = 66;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -3243,6 +3243,28 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
         ON staff_technical_placements(person_id, status);
       CREATE INDEX IF NOT EXISTS idx_staff_technical_placements_due
         ON staff_technical_placements(status, end_date);
+    `,
+  },
+  {
+    version: 66,
+    sql: `
+      CREATE TABLE IF NOT EXISTS youth_partnership_development_programmes (
+        id TEXT PRIMARY KEY,
+        player_id TEXT NOT NULL REFERENCES persons(id),
+        home_club_id TEXT NOT NULL REFERENCES clubs(id),
+        partner_club_id TEXT NOT NULL REFERENCES clubs(id),
+        partnership_id TEXT NOT NULL REFERENCES international_club_partnerships(id),
+        programme_type TEXT NOT NULL,
+        start_date TEXT NOT NULL,
+        end_date TEXT NOT NULL,
+        status TEXT NOT NULL,
+        development_applied INTEGER NOT NULL DEFAULT 0,
+        completed_on TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_youth_partnership_programmes_player
+        ON youth_partnership_development_programmes(player_id, status);
+      CREATE INDEX IF NOT EXISTS idx_youth_partnership_programmes_due
+        ON youth_partnership_development_programmes(status, end_date);
     `,
   },
 ];

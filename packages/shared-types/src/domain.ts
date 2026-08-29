@@ -378,10 +378,24 @@ export type YouthDevelopmentActivity = {
   clubId?: EntityId;
   academyId?: EntityId;
   activityDate: ISODate;
-  activityType: "ACADEMY_TRAINING" | "RESERVE_ACTIVITY" | "LOCAL_COMPETITION" | "TRIAL";
+  activityType: "ACADEMY_TRAINING" | "RESERVE_ACTIVITY" | "LOCAL_COMPETITION" | "TRIAL" | "FOREIGN_DEVELOPMENT_PROGRAMME";
   developmentMinutes: number;
   exposureLevel: number;
   data?: Record<string, unknown>;
+};
+
+export type YouthPartnershipDevelopmentProgramme = {
+  id: EntityId;
+  playerId: EntityId;
+  homeClubId: EntityId;
+  partnerClubId: EntityId;
+  partnershipId: EntityId;
+  programmeType: "FOREIGN_YOUTH_DEVELOPMENT";
+  startDate: ISODate;
+  endDate: ISODate;
+  status: "ACTIVE" | "COMPLETED" | "CANCELLED";
+  developmentApplied: boolean;
+  completedOn?: ISODate;
 };
 
 export type RetirementState =
