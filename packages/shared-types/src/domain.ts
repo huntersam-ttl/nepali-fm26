@@ -270,7 +270,8 @@ export type PlayerOriginType =
   | "DEPARTMENTAL_RECRUITMENT"
   | "GENERATED_FREE_PLAYER"
   | "FOREIGN_YOUTH"
-  | "DIASPORA_YOUTH";
+  | "DIASPORA_YOUTH"
+  | "GIRLS_DEVELOPMENT";
 
 export type YouthPlayerStatus =
   | "ACADEMY_CANDIDATE"

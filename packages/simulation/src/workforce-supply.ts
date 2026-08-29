@@ -54,6 +54,8 @@ const ASSISTANTS_PER_FIXTURE = 2;
 const MAX_OFFICIAL_INTAKE_PER_SEASON = 24;
 const MAX_STAFF_INTAKE_PER_SEASON = 30;
 const MAX_PLAYER_CORRECTION_PER_SEASON = 60;
+/** Girls development is a minority supply stream, capped globally per year. */
+const GIRLS_DEVELOPMENT_ANNUAL_CAP = 12;
 
 /** Core backroom roles a professional club is expected to carry. */
 const CORE_STAFF_ROLES: FootballStaffRole[] = [
@@ -703,7 +705,10 @@ export const reconcileWorkforceSupply = (input: {
       const perTeam = Math.ceil(womenNeed / womensTeams.length);
       for (const team of womensTeams) {
         /* The per-population cap is a hard total, not a per-club allowance. */
-        const remaining = womenNeed - report.generatedWomenPlayers;
+        const remaining = Math.min(
+          womenNeed - report.generatedWomenPlayers,
+          GIRLS_DEVELOPMENT_ANNUAL_CAP - report.generatedWomenPlayers,
+        );
         if (remaining <= 0) break;
         const cohort = generateYouthCohort({
           db,
@@ -715,7 +720,8 @@ export const reconcileWorkforceSupply = (input: {
           seed: `${input.seed}:women:${team.id}:${seasonLabel}`,
           count: Math.min(perTeam, 8, remaining),
           gender: "female",
-          cohortKey: "womens-supply",
+          cohortKey: "girls-development",
+          originOverride: "GIRLS_DEVELOPMENT",
         });
         report.generatedWomenPlayers += cohort.generatedPlayers;
       }
