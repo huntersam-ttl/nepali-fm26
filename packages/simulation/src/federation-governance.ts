@@ -993,6 +993,9 @@ export const processFederationMonth = (
 ): void => {
   initializeFederationGovernanceForSave({ db, worldDate: input.date, seed: input.seed });
   const repo = new FederationGovernanceRepository(db);
+  if (input.aiEnabled !== false) {
+    runFederationAiSeasonPlanning(db, { date: input.date, seed: input.seed });
+  }
   for (const federation of allFederations(db)) {
     const activeSponsorships = repo
       .federationSponsorships(federation.id)
@@ -1041,7 +1044,6 @@ export const processFederationMonth = (
       investInDevelopmentEnvironment(db, federation.id, input.date);
     }
     if (input.aiEnabled !== false) {
-      runFederationAiSeasonPlanning(db, { date: input.date, seed: input.seed });
       runFederationAiMonth(db, federation.id, input.date, input.seed);
     }
     for (const project of repo.projects(federation.id).filter((item) => item.status === "COMPLETED")) {

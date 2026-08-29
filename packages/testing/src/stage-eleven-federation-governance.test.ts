@@ -243,8 +243,8 @@ describe("federation governance foundation", () => {
   });
 
   it("is deterministic for same-seed federation diagnostics", () => {
-    const first = openGameDatabase(createSave("deterministic-fed-a"));
-    const second = openGameDatabase(createSave("deterministic-fed-b"));
+    const first = openGameDatabase(createSave("deterministic-fed"));
+    const second = openGameDatabase(createSave("deterministic-fed"));
     const firstReport = runFederationDiagnostic({
       db: first,
       seed: "deterministic-fed",

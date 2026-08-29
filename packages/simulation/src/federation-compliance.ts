@@ -95,7 +95,7 @@ const DEFAULT_COMPLIANCE_DIMENSIONS: FederationComplianceDimensions = { autonomy
 /** Creates a default (unverified) compliance profile for any federation that does not yet have one — save-init foundation, never overwrites an existing profile. */
 export const initializeFederationComplianceForSave = (db: GameDatabase, worldDate: string): void => {
   const repo = new FederationComplianceRepository(db);
-  const federationIds = (db.prepare("SELECT id FROM federations").all() as Array<{ id: EntityId }>).map((row) => row.id);
+  const federationIds = (db.prepare("SELECT id FROM federations ORDER BY id").all() as Array<{ id: EntityId }>).map((row) => row.id);
   for (const federationId of federationIds) {
     if (repo.complianceProfile(federationId)) continue;
     repo.upsertComplianceProfile({
@@ -153,7 +153,7 @@ export const applyFederationComplianceSnapshot = (
 export const runFederationComplianceAiForAllFederations = (db: GameDatabase, date: string): void => {
   const repo = new FederationComplianceRepository(db);
   const financeRepo = new FederationGovernanceRepository(db);
-  const federationIds = (db.prepare("SELECT id FROM federations").all() as Array<{ id: EntityId }>).map((row) => row.id);
+  const federationIds = (db.prepare("SELECT id FROM federations ORDER BY id").all() as Array<{ id: EntityId }>).map((row) => row.id);
 
   for (const federationId of federationIds) {
     for (const grant of repo.grantsForFederation(federationId)) {
