@@ -4,6 +4,7 @@ import type { GameDatabase } from "@nepal-football-sim/database";
 import { EventRepository, updateSaveWorldDate } from "@nepal-football-sim/database";
 import { advanceMacroEconomyForWorldDate } from "./macro-economy.js";
 import { advanceTerritorialDevelopment } from "./territorial-football.js";
+import { processPartnershipLifecycle } from "./club-networks.js";
 
 const addDays = (date: string, days: number): string => {
   const parsed = new Date(`${date}T00:00:00.000Z`);
@@ -47,6 +48,7 @@ export class SimulationClock {
 
   advanceDay(): void {
     this.save = updateSaveWorldDate(this.db, this.save, addDays(this.save.worldDate, 1));
+    processPartnershipLifecycle(this.db, this.save.worldDate);
     advanceMacroEconomyForWorldDate(this.db, {
       date: this.save.worldDate,
       seed: this.save.randomSeed,

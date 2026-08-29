@@ -143,3 +143,22 @@ and do not create persisted partnership records.
 ### SELL-ON
 
 Separate; unchanged.
+
+## Partnership Lifecycle
+
+Lifecycle status is persisted on the partnership record and uses one canonical
+active predicate: `status = ACTIVE`, `start_date <= simulation date`, and
+`end_date IS NULL OR end_date >= simulation date`. The end date is inclusive;
+the relationship expires on the following simulation date.
+
+`processPartnershipLifecycle` runs from the daily simulation clock and uses an
+indexed, finite-end-date query. ACTIVE and SUSPENDED records due before the
+current date transition to `EXPIRED`; processing is idempotent, does not create
+duplicate events, and never deletes history. SUSPENDED remains benefit-inactive
+and is distinct from expiry; open-ended ACTIVE records remain active, and
+future-dated ACTIVE records become usable automatically at their start date.
+All eight production partnership queries share the repository predicate, so
+scouting, technical, youth, academy, loan, preferred-transfer, commercial, and
+friendly-tour consumers stop deriving new benefits after expiry. Existing loans,
+placements, programmes, camps, ledgers, and learned scouting history are not
+retroactively cancelled. Renewal negotiation remains outside this slice.

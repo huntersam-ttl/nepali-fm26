@@ -23,6 +23,8 @@ export const activateClubPartnership=(db:GameDatabase,partnershipId:EntityId,inp
   return {...current,relationshipStrength:strength,status:"ACTIVE",startDate:input.date};
 };
 
+export const processPartnershipLifecycle=(db:GameDatabase,simulationDate:string):InternationalClubPartnership[]=>new ClubNetworkRepository(db).expireDuePartnerships(simulationDate);
+
 export const boundedPartnershipBenefits=(partnership:InternationalClubPartnership):{scouting:number;development:number;loanPreference:number;commercial:number}=>{
   const strength=Math.max(0,Math.min(100,partnership.relationshipStrength))/100;
   return {scouting:partnership.partnershipType==="SCOUTING"?strength*.2:0,development:["ACADEMY","YOUTH_DEVELOPMENT","TECHNICAL","TRAINING"].includes(partnership.partnershipType)?strength*.12:0,loanPreference:["LOAN","LOAN_PLAYER_PATHWAY"].includes(partnership.partnershipType)?strength*.18:0,commercial:partnership.partnershipType==="COMMERCIAL"?strength*.08:0};
