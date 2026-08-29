@@ -13,6 +13,8 @@ import type {
   FederationGovernanceProposal,
   ClubBudget,
   ClubBudgetCategory,
+  InfrastructureProject,
+  InfrastructureProjectType,
 } from "./domain.js";
 
 /**
@@ -230,6 +232,7 @@ export type DesktopRuntimeApi = {
   switchActiveCareerRole(targetRole: CareerRole): Promise<AppResult<CareerHeader>>;
   implementFederationGovernanceProposal(proposalId: EntityId): Promise<AppResult<FederationGovernanceProposal>>;
   setClubBudget(clubId: EntityId, seasonLabel: string, category: ClubBudgetCategory, amount: number): Promise<AppResult<ClubBudget>>;
+  createInfrastructureProject(clubId: EntityId, projectType: InfrastructureProjectType): Promise<AppResult<InfrastructureProject>>;
   getHomeDashboard(): Promise<AppResult<DesktopApplicationState>>;
   continueCareer(): Promise<AppResult<DesktopApplicationState>>;
   quickSimMatch(fixtureId?: EntityId): Promise<AppResult<DesktopApplicationState>>;

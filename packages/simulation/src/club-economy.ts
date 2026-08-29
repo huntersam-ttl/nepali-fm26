@@ -876,6 +876,28 @@ export const createInfrastructureProject = (
   return project;
 };
 
+/** Role-facing adapter for a controlling chairman's existing infrastructure action. */
+export const createInfrastructureProjectCommand = (
+  db: GameDatabase,
+  input: {
+    clubId: EntityId;
+    personId: EntityId;
+    callerRole: "MANAGER" | "CHAIRMAN_OWNER" | "FEDERATION_PRESIDENT";
+    projectType: InfrastructureProjectType;
+    date: string;
+    seed: string;
+  },
+): InfrastructureProject => {
+  if (input.callerRole !== "CHAIRMAN_OWNER") throw new Error("Only the active chairman/owner may approve infrastructure projects");
+  const club = db.prepare("SELECT c.id FROM clubs c JOIN countries co ON co.id=c.country_id WHERE c.id=? AND co.iso_code IN ('NP','NPL')").get(input.clubId) as { id?: EntityId } | undefined;
+  if (!club) throw new Error("Infrastructure commands are unavailable for context-only clubs");
+  const contextOnly = db.prepare("SELECT 1 FROM external_club_context WHERE club_id=? AND simulation_depth='CONTEXT_ONLY' LIMIT 1").get(input.clubId);
+  if (contextOnly) throw new Error("Infrastructure commands are unavailable for context-only clubs");
+  const controllingStake = db.prepare("SELECT 1 FROM club_ownership_stakes WHERE club_id=? AND holder_type='PERSON' AND holder_id=? AND status='ACTIVE' AND percentage>=51 LIMIT 1").get(input.clubId, input.personId);
+  if (!controllingStake) throw new Error("Only a controlling owner may approve this club project");
+  return createInfrastructureProject(db, input);
+};
+
 export const advanceInfrastructureProjects = (
   db: GameDatabase,
   input: { date: string; seed: string },

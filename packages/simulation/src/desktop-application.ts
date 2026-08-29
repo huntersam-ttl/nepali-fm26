@@ -44,6 +44,8 @@ import {
   type FederationGovernanceProposal,
   type ClubBudget,
   type ClubBudgetCategory,
+  type InfrastructureProject,
+  type InfrastructureProjectType,
   type Club,
   type CompetitionRuleSet,
   type CompetitionSeason,
@@ -226,7 +228,7 @@ import {
 import { suitability } from "./team-selection.js";
 import { activeCareerRole, heldCareerRoles, switchActiveCareerRole } from "./career-control.js";
 import { implementFederationGovernanceProposalCommand } from "./federation-politics.js";
-import { setClubBudgetCommand } from "./club-economy.js";
+import { createInfrastructureProjectCommand, setClubBudgetCommand } from "./club-economy.js";
 import {
   ManagerCommandError,
   advanceManagerCareer,
@@ -572,6 +574,27 @@ export class DesktopApplicationService {
         return setClubBudgetCommand(db, { clubId, personId, callerRole: "CHAIRMAN_OWNER", seasonLabel, category, amount });
       } catch (error) {
         throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "Club budget could not be set.");
+      }
+    });
+  }
+
+  createInfrastructureProject(clubId: EntityId, projectType: InfrastructureProjectType): AppResult<InfrastructureProject> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER") {
+        throw appError("ROLE_NOT_AUTHORIZED", "Only the active chairman/owner may approve infrastructure projects.");
+      }
+      try {
+        return createInfrastructureProjectCommand(db, {
+          clubId,
+          personId,
+          callerRole: "CHAIRMAN_OWNER",
+          projectType,
+          date: save.worldDate,
+          seed: `${save.randomSeed}:chairman-project`,
+        });
+      } catch (error) {
+        throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "Infrastructure project could not be created.");
       }
     });
   }
