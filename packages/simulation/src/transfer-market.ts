@@ -27,6 +27,7 @@ import {
 } from "@nepal-football-sim/shared-types";
 import {
   ClubNetworkRepository,
+  EventRepository,
   RecruitmentRepository,
   TransferMarketRepository,
   type GameDatabase,
@@ -38,6 +39,7 @@ import {
   recordTransferEconomy,
 } from "./club-economy.js";
 import { applySupporterTransferOutcome } from "./supporter-culture.js";
+import { publishMediaForDate } from "./media.js";
 import { evaluateRelatedPartyTransfer } from "./club-networks.js";
 import { SeededRandom } from "./rng.js";
 import {
@@ -1682,11 +1684,12 @@ export const completePermanentTransfer = (
     setBy: "SYSTEM",
     updatedAt: worldDate,
   });
+  const transferHistoryId = createStableEntityId(
+    "transfer-history",
+    `${offer.playerId}:transfer:${worldDate}:${offer.id}`,
+  );
   market.insertTransferHistoryEvent({
-    id: createStableEntityId(
-      "transfer-history",
-      `${offer.playerId}:transfer:${worldDate}:${offer.id}`,
-    ),
+    id: transferHistoryId,
     playerId: offer.playerId,
     clubId: offer.buyingClubId,
     relatedClubId: offer.sellingClubId,
@@ -1694,6 +1697,33 @@ export const completePermanentTransfer = (
     occurredOn: worldDate,
     data: { transferFee: offer.transferFee, currency: offer.currency },
   });
+  const nepalClubInvolved = [offer.buyingClubId, offer.sellingClubId].filter((clubId): clubId is EntityId => Boolean(clubId)).some((clubId) =>
+    Boolean(
+      db
+        .prepare("SELECT 1 FROM clubs c JOIN countries co ON co.id=c.country_id WHERE c.id=? AND co.iso_code IN ('NP','NPL') LIMIT 1")
+        .get(clubId),
+    ),
+  );
+  if (nepalClubInvolved && offer.transferFee >= 1_000_000) {
+    const mediaEventId = createStableEntityId("history", `TRANSFER_MEDIA:${transferHistoryId}`);
+    if (!db.prepare("SELECT 1 FROM historical_events WHERE id=?").get(mediaEventId)) {
+      new EventRepository(db).insertHistoricalEvent({
+        id: mediaEventId,
+        occurredOn: worldDate,
+        eventType: "TRANSFER_COMPLETED",
+        involvedEntities: [
+          { id: offer.playerId, type: "person" },
+          { id: offer.buyingClubId, type: "club" },
+          ...(offer.sellingClubId ? [{ id: offer.sellingClubId, type: "club" as const }] : []),
+        ],
+        title: "Major transfer completed",
+        data: { transferHistoryId, transferFee: offer.transferFee, currency: offer.currency },
+        importance: "high",
+        scope: "world",
+      });
+    }
+    publishMediaForDate(db, { date: worldDate });
+  }
   recordTransferEconomy(db, offer, worldDate);
   settleSellOnEntitlements(db, offer, worldDate);
   persistSellOnEntitlement(db, offer);

@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { ClubEconomyRepository, TransferMarketRepository, openGameDatabase } from "@nepal-football-sim/database";
+import { ClubEconomyRepository, MediaRepository, TransferMarketRepository, openGameDatabase } from "@nepal-football-sim/database";
 import type { EntityId } from "@nepal-football-sim/shared-types";
 import {
   completePermanentTransfer,
@@ -109,6 +109,10 @@ describe("AI personal-terms negotiation", () => {
     });
     expect(evaluateTransferOffer(db, first, WORLD_DATE, "sell-on-first").accepted).toBe(true);
     completePermanentTransfer(db, first, WORLD_DATE, "sell-on-first", { prefersOverseas: true, expectedPlayingTime: "FIRST_TEAM" }, { salary: 500_000, squadRole: "FIRST_TEAM", contractLengthMonths: 24 });
+    const transferStories = new MediaRepository(db).stories().filter((story) => story.eventType === "TRANSFER");
+    expect(transferStories).toHaveLength(1);
+    completePermanentTransfer(db, first, WORLD_DATE, "sell-on-first", { prefersOverseas: true, expectedPlayingTime: "FIRST_TEAM" }, { salary: 500_000, squadRole: "FIRST_TEAM", contractLengthMonths: 24 });
+    expect(new MediaRepository(db).stories().filter((story) => story.eventType === "TRANSFER")).toHaveLength(1);
     expect(market.sellOnEntitlements(target.player_id)).toMatchObject([{ entitledClubId: target.club_id, percentage: 20, basis: "TOTAL_RESALE_FEE", status: "ACTIVE" }]);
     db.close();
 
@@ -127,6 +131,7 @@ describe("AI personal-terms negotiation", () => {
       expect(evaluateTransferOffer(reloaded, resale, "2027-01-01", "sell-on-resale").accepted).toBe(true);
       completePermanentTransfer(reloaded, resale, "2027-01-01", "sell-on-resale", { prefersOverseas: true, expectedPlayingTime: "FIRST_TEAM" }, { salary: 500_000, squadRole: "FIRST_TEAM", contractLengthMonths: 24 });
       completePermanentTransfer(reloaded, resale, "2027-01-01", "sell-on-resale", { prefersOverseas: true, expectedPlayingTime: "FIRST_TEAM" }, { salary: 500_000, squadRole: "FIRST_TEAM", contractLengthMonths: 24 });
+      expect(new MediaRepository(reloaded).stories().filter((story) => story.eventType === "TRANSFER")).toHaveLength(1);
       const entitlement = reloadedMarket.sellOnEntitlements(target.player_id)[0]!;
       expect(entitlement.status).toBe("SETTLED");
       expect(entitlement.settledTransferId).toBe(resale.id);
