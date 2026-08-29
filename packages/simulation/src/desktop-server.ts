@@ -162,6 +162,8 @@ const dispatch = (
       return service.createInfrastructureProject(body.clubId as EntityId, body.projectType as InfrastructureProjectType);
     case "acceptSponsorOffer":
       return service.acceptSponsorOffer(body.clubId as EntityId, body.sponsorshipId as EntityId);
+    case "rejectSponsorOffer":
+      return service.rejectSponsorOffer(body.clubId as EntityId, body.sponsorshipId as EntityId);
     case "getHomeDashboard":
       return service.getHomeDashboard();
     case "continueCareer":

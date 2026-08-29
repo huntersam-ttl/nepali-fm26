@@ -35,7 +35,9 @@ describe("chairman sponsorship production command", () => {
     const manager = db.prepare("SELECT t.club_id FROM manager_contracts mc JOIN teams t ON t.id=mc.team_id WHERE mc.person_id=? AND mc.status='ACTIVE'").get(person.person_id) as { club_id: EntityId };
     initializeClubEconomyForSave({ db, worldDate: save.world_date, seed: "chairman-sponsorship" });
     db.prepare("INSERT INTO club_ownership_stakes (id,club_id,holder_type,holder_id,holder_name,role,percentage,voting_percentage,start_date,status,ownership_model,provenance_status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)").run("chairman-sponsorship-owner", manager.club_id, "PERSON", person.person_id, "Maya Adhikari", "MAJORITY_OWNER", 75, 75, save.world_date, "ACTIVE", "PARTIALLY_BUYABLE", "SIMULATION_ONLY");
-    const offer = generateSponsorOffers(db, { clubId: manager.club_id, date: save.world_date, seed: "chairman-sponsorship", count: 1 })[0]!;
+    const offers = generateSponsorOffers(db, { clubId: manager.club_id, date: save.world_date, seed: "chairman-sponsorship", count: 2 });
+    const offer = offers[0]!;
+    const rejectedOffer = offers[1]!;
     const anotherClub = db.prepare("SELECT id FROM clubs WHERE id<>? ORDER BY id LIMIT 1").get(manager.club_id) as { id: EntityId };
     db.close();
 
@@ -44,16 +46,21 @@ describe("chairman sponsorship production command", () => {
     offeredAgain.prepare("UPDATE sponsorship_contracts SET status='OFFERED' WHERE id=?").run(offer.id);
     offeredAgain.close();
     expect(service.acceptSponsorOffer(manager.club_id, offer.id)).toMatchObject({ ok: false, error: { code: "ROLE_NOT_AUTHORIZED" } });
+    expect(service.rejectSponsorOffer(manager.club_id, rejectedOffer.id)).toMatchObject({ ok: false, error: { code: "ROLE_NOT_AUTHORIZED" } });
     expect(service.switchActiveCareerRole("CHAIRMAN_OWNER")).toMatchObject({ ok: true });
     expect(service.acceptSponsorOffer(anotherClub.id, offer.id)).toMatchObject({ ok: false, error: { code: "INVALID_SELECTION" } });
+    expect(service.rejectSponsorOffer(anotherClub.id, rejectedOffer.id)).toMatchObject({ ok: false, error: { code: "INVALID_SELECTION" } });
     expect(service.acceptSponsorOffer(manager.club_id, offer.id)).toMatchObject({ ok: true, data: { status: "ACTIVE" } });
     expect(service.acceptSponsorOffer(manager.club_id, offer.id)).toMatchObject({ ok: false, error: { code: "INVALID_SELECTION" } });
+    expect(service.rejectSponsorOffer(manager.club_id, rejectedOffer.id)).toMatchObject({ ok: true, data: { status: "REJECTED" } });
+    expect(service.rejectSponsorOffer(manager.club_id, rejectedOffer.id)).toMatchObject({ ok: true, data: { status: "REJECTED" } });
     expect(service.saveCareer().ok).toBe(true);
     service.closeCareer();
 
     const reloaded = openGameDatabase(path);
     const sponsorship = new ClubEconomyRepository(reloaded).sponsorships(manager.club_id).find((item) => item.id === offer.id);
     expect(sponsorship?.status).toBe("ACTIVE");
+    expect(new ClubEconomyRepository(reloaded).sponsorships(manager.club_id).find((item) => item.id === rejectedOffer.id)?.status).toBe("REJECTED");
     expect((reloaded.prepare("SELECT COUNT(*) AS count FROM club_ledger_entries WHERE related_entity_id=? AND category='SPONSORSHIP'").get(offer.id) as { count: number }).count).toBe(1);
     reloaded.close();
   }, 300_000);
