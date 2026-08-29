@@ -816,8 +816,11 @@ export const playNationalTeamFixture = (
     relatedEntityId: fixture.id,
     idempotencyKey: `national-cost:${fixture.id}`,
   });
+  const canonicalPersonIds = new Set(
+    (db.prepare("SELECT id FROM persons").all() as Array<{ id: EntityId }>).map((row) => row.id),
+  );
   for (const state of result.playerStates.filter(
-    (state) => state.teamId === fixture.nationalTeamId,
+    (state) => state.teamId === fixture.nationalTeamId && canonicalPersonIds.has(state.personId),
   )) {
     const appearance: NationalTeamAppearance = {
       id: createStableEntityId("national-team-appearance", `${fixture.id}:${state.personId}`),
@@ -1726,13 +1729,17 @@ const runFederationAiMonth = (
   }
   if (date.endsWith("-11-28")) {
     const team = seniorMenNationalTeam(db, federationId);
-    selectNationalTeamSquad(db, {
+    const callups = selectNationalTeamSquad(db, {
       federationId,
       nationalTeamId: team.id,
       date,
       programme: `AI federation friendly window ${date.slice(0, 4)}`,
       seed,
     });
+    // A lightweight/imported federation may have no real eligible squad.
+    // Do not ask match lineup repair to invent replacement IDs that cannot
+    // participate in canonical national-team history.
+    if (callups.length < 11) return;
     const friendly = scheduleFriendly(db, {
       federationId,
       nationalTeamId: team.id,
@@ -2405,7 +2412,7 @@ const teamById = (db: GameDatabase, teamId: EntityId): Team => {
 const seniorMenNationalTeam = (db: GameDatabase, federationId: EntityId): Team => {
   const row = db
     .prepare(
-      "SELECT * FROM teams WHERE federation_id = ? AND level = 'senior' AND gender = 'men' ORDER BY name LIMIT 1",
+      "SELECT * FROM teams WHERE federation_id = ? AND club_id IS NULL AND level = 'senior' AND gender = 'men' ORDER BY name LIMIT 1",
     )
     .get(federationId) as any;
   if (!row) throw new Error("Senior men national team is missing");

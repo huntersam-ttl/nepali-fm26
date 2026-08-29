@@ -265,7 +265,11 @@ describe("federation governance foundation", () => {
 });
 
 const firstFederationId = (db: ReturnType<typeof openGameDatabase>): EntityId =>
-  (db.prepare("SELECT id FROM federations ORDER BY name LIMIT 1").get() as { id: EntityId }).id;
+  (
+    db
+      .prepare("SELECT id FROM federations WHERE name = 'All Nepal Football Association' LIMIT 1")
+      .get() as { id: EntityId }
+  ).id;
 
 const clubIdByName = (db: ReturnType<typeof openGameDatabase>, name: string): EntityId =>
   (db.prepare("SELECT id FROM clubs WHERE name = ?").get(name) as { id: EntityId }).id;
