@@ -696,6 +696,21 @@ export const acceptSponsorOffer = (
   return { ...contract, status: "ACTIVE" };
 };
 
+/** Role-facing adapter for a controlling chairman's existing sponsorship approval. */
+export const acceptSponsorOfferCommand = (
+  db: GameDatabase,
+  input: { sponsorshipId: EntityId; clubId: EntityId; personId: EntityId; callerRole: "MANAGER" | "CHAIRMAN_OWNER" | "FEDERATION_PRESIDENT"; date: string },
+): SponsorshipContract => {
+  if (input.callerRole !== "CHAIRMAN_OWNER") throw new Error("Only the active chairman/owner may approve sponsorships");
+  const club = db.prepare("SELECT c.id FROM clubs c JOIN countries co ON co.id=c.country_id WHERE c.id=? AND co.iso_code IN ('NP','NPL')").get(input.clubId) as { id?: EntityId } | undefined;
+  if (!club || db.prepare("SELECT 1 FROM external_club_context WHERE club_id=? AND simulation_depth='CONTEXT_ONLY' LIMIT 1").get(input.clubId)) throw new Error("Sponsorship commands are unavailable for context-only clubs");
+  const controllingStake = db.prepare("SELECT 1 FROM club_ownership_stakes WHERE club_id=? AND holder_type='PERSON' AND holder_id=? AND status='ACTIVE' AND percentage>=51 LIMIT 1").get(input.clubId, input.personId);
+  if (!controllingStake) throw new Error("Only a controlling owner may approve this sponsorship");
+  const offer = new ClubEconomyRepository(db).sponsorships().find((item) => item.id === input.sponsorshipId);
+  if (!offer || offer.clubId !== input.clubId) throw new Error("Sponsorship offer does not belong to this club");
+  return acceptSponsorOffer(db, input.sponsorshipId, input.date);
+};
+
 export const rejectSponsorOffer = (
   db: GameDatabase,
   sponsorshipId: EntityId,

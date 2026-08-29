@@ -46,6 +46,7 @@ import {
   type ClubBudgetCategory,
   type InfrastructureProject,
   type InfrastructureProjectType,
+  type SponsorshipContract,
   type Club,
   type CompetitionRuleSet,
   type CompetitionSeason,
@@ -228,7 +229,7 @@ import {
 import { suitability } from "./team-selection.js";
 import { activeCareerRole, heldCareerRoles, switchActiveCareerRole } from "./career-control.js";
 import { implementFederationGovernanceProposalCommand } from "./federation-politics.js";
-import { createInfrastructureProjectCommand, setClubBudgetCommand } from "./club-economy.js";
+import { acceptSponsorOfferCommand, createInfrastructureProjectCommand, setClubBudgetCommand } from "./club-economy.js";
 import {
   ManagerCommandError,
   advanceManagerCareer,
@@ -595,6 +596,20 @@ export class DesktopApplicationService {
         });
       } catch (error) {
         throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "Infrastructure project could not be created.");
+      }
+    });
+  }
+
+  acceptSponsorOffer(clubId: EntityId, sponsorshipId: EntityId): AppResult<SponsorshipContract> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER") {
+        throw appError("ROLE_NOT_AUTHORIZED", "Only the active chairman/owner may approve sponsorships.");
+      }
+      try {
+        return acceptSponsorOfferCommand(db, { clubId, sponsorshipId, personId, callerRole: "CHAIRMAN_OWNER", date: save.worldDate });
+      } catch (error) {
+        throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "Sponsorship offer could not be accepted.");
       }
     });
   }

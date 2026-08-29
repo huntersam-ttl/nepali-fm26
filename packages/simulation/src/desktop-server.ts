@@ -160,6 +160,8 @@ const dispatch = (
       return service.setClubBudget(body.clubId as EntityId, body.seasonLabel as string, body.category as ClubBudgetCategory, body.amount as number);
     case "createInfrastructureProject":
       return service.createInfrastructureProject(body.clubId as EntityId, body.projectType as InfrastructureProjectType);
+    case "acceptSponsorOffer":
+      return service.acceptSponsorOffer(body.clubId as EntityId, body.sponsorshipId as EntityId);
     case "getHomeDashboard":
       return service.getHomeDashboard();
     case "continueCareer":

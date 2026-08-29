@@ -10,6 +10,7 @@ import type {
   ClubBudgetCategory,
   InfrastructureProject,
   InfrastructureProjectType,
+  SponsorshipContract,
   DesktopApplicationState,
   DesktopRuntimeApi,
   EntityId,
@@ -123,6 +124,7 @@ const bindCommands = (call: CommandCaller): DesktopRuntimeApi => ({
   implementFederationGovernanceProposal: (proposalId: EntityId) => call<FederationGovernanceProposal>("implementFederationGovernanceProposal", { proposalId }),
   setClubBudget: (clubId: EntityId, seasonLabel: string, category: ClubBudgetCategory, amount: number) => call<ClubBudget>("setClubBudget", { clubId, seasonLabel, category, amount }),
   createInfrastructureProject: (clubId: EntityId, projectType: InfrastructureProjectType) => call<InfrastructureProject>("createInfrastructureProject", { clubId, projectType }),
+  acceptSponsorOffer: (clubId: EntityId, sponsorshipId: EntityId) => call<SponsorshipContract>("acceptSponsorOffer", { clubId, sponsorshipId }),
   getHomeDashboard: () => call<DesktopApplicationState>("getHomeDashboard"),
   continueCareer: () => call<DesktopApplicationState>("continueCareer"),
   quickSimMatch: (fixtureId?: EntityId) =>
