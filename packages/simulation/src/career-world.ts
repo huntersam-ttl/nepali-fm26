@@ -572,8 +572,16 @@ const simulateCompetitionSeason = (
     attributesByTeam.set(teamId, attributes);
     return attributes;
   };
+  // A fixture's match row is immutable once written. Load the existing
+  // fixture IDs once, then update this set as the current pass persists
+  // results instead of issuing one existence query per fixture twice.
+  const completedFixtureIds = new Set<EntityId>(
+    (db.prepare(
+      "SELECT m.fixture_id FROM matches m JOIN fixtures f ON f.id = m.fixture_id WHERE f.competition_season_id = ?",
+    ).all(input.season.id) as Array<{ fixture_id: EntityId }>).map((row) => row.fixture_id),
+  );
   for (const fixture of fixtures) {
-    if (fixture.status === "played" || matchExists(db, fixture.id)) {
+    if (fixture.status === "played" || completedFixtureIds.has(fixture.id)) {
       continue;
     }
     if (input.maxFixtures !== undefined && playedThisRun >= input.maxFixtures) {
@@ -613,6 +621,7 @@ const simulateCompetitionSeason = (
     });
     allResults.push(result);
     persistMatchResult(db, result, input.season.id, fixture.scheduledDate, input.ruleSet, fixture);
+    completedFixtureIds.add(fixture.id);
     recordFootballMatchHistory(db, fixture, result, fixture.scheduledDate);
     if (input.economyEnabled) {
       postMatchdayEconomy(db, fixture, fixture.scheduledDate, input.seed);
@@ -640,7 +649,7 @@ const simulateCompetitionSeason = (
 
   const finalPlayerStats = playerSeasonStats(db, input.season.id);
   const champion = standings[0];
-  if (fixtures.every((fixture) => fixture.status === "played" || matchExists(db, fixture.id))) {
+  if (fixtures.every((fixture) => fixture.status === "played" || completedFixtureIds.has(fixture.id))) {
     persistChampionAndAwards(db, input, champion, finalPlayerStats);
     recordCompetitionSeasonHistory(db, {
       seasonId: input.season.id,
@@ -1122,11 +1131,6 @@ function allCompetitionSeasons(db: GameDatabase): CompetitionSeason[] {
       startDate: row.start_date,
       endDate: row.end_date,
     }));
-}
-
-function matchExists(db: GameDatabase, fixtureId: EntityId): boolean {
-  const row = db.prepare("SELECT 1 FROM matches WHERE fixture_id = ? LIMIT 1").get(fixtureId);
-  return row !== undefined;
 }
 
 function matchResultsForStandings(db: GameDatabase, competitionSeasonId: EntityId): MatchResult[] {

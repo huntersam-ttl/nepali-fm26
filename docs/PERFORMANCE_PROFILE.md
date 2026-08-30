@@ -55,6 +55,30 @@ and recursive typecheck/build passed. Classification remains **SLOW_BUT_COMPLETE
 competition phase is still the largest measured cost. The next and only selected hotspot is deeper
 competition query attribution/batching, with no second optimisation included here.
 
+## Second Competition Attribution and Optimisation
+
+The second attribution found fixture-existence probing in `simulateCompetitionSeason`: each fixture
+was queried once before simulation and again during completion detection. For 789 matches this was
+approximately 1,578 identical `matches` existence queries. The bounded fix loads existing match
+fixture IDs once per competition-season and updates a local set after each persisted result. The set
+is discarded at function return; availability, standings, finance, contracts, and match results
+remain live and no competition semantics changed.
+
+Focused attribution moves from approximately **1,578 queries to five season-scoped loads** for the
+five runnable competitions. The identical canonical one-season benchmark completed in **118.33s**
+total, versus 155.60s after the first optimization and 179.04s before either optimization: **37.27s
+/ 23.9% faster** than 155.60s and **60.71s / 33.9% faster** than 179.04s. It reached `2027-07-31`
+with 789 fixtures/matches, five runnable and four skipped competitions, zero emergency lineups, and
+zero position shortages. The internal competition phase was not separately timed, so no unsupported
+after-phase seconds are claimed. Classification remains **SLOW_BUT_COMPLETES** and the optimization
+is **MATERIAL**.
+
+Current linear planning floors are approximately **39.4 minutes for 20 seasons** and **98.6 minutes
+for 50 seasons**; allowing for population growth, likely planning ranges are roughly **60–100 minutes**
+and **150–250 minutes**. Validation readiness is **READY_FOR_20_SEASON_VALIDATION**. The next pass
+should run the prepared 20-season checklist; no further competition optimization is selected unless
+that run exposes a new measured pathology.
+
 Against the stronger pre-freeze 303.0s total (creation 6.5s plus season 296.5s), this run is
 **IMPROVED** by 123.96s / 40.9%. The older 202.8s figure remains historical and is not treated as
 directly equivalent. Linear planning floors from 179.04s are approximately 59.7 minutes for 20
