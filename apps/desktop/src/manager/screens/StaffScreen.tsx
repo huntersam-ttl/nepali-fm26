@@ -187,7 +187,7 @@ export const StaffScreen = (): React.ReactElement => {
                                 )
                               }
                             >
-                              Offer Contract · {vacancy.role.replace(/_/g, " ").toLowerCase()}
+                                Hire Staff · {vacancy.role.replace(/_/g, " ").toLowerCase()}
                             </button>
                           </div>
                         )}

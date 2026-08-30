@@ -70,7 +70,7 @@ export const FixturesScreen = ({
       </Panel>
 
       <p className="subtle">
-        Select a fixture to open match preparation and choose how to watch it.
+        Select an upcoming fixture for match preparation and Quick Sim, or open a result to review it.
       </p>
     </section>
   );

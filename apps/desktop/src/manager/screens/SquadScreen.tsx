@@ -78,7 +78,7 @@ const SquadTable = (props: {
   }, [props.players, props.query, props.position, props.availability, props.sortKey]);
 
   return (
-    <Panel title={`Senior squad: ${rows.length}${rows.length > 26 ? " · Oversized squad" : ""}`}>
+    <Panel title={`Senior squad: ${props.players.length} · Target: 25${props.players.length > 26 ? " · Oversized squad" : ""}`}>
       <div className="table-tools">
         <label className="sr-label">
           Search squad
@@ -145,6 +145,7 @@ const SquadTable = (props: {
               <th>A</th>
               <th>Cards</th>
               <th>Contract</th>
+              <th>Wage/month</th>
               <th>Ability</th>
             </tr>
           </thead>
@@ -182,6 +183,7 @@ const SquadTable = (props: {
                   {player.yellowCards}/{player.redCards}
                 </td>
                 <td>{player.contractExpiry ?? "—"}</td>
+                <td>{player.salary === undefined ? "—" : `NPR ${Math.round(player.salary / 1000).toLocaleString("en-US")}k`}</td>
                 <td title={player.abilityLabel}>{player.ability.toFixed(1)}</td>
               </tr>
             ))}

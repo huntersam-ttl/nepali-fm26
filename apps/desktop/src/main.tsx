@@ -227,6 +227,9 @@ const NewCareer = (props: {
       <section className="career-panel">
         <p className="eyebrow">New Career</p>
         <h1>{["Character", "Background", "Starting Club", "Confirmation"][step - 1]}</h1>
+        <ol className="setup-steps" aria-label="Career setup progress">
+          {["Character", "Career type", "Starting club", "Confirm"].map((label, index) => <li key={label} className={index + 1 === step ? "active" : index + 1 < step ? "complete" : ""}>{index + 1}. {label}</li>)}
+        </ol>
         {step === 1 && (
           <div className="form-grid">
             <label>
@@ -297,28 +300,18 @@ const NewCareer = (props: {
           </div>
         )}
         {step === 3 && (
-          <div className="form-grid">
-            <label>Division<select value={division} onChange={(event) => setDivision(event.target.value)}><option>All</option><option>A</option><option>B</option><option>C</option><option>Other playable Nepal competition</option></select></label>
-            <label>
-              Starting club
-              <select
-                value={teamId}
-                onChange={(event) => setTeamId(event.target.value as EntityId)}
-              >
-                {visibleClubs.map((club) => (
-                  <option key={club.teamId} value={club.teamId}>
-                    {club.clubName} · {club.division} Division ({club.squadSize} players)
-                  </option>
-                ))}
-              </select>
-            </label>
-            {clubs.length === 0 && <p>Loading Nepal clubs…</p>}
-            {selectedClub && <p>{selectedClub.competitionName} · {selectedClub.locationName ?? "Location unknown"} · {selectedClub.professionalStatus ?? "Status unknown"}</p>}
+          <div>
+            <p className="subtle">Choose a playable Nepal division, then select your club.</p>
+            <div className="division-tabs" role="tablist" aria-label="Playable divisions">
+              {["All", "A", "B", "C"].map((option) => <button key={option} type="button" role="tab" aria-selected={division === option} className={division === option ? "active" : ""} onClick={() => setDivision(option)}>{option === "All" ? "All divisions" : `${option} Division`}</button>)}
+            </div>
+            {clubs.length === 0 ? <p className="empty-state" role="status">Loading playable Nepal clubs…</p> : <div className="club-choice setup-clubs" role="group" aria-label="Starting club">{visibleClubs.map((club) => <button type="button" key={club.teamId} className={`club-row ${teamId === club.teamId ? "selected" : ""}`} aria-pressed={teamId === club.teamId} onClick={() => setTeamId(club.teamId)}><strong>{club.clubName}</strong><span>{club.division} Division · {club.locationName ?? "Location unknown"}</span><span>{club.squadSize} players · {club.competitionName}</span></button>)}</div>}
+            {selectedClub && <p className="selection-note" role="status">Selected: <strong>{selectedClub.clubName}</strong> · {selectedClub.locationName ?? "Location unknown"} · {selectedClub.professionalStatus ?? "Status unknown"}</p>}
           </div>
         )}
         {step === 4 && (
           <p>
-            Join {selectedClub?.clubName ?? "your club"} as manager in the{" "}
+            Join {selectedClub?.clubName ?? "your club"} as {careerMode === "OWNER" ? "Chairman / Owner" : "manager"} in the{" "}
             {selectedClub?.competitionName ?? "Nepal league"} and create a SQLite career save.
           </p>
         )}

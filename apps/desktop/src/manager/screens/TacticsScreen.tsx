@@ -48,13 +48,16 @@ const TacticsBoard = ({
   const [name, setName] = useState(view.setup.name);
   const [formationId, setFormationId] = useState(view.setup.formation.id);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
 
   const fitFor = (slotId: string) => view.roleFits.find((fit) => fit.slotId === slotId);
   const assignment = (slotId: string) =>
     view.setup.assignments.find((item) => item.slotId === slotId);
 
-  const applyCommand = (command: Parameters<typeof onApply>[0]) =>
-    onApply({ formationId, ...command });
+  const applyCommand = (command: Parameters<typeof onApply>[0]) => {
+    setSaved(false);
+    return onApply({ formationId, ...command }).then(() => setSaved(true));
+  };
 
   const assignPlayer = (slotId: string, playerId?: EntityId) =>
     applyCommand({
@@ -68,6 +71,7 @@ const TacticsBoard = ({
   return (
     <section className="tactics-layout">
       <Panel title="Shape and style">
+        <p className="subtle tactics-status" role="status">{busy ? "Saving tactics…" : saved ? "Saved" : "Changes save automatically"}</p>
         <div className="controls">
           <label>
             Tactic name

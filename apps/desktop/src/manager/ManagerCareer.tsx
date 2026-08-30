@@ -254,6 +254,7 @@ export const ManagerCareer = ({
           <div className="identity">
             <strong>{header.characterName}</strong>
             <span>{header.teamName ?? "Unemployed"}</span>
+            <span className="topbar-role">{roleLabel} · {header.clubName ?? (header.activeRole === "FEDERATION_PRESIDENT" ? "ANFA" : "Nepal Football")}</span>
           </div>
           <label className="role-picker">
             Role

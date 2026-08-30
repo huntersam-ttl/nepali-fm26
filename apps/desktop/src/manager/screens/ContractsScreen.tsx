@@ -69,7 +69,7 @@ export const ContractsScreen = (): React.ReactElement => {
                       {rows.map((contract) => (
                         <tr key={contract.playerId}>
                           <td>{contract.playerName}</td>
-                          <td>{money(contract.salary, contract.currency)}</td>
+                          <td>{money(contract.salary, contract.currency)} / month</td>
                           <td>{contract.squadRole.replace(/_/g, " ").toLowerCase()}</td>
                           <td>{contract.endDate}</td>
                           <td>

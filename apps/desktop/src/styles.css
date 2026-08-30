@@ -48,6 +48,25 @@ button {
   background: #fbfcfa;
 }
 
+.setup-steps {
+  display: flex;
+  gap: 8px;
+  margin: 18px 0;
+  padding: 0;
+  list-style: none;
+  color: #7b8780;
+  font-size: 0.75rem;
+}
+.setup-steps li { padding: 6px 9px; border-radius: 999px; background: #eef2ee; }
+.setup-steps li.active { background: #315e4d; color: #fff; font-weight: 800; }
+.setup-steps li.complete { color: #285d35; }
+.division-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; }
+.division-tabs button { min-height: 36px; padding: 7px 12px; border: 1px solid #cdd6d0; border-radius: 999px; background: #fff; color: #23312b; }
+.division-tabs button.active { border-color: #315e4d; background: #315e4d; color: #fff; font-weight: 800; }
+.setup-clubs { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); max-height: 430px; overflow-y: auto; }
+.club-row.selected { border-color: #315e4d; box-shadow: 0 0 0 2px #d1e5d7; }
+.selection-note { margin: 12px 0 0; padding: 9px 11px; border-left: 3px solid #315e4d; background: #eef5ef; }
+
 .manager-shell {
   display: grid;
   grid-template-columns: 232px minmax(0, 1fr);
@@ -146,6 +165,7 @@ nav button.active {
 }
 
 .identity, .date-block { display: grid; gap: 2px; min-width: 150px; }
+.topbar-role { color: #315e4d !important; font-size: 0.75rem; font-weight: 800; }
 .role-picker { min-width: 175px; }
 .topbar-actions { display: flex; align-items: center; gap: 6px; margin-left: auto; }
 .topbar-actions .ghost { padding: 6px 8px; font-size: 0.78rem; }
@@ -611,6 +631,7 @@ tbody tr[tabindex]:focus-visible {
   padding: 8px 12px;
   margin-bottom: 10px;
 }
+.tactics-status { min-height: 18px; margin-top: -4px; }
 
 .form-run {
   display: inline-flex;
