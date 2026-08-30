@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import type { ConcernResponseAction, EntityId } from "@nepal-football-sim/shared-types";
+import type { ConcernResponseAction, EntityId, FederationCandidacyAssessment } from "@nepal-football-sim/shared-types";
 import { managerBridge } from "../managerBridge.js";
 import { AsyncPanel, Badge, FormRun, Metrics, Panel, useRuntimeData } from "../ui.js";
 
@@ -67,6 +67,20 @@ const meetingTypeLabel = (type: string): string => {
   }
 };
 
+export const CandidacyPanel = (): React.ReactElement => {
+  const [state, setState] = useState<{ status: "loading" } | { status: "ready"; data: FederationCandidacyAssessment } | { status: "error"; message: string }>({ status: "loading" });
+  const [busy, setBusy] = useState(false);
+  const load = async (): Promise<void> => {
+    const result = await managerBridge.getFederationCandidacy();
+    setState(result.ok ? { status: "ready", data: result.data } : { status: "error", message: result.error.message });
+  };
+  React.useEffect(() => { void load(); }, []);
+  if (state.status === "loading") return <Panel title="ANFA Presidency Path"><p className="muted">Loading eligibility…</p></Panel>;
+  if (state.status === "error") return <Panel title="ANFA Presidency Path"><p className="subtle">{state.message}</p></Panel>;
+  const assessment = state.data;
+  return <Panel title="ANFA Presidency Path"><Metrics items={[{ label: "Game election eligibility", value: assessment.eligible ? "Eligible to stand" : "Not eligible" }, { label: "Nepal career seasons", value: assessment.careerSeasons }, { label: "Game reputation", value: assessment.reputation }, { label: "Next election", value: assessment.nextElectionDate ?? "Not scheduled" }]} />{assessment.reasons.length > 0 && <ul className="compact-list">{assessment.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>}{assessment.eligible && !assessment.candidateId && <button className="primary" disabled={busy} onClick={async () => { setBusy(true); await managerBridge.declareFederationElectionCandidacy(); await load(); setBusy(false); }}>{busy ? "Declaring…" : "Declare Candidacy"}</button>} </Panel>;
+};
+
 export const HomeScreen = ({
   onContinue,
   busy,
@@ -109,6 +123,7 @@ export const HomeScreen = ({
               {actionError}
             </div>
           )}
+          <CandidacyPanel />
           <Panel title="Club">
             {dashboard.employmentStatus === "UNEMPLOYED" ? (
               <>

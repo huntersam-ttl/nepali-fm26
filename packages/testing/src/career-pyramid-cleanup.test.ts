@@ -46,4 +46,25 @@ describe("career pyramid and new-save balancing", () => {
       expect(highWage).toBeLessThan(250_000);
     } finally { db.close(); service.closeCareer(); }
   });
+
+  it("starts an owner career with canonical majority control", () => {
+    const dir = mkdtempSync(join(tmpdir(), "nepal-owner-start-")); dirs.push(dir);
+    const service = new DesktopApplicationService({ savesDirectory: dir, worldDatasetPath: registryPath });
+    const options = service.listStartingClubs();
+    if (!options.ok) throw new Error(options.error.message);
+    const club = options.data.find((item) => item.division === "B");
+    if (!club) throw new Error("No B Division club");
+    const result = service.createCareer({ careerMode: "OWNER", saveName: "Owner start", joinTeamId: club.teamId, character: { fullName: "Owner Test", dateOfBirth: "1990-01-01", startingAge: 36, languages: ["en"], footballBackground: "COMMUNITY_COACHING", education: "SECONDARY", playingExperience: "AMATEUR_PLAYER", coachingExperience: "YOUTH_COACH", businessBackground: "SMALL_BUSINESS", startingReputationProfile: "LOCAL_RESPECTED" } });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.header.activeRole).toBe("CHAIRMAN_OWNER");
+    const roles = service.getCareerRoles();
+    expect(roles.ok && roles.data.heldRoles).toContain("CHAIRMAN_OWNER");
+    const dashboard = service.getChairmanDashboard();
+    expect(dashboard.ok).toBe(true);
+    const candidacy = service.getFederationCandidacy();
+    expect(candidacy.ok).toBe(true);
+    if (candidacy.ok) expect(candidacy.data.reasons.join(" ")).toContain("3 seasons");
+    service.closeCareer();
+  }, 120_000);
 });

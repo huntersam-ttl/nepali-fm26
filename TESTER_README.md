@@ -6,7 +6,7 @@ Early macOS tester build for the Nepal Football Universe manager loop.
 
 1. Unzip the distribution and move `Nepal Football Simulation.app` somewhere convenient.
 2. Open it. Because this build is unsigned, macOS may require right-clicking the app, choosing **Open**, and confirming **Open**. Do not disable Gatekeeper globally.
-3. Create or load a career, then focus feedback on the manager loop, A/B/C Division selection, monthly wages, squad sizes, free-agent recruitment, and player-profile provenance. Verify Chairman / Owner and Federation President dashboards, finance visibility, role switching, and save/reopen persistence when using a multi-role fixture.
+3. Create or load a career, then focus feedback on Manager versus Owner/Chairman starts, A/B/C Division selection, monthly wages, squad sizes, free-agent recruitment, player-profile provenance, and the earned ANFA candidacy panel. Verify Chairman / Owner and Federation President dashboards, finance visibility, role switching, and save/reopen persistence when using a multi-role fixture.
 
 Saves are stored at:
 `~/Library/Application Support/com.local.nepal-football-simulation/saves/`

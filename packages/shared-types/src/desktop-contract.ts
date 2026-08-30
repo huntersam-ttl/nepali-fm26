@@ -74,6 +74,7 @@ export type DesktopAppError = {
 export type AppResult<T> = { ok: true; data: T } | { ok: false; error: DesktopAppError };
 
 export type CareerRole = "MANAGER" | "CHAIRMAN_OWNER" | "FEDERATION_PRESIDENT";
+export type CareerStartMode = "MANAGER" | "OWNER";
 export type CareerRoleState = { activeRole: CareerRole; heldRoles: CareerRole[] };
 
 /** Save catalog entry. Readable without opening the full simulation world. */
@@ -121,6 +122,7 @@ export type StartingClubOption = {
 
 export type CareerCreationCommand = {
   saveName: string;
+  careerMode?: CareerStartMode;
   character: {
     fullName: string;
     preferredDisplayName?: string;
@@ -238,6 +240,15 @@ export type FederationPresidentDashboard = {
   nationalTeams: FederationNationalTeamSummary[];
 };
 
+export type FederationCandidacyAssessment = {
+  eligible: boolean;
+  reasons: string[];
+  careerSeasons: number;
+  reputation: number;
+  nextElectionDate?: ISODate;
+  candidateId?: EntityId;
+};
+
 export type E2ERoleFixtureResult = { ready: true };
 
 /** Lightweight identity of the open career. Cheap enough for headers and menus. */
@@ -293,6 +304,8 @@ export type DesktopRuntimeApi = {
   switchActiveCareerRole(targetRole: CareerRole): Promise<AppResult<CareerHeader>>;
   getChairmanDashboard(): Promise<AppResult<ChairmanDashboard>>;
   getFederationPresidentDashboard(): Promise<AppResult<FederationPresidentDashboard>>;
+  getFederationCandidacy(): Promise<AppResult<FederationCandidacyAssessment>>;
+  declareFederationElectionCandidacy(): Promise<AppResult<FederationCandidacyAssessment>>;
   foundClub(name: string, locationName: string): Promise<AppResult<SimulationClubRecord>>;
   implementFederationGovernanceProposal(proposalId: EntityId): Promise<AppResult<FederationGovernanceProposal>>;
   setClubBudget(clubId: EntityId, seasonLabel: string, category: ClubBudgetCategory, amount: number): Promise<AppResult<ClubBudget>>;

@@ -50,6 +50,7 @@ import type {
   TransferRequestCommand,
   TransferRequestResponseCommand,
   TransferLoanCommand,
+  FederationCandidacyAssessment,
 } from "@nepal-football-sim/shared-types";
 import { runtimeCall } from "../appBridge.js";
 
@@ -58,6 +59,8 @@ import { runtimeCall } from "../appBridge.js";
  * calculation, and validation lives in the runtime service.
  */
 export const managerBridge = {
+  getFederationCandidacy: () => runtimeCall<FederationCandidacyAssessment>("getFederationCandidacy"),
+  declareFederationElectionCandidacy: () => runtimeCall<FederationCandidacyAssessment>("declareFederationElectionCandidacy"),
   getManagerDashboard: () => runtimeCall<ManagerDashboard>("getManagerDashboard"),
   getSquad: () => runtimeCall<SquadList>("getSquad"),
   getSquadConcerns: () => runtimeCall<SquadDynamicsView>("getSquadConcerns"),

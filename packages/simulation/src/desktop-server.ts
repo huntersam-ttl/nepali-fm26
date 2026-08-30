@@ -158,6 +158,10 @@ const dispatch = (
       return service.getChairmanDashboard();
     case "getFederationPresidentDashboard":
       return service.getFederationPresidentDashboard();
+    case "getFederationCandidacy":
+      return service.getFederationCandidacy();
+    case "declareFederationElectionCandidacy":
+      return service.declareFederationElectionCandidacy();
     case "seedE2ERoleFixture":
       return process.env.NEPAL_E2E_ROLE_FIXTURE === "1"
         ? service.seedE2ERoleFixture()

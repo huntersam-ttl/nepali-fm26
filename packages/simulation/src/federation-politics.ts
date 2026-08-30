@@ -1,12 +1,42 @@
-import { createStableEntityId, type EntityId, type Federation, type FederationCoalitionState, type FederationElectionCandidate, type FederationElectionCycle, type FederationElectionResult, type FederationGovernanceProposal, type FederationManifestoCommitment, type FederationStrategicPriority, type Person } from "@nepal-football-sim/shared-types";
-import { FederationGovernancePhaseBRepository, FederationGovernanceRepository, FederationPoliticsRepository, WorldRepository, type GameDatabase } from "@nepal-football-sim/database";
+import { createStableEntityId, type EntityId, type Federation, type FederationCoalitionState, type FederationCandidacyAssessment, type FederationElectionCandidate, type FederationElectionCycle, type FederationElectionResult, type FederationGovernanceProposal, type FederationManifestoCommitment, type FederationStrategicPriority, type Person } from "@nepal-football-sim/shared-types";
+import { CareerIdentityRepository, FederationGovernancePhaseBRepository, FederationGovernanceRepository, FederationPoliticsRepository, WorldRepository, type GameDatabase } from "@nepal-football-sim/database";
 import { SeededRandom } from "./rng.js";
 import { proposeCompetitionReform, createFederationProject } from "./federation-governance.js";
 
 const status = "SIMULATION_ONLY" as const;
 const addYears = (date: string, years: number): string => `${Number(date.slice(0, 4)) + years}${date.slice(4)}`;
 const addDays = (date: string, days: number): string => { const value = new Date(`${date}T00:00:00Z`); value.setUTCDate(value.getUTCDate() + days); return value.toISOString().slice(0, 10); };
+const daysBetween = (from: string, to: string): number => Math.max(0, Math.floor((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400000));
 const federation = (db: GameDatabase, id: EntityId): Federation => { const row = db.prepare("SELECT id,country_id,name,founded_year FROM federations WHERE id=?").get(id) as any; if (!row) throw new Error("Federation not found"); return { id: row.id, countryId: row.country_id, name: row.name, foundedYear: row.founded_year ?? undefined }; };
+
+export const assessFederationCandidacy = (db: GameDatabase, input: { personId: EntityId; date: string }): FederationCandidacyAssessment => {
+  const identity = new CareerIdentityRepository(db).get(input.personId);
+  const starts = (db.prepare("SELECT contract_start AS date FROM manager_contracts WHERE person_id=? UNION ALL SELECT start_date AS date FROM club_ownership_stakes WHERE holder_type='PERSON' AND holder_id=? ORDER BY date").all(input.personId, input.personId) as Array<{ date?: string }>).map((row) => row.date).filter((date): date is string => Boolean(date));
+  const careerSeasons = starts[0] ? Math.floor(daysBetween(starts[0], input.date) / 365) : 0;
+  const reputation = Math.round(((identity?.reputation.sporting ?? 0) + (identity?.reputation.businessOwnership ?? 0) + (identity?.reputation.governance ?? 0) + (identity?.reputation.nationalInternational ?? 0)) * 10) / 10;
+  const reasons: string[] = [];
+  if (careerSeasons < 3) reasons.push(`Requires 3 seasons in Nepal football (${careerSeasons}/3).`);
+  if (reputation < 45) reasons.push(`Requires game reputation of 45 (${reputation}/45).`);
+  const cycle = new FederationPoliticsRepository(db).cycles().find((item) => item.status !== "COMPLETED" && item.nominationStart <= input.date && input.date < item.electionDate);
+  if (!cycle) reasons.push("No election is currently accepting nominations.");
+  const candidate = cycle ? new FederationPoliticsRepository(db).candidates(cycle.id).find((item) => item.personId === input.personId) : undefined;
+  return { eligible: reasons.length === 0, reasons, careerSeasons, reputation, nextElectionDate: cycle?.electionDate, candidateId: candidate?.id };
+};
+
+export const declareFederationElectionCandidacy = (db: GameDatabase, input: { personId: EntityId; date: string; seed: string }): FederationCandidacyAssessment => {
+  let assessment = assessFederationCandidacy(db, input);
+  if (!assessment.eligible) throw new Error(assessment.reasons.join(" "));
+  const politics = new FederationPoliticsRepository(db);
+  let cycle = politics.cycles().find((item) => item.status !== "COMPLETED" && item.nominationStart <= input.date && input.date < item.electionDate);
+  if (!cycle) throw new Error("No election is currently accepting nominations.");
+  generateFederationCandidates(db, { cycleId: cycle.id, federationId: cycle.federationId, date: input.date, seed: input.seed });
+  const identity = new CareerIdentityRepository(db).get(input.personId)!;
+  const reputation = Math.min(9, Math.max(3, assessment.reputation / 15));
+  const candidate: FederationElectionCandidate = { id: createStableEntityId("federation-election-candidate", `${cycle.id}:${input.personId}`), cycleId: cycle.id, federationId: cycle.federationId, personId: input.personId, reputation: Number(reputation.toFixed(2)), supportBase: Number(Math.min(8, 3.5 + assessment.reputation / 30).toFixed(2)), committeeInfluence: Number(Math.min(0.65, 0.25 + (identity.reputation.governance ?? 0) / 100).toFixed(2)), votingBlocs: { clubs: 0.5, districts: 0.5, regions: 0.5 }, manifesto: { CLUB_PROFESSIONALISATION: 0.7, YOUTH_ELITE_DEVELOPMENT: 0.7, COACH_EDUCATION: 0.65 }, incumbent: false, status: "ELIGIBLE", provenanceStatus: status };
+  politics.upsertCandidate(candidate);
+  assessment = assessFederationCandidacy(db, input);
+  return { ...assessment, candidateId: candidate.id };
+};
 
 export const createFederationElectionCycle = (db: GameDatabase, input: { federationId: EntityId; electionDate: string }): FederationElectionCycle => {
   const cycle: FederationElectionCycle = { id: createStableEntityId("federation-election-cycle", `${input.federationId}:${input.electionDate}`), federationId: input.federationId, nominationStart: addDays(input.electionDate, -90), electionDate: input.electionDate, termYears: 4, status: "NOMINATIONS", provenanceStatus: status };

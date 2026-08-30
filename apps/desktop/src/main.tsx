@@ -7,6 +7,7 @@ import {
   type EntityId,
   type CareerRole,
   type CareerRoleState,
+  type CareerStartMode,
   type SaveCatalogEntry,
   type StartingClubOption,
 } from "./appBridge.js";
@@ -197,6 +198,7 @@ const NewCareer = (props: {
   const [dateOfBirth, setDateOfBirth] = useState("1993-05-12");
   const [startingAge, setStartingAge] = useState(33);
   const [playingExperience, setPlayingExperience] = useState("AMATEUR_PLAYER");
+  const [careerMode, setCareerMode] = useState<CareerStartMode>("MANAGER");
   const [coachingExperience, setCoachingExperience] = useState("YOUTH_COACH");
   const [education, setEducation] = useState("SPORTS_RELATED_DEGREE");
   const [clubs, setClubs] = useState<StartingClubOption[]>([]);
@@ -261,6 +263,7 @@ const NewCareer = (props: {
         )}
         {step === 2 && (
           <div className="form-grid">
+            <label>Career mode<select value={careerMode} onChange={(event) => setCareerMode(event.target.value as CareerStartMode)}><option value="MANAGER">Manager Career — manage a club</option><option value="OWNER">Owner / Chairman Career — control a club</option></select></label>
             <label>
               Playing experience
               <select
@@ -337,7 +340,8 @@ const NewCareer = (props: {
               }
               setBusy(true);
               const result = await bridge.createCareer({
-                saveName,
+                  saveName,
+                careerMode,
                 joinTeamId: teamId || undefined,
                 character: {
                   fullName,

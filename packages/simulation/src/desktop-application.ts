@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync
 import { basename, dirname, join } from "node:path";
 import {
   CareerWorldRepository,
+  ClubEconomyRepository,
   CompetitionRepository,
   ManagerRepository,
   MatchSessionRepository,
@@ -240,8 +241,8 @@ import { suitability } from "./team-selection.js";
 import { activeCareerRole, heldCareerRoles, switchActiveCareerRole } from "./career-control.js";
 import { buildChairmanDashboard, buildFederationPresidentDashboard } from "./role-desktop.js";
 import { initializeFederationGovernanceForSave } from "./federation-governance.js";
-import { implementFederationGovernanceProposalCommand } from "./federation-politics.js";
-import { acceptSponsorOfferCommand, createInfrastructureProjectCommand, rejectSponsorOfferCommand, setClubBudgetCommand } from "./club-economy.js";
+import { assessFederationCandidacy, declareFederationElectionCandidacy, implementFederationGovernanceProposalCommand } from "./federation-politics.js";
+import { acceptSponsorOfferCommand, createInfrastructureProjectCommand, initializeClubEconomyForSave, rejectSponsorOfferCommand, setClubBudgetCommand } from "./club-economy.js";
 import { foundSimulationClub } from "./club-creation.js";
 import {
   ManagerCommandError,
@@ -438,7 +439,7 @@ export class DesktopApplicationService {
         managers.insertProfile(career.managerProfile);
 
         const team = getTeam(db, target.teamId);
-        managers.insertContract(
+        if ((command.careerMode ?? "MANAGER") === "MANAGER") managers.insertContract(
           createManagerContract({
             managerProfileId: career.managerProfile.id,
             personId: career.person.id,
@@ -449,6 +450,29 @@ export class DesktopApplicationService {
             salaryAmountMinor: 9_000_000,
           }),
         );
+        if ((command.careerMode ?? "MANAGER") === "OWNER") {
+          if (!team.clubId) throw appError("INVALID_SELECTION", "Owner careers require a club-backed senior team.");
+          initializeClubEconomyForSave({ db, worldDate: careerStartDate, seed: `career:${command.saveName}:economy` });
+          const club = getClub(db, team.clubId);
+          if (!club || ["DEPARTMENTAL", "MUNICIPALITY_BACKED"].includes(club.ownershipType)) {
+            throw appError("INVALID_SELECTION", "This club does not permit a controlling owner career start.");
+          }
+          const person = getPerson(db, career.person.id);
+          new ClubEconomyRepository(db).upsertOwnershipStake({
+            id: createStableEntityId("career-start-owner", `${team.clubId}:${career.person.id}`),
+            clubId: team.clubId,
+            holderType: "PERSON",
+            holderId: career.person.id,
+            holderName: displayName(person),
+            role: "MAJORITY_OWNER",
+            percentage: 75,
+            votingPercentage: 75,
+            startDate: careerStartDate,
+            status: "ACTIVE",
+            ownershipModel: "PARTIALLY_BUYABLE",
+            provenanceStatus: "SIMULATION_ONLY",
+          });
+        }
         const players = new PlayerRepository(db).attributesForTeam(team.id);
         managers.insertTacticalSetup(defaultSetup(team.id, players, career.managerProfile.id));
         managers.insertInboxItem({
@@ -576,6 +600,17 @@ export class DesktopApplicationService {
         throw appError("ROLE_NOT_AUTHORIZED", "You are not the active Federation President.");
       }
       return buildFederationPresidentDashboard(db, save);
+    });
+  }
+
+  getFederationCandidacy(): AppResult<import("@nepal-football-sim/shared-types").FederationCandidacyAssessment> {
+    return this.withSession((db, save) => assessFederationCandidacy(db, { personId: careerPersonId(db, save), date: save.worldDate }));
+  }
+
+  declareFederationElectionCandidacy(): AppResult<import("@nepal-football-sim/shared-types").FederationCandidacyAssessment> {
+    return this.withSession((db, save) => {
+      try { return declareFederationElectionCandidacy(db, { personId: careerPersonId(db, save), date: save.worldDate, seed: save.randomSeed }); }
+      catch (error) { throw appError("ROLE_NOT_AUTHORIZED", error instanceof Error ? error.message : "You are not eligible to stand."); }
     });
   }
 
