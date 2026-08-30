@@ -3,7 +3,7 @@
 ## Snapshot
 
 Audit date: 2026-08-30. Repository: `/Users/cc/nepali-fm26`. Final reconciliation based on
-HEAD `9cd7980`; the pre-existing untracked `nepali-fm26/` entry
+HEAD `aed6b2f`; the pre-existing untracked `nepali-fm26/` entry
 remains untouched.
 
 The inventory has 92 normalized entries: the 84 row-level entries in the previous feature
@@ -164,7 +164,7 @@ production path.
   loan scope is contract, wages, recall, expiry, return, and option-to-buy.
 - Final 20/50-year balancing; mobile; final release workflow.
 
-## Final Reconciliation (HEAD `b61713d`)
+## Final Feature-Freeze Reconciliation (HEAD `aed6b2f`)
 
 The 92 normalized rows were rechecked against source reachability and focused production tests.
 The mechanical status total is now 73 COMPLETE, 0 BUILT_NOT_PROVEN, 12 PARTIAL, 3 MISSING,
@@ -195,10 +195,38 @@ and sell-on settlement are COMPLETE. Deeper tournaments, ownership-specific acad
 TRAINING partnership benefits remain outside the bounded release slice and are not duplicate
 systems to build here.
 
-Feature freeze remains **NO**: P0 unresolved must-build count is 0, but concrete P1 production
-gaps remain in governance/ownership depth, factual coverage, federation support systems, and
-AI/media/VAR surfaces. Performance is separate release debt: the seeded season completes in
-202.8s, but long-save validation is not authorized at the current projection.
+Feature freeze is **YES**: the final audit found zero `MUST_BUILD_GAMEPLAY` rows and no unresolved
+production correctness regression. The remaining PARTIAL/MISSING/LATER labels describe optional
+depth, research-required factual enrichment, UI/release packaging, performance, validation gates,
+or explicitly deferred work; they do not block the bounded P1 gameplay loop. Release readiness is
+still **NO** until the separate performance, long-save, factual-data, packaging, and release-QA
+gates are completed.
+
+### Freeze-blocker register
+
+| Classification | Count | Rows / scope |
+| --- | ---: | --- |
+| MUST_BUILD_GAMEPLAY | 0 | None. Chairman/federation breadth and richer narrative/AI behavior are optional depth. |
+| OPTIONAL_DEPTH | 8 | Broader chairman and federation-president commands; broader role authority; takeover depth; prize/revenue narrative; girls schools/grassroots/academies; media/journalism; rivalry evolution; AI chairman. |
+| RESEARCH_REQUIRED | 5 | Real Nepal player breadth; factual women players; real staff breadth; real referee data; legends/cult heroes. |
+| UI_RELEASE_POLISH | 2 | Default match-view wiring; Tauri/native packaging. |
+| PERFORMANCE_GATE | 1 | Seeded-season benchmark and profiling; latest bounded result is 202.8s. |
+| VALIDATION_GATE | 2 | 20-season and 50-season durability/balance validation. |
+| LATER | 4 | Global club tournaments; loan-development/minutes attribution; mobile; final release workflow. |
+
+Rows already complete for bounded production scope remain COMPLETE even where deeper variants are
+mentioned: grants/government settlement, diaspora generation, girls generation, media notable-event
+publishing, rivalry match context, federation personnel appointment, federation programmes, and
+the national-team/federation systems. Unknown factual fields remain UNKNOWN and generated fallbacks
+remain explicitly `SIMULATION_ONLY`.
+
+### Final decision
+
+**FEATURE FREEZE = YES.** No new P1 gameplay systems should be added without an explicit scope
+change. Allowed post-freeze work is limited to bug fixes, performance, validation, factual
+enrichment, UI/release polish, and explicitly approved optional depth. **Release ready = NO.**
+Next pass: **Post-Freeze Performance Baseline + 20-Season Validation Preparation**; begin with a
+fresh one-season profile and do not launch a 50-season run immediately.
 
 ## Performance Notes
 
@@ -214,18 +242,17 @@ No 20/50-year save or balance run was performed. The latest bounded seeded-seaso
 reduced runtime from 267.5s to 202.8s; see `docs/PERFORMANCE_PROFILE.md`. This is release
 validation/performance debt, not a missing gameplay engine.
 
-## Final Feature Passes Before Freeze
+## Post-Freeze Work Classification
 
-- **P0 — scope and core closure:** empty. International trials, two-way foreign staff movement,
+- **P0 — scope and core closure:** complete. International trials, two-way foreign staff movement,
   and women/youth international football are production-reachable with focused proof. This does
-  not imply a feature freeze.
-- **P1 — connected-world depth:** extend external competition context; wire the remaining
-  `TRAINING` partnership type and effects outside the bounded player-pathway scope;
-  production gaps for government/distribution,
-  media/rivalries, takeover lifecycle, and diaspora as their scope is confirmed.
-- **P2 — proof and release:** add a repeatable performance benchmark, then run the bounded
-  20-year gate before any 50-year run; complete factual-data enrichment, packaging/CI, UI
-  conveniences, legends, balance, legal attribution, and release QA.
+  and the feature is now frozen for new P1 systems.
+- **Optional depth:** broader federation/ownership authority, richer media/rivalries, AI chairman,
+  deeper VAR, and remaining partnership nuance may be considered only through an explicit scope
+  change.
+- **Proof and release:** add a repeatable performance benchmark, then run the bounded 20-year gate
+  before any 50-year run; complete factual-data enrichment, packaging/CI, UI conveniences, legends,
+  balance, legal attribution, and release QA.
 
 Only the focused current gates are evidence-supported: root typecheck and build pass;
 canonical/global/context/corridor coverage is green; the permanent-transfer/integrity gate
@@ -234,7 +261,6 @@ is being marked green automatically.
 
 ## Feature Freeze Decision
 
-**NO — not ready for a true feature freeze.** The bounded core and global-context slices are
-production-reachable, but the P1 production gaps listed above remain. Long-save performance is
-separately a release-readiness gate, not evidence that those complete gameplay systems are
-missing. The current uncommitted repository work remains untouched.
+**YES — feature freeze approved on 2026-08-30 at HEAD `aed6b2f`.** No `MUST_BUILD_GAMEPLAY`
+row or unresolved production correctness regression remains. **Release ready: NO.** Performance,
+20/50-season validation, factual enrichment, packaging, and release QA remain separate gates.
