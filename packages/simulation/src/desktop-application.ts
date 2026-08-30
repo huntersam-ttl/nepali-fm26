@@ -106,6 +106,7 @@ import {
   type SquadPromiseView,
   type SquadRow,
   type StaffApplicationView,
+  type StaffAppointment,
   type StaffApproachView,
   type StaffList,
   type StaffMarketView,
@@ -158,6 +159,7 @@ import {
   advanceUnemployedCareer,
 } from "./manager-career-world.js";
 import { nextFixtureForTeam, quickSimManagerMatch } from "./manager-flow.js";
+import { appointNationalTeamHeadCoachForPresident, FederationPersonnelError } from "./national-team-management.js";
 import {
   ConcernActionError,
   evaluateSquadDynamics,
@@ -601,6 +603,23 @@ export class DesktopApplicationService {
         });
       } catch (error) {
         throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "Proposal could not be implemented.");
+      }
+    });
+  }
+
+  appointNationalTeamHeadCoach(nationalTeamId: EntityId, candidatePersonId: EntityId): AppResult<StaffAppointment> {
+    return this.withSession((db, save) => {
+      const presidentPersonId = careerPersonId(db, save);
+      if (activeCareerRole(db, presidentPersonId) !== "FEDERATION_PRESIDENT") {
+        throw appError("ROLE_NOT_AUTHORIZED", "Only the active federation president may appoint national-team staff.");
+      }
+      const federationId = db.prepare("SELECT federation_id FROM teams WHERE id=?").get(nationalTeamId) as { federation_id?: EntityId } | undefined;
+      if (!federationId?.federation_id) throw appError("INVALID_SELECTION", "The national team was not found.");
+      try {
+        return appointNationalTeamHeadCoachForPresident(db, { federationId: federationId.federation_id, nationalTeamId, presidentPersonId, candidatePersonId, date: save.worldDate });
+      } catch (error) {
+        if (error instanceof FederationPersonnelError && error.code === "NOT_AUTHORIZED") throw appError("ROLE_NOT_AUTHORIZED", error.message);
+        throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "National-team staff could not be appointed.");
       }
     });
   }
