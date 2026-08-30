@@ -245,12 +245,35 @@ The repository total is downstream of those callers rather than a phase of its o
 9.4s.
 
 Referee assignment is the single largest owned hotspot and is not expected work for choosing match
-officials. `assignOfficialsToFixture` calls `initializeWorkforceSupplyForSave` on every fixture, and
-the season loop calls it once per fixture through `requireFixtureOfficials`, so a full workforce
-bootstrap runs several hundred times per season. The call is idempotent, which makes it correct and
-costly rather than wrong — the same shape as the academy-profile lookup once hoisted out of the youth
-cohort loop. Hoisting or guarding it is a bounded change with a measurable before/after and no design
-consequence.
+officials. The mechanism first recorded here — a full workforce bootstrap repeated per fixture — was
+wrong, and the profile said so: `initializeWorkforceSupplyForSave` claims a per-season intake and
+returns immediately on every later call, and the self time sat in `referee-assignment.js` rather than
+in `workforce-supply.js`.
+
+The real cost is in `candidatesFor`. It runs once per official role, so five times per fixture, and
+for every active official it compiled two statements: one for the referee profile and one for the
+team-conflict check. Across a season that is statement compilation on the order of five times the
+official count times the fixture count.
 
 Scouting is second at 44.1s plus its 13.7s of knowledge writes; it has not been attributed to a
 specific pattern yet.
+
+### Referee candidate selection
+
+The season assigns officials to 851 fixtures against 203 active officials. At five roles per fixture
+and two compiled statements per official, that is roughly 1.7 million statement compilations; the
+profile lookup is now a single query per role and the conflict check is compiled once and reused,
+leaving about 8.5 thousand, with one conflict `get` per candidate that survives the cheap tests.
+The conflict test also moved last, because it is the only remaining test that touches the database.
+The predicate is a conjunction, so order changes cost rather than membership, and the profile query
+filters on `primary_role` exactly as the discarded per-row check did.
+
+Semantics are unchanged on a full season: 851 assignments, none failed, 203 active officials, 35
+distinct referees, 872 fixtures, world date 2027-07-31, and a clean `PRAGMA foreign_key_check` —
+the same population and date as the runs above. The focused referee suite, which asserts persistence,
+determinism, neutrality and workload awareness, passes.
+
+No trustworthy after-timing was obtainable: every attempt ran against another agent's suites at load
+8-17. The contended figures were 277.8s before and 258.9s after, at worse contention for the second,
+which is suggestive and is not evidence. The architectural reduction is counted rather than timed,
+and an idle re-run is still owed against the 118.33s reference.

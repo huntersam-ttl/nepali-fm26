@@ -29,31 +29,6 @@ const jsonArray = (value: unknown): string[] => {
   }
 };
 
-const activeTeamConflict = (
-  db: GameDatabase,
-  personId: EntityId,
-  fixture: FixtureRecord,
-): boolean => {
-  const row = db
-    .prepare(
-      `
-    SELECT 1 FROM team_person_assignments
-    WHERE person_id = ? AND team_id IN (?, ?)
-      AND (ended_on IS NULL OR ended_on >= ?)
-      AND (started_on IS NULL OR started_on <= ?)
-    LIMIT 1
-  `,
-    )
-    .get(
-      personId,
-      fixture.homeTeamId,
-      fixture.awayTeamId,
-      fixture.scheduledDate,
-      fixture.scheduledDate,
-    );
-  return Boolean(row);
-};
-
 const usedOnDate = (db: GameDatabase, date: string): Set<string> => {
   const rows = db
     .prepare(
@@ -78,6 +53,15 @@ const usedOnDate = (db: GameDatabase, date: string): Set<string> => {
   );
 };
 
+/*
+ * Officials are filtered per role and there are five roles per fixture, so a
+ * statement compiled inside this loop is compiled once per official per role per
+ * fixture — hundreds of thousands of times across a season. The profile lookup is
+ * one query for the whole role instead of one per official, the conflict check is
+ * compiled once and reused, and it runs last because it is the only test that
+ * still touches the database per candidate. The predicate is a conjunction, so
+ * reordering it changes cost and not which officials qualify.
+ */
 const candidatesFor = (
   db: GameDatabase,
   fixture: FixtureRecord,
@@ -85,17 +69,37 @@ const candidatesFor = (
   used: Set<string>,
 ): Candidate[] => {
   const workforce = new WorkforceSupplyRepository(db);
-  return workforce
-    .activeOfficials(role)
+  const officials = workforce.activeOfficials(role);
+  if (officials.length === 0) return [];
+  const profiles = new Map<string, any>();
+  for (const row of db
+    .prepare("SELECT * FROM referee_profiles WHERE primary_role = ?")
+    .all(role) as any[]) {
+    profiles.set(`${row.id}:${row.person_id}`, row);
+  }
+  const conflict = db.prepare(
+    `
+    SELECT 1 FROM team_person_assignments
+    WHERE person_id = ? AND team_id IN (?, ?)
+      AND (ended_on IS NULL OR ended_on >= ?)
+      AND (started_on IS NULL OR started_on <= ?)
+    LIMIT 1
+  `,
+  );
+  return officials
     .filter((official) => {
-      if (used.has(official.personId) || activeTeamConflict(db, official.personId, fixture))
-        return false;
-      const profile = db
-        .prepare("SELECT * FROM referee_profiles WHERE id = ? AND person_id = ?")
-        .get(official.refereeProfileId, official.personId) as any;
-      if (!profile || profile.primary_role !== role) return false;
+      if (used.has(official.personId)) return false;
+      const profile = profiles.get(`${official.refereeProfileId}:${official.personId}`);
+      if (!profile) return false;
       const eligible = jsonArray(profile.competitions_eligible_json);
-      return eligible.length === 0 || eligible.includes(fixture.competitionSeasonId ?? "");
+      if (eligible.length > 0 && !eligible.includes(fixture.competitionSeasonId ?? "")) return false;
+      return !conflict.get(
+        official.personId,
+        fixture.homeTeamId,
+        fixture.awayTeamId,
+        fixture.scheduledDate,
+        fixture.scheduledDate,
+      );
     })
     .map((official) => ({ ...official, eligible: true }));
 };
