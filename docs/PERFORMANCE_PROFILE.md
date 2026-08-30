@@ -277,3 +277,8 @@ No trustworthy after-timing was obtainable: every attempt ran against another ag
 8-17. The contended figures were 277.8s before and 258.9s after, at worse contention for the second,
 which is suggestive and is not evidence. The architectural reduction is counted rather than timed,
 and an idle re-run is still owed against the 118.33s reference.
+### Long-save scaling diagnosis (2026-08-30)
+
+The first checkpointed five-season run measured 175.8s, 266.7s, 496.6s, 575.3s, and 823.6s for seasons 1–5. Matches remained 851 per season, while database size grew 73.1MB to 192.4MB. Economy/ownership/AI grew from 35.4s to 528.5s and overtook competitions by S4.
+
+The proven growth mechanism was `closeClubFinancialSeason` loading every historical ledger row for each of 573 clubs before filtering the current season in memory. The bounded `(club_id, entry_date)` query fix materially reduced the comparable three-season slope: economy/ownership/AI S3/S1 fell from 6.84x to 4.20x. These runs were contended and are not absolute idle baselines.
