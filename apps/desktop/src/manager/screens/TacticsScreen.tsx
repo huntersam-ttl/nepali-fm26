@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import type { EntityId, TacticsView } from "@nepal-football-sim/shared-types";
 import { managerBridge } from "../managerBridge.js";
 import { AsyncPanel, Badge, ErrorBanner, Panel, useRuntimeData } from "../ui.js";
@@ -8,17 +8,22 @@ export const TacticsScreen = (): React.ReactElement => {
   const [state, , replace] = useRuntimeData(() => managerBridge.getTactics());
   const [error, setError] = useState<AppError | null>(null);
   const [busy, setBusy] = useState(false);
+  const pendingUpdate = useRef(Promise.resolve());
 
-  const apply = async (command: Parameters<typeof managerBridge.updateTactics>[0]) => {
-    setBusy(true);
-    const result = await managerBridge.updateTactics(command);
-    setBusy(false);
-    if (result.ok) {
-      replace(result.data);
-      setError(null);
-    } else {
-      setError(result.error);
-    }
+  const apply = (command: Parameters<typeof managerBridge.updateTactics>[0]) => {
+    const update = pendingUpdate.current.then(async () => {
+      setBusy(true);
+      const result = await managerBridge.updateTactics(command);
+      if (result.ok) {
+        replace(result.data);
+        setError(null);
+      } else {
+        setError(result.error);
+      }
+      setBusy(false);
+    });
+    pendingUpdate.current = update.catch(() => undefined);
+    return update;
   };
 
   return (
@@ -41,14 +46,18 @@ const TacticsBoard = ({
   onApply: (command: Parameters<typeof managerBridge.updateTactics>[0]) => Promise<void>;
 }): React.ReactElement => {
   const [name, setName] = useState(view.setup.name);
+  const [formationId, setFormationId] = useState(view.setup.formation.id);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
 
   const fitFor = (slotId: string) => view.roleFits.find((fit) => fit.slotId === slotId);
   const assignment = (slotId: string) =>
     view.setup.assignments.find((item) => item.slotId === slotId);
 
+  const applyCommand = (command: Parameters<typeof onApply>[0]) =>
+    onApply({ formationId, ...command });
+
   const assignPlayer = (slotId: string, playerId?: EntityId) =>
-    onApply({
+    applyCommand({
       assignments: view.setup.assignments.map((item) =>
         item.slotId === slotId ? { ...item, playerId } : item,
       ),
@@ -65,15 +74,18 @@ const TacticsBoard = ({
             <input
               value={name}
               onChange={(event) => setName(event.target.value)}
-              onBlur={() => name !== view.setup.name && void onApply({ name })}
+              onBlur={() => name !== view.setup.name && void applyCommand({ name })}
             />
           </label>
           <label>
             Formation
             <select
-              value={view.setup.formation.id}
+              value={formationId}
               disabled={busy}
-              onChange={(event) => void onApply({ formationId: event.target.value })}
+              onChange={(event) => {
+                setFormationId(event.target.value);
+                void applyCommand({ formationId: event.target.value });
+              }}
             >
               {view.formations.map((formation) => (
                 <option key={formation.id} value={formation.id}>
@@ -87,7 +99,7 @@ const TacticsBoard = ({
             <select
               value={view.setup.style}
               disabled={busy}
-              onChange={(event) => void onApply({ style: event.target.value })}
+              onChange={(event) => void applyCommand({ style: event.target.value })}
             >
               {view.styles.map((style) => (
                 <option key={style} value={style}>
@@ -102,7 +114,7 @@ const TacticsBoard = ({
               value={view.setup.instructions.mentality}
               disabled={busy}
               onChange={(event) =>
-                void onApply({
+                void applyCommand({
                   instructions: {
                     ...view.setup.instructions,
                     mentality: event.target.value as typeof view.setup.instructions.mentality,
@@ -124,7 +136,7 @@ const TacticsBoard = ({
           label="Tempo"
           value={view.setup.instructions.inPossession.tempo}
           onCommit={(value) =>
-            void onApply({
+            void applyCommand({
               instructions: {
                 ...view.setup.instructions,
                 inPossession: { ...view.setup.instructions.inPossession, tempo: value },
@@ -136,7 +148,7 @@ const TacticsBoard = ({
           label="Passing length"
           value={view.setup.instructions.inPossession.passingLength}
           onCommit={(value) =>
-            void onApply({
+            void applyCommand({
               instructions: {
                 ...view.setup.instructions,
                 inPossession: { ...view.setup.instructions.inPossession, passingLength: value },
@@ -148,7 +160,7 @@ const TacticsBoard = ({
           label="Width"
           value={view.setup.instructions.inPossession.width}
           onCommit={(value) =>
-            void onApply({
+            void applyCommand({
               instructions: {
                 ...view.setup.instructions,
                 inPossession: { ...view.setup.instructions.inPossession, width: value },
@@ -161,7 +173,7 @@ const TacticsBoard = ({
           label="Pressing intensity"
           value={view.setup.instructions.outOfPossession.pressingIntensity}
           onCommit={(value) =>
-            void onApply({
+            void applyCommand({
               instructions: {
                 ...view.setup.instructions,
                 outOfPossession: {
@@ -176,7 +188,7 @@ const TacticsBoard = ({
           label="Defensive line"
           value={view.setup.instructions.outOfPossession.defensiveLine}
           onCommit={(value) =>
-            void onApply({
+            void applyCommand({
               instructions: {
                 ...view.setup.instructions,
                 outOfPossession: {
@@ -287,7 +299,7 @@ const TacticsBoard = ({
                   className="ghost small"
                   disabled={busy}
                   onClick={() =>
-                    void onApply({ bench: view.setup.bench.filter((item) => item !== id) })
+                    void applyCommand({ bench: view.setup.bench.filter((item) => item !== id) })
                   }
                 >
                   Remove
@@ -303,7 +315,7 @@ const TacticsBoard = ({
             disabled={busy}
             onChange={(event) =>
               event.target.value &&
-              void onApply({ bench: [...view.setup.bench, event.target.value as EntityId] })
+              void applyCommand({ bench: [...view.setup.bench, event.target.value as EntityId] })
             }
           >
             <option value="">— choose player —</option>

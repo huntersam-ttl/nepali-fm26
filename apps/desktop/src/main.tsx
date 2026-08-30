@@ -5,6 +5,8 @@ import {
   type AppError,
   type DesktopApplicationState,
   type EntityId,
+  type CareerRole,
+  type CareerRoleState,
   type SaveCatalogEntry,
   type StartingClubOption,
 } from "./appBridge.js";
@@ -19,6 +21,7 @@ const App = (): React.ReactElement => {
   const [entry, setEntry] = useState<Entry>("start");
   const [state, setState] = useState<DesktopApplicationState | null>(null);
   const [saves, setSaves] = useState<SaveCatalogEntry[]>([]);
+  const [roles, setRoles] = useState<CareerRoleState>({ activeRole: "MANAGER", heldRoles: ["MANAGER"] });
   const [error, setError] = useState<AppError | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -34,9 +37,24 @@ const App = (): React.ReactElement => {
 
   const applyState = (next: DesktopApplicationState): void => {
     setState(next);
+    setRoles((current) => ({ ...current, activeRole: next.header.activeRole }));
+    void bridge.getCareerRoles().then((result) => {
+      if (result.ok) setRoles(result.data);
+    });
     setEntry("career");
     setError(null);
     void refreshSaves();
+  };
+
+  const switchRole = async (role: CareerRole): Promise<void> => {
+    const result = await bridge.switchActiveCareerRole(role);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    setRoles((current) => ({ ...current, activeRole: role }));
+    setState((current) => (current ? { ...current, header: result.data } : current));
+    setError(null);
   };
 
   const run = async (
@@ -155,6 +173,8 @@ const App = (): React.ReactElement => {
       header={state.header}
       bridge={bridge}
       onHeaderChange={(header) => setState({ ...state, header })}
+      roles={roles}
+      onRoleSwitch={switchRole}
       onSave={async () => {
         const result = await bridge.saveCareer();
         if (result.ok) void refreshSaves();

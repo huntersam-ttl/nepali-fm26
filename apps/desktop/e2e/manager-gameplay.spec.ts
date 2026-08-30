@@ -58,13 +58,13 @@ test("plays a manager career through every gameplay screen and persists it", asy
   await goTo(page, "Tactics");
   await expect(page.locator(".pitch .slot")).toHaveCount(11);
   await page.getByLabel("Formation").selectOption({ label: "4-4-2" });
+  const selectedFormation = await page.getByLabel("Formation").inputValue();
+  await expect(page.getByLabel("Formation").locator("option:checked")).toHaveText("4-4-2");
   await expect(page.locator(".pitch .slot")).toHaveCount(11);
   await page.getByLabel("Style").selectOption("HIGH_PRESS");
   await goTo(page, "Home / Inbox");
   await goTo(page, "Tactics");
-  await expect(page.getByLabel("Formation")).toHaveValue(
-    await page.getByLabel("Formation").inputValue(),
-  );
+  await expect(page.getByLabel("Formation")).toHaveValue(selectedFormation);
   await expect(page.getByLabel("Style")).toHaveValue("HIGH_PRESS");
 
   // --- Training ------------------------------------------------------------

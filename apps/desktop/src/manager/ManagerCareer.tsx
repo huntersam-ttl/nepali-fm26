@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import type { AutosaveStatusView, CareerHeader, EntityId } from "@nepal-football-sim/shared-types";
+import type { AutosaveStatusView, CareerHeader, CareerRole, CareerRoleState, EntityId } from "@nepal-football-sim/shared-types";
 import type { AppError, DesktopRuntimeApi } from "../appBridge.js";
 import { managerBridge } from "./managerBridge.js";
 import { ErrorBanner } from "./ui.js";
@@ -16,6 +16,7 @@ import { ContractsScreen } from "./screens/ContractsScreen.js";
 import { StaffScreen } from "./screens/StaffScreen.js";
 import { MedicalScreen } from "./screens/MedicalScreen.js";
 import { MatchdayScreen } from "./matchday/MatchdayScreen.js";
+import { RoleLandingScreen } from "./RoleLandingScreen.js";
 
 const SCREENS = [
   "home",
@@ -30,6 +31,13 @@ const SCREENS = [
   "staff",
   "medical",
 ] as const;
+
+const NAV_GROUPS: Array<{ label: string; items: Screen[] }> = [
+  { label: "Team", items: ["home", "squad", "tactics", "training", "medical"] },
+  { label: "Competition", items: ["fixtures", "competition"] },
+  { label: "Recruitment", items: ["scouting", "transfers", "contracts"] },
+  { label: "Club", items: ["staff"] },
+];
 
 type Screen = (typeof SCREENS)[number];
 
@@ -47,6 +55,20 @@ const LABELS: Record<Screen, string> = {
   medical: "Medical",
 };
 
+const SUBTITLES: Record<Screen, string> = {
+  home: "Decisions, inbox updates, and the next match.",
+  squad: "Review player availability, form, and contracts.",
+  tactics: "Set the shape and instructions for your team.",
+  training: "Plan the week and monitor squad development.",
+  fixtures: "Prepare for upcoming matches and review results.",
+  competition: "Track the table, form, and scoring leaders.",
+  scouting: "Turn reports into focused recruitment decisions.",
+  transfers: "Manage targets, offers, and squad movement.",
+  contracts: "Keep player terms aligned with the club plan.",
+  staff: "Build the support team around your squad.",
+  medical: "Monitor recovery and return-to-play decisions.",
+};
+
 /**
  * Manager career workspace.
  *
@@ -58,12 +80,16 @@ export const ManagerCareer = ({
   header,
   bridge,
   onHeaderChange,
+  roles,
+  onRoleSwitch,
   onSave,
   onExit,
 }: {
   header: CareerHeader;
   bridge: DesktopRuntimeApi;
   onHeaderChange: (header: CareerHeader) => void;
+  roles: CareerRoleState;
+  onRoleSwitch: (role: CareerRole) => Promise<void>;
   onSave: () => Promise<void>;
   onExit: () => void;
 }): React.ReactElement => {
@@ -142,15 +168,21 @@ export const ManagerCareer = ({
     setRefreshKey((key) => key + 1);
   };
 
+  const roleLabel = header.activeRole === "CHAIRMAN_OWNER" ? "Chairman / Owner" : header.activeRole === "FEDERATION_PRESIDENT" ? "Federation President" : "Manager";
+
   return (
     <main className="manager-shell">
       <aside className="sidebar">
         <div>
-          <p className="eyebrow">{header.activeRole.toLowerCase()} mode</p>
+          <p className="eyebrow">Career workspace</p>
           <h1>{header.clubName ?? "Nepal Football"}</h1>
+          <span className="role-badge">{roleLabel}</span>
         </div>
-        <nav>
-          {SCREENS.map((item) => (
+        <nav aria-label="Primary navigation">
+          {header.activeRole === "MANAGER" ? NAV_GROUPS.map((group) => (
+            <div className="nav-group" key={group.label}>
+              <span className="nav-label">{group.label}</span>
+              {group.items.map((item) => (
             <button
               key={item}
               className={screen === item ? "active" : ""}
@@ -164,47 +196,12 @@ export const ManagerCareer = ({
             >
               {LABELS[item]}
             </button>
-          ))}
+              ))}
+            </div>
+          )) : <div className="nav-group"><span className="nav-label">Role</span><button className="active" onClick={() => setScreen("home")}>Overview</button></div>}
         </nav>
-        <div className="button-row">
-          <button
-            className="ghost"
-            disabled={busy}
-            onClick={async () => {
-              setBusy(true);
-              await onSave();
-              setBusy(false);
-              setNotice("Career saved.");
-              void refreshAutosave();
-            }}
-          >
-            Save
-          </button>
-          <button
-            className="ghost"
-            disabled={busy}
-            onClick={async () => {
-              const name = window.prompt("Save as new slot named:");
-              if (!name) return;
-              setBusy(true);
-              const result = await bridge.saveCareerAs(name);
-              setBusy(false);
-              if (result.ok) {
-                setNotice(`Saved as new slot "${result.data.saveName}".`);
-                void refreshAutosave();
-              } else {
-                setError(result.error);
-              }
-            }}
-          >
-            Save As
-          </button>
-          <button className="ghost" disabled={busy} onClick={onExit}>
-            Main Menu
-          </button>
-        </div>
-        <div className="subtle" style={{ fontSize: "0.8em", marginTop: "0.5em" }}>
-          {header.worldDate && <div>World date: {header.worldDate}</div>}
+        <div className="sidebar-status">
+          {header.worldDate && <div>World date: <strong>{header.worldDate}</strong></div>}
           {autosave && (
             <div>
               Autosave: {autosave.enabled ? `every ${autosave.intervalDays}d` : "off"}
@@ -254,17 +251,81 @@ export const ManagerCareer = ({
           </div>
         )}
         <header className="topbar">
-          <div>
+          <div className="identity">
             <strong>{header.characterName}</strong>
             <span>{header.teamName ?? "Unemployed"}</span>
           </div>
-          <div>
+          <label className="role-picker">
+            Role
+            <select
+              aria-label="Active career role"
+              value={header.activeRole}
+              disabled={busy}
+              onChange={async (event) => {
+                await onRoleSwitch(event.target.value as CareerRole);
+                setScreen("home");
+                setPlayerId(null);
+                setMatchFixtureId(null);
+              }}
+            >
+              {roles.heldRoles.map((role) => (
+                <option key={role} value={role}>
+                  {role === "CHAIRMAN_OWNER" ? "Chairman / Owner" : role === "FEDERATION_PRESIDENT" ? "Federation President" : "Manager"}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="date-block">
             <strong>{header.worldDate}</strong>
             <span>{header.competitionName ?? ""}</span>
           </div>
+          <div className="topbar-actions">
+            <button className="primary" disabled={busy || header.activeRole !== "MANAGER"} onClick={() => void advance()}>
+              {busy ? "Working…" : "Continue"}
+            </button>
+            <button
+              className="ghost"
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true);
+                await onSave();
+                setBusy(false);
+                setNotice("Career saved.");
+                void refreshAutosave();
+              }}
+            >Save</button>
+            <button
+              className="ghost"
+              disabled={busy}
+              onClick={async () => {
+                const name = window.prompt("Save as new slot named:");
+                if (!name) return;
+                setBusy(true);
+                const result = await bridge.saveCareerAs(name);
+                setBusy(false);
+                if (result.ok) {
+                  setNotice(`Saved as new slot "${result.data.saveName}".`);
+                  void refreshAutosave();
+                } else setError(result.error);
+              }}
+            >Save As</button>
+            <button className="ghost" disabled={busy} onClick={onExit}>Main Menu</button>
+          </div>
         </header>
 
-        {screen === "home" && (
+        {header.activeRole !== "MANAGER" ? (
+          <RoleLandingScreen header={header} roles={roles} />
+        ) : (
+          <header className="page-header">
+            <div>
+              <p className="eyebrow">Manager workspace</p>
+              <h1>{LABELS[screen]}</h1>
+              <p className="subtle">{SUBTITLES[screen]}</p>
+            </div>
+          </header>
+        )}
+
+        {header.activeRole === "MANAGER" && screen === "home" && (
           <HomeScreen
             onContinue={() => void advance()}
             busy={busy}
@@ -275,15 +336,15 @@ export const ManagerCareer = ({
             }}
           />
         )}
-        {screen === "squad" &&
+        {header.activeRole === "MANAGER" && screen === "squad" &&
           (playerId ? (
             <PlayerProfileScreen playerId={playerId} onClose={() => setPlayerId(null)} />
           ) : (
             <SquadScreen onSelectPlayer={setPlayerId} />
           ))}
-        {screen === "tactics" && <TacticsScreen />}
-        {screen === "training" && <TrainingScreen />}
-        {screen === "fixtures" &&
+        {header.activeRole === "MANAGER" && screen === "tactics" && <TacticsScreen />}
+        {header.activeRole === "MANAGER" && screen === "training" && <TrainingScreen />}
+        {header.activeRole === "MANAGER" && screen === "fixtures" &&
           (matchFixtureId ? (
             <MatchdayScreen
               fixtureId={matchFixtureId}
@@ -294,12 +355,12 @@ export const ManagerCareer = ({
           ) : (
             <FixturesScreen onOpenMatch={(fixtureId) => openMatch(fixtureId)} />
           ))}
-        {screen === "competition" && <CompetitionScreen />}
-        {screen === "scouting" && <ScoutingScreen onSelectPlayer={openPlayer} />}
-        {screen === "transfers" && <TransfersScreen onSelectPlayer={openPlayer} />}
-        {screen === "contracts" && <ContractsScreen />}
-        {screen === "staff" && <StaffScreen />}
-        {screen === "medical" && <MedicalScreen />}
+        {header.activeRole === "MANAGER" && screen === "competition" && <CompetitionScreen />}
+        {header.activeRole === "MANAGER" && screen === "scouting" && <ScoutingScreen onSelectPlayer={openPlayer} />}
+        {header.activeRole === "MANAGER" && screen === "transfers" && <TransfersScreen onSelectPlayer={openPlayer} />}
+        {header.activeRole === "MANAGER" && screen === "contracts" && <ContractsScreen />}
+        {header.activeRole === "MANAGER" && screen === "staff" && <StaffScreen />}
+        {header.activeRole === "MANAGER" && screen === "medical" && <MedicalScreen />}
       </section>
     </main>
   );

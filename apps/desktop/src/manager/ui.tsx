@@ -57,7 +57,8 @@ export const AsyncPanel = <T,>({
 
 export const ErrorBanner = ({ error }: { error: AppError }): React.ReactElement => (
   <div className="warning" role="alert">
-    <strong>{error.code}</strong> {error.message}
+    <strong>{error.code === "SIMULATION_ERROR" ? "Could not complete that action" : error.code}</strong>{" "}{error.message}
+    {error.detail && <details><summary>Show details</summary><code>{error.detail}</code></details>}
   </div>
 );
 

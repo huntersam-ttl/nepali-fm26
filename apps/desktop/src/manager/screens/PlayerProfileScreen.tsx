@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import type { EntityId } from "@nepal-football-sim/shared-types";
 import { managerBridge } from "../managerBridge.js";
 import {
@@ -20,6 +20,10 @@ export const PlayerProfileScreen = ({
   onClose: () => void;
 }): React.ReactElement => {
   const [state] = useRuntimeData(() => managerBridge.getPlayerProfile(playerId), [playerId]);
+  const [salary, setSalary] = useState("");
+  const [months, setMonths] = useState("24");
+  const [busy, setBusy] = useState(false);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
 
   return (
     <section
@@ -117,6 +121,22 @@ export const PlayerProfileScreen = ({
                     },
                   ]}
                 />
+                <div className="contract-action">
+                  <h3>Offer Contract</h3>
+                  <p className="subtle">Propose a renewal through the manager contract service.</p>
+                  <div className="contract-form">
+                    <label>Monthly wage (NPR)<input inputMode="numeric" value={salary} onChange={(event) => setSalary(event.target.value)} placeholder="Current wage" /></label>
+                    <label>Duration (months)<input inputMode="numeric" value={months} onChange={(event) => setMonths(event.target.value)} /></label>
+                    <button className="primary" disabled={busy} onClick={async () => {
+                      setBusy(true);
+                      setActionMessage(null);
+                      const result = await managerBridge.renewContract({ playerId, salary: salary ? Number(salary) * 1000 : undefined, months: Number(months) });
+                      setBusy(false);
+                      setActionMessage(result.ok ? "Contract offer submitted." : result.error.message);
+                    }}>{busy ? "Submitting…" : "Offer Contract"}</button>
+                  </div>
+                  {actionMessage && <p className="notice" role="status">{actionMessage}</p>}
+                </div>
               </Panel>
             ) : (
               <Panel title="Contract">

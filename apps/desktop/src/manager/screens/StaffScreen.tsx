@@ -32,7 +32,7 @@ export const StaffScreen = (): React.ReactElement => {
   };
 
   return (
-    <section className="dashboard">
+    <section className="staff-screen">
       {actionError && (
         <div className="warning" role="alert">
           {actionError}
@@ -41,6 +41,19 @@ export const StaffScreen = (): React.ReactElement => {
       <AsyncPanel state={state}>
         {(market) => (
           <>
+            <header className="page-header">
+              <div>
+                <p className="eyebrow">Club operations</p>
+                <h1>Staff</h1>
+                <p className="subtle">Manage coaching, recruitment, medical, and support personnel.</p>
+              </div>
+            </header>
+            <div className="metrics staff-metrics">
+              <div><dt>Staff count</dt><dd>{market.staff.length}</dd></div>
+              <div><dt>Open vacancies</dt><dd>{market.vacancies.filter((v) => v.status === "VACANT").length}</dd></div>
+              <div><dt>Available candidates</dt><dd>{market.candidates.length}</dd></div>
+              <div><dt>Applications</dt><dd>{market.applications.length}</dd></div>
+            </div>
             <Panel title="Staff">
               {market.staff.length === 0 ? (
                 <p className="empty-state">No staff records exist for this club.</p>
@@ -174,7 +187,7 @@ export const StaffScreen = (): React.ReactElement => {
                                 )
                               }
                             >
-                              Propose terms for {vacancy.role.replace(/_/g, " ").toLowerCase()}
+                              Offer Contract · {vacancy.role.replace(/_/g, " ").toLowerCase()}
                             </button>
                           </div>
                         )}
@@ -428,4 +441,3 @@ export const StaffScreen = (): React.ReactElement => {
     </section>
   );
 };
-
