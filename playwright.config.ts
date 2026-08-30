@@ -33,6 +33,6 @@ export default defineConfig({
     url: "http://127.0.0.1:1420",
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,
-    env: { NEPAL_SAVES_DIR: savesDirectory },
+    env: { NEPAL_SAVES_DIR: savesDirectory, NEPAL_E2E_ROLE_FIXTURE: "1" },
   },
 });
