@@ -39,6 +39,9 @@ describe("career pyramid and new-save balancing", () => {
     try {
       const squad = Number((db.prepare("SELECT COUNT(*) AS n FROM team_person_assignments WHERE team_id=? AND role='PLAYER' AND ended_on IS NULL").get(bClub.teamId) as { n: number }).n);
       expect(squad).toBeGreaterThanOrEqual(11);
+      expect(squad).toBeLessThanOrEqual(22);
+      const unattached = Number((db.prepare("SELECT COUNT(*) AS n FROM player_transfer_statuses WHERE status='FREE_AGENT'").get() as { n: number }).n);
+      expect(unattached).toBeGreaterThan(0);
       const highWage = Number((db.prepare("SELECT MAX(salary) AS n FROM player_contracts WHERE status='ACTIVE' AND salary>0").get() as { n: number }).n);
       expect(highWage).toBeLessThan(250_000);
     } finally { db.close(); service.closeCareer(); }
