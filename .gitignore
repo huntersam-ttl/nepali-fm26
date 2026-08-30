@@ -9,5 +9,6 @@ dist/
 apps/desktop/src-tauri/target/
 apps/desktop/src-tauri/runtime/
 apps/desktop/src-tauri/gen/
+releases/tester/
 test-results/
 playwright-report/

@@ -1,4 +1,4 @@
-# Nepal Football Simulation 0.1.0
+# Nepal Football Simulation 0.1.0-test.1
 
 Early macOS tester build for the Nepal Football Universe manager loop.
 
@@ -13,7 +13,7 @@ Saves are stored at:
 
 ## Report a problem
 
-Classify it as **BLOCKER** (cannot start/load/progress/save), **BUG** (wrong or broken behavior), **UX** (confusing or hard to find), **BALANCE** (works but feels wrong), or **FEATURE_REQUEST** (new functionality). Include what you did, expected result, actual result, a screenshot, the save file when possible, and build version `0.1.0`.
+Classify it as **BLOCKER** (cannot start/load/progress/save), **BUG** (wrong or broken behavior), **UX** (confusing or hard to find), **BALANCE** (works but feels wrong), or **FEATURE_REQUEST** (new functionality). Include build ID, macOS version/model, what you did, expected result, actual result, whether it repeats, a screenshot/video when useful, and the save file when possible.
 
 Chairman/Federation surfaces are not exposed in this tester build. Long-save performance is still under optimisation; please test normal sessions rather than promising 20/50-year performance.
 
