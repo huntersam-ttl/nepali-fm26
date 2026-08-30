@@ -164,7 +164,7 @@ production path.
   loan scope is contract, wages, recall, expiry, return, and option-to-buy.
 - Final 20/50-year balancing; mobile; final release workflow.
 
-## Final Reconciliation (HEAD `e855f91`)
+## Final Reconciliation (HEAD `b61713d`)
 
 The 92 normalized rows were rechecked against source reachability and focused production tests.
 The mechanical status total is now 73 COMPLETE, 0 BUILT_NOT_PROVEN, 12 PARTIAL, 3 MISSING,
