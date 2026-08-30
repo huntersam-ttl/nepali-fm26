@@ -33,6 +33,28 @@ international 10.2s (5.0%), and external world 2.8s (1.4%). The top measured hot
 processing, an **EXPECTED_HEAVY** phase; no measured phase crossed the prior 20% rewrite threshold
 outside that known aggregate. No broad SQL tuning was performed.
 
+## Competition Query/Batching Optimisation
+
+The first post-freeze attribution found two `PlayerRepository.attributesForTeam` reads per fixture
+inside `simulateCompetitionSeason`: approximately 1,578 roster queries/mappings for the 789-match
+baseline. Team assignments and attributes are static during one competition season, so the bounded
+fix caches them by team for that function call. Injury, suspension, player condition, standings,
+finance, contract, and match-result state remain dynamic and are intentionally not cached. The
+representative attribution changes the static read upper bound from 1,578 fixture-endpoint calls to
+one load per participating team per competition-season scope (202 observed played-endpoint team
+references in the resulting database); it does not alter match inputs or rules.
+
+The full after-run used the identical seed/configuration and completed successfully in **155.60s**
+total, versus **179.04s** before: 23.44s / **13.1% faster** overall. Final date, 789 fixtures,
+789 matches, five runnable competitions, four skipped competitions, zero emergency lineups, and zero
+position shortages matched the before-run aggregate. The after-run’s internal competition timer was
+not separately emitted, so no unsupported competition-phase seconds are claimed; the comparable
+instrumented competition figure remains 100.2s. Focused season/progression/integrity regressions
+and recursive typecheck/build passed. Classification remains **SLOW_BUT_COMPLETES**; this is a
+**MATERIAL** total improvement, but 20-season readiness remains **OPTIMISE_AGAIN** because the
+competition phase is still the largest measured cost. The next and only selected hotspot is deeper
+competition query attribution/batching, with no second optimisation included here.
+
 Against the stronger pre-freeze 303.0s total (creation 6.5s plus season 296.5s), this run is
 **IMPROVED** by 123.96s / 40.9%. The older 202.8s figure remains historical and is not treated as
 directly equivalent. Linear planning floors from 179.04s are approximately 59.7 minutes for 20

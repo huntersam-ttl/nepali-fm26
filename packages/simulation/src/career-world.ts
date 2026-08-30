@@ -561,6 +561,17 @@ const simulateCompetitionSeason = (
   let playedThisRun = 0;
   const allResults: MatchResult[] = [];
   const squadHealth = blankSquadHealth();
+  // Team assignments and player attributes do not change during one
+  // competition season. Keep the static roster projection local to this
+  // bounded pass; availability and suspensions remain fixture-date queries.
+  const attributesByTeam = new Map<EntityId, PlayerAttributeSet[]>();
+  const attributesForMatch = (teamId: EntityId): PlayerAttributeSet[] => {
+    const cached = attributesByTeam.get(teamId);
+    if (cached) return cached;
+    const attributes = players.attributesForTeam(teamId);
+    attributesByTeam.set(teamId, attributes);
+    return attributes;
+  };
   for (const fixture of fixtures) {
     if (fixture.status === "played" || matchExists(db, fixture.id)) {
       continue;
@@ -571,11 +582,11 @@ const simulateCompetitionSeason = (
     markSeasonState(db, input.season, "IN_PROGRESS", { currentRound: fixture.round });
     const unavailable = unavailablePlayers(db, input.season.id, fixture.scheduledDate);
     const homePlayers = availablePlayers(
-      players.attributesForTeam(fixture.homeTeamId),
+      attributesForMatch(fixture.homeTeamId),
       unavailable,
     );
     const awayPlayers = availablePlayers(
-      players.attributesForTeam(fixture.awayTeamId),
+      attributesForMatch(fixture.awayTeamId),
       unavailable,
     );
     recordSquadHealth(squadHealth, homePlayers, unavailable);
