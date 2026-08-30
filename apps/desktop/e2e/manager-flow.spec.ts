@@ -37,7 +37,7 @@ test("creates, advances, reopens and deletes a real SQLite manager career", asyn
   await expect(page.getByText(clubName).first()).toBeVisible({ timeout: 30_000 });
   expect(saveFiles().length).toBe(before + 1);
 
-  await page.getByRole("button", { name: "Squad" }).click();
+  await page.getByRole("button", { name: "Squad", exact: true }).click();
   await expect(page.locator("tbody tr").first()).toBeVisible();
 
   // Tactics persist on change in the Step 3 UI; the style is the cheapest
