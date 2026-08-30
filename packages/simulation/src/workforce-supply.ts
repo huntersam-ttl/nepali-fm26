@@ -724,6 +724,18 @@ export const reconcileWorkforceSupply = (input: {
           originOverride: "GIRLS_DEVELOPMENT",
         });
         report.generatedWomenPlayers += cohort.generatedPlayers;
+        /*
+         * The cohort generator creates people, not squad members; the lower-league
+         * bootstrap assigns its own output for the same reason. Nepal's registry
+         * carries no women players at all, so without this the women's teams exist
+         * with nobody eligible to field and every squad-based consumer sees an
+         * empty women's game.
+         */
+        assignUnassignedGeneratedPlayers(db, {
+          clubId: team.club_id,
+          teamId: team.id,
+          date: input.date,
+        });
       }
     }
   }
@@ -777,6 +789,36 @@ export const reconcileWorkforceSupply = (input: {
  * One-off bootstrap for a save that has no officiating population at all (the
  * imported August 2026 world has none). Idempotent through the intake ledger.
  */
+/** Enters generated players from one cohort into the squad they were generated for. */
+const assignUnassignedGeneratedPlayers = (
+  db: GameDatabase,
+  input: { clubId: EntityId; teamId: EntityId; date: string },
+): number => {
+  const world = new WorldRepository(db);
+  const unassigned = db
+    .prepare(
+      `SELECT g.player_id FROM generated_player_origins g
+       LEFT JOIN team_person_assignments tpa
+         ON tpa.person_id = g.player_id AND tpa.role = 'PLAYER' AND tpa.ended_on IS NULL
+       WHERE g.club_id = ? AND g.generated_on = ? AND tpa.person_id IS NULL
+       ORDER BY g.player_id`,
+    )
+    .all(input.clubId, input.date) as Array<{ player_id: EntityId }>;
+  for (const player of unassigned) {
+    world.insertTeamPersonAssignment({
+      id: createStableEntityId(
+        "workforce-generated-assignment",
+        `${player.player_id}:${input.teamId}`,
+      ),
+      personId: player.player_id,
+      teamId: input.teamId,
+      role: "PLAYER",
+      startedOn: input.date,
+    });
+  }
+  return unassigned.length;
+};
+
 export const initializeWorkforceSupplyForSave = (input: {
   db: GameDatabase;
   worldDate: string;
