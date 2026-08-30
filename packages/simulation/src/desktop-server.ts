@@ -154,6 +154,14 @@ const dispatch = (
       return service.getCareerRoles();
     case "switchActiveCareerRole":
       return service.switchActiveCareerRole(body.targetRole as CareerRole);
+    case "getChairmanDashboard":
+      return service.getChairmanDashboard();
+    case "getFederationPresidentDashboard":
+      return service.getFederationPresidentDashboard();
+    case "seedE2ERoleFixture":
+      return process.env.NEPAL_E2E_ROLE_FIXTURE === "1"
+        ? service.seedE2ERoleFixture()
+        : { ok: false, error: { code: "ROLE_NOT_AUTHORIZED", message: "The E2E role fixture is disabled." } };
     case "foundClub":
       return service.foundClub(body.name as string, body.locationName as string);
     case "implementFederationGovernanceProposal":

@@ -13,10 +13,21 @@ import type {
   FederationGovernanceProposal,
   ClubBudget,
   ClubBudgetCategory,
-  InfrastructureProject,
   InfrastructureProjectType,
   SponsorshipContract,
   SimulationClubRecord,
+  ClubFinancialAccount,
+  ClubLedgerEntry,
+  ClubOwnershipStake,
+  InfrastructureProject,
+  Federation,
+  FederationFinancialAccount,
+  FederationFinancialStatement,
+  FederationLedgerEntry,
+  FederationLeadershipTenure,
+  FederationProject,
+  FederationSimulationProfile,
+  FederationBudget,
 } from "./domain.js";
 
 /**
@@ -181,6 +192,51 @@ export type PlayerProfileReadModel = SquadRow & {
   matchStats: { minutes: number; yellowCards: number; redCards: number };
 };
 
+export type ChairmanDashboard = {
+  role: "CHAIRMAN_OWNER";
+  club: {
+    id: EntityId;
+    name: string;
+    ownershipPercentage: number;
+    controllingOwner: boolean;
+    ownership: ClubOwnershipStake[];
+  };
+  finances: {
+    account: ClubFinancialAccount;
+    budgets: ClubBudget[];
+    ledgerEntries: ClubLedgerEntry[];
+  };
+  infrastructure: InfrastructureProject[];
+  sponsorships: SponsorshipContract[];
+  manager?: { name: string; contract: ManagerContract };
+};
+
+export type FederationNationalTeamSummary = {
+  id: EntityId;
+  name: string;
+  level: string;
+  gender: string;
+  headCoach?: string;
+};
+
+export type FederationPresidentDashboard = {
+  role: "FEDERATION_PRESIDENT";
+  federation: Federation;
+  profile: FederationSimulationProfile;
+  finances: {
+    account: FederationFinancialAccount;
+    budgets: FederationBudget[];
+    ledgerEntries: FederationLedgerEntry[];
+    statements: FederationFinancialStatement[];
+  };
+  tenure?: FederationLeadershipTenure;
+  proposals: FederationGovernanceProposal[];
+  projects: FederationProject[];
+  nationalTeams: FederationNationalTeamSummary[];
+};
+
+export type E2ERoleFixtureResult = { ready: true };
+
 /** Lightweight identity of the open career. Cheap enough for headers and menus. */
 export type CareerHeader = {
   saveId: EntityId;
@@ -232,6 +288,8 @@ export type DesktopRuntimeApi = {
   getCareerHeader(): Promise<AppResult<CareerHeader>>;
   getCareerRoles(): Promise<AppResult<CareerRoleState>>;
   switchActiveCareerRole(targetRole: CareerRole): Promise<AppResult<CareerHeader>>;
+  getChairmanDashboard(): Promise<AppResult<ChairmanDashboard>>;
+  getFederationPresidentDashboard(): Promise<AppResult<FederationPresidentDashboard>>;
   foundClub(name: string, locationName: string): Promise<AppResult<SimulationClubRecord>>;
   implementFederationGovernanceProposal(proposalId: EntityId): Promise<AppResult<FederationGovernanceProposal>>;
   setClubBudget(clubId: EntityId, seasonLabel: string, category: ClubBudgetCategory, amount: number): Promise<AppResult<ClubBudget>>;

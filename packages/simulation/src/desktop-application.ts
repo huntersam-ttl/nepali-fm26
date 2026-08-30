@@ -41,6 +41,9 @@ import {
   type CareerHeader,
   type CareerRole,
   type CareerRoleState,
+  type ChairmanDashboard,
+  type FederationPresidentDashboard,
+  type E2ERoleFixtureResult,
   type FederationGovernanceProposal,
   type ClubBudget,
   type ClubBudgetCategory,
@@ -233,6 +236,8 @@ import {
 } from "./tactics.js";
 import { suitability } from "./team-selection.js";
 import { activeCareerRole, heldCareerRoles, switchActiveCareerRole } from "./career-control.js";
+import { buildChairmanDashboard, buildFederationPresidentDashboard } from "./role-desktop.js";
+import { initializeFederationGovernanceForSave } from "./federation-governance.js";
 import { implementFederationGovernanceProposalCommand } from "./federation-politics.js";
 import { acceptSponsorOfferCommand, createInfrastructureProjectCommand, rejectSponsorOfferCommand, setClubBudgetCommand } from "./club-economy.js";
 import { foundSimulationClub } from "./club-creation.js";
@@ -549,6 +554,41 @@ export class DesktopApplicationService {
       const updated = loadSave(db, save.id);
       this.writeCatalogEntry(this.catalogEntry(db, updated, filePath));
       return careerHeader(db, updated);
+    });
+  }
+
+  getChairmanDashboard(): AppResult<ChairmanDashboard> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER") {
+        throw appError("ROLE_NOT_AUTHORIZED", "You do not currently hold the Chairman role.");
+      }
+      return buildChairmanDashboard(db, save);
+    });
+  }
+
+  getFederationPresidentDashboard(): AppResult<FederationPresidentDashboard> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "FEDERATION_PRESIDENT") {
+        throw appError("ROLE_NOT_AUTHORIZED", "You are not the active Federation President.");
+      }
+      return buildFederationPresidentDashboard(db, save);
+    });
+  }
+
+  /** Test-only fixture hook; the desktop server gates exposure with an E2E env flag. */
+  seedE2ERoleFixture(): AppResult<E2ERoleFixtureResult> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      const manager = db.prepare("SELECT t.club_id FROM manager_contracts mc JOIN teams t ON t.id=mc.team_id WHERE mc.person_id=? AND mc.status='ACTIVE' LIMIT 1").get(personId) as { club_id?: EntityId } | undefined;
+      const federation = manager?.club_id ? db.prepare("SELECT f.id FROM federations f JOIN clubs c ON c.country_id=f.country_id WHERE c.id=? ORDER BY f.id LIMIT 1").get(manager.club_id) as { id?: EntityId } | undefined : undefined;
+      if (!manager?.club_id || !federation?.id) throw appError("SAVE_CORRUPT", "Role fixture requires a manager club and federation.");
+      initializeFederationGovernanceForSave({ db, worldDate: save.worldDate, seed: save.randomSeed });
+      const person = db.prepare("SELECT display_name, full_name FROM persons WHERE id=?").get(personId) as { display_name?: string; full_name?: string } | undefined;
+      db.prepare("INSERT OR IGNORE INTO club_ownership_stakes (id,club_id,holder_type,holder_id,holder_name,role,percentage,voting_percentage,start_date,status,ownership_model,provenance_status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)").run(createStableEntityId("e2e-role-owner", `${save.id}:${personId}`), manager.club_id, "PERSON", personId, person?.display_name ?? person?.full_name ?? personId, "MAJORITY_OWNER", 75, 75, save.worldDate, "ACTIVE", "PARTIALLY_BUYABLE", "SIMULATION_ONLY");
+      db.prepare("INSERT OR IGNORE INTO federation_leadership_tenures (id,person_id,federation_id,role,term_start,term_end,status,provenance_status) VALUES (?,?,?,?,?,?,?,?)").run(createStableEntityId("e2e-role-president", `${save.id}:${personId}`), personId, federation.id, "FEDERATION_PRESIDENT", save.worldDate, "2030-01-01", "ACTIVE", "SIMULATION_ONLY");
+      return { ready: true };
     });
   }
 

@@ -314,7 +314,7 @@ export const ManagerCareer = ({
         </header>
 
         {header.activeRole !== "MANAGER" ? (
-          <RoleLandingScreen header={header} roles={roles} />
+          <RoleLandingScreen header={header} roles={roles} bridge={bridge} />
         ) : (
           <header className="page-header">
             <div>
