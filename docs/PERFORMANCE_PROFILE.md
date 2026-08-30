@@ -221,3 +221,36 @@ national-team appearances, zero orphaned or synthetic appearance rows, zero club
 fixtures, and a clean `PRAGMA foreign_key_check`. Per-phase timings were not separately
 instrumented in this run; the earlier 202.8s breakdown predates several later feature commits, so
 the two totals are not directly comparable. Classification remains **SLOW_BUT_COMPLETES**.
+
+## Post-Freeze Hotspot Attribution (CPU profile, HEAD `845581b`)
+
+The baseline above notes that the code emits no phase timings. A V8 CPU profile supplies them
+without instrumenting production: self time is attributed per function, so the ranking holds even
+though this particular run's wall clock does not. That run measured 282.1s (creation 4.3s, season
+277.8s) while another agent's test suites occupied the machine at load 8–11, so its **absolute
+time is not a baseline** — 179.04s from the idle run stands. Ranking below is self time inside the
+simulating process, 283.5s sampled.
+
+| Source | Self time | Share |
+| --- | ---: | ---: |
+| `repositories.js` (all writers) | 101.8s | 35.9% |
+| `referee-assignment.js` | 65.8s | 23.2% |
+| `scouting.js` | 44.1s | 15.6% |
+| `workforce-supply.js` | 9.5s | 3.3% |
+| `preseason-continuity.js` | 7.9s | 2.8% |
+| `transfer-market.js` | 6.8s | 2.4% |
+
+The repository total is downstream of those callers rather than a phase of its own: `postLedgerEntry`
+16.5s, `upsertPlayerKnowledge` 13.7s (scouting's writer), `insertMatchEvent` 13.4s, `attributesForTeam`
+9.4s.
+
+Referee assignment is the single largest owned hotspot and is not expected work for choosing match
+officials. `assignOfficialsToFixture` calls `initializeWorkforceSupplyForSave` on every fixture, and
+the season loop calls it once per fixture through `requireFixtureOfficials`, so a full workforce
+bootstrap runs several hundred times per season. The call is idempotent, which makes it correct and
+costly rather than wrong — the same shape as the academy-profile lookup once hoisted out of the youth
+cohort loop. Hoisting or guarding it is a bounded change with a measurable before/after and no design
+consequence.
+
+Scouting is second at 44.1s plus its 13.7s of knowledge writes; it has not been attributed to a
+specific pattern yet.
