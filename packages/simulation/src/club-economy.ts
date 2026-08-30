@@ -1773,9 +1773,7 @@ export const closeClubFinancialSeason = (
   const economy = new ClubEconomyRepository(db);
   const statements: ClubFinancialStatement[] = [];
   for (const account of economy.financialAccounts()) {
-    const entries = economy
-      .ledgerEntries(account.clubId)
-      .filter((entry) => entry.date.startsWith(input.seasonLabel));
+    const entries = economy.ledgerEntries(account.clubId, input.seasonLabel);
     const revenue = categoryTotals(entries, "CREDIT");
     const expenses = categoryTotals(entries, "DEBIT");
     const revenueTotal = sumValues(revenue);

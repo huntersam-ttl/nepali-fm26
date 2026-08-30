@@ -5941,12 +5941,14 @@ export class ClubEconomyRepository {
       );
   }
 
-  ledgerEntries(clubId?: EntityId): ClubLedgerEntry[] {
-    const rows = clubId
-      ? this.db
-          .prepare("SELECT * FROM club_ledger_entries WHERE club_id = ? ORDER BY entry_date, id")
-          .all(clubId)
-      : this.db.prepare("SELECT * FROM club_ledger_entries ORDER BY entry_date, id").all();
+  ledgerEntries(clubId?: EntityId, datePrefix?: string): ClubLedgerEntry[] {
+    const rows = clubId && datePrefix
+      ? this.db.prepare("SELECT * FROM club_ledger_entries WHERE club_id = ? AND entry_date LIKE ? ORDER BY entry_date, id").all(clubId, `${datePrefix}%`)
+      : clubId
+        ? this.db.prepare("SELECT * FROM club_ledger_entries WHERE club_id = ? ORDER BY entry_date, id").all(clubId)
+        : datePrefix
+          ? this.db.prepare("SELECT * FROM club_ledger_entries WHERE entry_date LIKE ? ORDER BY entry_date, id").all(`${datePrefix}%`)
+          : this.db.prepare("SELECT * FROM club_ledger_entries ORDER BY entry_date, id").all();
     return rows.map(mapClubLedgerEntry);
   }
 
