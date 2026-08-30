@@ -11,6 +11,7 @@ const seed = process.env.LONG_SAVE_SEED ?? "long-save-post-freeze-2026";
 const targetSeasons = Number(process.env.LONG_SAVE_SEASONS ?? "20");
 const checkpointInterval = Number(process.env.LONG_SAVE_CHECKPOINT ?? "5");
 const outputPath = process.env.LONG_SAVE_OUTPUT;
+const diagnosticRun = process.env.LONG_SAVE_DIAGNOSTIC === "1";
 const temporaryDirectories: string[] = [];
 
 type ScalarRow = { count: number };
@@ -26,6 +27,7 @@ type Snapshot = {
   finiteFinancialValues: boolean;
   competitionState: { completed: number; rolledOver: number; suspended: number };
   squadHealth: { emergencyLineupCases: number; positionShortages: number };
+  phaseTimings: Record<string, number>;
 };
 
 const count = (db: GameDatabase, table: string): number =>
@@ -63,6 +65,7 @@ const snapshot = (db: GameDatabase, databasePath: string, season: number, starte
     finiteFinancialValues: financialValues.every((row) => Number.isFinite(Number(row.amount_minor))),
     competitionState: { completed: stateCount("COMPLETED"), rolledOver: stateCount("ROLLED_OVER"), suspended: stateCount("SUSPENDED") },
     squadHealth,
+    phaseTimings: report.phaseTimings.at(-1)?.phases ?? {},
   };
 };
 
@@ -81,6 +84,11 @@ const runLongSave = (seasons: number): { snapshots: Snapshot[]; final: Snapshot 
     randomSeed: seed,
   });
   const snapshots: Snapshot[] = [];
+  const writeProgress = (): void => {
+    if (!outputPath) return;
+    mkdirSync(dirname(outputPath), { recursive: true });
+    writeFileSync(outputPath, JSON.stringify({ seed, seasons, databasePath, snapshots, final: snapshots.at(-1) ?? null }, null, 2));
+  };
   const startedAt = Date.now();
   let completed = 0;
   while (completed < seasons) {
@@ -92,16 +100,16 @@ const runLongSave = (seasons: number): { snapshots: Snapshot[]; final: Snapshot 
     db.close();
     db = openGameDatabase(databasePath);
     if (season >= checkpointInterval || season === seasons) {
-      snapshots.push(snapshot(db, databasePath, season, startedAt, report));
+      const current = snapshot(db, databasePath, season, startedAt, report);
+      snapshots.push(current);
+      process.stdout.write(`${JSON.stringify({ type: "long-save-checkpoint", ...current })}\n`);
+      writeProgress();
     }
     db.close();
     completed = season;
   }
   const final = snapshots.at(-1)!;
-  if (outputPath) {
-    mkdirSync(dirname(outputPath), { recursive: true });
-    writeFileSync(outputPath, JSON.stringify({ seed, seasons, databasePath, snapshots, final }, null, 2));
-  }
+  writeProgress();
   return { snapshots, final };
 };
 
@@ -113,7 +121,7 @@ const longSaveDescribe = process.env.LONG_SAVE_RUN === "1" ? describe : describe
 
 longSaveDescribe("post-freeze long-save structural validation", () => {
   it(`completes ${targetSeasons} seasons through production progression and reload checkpoints`, () => {
-    expect(targetSeasons).toBeGreaterThanOrEqual(20);
+    expect(targetSeasons).toBeGreaterThanOrEqual(diagnosticRun ? 1 : 20);
     expect(checkpointInterval).toBeGreaterThan(0);
     const result = runLongSave(targetSeasons);
     expect(result.final.season).toBe(targetSeasons);

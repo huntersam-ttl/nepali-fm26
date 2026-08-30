@@ -163,6 +163,7 @@ export type CareerSimulationReport = {
   preseasonReports: PreseasonContinuityReport[];
   runnableCompetitions: string[];
   skippedCompetitions: SkippedCompetitionReport[];
+  phaseTimings: Array<{ season: number; phases: Record<string, number> }>;
 };
 
 export type SkippedCompetitionReport = {
@@ -218,6 +219,7 @@ export const simulateNepalCareer = (input: {
   const workforceReports: WorkforceReconciliationReport[] = [];
   const preseasonReports: PreseasonContinuityReport[] = [];
   const skippedCompetitions: CareerSimulationReport["skippedCompetitions"] = [];
+  const phaseTimings: CareerSimulationReport["phaseTimings"] = [];
   const economyEnabled = input.economyEnabled !== false;
   const federationEnabled = input.federationEnabled !== false;
   const internationalEnabled = input.internationalEnabled !== false;
@@ -283,6 +285,12 @@ export const simulateNepalCareer = (input: {
     if (activeSeasons.length === 0) {
       break;
     }
+    const seasonStartedAt = Date.now();
+    const phases: Record<string, number> = {};
+    const markPhase = (name: string, startedAt: number): void => {
+      phases[name] = Date.now() - startedAt;
+    };
+    let phaseStartedAt = Date.now();
     /* Materialize the known season schedules before officiating reconciliation
      * so supply sees both total volume and peak matchday concurrency. */
     for (const season of activeSeasons) {
@@ -291,6 +299,8 @@ export const simulateNepalCareer = (input: {
         seed: `${input.seed}:season:${index}:${season.season.id}`,
       });
     }
+    markPhase("fixture_generation", phaseStartedAt);
+    phaseStartedAt = Date.now();
     workforceReports.push(
       reconcileWorkforceSupply({
         db: input.db,
@@ -299,6 +309,8 @@ export const simulateNepalCareer = (input: {
         seasonLabel: activeSeasons[0]!.ruleSet.seasonStartDate.slice(0, 4),
       }),
     );
+    markPhase("workforce_youth", phaseStartedAt);
+    phaseStartedAt = Date.now();
     entityCache.delete(input.db);
     const completed: Array<{
       season: CompetitionSeason;
@@ -319,6 +331,7 @@ export const simulateNepalCareer = (input: {
         completed.push({ season: season.season, ruleSet: season.ruleSet, standings });
       }
     }
+    markPhase("competitions", phaseStartedAt);
 
     if (completed.length !== activeSeasons.length) {
       break;
@@ -374,14 +387,17 @@ export const simulateNepalCareer = (input: {
       });
     }
     if (input.transfersEnabled) {
+      phaseStartedAt = Date.now();
       simulateTransferWindow({
         db: input.db,
         worldDate: addDays(latestSeasonEnd(activeSeasons), 1),
         seed: `${input.seed}:transfers:${index}`,
         maxClubActions: 10,
       });
+      markPhase("transfers", phaseStartedAt);
     }
     if (input.youthEnabled) {
+      phaseStartedAt = Date.now();
       const youthDate = addDays(latestSeasonEnd(activeSeasons), 45);
       completeYouthDevelopmentPartnerships(input.db, youthDate);
       const youthClubs = input.db
@@ -400,30 +416,40 @@ export const simulateNepalCareer = (input: {
           ),
         }),
       );
+      markPhase("workforce_youth", phaseStartedAt);
     }
     if (economyEnabled) {
+      phaseStartedAt = Date.now();
       processEconomyForSeasonPeriod(input.db, save, {
         seasonEndDate: latestSeasonEnd(activeSeasons),
         seed: `${input.seed}:economy:${index}`,
       });
+      markPhase("economy_ownership_ai", phaseStartedAt);
     }
     if (federationEnabled) {
+      phaseStartedAt = Date.now();
       processFederationForSeasonPeriod(input.db, {
         seasonEndDate: latestSeasonEnd(activeSeasons),
         seed: `${input.seed}:federation:${index}`,
       });
+      markPhase("federation", phaseStartedAt);
     }
     if (internationalEnabled) {
+      phaseStartedAt = Date.now();
       processInternationalForSeasonPeriod(input.db, {
         seasonEndDate: latestSeasonEnd(activeSeasons),
         seed: `${input.seed}:international:${index}`,
       });
+      markPhase("international", phaseStartedAt);
     }
+    phaseStartedAt = Date.now();
     processCareerExternalWorldSeason({
       db: input.db,
       seasonEndDate: latestSeasonEnd(activeSeasons),
       seed: `${input.seed}:foreign-world:${index}`,
     });
+    markPhase("external_world", phaseStartedAt);
+    phaseStartedAt = Date.now();
     advanceTerritorialDevelopment(input.db, {
       date: latestSeasonEnd(activeSeasons),
       seed: `${input.seed}:territorial:${index}`,
@@ -436,6 +462,9 @@ export const simulateNepalCareer = (input: {
         seed: `${input.seed}:preseason:${index}`,
       }),
     );
+    markPhase("history_media_persistence", phaseStartedAt);
+    phases.total = Date.now() - seasonStartedAt;
+    phaseTimings.push({ season: index + 1, phases });
     activeSeasons = runnableSeasons(
       input.db,
       input.competitionSeasonId,
@@ -463,6 +492,7 @@ export const simulateNepalCareer = (input: {
     preseasonReports,
     runnableCompetitions,
     skippedCompetitions,
+    phaseTimings,
   };
 };
 
