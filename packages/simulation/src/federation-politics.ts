@@ -8,6 +8,7 @@ const addYears = (date: string, years: number): string => `${Number(date.slice(0
 const addDays = (date: string, days: number): string => { const value = new Date(`${date}T00:00:00Z`); value.setUTCDate(value.getUTCDate() + days); return value.toISOString().slice(0, 10); };
 const daysBetween = (from: string, to: string): number => Math.max(0, Math.floor((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400000));
 const federation = (db: GameDatabase, id: EntityId): Federation => { const row = db.prepare("SELECT id,country_id,name,founded_year FROM federations WHERE id=?").get(id) as any; if (!row) throw new Error("Federation not found"); return { id: row.id, countryId: row.country_id, name: row.name, foundedYear: row.founded_year ?? undefined }; };
+const nepaliFederationIds = (db: GameDatabase): Set<EntityId> => new Set((db.prepare("SELECT f.id FROM federations f JOIN countries c ON c.id=f.country_id WHERE c.iso_code IN ('NP','NPL')").all() as Array<{ id: EntityId }>).map((row) => row.id));
 
 export const assessFederationCandidacy = (db: GameDatabase, input: { personId: EntityId; date: string }): FederationCandidacyAssessment => {
   const identity = new CareerIdentityRepository(db).get(input.personId);
@@ -17,7 +18,8 @@ export const assessFederationCandidacy = (db: GameDatabase, input: { personId: E
   const reasons: string[] = [];
   if (careerSeasons < 3) reasons.push(`Requires 3 seasons in Nepal football (${careerSeasons}/3).`);
   if (reputation < 45) reasons.push(`Requires game reputation of 45 (${reputation}/45).`);
-  const cycle = new FederationPoliticsRepository(db).cycles().find((item) => item.status !== "COMPLETED" && item.nominationStart <= input.date && input.date < item.electionDate);
+  const nepaliIds = nepaliFederationIds(db);
+  const cycle = new FederationPoliticsRepository(db).cycles().find((item) => nepaliIds.has(item.federationId) && item.status !== "COMPLETED" && item.nominationStart <= input.date && input.date < item.electionDate);
   if (!cycle) reasons.push("No election is currently accepting nominations.");
   const candidate = cycle ? new FederationPoliticsRepository(db).candidates(cycle.id).find((item) => item.personId === input.personId) : undefined;
   return { eligible: reasons.length === 0, reasons, careerSeasons, reputation, nextElectionDate: cycle?.electionDate, candidateId: candidate?.id };
@@ -27,7 +29,8 @@ export const declareFederationElectionCandidacy = (db: GameDatabase, input: { pe
   let assessment = assessFederationCandidacy(db, input);
   if (!assessment.eligible) throw new Error(assessment.reasons.join(" "));
   const politics = new FederationPoliticsRepository(db);
-  let cycle = politics.cycles().find((item) => item.status !== "COMPLETED" && item.nominationStart <= input.date && input.date < item.electionDate);
+  const nepaliIds = nepaliFederationIds(db);
+  let cycle = politics.cycles().find((item) => nepaliIds.has(item.federationId) && item.status !== "COMPLETED" && item.nominationStart <= input.date && input.date < item.electionDate);
   if (!cycle) throw new Error("No election is currently accepting nominations.");
   generateFederationCandidates(db, { cycleId: cycle.id, federationId: cycle.federationId, date: input.date, seed: input.seed });
   const identity = new CareerIdentityRepository(db).get(input.personId)!;
