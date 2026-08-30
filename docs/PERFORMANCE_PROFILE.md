@@ -16,6 +16,41 @@ Measured on an idle machine (no competing test runs), Nepal-only world
 
 Population grows 1,093 → 2,417 people across the three seasons.
 
+## Post-Freeze One-Season Baseline
+
+Measured after feature freeze on HEAD `845581b` (freeze-approved commits are ancestors), on a
+MacBookPro16,1 with Intel Core i7-9750H, Node `v22.17.1`, pnpm `9.15.4`, using the canonical
+production command `pnpm --filter @nepal-football-sim/simulation career:simulate -- --seasons 1
+--seed post-freeze-baseline-2026 --save-path <temporary sqlite>`. The run used normal save creation
+and the full Nepal/FULL production rollover with external CONTEXT_ONLY processing; it completed at
+`2027-07-31` with five runnable competitions, 789 fixtures/matches, and four intentionally skipped
+competitions. The measured wall time was **179.04s total** (the command includes the package build;
+save creation was not separately instrumented in this run).
+
+The current code has no phase timer output. The latest comparable instrumented breakdown remains the
+earlier 202.8s run: competitions 100.2s (49.4%), economy 34.9s (17.2%), federation 26.9s (13.2%),
+international 10.2s (5.0%), and external world 2.8s (1.4%). The top measured hotspot is competition
+processing, an **EXPECTED_HEAVY** phase; no measured phase crossed the prior 20% rewrite threshold
+outside that known aggregate. No broad SQL tuning was performed.
+
+Against the stronger pre-freeze 303.0s total (creation 6.5s plus season 296.5s), this run is
+**IMPROVED** by 123.96s / 40.9%. The older 202.8s figure remains historical and is not treated as
+directly equivalent. Linear planning floors from 179.04s are approximately 59.7 minutes for 20
+seasons and 149.2 minutes for 50; population growth makes practical ranges roughly 90–150 minutes
+and 225–375 minutes respectively. Classification: **SLOW_BUT_COMPLETES**. Validation readiness:
+**OPTIMISE_FIRST**; target exactly one next pass at competition-phase query/batching attribution.
+
+## 20-Season Validation Checklist (next pass)
+
+Run only after the competition hotspot pass: fresh canonical save, 20 seasons, checkpoint/reload
+every five seasons, and record wall time/RSS/database size. Assert FK integrity; duplicate IDs;
+orphan contracts/appointments; ledger finiteness; A/B sizes, movement, licensing, champions,
+qualification, and no duplicate fixtures; exact-once youth/girls/diaspora intake and caps; age-health,
+retirements, staff conversion, solvency, grants/government/distributions, insurance/welfare; transfer,
+loan, foreign-staff volumes and inflation; elections, succession, programmes, and AI ownership;
+external lifecycle without foreign detailed simulation; and database/row/history growth. Do not start
+the 50-season run until the 20-season gate is clean.
+
 ## Correction to the Previous Profile
 
 An earlier profile reported `createNepalSave` 87.8s, transfer init 164.3s and season 1 at 1,266s,
