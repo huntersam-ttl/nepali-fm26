@@ -108,7 +108,7 @@ export const PlayerProfileScreen = ({
                   items={[
                     {
                       label: "Salary",
-                      value: money(player.contract.salary, player.contract.currency),
+                      value: `${money(player.contract.salary, player.contract.currency)} / month`,
                     },
                     { label: "Expires", value: player.contract.endDate },
                     { label: "Squad role", value: player.contract.squadRole },

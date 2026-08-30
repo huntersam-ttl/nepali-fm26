@@ -202,6 +202,7 @@ const NewCareer = (props: {
   const [clubs, setClubs] = useState<StartingClubOption[]>([]);
   const [teamId, setTeamId] = useState<EntityId | "">("");
   const [step, setStep] = useState(1);
+  const [division, setDivision] = useState("All");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -217,6 +218,7 @@ const NewCareer = (props: {
   }, []);
 
   const selectedClub = clubs.find((club) => club.teamId === teamId);
+  const visibleClubs = clubs.filter((club) => division === "All" || club.division === division);
 
   return (
     <StartShell error={props.error}>
@@ -293,21 +295,22 @@ const NewCareer = (props: {
         )}
         {step === 3 && (
           <div className="form-grid">
+            <label>Division<select value={division} onChange={(event) => setDivision(event.target.value)}><option>All</option><option>A</option><option>B</option><option>C</option><option>Other playable Nepal competition</option></select></label>
             <label>
               Starting club
               <select
                 value={teamId}
                 onChange={(event) => setTeamId(event.target.value as EntityId)}
               >
-                {clubs.map((club) => (
+                {visibleClubs.map((club) => (
                   <option key={club.teamId} value={club.teamId}>
-                    {club.clubName} ({club.squadSize} players)
+                    {club.clubName} · {club.division} Division ({club.squadSize} players)
                   </option>
                 ))}
               </select>
             </label>
             {clubs.length === 0 && <p>Loading Nepal clubs…</p>}
-            {selectedClub && <p>{selectedClub.competitionName}</p>}
+            {selectedClub && <p>{selectedClub.competitionName} · {selectedClub.locationName ?? "Location unknown"} · {selectedClub.professionalStatus ?? "Status unknown"}</p>}
           </div>
         )}
         {step === 4 && (

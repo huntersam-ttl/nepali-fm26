@@ -173,6 +173,25 @@ export const initializeTransferMarketForSave = (input: {
   seedCompetitionRegistrations(input.db, input.worldDate);
 };
 
+/** New-save-only roster trim; existing saves are never migrated implicitly. */
+export const rebalanceNewNepalSaveSquads = (db: GameDatabase, worldDate: string): number => {
+  let released = 0;
+  const clubs = db.prepare(`SELECT DISTINCT c.id AS club_id, CASE WHEN lower(comp.name) LIKE '%a-division%' THEN 25 WHEN lower(comp.name) LIKE '%b-division%' THEN 22 WHEN lower(comp.name) LIKE '%c-division%' THEN 20 ELSE 0 END AS target FROM clubs c JOIN countries co ON co.id=c.country_id JOIN club_memberships cm ON cm.club_id=c.id JOIN competitions comp ON comp.id=cm.competition_id WHERE co.iso_code IN ('NP','NPL') AND cm.status='ACTIVE' AND lower(comp.name) LIKE '%division%' ORDER BY c.id`).all() as Array<{club_id: EntityId; target: number}>;
+  for (const club of clubs) {
+    if (!club.target) continue;
+    const rows = new TransferMarketRepository(db).activeContractsForClub(club.club_id, worldDate).sort((a, b) => {
+      const rank = (role: string): number => ({ YOUTH: 0, PROSPECT: 1, BACKUP: 2, ROTATION: 3, FIRST_TEAM: 5 }[role] ?? 4);
+      return rank(a.squadRole) - rank(b.squadRole) || a.playerId.localeCompare(b.playerId);
+    });
+    for (const contract of rows.slice(club.target)) {
+      releasePlayer(db, contract, worldDate, "New-save squad balancing");
+      released += 1;
+    }
+  }
+  if (released) refreshClubWageSpend(db, worldDate);
+  return released;
+};
+
 export const simulateTransferWindow = (input: {
   db: GameDatabase;
   worldDate: string;
@@ -2639,7 +2658,9 @@ const startingContract = (
       ? addDays(worldDate, 20 + Math.floor(rng.next() * 70))
       : addMonths(worldDate, months);
   const salary = Math.round(
-    (28000 + player.currentAbility * 14500 + player.reputation * 4200) * clubSalaryMultiplier(club),
+    (isNepalClub(db, club.id)
+      ? 12000 + player.currentAbility * 2800 + player.reputation * 1200
+      : 28000 + player.currentAbility * 14500 + player.reputation * 4200) * clubSalaryMultiplier(club),
   );
   return {
     id: createStableEntityId("player-contract", `${player.playerId}:${club.id}:starting`),

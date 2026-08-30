@@ -114,6 +114,9 @@ export type StartingClubOption = {
   teamName: string;
   competitionName: string;
   squadSize: number;
+  division: string;
+  locationName?: string;
+  professionalStatus?: string;
 };
 
 export type CareerCreationCommand = {

@@ -162,6 +162,8 @@ import {
   advanceUnemployedCareer,
 } from "./manager-career-world.js";
 import { nextFixtureForTeam, quickSimManagerMatch } from "./manager-flow.js";
+import { ensureLowerLeaguePlayableWorld } from "./workforce-supply.js";
+import { initializeTransferMarketForSave, rebalanceNewNepalSaveSquads } from "./transfer-market.js";
 import { appointNationalTeamHeadCoachForPresident, FederationPersonnelError } from "./national-team-management.js";
 import {
   ConcernActionError,
@@ -289,9 +291,6 @@ export type { DesktopAppError, AppResult };
 
 export const GAME_VERSION = "0.2.0";
 
-/** A starting club must be able to field a legal XI plus cover. */
-const MINIMUM_STARTING_SQUAD = 14;
-
 export type DesktopRuntimeOptions = {
   savesDirectory: string;
   worldDatasetPath: string;
@@ -398,6 +397,9 @@ export class DesktopApplicationService {
       db.exec("BEGIN;");
       try {
         importNepalWorld(db, dataset);
+        ensureLowerLeaguePlayableWorld({ db, date: `${dataset.meta.targetDatabaseDate}-01`, seed: `career:${command.saveName}` });
+        initializeTransferMarketForSave({ db, worldDate: `${dataset.meta.targetDatabaseDate}-01`, seed: `career:${command.saveName}:market` });
+        rebalanceNewNepalSaveSquads(db, `${dataset.meta.targetDatabaseDate}-01`);
         const season = seasonForTeam(db, target.teamId);
         const ruleSet = new CompetitionRepository(db).getRuleSet(season.id);
         if (!ruleSet) {
@@ -2009,28 +2011,39 @@ const startingClubOptions = (dataset: NepalWorldDataset): StartingClubOption[] =
     dataset.competitions.map((competition) => [competition.key, competition.name]),
   );
   const clubNames = new Map(dataset.clubs.map((club) => [club.key, club.name]));
-  const membershipByTeam = new Map<string, string>();
+  const membershipByTeam = new Map<string, { competitionKey: string; name: string }>();
   for (const membership of dataset.clubMemberships ?? []) {
+    if (membership.status !== "ACTIVE" || !membership.teamKey?.value) continue;
     const teamKey = membership.teamKey?.value;
-    if (teamKey) membershipByTeam.set(teamKey, membership.competitionKey);
+    const competition = dataset.competitions.find((item) => item.key === membership.competitionKey);
+    if (!competition || competition.category !== "PYRAMID_LEAGUE") continue;
+    const current = membershipByTeam.get(teamKey);
+    if (!current || /[ABC]-DIVISION/i.test(competition.name)) membershipByTeam.set(teamKey, { competitionKey: membership.competitionKey, name: competition.name });
   }
 
   return dataset.teams
-    .filter((team) => (squadSizes.get(team.key) ?? 0) >= MINIMUM_STARTING_SQUAD)
+    .filter((team) => team.level === "senior" && team.gender === "men" && membershipByTeam.has(team.key))
     .map((team) => {
       const clubKey = team.clubKey?.value;
-      const competitionKey = membershipByTeam.get(team.key);
+      const membership = membershipByTeam.get(team.key)!;
+      const club = clubKey ? dataset.clubs.find((item) => item.key === clubKey) : undefined;
+      const locationName = club?.locationKey.value ? dataset.locations.find((item) => item.key === club.locationKey.value)?.name : undefined;
       return {
         teamId: createStableEntityId("team", team.key),
         clubId: clubKey ? createStableEntityId("club", clubKey) : undefined,
         clubName: (clubKey ? clubNames.get(clubKey) : undefined) ?? team.name,
         teamName: team.name,
-        competitionName:
-          (competitionKey ? competitionNames.get(competitionKey) : undefined) ?? "Nepal football",
+        competitionName: membership.name ?? competitionNames.get(membership.competitionKey) ?? "Nepal football",
         squadSize: squadSizes.get(team.key) ?? 0,
+        division: membership.name.match(/([ABC])-DIVISION/i)?.[1] ?? "Other playable Nepal competition",
+        locationName,
+        professionalStatus: club?.ownershipType.value === "DEPARTMENTAL" ? "Departmental" : "Club",
       };
     })
-    .sort((a, b) => a.clubName.localeCompare(b.clubName));
+    .sort((a, b) => {
+      const rank = (division: string): number => ({ A: 0, B: 1, C: 2 }[division] ?? 3);
+      return rank(a.division) - rank(b.division) || a.clubName.localeCompare(b.clubName);
+    });
 };
 
 const scheduleSeasonFixtures = (
