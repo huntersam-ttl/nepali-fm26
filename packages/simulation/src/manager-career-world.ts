@@ -2,6 +2,7 @@ import {
   CareerWorldRepository,
   ClubEconomyRepository,
   CompetitionRepository,
+  EventRepository,
   ManagerRepository,
   SupporterCultureRepository,
   WorldRepository,
@@ -572,6 +573,69 @@ export const acceptJobOffer = (
     read: false,
   });
 
+  return contract;
+};
+
+export class ChairmanManagerError extends Error {
+  constructor(readonly code: "NOT_AUTHORIZED" | "INVALID_TARGET" | "MANAGER_UNAVAILABLE", message: string) {
+    super(message);
+  }
+}
+
+/** Bounded owner authority: appoint an available manager to a controlled Nepal club. */
+export const appointManagerForChairman = (
+  db: GameDatabase,
+  input: { ownerPersonId: EntityId; vacancyId: EntityId; managerProfileId: EntityId; date: string },
+): ManagerContract => {
+  const careerWorld = new CareerWorldRepository(db);
+  const managers = new ManagerRepository(db);
+  const vacancy = careerWorld.vacancy(input.vacancyId);
+  if (!vacancy || vacancy.status !== "OPEN" || !vacancy.clubId) {
+    throw new ChairmanManagerError("INVALID_TARGET", "That manager vacancy is not open.");
+  }
+  const club = db.prepare(`
+    SELECT c.id FROM clubs c JOIN countries co ON co.id = c.country_id
+    WHERE c.id = ? AND co.iso_code IN ('NP', 'NPL')
+  `).get(vacancy.clubId) as { id?: EntityId } | undefined;
+  if (!club || isContextOnlyClub(db, vacancy.clubId)) {
+    throw new ChairmanManagerError("NOT_AUTHORIZED", "Only a Nepal playable club can be controlled.");
+  }
+  const stake = db.prepare(`
+    SELECT 1 FROM club_ownership_stakes
+    WHERE club_id = ? AND holder_type = 'PERSON' AND holder_id = ?
+      AND status = 'ACTIVE' AND percentage >= 51
+  `).get(vacancy.clubId, input.ownerPersonId);
+  if (!stake) throw new ChairmanManagerError("NOT_AUTHORIZED", "The chairman does not control this club.");
+  const profile = managers.getProfile(input.managerProfileId);
+  if (!profile || managers.activeContract(profile.id)) {
+    throw new ChairmanManagerError("MANAGER_UNAVAILABLE", "That manager is already employed.");
+  }
+  const check = eligibility(profile, vacancy);
+  if (!check.eligible) throw new ChairmanManagerError("MANAGER_UNAVAILABLE", check.note ?? "The manager is not eligible.");
+  const contract = {
+    ...createManagerContract({
+      managerProfileId: profile.id,
+      personId: profile.personId,
+      teamId: vacancy.teamId,
+      clubId: vacancy.clubId,
+      contractStart: input.date,
+      contractEnd: addYears(input.date, 2),
+      salaryAmountMinor: offeredSalaryFor(vacancy),
+    }),
+    id: createStableEntityId("chairman-manager-contract", `${vacancy.id}:${profile.id}`),
+  };
+  managers.insertContract(contract);
+  careerWorld.fillVacancy(vacancy.id, input.date, contract.id);
+  new EventRepository(db).insertHistoricalEvent({
+    id: createStableEntityId("history", `CHAIRMAN_MANAGER_APPOINTED:${contract.id}`),
+    occurredOn: input.date,
+    eventType: "STAFF_APPOINTED",
+    involvedEntities: [{ id: vacancy.clubId, type: "club" }, { id: profile.personId, type: "person" }],
+    title: "Chairman appointed a manager",
+    data: { contractId: contract.id, vacancyId: vacancy.id },
+    importance: "medium",
+    scope: "club",
+  });
   return contract;
 };
 

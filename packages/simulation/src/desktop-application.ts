@@ -144,6 +144,8 @@ import { importNepalWorld } from "./nepal-save.js";
 import { createCareerCharacter, createManagerContract, testLicence } from "./manager-career.js";
 import {
   acceptJobOffer as acceptJobOfferCommand,
+  appointManagerForChairman,
+  ChairmanManagerError,
   applyForJob as applyForJobCommand,
   careerHistory,
   declineJobOffer as declineJobOfferCommand,
@@ -613,6 +615,23 @@ export class DesktopApplicationService {
         return setClubBudgetCommand(db, { clubId, personId, callerRole: "CHAIRMAN_OWNER", seasonLabel, category, amount });
       } catch (error) {
         throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "Club budget could not be set.");
+      }
+    });
+  }
+
+  appointManager(vacancyId: EntityId, managerProfileId: EntityId): AppResult<ManagerContract> {
+    return this.withSession((db, save, filePath) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER") {
+        throw appError("ROLE_NOT_AUTHORIZED", "Only the active chairman/owner may appoint a manager.");
+      }
+      try {
+        const contract = appointManagerForChairman(db, { ownerPersonId: personId, vacancyId, managerProfileId, date: save.worldDate });
+        this.writeCatalogEntry(this.catalogEntry(db, loadSave(db, save.id), filePath));
+        return contract;
+      } catch (error) {
+        if (error instanceof ChairmanManagerError) throw appError("INVALID_SELECTION", error.message);
+        throw error;
       }
     });
   }

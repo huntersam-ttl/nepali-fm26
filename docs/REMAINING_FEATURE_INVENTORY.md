@@ -3,7 +3,7 @@
 ## Snapshot
 
 Audit date: 2026-08-30. Repository: `/Users/cc/nepali-fm26`. Final reconciliation based on
-HEAD `b6a087a`; the pre-existing untracked `nepali-fm26/` entry
+HEAD `9cd7980`; the pre-existing untracked `nepali-fm26/` entry
 remains untouched.
 
 The inventory has 92 normalized entries: the 84 row-level entries in the previous feature
@@ -76,7 +76,7 @@ gate were intentionally not started. This is proof debt, not a new implementatio
 
 Legacy partials:
 
-- Chairman/owner career; federation-president career; broader role transitions, authority, and permissions (bounded active-role switching, approved-proposal implementation, chairman budget setting, infrastructure approval, and sponsorship approval/rejection are now production-wired).
+- Chairman/owner career; federation-president career; broader role transitions, authority, and permissions (bounded active-role switching, chairman manager appointment, approved-proposal implementation, chairman budget setting, infrastructure approval, and sponsorship approval/rejection are now production-wired; broader chairman breadth remains partial).
 - Federation-president proposal submission now has a Nepal/FULL role-facing command adapter
   and approved-proposal implementation now has a Nepal/FULL role-facing command adapter that delegates to the canonical proposal service; a complete playable federation-president
   career and broader command surface remain PARTIAL.
@@ -164,14 +164,14 @@ production path.
   loan scope is contract, wages, recall, expiry, return, and option-to-buy.
 - Final 20/50-year balancing; mobile; final release workflow.
 
-## Final Reconciliation (HEAD `b6a087a`)
+## Final Reconciliation (HEAD `9cd7980`)
 
 The 92 normalized rows were rechecked against source reachability and focused production tests.
 The mechanical status total is now 73 COMPLETE, 0 BUILT_NOT_PROVEN, 12 PARTIAL, 3 MISSING,
 and 4 LATER. Long-save continuity remains COMPLETE for its implemented structural path; the
 20/50-season performance and durability gates are intentionally not run.
 
-The 13 PARTIAL rows are: chairman/owner career (including bounded budget setting, infrastructure approval, and sponsorship approval/rejection, but not a complete chairman command surface); federation-president career (including the
+The 12 PARTIAL rows are: chairman/owner career (including bounded manager appointment, budget setting, infrastructure approval, and sponsorship approval/rejection, but not a complete chairman command surface); federation-president career (including the
 bounded proposal submission and approved-proposal implementation command adapters, but not a complete playable career); broader role transitions
 and authority (bounded active-role switching is complete); default match-view wiring; takeover lifecycle; grants/government
 distribution (including the bounded annual playable-club support slice, approved season distribution settlement, and annual government-funding proposal cadence); prize/revenue sharing;
