@@ -5,13 +5,14 @@
   "identifier": "com.local.nepal-football-simulation",
   "build": {
     "beforeDevCommand": "pnpm dev",
-    "beforeBuildCommand": "pnpm build",
+    "beforeBuildCommand": "pnpm build && pnpm prepare:runtime",
     "devUrl": "http://127.0.0.1:1420",
     "frontendDist": "../dist"
   },
   "bundle": {
     "resources": {
-      "../../../data/nepal/2026-08/club-registry.json": "data/nepal/2026-08/club-registry.json"
+      "../../../data/nepal/2026-08/club-registry.json": "data/nepal/2026-08/club-registry.json",
+      "runtime": "runtime"
     }
   },
   "app": {

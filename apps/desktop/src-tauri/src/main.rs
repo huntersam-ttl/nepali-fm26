@@ -68,9 +68,16 @@ async fn runtime_command(
     }
 }
 
-fn spawn_runtime(saves_directory: &str, dataset_path: &str) -> Result<Runtime, String> {
-    let mut child = Command::new("node")
-        .arg("nepal-football-desktop-runtime")
+fn spawn_runtime(
+    node_path: &str,
+    entrypoint: &str,
+    runtime_directory: &str,
+    saves_directory: &str,
+    dataset_path: &str,
+) -> Result<Runtime, String> {
+    let mut child = Command::new(node_path)
+        .arg(entrypoint)
+        .current_dir(runtime_directory)
         .env("NEPAL_SAVES_DIR", saves_directory)
         .env("NEPAL_WORLD_DATASET", dataset_path)
         .stdout(Stdio::piped())
@@ -101,11 +108,25 @@ fn main() {
         .setup(|app| {
             let saves = app.path().app_data_dir()?.join("saves");
             std::fs::create_dir_all(&saves)?;
-            let dataset = app
+            let dataset = app.path().resolve(
+                "data/nepal/2026-08/club-registry.json",
+                tauri::path::BaseDirectory::Resource,
+            )?;
+            let runtime_directory = app
                 .path()
-                .resolve("data/nepal/2026-08/club-registry.json", tauri::path::BaseDirectory::Resource)?;
-            let runtime = spawn_runtime(&saves.to_string_lossy(), &dataset.to_string_lossy())
-                .map_err(|error| std::io::Error::other(error))?;
+                .resolve("runtime/app", tauri::path::BaseDirectory::Resource)?;
+            let node = app
+                .path()
+                .resolve("runtime/node", tauri::path::BaseDirectory::Resource)?;
+            let entrypoint = runtime_directory.join("dist/desktop-server-cli.js");
+            let runtime = spawn_runtime(
+                &node.to_string_lossy(),
+                &entrypoint.to_string_lossy(),
+                &runtime_directory.to_string_lossy(),
+                &saves.to_string_lossy(),
+                &dataset.to_string_lossy(),
+            )
+            .map_err(|error| std::io::Error::other(error))?;
             app.manage(runtime);
             Ok(())
         })
