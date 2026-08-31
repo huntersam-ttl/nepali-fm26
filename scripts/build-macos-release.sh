@@ -3,23 +3,29 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: scripts/build-macos-release.sh --unsigned [--output-dir DIR]
-       scripts/build-macos-release.sh --signed [--notarize] [--output-dir DIR]
+Usage: scripts/build-macos-release.sh --unsigned-diagnostic [--output-dir DIR]
+       scripts/build-macos-release.sh --signed [--output-dir DIR]
+       scripts/build-macos-release.sh --check
 
---unsigned  Build a universal diagnostic artifact; never public-ready.
---signed    Require DEVELOPER_ID_APPLICATION and sign nested code.
---notarize  With --signed, submit the DMG using NOTARY_PROFILE.
+--unsigned-diagnostic  Build a universal diagnostic artifact; never public-ready.
+--signed               Build, sign, notarise, staple, and Gatekeeper-check.
+--check                Validate signing and notary credentials; never builds.
+
+APPLE_SIGNING_IDENTITY may name the Developer ID Application identity.
+APPLE_NOTARY_PROFILE may name the notarytool Keychain profile.
 EOF
 }
 
 MODE=""
 NOTARIZE=0
-OUTPUT_DIR="releases/public/0.1.0-rc.2-unsigned-diagnostic"
+CHECK_ONLY=0
+OUTPUT_DIR=""
 while (($#)); do
   case "$1" in
-    --unsigned) MODE="unsigned" ;;
+    --unsigned|--unsigned-diagnostic) MODE="unsigned" ;;
     --signed) MODE="signed" ;;
     --notarize) NOTARIZE=1 ;;
+    --check) CHECK_ONLY=1 ;;
     --output-dir) shift; OUTPUT_DIR="${1:?missing output directory}" ;;
     --help|-h) usage; exit 0 ;;
     *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
@@ -27,28 +33,60 @@ while (($#)); do
   shift
 done
 
+if ((CHECK_ONLY == 1)); then
+  [[ -z "$MODE" ]] || { echo "--check cannot be combined with a build mode." >&2; exit 2; }
+  MODE="signed"
+fi
 if [[ -z "$MODE" ]]; then
-  echo "Choose --unsigned or --signed explicitly; refusing an implicit release mode." >&2
+  echo "Choose --unsigned-diagnostic, --signed, or --check explicitly." >&2
   exit 2
 fi
-if [[ "$MODE" == "unsigned" && "$NOTARIZE" == 1 ]]; then
-  echo "--notarize requires --signed." >&2
-  exit 2
+if [[ -z "$OUTPUT_DIR" ]]; then
+  if [[ "$MODE" == "signed" ]]; then OUTPUT_DIR="releases/public/0.1.0-rc.2";
+  else OUTPUT_DIR="releases/public/0.1.0-rc.2-current-unsigned-diagnostic"; fi
 fi
-if [[ "$MODE" == "signed" && -z "${DEVELOPER_ID_APPLICATION:-}" ]]; then
-  echo "Signed release requested but DEVELOPER_ID_APPLICATION is not set." >&2
-  exit 3
-fi
-if [[ "$MODE" == "signed" ]] && ! security find-identity -v -p codesigning 2>/dev/null | rg -Fq "$DEVELOPER_ID_APPLICATION"; then
-  echo "Signed release requested but the configured Developer ID identity is not available in Keychain." >&2
-  exit 3
-fi
-if [[ "$NOTARIZE" == 1 && -z "${NOTARY_PROFILE:-}" ]]; then
-  echo "Notarization requested but NOTARY_PROFILE is not set." >&2
-  exit 3
-fi
-if [[ "$NOTARIZE" == 1 ]]; then
-  xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null
+
+if [[ "$MODE" == "signed" ]]; then
+  SIGNING_IDENTITY="${APPLE_SIGNING_IDENTITY:-${DEVELOPER_ID_APPLICATION:-}}"
+  NOTARY_PROFILE="${APPLE_NOTARY_PROFILE:-${NOTARY_PROFILE:-}}"
+  IDENTITIES="$(security find-identity -v -p codesigning 2>/dev/null || true)"
+  if [[ -z "$SIGNING_IDENTITY" ]]; then
+    SIGNING_IDENTITY="$(printf '%s\n' "$IDENTITIES" | sed -n 's/.*\("Developer ID Application: [^"]*"\).*/\1/p' | head -1 | tr -d '"')"
+  fi
+  if [[ -z "$SIGNING_IDENTITY" ]]; then
+    if security find-certificate -a -c 'Developer ID Application' >/dev/null 2>&1; then
+      echo "PRIVATE_KEY_MISSING: Developer ID certificate exists but no valid signing identity is available." >&2
+    else
+      echo "SIGNING_BLOCKED: Developer ID Application identity not found." >&2
+    fi
+    exit 3
+  fi
+  if ! printf '%s\n' "$IDENTITIES" | rg -Fq "$SIGNING_IDENTITY"; then
+    echo "SIGNING_BLOCKED: configured identity is not valid in the current Keychain." >&2
+    exit 3
+  fi
+  TEAM_ID="${APPLE_TEAM_ID:-$(printf '%s\n' "$SIGNING_IDENTITY" | sed -n 's/.*(\([A-Z0-9]*\)).*/\1/p')}"
+  [[ -n "$TEAM_ID" ]] || { echo "SIGNING_BLOCKED: Apple Team ID could not be resolved." >&2; exit 3; }
+  [[ -n "$NOTARY_PROFILE" ]] || { echo "NOTARIZATION_BLOCKED: APPLE_NOTARY_PROFILE is not set." >&2; exit 3; }
+  if ! xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1; then
+    echo "NOTARIZATION_BLOCKED: notarytool profile is unavailable or invalid." >&2
+    exit 3
+  fi
+  echo "Developer ID: $SIGNING_IDENTITY"
+  echo "Team ID: $TEAM_ID"
+  echo "Notary profile: $NOTARY_PROFILE (credentials remain in Keychain)"
+  if ((CHECK_ONLY == 1)); then
+    echo "Credential preflight: PASS"
+    exit 0
+  fi
+  [[ "$OUTPUT_DIR" != *unsigned* ]] || { echo "PACKAGING_BLOCKED: signed artifacts cannot use an unsigned directory." >&2; exit 4; }
+  if [[ -e "$OUTPUT_DIR" && -n "$(find "$OUTPUT_DIR" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]]; then
+    echo "PACKAGING_BLOCKED: signed release directory is non-empty; choose the next RC." >&2
+    exit 4
+  fi
+else
+  [[ "$NOTARIZE" == 0 ]] || { echo "--notarize requires --signed." >&2; exit 2; }
+  [[ "$OUTPUT_DIR" == *unsigned* || "$OUTPUT_DIR" == *diagnostic* ]] || { echo "PACKAGING_BLOCKED: unsigned diagnostics require an unsigned/diagnostic directory." >&2; exit 4; }
 fi
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -64,6 +102,9 @@ mkdir -p "$OUTPUT_DIR"
 git diff --check
 rustup target list --installed | rg -qx "$X64_TRIPLE"
 rustup target list --installed | rg -qx "$ARM_TRIPLE"
+if [[ "$MODE" == "signed" ]]; then
+  pnpm typecheck
+fi
 pnpm --filter @nepal-football-sim/desktop exec tauri build --target "$X64_TRIPLE" --bundles app
 pnpm --filter @nepal-football-sim/desktop exec tauri build --target "$ARM_TRIPLE" --bundles app
 
@@ -81,6 +122,12 @@ while IFS= read -r candidate; do
   fi
 done < <(find "$UNIVERSAL_APP" -type f -print)
 sort -u "$SIGNING_MANIFEST" -o "$SIGNING_MANIFEST"
+EXPECTED_MANIFEST="$WORK_DIR/expected-signing-manifest.txt"
+printf '%s\n' "$MAIN_REL" 'Contents/Resources/runtime/node' | sort > "$EXPECTED_MANIFEST"
+if ! diff -u "$EXPECTED_MANIFEST" "$SIGNING_MANIFEST"; then
+  echo "PACKAGING_BLOCKED: unexpected Mach-O set; refusing to sign or package." >&2
+  exit 4
+fi
 while IFS= read -r binary; do
   binary_path="$UNIVERSAL_APP/$binary"
   info="$(lipo -info "$binary_path")"
@@ -93,9 +140,10 @@ done < "$SIGNING_MANIFEST"
 if [[ "$MODE" == "signed" ]]; then
   while IFS= read -r binary; do
     [[ "$binary" == "$MAIN_REL" ]] && continue
-    codesign --force --options runtime --timestamp --sign "$DEVELOPER_ID_APPLICATION" "$UNIVERSAL_APP/$binary"
+    codesign --force --options runtime --timestamp --sign "$SIGNING_IDENTITY" "$UNIVERSAL_APP/$binary"
+    codesign --verify --strict --verbose=2 "$UNIVERSAL_APP/$binary"
   done < "$SIGNING_MANIFEST"
-  codesign --force --options runtime --timestamp --sign "$DEVELOPER_ID_APPLICATION" "$UNIVERSAL_APP"
+  codesign --force --options runtime --timestamp --sign "$SIGNING_IDENTITY" "$UNIVERSAL_APP"
   codesign --verify --deep --strict --verbose=4 "$UNIVERSAL_APP"
 fi
 
@@ -110,7 +158,7 @@ ln -s /Applications "$DMG_STAGE/Applications"
 hdiutil create -volname "Nepal Football Simulation" -srcfolder "$DMG_STAGE" -ov -format UDZO "$DMG"
 ditto -c -k --sequesterRsrc --keepParent "$UNIVERSAL_APP" "$ZIP"
 
-if [[ "$NOTARIZE" == 1 ]]; then
+if [[ "$MODE" == "signed" ]]; then
   set +e
   NOTARY_OUTPUT="$(xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --wait 2>&1)"
   NOTARY_STATUS=$?
@@ -125,9 +173,13 @@ if [[ "$NOTARIZE" == 1 ]]; then
   fi
   xcrun stapler staple "$UNIVERSAL_APP"
   xcrun stapler staple "$DMG"
+  xcrun stapler validate "$UNIVERSAL_APP"
+  xcrun stapler validate "$DMG"
+  spctl --assess --type execute --verbose=4 "$UNIVERSAL_APP"
+  spctl --assess --type open --verbose=4 "$DMG"
 fi
 
 (cd "$OUTPUT_DIR" && shasum -a 256 "$(basename "$DMG")" "$(basename "$ZIP")" > SHA256SUMS)
 cat "$OUTPUT_DIR/SHA256SUMS"
 echo "Release artifacts written to $OUTPUT_DIR"
-echo "Mode: $MODE; notarized: $NOTARIZE"
+echo "Mode: $MODE; notarized: $([[ "$MODE" == signed ]] && echo 1 || echo 0)"
