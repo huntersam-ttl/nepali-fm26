@@ -83,7 +83,7 @@ const firstCountryId = (db: GameDatabase): EntityId => {
 };
 
 /** Deterministic, lightweight AI manager. Not a full career character. */
-const generateAiManager = (
+export const generateAiManager = (
   seedKey: string,
   worldDate: string,
   countryId: EntityId,
@@ -143,6 +143,21 @@ const generateAiManager = (
       createdOn: worldDate,
     },
   };
+};
+
+/** Keep a small, deterministic free-agent pool available to owner careers. */
+export const ensureOwnerManagerCandidateSupply = (
+  db: GameDatabase,
+  input: { date: string; seed: string; countryId: EntityId; minimum?: number },
+): void => {
+  const managers = new ManagerRepository(db);
+  const minimum = input.minimum ?? 4;
+  const available = managers.unemployedManagerProfiles();
+  for (let index = available.length; index < minimum; index += 1) {
+    const generated = generateAiManager(`${input.seed}:owner-candidate:${index}`, input.date, input.countryId);
+    if (!new WorldRepository(db).getPerson(generated.person.id)) new WorldRepository(db).insertPerson(generated.person);
+    managers.insertProfile(generated.profile);
+  }
 };
 
 /**

@@ -144,6 +144,10 @@ const dispatch = (
       return service.listStartingClubs();
     case "listFounderLocations":
       return service.listFounderLocations();
+    case "listOwnerManagerCandidates":
+      return service.listOwnerManagerCandidates();
+    case "appointManager":
+      return service.appointManager(body.vacancyId as EntityId, body.managerProfileId as EntityId);
     case "createCareer":
       return service.createCareer(body.command as CareerCreationCommand);
     case "loadCareer":

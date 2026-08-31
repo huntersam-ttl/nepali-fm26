@@ -1,6 +1,7 @@
 import {
   ClubCreationRepository,
   ClubEconomyRepository,
+  CareerWorldRepository,
   WorldRepository,
   type GameDatabase,
 } from "@nepal-football-sim/database";
@@ -12,6 +13,7 @@ import {
   type EntityId,
   type SimulationClubLifecycleEvent,
   type SimulationClubRecord,
+  type JobVacancy,
   type Team,
   type Venue,
   type VenueRelationship,
@@ -69,6 +71,16 @@ const createVacancies = (
       openedOn: date,
       reason: "NEW_ROLE",
     });
+  new CareerWorldRepository(db).insertVacancy({
+    id: createStableEntityId("simulation-manager-vacancy", clubId),
+    clubId,
+    teamId,
+    countryId: (db.prepare("SELECT country_id FROM clubs WHERE id=?").get(clubId) as { country_id?: EntityId } | undefined)?.country_id,
+    openedOn: date,
+    reason: "NEW_CLUB",
+    boardExpectation: "SURVIVE",
+    status: "OPEN",
+  } satisfies JobVacancy);
 };
 
 export type CreateSimulationClubInput = {

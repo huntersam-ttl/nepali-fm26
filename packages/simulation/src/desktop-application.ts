@@ -126,6 +126,7 @@ import {
   type StartMatchCommand,
   type StartingClubOption,
   type FounderLocationOption,
+  type OwnerManagerCandidate,
   type SubstitutionCommand,
   type TacticalAssignment,
   type TacticalSetup,
@@ -162,6 +163,7 @@ import {
   listVacancies,
   resignFromClub as resignFromClubCommand,
   advanceUnemployedCareer,
+  ensureOwnerManagerCandidateSupply,
 } from "./manager-career-world.js";
 import { nextFixtureForTeam, quickSimManagerMatch, userMatchRequiresAction } from "./manager-flow.js";
 import { ensureNepalFounderLocations, NEPAL_PROVINCE_DISTRICTS } from "./territorial-football.js";
@@ -372,6 +374,24 @@ export class DesktopApplicationService {
     }))));
   }
 
+  listOwnerManagerCandidates(): AppResult<OwnerManagerCandidate[]> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER") throw appError("ROLE_NOT_AUTHORIZED", "Only the active chairman/owner may search for a manager.");
+      const club = db.prepare("SELECT c.id FROM club_ownership_stakes s JOIN clubs c ON c.id=s.club_id WHERE s.holder_id=? AND s.holder_type='PERSON' AND s.status='ACTIVE' AND s.percentage>=51 ORDER BY s.percentage DESC LIMIT 1").get(personId) as { id?: EntityId } | undefined;
+      if (!club?.id) return [];
+      const vacancy = db.prepare("SELECT j.id, c.name AS competition_name FROM manager_job_vacancies j JOIN teams t ON t.id=j.team_id LEFT JOIN club_memberships cm ON cm.team_id=t.id AND cm.status='ACTIVE' LEFT JOIN competition_seasons cs ON cs.id=cm.competition_season_id LEFT JOIN competitions c ON c.id=cs.competition_id WHERE j.club_id=? AND j.status='OPEN' ORDER BY j.opened_on LIMIT 1").get(club.id) as { id?: EntityId; competition_name?: string } | undefined;
+      if (!vacancy?.id) return [];
+      const division = vacancy.competition_name?.toLowerCase().includes("a-division") ? "A" : vacancy.competition_name?.toLowerCase().includes("b-division") ? "B" : "C";
+      const wageExpectation = division === "A" ? 8_000_000 : division === "B" ? 5_000_000 : 2_500_000;
+      return new ManagerRepository(db).unemployedManagerProfiles().slice(0, 8).map((profile) => {
+        const person = db.prepare("SELECT p.full_name, p.display_name, co.name AS nationality FROM persons p LEFT JOIN countries co ON co.id=p.nationality_country_id WHERE p.id=?").get(profile.personId) as { full_name?: string; display_name?: string; nationality?: string } | undefined;
+        const reputation = profile.attributes.personality.reputation;
+        return { vacancyId: vacancy.id!, managerProfileId: profile.id, personId: profile.personId, name: person?.display_name ?? person?.full_name ?? profile.personId, nationality: person?.nationality ?? "Unknown", qualification: profile.reputationProfile.replaceAll("_", " "), reputation, wageExpectation, available: true };
+      });
+    });
+  }
+
   createCareer(command: CareerCreationCommand): AppResult<DesktopApplicationState> {
     let filePath: string;
     let dataset: NepalWorldDataset;
@@ -412,6 +432,8 @@ export class DesktopApplicationService {
       try {
         importNepalWorld(db, dataset);
         ensureNepalFounderLocations(db);
+        const candidateCountry = db.prepare("SELECT id FROM countries WHERE iso_code IN ('NP','NPL') ORDER BY id LIMIT 1").get() as { id?: EntityId } | undefined;
+        if (candidateCountry?.id) ensureOwnerManagerCandidateSupply(db, { date: `${dataset.meta.targetDatabaseDate}-01`, seed: `career:${command.saveName}`, countryId: candidateCountry.id });
         ensureLowerLeaguePlayableWorld({ db, date: `${dataset.meta.targetDatabaseDate}-01`, seed: `career:${command.saveName}` });
         initializeTransferMarketForSave({ db, worldDate: `${dataset.meta.targetDatabaseDate}-01`, seed: `career:${command.saveName}:market` });
         rebalanceNewNepalSaveSquads(db, `${dataset.meta.targetDatabaseDate}-01`);
@@ -465,6 +487,7 @@ export class DesktopApplicationService {
           const founderTeam = db.prepare("SELECT id FROM teams WHERE club_id=? AND level='senior' ORDER BY id LIMIT 1").get(founded.clubId) as { id?: EntityId } | undefined;
           if (!founderTeam?.id) throw appError("SAVE_CORRUPT", "The founded club has no senior team.");
           team = getTeam(db, founderTeam.id);
+          initializeClubEconomyForSave({ db, worldDate: careerStartDate, seed: `career:${command.saveName}:founder-economy` });
           ensureLowerLeaguePlayableWorld({ db, date: careerStartDate, seed: `career:${command.saveName}:founder` });
           initializeTransferMarketForSave({ db, worldDate: careerStartDate, seed: `career:${command.saveName}:founder-market` });
           rebalanceNewNepalSaveSquads(db, careerStartDate);

@@ -59,6 +59,16 @@ describe("founder owner career", () => {
     expect(dashboard.data.club.ownershipPercentage).toBe(100);
     expect(dashboard.data.manager).toBeUndefined();
     expect(dashboard.data.finances.account.cashBalance).toBeGreaterThan(0);
+    expect(dashboard.data.sponsorships.some((item) => item.status === "ACTIVE")).toBe(true);
+    const candidates = service.listOwnerManagerCandidates();
+    expect(candidates.ok).toBe(true);
+    if (!candidates.ok) return;
+    expect(candidates.data.length).toBeGreaterThan(0);
+    const appointment = service.appointManager(candidates.data[0]!.vacancyId, candidates.data[0]!.managerProfileId);
+    expect(appointment.ok).toBe(true);
+    expect(service.getChairmanDashboard()).toMatchObject({ ok: true, data: { manager: { name: candidates.data[0]!.name } } });
+    expect(service.saveCareer().ok).toBe(true);
+    expect(service.loadCareer(created.data.catalogEntry.saveId).ok).toBe(true);
     const db = openGameDatabase(created.data.catalogEntry.filePath);
     try {
       const club = db.prepare("SELECT id FROM clubs WHERE name=?").get("Pokhara City FC") as { id?: string } | undefined;
@@ -71,6 +81,9 @@ describe("founder owner career", () => {
       expect((db.prepare("SELECT COUNT(*) AS count FROM venue_relationships WHERE club_id=? AND status != 'CLOSED'").get(club.id) as { count: number }).count).toBeGreaterThan(0);
       expect((db.prepare("SELECT COUNT(*) AS count FROM club_memberships WHERE club_id=? AND status='ACTIVE'").get(club.id) as { count: number }).count).toBe(1);
       expect((db.prepare("SELECT COUNT(*) AS count FROM fixtures WHERE competition_season_id=(SELECT competition_season_id FROM club_memberships WHERE club_id=? LIMIT 1)").get(club.id) as { count: number }).count).toBeGreaterThan(0);
+      expect((db.prepare("SELECT COUNT(*) AS count FROM sponsorship_contracts WHERE club_id=? AND status='ACTIVE'").get(club.id) as { count: number }).count).toBeGreaterThan(0);
+      expect((db.prepare("SELECT COUNT(*) AS count FROM club_ledger_entries WHERE club_id=? AND description='Initial sponsorship payment'").get(club.id) as { count: number }).count).toBe(1);
+      expect((db.prepare("SELECT COUNT(*) AS count FROM manager_contracts WHERE club_id=? AND status='ACTIVE'").get(club.id) as { count: number }).count).toBe(1);
     } finally {
       db.close();
     }

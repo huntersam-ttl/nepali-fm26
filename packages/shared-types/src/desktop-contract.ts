@@ -79,6 +79,7 @@ export type CareerRole = "MANAGER" | "CHAIRMAN_OWNER" | "FEDERATION_PRESIDENT";
 export type CareerStartMode = "MANAGER" | "OWNER";
 export type CareerRoleState = { activeRole: CareerRole; heldRoles: CareerRole[] };
 export type FounderLocationOption = { id: EntityId; province: string; district: string; locality: string; provenanceStatus: "REPORTED" | "SIMULATION_ONLY" };
+export type OwnerManagerCandidate = { vacancyId: EntityId; managerProfileId: EntityId; personId: EntityId; name: string; nationality: string; qualification: string; reputation: number; currentClub?: string; wageExpectation: number; available: boolean };
 
 /** Save catalog entry. Readable without opening the full simulation world. */
 export type SaveCatalogEntry = {
@@ -309,6 +310,8 @@ export type DesktopRuntimeApi = {
   listSaves(): Promise<AppResult<SaveCatalogEntry[]>>;
   listStartingClubs(): Promise<AppResult<StartingClubOption[]>>;
   listFounderLocations(): Promise<AppResult<FounderLocationOption[]>>;
+  listOwnerManagerCandidates(): Promise<AppResult<OwnerManagerCandidate[]>>;
+  appointManager(vacancyId: EntityId, managerProfileId: EntityId): Promise<AppResult<ManagerContract>>;
   createCareer(command: CareerCreationCommand): Promise<AppResult<DesktopApplicationState>>;
   loadCareer(saveId: EntityId): Promise<AppResult<DesktopApplicationState>>;
   closeCareer(): Promise<AppResult<{ closed: boolean }>>;
