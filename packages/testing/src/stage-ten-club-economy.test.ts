@@ -19,6 +19,7 @@ import {
   initializeClubEconomyForSave,
   initializeTransferMarketForSave,
   postCompetitionMediaRights,
+  processClubEconomyMonth,
   runChairmanDemo,
   runEconomyDiagnostic,
   setClubTicketPrice,
@@ -194,8 +195,10 @@ describe("club economy and chairman foundation", () => {
   });
 
   it("is deterministic for same-seed starting profiles and economy diagnostics", () => {
-    const first = openGameDatabase(createSave("deterministic-economy-a"));
-    const second = openGameDatabase(createSave("deterministic-economy-b"));
+    // The diagnostic seed is only meaningful when the save bootstrap is also
+    // identical; separate temporary databases already provide isolation.
+    const first = openGameDatabase(createSave("deterministic-economy"));
+    const second = openGameDatabase(createSave("deterministic-economy"));
     const firstReport = runEconomyDiagnostic({
       db: first,
       seed: "deterministic-economy",
@@ -213,6 +216,49 @@ describe("club economy and chairman foundation", () => {
     first.close();
     second.close();
   });
+
+  it("keeps one-month finance outputs deterministic across A/B/C divisions", () => {
+    const first = openGameDatabase(createSave("fast-economy-determinism"));
+    const second = openGameDatabase(createSave("fast-economy-determinism"));
+    const seed = "fast-economy-determinism";
+    initializeClubEconomyForSave({ db: first, worldDate: "2026-08-01", seed });
+    initializeClubEconomyForSave({ db: second, worldDate: "2026-08-01", seed });
+    processClubEconomyMonth(first, { date: "2026-08-31", seed });
+    processClubEconomyMonth(second, { date: "2026-08-31", seed });
+
+    const snapshot = (db: ReturnType<typeof openGameDatabase>) => {
+      const economy = new ClubEconomyRepository(db);
+      return (["A", "B", "C"] as const).map((division) => {
+        const row = db
+          .prepare(
+            `SELECT c.id AS club_id, c.name
+           FROM clubs c
+           JOIN club_memberships cm ON cm.club_id = c.id AND cm.status = 'ACTIVE'
+           JOIN competition_seasons cs ON cs.id = cm.competition_season_id
+           JOIN competitions comp ON comp.id = cs.competition_id
+           WHERE lower(comp.name) LIKE ?
+           ORDER BY c.id
+           LIMIT 1`,
+          )
+          .get(`%${division.toLowerCase()}-division%`) as { club_id: EntityId; name: string };
+        const account = economy.financialAccount(row.club_id)!;
+        return {
+          division,
+          name: row.name,
+          cashBalance: account.cashBalance,
+          seasonRevenue: account.seasonRevenue,
+          seasonExpenses: account.seasonExpenses,
+          sponsorshipValue: economy
+            .sponsorships(row.club_id)
+            .reduce((total, item) => total + item.annualValue, 0),
+        };
+      });
+    };
+
+    expect(snapshot(first)).toEqual(snapshot(second));
+    first.close();
+    second.close();
+  }, 60_000);
 
   it("persists commercial profiles, ticket pricing and competition media rights deterministically", () => {
     const first = openGameDatabase(createSave("commercial-phase-a"));
