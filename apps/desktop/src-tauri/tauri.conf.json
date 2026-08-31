@@ -10,6 +10,13 @@
     "frontendDist": "../dist"
   },
   "bundle": {
+    "icon": [
+      "icons/icon.icns"
+    ],
+    "macOS": {
+      "hardenedRuntime": true,
+      "minimumSystemVersion": "11.0"
+    },
     "resources": {
       "../../../data/nepal/2026-08/club-registry.json": "data/nepal/2026-08/club-registry.json",
       "runtime": "runtime"
