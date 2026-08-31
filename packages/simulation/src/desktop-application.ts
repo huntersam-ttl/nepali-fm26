@@ -257,7 +257,7 @@ import { createInvestorStakeOffer, decideInvestorBid } from "./ownership.js";
 import { buildChairmanDashboard, buildFederationPresidentDashboard } from "./role-desktop.js";
 import { initializeFederationGovernanceForSave } from "./federation-governance.js";
 import { assessFederationCandidacy, declareFederationElectionCandidacy, implementFederationGovernanceProposalCommand } from "./federation-politics.js";
-import { acceptSponsorOfferCommand, counterSponsorOffer, createInfrastructureProjectCommand, initializeClubEconomyForSave, rejectSponsorOfferCommand, setClubBudgetCommand } from "./club-economy.js";
+import { acceptSponsorOfferCommand, counterSponsorOffer, createInfrastructureProjectCommand, generateSponsorOffers, initializeClubEconomyForSave, rejectSponsorOfferCommand, setClubBudgetCommand } from "./club-economy.js";
 import { ensurePlayableClubVenues, foundSimulationClub } from "./club-creation.js";
 import {
   ManagerCommandError,
@@ -690,6 +690,7 @@ export class DesktopApplicationService {
       const federation = manager?.club_id ? db.prepare("SELECT f.id FROM federations f JOIN clubs c ON c.country_id=f.country_id WHERE c.id=? ORDER BY f.id LIMIT 1").get(manager.club_id) as { id?: EntityId } | undefined : undefined;
       if (!manager?.club_id || !federation?.id) throw appError("SAVE_CORRUPT", "Role fixture requires a manager club and federation.");
       initializeFederationGovernanceForSave({ db, worldDate: save.worldDate, seed: save.randomSeed });
+      generateSponsorOffers(db, { clubId: manager.club_id, date: save.worldDate, seed: `${save.randomSeed}:e2e-sponsor-offers`, count: 4 });
       const person = db.prepare("SELECT display_name, full_name FROM persons WHERE id=?").get(personId) as { display_name?: string; full_name?: string } | undefined;
       db.prepare("INSERT OR IGNORE INTO club_ownership_stakes (id,club_id,holder_type,holder_id,holder_name,role,percentage,voting_percentage,start_date,status,ownership_model,provenance_status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)").run(createStableEntityId("e2e-role-owner", `${save.id}:${personId}`), manager.club_id, "PERSON", personId, person?.display_name ?? person?.full_name ?? personId, "MAJORITY_OWNER", 75, 75, save.worldDate, "ACTIVE", "PARTIALLY_BUYABLE", "SIMULATION_ONLY");
       db.prepare("INSERT OR IGNORE INTO federation_leadership_tenures (id,person_id,federation_id,role,term_start,term_end,status,provenance_status) VALUES (?,?,?,?,?,?,?,?)").run(createStableEntityId("e2e-role-president", `${save.id}:${personId}`), personId, federation.id, "FEDERATION_PRESIDENT", save.worldDate, "2030-01-01", "ACTIVE", "SIMULATION_ONLY");

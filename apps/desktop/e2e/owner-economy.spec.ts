@@ -50,6 +50,48 @@ test.describe("Owner economy browser harness", () => {
     await expect(page.getByRole("heading", { name: "Pending budget requests" })).toBeVisible();
     await page.getByRole("button", { name: "Approve", exact: true }).click();
     await expect(page.getByText("No pending manager requests.")).toBeVisible({ timeout: 30_000 });
+    await page.getByLabel("Active career role").selectOption("MANAGER");
+    await page.getByRole("button", { name: "Transfers", exact: true }).click();
+    await page.getByLabel("Request increase").selectOption("WAGE_BUDGET");
+    await page.getByLabel("New total").fill("888888");
+    await page.getByRole("button", { name: "Request", exact: true }).click();
+    await page.getByLabel("Active career role").selectOption("CHAIRMAN_OWNER");
+    await page.getByRole("button", { name: "Manager", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Pending budget requests" })).toBeVisible();
+    await page.getByRole("button", { name: "Reject", exact: true }).click();
+    await expect(page.getByText("No pending manager requests.")).toBeVisible({ timeout: 30_000 });
+  });
+
+  test("A Owner purchases equipment and resolves open sponsorship offers through the UI", async ({ page }) => {
+    test.setTimeout(240_000);
+    await createExistingClubOwner(page, "A");
+    await page.getByRole("button", { name: "Dashboard", exact: true }).click();
+    await page.getByRole("button", { name: "Order football equipment", exact: true }).dblclick();
+    await expect(page.getByText("ClubMart order: FOOTBALL_EQUIPMENT")).toBeVisible({ timeout: 30_000 });
+    for (let step = 0; step < 4; step += 1) {
+      const initialDate = await page.locator(".date-block strong").textContent();
+      await page.getByRole("button", { name: "Continue", exact: true }).click();
+      await expect(page.locator(".date-block strong")).not.toHaveText(initialDate ?? "", { timeout: 30_000 });
+    }
+    await openOwnerRoute(page, "Finances");
+    await expect(page.getByRole("heading", { name: "Recent transactions" })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText("ClubMart order: FOOTBALL_EQUIPMENT")).toBeVisible({ timeout: 30_000 });
+
+    await openOwnerRoute(page, "Sponsorship");
+    const offered = page.getByRole("row").filter({ hasText: "OFFERED" });
+    await expect(offered).toHaveCount(3);
+    const originalOfferCount = await offered.count();
+    await page.getByLabel(/Counter value for/).first().fill("1");
+    await offered.first().getByRole("button", { name: "Counter", exact: true }).click();
+    await expect(page.getByRole("row").filter({ hasText: "OFFERED" })).toHaveCount(originalOfferCount - 1, { timeout: 30_000 });
+    const activeAfterCounter = await page.getByRole("row").filter({ hasText: "ACTIVE" }).count();
+    const remainingOffer = page.getByRole("row").filter({ hasText: "OFFERED" });
+    await remainingOffer.first().getByRole("button", { name: "Accept", exact: true }).dblclick();
+    await expect(page.getByRole("row").filter({ hasText: "ACTIVE" })).toHaveCount(activeAfterCounter + 1, { timeout: 30_000 });
+    const finalOffer = page.getByRole("row").filter({ hasText: "OFFERED" }).first();
+    await finalOffer.getByRole("button", { name: "Reject", exact: true }).click();
+    await expect(page.getByRole("row").filter({ hasText: "OFFERED" })).toHaveCount(0, { timeout: 30_000 });
+    await expect(page.getByRole("row").filter({ hasText: "REJECTED" })).toHaveCount(1);
   });
 
   test("C Founder opens Investors and creates deterministic bids", async ({ page }) => {
