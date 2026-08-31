@@ -17,6 +17,7 @@ import { StaffScreen } from "./screens/StaffScreen.js";
 import { MedicalScreen } from "./screens/MedicalScreen.js";
 import { MatchdayScreen } from "./matchday/MatchdayScreen.js";
 import { RoleLandingScreen } from "./RoleLandingScreen.js";
+import type { ChairmanScreen, PresidentScreen } from "./RoleDetailScreen.js";
 
 const SCREENS = [
   "home",
@@ -40,6 +41,18 @@ const NAV_GROUPS: Array<{ label: string; items: Screen[] }> = [
 ];
 
 type Screen = (typeof SCREENS)[number];
+type RoleScreen = ChairmanScreen | PresidentScreen;
+
+const CHAIRMAN_NAV: Array<{ group: string; items: Array<{ id: ChairmanScreen; label: string }> }> = [
+  { group: "Owner office", items: [{ id: "dashboard", label: "Dashboard" }, { id: "finance", label: "Finances" }, { id: "manager", label: "Manager" }] },
+  { group: "Development", items: [{ id: "facilities", label: "Facilities" }] },
+  { group: "Commercial", items: [{ id: "sponsorship", label: "Sponsorship" }, { id: "supporters", label: "Supporters" }] },
+];
+const PRESIDENT_NAV: Array<{ group: string; items: Array<{ id: PresidentScreen; label: string }> }> = [
+  { group: "Federation", items: [{ id: "dashboard", label: "Dashboard" }, { id: "governance", label: "Governance" }, { id: "finance", label: "Finance" }] },
+  { group: "Football", items: [{ id: "national-teams", label: "National Teams" }] },
+  { group: "Career", items: [{ id: "tenure", label: "Election / Tenure" }] },
+];
 
 const LABELS: Record<Screen, string> = {
   home: "Home / Inbox",
@@ -94,6 +107,7 @@ export const ManagerCareer = ({
   onExit: () => void;
 }): React.ReactElement => {
   const [screen, setScreen] = useState<Screen>("home");
+  const [roleScreen, setRoleScreen] = useState<RoleScreen>("dashboard");
   const [playerId, setPlayerId] = useState<EntityId | null>(null);
   const [matchFixtureId, setMatchFixtureId] = useState<EntityId | null>(null);
   const [resumingMatch, setResumingMatch] = useState(false);
@@ -194,7 +208,7 @@ export const ManagerCareer = ({
       <aside className="sidebar">
         <div>
           <p className="eyebrow">Career workspace</p>
-          <h1>{header.clubName ?? "Nepal Football"}</h1>
+          <h1>{header.activeRole === "FEDERATION_PRESIDENT" ? "All Nepal Football Association" : header.clubName ?? "Nepal Football"}</h1>
           <span className="role-badge">{roleLabel}</span>
         </div>
         <nav aria-label="Primary navigation">
@@ -217,7 +231,12 @@ export const ManagerCareer = ({
             </button>
               ))}
             </div>
-          )) : <div className="nav-group"><span className="nav-label">{header.activeRole === "CHAIRMAN_OWNER" ? "Owner office" : "Role"}</span><button className="active" onClick={() => setScreen("home")}>{header.activeRole === "CHAIRMAN_OWNER" ? "Owner dashboard" : "Overview"}</button></div>}
+          )) : (header.activeRole === "CHAIRMAN_OWNER" ? CHAIRMAN_NAV : PRESIDENT_NAV).map((group) => (
+            <div className="nav-group" key={group.group}>
+              <span className="nav-label">{group.group}</span>
+              {group.items.map((item) => <button key={item.id} className={roleScreen === item.id ? "active" : ""} onClick={() => setRoleScreen(item.id)}>{item.label}</button>)}
+            </div>
+          ))}
         </nav>
         <div className="sidebar-status">
           {header.worldDate && <div>World date: <strong>{header.worldDate}</strong></div>}
@@ -272,8 +291,8 @@ export const ManagerCareer = ({
         <header className="topbar">
           <div className="identity">
             <strong>{header.characterName}</strong>
-            <span>{header.teamName ?? "Unemployed"}</span>
-            <span className="topbar-role">{roleLabel} · {header.clubName ?? (header.activeRole === "FEDERATION_PRESIDENT" ? "ANFA" : "Nepal Football")}</span>
+            <span>{header.activeRole === "FEDERATION_PRESIDENT" ? "Federation office" : header.teamName ?? "Unemployed"}</span>
+            <span className="topbar-role">{roleLabel} · {header.activeRole === "FEDERATION_PRESIDENT" ? "All Nepal Football Association" : header.clubName ?? "Nepal Football"}</span>
           </div>
           <label className="role-picker">
             Role
@@ -284,6 +303,7 @@ export const ManagerCareer = ({
               onChange={async (event) => {
                 await onRoleSwitch(event.target.value as CareerRole);
                 setScreen("home");
+                setRoleScreen("dashboard");
                 setPlayerId(null);
                 setMatchFixtureId(null);
               }}
@@ -339,7 +359,7 @@ export const ManagerCareer = ({
         </header>
 
         {header.activeRole !== "MANAGER" ? (
-          <RoleLandingScreen header={header} roles={roles} bridge={bridge} />
+          <RoleLandingScreen header={header} roles={roles} bridge={bridge} screen={roleScreen} onNavigate={setRoleScreen} />
         ) : (
           <header className="page-header">
             <div>
@@ -358,6 +378,11 @@ export const ManagerCareer = ({
             onAction={async () => {
               await refreshHeader();
               setRefreshKey((key) => key + 1);
+            }}
+            onNavigate={(next) => {
+              setScreen(next);
+              setPlayerId(null);
+              setMatchFixtureId(null);
             }}
           />
         )}

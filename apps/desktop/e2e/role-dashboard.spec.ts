@@ -31,12 +31,28 @@ test("switches through a deterministic multi-role career dashboard", async ({ pa
   const budgetAmount = await page.locator("input[type=number]").inputValue();
   await page.getByRole("button", { name: "Save budget" }).click();
   await expect(page.locator("input[type=number]")).toHaveValue(budgetAmount);
+  await page.getByRole("button", { name: "Finances", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Club finance" })).toBeVisible();
+  await page.getByRole("button", { name: "Manager", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Manager oversight" })).toBeVisible();
+  await page.getByRole("button", { name: "Facilities", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Ground and facilities" })).toBeVisible();
+  await page.getByRole("button", { name: "Sponsorship", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Sponsorship" })).toBeVisible();
 
   await page.getByLabel("Active career role").selectOption("FEDERATION_PRESIDENT");
   await expect(page.getByRole("heading", { name: "Federation President" })).toBeVisible();
   await expect(page.getByText("Federation balance")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Governance", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "National teams", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Governance", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Governance", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Finance", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Federation finance" })).toBeVisible();
+  await page.getByRole("button", { name: "National Teams", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "National teams", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Election / Tenure", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Presidency and tenure" })).toBeVisible();
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await page.getByRole("button", { name: "Main Menu" }).click();
   await page.reload();

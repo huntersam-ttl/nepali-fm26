@@ -86,11 +86,13 @@ export const HomeScreen = ({
   busy,
   refreshKey,
   onAction,
+  onNavigate,
 }: {
   onContinue: () => void;
   busy: boolean;
   refreshKey: number;
   onAction: () => Promise<void>;
+  onNavigate: (screen: "squad" | "tactics" | "fixtures" | "staff" | "contracts" | "competition") => void;
 }): React.ReactElement => {
   const [state, refreshDashboard] = useRuntimeData(() => managerBridge.getManagerDashboard(), [
     refreshKey,
@@ -252,7 +254,7 @@ export const HomeScreen = ({
 
           {dashboard.employmentStatus === "EMPLOYED" && (
             <>
-              <Panel title="Next fixture">
+              <Panel title="Next fixture" actions={<button className="ghost small" onClick={() => onNavigate("fixtures")}>Open fixtures</button>}>
                 {dashboard.nextFixture ? (
                   <>
                     <h2>
@@ -269,7 +271,7 @@ export const HomeScreen = ({
                 )}
               </Panel>
 
-              <Panel title="Squad availability">
+              <Panel title="Squad availability" actions={<button className="ghost small" onClick={() => onNavigate("squad")}>Open squad</button>}>
                 <Metrics
                   items={[
                     { label: "Squad", value: dashboard.squadAvailability.total },
@@ -286,7 +288,7 @@ export const HomeScreen = ({
                   )}
               </Panel>
 
-              <Panel title="Club attention">
+              <Panel title="Club attention" actions={<div className="button-row"><button className="ghost small" onClick={() => onNavigate("staff")}>Staff</button><button className="ghost small" onClick={() => onNavigate("contracts")}>Contracts</button></div>}>
                 <Metrics
                   items={[
                     { label: "Training", value: dashboard.trainingSummary },
@@ -303,7 +305,7 @@ export const HomeScreen = ({
               <Panel title="Medical Centre">
                 {(dashboard.medicalCentre ?? []).filter((item) => item.availabilityRecommendation !== "FULLY_FIT").slice(0, 5).map((item) => (
                   <p key={item.id} className="subtle">
-                    {item.personId}: {item.availabilityRecommendation.replaceAll("_", " ").toLowerCase()} · return {item.estimatedReturnStart}–{item.estimatedReturnEnd} · {item.workloadFlag.toLowerCase()} load
+                    <span className="unknown">Player identity unavailable</span>: {item.availabilityRecommendation.replaceAll("_", " ").toLowerCase()} · return {item.estimatedReturnStart}–{item.estimatedReturnEnd} · {item.workloadFlag.toLowerCase()} load
                   </p>
                 ))}
                 {(dashboard.medicalCentre ?? []).every((item) => item.availabilityRecommendation === "FULLY_FIT") && <p className="ok">No medical restrictions.</p>}
@@ -499,7 +501,7 @@ export const HomeScreen = ({
                 </AsyncPanel>
               </Panel>
 
-              <Panel title="Recent results">
+              <Panel title="Recent results" actions={<button className="ghost small" onClick={() => onNavigate("competition")}>Competition</button>}>
                 {dashboard.recentResults.length === 0 ? (
                   <p className="empty-state">No matches played yet.</p>
                 ) : (

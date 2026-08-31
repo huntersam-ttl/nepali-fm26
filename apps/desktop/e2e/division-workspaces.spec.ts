@@ -1,0 +1,49 @@
+import { expect, test } from "@playwright/test";
+
+test.describe("A/B/C manager workspaces", () => {
+  for (const division of ["A", "B", "C"] as const) {
+    test(`${division} Division completes the normal matchday workspace flow`, async ({ page }) => {
+      test.setTimeout(240_000);
+      const saveName = `CI ${division} Division ${Date.now()}`;
+      await page.goto("/");
+      await page.getByRole("button", { name: /New Career/ }).click();
+      await page.getByLabel("Save name").fill(saveName);
+      await page.getByRole("button", { name: "Continue" }).click();
+      await page.getByRole("button", { name: "Continue" }).click();
+      await page.getByRole("tab", { name: `${division} Division` }).click();
+      const club = page.getByRole("button", { name: new RegExp(`${division} Division`) }).first();
+      await expect(club).toBeVisible();
+      await club.click();
+      await page.getByRole("button", { name: "Continue" }).click();
+      await page.getByRole("button", { name: "Create Save" }).click();
+      await expect(page.getByRole("button", { name: "Home / Inbox" })).toBeVisible();
+      await expect(page.locator(".workspace")).toContainText(`${division}-Division League`);
+
+      await page.getByRole("button", { name: "Squad", exact: true }).click();
+      await expect(page.locator("tbody tr").first()).toBeVisible();
+      const firstPlayer = (await page.locator("tbody tr td").first().textContent())?.trim() ?? "";
+      await page.locator("tbody tr").first().click();
+      await expect(page.getByRole("heading", { name: firstPlayer })).toBeVisible();
+      await page.getByRole("button", { name: /Back to squad/ }).click();
+
+      await page.getByRole("button", { name: "Tactics", exact: true }).click();
+      await expect(page.getByLabel("Formation")).toBeVisible();
+      await page.getByRole("button", { name: "Staff", exact: true }).click();
+      await expect(page.getByRole("heading", { name: "Vacancies" })).toBeVisible();
+      await page.getByRole("button", { name: "Contracts", exact: true }).click();
+      await expect(page.getByRole("heading", { name: "Contracts" })).toBeVisible();
+      await page.getByRole("button", { name: "Fixtures", exact: true }).click();
+      await expect(page.locator("tbody tr").first()).toBeVisible();
+
+      await page.getByRole("button", { name: "Home / Inbox", exact: true }).click();
+      await page.getByRole("button", { name: "Continue", exact: true }).click();
+      await page.getByRole("button", { name: /Matchday/ }).click();
+      await page.getByRole("radio", { name: /Quick Sim/ }).check();
+      await page.getByRole("button", { name: "Kick Off", exact: true }).click();
+      await expect(page.getByRole("heading", { name: "Full time" })).toBeVisible();
+      await page.getByRole("button", { name: "Return to career", exact: true }).click();
+      await page.getByRole("button", { name: "Save", exact: true }).click();
+      await expect(page.locator(".notice")).toContainText("Career saved");
+    });
+  }
+});

@@ -3,12 +3,13 @@ import type { ChairmanDashboard, CareerHeader, CareerRoleState, FederationPresid
 import type { AppError, DesktopRuntimeApi } from "../appBridge.js";
 import { AsyncPanel, ErrorBanner, Metrics, Panel, useRuntimeData } from "./ui.js";
 import { CandidacyPanel } from "./screens/HomeScreen.js";
+import { RoleDetailScreen, type ChairmanScreen, type PresidentScreen } from "./RoleDetailScreen.js";
 
 const money = (amount: number, currency = "NPR"): string => `${currency} ${Math.round(amount).toLocaleString()}`;
 const roleName = (role: string): string => role === "CHAIRMAN_OWNER" ? "Chairman / Owner" : "Federation President";
 
-export const RoleLandingScreen = ({ header, roles, bridge }: { header: CareerHeader; roles: CareerRoleState; bridge: DesktopRuntimeApi }): React.ReactElement => (
-  header.activeRole === "CHAIRMAN_OWNER" ? <ChairmanDashboardScreen header={header} roles={roles} bridge={bridge} /> : <FederationDashboardScreen header={header} roles={roles} bridge={bridge} />
+export const RoleLandingScreen = ({ header, roles, bridge, screen, onNavigate }: { header: CareerHeader; roles: CareerRoleState; bridge: DesktopRuntimeApi; screen: ChairmanScreen | PresidentScreen; onNavigate: (screen: ChairmanScreen | PresidentScreen) => void }): React.ReactElement => (
+  screen !== "dashboard" ? <RoleDetailScreen screen={screen} header={header} roles={roles} bridge={bridge} onNavigate={onNavigate} /> : header.activeRole === "CHAIRMAN_OWNER" ? <ChairmanDashboardScreen header={header} roles={roles} bridge={bridge} /> : <FederationDashboardScreen header={header} roles={roles} bridge={bridge} />
 );
 
 const RoleHeader = ({ header, roles, organisation, context }: { header: CareerHeader; roles: CareerRoleState; organisation: string; context: string }): React.ReactElement => <header className="page-header"><div><p className="eyebrow">{organisation}</p><h1>{roleName(header.activeRole)}</h1><p className="subtle">{context}</p></div><span className="role-badge">{roles.heldRoles.length} held roles</span></header>;

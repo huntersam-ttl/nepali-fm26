@@ -1086,3 +1086,15 @@ button.link {
 .career-panel .setup-steps li.complete { color: #8df5e4; }
 .career-panel .club-row, .career-panel .career-card { background: #1b2740; border-color: #2c3954; color: #e8edf5; }
 .career-panel .club-row span, .career-panel .career-card span { color: #96a5be; }
+.role-detail { display: grid; gap: 14px; }
+.role-detail .panel { min-width: 0; }
+.role-detail .metrics > div { min-height: 68px; }
+.role-detail .table-scroll { max-height: 52vh; }
+.role-detail .panel-head { align-items: center; }
+.role-detail .compact-list { color: var(--muted); }
+.role-detail .panel + .panel { margin-top: 0; }
+@media (min-width: 1440px) {
+  .workspace { padding-left: 36px; padding-right: 36px; }
+  .dashboard, .role-detail { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dashboard > .panel:first-child, .dashboard > .panel:nth-child(2), .role-detail > .panel:first-child, .role-detail > .panel:nth-child(2) { min-width: 0; }
+}
