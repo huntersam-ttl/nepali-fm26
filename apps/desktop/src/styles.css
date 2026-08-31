@@ -1084,3 +1084,5 @@ button.link {
 .career-panel .setup-steps li { background: #1b2740; color: #96a5be; }
 .career-panel .setup-steps li.active { background: rgba(155,124,255,.28); color: #fff; }
 .career-panel .setup-steps li.complete { color: #8df5e4; }
+.career-panel .club-row, .career-panel .career-card { background: #1b2740; border-color: #2c3954; color: #e8edf5; }
+.career-panel .club-row span, .career-panel .career-card span { color: #96a5be; }
