@@ -184,6 +184,10 @@ const dispatch = (
       return service.acceptSponsorOffer(body.clubId as EntityId, body.sponsorshipId as EntityId);
     case "rejectSponsorOffer":
       return service.rejectSponsorOffer(body.clubId as EntityId, body.sponsorshipId as EntityId);
+    case "createInvestorStakeOffer":
+      return service.createInvestorStakeOffer(body.percentage as number, body.minimumAmount as number | undefined);
+    case "decideInvestorBid":
+      return service.decideInvestorBid(body.offerId as EntityId, body.accept as boolean);
     case "applyClubLoan":
       return service.applyClubLoan(body.lenderId as EntityId, body.principal as number, body.termMonths as number, body.purpose as string);
     case "repayClubLoan":

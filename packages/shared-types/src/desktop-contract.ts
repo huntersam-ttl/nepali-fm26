@@ -35,6 +35,8 @@ import type {
   ClubAsset,
   ProcurementCategory,
   ProcurementOrder,
+  OwnershipInvestorMarketView,
+  OwnershipAcquisitionOffer,
 } from "./domain.js";
 
 /**
@@ -234,6 +236,7 @@ export type ChairmanDashboard = {
     loans: ClubLoanApplication[];
     lenders: ClubLender[];
   };
+  investorMarket: OwnershipInvestorMarketView;
   infrastructure: InfrastructureProject[];
   equipment: ClubAsset[];
   sponsorships: SponsorshipContract[];
@@ -339,6 +342,8 @@ export type DesktopRuntimeApi = {
   createInfrastructureProject(clubId: EntityId, projectType: InfrastructureProjectType): Promise<AppResult<InfrastructureProject>>;
   acceptSponsorOffer(clubId: EntityId, sponsorshipId: EntityId): Promise<AppResult<SponsorshipContract>>;
   rejectSponsorOffer(clubId: EntityId, sponsorshipId: EntityId): Promise<AppResult<SponsorshipContract>>;
+  createInvestorStakeOffer(percentage: number, minimumAmount?: number): Promise<AppResult<OwnershipInvestorMarketView>>;
+  decideInvestorBid(offerId: EntityId, accept: boolean): Promise<AppResult<OwnershipAcquisitionOffer>>;
   applyClubLoan(lenderId: EntityId, principal: number, termMonths: number, purpose: string): Promise<AppResult<ClubLoanApplication>>;
   repayClubLoan(debtId: EntityId, amount?: number): Promise<AppResult<ClubDebt>>;
   requestManagerBudget(seasonLabel: string, category: ClubBudgetCategory, requestedAmount: number): Promise<AppResult<ManagerBudgetRequest>>;

@@ -1907,6 +1907,23 @@ export type OwnershipAcquisitionTransaction = {
   provenanceStatus: "SIMULATION_ONLY";
 };
 
+export type OwnershipInvestorType = "LOCAL_BUSINESS" | "STRATEGIC_COMPANY" | "WEALTHY_INDIVIDUAL" | "INSTITUTIONAL";
+export type OwnershipInvestorBidView = {
+  offer: OwnershipAcquisitionOffer;
+  investorName: string;
+  investorType: OwnershipInvestorType;
+  impliedValuation: number;
+  simulationOnly: true;
+};
+export type OwnershipInvestorMarketView = {
+  valuation: number;
+  ownership: ClubOwnershipStake[];
+  controllingOwnerId?: EntityId;
+  openOffer?: OwnershipAcquisitionOffer;
+  bids: OwnershipInvestorBidView[];
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
 export type PersonalFinancialProfile = {
   personId: EntityId;
   cash: number;

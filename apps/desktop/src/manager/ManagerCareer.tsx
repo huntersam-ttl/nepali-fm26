@@ -45,6 +45,7 @@ type RoleScreen = ChairmanScreen | PresidentScreen;
 
 const CHAIRMAN_NAV: Array<{ group: string; items: Array<{ id: ChairmanScreen; label: string }> }> = [
   { group: "Owner office", items: [{ id: "dashboard", label: "Dashboard" }, { id: "finance", label: "Finances" }, { id: "manager", label: "Manager" }] },
+  { group: "Ownership", items: [{ id: "investors", label: "Investors" }] },
   { group: "Development", items: [{ id: "facilities", label: "Facilities" }] },
   { group: "Commercial", items: [{ id: "sponsorship", label: "Sponsorship" }, { id: "supporters", label: "Supporters" }] },
 ];

@@ -54,6 +54,7 @@ import {
   type ClubLoanApplication,
   type ClubDebt,
   type ManagerBudgetRequest,
+  type OwnershipAcquisitionOffer,
   type ProcurementCategory,
   type ProcurementOrder,
   type InfrastructureProject,
@@ -252,6 +253,7 @@ import {
 } from "./tactics.js";
 import { suitability } from "./team-selection.js";
 import { activeCareerRole, heldCareerRoles, switchActiveCareerRole } from "./career-control.js";
+import { createInvestorStakeOffer, decideInvestorBid } from "./ownership.js";
 import { buildChairmanDashboard, buildFederationPresidentDashboard } from "./role-desktop.js";
 import { initializeFederationGovernanceForSave } from "./federation-governance.js";
 import { assessFederationCandidacy, declareFederationElectionCandidacy, implementFederationGovernanceProposalCommand } from "./federation-politics.js";
@@ -844,6 +846,26 @@ export class DesktopApplicationService {
       } catch (error) {
         throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "Sponsorship offer could not be rejected.");
       }
+    });
+  }
+
+  createInvestorStakeOffer(percentage: number, minimumAmount?: number): AppResult<ChairmanDashboard["investorMarket"]> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER") throw appError("ROLE_NOT_AUTHORIZED", "Only the active chairman/owner may offer club shares.");
+      const clubId = heldCareerRoles(db, personId).find((role) => role.role === "CHAIRMAN_OWNER")?.targetId;
+      if (!clubId) throw appError("ROLE_NOT_AUTHORIZED", "No controlled club is available.");
+      try { return createInvestorStakeOffer(db, { clubId, sellerHolderId: personId, percentage, minimumAmount, date: save.worldDate }); }
+      catch (error) { throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "Investor offer could not be created."); }
+    });
+  }
+
+  decideInvestorBid(offerId: EntityId, accept: boolean): AppResult<OwnershipAcquisitionOffer> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER") throw appError("ROLE_NOT_AUTHORIZED", "Only a controlling chairman/owner may decide investor bids.");
+      try { return decideInvestorBid(db, { offerId, date: save.worldDate, accept }); }
+      catch (error) { throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "Investor bid could not be decided."); }
     });
   }
 

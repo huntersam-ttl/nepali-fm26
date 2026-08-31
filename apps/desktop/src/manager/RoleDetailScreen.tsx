@@ -10,7 +10,7 @@ import type { EntityId } from "@nepal-football-sim/shared-types";
 import type { AppError, DesktopRuntimeApi } from "../appBridge.js";
 import { AsyncPanel, Badge, ErrorBanner, Metrics, Panel, money, useRuntimeData } from "./ui.js";
 
-export type ChairmanScreen = "dashboard" | "finance" | "manager" | "facilities" | "sponsorship" | "supporters";
+export type ChairmanScreen = "dashboard" | "finance" | "manager" | "facilities" | "sponsorship" | "supporters" | "investors";
 export type PresidentScreen = "dashboard" | "governance" | "finance" | "national-teams" | "tenure";
 
 type Props = {
@@ -36,6 +36,7 @@ const ChairmanDetail = ({ screen, bridge, onNavigate }: { screen: ChairmanScreen
     if (screen === "manager") return <ChairmanManager dashboard={dashboard} bridge={bridge} refresh={refresh} />;
     if (screen === "facilities") return <ChairmanFacilities dashboard={dashboard} bridge={bridge} refresh={refresh} />;
     if (screen === "sponsorship") return <ChairmanSponsorship dashboard={dashboard} bridge={bridge} refresh={refresh} />;
+    if (screen === "investors") return <ChairmanInvestors dashboard={dashboard} bridge={bridge} refresh={refresh} />;
     return <ChairmanSupporters dashboard={dashboard} />;
   }}</AsyncPanel>;
 };
@@ -79,6 +80,27 @@ const ChairmanSponsorship = ({ dashboard, bridge, refresh }: { dashboard: Chairm
     if (result.ok) refresh();
   };
   return <section className="role-detail"><Panel title="Sponsorship"><Metrics items={[{ label: "Active sponsors", value: dashboard.sponsorships.filter((item) => item.status === "ACTIVE").length }, { label: "Annual value", value: money(dashboard.sponsorships.filter((item) => item.status === "ACTIVE").reduce((sum, item) => sum + item.annualValue, 0)) }]} /><div className="table-scroll"><table><thead><tr><th>Type</th><th>Value</th><th>Starts</th><th>Expires</th><th>Status</th><th /></tr></thead><tbody>{dashboard.sponsorships.map((item) => <tr key={item.id}><td>{item.type.replaceAll("_", " ")}</td><td>{money(item.annualValue, item.currency)}</td><td>{item.startDate}</td><td>{item.endDate}</td><td><Badge tone={item.status === "ACTIVE" ? "ok" : "info"}>{item.status}</Badge></td><td>{item.status === "OFFERED" && <span className="button-row"><button className="primary small" onClick={() => void decide(item.id, true)}>Accept</button><button className="ghost small" onClick={() => void decide(item.id, false)}>Reject</button></span>}</td></tr>)}</tbody></table></div>{message && <p className="notice" role="status">{message}</p>}</Panel></section>;
+};
+
+const ChairmanInvestors = ({ dashboard, bridge, refresh }: { dashboard: ChairmanDashboard; bridge: DesktopRuntimeApi; refresh: () => void }): React.ReactElement => {
+  const [percentage, setPercentage] = useState("10");
+  const [message, setMessage] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const currentStake = dashboard.club.ownershipPercentage;
+  const createOffer = async (): Promise<void> => {
+    const result = await bridge.createInvestorStakeOffer(Number(percentage));
+    setMessage(result.ok ? "Simulation investor bids generated." : result.error.message);
+    if (result.ok) refresh();
+  };
+  const decide = async (offerId: EntityId, amount: number, accept: boolean): Promise<void> => {
+    if (accept && currentStake - (dashboard.investorMarket.bids.find((bid) => bid.offer.id === offerId)?.offer.percentage ?? 0) <= 50 && !window.confirm("This sale would end majority control. Accept the control-loss consequence?")) return;
+    setBusy(offerId);
+    const result = await bridge.decideInvestorBid(offerId, accept);
+    setBusy(null);
+    setMessage(result.ok ? (accept ? `Accepted ${money(amount)} simulation bid.` : "Investor bid rejected.") : result.error.message);
+    if (result.ok) refresh();
+  };
+  return <section className="role-detail"><Panel title="Ownership and investors"><Metrics items={[{ label: "Current stake", value: `${currentStake}%` }, { label: "Control", value: currentStake >= 51 ? "Majority control" : "Minority stake" }, { label: "Simulated valuation", value: money(dashboard.investorMarket.valuation) }]} /><p className="subtle">All bidders and prices are simulation-only. A personal share sale pays you; club cash is unchanged.</p><div className="inline-form"><label>Offer stake (%)<input type="number" min="1" max={Math.max(1, currentStake)} value={percentage} onChange={(event) => setPercentage(event.target.value)} /></label><button className="primary small" onClick={() => void createOffer()}>Offer stake</button></div></Panel><Panel title="Current ownership"><ul className="compact-list">{dashboard.investorMarket.ownership.filter((stake) => stake.status === "ACTIVE" && (stake.percentage ?? 0) > 0).map((stake) => <li key={stake.id}>{stake.holderName} · {stake.percentage}% · {stake.role}</li>)}</ul></Panel><Panel title="Investor bids"><div className="table-scroll"><table><thead><tr><th>Investor</th><th>Type</th><th>Stake</th><th>Bid</th><th>Implied valuation</th><th>Status</th><th /></tr></thead><tbody>{dashboard.investorMarket.bids.length === 0 ? <tr><td colSpan={7}>No investor bids. Offer a stake to open a simulation process.</td></tr> : dashboard.investorMarket.bids.map((bid) => <tr key={bid.offer.id}><td>{bid.investorName} <span className="subtle">(Simulation bid)</span></td><td>{bid.investorType.replaceAll("_", " ")}</td><td>{bid.offer.percentage}%</td><td>{money(bid.offer.counterAmount ?? bid.offer.offerAmount)}</td><td>{money(bid.impliedValuation)}</td><td><Badge tone={bid.offer.status === "ACCEPTED" ? "ok" : bid.offer.status === "REJECTED" ? "bad" : "info"}>{bid.offer.status}</Badge></td><td>{["OFFER", "COUNTER"].includes(bid.offer.status) && <span className="button-row"><button className="primary small" disabled={busy !== null} onClick={() => void decide(bid.offer.id, bid.offer.counterAmount ?? bid.offer.offerAmount, true)}>{busy === bid.offer.id ? "Saving…" : "Accept"}</button><button className="ghost small" disabled={busy !== null} onClick={() => void decide(bid.offer.id, bid.offer.counterAmount ?? bid.offer.offerAmount, false)}>Reject</button></span>}</td></tr>)}</tbody></table></div>{message && <p className="notice" role="status">{message}</p>}</Panel></section>;
 };
 
 const ChairmanSupporters = ({ dashboard }: { dashboard: ChairmanDashboard }): React.ReactElement => <section className="role-detail"><Panel title="Supporters"><p className="subtle">Supporter data is provided by the club economy read model and marked simulation-only by the runtime.</p><Metrics items={[{ label: "Supporter profile", value: dashboard.club.name }, { label: "Active sponsors", value: dashboard.sponsorships.filter((item) => item.status === "ACTIVE").length }]} /><p className="empty-state">Detailed attendance history is not exposed by the current owner contract.</p></Panel></section>;

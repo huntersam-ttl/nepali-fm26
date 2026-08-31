@@ -15,6 +15,7 @@ import type {
 import { getClubFinancialSummary } from "./club-economy.js";
 import { getFederationFinances, getFederationOverview } from "./federation-governance.js";
 import { heldCareerRoles } from "./career-control.js";
+import { buildOwnershipInvestorMarket } from "./ownership.js";
 
 const personName = (db: GameDatabase, personId: EntityId): string => {
   const row = db.prepare("SELECT display_name, full_name FROM persons WHERE id=?").get(personId) as
@@ -56,6 +57,7 @@ export const buildChairmanDashboard = (db: GameDatabase, save: SaveMetadata): Ch
       controllingOwner: (stake?.percentage ?? 0) >= 51,
       ownership: summary.ownership,
     },
+    investorMarket: buildOwnershipInvestorMarket(db, club.id, save.worldDate),
     finances: {
       account: summary.account,
       budgets: summary.budgets,

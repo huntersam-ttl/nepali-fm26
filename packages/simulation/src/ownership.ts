@@ -13,6 +13,9 @@ import {
   type EntityId,
   type OwnershipAcquisitionOffer,
   type OwnershipAcquisitionTransaction,
+  type OwnershipInvestorBidView,
+  type OwnershipInvestorMarketView,
+  type OwnershipInvestorType,
   type Person,
 } from "@nepal-football-sim/shared-types";
 import { calculateClubValuation } from "./club-economy.js";
@@ -53,6 +56,65 @@ export const calculateAcquisitionValuation = (db: GameDatabase, clubId: EntityId
     250000,
     Math.round(base + supportValue + commercialValue + facilityValue + competitions * 100000),
   );
+};
+
+const investorTypeFor = (sequence: number): OwnershipInvestorType =>
+  (["LOCAL_BUSINESS", "STRATEGIC_COMPANY", "WEALTHY_INDIVIDUAL", "INSTITUTIONAL"] as const)[sequence % 4];
+
+const investorNameFor = (db: GameDatabase, personId: EntityId): string => {
+  const person = db.prepare("SELECT display_name,full_name FROM persons WHERE id=?").get(personId) as { display_name?: string; full_name?: string } | undefined;
+  return person?.display_name ?? person?.full_name ?? personId;
+};
+
+export const buildOwnershipInvestorMarket = (db: GameDatabase, clubId: EntityId, date?: string): OwnershipInvestorMarketView => {
+  const repo = new OwnershipRepository(db);
+  const ownership = new ClubEconomyRepository(db).ownershipStakes(clubId);
+  const active = ownership.filter((stake) => stake.status === "ACTIVE");
+  const open = repo.offers(clubId).filter((offer) => ["OFFER", "COUNTER"].includes(offer.status));
+  const bids: OwnershipInvestorBidView[] = repo.offers(clubId).filter((offer) => offer.sellerHolderId && ["OFFER", "COUNTER", "ACCEPTED", "REJECTED", "WITHDRAWN"].includes(offer.status)).map((offer, index) => ({
+    offer,
+    investorName: investorNameFor(db, offer.buyerPersonId),
+    investorType: investorTypeFor(index),
+    impliedValuation: Math.round((offer.counterAmount ?? offer.offerAmount) * 100 / Math.max(offer.percentage, 0.01)),
+    simulationOnly: true,
+  }));
+  const controller = active.filter((stake) => (stake.percentage ?? 0) >= 51).sort((a, b) => (b.percentage ?? 0) - (a.percentage ?? 0))[0];
+  return { valuation: calculateAcquisitionValuation(db, clubId, date ?? new Date().toISOString().slice(0, 10)), ownership, controllingOwnerId: controller?.holderId, openOffer: open[0], bids, provenanceStatus: "SIMULATION_ONLY" };
+};
+
+export const createInvestorStakeOffer = (db: GameDatabase, input: { clubId: EntityId; sellerHolderId: EntityId; percentage: number; minimumAmount?: number; date: string }): OwnershipInvestorMarketView => {
+  if (input.percentage <= 0 || input.percentage > 100) throw new Error("Stake offered must be greater than 0 and no more than 100%.");
+  const seller = new ClubEconomyRepository(db).ownershipStakes(input.clubId).find((stake) => stake.holderId === input.sellerHolderId && stake.status === "ACTIVE");
+  if (!seller || (seller.percentage ?? 0) < input.percentage) throw new Error("Stake offered exceeds the seller's active ownership.");
+  const valuation = calculateAcquisitionValuation(db, input.clubId, input.date);
+  const minimum = Math.max(1, Math.round(input.minimumAmount ?? valuation * input.percentage / 100 * 0.85));
+  const repo = new OwnershipRepository(db);
+  const existing = repo.offers(input.clubId).filter((offer) => offer.sellerHolderId === input.sellerHolderId && offer.percentage === input.percentage && ["OFFER", "COUNTER"].includes(offer.status));
+  if (existing.length === 0) {
+    for (let sequence = 0; sequence < 3; sequence += 1) {
+      const buyerPersonId = generateOwnershipCandidate(db, input.clubId, input.date, valuation, sequence);
+      const multiplier = 0.92 + sequence * 0.05;
+      const amount = Math.max(minimum, Math.round(valuation * input.percentage / 100 * multiplier));
+      repo.upsertOffer({ id: createStableEntityId("ownership-investor-bid", `${input.clubId}:${input.sellerHolderId}:${input.percentage}:${sequence}`), clubId: input.clubId, buyerPersonId, sellerHolderId: input.sellerHolderId, percentage: input.percentage, offerAmount: amount, status: "OFFER", createdOn: input.date, rationale: `Simulation bid from ${investorTypeFor(sequence).replaceAll("_", " ").toLowerCase()} investor.`, provenanceStatus: status });
+    }
+  }
+  return buildOwnershipInvestorMarket(db, input.clubId);
+};
+
+export const decideInvestorBid = (db: GameDatabase, input: { offerId: EntityId; date: string; accept: boolean }): OwnershipAcquisitionOffer => {
+  const repo = new OwnershipRepository(db);
+  const current = repo.offer(input.offerId);
+  if (!current || !current.sellerHolderId || !["OFFER", "COUNTER"].includes(current.status)) throw new Error("Investor bid is no longer open.");
+  if (!input.accept) {
+    const rejected = { ...current, status: "REJECTED" as const, decidedOn: input.date, rationale: "Owner rejected the simulation investor bid." };
+    repo.upsertOffer(rejected);
+    return rejected;
+  }
+  const transaction = completeShareSale(db, current, current.counterAmount ?? current.offerAmount, input.date);
+  const accepted = { ...current, status: "ACCEPTED" as const, decidedOn: input.date, rationale: "Owner accepted the simulation investor bid." };
+  repo.upsertOffer(accepted);
+  db.prepare("UPDATE ownership_acquisition_offers SET status='REJECTED', decided_on=?, rationale=? WHERE club_id=? AND id<>? AND seller_holder_id=? AND status IN ('OFFER','COUNTER')").run(input.date, "Competing bid closed after another bid was accepted.", current.clubId, current.id, current.sellerHolderId);
+  return accepted;
 };
 
 export const createOwnershipEnquiry = (
@@ -284,6 +346,36 @@ const completeAcquisition = (
     importance: "high",
     scope: "club",
   });
+  return transaction;
+};
+
+const completeShareSale = (db: GameDatabase, offer: OwnershipAcquisitionOffer, amount: number, date: string): OwnershipAcquisitionTransaction => {
+  const repo = new OwnershipRepository(db);
+  const prior = repo.transactions(offer.clubId).find((transaction) => transaction.offerId === offer.id);
+  if (prior) return prior;
+  const economy = new ClubEconomyRepository(db);
+  const seller = economy.ownershipStakes(offer.clubId).find((stake) => stake.holderId === offer.sellerHolderId && stake.status === "ACTIVE");
+  if (!seller || (seller.percentage ?? 0) < offer.percentage) throw new Error("Seller stake is no longer available.");
+  const buyerCash = economy.personalFinancialProfile(offer.buyerPersonId);
+  if (!buyerCash || buyerCash.cash < amount) throw new Error("Investor cash is insufficient for this bid.");
+  const remaining = Math.round(((seller.percentage ?? 0) - offer.percentage) * 100) / 100;
+  if (remaining < 0) throw new Error("Share sale would create negative ownership.");
+  economy.updatePersonalCash(offer.buyerPersonId, -amount, date);
+  economy.updatePersonalCash(offer.sellerHolderId!, amount, date);
+  recordOwnershipEra(db, offer.clubId, seller, date, "VOLUNTARY_SALE");
+  const sellerEnd = remaining === 0 ? { ...seller, status: "FORMER" as const, endDate: date, role: "MINORITY_OWNER" as const, percentage: 0, votingPercentage: 0 } : { ...seller, percentage: remaining, votingPercentage: remaining, role: remaining >= 51 ? "MAJORITY_OWNER" as const : "MINORITY_OWNER" as const, endDate: undefined };
+  economy.upsertOwnershipStake(sellerEnd);
+  db.prepare("UPDATE club_ownership_history SET end_date=?, exit_reason=?, acquisition_price=?, percentage=? WHERE id=?").run(date, "VOLUNTARY_SALE", amount, seller.percentage ?? null, seller.id);
+  if (remaining > 0) db.prepare("INSERT OR IGNORE INTO club_ownership_history (id,club_id,holder_id,holder_name,start_date,end_date,exit_reason,successor_holder_id,acquisition_price,percentage,provenance_status) VALUES (?,?,?,?,?,?,?,?,?,?,?)").run(createStableEntityId("ownership-history", `${seller.id}:remaining:${date}`), offer.clubId, seller.holderId ?? null, seller.holderName, date, null, null, null, null, remaining, status);
+  const buyer = economy.ownershipStakes(offer.clubId).find((stake) => stake.holderId === offer.buyerPersonId && stake.status === "ACTIVE");
+  const buyerPercentage = (buyer?.percentage ?? 0) + offer.percentage;
+  const buyerStake: ClubOwnershipStake = { id: buyer?.id ?? createStableEntityId("club-ownership-stake", `${offer.clubId}:${offer.buyerPersonId}`), clubId: offer.clubId, holderType: "PERSON", holderId: offer.buyerPersonId, holderName: investorNameFor(db, offer.buyerPersonId), role: buyerPercentage >= 51 ? "MAJORITY_OWNER" : "MINORITY_OWNER", percentage: buyerPercentage, votingPercentage: buyerPercentage, startDate: buyer?.startDate ?? date, status: "ACTIVE", ownershipModel: buyerPercentage >= 51 ? "BUYABLE" : "PARTIALLY_BUYABLE", provenanceStatus: status };
+  economy.upsertOwnershipStake(buyerStake);
+  if (!buyer) db.prepare("INSERT OR IGNORE INTO club_ownership_history (id,club_id,holder_id,holder_name,start_date,end_date,exit_reason,successor_holder_id,acquisition_price,percentage,provenance_status) VALUES (?,?,?,?,?,?,?,?,?,?,?)").run(buyerStake.id, offer.clubId, buyerStake.holderId ?? null, buyerStake.holderName, date, null, null, null, amount, offer.percentage, status);
+  const transaction: OwnershipAcquisitionTransaction = { id: createStableEntityId("ownership-transaction", offer.id), offerId: offer.id, clubId: offer.clubId, buyerPersonId: offer.buyerPersonId, sellerHolderId: offer.sellerHolderId, date, amount, percentage: offer.percentage, status: "POSTED", provenanceStatus: status };
+  repo.insertTransaction(transaction);
+  new EventRepository(db).insertHistoricalEvent({ id: createStableEntityId("history", `OWNERSHIP_SHARE_SALE:${offer.id}`), occurredOn: date, eventType: "CLUB_OWNERSHIP_TRANSFERRED", involvedEntities: [{ id: offer.clubId, type: "club" }, { id: offer.buyerPersonId, type: "person" }, { id: offer.sellerHolderId!, type: "person" }], title: "Club ownership share sold", data: { amount, percentage: offer.percentage, transactionType: "PERSONAL_SHARE_SALE" }, importance: "high", scope: "club" });
+  applySupporterOwnershipOutcome({ db, clubId: offer.clubId, date, trustImpact: 1 });
   return transaction;
 };
 
