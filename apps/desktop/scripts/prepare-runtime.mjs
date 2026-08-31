@@ -25,6 +25,28 @@ function flattenSymlinks(directory) {
   return flattened;
 }
 
+function prunePackagingMetadata(directory) {
+  for (const entry of readdirSync(directory)) {
+    const entryPath = join(directory, entry);
+    const stats = lstatSync(entryPath);
+    if (stats.isDirectory()) {
+      prunePackagingMetadata(entryPath);
+      continue;
+    }
+    if (
+      entryPath.endsWith(".d.ts") ||
+      entryPath.endsWith(".d.cts") ||
+      entryPath.endsWith(".d.mts") ||
+      entryPath.endsWith(".tsbuildinfo") ||
+      entryPath.endsWith(".map") ||
+      entryPath.endsWith("/tsconfig.json") ||
+      entryPath.endsWith("/node_modules/.pnpm/lock.yaml")
+    ) {
+      rmSync(entryPath, { force: true });
+    }
+  }
+}
+
 rmSync(runtimeRoot, { recursive: true, force: true });
 mkdirSync(runtimeRoot, { recursive: true });
 execFileSync("pnpm", [
@@ -39,5 +61,7 @@ execFileSync("pnpm", [
   stdio: "inherit",
 });
 while (flattenSymlinks(deployRoot) > 0) {}
+rmSync(join(deployRoot, "tsconfig.json"), { force: true });
+prunePackagingMetadata(deployRoot);
 cpSync(process.execPath, join(runtimeRoot, "node"));
 chmodSync(join(runtimeRoot, "node"), 0o755);
