@@ -1,0 +1,2 @@
+Contents/MacOS/nepal-football-sim
+Contents/Resources/runtime/node
