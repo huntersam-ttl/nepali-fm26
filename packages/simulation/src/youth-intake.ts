@@ -251,6 +251,7 @@ export const generateYouthCohort = (input: {
   cohortKey?: string;
   source?: YouthIntakeSource;
   originOverride?: PlayerOriginType;
+  ageRange?: { min: number; max: number };
 }): YouthAnnualReport => {
   initializeYouthSystemForSave({ db: input.db, worldDate: input.date, seed: input.seed });
   const youth = new YouthRepository(input.db);
@@ -283,6 +284,7 @@ export const generateYouthCohort = (input: {
     seasonLabel: input.seasonLabel,
     seed: input.seed,
     count: Math.max(0, Math.round(input.count)),
+    ageRange: input.ageRange,
     seenNames: existingNames(input.db),
     gender: input.gender,
     cohortKey: input.cohortKey,
@@ -346,6 +348,7 @@ const generateIntakeForSource = (input: {
   /** Which event this cohort belongs to; defaults to the club's annual intake. */
   source?: YouthIntakeSource;
   originOverride?: PlayerOriginType;
+  ageRange?: { min: number; max: number };
 }): YouthAnnualReport => {
   const youth = new YouthRepository(input.db);
   const rng = new SeededRandom(input.seed);
@@ -386,6 +389,7 @@ const generateIntakeForSource = (input: {
       seenNames: input.seenNames,
       gender,
       cohortKey,
+      ageRange: input.ageRange,
     });
     generated.push({ ability: player.currentAbility, potential: player.potentialAbility });
     report.generatedPlayers += 1;
@@ -465,6 +469,7 @@ const createGeneratedYouth = (input: {
   seenNames: Set<string>;
   gender?: GeneratedYouthGender;
   cohortKey?: string;
+  ageRange?: { min: number; max: number };
 }): {
   position: PlayerPosition;
   currentAbility: number;
@@ -475,7 +480,7 @@ const createGeneratedYouth = (input: {
   const key = `${input.seasonLabel}:${input.club?.id ?? "free"}:${input.academy?.id ?? "district"}:${gender}:${input.cohortKey ?? "academy"}:${input.index}`;
   const personId = createStableEntityId("person-generated-youth", key);
   const name = generatedNepaliName(input.rng, input.seenNames, gender);
-  const age = weightedAge(input.rng);
+  const age = weightedAge(input.rng, input.ageRange);
   const position = generatedPosition(input.rng);
   const archetype = archetypeFor(position, input.rng);
   const currentAbility = currentAbilityFor(input.profile, age, input.rng);
@@ -1072,7 +1077,8 @@ const generatedNepaliName = (
   return { firstName: fullName.split(" ")[0]!, surname: fullName.split(" ").at(-2)!, fullName };
 };
 
-const weightedAge = (rng: SeededRandom): number => {
+const weightedAge = (rng: SeededRandom, ageRange?: { min: number; max: number }): number => {
+  if (ageRange) return ageRange.min + rng.integer(0, Math.max(0, ageRange.max - ageRange.min));
   const roll = rng.next();
   if (roll < 0.18) return 15;
   if (roll < 0.55) return 16;

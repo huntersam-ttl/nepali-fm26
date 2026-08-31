@@ -162,7 +162,7 @@ import {
   resignFromClub as resignFromClubCommand,
   advanceUnemployedCareer,
 } from "./manager-career-world.js";
-import { nextFixtureForTeam, quickSimManagerMatch } from "./manager-flow.js";
+import { nextFixtureForTeam, quickSimManagerMatch, userMatchRequiresAction } from "./manager-flow.js";
 import { ensureLowerLeaguePlayableWorld } from "./workforce-supply.js";
 import { initializeTransferMarketForSave, rebalanceNewNepalSaveSquads } from "./transfer-market.js";
 import { appointNationalTeamHeadCoachForPresident, FederationPersonnelError } from "./national-team-management.js";
@@ -806,6 +806,10 @@ export class DesktopApplicationService {
       if (!fixture) {
         throw appError("FIXTURE_MISSING", "No upcoming fixture is available.");
       }
+      const current = userMatchRequiresAction(context.fixtures, context.team.id, save.worldDate);
+      if (!current || fixture.id !== current.id) {
+        throw appError("MATCHDAY_REQUIRED", "This fixture is not yet playable.");
+      }
       const players = new PlayerRepository(db);
       const homePlayers = players.attributesForTeam(fixture.homeTeamId);
       const awayPlayers = players.attributesForTeam(fixture.awayTeamId);
@@ -883,6 +887,13 @@ export class DesktopApplicationService {
           read: false,
         });
       } else {
+        const currentMatch = userMatchRequiresAction(context.fixtures, context.team.id, save.worldDate);
+        if (currentMatch) {
+          // Continue is intentionally idempotent on matchday. The manager must
+          // choose a match action before the calendar can move again.
+          updated = save;
+          stopReason = "MATCHDAY";
+        } else {
         if (!nextFixtureForTeam(context.fixtures, context.team.id, save.worldDate)) {
           throw appError("FIXTURE_MISSING", "There is no further fixture to advance to.");
         }
@@ -1012,6 +1023,7 @@ export class DesktopApplicationService {
             relatedEntity: { type: "person", id: promise.personId },
             read: false,
           });
+        }
         }
       }
 
@@ -3010,6 +3022,10 @@ const matchHelpers = (
     if (fixture.homeTeamId !== context.team.id && fixture.awayTeamId !== context.team.id) {
       throw appError("ROLE_NOT_AUTHORIZED", "That match does not involve your team.");
     }
+    const current = userMatchRequiresAction(context.fixtures, context.team.id, save.worldDate);
+    if (!current || fixture.id !== current.id) {
+      throw appError("MATCHDAY_REQUIRED", "This fixture is not yet playable.");
+    }
     return fixture;
   };
 
@@ -3170,6 +3186,7 @@ const DESKTOP_ERROR_CODES = new Set<string>([
   "RUNTIME_UNAVAILABLE",
   "ROLE_NOT_AUTHORIZED",
   "MATCH_ALREADY_PLAYED",
+  "MATCHDAY_REQUIRED",
   "MATCH_NOT_ACTIVE",
   "MATCH_ALREADY_COMPLETE",
   "INVALID_SUBSTITUTION",

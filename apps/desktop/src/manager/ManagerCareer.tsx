@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import type { AutosaveStatusView, CareerHeader, CareerRole, CareerRoleState, EntityId } from "@nepal-football-sim/shared-types";
+import type { AutosaveStatusView, CareerHeader, CareerRole, CareerRoleState, EntityId, FixtureRow } from "@nepal-football-sim/shared-types";
 import type { AppError, DesktopRuntimeApi } from "../appBridge.js";
 import { managerBridge } from "./managerBridge.js";
 import { ErrorBanner } from "./ui.js";
@@ -102,6 +102,7 @@ export const ManagerCareer = ({
   const [refreshKey, setRefreshKey] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
   const [autosave, setAutosave] = useState<AutosaveStatusView | null>(null);
+  const [matchdayFixture, setMatchdayFixture] = useState<FixtureRow | null>(null);
 
   const refreshAutosave = async (): Promise<void> => {
     const result = await bridge.getAutosaveStatus();
@@ -111,6 +112,20 @@ export const ManagerCareer = ({
   useEffect(() => {
     void refreshAutosave();
   }, [refreshKey]);
+
+  useEffect(() => {
+    if (header.activeRole !== "MANAGER") {
+      setMatchdayFixture(null);
+      return;
+    }
+    void managerBridge.getFixtures().then((result) => {
+      if (result.ok) {
+        setMatchdayFixture(
+          result.data.upcoming.find((fixture) => fixture.date <= result.data.worldDate) ?? null,
+        );
+      }
+    });
+  }, [bridge, header.activeRole, header.worldDate, refreshKey]);
 
   // An interrupted match must be resumed, never restarted.
   const [pendingMatch, setPendingMatch] = useState<EntityId | null>(null);
@@ -135,6 +150,10 @@ export const ManagerCareer = ({
   };
 
   const advance = async (): Promise<void> => {
+    if (matchdayFixture) {
+      setNotice("You have a match today. Choose a match action before continuing.");
+      return;
+    }
     setBusy(true);
     const result = await bridge.continueCareer();
     setBusy(false);
@@ -281,7 +300,12 @@ export const ManagerCareer = ({
             <span>{header.competitionName ?? ""}</span>
           </div>
           <div className="topbar-actions">
-            <button className="primary" disabled={busy || header.activeRole !== "MANAGER"} onClick={() => void advance()}>
+            {matchdayFixture && (
+              <button className="matchday-cta" onClick={() => openMatch(matchdayFixture.id)}>
+                Matchday · {matchdayFixture.homeAway === "home" ? "vs" : "at"} {matchdayFixture.opponent}
+              </button>
+            )}
+            <button className="primary" disabled={busy || header.activeRole !== "MANAGER" || Boolean(matchdayFixture)} onClick={() => void advance()}>
               {busy ? "Working…" : "Continue"}
             </button>
             <button

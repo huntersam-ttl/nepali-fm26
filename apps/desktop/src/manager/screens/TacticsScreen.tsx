@@ -298,7 +298,7 @@ const TacticsBoard = ({
             const player = view.benchCandidates.find((candidate) => candidate.personId === id);
             return (
               <li key={id}>
-                {player?.name ?? id}
+                {player?.name ?? "Unknown player"}
                 <button
                   className="ghost small"
                   disabled={busy}

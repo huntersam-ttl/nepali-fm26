@@ -303,6 +303,17 @@ const teamName = (db: GameDatabase, id: EntityId): string => {
   return (row?.name as string) ?? "Unknown team";
 };
 
+const playerNationality = (db: GameDatabase, playerId: EntityId): string | undefined => {
+  const row = db.prepare("SELECT c.iso_code FROM persons p LEFT JOIN countries c ON c.id = p.nationality_country_id WHERE p.id = ?").get(playerId) as SqlRow | undefined;
+  return row?.iso_code as string | undefined;
+};
+
+const simulationPhysicalFallbacks = (player: PlayerAttributeSet): { heightCm: number; preferredFoot: string } => {
+  const heightByPosition: Record<string, number> = { GK: 185, CB: 182, LB: 176, RB: 176, DM: 178, CM: 177, AM: 175, LW: 174, RW: 174, ST: 180 };
+  const last = player.personId.charCodeAt(player.personId.length - 1);
+  return { heightCm: (heightByPosition[player.primaryPosition] ?? 177) + (last % 7) - 3, preferredFoot: last % 2 === 0 ? "Right" : "Left" };
+};
+
 const factualProfile = (db: GameDatabase, playerId: EntityId): SqlRow | undefined => {
   const row = db
     .prepare("SELECT * FROM player_factual_profiles WHERE player_id = ?")
@@ -409,7 +420,7 @@ const squadRow = (
     personId: player.personId,
     name: (person?.display_name as string) ?? (person?.full_name as string) ?? "Unknown",
     age: dob ? fact(ageOn(dob, save.worldDate), "REPORTED") : { status: "UNKNOWN" },
-    nationality: (profile?.factual?.nationality as string) ?? "NEP",
+    nationality: (profile?.factual?.nationality as string) ?? playerNationality(db, player.personId) ?? "NEP",
     primaryPosition: player.primaryPosition,
     positions: [player.primaryPosition, ...player.secondaryPositions],
     squadStatus: (profile?.factual?.squadStatus as string) ?? "UNKNOWN",
@@ -496,6 +507,7 @@ export const buildPlayerProfile = (
       ? fact(simulationDob as ISODate, "SIMULATION_ONLY")
       : { status: "UNKNOWN" };
   const ability = playerAbility(attributes);
+  const physicalFallbacks = simulationPhysicalFallbacks(attributes);
 
   return {
     personId: playerId,
@@ -506,13 +518,13 @@ export const buildPlayerProfile = (
       dobFact.value !== undefined
         ? { value: ageOn(dobFact.value, save.worldDate), status: dobFact.status }
         : { status: "UNKNOWN" },
-    nationality: fact(factual.nationality as string | undefined, "REPORTED"),
+    nationality: factual.nationality ? fact(factual.nationality as string, "REPORTED") : fact(playerNationality(db, playerId) ?? "NEP", "SIMULATION_ONLY"),
     heightCm: factual.heightCm
       ? fact(factual.heightCm as number, "REPORTED")
-      : fact(simulation.heightCm as number | undefined, "SIMULATION_ONLY"),
+      : fact((simulation.heightCm as number | undefined) ?? physicalFallbacks.heightCm, "SIMULATION_ONLY"),
     preferredFoot: factual.preferredFoot
       ? fact(factual.preferredFoot as string, "REPORTED")
-      : fact(simulation.preferredFoot as string | undefined, "SIMULATION_ONLY"),
+      : fact((simulation.preferredFoot as string | undefined) ?? physicalFallbacks.preferredFoot, "SIMULATION_ONLY"),
     primaryPosition: attributes.primaryPosition,
     secondaryPositions: attributes.secondaryPositions,
     clubName: clubName(db, (profile?.current_club_id as EntityId) ?? context.club?.id),
@@ -642,7 +654,7 @@ export const buildTacticsView = (
   const setup = activeSetup(db, context);
   const players = new PlayerRepository(db).attributesForTeam(context.team.id);
   const squad = buildSquadList(db, save, context);
-  const validation = validateSelection({ setup, players });
+  const validation = validateSelection({ setup, players, playerName: (id) => personName(db, id) });
   const starters = new Set(
     setup.assignments.flatMap((assignment) => (assignment.playerId ? [assignment.playerId] : [])),
   );
@@ -857,8 +869,11 @@ const venueForFixture = (db: GameDatabase, fixture: SqlRow): string | undefined 
        LIMIT 1`,
     )
     .get(fixture.home_team_id) as SqlRow | undefined;
-  // Most Nepal clubs have no researched home ground yet; the UI shows "Unknown".
-  return row?.name as string | undefined;
+  if (row?.name) return row.name as string;
+  const fallback = db
+    .prepare("SELECT c.name FROM teams t JOIN clubs c ON c.id = t.club_id WHERE t.id = ?")
+    .get(fixture.home_team_id) as SqlRow | undefined;
+  return fallback?.name ? `${fallback.name} Ground` : "Home ground (simulated)";
 };
 
 const fixtureRow = (
@@ -911,7 +926,7 @@ const managerFixtures = (db: GameDatabase, context: ManagerContext): FixtureRow[
 
 export const buildFixtureList = (
   db: GameDatabase,
-  _save: SaveMetadata,
+  save: SaveMetadata,
   context: ManagerContext,
 ): FixtureList => {
   assertManagerAuthority(context);
@@ -920,6 +935,7 @@ export const buildFixtureList = (
     upcoming: rows.filter((row) => row.status === "scheduled"),
     results: rows.filter((row) => row.status === "played").reverse(),
     competitions: [...new Set(rows.map((row) => row.competition))],
+    worldDate: save.worldDate,
   };
 };
 

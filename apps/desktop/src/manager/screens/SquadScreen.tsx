@@ -78,7 +78,7 @@ const SquadTable = (props: {
   }, [props.players, props.query, props.position, props.availability, props.sortKey]);
 
   return (
-    <Panel title={`Senior squad: ${props.players.length} · Target: 25${props.players.length > 26 ? " · Oversized squad" : ""}`}>
+    <Panel title={`Senior squad: ${props.players.length}${props.players.length > 26 ? " · Oversized squad" : ""}`}>
       <div className="table-tools">
         <label className="sr-label">
           Search squad

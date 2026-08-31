@@ -470,6 +470,7 @@ export const validateSelection = (input: {
   setup: TacticalSetup;
   players: readonly PlayerAttributeSet[];
   benchLimit?: number;
+  playerName?: (playerId: EntityId) => string;
 }): { isValid: boolean; blockingErrors: string[]; warnings: string[] } => {
   const assigned = input.setup.assignments.flatMap((assignment) =>
     assignment.playerId ? [assignment.playerId] : [],
@@ -504,7 +505,7 @@ export const validateSelection = (input: {
     input.setup.assignments.some((assignment) => !assignment.playerId)
       ? "One or more tactical slots are unfilled."
       : undefined,
-    ...outOfPositionWarnings(input.setup, input.players),
+    ...outOfPositionWarnings(input.setup, input.players, input.playerName),
   ].filter((value): value is string => Boolean(value));
 
   return { isValid: errors.length === 0, blockingErrors: errors, warnings };
@@ -777,6 +778,7 @@ function fitLabel(score: number): RoleFit["label"] {
 function outOfPositionWarnings(
   setup: TacticalSetup,
   players: readonly PlayerAttributeSet[],
+  playerName: (playerId: EntityId) => string = () => "Selected player",
 ): string[] {
   const byPerson = new Map(players.map((player) => [player.personId, player]));
   return setup.assignments.flatMap((assignment) => {
@@ -786,7 +788,7 @@ function outOfPositionWarnings(
     );
     if (!player || !slotDefinition) return [];
     return tacticalPositionFit(player, slotDefinition.position) < 60
-      ? [`${player.personId} is heavily out of position at ${slotDefinition.label}.`]
+      ? [`${playerName(player.personId)} is heavily out of position at ${slotDefinition.label}.`]
       : [];
   });
 }

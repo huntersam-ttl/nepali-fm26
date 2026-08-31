@@ -14,9 +14,13 @@ export const StaffScreen = (): React.ReactElement => {
   const [planDrafts, setPlanDrafts] = useState<Record<string, string>>({});
   const [actionBusy, setActionBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   const draftFor = (key: string, fallback: string): string => salaryDrafts[key] ?? fallback;
   const staffList = state.status === "ready" ? state.data.staff : [];
+  const query = search.trim().toLowerCase();
+  const matches = (name: string, role?: string): boolean =>
+    !query || `${name} ${role ?? ""}`.toLowerCase().includes(query);
 
   const runAction = async (key: string, run: () => Promise<{ ok: boolean; error?: { message: string } }>) => {
     setActionBusy(key);
@@ -55,6 +59,7 @@ export const StaffScreen = (): React.ReactElement => {
               <div><dt>Applications</dt><dd>{market.applications.length}</dd></div>
             </div>
             <Panel title="Staff">
+              <input aria-label="Search staff" placeholder="Search staff or role" value={search} onChange={(event) => setSearch(event.target.value)} />
               {market.staff.length === 0 ? (
                 <p className="empty-state">No staff records exist for this club.</p>
               ) : (
@@ -72,7 +77,7 @@ export const StaffScreen = (): React.ReactElement => {
                       </tr>
                     </thead>
                     <tbody>
-                      {market.staff.map((member) => (
+                      {market.staff.filter((member) => matches(member.name, member.role)).map((member) => (
                         <tr key={member.appointmentId}>
                           <td>{member.name}</td>
                           <td>{member.role.replace(/_/g, " ").toLowerCase()}</td>
@@ -139,7 +144,7 @@ export const StaffScreen = (): React.ReactElement => {
                 <p className="empty-state">No open staff positions.</p>
               ) : (
                 <ul className="report-list">
-                  {market.vacancies.map((vacancy) => (
+                  {market.vacancies.filter((vacancy) => matches(vacancy.role)).map((vacancy) => (
                     <li key={vacancy.id}>
                       {vacancy.role.replace(/_/g, " ").toLowerCase()}{" "}
                       {vacancy.required && <Badge tone="warn">required</Badge>}{" "}
@@ -155,7 +160,7 @@ export const StaffScreen = (): React.ReactElement => {
                 <p className="empty-state">No unattached staff in the world.</p>
               ) : (
                 <ul className="report-list">
-                  {market.candidates.map((candidate) => {
+                  {market.candidates.filter((candidate) => matches(candidate.name, candidate.preferredRole)).map((candidate) => {
                     const vacancy = market.vacancies.find(
                       (v) => v.status === "VACANT" && (!candidate.preferredRole || v.role === candidate.preferredRole),
                     ) ?? market.vacancies.find((v) => v.status === "VACANT");

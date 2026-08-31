@@ -1101,8 +1101,12 @@ export const staffInterestScore = (
   if (personCountry?.nationality_country_id && clubCountry?.country_id && personCountry.nationality_country_id !== clubCountry.country_id) {
     // Relocation is symmetric: a foreign coach moving to Nepal and a Nepali
     // coach moving abroad both need a materially better offer.
-    score += salaryRatio >= 1.3 ? 10 : -20;
-    reasons.push(salaryRatio >= 1.3 ? "Salary justifies relocating abroad." : "Not enough on offer to relocate abroad.");
+    // Relocation remains a meaningful hurdle even when the salary is strong;
+    // a premium can reduce the reluctance, but must not turn an otherwise
+    // identical foreign offer into a higher-interest result than a domestic
+    // one at the same salary.
+    score += salaryRatio >= 1.3 ? -5 : -20;
+    reasons.push(salaryRatio >= 1.3 ? "Salary partly offsets the relocation hurdle." : "Not enough on offer to relocate abroad.");
   }
 
   const externalReach = db

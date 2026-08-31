@@ -58,6 +58,7 @@ export const FixturesScreen = ({
                       <FixtureLine
                         key={fixture.id}
                         fixture={fixture}
+                        actionable={tab === "results" || fixture.date <= list.worldDate}
                         onSelect={() => onOpenMatch(fixture.id)}
                       />
                     ))}
@@ -78,16 +79,20 @@ export const FixturesScreen = ({
 
 const FixtureLine = ({
   fixture,
+  actionable,
   onSelect,
 }: {
   fixture: FixtureRow;
+  actionable: boolean;
   onSelect: () => void;
 }): React.ReactElement => (
   <tr
-    tabIndex={0}
-    onClick={onSelect}
+    tabIndex={actionable ? 0 : -1}
+    aria-disabled={!actionable}
+    className={!actionable ? "fixture-readonly" : undefined}
+    onClick={actionable ? onSelect : undefined}
     onKeyDown={(event) => {
-      if (event.key === "Enter") onSelect();
+      if (actionable && event.key === "Enter") onSelect();
     }}
   >
     <td>{fixture.date}</td>
@@ -95,7 +100,7 @@ const FixtureLine = ({
     <td>{fixture.homeAway === "home" ? "H" : "A"}</td>
     <td>{fixture.opponent}</td>
     <td>{fixture.venue ?? <span className="unknown">Unknown</span>}</td>
-    <td>{fixture.status}</td>
+    <td>{fixture.status === "scheduled" && !actionable ? "Future · read only" : fixture.status}</td>
     <td>
       {fixture.score ?? "—"}{" "}
       {fixture.result && (

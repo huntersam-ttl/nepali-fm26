@@ -55,6 +55,8 @@ export type DesktopErrorCode =
   | "ROLE_NOT_AUTHORIZED"
   /** The fixture already has a result and cannot be played again. */
   | "MATCH_ALREADY_PLAYED"
+  /** The selected fixture is not the manager's unresolved current matchday. */
+  | "MATCHDAY_REQUIRED"
   // Interactive matchday failures.
   | "MATCH_NOT_ACTIVE"
   | "MATCH_ALREADY_COMPLETE"

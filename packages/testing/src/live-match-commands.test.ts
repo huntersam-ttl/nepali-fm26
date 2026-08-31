@@ -57,6 +57,13 @@ const nextFixture = (): EntityId => {
   const target = fixtures.data.upcoming.find((row) => !claimed.has(String(row.id)));
   if (!target) throw new Error("no upcoming fixture");
   claimed.add(String(target.id));
+  while (target.date > fixtures.data.worldDate) {
+    const advanced = service.continueCareer();
+    if (!advanced.ok) throw new Error(advanced.error.message);
+    const refreshed = service.getFixtures();
+    if (!refreshed.ok) throw new Error("fixtures unavailable after advance");
+    if (refreshed.data.worldDate >= target.date) break;
+  }
   return target.id;
 };
 

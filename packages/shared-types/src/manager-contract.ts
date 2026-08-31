@@ -414,6 +414,7 @@ export type FixtureList = {
   upcoming: FixtureRow[];
   results: FixtureRow[];
   competitions: string[];
+  worldDate: string;
 };
 
 export type FixtureDetail = {

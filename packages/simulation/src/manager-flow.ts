@@ -148,6 +148,23 @@ export const nextFixtureForTeam = (
       (fixture.homeTeamId === teamId || fixture.awayTeamId === teamId),
   );
 
+/**
+ * A manager's unresolved fixture on or before today is a hard stop. Keeping
+ * this separate from nextFixtureForTeam makes the Continue and match-command
+ * gates use the same definition without changing future scheduling queries.
+ */
+export const userMatchRequiresAction = (
+  fixtures: readonly FixtureRecord[],
+  teamId: EntityId,
+  worldDate: string,
+): FixtureRecord | undefined =>
+  fixtures.find(
+    (fixture) =>
+      fixture.status === "scheduled" &&
+      fixture.scheduledDate <= worldDate &&
+      (fixture.homeTeamId === teamId || fixture.awayTeamId === teamId),
+  );
+
 export const continueToNextFixtureDate = (
   save: SaveMetadata,
   fixtures: readonly FixtureRecord[],
