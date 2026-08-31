@@ -3317,6 +3317,54 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       );
     `,
   },
+  {
+    version: 70,
+    sql: `
+      ALTER TABLE sponsor_organisations ADD COLUMN source_url TEXT;
+      ALTER TABLE sponsor_organisations ADD COLUMN identity_provenance TEXT NOT NULL DEFAULT 'SIMULATION_ONLY';
+      ALTER TABLE club_debts ADD COLUMN lender_id TEXT;
+      ALTER TABLE club_debts ADD COLUMN next_payment_date TEXT;
+      ALTER TABLE club_debts ADD COLUMN scheduled_payment INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE club_debts ADD COLUMN purpose TEXT;
+      ALTER TABLE club_assets ADD COLUMN effect_json TEXT;
+      CREATE TABLE IF NOT EXISTS club_lenders (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        institution_type TEXT NOT NULL,
+        country_id TEXT REFERENCES countries(id),
+        source_url TEXT,
+        status TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS club_loan_applications (
+        id TEXT PRIMARY KEY,
+        club_id TEXT NOT NULL REFERENCES clubs(id),
+        lender_id TEXT NOT NULL REFERENCES club_lenders(id),
+        principal INTEGER NOT NULL,
+        term_months INTEGER NOT NULL,
+        purpose TEXT NOT NULL,
+        status TEXT NOT NULL,
+        created_on TEXT NOT NULL,
+        decided_on TEXT,
+        reason TEXT,
+        provenance_status TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS manager_budget_requests (
+        id TEXT PRIMARY KEY,
+        club_id TEXT NOT NULL REFERENCES clubs(id),
+        manager_person_id TEXT NOT NULL REFERENCES persons(id),
+        season_label TEXT NOT NULL,
+        category TEXT NOT NULL,
+        requested_amount INTEGER NOT NULL,
+        status TEXT NOT NULL,
+        created_on TEXT NOT NULL,
+        decided_on TEXT,
+        decision_note TEXT,
+        provenance_status TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_club_debts_due ON club_debts(status, next_payment_date);
+      CREATE INDEX IF NOT EXISTS idx_budget_requests_club ON manager_budget_requests(club_id, status, created_on);
+    `,
+  },
 ];
 
 export const migrateDatabase = (db: GameDatabase): number => {

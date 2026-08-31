@@ -1946,8 +1946,49 @@ export type ClubDebt = {
   startDate: ISODate;
   maturityDate: ISODate;
   repaymentSchedule: "MONTHLY" | "QUARTERLY" | "SEASONAL" | "BULLET";
+  lenderId?: EntityId;
+  nextPaymentDate?: ISODate;
+  scheduledPayment?: number;
+  purpose?: string;
   status: "ACTIVE" | "REPAID" | "DEFAULTED";
   provenanceStatus: "SIMULATION_ONLY" | "VERIFIED" | "REPORTED" | "ESTIMATED" | "UNKNOWN";
+};
+
+export type ClubLender = {
+  id: EntityId;
+  name: string;
+  institutionType: "COMMERCIAL_BANK" | "DEVELOPMENT_BANK" | "FINANCE_COMPANY";
+  countryId?: EntityId;
+  sourceUrl?: string;
+  status: "VERIFIED" | "SIMULATION_ONLY";
+};
+
+export type ClubLoanApplication = {
+  id: EntityId;
+  clubId: EntityId;
+  lenderId: EntityId;
+  principal: number;
+  termMonths: number;
+  purpose: string;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  createdOn: ISODate;
+  decidedOn?: ISODate;
+  reason?: string;
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+export type ManagerBudgetRequest = {
+  id: EntityId;
+  clubId: EntityId;
+  managerPersonId: EntityId;
+  seasonLabel: string;
+  category: ClubBudgetCategory;
+  requestedAmount: number;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  createdOn: ISODate;
+  decidedOn?: ISODate;
+  decisionNote?: string;
+  provenanceStatus: "SIMULATION_ONLY";
 };
 
 export type SponsorOrganisation = {
@@ -1957,6 +1998,8 @@ export type SponsorOrganisation = {
   countryId?: EntityId;
   reputation: number;
   budgetTier: "LOCAL" | "REGIONAL" | "NATIONAL" | "PREMIUM";
+  sourceUrl?: string;
+  identityProvenance?: "SIMULATION_ONLY" | "VERIFIED" | "REPORTED" | "UNKNOWN";
   status: "SIMULATION_ONLY" | "VERIFIED" | "REPORTED" | "ESTIMATED" | "UNKNOWN";
 };
 
@@ -2134,6 +2177,7 @@ export type ClubAsset = {
   estimatedValue: number;
   currency: string;
   status: "SIMULATION_ONLY" | "VERIFIED" | "REPORTED" | "ESTIMATED" | "UNKNOWN";
+  effect?: Record<string, number>;
 };
 
 export type ProcurementCategory =

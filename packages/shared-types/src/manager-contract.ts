@@ -578,6 +578,7 @@ export type TransferOfferView = {
 };
 
 export type TransferBudgetView = {
+  seasonLabel: string;
   /** Budget allocated for transfers, which is not the same as club cash. */
   transferBudget: number;
   transferSpent: number;

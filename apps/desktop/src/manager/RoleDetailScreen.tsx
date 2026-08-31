@@ -6,6 +6,7 @@ import type {
   FederationPresidentDashboard,
   OwnerManagerCandidate,
 } from "@nepal-football-sim/shared-types";
+import type { EntityId } from "@nepal-football-sim/shared-types";
 import type { AppError, DesktopRuntimeApi } from "../appBridge.js";
 import { AsyncPanel, Badge, ErrorBanner, Metrics, Panel, money, useRuntimeData } from "./ui.js";
 
@@ -31,21 +32,25 @@ const ChairmanDetail = ({ screen, bridge, onNavigate }: { screen: ChairmanScreen
   const [state, refresh] = useRuntimeData(() => bridge.getChairmanDashboard());
   return <AsyncPanel state={state}>{(dashboard) => {
     if (screen === "dashboard") return <p className="subtle">Select an owner-office section from the sidebar.</p>;
-    if (screen === "finance") return <ChairmanFinance dashboard={dashboard} />;
+    if (screen === "finance") return <ChairmanFinance dashboard={dashboard} bridge={bridge} refresh={refresh} />;
     if (screen === "manager") return <ChairmanManager dashboard={dashboard} bridge={bridge} refresh={refresh} />;
     if (screen === "facilities") return <ChairmanFacilities dashboard={dashboard} bridge={bridge} refresh={refresh} />;
-    if (screen === "sponsorship") return <ChairmanSponsorship dashboard={dashboard} />;
+    if (screen === "sponsorship") return <ChairmanSponsorship dashboard={dashboard} bridge={bridge} refresh={refresh} />;
     return <ChairmanSupporters dashboard={dashboard} />;
   }}</AsyncPanel>;
 };
 
-const ChairmanFinance = ({ dashboard }: { dashboard: ChairmanDashboard }): React.ReactElement => {
+const ChairmanFinance = ({ dashboard, bridge, refresh }: { dashboard: ChairmanDashboard; bridge: DesktopRuntimeApi; refresh: () => void }): React.ReactElement => {
   const income = dashboard.finances.ledgerEntries.filter((entry) => entry.direction === "CREDIT").reduce((sum, entry) => sum + entry.amount, 0);
   const expenses = dashboard.finances.ledgerEntries.filter((entry) => entry.direction === "DEBIT").reduce((sum, entry) => sum + entry.amount, 0);
   const wages = dashboard.finances.ledgerEntries.filter((entry) => entry.category === "PLAYER_WAGES" || entry.category === "STAFF_WAGES").reduce((sum, entry) => sum + entry.amount, 0);
   const sponsorship = dashboard.finances.ledgerEntries.filter((entry) => entry.category === "SPONSORSHIP").reduce((sum, entry) => sum + entry.amount, 0);
   const projects = dashboard.finances.ledgerEntries.filter((entry) => entry.category === "FACILITY_COST").reduce((sum, entry) => sum + entry.amount, 0);
-  return <section className="role-detail"><Panel title="Club finance"><Metrics items={[{ label: "Balance", value: money(dashboard.finances.account.cashBalance) }, { label: "Income recorded", value: money(income) }, { label: "Expenses recorded", value: money(expenses) }, { label: "Wages", value: money(wages) }, { label: "Sponsorship", value: money(sponsorship) }, { label: "Project spending", value: money(projects) }, { label: "Financial health", value: dashboard.finances.account.financialHealth }]} /></Panel><Ledger entries={dashboard.finances.ledgerEntries} /></section>;
+  const [principal, setPrincipal] = useState("100000");
+  const [term, setTerm] = useState("12");
+  const [message, setMessage] = useState<string | null>(null);
+  const applyLoan = async (): Promise<void> => { const lender = dashboard.finances.lenders[0]; if (!lender) return; const result = await bridge.applyClubLoan(lender.id, Number(principal), Number(term), "club operations"); setMessage(result.ok ? `Loan application ${result.data.status.toLowerCase()}.` : result.error.message); if (result.ok) refresh(); };
+  return <section className="role-detail"><Panel title="Club finance"><Metrics items={[{ label: "Balance", value: money(dashboard.finances.account.cashBalance) }, { label: "Income recorded", value: money(income) }, { label: "Expenses recorded", value: money(expenses) }, { label: "Wages", value: money(wages) }, { label: "Sponsorship", value: money(sponsorship) }, { label: "Project spending", value: money(projects) }, { label: "Debt", value: money(dashboard.finances.debts.reduce((sum, debt) => sum + debt.outstandingPrincipal, 0)) }, { label: "Financial health", value: dashboard.finances.account.financialHealth }]} /></Panel><Panel title="Club loan application"><p className="subtle">Lender identity is verified; rates and approval are simulated from club affordability.</p><div className="inline-form"><label>Principal<input type="number" min="1" value={principal} onChange={(event) => setPrincipal(event.target.value)} /></label><label>Term (months)<input type="number" min="3" value={term} onChange={(event) => setTerm(event.target.value)} /></label><button className="small" onClick={() => void applyLoan()}>Apply</button></div>{message && <p className="notice" role="status">{message}</p>}</Panel><Panel title="Debt schedule"><div className="table-scroll"><table><thead><tr><th>Lender</th><th>Outstanding</th><th>Rate</th><th>Next payment</th></tr></thead><tbody>{dashboard.finances.debts.length === 0 ? <tr><td colSpan={4}>No club loans.</td></tr> : dashboard.finances.debts.map((debt) => <tr key={debt.id}><td>{dashboard.finances.lenders.find((lender) => lender.id === debt.lenderId)?.name ?? debt.lenderType}</td><td>{money(debt.outstandingPrincipal)}</td><td>{(debt.interestRate * 100).toFixed(2)}%</td><td>{debt.nextPaymentDate ?? "—"}</td></tr>)}</tbody></table></div></Panel><Panel title="Equipment effects"><ul className="compact-list">{dashboard.equipment.length === 0 ? <li>No completed equipment assets.</li> : dashboard.equipment.map((asset) => <li key={asset.id}>{asset.id} · {Object.entries(asset.effect ?? {}).map(([key, value]) => `${key}: +${(value * 100).toFixed(1)}%`).join(", ") || "operational asset"}</li>)}</ul></Panel><Ledger entries={dashboard.finances.ledgerEntries} /></section>;
 };
 
 const ChairmanManager = ({ dashboard, bridge, refresh }: { dashboard: ChairmanDashboard; bridge: DesktopRuntimeApi; refresh: () => void }): React.ReactElement => {
@@ -66,7 +71,15 @@ const ChairmanFacilities = ({ dashboard, bridge, refresh }: { dashboard: Chairma
   return <section className="role-detail"><Panel title="Ground and facilities"><div className="metrics">{dashboard.infrastructure.map((project) => <div key={project.id}><dt>{project.projectType.replaceAll("_", " ")}</dt><dd>{project.status}</dd><span className="subtle">{money(project.capitalCost)} · completes {project.expectedCompletion}</span></div>)}</div>{dashboard.infrastructure.length === 0 && <p className="empty-state">No infrastructure projects recorded.</p>}<div className="button-row">{(["PITCH", "TRAINING_GROUND", "ACADEMY"] as const).map((type) => <button key={type} className="ghost" disabled={busy !== null} onClick={() => void approve(type)}>{busy === type ? "Submitting…" : `Approve ${type.replaceAll("_", " ").toLowerCase()}`}</button>)}</div>{message && <p className="notice" role="status">{message}</p>}</Panel></section>;
 };
 
-const ChairmanSponsorship = ({ dashboard }: { dashboard: ChairmanDashboard }): React.ReactElement => <section className="role-detail"><Panel title="Sponsorship"><Metrics items={[{ label: "Active sponsors", value: dashboard.sponsorships.filter((item) => item.status === "ACTIVE").length }, { label: "Annual value", value: money(dashboard.sponsorships.filter((item) => item.status === "ACTIVE").reduce((sum, item) => sum + item.annualValue, 0)) }]} /><div className="table-scroll"><table><thead><tr><th>Type</th><th>Value</th><th>Starts</th><th>Expires</th><th>Status</th></tr></thead><tbody>{dashboard.sponsorships.map((item) => <tr key={item.id}><td>{item.type.replaceAll("_", " ")}</td><td>{money(item.annualValue, item.currency)}</td><td>{item.startDate}</td><td>{item.endDate}</td><td><Badge tone={item.status === "ACTIVE" ? "ok" : "info"}>{item.status}</Badge></td></tr>)}</tbody></table></div></Panel></section>;
+const ChairmanSponsorship = ({ dashboard, bridge, refresh }: { dashboard: ChairmanDashboard; bridge: DesktopRuntimeApi; refresh: () => void }): React.ReactElement => {
+  const [message, setMessage] = useState<string | null>(null);
+  const decide = async (sponsorshipId: EntityId, accept: boolean): Promise<void> => {
+    const result = accept ? await bridge.acceptSponsorOffer(dashboard.club.id, sponsorshipId) : await bridge.rejectSponsorOffer(dashboard.club.id, sponsorshipId);
+    setMessage(result.ok ? (accept ? "Sponsorship offer accepted." : "Sponsorship offer rejected.") : result.error.message);
+    if (result.ok) refresh();
+  };
+  return <section className="role-detail"><Panel title="Sponsorship"><Metrics items={[{ label: "Active sponsors", value: dashboard.sponsorships.filter((item) => item.status === "ACTIVE").length }, { label: "Annual value", value: money(dashboard.sponsorships.filter((item) => item.status === "ACTIVE").reduce((sum, item) => sum + item.annualValue, 0)) }]} /><div className="table-scroll"><table><thead><tr><th>Type</th><th>Value</th><th>Starts</th><th>Expires</th><th>Status</th><th /></tr></thead><tbody>{dashboard.sponsorships.map((item) => <tr key={item.id}><td>{item.type.replaceAll("_", " ")}</td><td>{money(item.annualValue, item.currency)}</td><td>{item.startDate}</td><td>{item.endDate}</td><td><Badge tone={item.status === "ACTIVE" ? "ok" : "info"}>{item.status}</Badge></td><td>{item.status === "OFFERED" && <span className="button-row"><button className="primary small" onClick={() => void decide(item.id, true)}>Accept</button><button className="ghost small" onClick={() => void decide(item.id, false)}>Reject</button></span>}</td></tr>)}</tbody></table></div>{message && <p className="notice" role="status">{message}</p>}</Panel></section>;
+};
 
 const ChairmanSupporters = ({ dashboard }: { dashboard: ChairmanDashboard }): React.ReactElement => <section className="role-detail"><Panel title="Supporters"><p className="subtle">Supporter data is provided by the club economy read model and marked simulation-only by the runtime.</p><Metrics items={[{ label: "Supporter profile", value: dashboard.club.name }, { label: "Active sponsors", value: dashboard.sponsorships.filter((item) => item.status === "ACTIVE").length }]} /><p className="empty-state">Detailed attendance history is not exposed by the current owner contract.</p></Panel></section>;
 

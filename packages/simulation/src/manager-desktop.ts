@@ -1313,6 +1313,7 @@ const budgetView = (
   const allocatedWage = wageBudget?.amount ?? financial?.wageBudget ?? 0;
   const committed = financial?.currentWageSpend ?? 0;
   return {
+    seasonLabel: save.worldDate.slice(0, 4),
     transferBudget: allocatedTransfer,
     transferSpent: usedTransfer,
     transferRemaining: Math.max(0, allocatedTransfer - usedTransfer),

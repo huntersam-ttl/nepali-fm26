@@ -2131,20 +2131,24 @@ const generatedBoardPolicy = (club: Club, worldDate: string): ClubBoardPolicy =>
 
 const seedSponsorPool = (db: GameDatabase, date: string, seed: string): void => {
   const economy = new ClubEconomyRepository(db);
-  if (economy.sponsors().length > 0) return;
-  const names = [
-    ["Himal Local Partner", "Local services"],
-    ["Bagmati Community Foods", "Food and beverage"],
-    ["Koshi Digital", "Technology"],
-    ["Lumbini Travel Cooperative", "Travel"],
-    ["Annapurna Training Supplies", "Sports equipment"],
-    ["Kathmandu Youth Education", "Education"],
-    ["Terai Agro Markets", "Agriculture"],
-    ["Everest Health Clinics", "Healthcare"],
+  const names: Array<[string, string, string | undefined, "VERIFIED" | "SIMULATION_ONLY"]> = [
+    ["Nabil Bank Limited", "Banking", "https://www.nabilbank.com/aboutus", "VERIFIED"],
+    ["Nepal Telecom", "Telecommunications", "https://www.ntc.net.np/about-us/nepal-telecom-in-brief", "VERIFIED"],
+    ["Ncell Axiata Limited", "Telecommunications", "https://www.ncell.com.np/en/about/company-profile", "VERIFIED"],
+    ["Nepal Airlines Corporation", "Airlines", "https://www.nepalairlines.com.np/about", "VERIFIED"],
+    ["Chaudhary Group", "FMCG and diversified industry", "https://www.chaudharygroup.com/", "VERIFIED"],
+    ["Himal Local Partner", "Local services", undefined, "SIMULATION_ONLY"],
+    ["Bagmati Community Foods", "Food and beverage", undefined, "SIMULATION_ONLY"],
+    ["Koshi Digital", "Technology", undefined, "SIMULATION_ONLY"],
+    ["Lumbini Travel Cooperative", "Travel", undefined, "SIMULATION_ONLY"],
+    ["Annapurna Training Supplies", "Sports equipment", undefined, "SIMULATION_ONLY"],
+    ["Kathmandu Youth Education", "Education", undefined, "SIMULATION_ONLY"],
+    ["Terai Agro Markets", "Agriculture", undefined, "SIMULATION_ONLY"],
+    ["Everest Health Clinics", "Healthcare", undefined, "SIMULATION_ONLY"],
   ];
   const rng = new SeededRandom(`${seed}:sponsor-pool:${date}`);
   const nepalId = nepalCountryId(db);
-  for (const [name, industry] of names) {
+  for (const [name, industry, sourceUrl, identityProvenance] of names) {
     economy.upsertSponsor({
       id: createStableEntityId("sponsor-organisation", name),
       name,
@@ -2152,7 +2156,9 @@ const seedSponsorPool = (db: GameDatabase, date: string, seed: string): void => 
       countryId: nepalId,
       reputation: round(2.5 + rng.next() * 5.5),
       budgetTier: rng.next() > 0.78 ? "NATIONAL" : rng.next() > 0.45 ? "REGIONAL" : "LOCAL",
-      status: simulationStatus,
+      status: identityProvenance,
+      sourceUrl,
+      identityProvenance,
     });
   }
 };

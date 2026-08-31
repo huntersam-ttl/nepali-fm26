@@ -147,6 +147,11 @@ const bindCommands = (call: CommandCaller): DesktopRuntimeApi => ({
   createInfrastructureProject: (clubId: EntityId, projectType: InfrastructureProjectType) => call<InfrastructureProject>("createInfrastructureProject", { clubId, projectType }),
   acceptSponsorOffer: (clubId: EntityId, sponsorshipId: EntityId) => call<SponsorshipContract>("acceptSponsorOffer", { clubId, sponsorshipId }),
   rejectSponsorOffer: (clubId: EntityId, sponsorshipId: EntityId) => call<SponsorshipContract>("rejectSponsorOffer", { clubId, sponsorshipId }),
+  applyClubLoan: (lenderId: EntityId, principal: number, termMonths: number, purpose: string) => call("applyClubLoan", { lenderId, principal, termMonths, purpose }),
+  repayClubLoan: (debtId: EntityId, amount?: number) => call("repayClubLoan", { debtId, amount }),
+  requestManagerBudget: (seasonLabel: string, category: ClubBudgetCategory, requestedAmount: number) => call("requestManagerBudget", { seasonLabel, category, requestedAmount }),
+  decideManagerBudgetRequest: (requestId: EntityId, approve: boolean) => call("decideManagerBudgetRequest", { requestId, approve }),
+  purchaseEquipment: (category: string, quantity: number) => call("purchaseEquipment", { category, quantity }),
   getHomeDashboard: () => call<DesktopApplicationState>("getHomeDashboard"),
   continueCareer: () => call<DesktopApplicationState>("continueCareer"),
   quickSimMatch: (fixtureId?: EntityId) =>

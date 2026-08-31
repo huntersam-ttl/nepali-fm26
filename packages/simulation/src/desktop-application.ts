@@ -33,7 +33,8 @@ import {
 } from "./save-management.js";
 import { advanceMacroEconomyForWorldDate } from "./macro-economy.js";
 import { advanceInfrastructureProjects, processClubEconomyMonth } from "./club-economy.js";
-import { advanceProcurementContracts, advanceProcurementOrders, advanceProcurementServices } from "./clubmart.js";
+import { advanceProcurementContracts, advanceProcurementOrders, advanceProcurementServices, createProcurementRequest, selectProcurementOffer } from "./clubmart.js";
+import { advanceClubLoanRepayments, applyForClubLoan, decideManagerBudgetRequest, initializeClubFinanceMarkets, repayClubLoan, submitManagerBudgetRequest } from "./club-finance-markets.js";
 import {
   createEntityId,
   createStableEntityId,
@@ -50,6 +51,11 @@ import {
   type FederationGovernanceProposal,
   type ClubBudget,
   type ClubBudgetCategory,
+  type ClubLoanApplication,
+  type ClubDebt,
+  type ManagerBudgetRequest,
+  type ProcurementCategory,
+  type ProcurementOrder,
   type InfrastructureProject,
   type InfrastructureProjectType,
   type SponsorshipContract,
@@ -841,6 +847,64 @@ export class DesktopApplicationService {
     });
   }
 
+  applyClubLoan(lenderId: EntityId, principal: number, termMonths: number, purpose: string): AppResult<ClubLoanApplication> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER") throw appError("ROLE_NOT_AUTHORIZED", "Only the active chairman/owner may apply for club loans.");
+      const clubId = heldCareerRoles(db, personId).find((role) => role.role === "CHAIRMAN_OWNER")?.targetId;
+      if (!clubId) throw appError("ROLE_NOT_AUTHORIZED", "No controlled club is available.");
+      try { return applyForClubLoan(db, { clubId, lenderId, principal, termMonths, purpose, date: save.worldDate }); }
+      catch (error) { throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "Loan application failed."); }
+    });
+  }
+
+  repayClubLoan(debtId: EntityId, amount?: number): AppResult<ClubDebt> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER") throw appError("ROLE_NOT_AUTHORIZED", "Only the active chairman/owner may repay club loans.");
+      try { return repayClubLoan(db, { debtId, amount, date: save.worldDate }); }
+      catch (error) { throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "Loan repayment failed."); }
+    });
+  }
+
+  requestManagerBudget(seasonLabel: string, category: ClubBudgetCategory, requestedAmount: number): AppResult<ManagerBudgetRequest> {
+    return this.withSession((db, save) => {
+      const context = managerContext(db, save);
+      if (!context.club) throw appError("ROLE_NOT_AUTHORIZED", "The active manager has no club budget.");
+      try { return submitManagerBudgetRequest(db, { clubId: context.club.id, managerPersonId: context.managerPerson.id, seasonLabel, category, requestedAmount, date: save.worldDate }); }
+      catch (error) { throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "Budget request failed."); }
+    });
+  }
+
+  decideManagerBudgetRequest(requestId: EntityId, approve: boolean): AppResult<ManagerBudgetRequest> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER") throw appError("ROLE_NOT_AUTHORIZED", "Only the active chairman/owner may decide manager budget requests.");
+      try {
+        const economy = new ClubEconomyRepository(db);
+        const request = economy.budgetRequests().find((item) => item.id === requestId);
+        const controlled = request && heldCareerRoles(db, personId).some((role) => role.role === "CHAIRMAN_OWNER" && role.targetId === request.clubId);
+        if (!controlled) throw new Error("Budget request is outside the controlled club");
+        return decideManagerBudgetRequest(db, { requestId, date: save.worldDate, approve });
+      } catch (error) { throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "Budget request decision failed."); }
+    });
+  }
+
+  purchaseEquipment(category: ProcurementCategory, quantity: number): AppResult<ProcurementOrder> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER") throw appError("ROLE_NOT_AUTHORIZED", "Only the active chairman/owner may purchase equipment.");
+      const clubId = heldCareerRoles(db, personId).find((role) => role.role === "CHAIRMAN_OWNER")?.targetId;
+      if (!clubId) throw appError("ROLE_NOT_AUTHORIZED", "No controlled club is available.");
+      try {
+        const request = createProcurementRequest(db, { clubId, category, quantity, date: save.worldDate, seed: `${save.randomSeed}:owner-equipment` });
+        const offer = request.offers.sort((a, b) => a.unitPrice - b.unitPrice)[0];
+        if (!offer) throw new Error("No equipment supplier offer is available");
+        return selectProcurementOffer(db, { offerId: offer.id, date: save.worldDate, chairmanApproved: true });
+      } catch (error) { throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "Equipment purchase failed."); }
+    });
+  }
+
   getHomeDashboard(): AppResult<DesktopApplicationState> {
     return this.withSession((db, save, filePath) => this.buildState(db, save, filePath));
   }
@@ -1274,6 +1338,7 @@ export class DesktopApplicationService {
     db.exec("BEGIN;");
     try {
       reconcilePlayablePlayerProfilesOnce(db, { worldDate: save.worldDate, seed: save.randomSeed });
+      initializeClubFinanceMarkets(db);
       db.exec("COMMIT;");
     } catch (error) {
       db.exec("ROLLBACK;");
@@ -2288,6 +2353,7 @@ const advanceOwnerCareer = (db: GameDatabase, save: SaveMetadata, clubId: Entity
     advanceProcurementContracts(db, next);
     advanceProcurementServices(db, { date: next });
     advanceProcurementOrders(db, { date: next, seed: `${save.randomSeed}:owner:${clubId}` });
+    advanceClubLoanRepayments(db, next);
     if (next.slice(0, 7) !== previousMonth) {
       advanceMacroEconomyForWorldDate(db, { date: next, seed: `${save.randomSeed}:economy:${next.slice(0, 7)}` });
       processClubEconomyMonth(db, { date: next, seed: `${save.randomSeed}:economy:${next.slice(0, 7)}` });

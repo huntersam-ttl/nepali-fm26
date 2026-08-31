@@ -135,8 +135,17 @@ export const advanceProcurementOrders = (db: GameDatabase, input: { date: string
     const delivered = Boolean(offer && rng.next() <= offer.reliability);
     const next = delivered ? { ...order, status: "DELIVERED" as const, deliveredOn: input.date } : { ...order, status: "FAILED" as const };
     repo.upsertOrder(next); repo.upsertRequest({ ...repo.requests().find((item) => item.id === order.requestId)!, status: delivered ? "DELIVERED" : "FAILED", statusText: delivered ? "Delivered" : "Delivery failed" });
-    if (delivered) new ClubEconomyRepository(db).upsertAsset({ id: createStableEntityId("procurement-asset", order.id), clubId: order.clubId, assetType: "EQUIPMENT", ownership: "OWNED", estimatedValue: Math.round(order.totalCost * order.quality / 10), currency, status: "SIMULATION_ONLY" });
+    if (delivered) new ClubEconomyRepository(db).upsertAsset({ id: createStableEntityId("procurement-asset", order.id), clubId: order.clubId, assetType: "EQUIPMENT", ownership: "OWNED", estimatedValue: Math.round(order.totalCost * order.quality / 10), currency, status: "SIMULATION_ONLY", effect: equipmentEffect(order.category, order.quality) });
     updated.push(next);
   }
   return updated;
+};
+
+const equipmentEffect = (category: ProcurementCategory, quality: number): Record<string, number> => {
+  const level = Math.max(0.02, Math.min(0.12, quality / 100));
+  if (category === "KITS_TRAINING_WEAR" || category === "FOOTBALL_EQUIPMENT") return { trainingEffectiveness: level };
+  if (category === "MEDICAL_SUPPLIES") return { recoveryEffectiveness: level };
+  if (category === "ANALYSIS_SCOUTING") return { scoutingQuality: level };
+  if (category === "GROUNDS_STADIUM") return { groundOperations: level };
+  return { conditioningEffectiveness: level };
 };

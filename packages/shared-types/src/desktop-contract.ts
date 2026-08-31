@@ -28,6 +28,13 @@ import type {
   FederationProject,
   FederationSimulationProfile,
   FederationBudget,
+  ClubDebt,
+  ClubLoanApplication,
+  ClubLender,
+  ManagerBudgetRequest,
+  ClubAsset,
+  ProcurementCategory,
+  ProcurementOrder,
 } from "./domain.js";
 
 /**
@@ -223,8 +230,12 @@ export type ChairmanDashboard = {
     account: ClubFinancialAccount;
     budgets: ClubBudget[];
     ledgerEntries: ClubLedgerEntry[];
+    debts: ClubDebt[];
+    loans: ClubLoanApplication[];
+    lenders: ClubLender[];
   };
   infrastructure: InfrastructureProject[];
+  equipment: ClubAsset[];
   sponsorships: SponsorshipContract[];
   manager?: { name: string; contract: ManagerContract };
 };
@@ -328,6 +339,11 @@ export type DesktopRuntimeApi = {
   createInfrastructureProject(clubId: EntityId, projectType: InfrastructureProjectType): Promise<AppResult<InfrastructureProject>>;
   acceptSponsorOffer(clubId: EntityId, sponsorshipId: EntityId): Promise<AppResult<SponsorshipContract>>;
   rejectSponsorOffer(clubId: EntityId, sponsorshipId: EntityId): Promise<AppResult<SponsorshipContract>>;
+  applyClubLoan(lenderId: EntityId, principal: number, termMonths: number, purpose: string): Promise<AppResult<ClubLoanApplication>>;
+  repayClubLoan(debtId: EntityId, amount?: number): Promise<AppResult<ClubDebt>>;
+  requestManagerBudget(seasonLabel: string, category: ClubBudgetCategory, requestedAmount: number): Promise<AppResult<ManagerBudgetRequest>>;
+  decideManagerBudgetRequest(requestId: EntityId, approve: boolean): Promise<AppResult<ManagerBudgetRequest>>;
+  purchaseEquipment(category: ProcurementCategory, quantity: number): Promise<AppResult<ProcurementOrder>>;
   getHomeDashboard(): Promise<AppResult<DesktopApplicationState>>;
   continueCareer(): Promise<AppResult<DesktopApplicationState>>;
   quickSimMatch(fixtureId?: EntityId): Promise<AppResult<DesktopApplicationState>>;

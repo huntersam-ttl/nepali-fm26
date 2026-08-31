@@ -6,6 +6,9 @@ import type {
   AgentClient,
   AgentProfile,
   ClubAsset,
+  ClubLender,
+  ClubLoanApplication,
+  ManagerBudgetRequest,
   ClubAlias,
   ClubBoardPolicy,
   ClubAiDecision,
@@ -5342,6 +5345,10 @@ const mapClubDebt = (row: any): ClubDebt => ({
   repaymentSchedule: row.repayment_schedule,
   status: row.status,
   provenanceStatus: row.provenance_status,
+  lenderId: row.lender_id ?? undefined,
+  nextPaymentDate: row.next_payment_date ?? undefined,
+  scheduledPayment: row.scheduled_payment ?? undefined,
+  purpose: row.purpose ?? undefined,
 });
 
 const mapSponsorOrganisation = (row: any): SponsorOrganisation => ({
@@ -5352,6 +5359,8 @@ const mapSponsorOrganisation = (row: any): SponsorOrganisation => ({
   reputation: row.reputation,
   budgetTier: row.budget_tier,
   status: row.status,
+  sourceUrl: row.source_url ?? undefined,
+  identityProvenance: row.identity_provenance ?? undefined,
 });
 
 const mapClubCommercialProfile = (row: any): ClubCommercialProfile => ({
@@ -5464,6 +5473,7 @@ const mapClubAsset = (row: any): ClubAsset => ({
   estimatedValue: row.estimated_value,
   currency: row.currency,
   status: row.status,
+  effect: row.effect_json ? json.parse(row.effect_json, {}) : undefined,
 });
 
 const mapClubValuation = (row: any): ClubValuation => ({
@@ -6127,8 +6137,9 @@ export class ClubEconomyRepository {
       .prepare(
         `INSERT INTO club_debts
         (id, club_id, lender_type, principal, outstanding_principal, interest_rate, currency,
-          start_date, maturity_date, repayment_schedule, status, provenance_status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          start_date, maturity_date, repayment_schedule, status, provenance_status, lender_id,
+          next_payment_date, scheduled_payment, purpose)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           outstanding_principal = excluded.outstanding_principal,
           status = excluded.status`,
@@ -6146,6 +6157,10 @@ export class ClubEconomyRepository {
         debt.repaymentSchedule,
         debt.status,
         debt.provenanceStatus,
+        debt.lenderId ?? null,
+        debt.nextPaymentDate ?? null,
+        debt.scheduledPayment ?? 0,
+        debt.purpose ?? null,
       );
   }
 
@@ -6158,19 +6173,47 @@ export class ClubEconomyRepository {
     return rows.map(mapClubDebt);
   }
 
+  upsertLender(lender: ClubLender): void {
+    this.db.prepare(`INSERT INTO club_lenders (id,name,institution_type,country_id,source_url,status) VALUES (?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,institution_type=excluded.institution_type,country_id=excluded.country_id,source_url=excluded.source_url,status=excluded.status`).run(lender.id, lender.name, lender.institutionType, lender.countryId ?? null, lender.sourceUrl ?? null, lender.status);
+  }
+
+  lenders(): ClubLender[] {
+    return (this.db.prepare("SELECT * FROM club_lenders ORDER BY name").all() as any[]).map((row) => ({ id: row.id, name: row.name, institutionType: row.institution_type, countryId: row.country_id ?? undefined, sourceUrl: row.source_url ?? undefined, status: row.status }));
+  }
+
+  loanApplications(clubId?: EntityId): ClubLoanApplication[] {
+    const rows = (clubId ? this.db.prepare("SELECT * FROM club_loan_applications WHERE club_id=? ORDER BY created_on,id").all(clubId) : this.db.prepare("SELECT * FROM club_loan_applications ORDER BY created_on,id").all()) as any[];
+    return rows.map((row) => ({ id: row.id, clubId: row.club_id, lenderId: row.lender_id, principal: row.principal, termMonths: row.term_months, purpose: row.purpose, status: row.status, createdOn: row.created_on, decidedOn: row.decided_on ?? undefined, reason: row.reason ?? undefined, provenanceStatus: row.provenance_status }));
+  }
+
+  upsertLoanApplication(application: ClubLoanApplication): void {
+    this.db.prepare(`INSERT INTO club_loan_applications (id,club_id,lender_id,principal,term_months,purpose,status,created_on,decided_on,reason,provenance_status) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,decided_on=excluded.decided_on,reason=excluded.reason`).run(application.id, application.clubId, application.lenderId, application.principal, application.termMonths, application.purpose, application.status, application.createdOn, application.decidedOn ?? null, application.reason ?? null, application.provenanceStatus);
+  }
+
+  budgetRequests(clubId?: EntityId): ManagerBudgetRequest[] {
+    const rows = (clubId ? this.db.prepare("SELECT * FROM manager_budget_requests WHERE club_id=? ORDER BY created_on,id").all(clubId) : this.db.prepare("SELECT * FROM manager_budget_requests ORDER BY created_on,id").all()) as any[];
+    return rows.map((row) => ({ id: row.id, clubId: row.club_id, managerPersonId: row.manager_person_id, seasonLabel: row.season_label, category: row.category, requestedAmount: row.requested_amount, status: row.status, createdOn: row.created_on, decidedOn: row.decided_on ?? undefined, decisionNote: row.decision_note ?? undefined, provenanceStatus: row.provenance_status }));
+  }
+
+  upsertBudgetRequest(request: ManagerBudgetRequest): void {
+    this.db.prepare(`INSERT INTO manager_budget_requests (id,club_id,manager_person_id,season_label,category,requested_amount,status,created_on,decided_on,decision_note,provenance_status) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,decided_on=excluded.decided_on,decision_note=excluded.decision_note`).run(request.id, request.clubId, request.managerPersonId, request.seasonLabel, request.category, request.requestedAmount, request.status, request.createdOn, request.decidedOn ?? null, request.decisionNote ?? null, request.provenanceStatus);
+  }
+
   upsertSponsor(sponsor: SponsorOrganisation): void {
     this.db
       .prepare(
         `INSERT INTO sponsor_organisations
-        (id, name, industry, country_id, reputation, budget_tier, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        (id, name, industry, country_id, reputation, budget_tier, status, source_url, identity_provenance)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           name = excluded.name,
           industry = excluded.industry,
           country_id = excluded.country_id,
           reputation = excluded.reputation,
           budget_tier = excluded.budget_tier,
-          status = excluded.status`,
+          status = excluded.status,
+          source_url = excluded.source_url,
+          identity_provenance = excluded.identity_provenance`,
       )
       .run(
         sponsor.id,
@@ -6180,6 +6223,8 @@ export class ClubEconomyRepository {
         sponsor.reputation,
         sponsor.budgetTier,
         sponsor.status,
+        sponsor.sourceUrl ?? null,
+        sponsor.identityProvenance ?? sponsor.status,
       );
   }
 
@@ -6456,12 +6501,13 @@ export class ClubEconomyRepository {
     this.db
       .prepare(
         `INSERT INTO club_assets
-        (id, club_id, asset_type, ownership, location_id, venue_id, estimated_value, currency, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (id, club_id, asset_type, ownership, location_id, venue_id, estimated_value, currency, status, effect_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           ownership = excluded.ownership,
           estimated_value = excluded.estimated_value,
-          status = excluded.status`,
+          status = excluded.status,
+          effect_json = excluded.effect_json`,
       )
       .run(
         asset.id,
@@ -6473,6 +6519,7 @@ export class ClubEconomyRepository {
         asset.estimatedValue,
         asset.currency,
         asset.status,
+        asset.effect ? json.stringify(asset.effect) : null,
       );
   }
 

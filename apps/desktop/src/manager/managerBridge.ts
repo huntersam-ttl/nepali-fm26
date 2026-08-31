@@ -51,6 +51,8 @@ import type {
   TransferRequestResponseCommand,
   TransferLoanCommand,
   FederationCandidacyAssessment,
+  ClubBudgetCategory,
+  ManagerBudgetRequest,
 } from "@nepal-football-sim/shared-types";
 import { runtimeCall } from "../appBridge.js";
 
@@ -98,6 +100,7 @@ export const managerBridge = {
   searchRecruitment: (command: RecruitmentSearchCommand) =>
     runtimeCall<RecruitmentSearchPage>("searchRecruitment", { command }),
   getTransferCentre: () => runtimeCall<TransferCentre>("getTransferCentre"),
+  requestManagerBudget: (seasonLabel: string, category: ClubBudgetCategory, requestedAmount: number) => runtimeCall<ManagerBudgetRequest>("requestManagerBudget", { seasonLabel, category, requestedAmount }),
   makeTransferOffer: (command: TransferOfferCommand) =>
     runtimeCall<TransferCentre>("makeTransferOffer", { command }),
   respondTransferOffer: (command: TransferResponseCommand) =>

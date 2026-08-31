@@ -3,6 +3,7 @@ import type {
   EntityId,
   TransferCentre,
   TransferOfferCommand,
+  ClubBudgetCategory,
 } from "@nepal-football-sim/shared-types";
 import { managerBridge } from "../managerBridge.js";
 import { AsyncPanel, Badge, ErrorBanner, Metrics, Panel, money, useRuntimeData } from "../ui.js";
@@ -23,6 +24,14 @@ export const TransfersScreen = ({
   const [exchangePlayerId, setExchangePlayerId] = useState("");
   const [requestedPlayerId, setRequestedPlayerId] = useState("");
   const [appearanceClause, setAppearanceClause] = useState({ threshold: "", amount: "" });
+  const [budgetRequest, setBudgetRequest] = useState({ category: "TRANSFER_BUDGET" as ClubBudgetCategory, amount: "" });
+  const [budgetMessage, setBudgetMessage] = useState<string | null>(null);
+
+  const requestBudget = async (seasonLabel: string): Promise<void> => {
+    const result = await managerBridge.requestManagerBudget(seasonLabel, budgetRequest.category, Number(budgetRequest.amount));
+    if (result.ok) setBudgetMessage("Budget request submitted to the owner/board.");
+    else setError(result.error);
+  };
 
   const act = async (
     action: () => Promise<Awaited<ReturnType<typeof managerBridge.getTransferCentre>>>,
@@ -97,6 +106,12 @@ export const TransfersScreen = ({
               <p className="subtle">
                 The transfer budget is a board allocation, not the club&rsquo;s cash balance.
               </p>
+              <form className="inline-form" onSubmit={(event) => { event.preventDefault(); void requestBudget(centre.budget.seasonLabel); }}>
+                <label>Request increase<select value={budgetRequest.category} onChange={(event) => setBudgetRequest({ ...budgetRequest, category: event.target.value as ClubBudgetCategory })}><option value="TRANSFER_BUDGET">Transfer budget</option><option value="WAGE_BUDGET">Wage budget</option><option value="STAFF_BUDGET">Staff budget</option></select></label>
+                <label>New total<input type="number" min="0" value={budgetRequest.amount} onChange={(event) => setBudgetRequest({ ...budgetRequest, amount: event.target.value })} /></label>
+                <button className="small" type="submit">Request</button>
+              </form>
+              {budgetMessage && <p className="notice" role="status">{budgetMessage}</p>}
               {!centre.windowOpen && (
                 <p className="warning">
                   The window is closed. Enquiries can still be prepared for the next eligible

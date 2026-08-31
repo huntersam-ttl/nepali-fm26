@@ -60,8 +60,12 @@ export const buildChairmanDashboard = (db: GameDatabase, save: SaveMetadata): Ch
       account: summary.account,
       budgets: summary.budgets,
       ledgerEntries: summary.ledgerEntries.slice(-12).reverse(),
+      debts: new ClubEconomyRepository(db).debts(clubId),
+      loans: new ClubEconomyRepository(db).loanApplications(clubId),
+      lenders: new ClubEconomyRepository(db).lenders(),
     },
     infrastructure: new ClubEconomyRepository(db).infrastructureProjects(clubId),
+    equipment: new ClubEconomyRepository(db).assets(clubId).filter((asset) => asset.assetType === "EQUIPMENT"),
     sponsorships: new ClubEconomyRepository(db).sponsorships(clubId),
     manager: manager ? { name: personName(db, manager.personId), contract: manager } : undefined,
   };

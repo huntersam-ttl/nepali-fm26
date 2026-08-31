@@ -184,6 +184,16 @@ const dispatch = (
       return service.acceptSponsorOffer(body.clubId as EntityId, body.sponsorshipId as EntityId);
     case "rejectSponsorOffer":
       return service.rejectSponsorOffer(body.clubId as EntityId, body.sponsorshipId as EntityId);
+    case "applyClubLoan":
+      return service.applyClubLoan(body.lenderId as EntityId, body.principal as number, body.termMonths as number, body.purpose as string);
+    case "repayClubLoan":
+      return service.repayClubLoan(body.debtId as EntityId, body.amount as number | undefined);
+    case "requestManagerBudget":
+      return service.requestManagerBudget(body.seasonLabel as string, body.category as ClubBudgetCategory, body.requestedAmount as number);
+    case "decideManagerBudgetRequest":
+      return service.decideManagerBudgetRequest(body.requestId as EntityId, body.approve as boolean);
+    case "purchaseEquipment":
+      return service.purchaseEquipment(body.category as any, body.quantity as number);
     case "getHomeDashboard":
       return service.getHomeDashboard();
     case "continueCareer":
