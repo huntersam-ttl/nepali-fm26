@@ -247,7 +247,7 @@ import { buildChairmanDashboard, buildFederationPresidentDashboard } from "./rol
 import { initializeFederationGovernanceForSave } from "./federation-governance.js";
 import { assessFederationCandidacy, declareFederationElectionCandidacy, implementFederationGovernanceProposalCommand } from "./federation-politics.js";
 import { acceptSponsorOfferCommand, createInfrastructureProjectCommand, initializeClubEconomyForSave, rejectSponsorOfferCommand, setClubBudgetCommand } from "./club-economy.js";
-import { foundSimulationClub } from "./club-creation.js";
+import { ensurePlayableClubVenues, foundSimulationClub } from "./club-creation.js";
 import {
   ManagerCommandError,
   advanceManagerCareer,
@@ -432,6 +432,7 @@ export class DesktopApplicationService {
       try {
         importNepalWorld(db, dataset);
         ensureNepalFounderLocations(db);
+        ensurePlayableClubVenues(db, `${dataset.meta.targetDatabaseDate}-01`);
         const candidateCountry = db.prepare("SELECT id FROM countries WHERE iso_code IN ('NP','NPL') ORDER BY id LIMIT 1").get() as { id?: EntityId } | undefined;
         if (candidateCountry?.id) ensureOwnerManagerCandidateSupply(db, { date: `${dataset.meta.targetDatabaseDate}-01`, seed: `career:${command.saveName}`, countryId: candidateCountry.id });
         ensureLowerLeaguePlayableWorld({ db, date: `${dataset.meta.targetDatabaseDate}-01`, seed: `career:${command.saveName}` });
@@ -2178,8 +2179,9 @@ const seasonForTeam = (db: GameDatabase, teamId: EntityId): CompetitionSeason =>
     .prepare(
       `SELECT cs.* FROM club_memberships cm
       JOIN competition_seasons cs ON cs.id = cm.competition_season_id
+      JOIN competitions c ON c.id = cs.competition_id
       WHERE cm.team_id = ? AND cm.status = 'ACTIVE'
-      ORDER BY cs.start_date LIMIT 1`,
+      ORDER BY CASE WHEN lower(c.name) LIKE '%a-division%' OR lower(c.name) LIKE '%b-division%' OR lower(c.name) LIKE '%c-division%' THEN 0 ELSE 1 END, cs.start_date LIMIT 1`,
     )
     .get(teamId) as Record<string, string> | undefined;
   if (!row) {

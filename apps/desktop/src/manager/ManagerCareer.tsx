@@ -217,7 +217,7 @@ export const ManagerCareer = ({
             </button>
               ))}
             </div>
-          )) : <div className="nav-group"><span className="nav-label">{header.activeRole === "CHAIRMAN_OWNER" ? "Owner office" : "Role"}</span><button className="active" onClick={() => setScreen("home")}>Overview</button>{header.activeRole === "CHAIRMAN_OWNER" && <><button onClick={() => setScreen("home")}>Finance & budgets</button><button onClick={() => setScreen("home")}>Grounds & facilities</button><button onClick={() => setScreen("home")}>Manager & sponsors</button></>}</div>}
+          )) : <div className="nav-group"><span className="nav-label">{header.activeRole === "CHAIRMAN_OWNER" ? "Owner office" : "Role"}</span><button className="active" onClick={() => setScreen("home")}>{header.activeRole === "CHAIRMAN_OWNER" ? "Owner dashboard" : "Overview"}</button></div>}
         </nav>
         <div className="sidebar-status">
           {header.worldDate && <div>World date: <strong>{header.worldDate}</strong></div>}

@@ -93,6 +93,20 @@ export type CreateSimulationClubInput = {
   groundName?: string;
 };
 
+/** Give every playable Nepal league club a canonical or simulation-only venue relationship. */
+export const ensurePlayableClubVenues = (db: GameDatabase, date: string): void => {
+  const world = new WorldRepository(db);
+  const clubs = db.prepare(`SELECT DISTINCT c.id, c.name, c.country_id, c.location_id, lower(co.name) AS competition_name FROM clubs c JOIN countries country ON country.id=c.country_id AND country.iso_code IN ('NP','NPL') JOIN club_memberships cm ON cm.club_id=c.id AND cm.status='ACTIVE' JOIN competition_seasons cs ON cs.id=cm.competition_season_id JOIN competitions co ON co.id=cs.competition_id WHERE lower(co.name) LIKE '%a-division%' OR lower(co.name) LIKE '%b-division%' OR lower(co.name) LIKE '%c-division%'`).all() as Array<{ id: EntityId; name: string; country_id: EntityId; location_id?: EntityId; competition_name: string }>;
+  for (const club of clubs) {
+    if (db.prepare("SELECT 1 FROM venue_relationships WHERE club_id=? AND status!='CLOSED' LIMIT 1").get(club.id)) continue;
+    const existing = club.location_id ? db.prepare("SELECT id FROM venues WHERE location_id=? AND status!='CLOSED' ORDER BY capacity DESC LIMIT 1").get(club.location_id) as { id?: EntityId } | undefined : undefined;
+    const venueId = existing?.id ?? createStableEntityId("simulation-club-ground", club.id);
+    if (!existing?.id) world.insertVenue({ id: venueId, countryId: club.country_id, locationId: club.location_id, name: `${club.name} Ground`, officialName: `${club.name} Ground`, shortName: `${club.name} Ground`, venueType: "FOOTBALL_GROUND", capacity: club.competition_name.includes("a-division") ? 5000 : club.competition_name.includes("b-division") ? 2500 : 600, surfaceType: "NATURAL_GRASS", pitchQuality: "POOR", status: "ACTIVE" });
+    const team = db.prepare("SELECT id FROM teams WHERE club_id=? AND level='senior' ORDER BY id LIMIT 1").get(club.id) as { id?: EntityId } | undefined;
+    world.insertVenueRelationship({ id: createStableEntityId("simulation-club-ground-relationship", club.id), venueId, clubId: club.id, teamId: team?.id, relationshipType: "PRIMARY_TENANT", startDate: date, status: "available" });
+  }
+};
+
 export const createSimulationClub = (
   db: GameDatabase,
   input: CreateSimulationClubInput,

@@ -27,6 +27,7 @@ import { ensureLowerLeaguePlayableWorld } from "./workforce-supply.js";
 import { advanceMacroEconomyForWorldDate } from "./macro-economy.js";
 import { initializeSupporterCultureForSave } from "./supporter-culture.js";
 import { ensureNepalFounderLocations, initializeNepalTerritorialStructure } from "./territorial-football.js";
+import { ensurePlayableClubVenues } from "./club-creation.js";
 import { applyCanonicalGlobalDatasetSeed } from "./global-football-seed.js";
 
 export type CreateNepalSaveInput = {
@@ -113,6 +114,7 @@ export const createNepalSave = (input: CreateNepalSaveInput): NepalSaveResult =>
     importNepalWorld(db, dataset);
     initializeNepalTerritorialStructure(db, input.worldDate ?? `${dataset.meta.targetDatabaseDate}-01`);
     ensureNepalFounderLocations(db);
+    ensurePlayableClubVenues(db, save.worldDate);
     advanceMacroEconomyForWorldDate(db, { date: save.worldDate, seed: input.randomSeed });
     ensureLowerLeaguePlayableWorld({ db, date: save.worldDate, seed: input.randomSeed });
     initializeSupporterCultureForSave({ db, worldDate: save.worldDate, seed: input.randomSeed });
