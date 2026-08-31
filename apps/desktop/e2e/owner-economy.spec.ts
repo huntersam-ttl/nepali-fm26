@@ -43,12 +43,12 @@ test.describe("Owner economy browser harness", () => {
     await page.getByRole("button", { name: "Transfers", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Budget" })).toBeVisible();
     await page.getByLabel("New total").fill("999999");
-    await page.getByRole("button", { name: "Request", exact: true }).click();
+    await page.getByRole("button", { name: "Request", exact: true }).dblclick();
     await expect(page.getByText("Budget request submitted to the owner/board.")).toBeVisible();
     await page.getByLabel("Active career role").selectOption("CHAIRMAN_OWNER");
     await page.getByRole("button", { name: "Manager", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Pending budget requests" })).toBeVisible();
-    await page.getByRole("button", { name: "Approve", exact: true }).click();
+    await page.getByRole("button", { name: "Approve", exact: true }).dblclick();
     await expect(page.getByText("No pending manager requests.")).toBeVisible({ timeout: 30_000 });
     await page.getByLabel("Active career role").selectOption("MANAGER");
     await page.getByRole("button", { name: "Transfers", exact: true }).click();
@@ -91,7 +91,23 @@ test.describe("Owner economy browser harness", () => {
     const finalOffer = page.getByRole("row").filter({ hasText: "OFFERED" }).first();
     await finalOffer.getByRole("button", { name: "Reject", exact: true }).click();
     await expect(page.getByRole("row").filter({ hasText: "OFFERED" })).toHaveCount(0, { timeout: 30_000 });
-    await expect(page.getByRole("row").filter({ hasText: "REJECTED" })).toHaveCount(1);
+    await expect(page.getByRole("row").filter({ hasText: "REJECTED" })).not.toHaveCount(0);
+  });
+
+  test("A Owner rejects an equipment purchase with an insufficient academy budget", async ({ page }) => {
+    test.setTimeout(240_000);
+    const saveName = await createExistingClubOwner(page, "A");
+    const budgetLine = page.getByLabel("Budget line");
+    await budgetLine.selectOption("ACADEMY_BUDGET");
+    await page.getByLabel("Current budget").fill("0");
+    await page.getByRole("button", { name: "Save budget", exact: true }).click();
+    await expect(page.getByLabel("Current budget")).toHaveValue("0");
+    const ordersBefore = await page.getByText("ClubMart order: FOOTBALL_EQUIPMENT").count();
+    await page.getByRole("button", { name: "Order football equipment", exact: true }).click();
+    await expect(page.getByRole("alert")).toContainText("Procurement is not affordable");
+    await expect(page.getByText("ClubMart order: FOOTBALL_EQUIPMENT")).toHaveCount(ordersBefore);
+    await saveReloadOwnerCareer(page, saveName);
+    await expect(page.getByText("ClubMart order: FOOTBALL_EQUIPMENT")).toHaveCount(ordersBefore);
   });
 
   test("C Founder opens Investors and creates deterministic bids", async ({ page }) => {

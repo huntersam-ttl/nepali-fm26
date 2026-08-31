@@ -26,9 +26,13 @@ export const TransfersScreen = ({
   const [appearanceClause, setAppearanceClause] = useState({ threshold: "", amount: "" });
   const [budgetRequest, setBudgetRequest] = useState({ category: "TRANSFER_BUDGET" as ClubBudgetCategory, amount: "" });
   const [budgetMessage, setBudgetMessage] = useState<string | null>(null);
+  const [busyBudgetRequest, setBusyBudgetRequest] = useState(false);
 
   const requestBudget = async (seasonLabel: string): Promise<void> => {
+    if (busyBudgetRequest) return;
+    setBusyBudgetRequest(true);
     const result = await managerBridge.requestManagerBudget(seasonLabel, budgetRequest.category, Number(budgetRequest.amount));
+    setBusyBudgetRequest(false);
     if (result.ok) setBudgetMessage("Budget request submitted to the owner/board.");
     else setError(result.error);
   };
@@ -109,7 +113,7 @@ export const TransfersScreen = ({
               <form className="inline-form" onSubmit={(event) => { event.preventDefault(); void requestBudget(centre.budget.seasonLabel); }}>
                 <label>Request increase<select value={budgetRequest.category} onChange={(event) => setBudgetRequest({ ...budgetRequest, category: event.target.value as ClubBudgetCategory })}><option value="TRANSFER_BUDGET">Transfer budget</option><option value="WAGE_BUDGET">Wage budget</option><option value="STAFF_BUDGET">Staff budget</option></select></label>
                 <label>New total<input type="number" min="0" value={budgetRequest.amount} onChange={(event) => setBudgetRequest({ ...budgetRequest, amount: event.target.value })} /></label>
-                <button className="small" type="submit">Request</button>
+                <button className="small" type="submit" disabled={busyBudgetRequest}>{busyBudgetRequest ? "Requesting…" : "Request"}</button>
               </form>
               {budgetMessage && <p className="notice" role="status">{budgetMessage}</p>}
               {!centre.windowOpen && (
