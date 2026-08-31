@@ -184,6 +184,8 @@ const dispatch = (
       return service.acceptSponsorOffer(body.clubId as EntityId, body.sponsorshipId as EntityId);
     case "rejectSponsorOffer":
       return service.rejectSponsorOffer(body.clubId as EntityId, body.sponsorshipId as EntityId);
+    case "counterSponsorOffer":
+      return service.counterSponsorOffer(body.clubId as EntityId, body.sponsorshipId as EntityId, body.annualValue as number, body.endDate as string | undefined);
     case "createInvestorStakeOffer":
       return service.createInvestorStakeOffer(body.percentage as number, body.minimumAmount as number | undefined);
     case "decideInvestorBid":

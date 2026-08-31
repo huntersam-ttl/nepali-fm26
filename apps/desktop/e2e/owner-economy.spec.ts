@@ -24,6 +24,34 @@ test.describe("Owner economy browser harness", () => {
     });
   }
 
+  test("A Owner applies and repays a loan, submits a manager budget request, and persists it", async ({ page }) => {
+    test.setTimeout(240_000);
+    await createExistingClubOwner(page, "A");
+    await openOwnerRoute(page, "Finances");
+    await page.getByLabel("Principal").fill("1000");
+    await page.getByLabel("Term (months)").fill("12");
+    const debtsBefore = await page.getByRole("button", { name: "Repay", exact: true }).count();
+    await page.getByRole("button", { name: "Apply", exact: true }).dblclick();
+    await expect(page.getByRole("heading", { name: "Debt schedule" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Repay", exact: true })).toHaveCount(debtsBefore + 1, { timeout: 30_000 });
+    await page.getByRole("button", { name: "Repay", exact: true }).last().click();
+    await expect(page.getByRole("heading", { name: "Recent transactions" })).toBeVisible();
+    await expect(page.getByText("Club loan principal repayment")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText("Club loan interest")).toBeVisible({ timeout: 30_000 });
+
+    await page.getByLabel("Active career role").selectOption("MANAGER");
+    await page.getByRole("button", { name: "Transfers", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Budget" })).toBeVisible();
+    await page.getByLabel("New total").fill("999999");
+    await page.getByRole("button", { name: "Request", exact: true }).click();
+    await expect(page.getByText("Budget request submitted to the owner/board.")).toBeVisible();
+    await page.getByLabel("Active career role").selectOption("CHAIRMAN_OWNER");
+    await page.getByRole("button", { name: "Manager", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Pending budget requests" })).toBeVisible();
+    await page.getByRole("button", { name: "Approve", exact: true }).click();
+    await expect(page.getByText("No pending manager requests.")).toBeVisible({ timeout: 30_000 });
+  });
+
   test("C Founder opens Investors and creates deterministic bids", async ({ page }) => {
     test.setTimeout(240_000);
     await createFounderOwner(page);

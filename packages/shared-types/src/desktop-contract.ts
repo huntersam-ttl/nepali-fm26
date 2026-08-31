@@ -235,6 +235,7 @@ export type ChairmanDashboard = {
     debts: ClubDebt[];
     loans: ClubLoanApplication[];
     lenders: ClubLender[];
+    budgetRequests: ManagerBudgetRequest[];
   };
   investorMarket: OwnershipInvestorMarketView;
   infrastructure: InfrastructureProject[];
@@ -342,6 +343,7 @@ export type DesktopRuntimeApi = {
   createInfrastructureProject(clubId: EntityId, projectType: InfrastructureProjectType): Promise<AppResult<InfrastructureProject>>;
   acceptSponsorOffer(clubId: EntityId, sponsorshipId: EntityId): Promise<AppResult<SponsorshipContract>>;
   rejectSponsorOffer(clubId: EntityId, sponsorshipId: EntityId): Promise<AppResult<SponsorshipContract>>;
+  counterSponsorOffer(clubId: EntityId, sponsorshipId: EntityId, annualValue: number, endDate?: string): Promise<AppResult<SponsorshipContract>>;
   createInvestorStakeOffer(percentage: number, minimumAmount?: number): Promise<AppResult<OwnershipInvestorMarketView>>;
   decideInvestorBid(offerId: EntityId, accept: boolean): Promise<AppResult<OwnershipAcquisitionOffer>>;
   applyClubLoan(lenderId: EntityId, principal: number, termMonths: number, purpose: string): Promise<AppResult<ClubLoanApplication>>;

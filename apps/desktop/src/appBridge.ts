@@ -147,6 +147,7 @@ const bindCommands = (call: CommandCaller): DesktopRuntimeApi => ({
   createInfrastructureProject: (clubId: EntityId, projectType: InfrastructureProjectType) => call<InfrastructureProject>("createInfrastructureProject", { clubId, projectType }),
   acceptSponsorOffer: (clubId: EntityId, sponsorshipId: EntityId) => call<SponsorshipContract>("acceptSponsorOffer", { clubId, sponsorshipId }),
   rejectSponsorOffer: (clubId: EntityId, sponsorshipId: EntityId) => call<SponsorshipContract>("rejectSponsorOffer", { clubId, sponsorshipId }),
+  counterSponsorOffer: (clubId: EntityId, sponsorshipId: EntityId, annualValue: number, endDate?: string) => call<SponsorshipContract>("counterSponsorOffer", { clubId, sponsorshipId, annualValue, endDate }),
   createInvestorStakeOffer: (percentage: number, minimumAmount?: number) => call("createInvestorStakeOffer", { percentage, minimumAmount }),
   decideInvestorBid: (offerId: EntityId, accept: boolean) => call("decideInvestorBid", { offerId, accept }),
   applyClubLoan: (lenderId: EntityId, principal: number, termMonths: number, purpose: string) => call("applyClubLoan", { lenderId, principal, termMonths, purpose }),

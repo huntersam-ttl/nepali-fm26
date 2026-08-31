@@ -257,7 +257,7 @@ import { createInvestorStakeOffer, decideInvestorBid } from "./ownership.js";
 import { buildChairmanDashboard, buildFederationPresidentDashboard } from "./role-desktop.js";
 import { initializeFederationGovernanceForSave } from "./federation-governance.js";
 import { assessFederationCandidacy, declareFederationElectionCandidacy, implementFederationGovernanceProposalCommand } from "./federation-politics.js";
-import { acceptSponsorOfferCommand, createInfrastructureProjectCommand, initializeClubEconomyForSave, rejectSponsorOfferCommand, setClubBudgetCommand } from "./club-economy.js";
+import { acceptSponsorOfferCommand, counterSponsorOffer, createInfrastructureProjectCommand, initializeClubEconomyForSave, rejectSponsorOfferCommand, setClubBudgetCommand } from "./club-economy.js";
 import { ensurePlayableClubVenues, foundSimulationClub } from "./club-creation.js";
 import {
   ManagerCommandError,
@@ -846,6 +846,15 @@ export class DesktopApplicationService {
       } catch (error) {
         throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "Sponsorship offer could not be rejected.");
       }
+    });
+  }
+
+  counterSponsorOffer(clubId: EntityId, sponsorshipId: EntityId, annualValue: number, endDate?: string): AppResult<SponsorshipContract> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER") throw appError("ROLE_NOT_AUTHORIZED", "Only the active chairman/owner may negotiate sponsorships.");
+      try { return counterSponsorOffer(db, { sponsorshipId, annualValue, endDate, date: save.worldDate, seed: save.randomSeed }); }
+      catch (error) { throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "Sponsorship counter could not be submitted."); }
     });
   }
 

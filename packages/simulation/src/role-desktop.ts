@@ -65,6 +65,7 @@ export const buildChairmanDashboard = (db: GameDatabase, save: SaveMetadata): Ch
       debts: new ClubEconomyRepository(db).debts(clubId),
       loans: new ClubEconomyRepository(db).loanApplications(clubId),
       lenders: new ClubEconomyRepository(db).lenders(),
+      budgetRequests: new ClubEconomyRepository(db).budgetRequests(clubId),
     },
     infrastructure: new ClubEconomyRepository(db).infrastructureProjects(clubId),
     equipment: new ClubEconomyRepository(db).assets(clubId).filter((asset) => asset.assetType === "EQUIPMENT"),
