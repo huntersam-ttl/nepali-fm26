@@ -78,6 +78,7 @@ export type AppResult<T> = { ok: true; data: T } | { ok: false; error: DesktopAp
 export type CareerRole = "MANAGER" | "CHAIRMAN_OWNER" | "FEDERATION_PRESIDENT";
 export type CareerStartMode = "MANAGER" | "OWNER";
 export type CareerRoleState = { activeRole: CareerRole; heldRoles: CareerRole[] };
+export type FounderLocationOption = { id: EntityId; province: string; district: string; locality: string; provenanceStatus: "REPORTED" | "SIMULATION_ONLY" };
 
 /** Save catalog entry. Readable without opening the full simulation world. */
 export type SaveCatalogEntry = {
@@ -140,6 +141,15 @@ export type CareerCreationCommand = {
     careerStartDate?: ISODate;
   };
   joinTeamId?: EntityId;
+  founder?: {
+    clubName: string;
+    shortName?: string;
+    nickname?: string;
+    locationId: EntityId;
+    locationName?: string;
+    groundName?: string;
+    philosophy?: "COMMUNITY" | "YOUTH_DEVELOPMENT" | "COMPETITIVE" | "COMMERCIAL";
+  };
 };
 
 export type SquadRow = {
@@ -298,6 +308,7 @@ export type DesktopApplicationState = {
 export type DesktopRuntimeApi = {
   listSaves(): Promise<AppResult<SaveCatalogEntry[]>>;
   listStartingClubs(): Promise<AppResult<StartingClubOption[]>>;
+  listFounderLocations(): Promise<AppResult<FounderLocationOption[]>>;
   createCareer(command: CareerCreationCommand): Promise<AppResult<DesktopApplicationState>>;
   loadCareer(saveId: EntityId): Promise<AppResult<DesktopApplicationState>>;
   closeCareer(): Promise<AppResult<{ closed: boolean }>>;

@@ -142,6 +142,8 @@ const dispatch = (
       return service.listSaves();
     case "listStartingClubs":
       return service.listStartingClubs();
+    case "listFounderLocations":
+      return service.listFounderLocations();
     case "createCareer":
       return service.createCareer(body.command as CareerCreationCommand);
     case "loadCareer":

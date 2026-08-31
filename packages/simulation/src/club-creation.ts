@@ -13,6 +13,7 @@ import {
   type SimulationClubLifecycleEvent,
   type SimulationClubRecord,
   type Team,
+  type Venue,
   type VenueRelationship,
 } from "@nepal-football-sim/shared-types";
 import { repairPreseasonContinuity } from "./preseason-continuity.js";
@@ -22,7 +23,18 @@ import { initializeSupporterCultureForSave } from "./supporter-culture.js";
 const status = "SIMULATION_ONLY" as const;
 const yearOf = (date: string): number => Number(date.slice(0, 4));
 
-const venueForLocation = (db: GameDatabase, locationId: EntityId): { id: EntityId } | undefined => {
+const venueForLocation = (db: GameDatabase, locationId: EntityId, groundName?: string, foundedOn?: string): { id: EntityId } | undefined => {
+  if (groundName && foundedOn) {
+    const existing = db.prepare("SELECT id FROM venues WHERE location_id=? AND name=? LIMIT 1").get(locationId, groundName) as { id?: EntityId } | undefined;
+    if (existing?.id) return { id: existing.id };
+    const location = db.prepare("SELECT country_id FROM locations WHERE id=?").get(locationId) as { country_id?: EntityId } | undefined;
+    if (location?.country_id) {
+      const id = createStableEntityId("simulation-ground", `${locationId}:${groundName}`);
+      const ground: Venue = { id, countryId: location.country_id, locationId, name: groundName, officialName: groundName, shortName: groundName, venueType: "FOOTBALL_GROUND", capacity: 300, surfaceType: "NATURAL_GRASS", pitchQuality: "POOR", status: "ACTIVE" };
+      new WorldRepository(db).insertVenue(ground);
+      return { id };
+    }
+  }
   const exact = db
     .prepare(
       "SELECT id FROM venues WHERE location_id = ? AND status != 'CLOSED' ORDER BY id LIMIT 1",
@@ -66,6 +78,7 @@ export type CreateSimulationClubInput = {
   seed: string;
   ownershipType?: Club["ownershipType"];
   competitionSeasonId?: EntityId;
+  groundName?: string;
 };
 
 export const createSimulationClub = (
@@ -83,7 +96,7 @@ export const createSimulationClub = (
     throw new Error("Simulation clubs must be founded in Nepal");
   if (!["district", "municipality", "city"].includes(location.kind))
     throw new Error("Club location must be a local district or municipality");
-  const venue = venueForLocation(db, input.locationId);
+  const venue = venueForLocation(db, input.locationId, input.groundName, input.foundedOn);
   if (!venue) throw new Error("A usable shared venue is required");
   const clubId = createStableEntityId(
     "simulation-club",

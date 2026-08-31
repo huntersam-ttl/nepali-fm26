@@ -10,6 +10,7 @@ import {
   type CareerStartMode,
   type SaveCatalogEntry,
   type StartingClubOption,
+  type FounderLocationOption,
 } from "./appBridge.js";
 import { ManagerCareer } from "./manager/ManagerCareer.js";
 import "./styles.css";
@@ -202,6 +203,10 @@ const NewCareer = (props: {
   const [coachingExperience, setCoachingExperience] = useState("YOUTH_COACH");
   const [education, setEducation] = useState("SPORTS_RELATED_DEGREE");
   const [clubs, setClubs] = useState<StartingClubOption[]>([]);
+  const [founderLocations, setFounderLocations] = useState<FounderLocationOption[]>([]);
+  const [founderLocationId, setFounderLocationId] = useState("");
+  const [founderClubName, setFounderClubName] = useState("Nepal Community FC");
+  const [founderGroundName, setFounderGroundName] = useState("");
   const [teamId, setTeamId] = useState<EntityId | "">("");
   const [step, setStep] = useState(1);
   const [division, setDivision] = useState("All");
@@ -216,10 +221,14 @@ const NewCareer = (props: {
       } else {
         props.onError(result.error);
       }
+      const locations = await bridge.listFounderLocations();
+      if (locations.ok) setFounderLocations(locations.data);
+      else props.onError(locations.error);
     })();
   }, []);
 
   const selectedClub = clubs.find((club) => club.teamId === teamId);
+  const selectedFounderLocation = founderLocations.find((location) => location.id === founderLocationId);
   const visibleClubs = clubs.filter((club) => division === "All" || club.division === division);
 
   return (
@@ -266,7 +275,7 @@ const NewCareer = (props: {
         )}
         {step === 2 && (
           <div className="form-grid">
-            <label>Career mode<select value={careerMode} onChange={(event) => setCareerMode(event.target.value as CareerStartMode)}><option value="MANAGER">Manager Career — manage a club</option><option value="OWNER">Owner / Chairman Career — control a club</option></select></label>
+            <label>Career mode<select value={careerMode} onChange={(event) => { const mode = event.target.value as CareerStartMode; setCareerMode(mode); if (mode === "OWNER") setTeamId(""); else setFounderLocationId(""); }}><option value="MANAGER">Manager Career — manage an existing club</option><option value="OWNER">Owner / Founder — build a new club</option></select></label>
             <label>
               Playing experience
               <select
@@ -300,6 +309,15 @@ const NewCareer = (props: {
           </div>
         )}
         {step === 3 && (
+          careerMode === "OWNER" ? (
+          <div className="form-grid">
+            <p className="subtle">Founder setup · your club enters the lowest supported playable tier: C Division.</p>
+            <label>Club name<input value={founderClubName} onChange={(event) => setFounderClubName(event.target.value)} /></label>
+            <label>Province / district<select value={founderLocationId} onChange={(event) => setFounderLocationId(event.target.value)}><option value="">Choose district</option>{founderLocations.map((location) => <option key={location.id} value={location.id}>{location.province} · {location.district}</option>)}</select></label>
+            <label>Starter ground name<input placeholder={`${founderClubName || "Club"} Ground`} value={founderGroundName} onChange={(event) => setFounderGroundName(event.target.value)} /></label>
+            <p className="subtle">The starter ground is a modest simulation-only local ground. Manager: vacant until you appoint one.</p>
+          </div>
+          ) : (
           <div>
             <p className="subtle">Choose a playable Nepal division, then select your club.</p>
             <div className="division-tabs" role="tablist" aria-label="Playable divisions">
@@ -308,10 +326,11 @@ const NewCareer = (props: {
             {clubs.length === 0 ? <p className="empty-state" role="status">Loading playable Nepal clubs…</p> : <div className="club-choice setup-clubs" role="group" aria-label="Starting club">{visibleClubs.map((club) => <button type="button" key={club.teamId} className={`club-row ${teamId === club.teamId ? "selected" : ""}`} aria-pressed={teamId === club.teamId} onClick={() => setTeamId(club.teamId)}><strong>{club.clubName}</strong><span>{club.division} Division · {club.locationName ?? "Location unknown"}</span><span>{club.squadSize} players · {club.competitionName}</span></button>)}</div>}
             {selectedClub && <p className="selection-note" role="status">Selected: <strong>{selectedClub.clubName}</strong> · {selectedClub.locationName ?? "Location unknown"} · {selectedClub.professionalStatus ?? "Status unknown"}</p>}
           </div>
+          )
         )}
         {step === 4 && (
-          <p>
-            Join {selectedClub?.clubName ?? "your club"} as {careerMode === "OWNER" ? "Chairman / Owner" : "manager"} in the{" "}
+          careerMode === "OWNER" ? <p>Found <strong>{founderClubName}</strong> in {selectedFounderLocation?.province} · {selectedFounderLocation?.district}, entering C Division with 100% Founder ownership and a modest local ground.</p> : <p>
+            Join {selectedClub?.clubName ?? "your club"} as manager in the{" "}
             {selectedClub?.competitionName ?? "Nepal league"} and create a SQLite career save.
           </p>
         )}
@@ -325,7 +344,7 @@ const NewCareer = (props: {
           </button>
           <button
             className="primary"
-            disabled={busy || (step === 3 && !teamId)}
+            disabled={busy || (step === 3 && (careerMode === "OWNER" ? (!founderLocationId || !founderClubName.trim()) : !teamId))}
             onClick={async () => {
               if (step < 4) {
                 setStep(step + 1);
@@ -335,7 +354,8 @@ const NewCareer = (props: {
               const result = await bridge.createCareer({
                   saveName,
                 careerMode,
-                joinTeamId: teamId || undefined,
+                joinTeamId: careerMode === "MANAGER" ? (teamId || undefined) : undefined,
+                founder: careerMode === "OWNER" && selectedFounderLocation ? { clubName: founderClubName.trim(), locationId: selectedFounderLocation.id, locationName: selectedFounderLocation.district, groundName: founderGroundName.trim() || `${founderClubName.trim()} Ground`, philosophy: "COMMUNITY" } : undefined,
                 character: {
                   fullName,
                   preferredDisplayName: displayName,

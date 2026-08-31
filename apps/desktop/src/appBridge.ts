@@ -22,6 +22,7 @@ import type {
   SaveCatalogEntry,
   SquadRow,
   StartingClubOption,
+  FounderLocationOption,
   TacticalSetup,
 } from "@nepal-football-sim/shared-types";
 
@@ -41,6 +42,7 @@ export type {
   DesktopRuntimeApi,
   SaveCatalogEntry,
   StartingClubOption,
+  FounderLocationOption,
   TacticalSetup,
 };
 export type AppError = Extract<AppResult<never>, { ok: false }>["error"];
@@ -122,6 +124,7 @@ type CommandCaller = <T>(command: string, args?: Record<string, unknown>) => Pro
 const bindCommands = (call: CommandCaller): DesktopRuntimeApi => ({
   listSaves: () => call<SaveCatalogEntry[]>("listSaves"),
   listStartingClubs: () => call<StartingClubOption[]>("listStartingClubs"),
+  listFounderLocations: () => call<FounderLocationOption[]>("listFounderLocations"),
   createCareer: (command: CareerCreationCommand) =>
     call<DesktopApplicationState>("createCareer", { command }),
   loadCareer: (saveId: EntityId) => call<DesktopApplicationState>("loadCareer", { saveId }),

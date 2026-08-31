@@ -18,6 +18,7 @@ import {
   FederationGovernanceRepository,
   PlayerRepository,
   TerritorialFootballRepository,
+  WorldRepository,
   type GameDatabase,
 } from "@nepal-football-sim/database";
 import { generateKnockoutFixtures, generateLeagueFixtures } from "./fixture-generation.js";
@@ -37,7 +38,7 @@ import type {
   MacroEconomicState,
 } from "@nepal-football-sim/shared-types";
 
-const provinces: Array<[string, string[]]> = [
+export const NEPAL_PROVINCE_DISTRICTS: Array<[string, string[]]> = [
   [
     "Koshi",
     [
@@ -168,7 +169,7 @@ export const initializeNepalTerritorialStructure = (
     .all() as Array<{ id: EntityId; name: string }>;
   const byName = new Map(locations.map((location) => [clean(location.name), location]));
   const result: DistrictFootballUnit[] = [];
-  for (const [provinceName, names] of provinces) {
+  for (const [provinceName, names] of NEPAL_PROVINCE_DISTRICTS) {
     const provinceId = createStableEntityId("nepal-province", provinceName);
     const districts = names.map((name) => {
       const location = byName.get(clean(name));
@@ -235,6 +236,23 @@ export const initializeNepalTerritorialStructure = (
     repo.upsertProvince(repo.province(provinceId) ?? provincial);
   }
   return { districts: repo.districts(), provinces: repo.provinces() };
+};
+
+/** Ensures the complete canonical 77-district chooser exists in a save. */
+export const ensureNepalFounderLocations = (db: GameDatabase): void => {
+  const country = db.prepare("SELECT id FROM countries WHERE iso_code IN ('NP','NPL') ORDER BY id LIMIT 1").get() as { id?: EntityId } | undefined;
+  if (!country?.id) return;
+  const world = new WorldRepository(db);
+  for (const [provinceName, districtNames] of NEPAL_PROVINCE_DISTRICTS) {
+    const province = db.prepare("SELECT id FROM locations WHERE country_id=? AND kind='province' AND lower(name)=lower(?) LIMIT 1").get(country.id, provinceName) as { id?: EntityId } | undefined;
+    const provinceId = province?.id ?? createStableEntityId("nepal-founder-province", provinceName);
+    if (!province?.id) world.insertLocation({ id: provinceId, canonicalExternalId: `NP-PROV-${clean(provinceName).toUpperCase()}`, countryId: country.id, name: provinceName, kind: "province" });
+    for (const districtName of districtNames) {
+      const existing = db.prepare("SELECT id FROM locations WHERE country_id=? AND kind='district' AND lower(name)=lower(?) LIMIT 1").get(country.id, districtName) as { id?: EntityId } | undefined;
+      if (existing?.id) continue;
+      world.insertLocation({ id: createStableEntityId("nepal-founder-district", districtName), canonicalExternalId: `NP-DIST-${clean(districtName).toUpperCase()}`, countryId: country.id, name: districtName, kind: "district", parentLocationId: provinceId });
+    }
+  }
 };
 
 const territorialCompetitionConfig = (input: {
@@ -351,7 +369,7 @@ export const advanceTerritorialDevelopment = (db: GameDatabase, input: { date: s
   const provinceCount = Number(
     (db.prepare("SELECT COUNT(*) AS count FROM locations WHERE kind='province'").get() as { count?: number } | undefined)?.count ?? 0,
   );
-  if (provinceCount < provinces.length) return;
+  if (provinceCount < NEPAL_PROVINCE_DISTRICTS.length) return;
   const state = initializeNepalTerritorialStructure(db, input.date);
   if (state.districts.some((district) => district.history.some((event) => event.event === "DEVELOPMENT_REVIEW" && event.date === input.date))) return;
   for (const district of state.districts) updateDistrictDevelopment(db, { districtId: district.id, date: input.date, funding: 0, reportedWell: true });
