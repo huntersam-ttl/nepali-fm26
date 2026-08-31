@@ -56,3 +56,13 @@ export const openOwnerRoute = async (page: Page, label: "Finances" | "Sponsorshi
   await page.getByRole("button", { name: label, exact: true }).click();
   await expect(page.getByRole("heading", { name: label === "Finances" ? "Club finance" : label === "Sponsorship" ? "Sponsorship" : "Ownership and investors" })).toBeVisible();
 };
+
+export const saveReloadOwnerCareer = async (page: Page, saveName: string): Promise<void> => {
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByRole("button", { name: "Main Menu" }).click();
+  await page.reload();
+  await page.getByRole("button", { name: /Load Career/ }).click();
+  await page.getByRole("button", { name: new RegExp(saveName) }).click();
+  await page.getByLabel("Active career role").selectOption("CHAIRMAN_OWNER");
+  await expect(page.getByRole("heading", { name: "Chairman / Owner" })).toBeVisible();
+};
