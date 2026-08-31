@@ -29,6 +29,7 @@ import { initializeSupporterCultureForSave } from "./supporter-culture.js";
 import { ensureNepalFounderLocations, initializeNepalTerritorialStructure } from "./territorial-football.js";
 import { ensurePlayableClubVenues } from "./club-creation.js";
 import { applyCanonicalGlobalDatasetSeed } from "./global-football-seed.js";
+import { reconcilePlayablePlayerProfilesOnce } from "./player-profile-reconciliation.js";
 
 export type CreateNepalSaveInput = {
   databasePath: string;
@@ -130,6 +131,7 @@ export const createNepalSave = (input: CreateNepalSaveInput): NepalSaveResult =>
     if (input.globalSeedPath !== null) {
       applyCanonicalGlobalDatasetSeed(db, { seedPath: input.globalSeedPath });
     }
+    reconcilePlayablePlayerProfilesOnce(db, { worldDate: save.worldDate, seed: input.randomSeed });
 
     const inspection = new WorldRepository(db).inspectWorld();
     db.close();

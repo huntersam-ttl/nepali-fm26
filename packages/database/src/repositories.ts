@@ -4603,6 +4603,8 @@ export class PlayerRepository {
           simulationHeightStatus: profile.simulationHeightStatus,
           simulationPreferredFoot: profile.simulationPreferredFoot,
           simulationPreferredFootStatus: profile.simulationPreferredFootStatus,
+          simulationNationality: profile.simulationNationality,
+          simulationNationalityStatus: profile.simulationNationalityStatus,
           currentAbility: profile.currentAbility,
           potentialAbility: profile.potentialAbility,
           reputation: profile.reputation,

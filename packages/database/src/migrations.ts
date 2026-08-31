@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 68;
+export const CURRENT_DATABASE_VERSION = 69;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -3306,6 +3306,15 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
         ADD COLUMN source TEXT NOT NULL DEFAULT 'ANNUAL_INTAKE';
       CREATE INDEX IF NOT EXISTS idx_youth_intake_season_source
         ON youth_intake_events(season_label, source);
+    `,
+  },
+  {
+    version: 69,
+    sql: `
+      CREATE TABLE IF NOT EXISTS simulation_reconciliation_runs (
+        reconciliation_key TEXT PRIMARY KEY,
+        applied_on TEXT NOT NULL
+      );
     `,
   },
 ];

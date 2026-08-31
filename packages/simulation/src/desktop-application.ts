@@ -32,6 +32,8 @@ import {
   withAutosaveStamp,
 } from "./save-management.js";
 import { advanceMacroEconomyForWorldDate } from "./macro-economy.js";
+import { advanceInfrastructureProjects, processClubEconomyMonth } from "./club-economy.js";
+import { advanceProcurementContracts, advanceProcurementOrders, advanceProcurementServices } from "./clubmart.js";
 import {
   createEntityId,
   createStableEntityId,
@@ -168,6 +170,7 @@ import {
 import { nextFixtureForTeam, quickSimManagerMatch, userMatchRequiresAction } from "./manager-flow.js";
 import { ensureNepalFounderLocations, NEPAL_PROVINCE_DISTRICTS } from "./territorial-football.js";
 import { ensureLowerLeaguePlayableWorld } from "./workforce-supply.js";
+import { reconcilePlayablePlayerProfilesOnce } from "./player-profile-reconciliation.js";
 import { initializeTransferMarketForSave, rebalanceNewNepalSaveSquads } from "./transfer-market.js";
 import { appointNationalTeamHeadCoachForPresident, FederationPersonnelError } from "./national-team-management.js";
 import {
@@ -930,6 +933,16 @@ export class DesktopApplicationService {
       let stopReason: string | undefined;
 
       if (!context) {
+        const personId = careerPersonId(db, save);
+        const ownerRole = activeCareerRole(db, personId) === "CHAIRMAN_OWNER"
+          ? heldCareerRoles(db, personId).find((role) => role.role === "CHAIRMAN_OWNER")
+          : undefined;
+        if (ownerRole?.targetId) {
+          const outcome = advanceOwnerCareer(db, save, ownerRole.targetId);
+          updated = { ...save, worldDate: outcome.worldDate, lastSavedAt: new Date().toISOString() };
+          new SaveRepository(db).upsert(updated);
+          new ManagerRepository(db).insertInboxItem({ id: createEntityId(), createdOn: updated.worldDate, type: "COMPETITION_UPDATE", title: "Club operations advanced", body: outcome.message, read: false });
+        } else {
         // No club to advance fixtures for — let the wider world (AI managers,
         // board confidence, vacancies) move on until something new appears.
         const outcome = advanceUnemployedCareer(db, save);
@@ -943,6 +956,7 @@ export class DesktopApplicationService {
           body: outcome.message,
           read: false,
         });
+        }
       } else {
         const currentMatch = userMatchRequiresAction(context.fixtures, context.team.id, save.worldDate);
         if (currentMatch) {
@@ -1257,6 +1271,14 @@ export class DesktopApplicationService {
    * manager appointment simply skips it.
    */
   private warmManagerSystems(db: GameDatabase, save: SaveMetadata): void {
+    db.exec("BEGIN;");
+    try {
+      reconcilePlayablePlayerProfilesOnce(db, { worldDate: save.worldDate, seed: save.randomSeed });
+      db.exec("COMMIT;");
+    } catch (error) {
+      db.exec("ROLLBACK;");
+      throw error;
+    }
     try {
       const context = managerContext(db, save);
       db.exec("BEGIN;");
@@ -2252,6 +2274,35 @@ const tryManagerContext = (db: GameDatabase, save: SaveMetadata): ManagerContext
   const contract = managers.activeContract(manager.id);
   if (!contract?.teamId) return undefined;
   return managerContext(db, save);
+};
+
+const advanceOwnerCareer = (db: GameDatabase, save: SaveMetadata, clubId: EntityId, maxDays = 5): { worldDate: string; message: string } => {
+  let date = save.worldDate;
+  let previousMonth = date.slice(0, 7);
+  for (let day = 0; day < maxDays; day += 1) {
+    const next = addWorldDays(date, 1);
+    const tick = { ...save, worldDate: next };
+    ensureAiManagersAssigned(db, tick, undefined);
+    evaluateBoardConfidence(db, tick);
+    advanceInfrastructureProjects(db, { date: next, seed: `${save.randomSeed}:owner:${clubId}` });
+    advanceProcurementContracts(db, next);
+    advanceProcurementServices(db, { date: next });
+    advanceProcurementOrders(db, { date: next, seed: `${save.randomSeed}:owner:${clubId}` });
+    if (next.slice(0, 7) !== previousMonth) {
+      advanceMacroEconomyForWorldDate(db, { date: next, seed: `${save.randomSeed}:economy:${next.slice(0, 7)}` });
+      processClubEconomyMonth(db, { date: next, seed: `${save.randomSeed}:economy:${next.slice(0, 7)}` });
+      previousMonth = next.slice(0, 7);
+    }
+    date = next;
+  }
+  const account = db.prepare("SELECT cash_balance FROM club_financial_accounts WHERE club_id = ?").get(clubId) as { cash_balance?: number } | undefined;
+  return { worldDate: date, message: `Club operations advanced to ${date}. Cash balance: NPR ${Math.round(account?.cash_balance ?? 0).toLocaleString("en-IN")}. Budget, sponsorship, procurement, and infrastructure systems are now progressing with the world.` };
+};
+
+const addWorldDays = (date: string, days: number): string => {
+  const parsed = new Date(`${date}T00:00:00.000Z`);
+  parsed.setUTCDate(parsed.getUTCDate() + days);
+  return parsed.toISOString().slice(0, 10);
 };
 
 const requirePlayerManagerProfile = (db: GameDatabase, save: SaveMetadata): ManagerProfile => {

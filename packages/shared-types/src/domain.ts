@@ -1410,6 +1410,8 @@ export type PlayerFactualProfile = {
   simulationHeightStatus?: "SIMULATION_ONLY";
   simulationPreferredFoot?: "RIGHT" | "LEFT" | "BOTH";
   simulationPreferredFootStatus?: "SIMULATION_ONLY";
+  simulationNationality?: string;
+  simulationNationalityStatus?: "SIMULATION_ONLY";
   currentAbility: number;
   potentialAbility: number;
   reputation: number;

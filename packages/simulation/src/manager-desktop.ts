@@ -415,12 +415,12 @@ const squadRow = (
   const person = personRow(db, player.personId);
   const profile = factualProfile(db, player.personId);
   const ability = playerAbility(player);
-  const dob = (person?.date_of_birth as string | undefined) ?? profile?.factual?.dateOfBirth;
+  const dob = (person?.date_of_birth as string | undefined) ?? profile?.factual?.dateOfBirth ?? profile?.simulation?.simulationDateOfBirth;
   return {
     personId: player.personId,
     name: (person?.display_name as string) ?? (person?.full_name as string) ?? "Unknown",
-    age: dob ? fact(ageOn(dob, save.worldDate), "REPORTED") : { status: "UNKNOWN" },
-    nationality: (profile?.factual?.nationality as string) ?? playerNationality(db, player.personId) ?? "NEP",
+    age: dob ? fact(ageOn(dob, save.worldDate), profile?.factual?.dateOfBirth || person?.date_of_birth ? "REPORTED" : "SIMULATION_ONLY") : { status: "UNKNOWN" },
+    nationality: (profile?.factual?.nationality as string) ?? (profile?.simulation?.simulationNationality as string) ?? playerNationality(db, player.personId) ?? "NEP",
     primaryPosition: player.primaryPosition,
     positions: [player.primaryPosition, ...player.secondaryPositions],
     squadStatus: (profile?.factual?.squadStatus as string) ?? "UNKNOWN",
@@ -518,7 +518,7 @@ export const buildPlayerProfile = (
       dobFact.value !== undefined
         ? { value: ageOn(dobFact.value, save.worldDate), status: dobFact.status }
         : { status: "UNKNOWN" },
-    nationality: factual.nationality ? fact(factual.nationality as string, "REPORTED") : fact(playerNationality(db, playerId) ?? "NEP", "SIMULATION_ONLY"),
+    nationality: factual.nationality ? fact(factual.nationality as string, "REPORTED") : fact((simulation.simulationNationality as string | undefined) ?? playerNationality(db, playerId) ?? "NEP", "SIMULATION_ONLY"),
     heightCm: factual.heightCm
       ? fact(factual.heightCm as number, "REPORTED")
       : fact((simulation.heightCm as number | undefined) ?? physicalFallbacks.heightCm, "SIMULATION_ONLY"),
