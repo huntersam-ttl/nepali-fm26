@@ -1014,7 +1014,8 @@ export class DesktopApplicationService {
 
   continueCareer(): AppResult<DesktopApplicationState> {
     return this.withSession((db, save, filePath) => {
-      const context = tryManagerContext(db, save);
+      const personId = careerPersonId(db, save);
+      const context = activeCareerRole(db, personId) === "MANAGER" ? tryManagerContext(db, save) : undefined;
       let updated: SaveMetadata;
       let stopReason: string | undefined;
 

@@ -326,7 +326,7 @@ export const ManagerCareer = ({
                 Matchday · {matchdayFixture.homeAway === "home" ? "vs" : "at"} {matchdayFixture.opponent}
               </button>
             )}
-            <button className="primary" disabled={busy || header.activeRole !== "MANAGER" || Boolean(matchdayFixture)} onClick={() => void advance()}>
+            <button className="primary" disabled={busy || !["MANAGER", "CHAIRMAN_OWNER"].includes(header.activeRole) || Boolean(matchdayFixture)} onClick={() => void advance()}>
               {busy ? "Working…" : "Continue"}
             </button>
             <button
