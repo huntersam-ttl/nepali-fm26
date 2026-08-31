@@ -58,6 +58,7 @@ test.describe("Owner economy browser harness", () => {
     await page.getByLabel("Active career role").selectOption("CHAIRMAN_OWNER");
     await page.getByRole("button", { name: "Manager", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Pending budget requests" })).toBeVisible();
+    await page.screenshot({ path: "output/playwright/owner-budget-pending.png", fullPage: true });
     await page.getByRole("button", { name: "Reject", exact: true }).click();
     await expect(page.getByText("No pending manager requests.")).toBeVisible({ timeout: 30_000 });
   });
@@ -105,6 +106,7 @@ test.describe("Owner economy browser harness", () => {
     const ordersBefore = await page.getByText("ClubMart order: FOOTBALL_EQUIPMENT").count();
     await page.getByRole("button", { name: "Order football equipment", exact: true }).click();
     await expect(page.getByRole("alert")).toContainText("Procurement is not affordable");
+    await page.screenshot({ path: "output/playwright/owner-equipment-over-budget.png", fullPage: true });
     await expect(page.getByText("ClubMart order: FOOTBALL_EQUIPMENT")).toHaveCount(ordersBefore);
     await saveReloadOwnerCareer(page, saveName);
     await expect(page.getByText("ClubMart order: FOOTBALL_EQUIPMENT")).toHaveCount(ordersBefore);
