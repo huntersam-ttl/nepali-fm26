@@ -6,6 +6,7 @@ import {
   PlayerRepository,
   RecruitmentRepository,
   SquadDynamicsRepository,
+  StaffMarketRepository,
   TransferMarketRepository,
   WorldRepository,
   type GameDatabase,
@@ -49,6 +50,7 @@ import {
   type RecruitmentSearchCommand,
   type RecruitmentSearchPage,
   type SaveMetadata,
+  type FootballStaffRole,
   type StaffResponsibilityDomain,
   type ScoutingAssignmentCommand,
   type ScoutingDashboard,
@@ -125,7 +127,7 @@ import {
   startLoan,
 } from "./transfer-market.js";
 import type { ManagerContext } from "./desktop-application.js";
-import { assertResponsibilityPermits, ResponsibilityError } from "./staff-market.js";
+import { assertResponsibilityPermits, ResponsibilityError, staffEligibility } from "./staff-market.js";
 import { roleInboxItems } from "./media.js";
 
 type SqlRow = Record<string, any>;
@@ -1908,6 +1910,8 @@ export const buildStaffList = (
   }));
 
   // Candidates come only from imported staff profiles. No invented coaches.
+  const openVacancies = vacancies.filter((vacancy) => vacancy.status === "VACANT");
+  const staffMarket = new StaffMarketRepository(db);
   const candidates = (
     db
       .prepare(
@@ -1917,11 +1921,29 @@ export const buildStaffList = (
          WHERE sa.id IS NULL LIMIT 25`,
       )
       .all() as SqlRow[]
-  ).map((row) => ({
-    personId: row.person_id as EntityId,
-    name: personName(db, row.person_id as EntityId),
-    preferredRole: (row.preferred_role ?? undefined) as string | undefined,
-  }));
+  ).map((row) => {
+    const personId = row.person_id as EntityId;
+    const profile = staffMarket.staffProfile(personId);
+    const licences = staffMarket.staffLicencesForPerson(personId);
+    // Server-authoritative: the same staffEligibility check the hire command
+    // itself enforces, run against every open vacancy at this club, so the
+    // UI never has to guess (or worse, offer a hire it knows will fail).
+    const eligibleVacancyIds = openVacancies
+      .filter((vacancy) => staffEligibility(vacancy.role as FootballStaffRole, profile, licences).eligible)
+      .map((vacancy) => vacancy.id);
+    return {
+      personId,
+      name: personName(db, personId),
+      preferredRole: (row.preferred_role ?? undefined) as string | undefined,
+      eligibleVacancyIds,
+      blockedReason:
+        eligibleVacancyIds.length === 0
+          ? openVacancies.length === 0
+            ? "No open vacancies at this club."
+            : "Not eligible for your current vacancies."
+          : undefined,
+    };
+  });
 
   return { staff, vacancies, candidates };
 };

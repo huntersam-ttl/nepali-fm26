@@ -141,6 +141,8 @@ import {
   type StaffApproachView,
   type StaffList,
   type StaffMarketView,
+  type StaffHireResult,
+  type StaffHireOutcomeView,
   type StaffDevelopmentPlanView,
   type StaffHierarchyEntryView,
   type StaffHierarchyView,
@@ -2464,16 +2466,31 @@ export class DesktopApplicationService {
     personId: EntityId,
     salaryAmountMinor: number,
     contractMonths: number,
-  ): AppResult<StaffMarketView> {
+  ): AppResult<StaffHireResult> {
     return this.managerCommand((db, save, context) => {
+      let outcome: StaffHireOutcomeView;
       try {
-        applyForStaffVacancy(db, save, vacancyId, personId, salaryAmountMinor, contractMonths);
+        const { application, reason } = applyForStaffVacancy(
+          db,
+          save,
+          vacancyId,
+          personId,
+          salaryAmountMinor,
+          contractMonths,
+          context.club?.id,
+        );
+        outcome = {
+          status: application.status,
+          reason,
+          offeredSalaryMinor: application.offeredSalaryMinor,
+          counterSalaryMinor: application.counterSalaryMinor,
+        };
       } catch (error) {
         if (error instanceof StaffNegotiationError)
           throw appError("INVALID_SELECTION", error.message);
         throw error;
       }
-      return buildStaffMarketView(db, save, context);
+      return { outcome, market: buildStaffMarketView(db, save, context) };
     }, true);
   }
 

@@ -1021,7 +1021,7 @@ export const processExternalStaffVacancies = (
         candidate.reputation,
       ) * externalOfferMultiplier(db, vacancy.clubId),
     );
-    const application = applyForStaffVacancy(db, save, vacancy.id, candidate.personId, salary);
+    const { application } = applyForStaffVacancy(db, save, vacancy.id, candidate.personId, salary);
     if (application.status === "OFFERED" || application.status === "COUNTERED") {
       acceptStaffApplication(db, save, application.id);
     }
@@ -1300,14 +1300,24 @@ export class StaffNegotiationError extends Error {
       | "APPLICATION_NOT_ACTIONABLE"
       | "VACANCY_NOT_FOUND"
       | "OFFER_NOT_FOUND"
-      | "OFFER_NOT_ACTIONABLE",
+      | "OFFER_NOT_ACTIONABLE"
+      | "ROLE_NOT_AUTHORIZED",
     message: string,
   ) {
     super(message);
   }
 }
 
-/** The club proposes terms for one candidate against one open vacancy; resolves immediately. */
+export type StaffHireAttemptResult = { application: StaffApplication; reason?: string };
+
+/**
+ * The club proposes terms for one candidate against one open vacancy;
+ * resolves immediately. A REJECTED outcome is a normal, well-formed business
+ * result (unaffordable, unqualified, uninterested) — it is always returned
+ * with a real `reason`, never silently. `callerClubId`, when supplied,
+ * confines the vacancy to that club; AI/external callers that already only
+ * ever operate on their own vacancy's clubId may omit it.
+ */
 export const applyForStaffVacancy = (
   db: GameDatabase,
   save: SaveMetadata,
@@ -1315,12 +1325,23 @@ export const applyForStaffVacancy = (
   personId: EntityId,
   proposedSalaryMinor: number,
   proposedContractMonths = 24,
-): StaffApplication => {
+  callerClubId?: EntityId,
+): StaffHireAttemptResult => {
   const market = new StaffMarketRepository(db);
   const vacancy = market.vacancyById(vacancyId);
   if (!vacancy || vacancy.status !== "VACANT" || !vacancy.clubId) {
     throw new StaffNegotiationError("VACANCY_NOT_FOUND", "That vacancy is no longer open.");
   }
+  if (callerClubId && vacancy.clubId !== callerClubId) {
+    throw new StaffNegotiationError("ROLE_NOT_AUTHORIZED", "You do not manage that club.");
+  }
+  // Deliberately no "already employed elsewhere" guard here: staff mobility
+  // (a candidate currently active at one club moving to another) is an
+  // existing, tested feature — acceptStaffApplication already retires the
+  // prior appointment to FORMER when a new one is accepted. A stale-candidate
+  // race (someone else hires them between the client's list load and this
+  // call) resolves the same honest way: whichever application is accepted
+  // first wins, the other club's earlier appointment ends cleanly.
   const worldDate = save.worldDate;
   const profile = market.staffProfile(personId);
   const licences = market.staffLicencesForPerson(personId);
@@ -1339,8 +1360,16 @@ export const applyForStaffVacancy = (
 
   let status: StaffApplicationStatus;
   let counterSalaryMinor: number | undefined;
-  if (profile?.availability === "RETIRED" || !eligibility.eligible || !canAfford) {
+  let reason: string | undefined;
+  if (profile?.availability === "RETIRED") {
     status = "REJECTED";
+    reason = "This candidate has retired.";
+  } else if (!eligibility.eligible) {
+    status = "REJECTED";
+    reason = eligibility.note ?? "Not qualified for this role.";
+  } else if (!canAfford) {
+    status = "REJECTED";
+    reason = "Your club cannot afford this salary.";
   } else if (interest.score - roll * 0.3 >= 60) {
     status = "OFFERED";
   } else if (interest.score - roll * 0.3 >= 35) {
@@ -1351,8 +1380,10 @@ export const applyForStaffVacancy = (
         estimateSalaryExpectation(vacancy.role, licences, profile?.reputation),
       ) * 1.12,
     );
+    reason = "The candidate wants a higher salary.";
   } else {
     status = "REJECTED";
+    reason = "The candidate was not interested at these terms.";
   }
 
   const application: StaffApplication = {
@@ -1368,7 +1399,7 @@ export const applyForStaffVacancy = (
     counterSalaryMinor,
   };
   market.insertApplication(application);
-  return application;
+  return { application, reason };
 };
 
 /** Finalizes an OFFERED or COUNTERED application into a real hire, at whichever terms are pending. */

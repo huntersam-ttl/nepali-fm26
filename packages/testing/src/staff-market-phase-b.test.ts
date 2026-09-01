@@ -229,7 +229,7 @@ describe("staff market phase B: negotiation, performance, licences, poaching", (
 
   it("resolves an application from an eager, well-paid candidate as OFFERED, and finalizes the hire on accept", () => {
     const vacancy = openStaffVacancy(db, club.id, "SCOUT", "NEW_ROLE", "2026-08-01");
-    const application = applyForStaffVacancy(db, saveAt("2026-08-01"), vacancy.id, eagerCandidateId, 900_000, 24);
+    const { application } = applyForStaffVacancy(db, saveAt("2026-08-01"), vacancy.id, eagerCandidateId, 900_000, 24);
     expect(application.status).toBe("OFFERED");
 
     const appointment = acceptStaffApplication(db, saveAt("2026-08-02"), application.id);
@@ -240,7 +240,7 @@ describe("staff market phase B: negotiation, performance, licences, poaching", (
 
   it("resolves an application from a mismatched, underpaid candidate as REJECTED", () => {
     const vacancy = openStaffVacancy(db, rivalClub.id, "SPORTING_DIRECTOR", "NEW_ROLE", "2026-08-01");
-    const application = applyForStaffVacancy(db, saveAt("2026-08-01"), vacancy.id, uninterestedCandidateId, 100_000, 12);
+    const { application } = applyForStaffVacancy(db, saveAt("2026-08-01"), vacancy.id, uninterestedCandidateId, 100_000, 12);
     expect(application.status).toBe("REJECTED");
     expect(() => acceptStaffApplication(db, saveAt("2026-08-02"), application.id)).toThrow();
     expect(market().activeAppointment(uninterestedCandidateId)).toBeUndefined();
@@ -248,7 +248,7 @@ describe("staff market phase B: negotiation, performance, licences, poaching", (
 
   it("declines an application cleanly, leaving the vacancy open", () => {
     const vacancy = openStaffVacancy(db, rivalClub.id, "YOUTH_COACH", "NEW_ROLE", "2026-08-01");
-    const application = applyForStaffVacancy(db, saveAt("2026-08-01"), vacancy.id, foreignCandidateId, 400_000, 12);
+    const { application } = applyForStaffVacancy(db, saveAt("2026-08-01"), vacancy.id, foreignCandidateId, 400_000, 12);
     declineStaffApplication(db, saveAt("2026-08-02"), application.id);
     expect(market().applicationById(application.id)?.status).toBe("DECLINED");
     expect(market().vacancyById(vacancy.id)?.status).toBe("VACANT");

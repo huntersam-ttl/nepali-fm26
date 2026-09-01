@@ -25,6 +25,7 @@ import type {
   SquadDispute,
   SquadMeeting,
   SquadMeetingType,
+  StaffApplicationStatus,
   SetPieceAssignments,
   TacticalFamiliarity,
   TacticalSetup,
@@ -749,10 +750,26 @@ export type StaffVacancyView = {
   status: string;
 };
 
+/**
+ * Server-authoritative hire eligibility for one candidate at the viewer's
+ * club, right now. `eligibleVacancyIds` is the intersection of this club's
+ * open vacancies and the candidate's real qualification (licence rank, not
+ * merely their stated preference) for that vacancy's role — the client never
+ * recomputes this. Empty means no valid hire action currently exists, and
+ * `blockedReason` explains why in that case.
+ */
+export type StaffCandidateView = {
+  personId: EntityId;
+  name: string;
+  preferredRole?: string;
+  eligibleVacancyIds: EntityId[];
+  blockedReason?: string;
+};
+
 export type StaffList = {
   staff: StaffRow[];
   vacancies: StaffVacancyView[];
-  candidates: Array<{ personId: EntityId; name: string; preferredRole?: string }>;
+  candidates: StaffCandidateView[];
 };
 
 export type StaffRowWithContract = StaffRow & {
@@ -799,10 +816,29 @@ export type StaffApproachView = {
 export type StaffMarketView = {
   staff: StaffRowWithContract[];
   vacancies: StaffVacancyView[];
-  candidates: Array<{ personId: EntityId; name: string; preferredRole?: string }>;
+  candidates: StaffCandidateView[];
   applications: StaffApplicationView[];
   renewalOffers: StaffRenewalOfferView[];
   approaches: StaffApproachView[];
+};
+
+/**
+ * What actually happened to one hire attempt, always returned alongside the
+ * refreshed StaffMarketView so the UI never has to infer an outcome from an
+ * unchanged view. A REJECTED status is a normal, well-formed outcome (a
+ * real business decision, same as an AI club's own hiring attempts can
+ * produce) — never a silently swallowed error.
+ */
+export type StaffHireOutcomeView = {
+  status: StaffApplicationStatus;
+  reason?: string;
+  offeredSalaryMinor?: number;
+  counterSalaryMinor?: number;
+};
+
+export type StaffHireResult = {
+  outcome: StaffHireOutcomeView;
+  market: StaffMarketView;
 };
 
 export type StaffHierarchyEntryView = {

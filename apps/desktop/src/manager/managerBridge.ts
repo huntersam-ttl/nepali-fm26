@@ -41,6 +41,7 @@ import type {
   ReturnToPlayDecisionCommand,
   StaffHierarchyView,
   StaffList,
+  StaffHireResult,
   StaffMarketView,
   StaffResponsibilityDomain,
   StaffResponsibilityOwnerType,
@@ -135,7 +136,7 @@ export const managerBridge = {
   getStaff: (clubId?: EntityId) => runtimeCall<StaffList>("getStaff", { clubId }),
   getStaffMarket: () => runtimeCall<StaffMarketView>("getStaffMarket"),
   applyForStaffRole: (vacancyId: EntityId, personId: EntityId, salaryAmountMinor: number, contractMonths: number) =>
-    runtimeCall<StaffMarketView>("applyForStaffRole", { vacancyId, personId, salaryAmountMinor, contractMonths }),
+    runtimeCall<StaffHireResult>("applyForStaffRole", { vacancyId, personId, salaryAmountMinor, contractMonths }),
   respondToStaffApplication: (applicationId: EntityId, accept: boolean) =>
     runtimeCall<StaffMarketView>("respondToStaffApplication", { applicationId, accept }),
   offerStaffContractRenewal: (appointmentId: EntityId, salaryAmountMinor: number, contractMonths: number) =>

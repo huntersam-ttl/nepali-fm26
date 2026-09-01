@@ -82,7 +82,7 @@ describe("global staff mobility", () => {
       world.insertStaffProfile({ id: createStableEntityId("profile", staffId), personId: staffId, preferredRole: "SCOUT", salaryExpectation: "LOW", reputation: "LOW", countryKnowledge: [indiaId], clubKnowledge: [externalClubId], availability: "EMPLOYED", workEligibilityStatus: "ELIGIBLE" });
       const initialAppointment = hireStaff(db, saveAt("2026-08-01"), externalClubId, externalTeamId, staffId, "SCOUT", 450_000);
       const nepalVacancy = openStaffVacancy(db, nepalClubId, "SCOUT", "NEW_ROLE", "2026-08-02");
-      const inbound = applyForStaffVacancy(db, saveAt("2026-08-02"), nepalVacancy.id, staffId, 1_000_000);
+      const { application: inbound } = applyForStaffVacancy(db, saveAt("2026-08-02"), nepalVacancy.id, staffId, 1_000_000);
       expect(["OFFERED", "COUNTERED"]).toContain(inbound.status);
       const nepalAppointment = acceptStaffApplication(db, saveAt("2026-08-02"), inbound.id);
       expect(nepalAppointment.personId).toBe(staffId);
@@ -92,7 +92,7 @@ describe("global staff mobility", () => {
       expect(finances.clubFinancialProfile(nepalClubId)?.currentWageSpend).toBe(1_000_000);
 
       const returnVacancy = market.openVacancyForRole(externalClubId, "SCOUT")!;
-      const outbound = applyForStaffVacancy(db, saveAt("2026-08-03"), returnVacancy.id, staffId, 1_800_000);
+      const { application: outbound } = applyForStaffVacancy(db, saveAt("2026-08-03"), returnVacancy.id, staffId, 1_800_000);
       expect(["OFFERED", "COUNTERED"]).toContain(outbound.status);
       acceptStaffApplication(db, saveAt("2026-08-03"), outbound.id);
       expect(market.activeAppointment(staffId)?.clubId).toBe(externalClubId);
@@ -146,7 +146,7 @@ describe("global staff mobility", () => {
       world.insertPerson({ id: candidateId, fullName: "Unqualified Coach", nationalityCountryId: nepalId, languages: ["ne"] });
       world.insertStaffProfile({ id: createStableEntityId("profile", candidateId), personId: candidateId, preferredRole: "HEAD_COACH", countryKnowledge: [], clubKnowledge: [], availability: "AVAILABLE", workEligibilityStatus: "ELIGIBLE" });
       const headCoachVacancy = openStaffVacancy(db, externalClubId, "HEAD_COACH", "NEW_ROLE", "2026-08-01");
-      const rejected = applyForStaffVacancy(db, saveAt("2026-08-01"), headCoachVacancy.id, candidateId, 5_000_000);
+      const { application: rejected } = applyForStaffVacancy(db, saveAt("2026-08-01"), headCoachVacancy.id, candidateId, 5_000_000);
       expect(rejected.status).toBe("REJECTED");
       expect(new StaffMarketRepository(db).activeAppointment(candidateId)).toBeUndefined();
 
@@ -154,7 +154,7 @@ describe("global staff mobility", () => {
       world.insertPerson({ id: lowOfferId, fullName: "Low Offer Scout", nationalityCountryId: nepalId, languages: ["ne"] });
       world.insertStaffProfile({ id: createStableEntityId("profile", lowOfferId), personId: lowOfferId, preferredRole: "SCOUT", countryKnowledge: [], clubKnowledge: [], availability: "AVAILABLE", workEligibilityStatus: "ELIGIBLE" });
       const scoutVacancy = openStaffVacancy(db, externalClubId, "SCOUT", "NEW_ROLE", "2026-08-01");
-      const lowOffer = applyForStaffVacancy(db, saveAt("2026-08-01"), scoutVacancy.id, lowOfferId, 1);
+      const { application: lowOffer } = applyForStaffVacancy(db, saveAt("2026-08-01"), scoutVacancy.id, lowOfferId, 1);
       expect(lowOffer.status).toBe("REJECTED");
       expect(new StaffMarketRepository(db).activeAppointment(lowOfferId)).toBeUndefined();
 
