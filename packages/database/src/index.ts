@@ -33,6 +33,7 @@ export * from "./universal-interactions-repository.js";
 export * from "./supporter-culture-repository.js";
 export * from "./football-history-repository.js";
 export * from "./workforce-supply-repository.js";
+export * from "./people-foundation-repository.js";
 export * from "./referee-assignment-repository.js";
 export * from "./global-football-context-repository.js";
 export * from "./international-trials-repository.js";

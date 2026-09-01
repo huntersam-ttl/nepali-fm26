@@ -33,8 +33,21 @@ import {
 } from "./save-management.js";
 import { advanceMacroEconomyForWorldDate } from "./macro-economy.js";
 import { advanceInfrastructureProjects, processClubEconomyMonth } from "./club-economy.js";
-import { advanceProcurementContracts, advanceProcurementOrders, advanceProcurementServices, createProcurementRequest, selectProcurementOffer } from "./clubmart.js";
-import { advanceClubLoanRepayments, applyForClubLoan, decideManagerBudgetRequest, initializeClubFinanceMarkets, repayClubLoan, submitManagerBudgetRequest } from "./club-finance-markets.js";
+import {
+  advanceProcurementContracts,
+  advanceProcurementOrders,
+  advanceProcurementServices,
+  createProcurementRequest,
+  selectProcurementOffer,
+} from "./clubmart.js";
+import {
+  advanceClubLoanRepayments,
+  applyForClubLoan,
+  decideManagerBudgetRequest,
+  initializeClubFinanceMarkets,
+  repayClubLoan,
+  submitManagerBudgetRequest,
+} from "./club-finance-markets.js";
 import {
   createEntityId,
   createStableEntityId,
@@ -174,12 +187,20 @@ import {
   advanceUnemployedCareer,
   ensureOwnerManagerCandidateSupply,
 } from "./manager-career-world.js";
-import { nextFixtureForTeam, quickSimManagerMatch, userMatchRequiresAction } from "./manager-flow.js";
+import {
+  nextFixtureForTeam,
+  quickSimManagerMatch,
+  userMatchRequiresAction,
+} from "./manager-flow.js";
 import { ensureNepalFounderLocations, NEPAL_PROVINCE_DISTRICTS } from "./territorial-football.js";
 import { ensureLowerLeaguePlayableWorld } from "./workforce-supply.js";
+import { initializePeopleFoundation } from "./people-foundation.js";
 import { reconcilePlayablePlayerProfilesOnce } from "./player-profile-reconciliation.js";
 import { initializeTransferMarketForSave, rebalanceNewNepalSaveSquads } from "./transfer-market.js";
-import { appointNationalTeamHeadCoachForPresident, FederationPersonnelError } from "./national-team-management.js";
+import {
+  appointNationalTeamHeadCoachForPresident,
+  FederationPersonnelError,
+} from "./national-team-management.js";
 import {
   ConcernActionError,
   evaluateSquadDynamics,
@@ -256,8 +277,20 @@ import { activeCareerRole, heldCareerRoles, switchActiveCareerRole } from "./car
 import { createInvestorStakeOffer, decideInvestorBid } from "./ownership.js";
 import { buildChairmanDashboard, buildFederationPresidentDashboard } from "./role-desktop.js";
 import { initializeFederationGovernanceForSave } from "./federation-governance.js";
-import { assessFederationCandidacy, declareFederationElectionCandidacy, implementFederationGovernanceProposalCommand } from "./federation-politics.js";
-import { acceptSponsorOfferCommand, counterSponsorOffer, createInfrastructureProjectCommand, generateSponsorOffers, initializeClubEconomyForSave, rejectSponsorOfferCommand, setClubBudgetCommand } from "./club-economy.js";
+import {
+  assessFederationCandidacy,
+  declareFederationElectionCandidacy,
+  implementFederationGovernanceProposalCommand,
+} from "./federation-politics.js";
+import {
+  acceptSponsorOfferCommand,
+  counterSponsorOffer,
+  createInfrastructureProjectCommand,
+  generateSponsorOffers,
+  initializeClubEconomyForSave,
+  rejectSponsorOfferCommand,
+  setClubBudgetCommand,
+} from "./club-economy.js";
 import { ensurePlayableClubVenues, foundSimulationClub } from "./club-creation.js";
 import {
   ManagerCommandError,
@@ -376,30 +409,69 @@ export class DesktopApplicationService {
   }
 
   listFounderLocations(): AppResult<FounderLocationOption[]> {
-    return ok(NEPAL_PROVINCE_DISTRICTS.flatMap(([province, districts]) => districts.map((district) => ({
-      id: createStableEntityId("location", district.toLowerCase().replace(/[^a-z0-9]+/g, "-")),
-      province,
-      district,
-      locality: district,
-      provenanceStatus: "REPORTED" as const,
-    }))));
+    return ok(
+      NEPAL_PROVINCE_DISTRICTS.flatMap(([province, districts]) =>
+        districts.map((district) => ({
+          id: createStableEntityId("location", district.toLowerCase().replace(/[^a-z0-9]+/g, "-")),
+          province,
+          district,
+          locality: district,
+          provenanceStatus: "REPORTED" as const,
+        })),
+      ),
+    );
   }
 
   listOwnerManagerCandidates(): AppResult<OwnerManagerCandidate[]> {
     return this.withSession((db, save) => {
       const personId = careerPersonId(db, save);
-      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER") throw appError("ROLE_NOT_AUTHORIZED", "Only the active chairman/owner may search for a manager.");
-      const club = db.prepare("SELECT c.id FROM club_ownership_stakes s JOIN clubs c ON c.id=s.club_id WHERE s.holder_id=? AND s.holder_type='PERSON' AND s.status='ACTIVE' AND s.percentage>=51 ORDER BY s.percentage DESC LIMIT 1").get(personId) as { id?: EntityId } | undefined;
+      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER")
+        throw appError(
+          "ROLE_NOT_AUTHORIZED",
+          "Only the active chairman/owner may search for a manager.",
+        );
+      const club = db
+        .prepare(
+          "SELECT c.id FROM club_ownership_stakes s JOIN clubs c ON c.id=s.club_id WHERE s.holder_id=? AND s.holder_type='PERSON' AND s.status='ACTIVE' AND s.percentage>=51 ORDER BY s.percentage DESC LIMIT 1",
+        )
+        .get(personId) as { id?: EntityId } | undefined;
       if (!club?.id) return [];
-      const vacancy = db.prepare("SELECT j.id, c.name AS competition_name FROM manager_job_vacancies j JOIN teams t ON t.id=j.team_id LEFT JOIN club_memberships cm ON cm.team_id=t.id AND cm.status='ACTIVE' LEFT JOIN competition_seasons cs ON cs.id=cm.competition_season_id LEFT JOIN competitions c ON c.id=cs.competition_id WHERE j.club_id=? AND j.status='OPEN' ORDER BY j.opened_on LIMIT 1").get(club.id) as { id?: EntityId; competition_name?: string } | undefined;
+      const vacancy = db
+        .prepare(
+          "SELECT j.id, c.name AS competition_name FROM manager_job_vacancies j JOIN teams t ON t.id=j.team_id LEFT JOIN club_memberships cm ON cm.team_id=t.id AND cm.status='ACTIVE' LEFT JOIN competition_seasons cs ON cs.id=cm.competition_season_id LEFT JOIN competitions c ON c.id=cs.competition_id WHERE j.club_id=? AND j.status='OPEN' ORDER BY j.opened_on LIMIT 1",
+        )
+        .get(club.id) as { id?: EntityId; competition_name?: string } | undefined;
       if (!vacancy?.id) return [];
-      const division = vacancy.competition_name?.toLowerCase().includes("a-division") ? "A" : vacancy.competition_name?.toLowerCase().includes("b-division") ? "B" : "C";
-      const wageExpectation = division === "A" ? 8_000_000 : division === "B" ? 5_000_000 : 2_500_000;
-      return new ManagerRepository(db).unemployedManagerProfiles().slice(0, 8).map((profile) => {
-        const person = db.prepare("SELECT p.full_name, p.display_name, co.name AS nationality FROM persons p LEFT JOIN countries co ON co.id=p.nationality_country_id WHERE p.id=?").get(profile.personId) as { full_name?: string; display_name?: string; nationality?: string } | undefined;
-        const reputation = profile.attributes.personality.reputation;
-        return { vacancyId: vacancy.id!, managerProfileId: profile.id, personId: profile.personId, name: person?.display_name ?? person?.full_name ?? profile.personId, nationality: person?.nationality ?? "Unknown", qualification: profile.reputationProfile.replaceAll("_", " "), reputation, wageExpectation, available: true };
-      });
+      const division = vacancy.competition_name?.toLowerCase().includes("a-division")
+        ? "A"
+        : vacancy.competition_name?.toLowerCase().includes("b-division")
+          ? "B"
+          : "C";
+      const wageExpectation =
+        division === "A" ? 8_000_000 : division === "B" ? 5_000_000 : 2_500_000;
+      return new ManagerRepository(db)
+        .unemployedManagerProfiles()
+        .slice(0, 8)
+        .map((profile) => {
+          const person = db
+            .prepare(
+              "SELECT p.full_name, p.display_name, co.name AS nationality FROM persons p LEFT JOIN countries co ON co.id=p.nationality_country_id WHERE p.id=?",
+            )
+            .get(profile.personId) as
+            { full_name?: string; display_name?: string; nationality?: string } | undefined;
+          const reputation = profile.attributes.personality.reputation;
+          return {
+            vacancyId: vacancy.id!,
+            managerProfileId: profile.id,
+            personId: profile.personId,
+            name: person?.display_name ?? person?.full_name ?? profile.personId,
+            nationality: person?.nationality ?? "Unknown",
+            qualification: profile.reputationProfile.replaceAll("_", " "),
+            reputation,
+            wageExpectation,
+            available: true,
+          };
+        });
     });
   }
 
@@ -416,7 +488,9 @@ export class DesktopApplicationService {
     const founderMode = command.careerMode === "OWNER" && Boolean(command.founder);
     const target = command.joinTeamId
       ? options.find((option) => option.teamId === command.joinTeamId)
-      : founderMode ? undefined : options[0];
+      : founderMode
+        ? undefined
+        : options[0];
     if (!target && !founderMode) {
       return fail(
         "INVALID_SELECTION",
@@ -444,16 +518,47 @@ export class DesktopApplicationService {
         importNepalWorld(db, dataset);
         ensureNepalFounderLocations(db);
         ensurePlayableClubVenues(db, `${dataset.meta.targetDatabaseDate}-01`);
-        const candidateCountry = db.prepare("SELECT id FROM countries WHERE iso_code IN ('NP','NPL') ORDER BY id LIMIT 1").get() as { id?: EntityId } | undefined;
-        if (candidateCountry?.id) ensureOwnerManagerCandidateSupply(db, { date: `${dataset.meta.targetDatabaseDate}-01`, seed: `career:${command.saveName}`, countryId: candidateCountry.id });
-        ensureLowerLeaguePlayableWorld({ db, date: `${dataset.meta.targetDatabaseDate}-01`, seed: `career:${command.saveName}` });
-        initializeTransferMarketForSave({ db, worldDate: `${dataset.meta.targetDatabaseDate}-01`, seed: `career:${command.saveName}:market` });
+        const candidateCountry = db
+          .prepare("SELECT id FROM countries WHERE iso_code IN ('NP','NPL') ORDER BY id LIMIT 1")
+          .get() as { id?: EntityId } | undefined;
+        if (candidateCountry?.id)
+          ensureOwnerManagerCandidateSupply(db, {
+            date: `${dataset.meta.targetDatabaseDate}-01`,
+            seed: `career:${command.saveName}`,
+            countryId: candidateCountry.id,
+          });
+        ensureLowerLeaguePlayableWorld({
+          db,
+          date: `${dataset.meta.targetDatabaseDate}-01`,
+          seed: `career:${command.saveName}`,
+        });
+        initializeTransferMarketForSave({
+          db,
+          worldDate: `${dataset.meta.targetDatabaseDate}-01`,
+          seed: `career:${command.saveName}:market`,
+        });
         rebalanceNewNepalSaveSquads(db, `${dataset.meta.targetDatabaseDate}-01`);
-        const season = target ? seasonForTeam(db, target.teamId) : (() => {
-          const row = db!.prepare(`SELECT cs.* FROM competition_seasons cs JOIN competitions c ON c.id=cs.competition_id WHERE lower(c.name) LIKE '%c-division%' ORDER BY cs.start_date LIMIT 1`).get() as Record<string, string> | undefined;
-          if (!row) throw appError("SAVE_CORRUPT", "The lowest supported Nepal division is unavailable.");
-          return { id: row.id as EntityId, competitionId: row.competition_id as EntityId, name: row.name!, startDate: row.start_date!, endDate: row.end_date! };
-        })();
+        const season = target
+          ? seasonForTeam(db, target.teamId)
+          : (() => {
+              const row = db!
+                .prepare(
+                  `SELECT cs.* FROM competition_seasons cs JOIN competitions c ON c.id=cs.competition_id WHERE lower(c.name) LIKE '%c-division%' ORDER BY cs.start_date LIMIT 1`,
+                )
+                .get() as Record<string, string> | undefined;
+              if (!row)
+                throw appError(
+                  "SAVE_CORRUPT",
+                  "The lowest supported Nepal division is unavailable.",
+                );
+              return {
+                id: row.id as EntityId,
+                competitionId: row.competition_id as EntityId,
+                name: row.name!,
+                startDate: row.start_date!,
+                endDate: row.end_date!,
+              };
+            })();
         const ruleSet = new CompetitionRepository(db).getRuleSet(season.id);
         if (!ruleSet) {
           throw appError("SAVE_CORRUPT", `Competition ${season.name} has no rule set.`);
@@ -493,37 +598,76 @@ export class DesktopApplicationService {
         let team = target ? getTeam(db, target.teamId) : undefined;
         if (founderMode) {
           const founder = command.founder!;
-          const location = db.prepare("SELECT id FROM locations WHERE country_id=(SELECT id FROM countries WHERE iso_code IN ('NP','NPL') ORDER BY id LIMIT 1) AND kind='district' AND lower(name)=lower(?) LIMIT 1").get(founder.locationName ?? founder.clubName) as { id?: EntityId } | undefined;
-          if (!location?.id) throw appError("INVALID_SELECTION", "Choose one of Nepal's canonical districts.");
-          const founded = foundSimulationClub(db, { name: founder.clubName, locationId: location.id, foundedOn: careerStartDate, seed: `desktop:${command.saveName}:founder`, groundName: founder.groundName ?? `${founder.clubName} Ground`, competitionSeasonId: season.id, founderPersonId: career.person.id, founderName: displayName(career.person), callerRole: "CHAIRMAN_OWNER" });
-          const founderTeam = db.prepare("SELECT id FROM teams WHERE club_id=? AND level='senior' ORDER BY id LIMIT 1").get(founded.clubId) as { id?: EntityId } | undefined;
-          if (!founderTeam?.id) throw appError("SAVE_CORRUPT", "The founded club has no senior team.");
+          const location = db
+            .prepare(
+              "SELECT id FROM locations WHERE country_id=(SELECT id FROM countries WHERE iso_code IN ('NP','NPL') ORDER BY id LIMIT 1) AND kind='district' AND lower(name)=lower(?) LIMIT 1",
+            )
+            .get(founder.locationName ?? founder.clubName) as { id?: EntityId } | undefined;
+          if (!location?.id)
+            throw appError("INVALID_SELECTION", "Choose one of Nepal's canonical districts.");
+          const founded = foundSimulationClub(db, {
+            name: founder.clubName,
+            locationId: location.id,
+            foundedOn: careerStartDate,
+            seed: `desktop:${command.saveName}:founder`,
+            groundName: founder.groundName ?? `${founder.clubName} Ground`,
+            competitionSeasonId: season.id,
+            founderPersonId: career.person.id,
+            founderName: displayName(career.person),
+            callerRole: "CHAIRMAN_OWNER",
+          });
+          const founderTeam = db
+            .prepare("SELECT id FROM teams WHERE club_id=? AND level='senior' ORDER BY id LIMIT 1")
+            .get(founded.clubId) as { id?: EntityId } | undefined;
+          if (!founderTeam?.id)
+            throw appError("SAVE_CORRUPT", "The founded club has no senior team.");
           team = getTeam(db, founderTeam.id);
-          initializeClubEconomyForSave({ db, worldDate: careerStartDate, seed: `career:${command.saveName}:founder-economy` });
-          ensureLowerLeaguePlayableWorld({ db, date: careerStartDate, seed: `career:${command.saveName}:founder` });
-          initializeTransferMarketForSave({ db, worldDate: careerStartDate, seed: `career:${command.saveName}:founder-market` });
+          initializeClubEconomyForSave({
+            db,
+            worldDate: careerStartDate,
+            seed: `career:${command.saveName}:founder-economy`,
+          });
+          ensureLowerLeaguePlayableWorld({
+            db,
+            date: careerStartDate,
+            seed: `career:${command.saveName}:founder`,
+          });
+          initializeTransferMarketForSave({
+            db,
+            worldDate: careerStartDate,
+            seed: `career:${command.saveName}:founder-market`,
+          });
           rebalanceNewNepalSaveSquads(db, careerStartDate);
           db.prepare("DELETE FROM fixtures WHERE competition_season_id=?").run(season.id);
           scheduleSeasonFixtures(db, season, ruleSet);
         }
         if (!team) throw appError("SAVE_CORRUPT", "The career team is missing.");
-        if ((command.careerMode ?? "MANAGER") === "MANAGER") managers.insertContract(
-          createManagerContract({
-            managerProfileId: career.managerProfile.id,
-            personId: career.person.id,
-            teamId: team.id,
-            clubId: team.clubId,
-            contractStart: careerStartDate,
-            contractEnd: ruleSet.seasonEndDate,
-            salaryAmountMinor: 9_000_000,
-          }),
-        );
+        if ((command.careerMode ?? "MANAGER") === "MANAGER")
+          managers.insertContract(
+            createManagerContract({
+              managerProfileId: career.managerProfile.id,
+              personId: career.person.id,
+              teamId: team.id,
+              clubId: team.clubId,
+              contractStart: careerStartDate,
+              contractEnd: ruleSet.seasonEndDate,
+              salaryAmountMinor: 9_000_000,
+            }),
+          );
         if ((command.careerMode ?? "MANAGER") === "OWNER" && !founderMode) {
-          if (!team.clubId) throw appError("INVALID_SELECTION", "Owner careers require a club-backed senior team.");
-          initializeClubEconomyForSave({ db, worldDate: careerStartDate, seed: `career:${command.saveName}:economy` });
+          if (!team.clubId)
+            throw appError("INVALID_SELECTION", "Owner careers require a club-backed senior team.");
+          initializeClubEconomyForSave({
+            db,
+            worldDate: careerStartDate,
+            seed: `career:${command.saveName}:economy`,
+          });
           const club = getClub(db, team.clubId);
           if (!club || ["DEPARTMENTAL", "MUNICIPALITY_BACKED"].includes(club.ownershipType)) {
-            throw appError("INVALID_SELECTION", "This club does not permit a controlling owner career start.");
+            throw appError(
+              "INVALID_SELECTION",
+              "This club does not permit a controlling owner career start.",
+            );
           }
           const person = getPerson(db, career.person.id);
           new ClubEconomyRepository(db).upsertOwnershipStake({
@@ -541,14 +685,24 @@ export class DesktopApplicationService {
             provenanceStatus: "SIMULATION_ONLY",
           });
         }
+        initializePeopleFoundation({
+          db,
+          date: careerStartDate,
+          seed: `career:${command.saveName}`,
+        });
         const players = new PlayerRepository(db).attributesForTeam(team.id);
-        if ((command.careerMode ?? "MANAGER") === "MANAGER") managers.insertTacticalSetup(defaultSetup(team.id, players, career.managerProfile.id));
+        if ((command.careerMode ?? "MANAGER") === "MANAGER")
+          managers.insertTacticalSetup(defaultSetup(team.id, players, career.managerProfile.id));
         managers.insertInboxItem({
           id: createEntityId(),
           createdOn: careerStartDate,
           type: "FIXTURE_UPCOMING",
-          title: founderMode ? `Welcome to ${command.founder!.clubName}` : `Welcome to ${target!.clubName}`,
-          body: founderMode ? `You founded ${command.founder!.clubName} in the ${season.name}.` : `You have taken charge of ${target!.teamName} in the ${target!.competitionName}.`,
+          title: founderMode
+            ? `Welcome to ${command.founder!.clubName}`
+            : `Welcome to ${target!.clubName}`,
+          body: founderMode
+            ? `You founded ${command.founder!.clubName} in the ${season.name}.`
+            : `You have taken charge of ${target!.teamName} in the ${target!.competitionName}.`,
           relatedEntity: { type: "team", id: team.id },
           read: false,
         });
@@ -643,7 +797,10 @@ export class DesktopApplicationService {
       try {
         switchActiveCareerRole(db, personId, targetRole);
       } catch (error) {
-        throw appError("ROLE_NOT_AUTHORIZED", error instanceof Error ? error.message : "Role is not held.");
+        throw appError(
+          "ROLE_NOT_AUTHORIZED",
+          error instanceof Error ? error.message : "Role is not held.",
+        );
       }
       const updated = loadSave(db, save.id);
       this.writeCatalogEntry(this.catalogEntry(db, updated, filePath));
@@ -671,14 +828,30 @@ export class DesktopApplicationService {
     });
   }
 
-  getFederationCandidacy(): AppResult<import("@nepal-football-sim/shared-types").FederationCandidacyAssessment> {
-    return this.withSession((db, save) => assessFederationCandidacy(db, { personId: careerPersonId(db, save), date: save.worldDate }));
+  getFederationCandidacy(): AppResult<
+    import("@nepal-football-sim/shared-types").FederationCandidacyAssessment
+  > {
+    return this.withSession((db, save) =>
+      assessFederationCandidacy(db, { personId: careerPersonId(db, save), date: save.worldDate }),
+    );
   }
 
-  declareFederationElectionCandidacy(): AppResult<import("@nepal-football-sim/shared-types").FederationCandidacyAssessment> {
+  declareFederationElectionCandidacy(): AppResult<
+    import("@nepal-football-sim/shared-types").FederationCandidacyAssessment
+  > {
     return this.withSession((db, save) => {
-      try { return declareFederationElectionCandidacy(db, { personId: careerPersonId(db, save), date: save.worldDate, seed: save.randomSeed }); }
-      catch (error) { throw appError("ROLE_NOT_AUTHORIZED", error instanceof Error ? error.message : "You are not eligible to stand."); }
+      try {
+        return declareFederationElectionCandidacy(db, {
+          personId: careerPersonId(db, save),
+          date: save.worldDate,
+          seed: save.randomSeed,
+        });
+      } catch (error) {
+        throw appError(
+          "ROLE_NOT_AUTHORIZED",
+          error instanceof Error ? error.message : "You are not eligible to stand.",
+        );
+      }
     });
   }
 
@@ -686,17 +859,72 @@ export class DesktopApplicationService {
   seedE2ERoleFixture(): AppResult<E2ERoleFixtureResult> {
     return this.withSession((db, save) => {
       const personId = careerPersonId(db, save);
-      const manager = db.prepare("SELECT t.club_id FROM manager_contracts mc JOIN teams t ON t.id=mc.team_id WHERE mc.person_id=? AND mc.status='ACTIVE' LIMIT 1").get(personId) as { club_id?: EntityId } | undefined;
-      const ownerClubId = heldCareerRoles(db, personId).find((role) => role.role === "CHAIRMAN_OWNER")?.targetId;
+      const manager = db
+        .prepare(
+          "SELECT t.club_id FROM manager_contracts mc JOIN teams t ON t.id=mc.team_id WHERE mc.person_id=? AND mc.status='ACTIVE' LIMIT 1",
+        )
+        .get(personId) as { club_id?: EntityId } | undefined;
+      const ownerClubId = heldCareerRoles(db, personId).find(
+        (role) => role.role === "CHAIRMAN_OWNER",
+      )?.targetId;
       const clubId = manager?.club_id ?? ownerClubId;
-      const federation = clubId ? db.prepare("SELECT f.id FROM federations f JOIN clubs c ON c.country_id=f.country_id WHERE c.id=? ORDER BY f.id LIMIT 1").get(clubId) as { id?: EntityId } | undefined : undefined;
-      if (!clubId || !federation?.id) throw appError("SAVE_CORRUPT", "Role fixture requires a manager club and federation.");
-      initializeFederationGovernanceForSave({ db, worldDate: save.worldDate, seed: save.randomSeed });
-      generateSponsorOffers(db, { clubId, date: save.worldDate, seed: `${save.randomSeed}:e2e-sponsor-offers`, count: 4 });
-      const person = db.prepare("SELECT display_name, full_name FROM persons WHERE id=?").get(personId) as { display_name?: string; full_name?: string } | undefined;
-      const hasOwnerStake = db.prepare("SELECT 1 FROM club_ownership_stakes WHERE club_id=? AND holder_type='PERSON' AND holder_id=? AND status='ACTIVE' LIMIT 1").get(clubId, personId);
-      if (!hasOwnerStake) db.prepare("INSERT OR IGNORE INTO club_ownership_stakes (id,club_id,holder_type,holder_id,holder_name,role,percentage,voting_percentage,start_date,status,ownership_model,provenance_status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)").run(createStableEntityId("e2e-role-owner", `${save.id}:${personId}`), clubId, "PERSON", personId, person?.display_name ?? person?.full_name ?? personId, "MAJORITY_OWNER", 75, 75, save.worldDate, "ACTIVE", "PARTIALLY_BUYABLE", "SIMULATION_ONLY");
-      db.prepare("INSERT OR IGNORE INTO federation_leadership_tenures (id,person_id,federation_id,role,term_start,term_end,status,provenance_status) VALUES (?,?,?,?,?,?,?,?)").run(createStableEntityId("e2e-role-president", `${save.id}:${personId}`), personId, federation.id, "FEDERATION_PRESIDENT", save.worldDate, "2030-01-01", "ACTIVE", "SIMULATION_ONLY");
+      const federation = clubId
+        ? (db
+            .prepare(
+              "SELECT f.id FROM federations f JOIN clubs c ON c.country_id=f.country_id WHERE c.id=? ORDER BY f.id LIMIT 1",
+            )
+            .get(clubId) as { id?: EntityId } | undefined)
+        : undefined;
+      if (!clubId || !federation?.id)
+        throw appError("SAVE_CORRUPT", "Role fixture requires a manager club and federation.");
+      initializeFederationGovernanceForSave({
+        db,
+        worldDate: save.worldDate,
+        seed: save.randomSeed,
+      });
+      generateSponsorOffers(db, {
+        clubId,
+        date: save.worldDate,
+        seed: `${save.randomSeed}:e2e-sponsor-offers`,
+        count: 4,
+      });
+      const person = db
+        .prepare("SELECT display_name, full_name FROM persons WHERE id=?")
+        .get(personId) as { display_name?: string; full_name?: string } | undefined;
+      const hasOwnerStake = db
+        .prepare(
+          "SELECT 1 FROM club_ownership_stakes WHERE club_id=? AND holder_type='PERSON' AND holder_id=? AND status='ACTIVE' LIMIT 1",
+        )
+        .get(clubId, personId);
+      if (!hasOwnerStake)
+        db.prepare(
+          "INSERT OR IGNORE INTO club_ownership_stakes (id,club_id,holder_type,holder_id,holder_name,role,percentage,voting_percentage,start_date,status,ownership_model,provenance_status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+        ).run(
+          createStableEntityId("e2e-role-owner", `${save.id}:${personId}`),
+          clubId,
+          "PERSON",
+          personId,
+          person?.display_name ?? person?.full_name ?? personId,
+          "MAJORITY_OWNER",
+          75,
+          75,
+          save.worldDate,
+          "ACTIVE",
+          "PARTIALLY_BUYABLE",
+          "SIMULATION_ONLY",
+        );
+      db.prepare(
+        "INSERT OR IGNORE INTO federation_leadership_tenures (id,person_id,federation_id,role,term_start,term_end,status,provenance_status) VALUES (?,?,?,?,?,?,?,?)",
+      ).run(
+        createStableEntityId("e2e-role-president", `${save.id}:${personId}`),
+        personId,
+        federation.id,
+        "FEDERATION_PRESIDENT",
+        save.worldDate,
+        "2030-01-01",
+        "ACTIVE",
+        "SIMULATION_ONLY",
+      );
       return { ready: true };
     });
   }
@@ -707,13 +935,18 @@ export class DesktopApplicationService {
       if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER") {
         throw appError("ROLE_NOT_AUTHORIZED", "Only the active chairman/owner may found a club.");
       }
-      const location = db.prepare(
-        `SELECT l.id FROM locations l JOIN countries co ON co.id = l.country_id
+      const location = db
+        .prepare(
+          `SELECT l.id FROM locations l JOIN countries co ON co.id = l.country_id
          WHERE co.iso_code IN ('NP', 'NPL') AND l.kind IN ('district', 'municipality', 'city')
            AND lower(trim(l.name)) = lower(trim(?)) ORDER BY l.id LIMIT 1`,
-      ).get(locationName) as { id?: EntityId } | undefined;
-      if (!location?.id) throw appError("INVALID_SELECTION", "Choose a Nepal district, municipality, or city.");
-      const person = db.prepare("SELECT display_name, full_name FROM persons WHERE id = ?").get(personId) as { display_name?: string; full_name?: string } | undefined;
+        )
+        .get(locationName) as { id?: EntityId } | undefined;
+      if (!location?.id)
+        throw appError("INVALID_SELECTION", "Choose a Nepal district, municipality, or city.");
+      const person = db
+        .prepare("SELECT display_name, full_name FROM persons WHERE id = ?")
+        .get(personId) as { display_name?: string; full_name?: string } | undefined;
       if (!person) throw appError("SAVE_CORRUPT", "The founding owner is missing.");
       db.exec("BEGIN IMMEDIATE;");
       let founded: SimulationClubRecord;
@@ -730,18 +963,26 @@ export class DesktopApplicationService {
         db.exec("COMMIT;");
       } catch (error) {
         db.exec("ROLLBACK;");
-        throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "Club could not be founded.");
+        throw appError(
+          "INVALID_SELECTION",
+          error instanceof Error ? error.message : "Club could not be founded.",
+        );
       }
       this.writeCatalogEntry(this.catalogEntry(db, loadSave(db, save.id), filePath));
       return founded;
     });
   }
 
-  implementFederationGovernanceProposal(proposalId: EntityId): AppResult<FederationGovernanceProposal> {
+  implementFederationGovernanceProposal(
+    proposalId: EntityId,
+  ): AppResult<FederationGovernanceProposal> {
     return this.withSession((db, save) => {
       const personId = careerPersonId(db, save);
       if (activeCareerRole(db, personId) !== "FEDERATION_PRESIDENT") {
-        throw appError("ROLE_NOT_AUTHORIZED", "Only the active federation president may implement proposals.");
+        throw appError(
+          "ROLE_NOT_AUTHORIZED",
+          "Only the active federation president may implement proposals.",
+        );
       }
       try {
         return implementFederationGovernanceProposalCommand(db, {
@@ -751,38 +992,78 @@ export class DesktopApplicationService {
           date: save.worldDate,
         });
       } catch (error) {
-        throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "Proposal could not be implemented.");
+        throw appError(
+          "INVALID_SELECTION",
+          error instanceof Error ? error.message : "Proposal could not be implemented.",
+        );
       }
     });
   }
 
-  appointNationalTeamHeadCoach(nationalTeamId: EntityId, candidatePersonId: EntityId): AppResult<StaffAppointment> {
+  appointNationalTeamHeadCoach(
+    nationalTeamId: EntityId,
+    candidatePersonId: EntityId,
+  ): AppResult<StaffAppointment> {
     return this.withSession((db, save) => {
       const presidentPersonId = careerPersonId(db, save);
       if (activeCareerRole(db, presidentPersonId) !== "FEDERATION_PRESIDENT") {
-        throw appError("ROLE_NOT_AUTHORIZED", "Only the active federation president may appoint national-team staff.");
+        throw appError(
+          "ROLE_NOT_AUTHORIZED",
+          "Only the active federation president may appoint national-team staff.",
+        );
       }
-      const federationId = db.prepare("SELECT federation_id FROM teams WHERE id=?").get(nationalTeamId) as { federation_id?: EntityId } | undefined;
-      if (!federationId?.federation_id) throw appError("INVALID_SELECTION", "The national team was not found.");
+      const federationId = db
+        .prepare("SELECT federation_id FROM teams WHERE id=?")
+        .get(nationalTeamId) as { federation_id?: EntityId } | undefined;
+      if (!federationId?.federation_id)
+        throw appError("INVALID_SELECTION", "The national team was not found.");
       try {
-        return appointNationalTeamHeadCoachForPresident(db, { federationId: federationId.federation_id, nationalTeamId, presidentPersonId, candidatePersonId, date: save.worldDate });
+        return appointNationalTeamHeadCoachForPresident(db, {
+          federationId: federationId.federation_id,
+          nationalTeamId,
+          presidentPersonId,
+          candidatePersonId,
+          date: save.worldDate,
+        });
       } catch (error) {
-        if (error instanceof FederationPersonnelError && error.code === "NOT_AUTHORIZED") throw appError("ROLE_NOT_AUTHORIZED", error.message);
-        throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "National-team staff could not be appointed.");
+        if (error instanceof FederationPersonnelError && error.code === "NOT_AUTHORIZED")
+          throw appError("ROLE_NOT_AUTHORIZED", error.message);
+        throw appError(
+          "INVALID_SELECTION",
+          error instanceof Error ? error.message : "National-team staff could not be appointed.",
+        );
       }
     });
   }
 
-  setClubBudget(clubId: EntityId, seasonLabel: string, category: ClubBudgetCategory, amount: number): AppResult<ClubBudget> {
+  setClubBudget(
+    clubId: EntityId,
+    seasonLabel: string,
+    category: ClubBudgetCategory,
+    amount: number,
+  ): AppResult<ClubBudget> {
     return this.withSession((db, save) => {
       const personId = careerPersonId(db, save);
       if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER") {
-        throw appError("ROLE_NOT_AUTHORIZED", "Only the active chairman/owner may set club budgets.");
+        throw appError(
+          "ROLE_NOT_AUTHORIZED",
+          "Only the active chairman/owner may set club budgets.",
+        );
       }
       try {
-        return setClubBudgetCommand(db, { clubId, personId, callerRole: "CHAIRMAN_OWNER", seasonLabel, category, amount });
+        return setClubBudgetCommand(db, {
+          clubId,
+          personId,
+          callerRole: "CHAIRMAN_OWNER",
+          seasonLabel,
+          category,
+          amount,
+        });
       } catch (error) {
-        throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "Club budget could not be set.");
+        throw appError(
+          "INVALID_SELECTION",
+          error instanceof Error ? error.message : "Club budget could not be set.",
+        );
       }
     });
   }
@@ -791,24 +1072,39 @@ export class DesktopApplicationService {
     return this.withSession((db, save, filePath) => {
       const personId = careerPersonId(db, save);
       if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER") {
-        throw appError("ROLE_NOT_AUTHORIZED", "Only the active chairman/owner may appoint a manager.");
+        throw appError(
+          "ROLE_NOT_AUTHORIZED",
+          "Only the active chairman/owner may appoint a manager.",
+        );
       }
       try {
-        const contract = appointManagerForChairman(db, { ownerPersonId: personId, vacancyId, managerProfileId, date: save.worldDate });
+        const contract = appointManagerForChairman(db, {
+          ownerPersonId: personId,
+          vacancyId,
+          managerProfileId,
+          date: save.worldDate,
+        });
         this.writeCatalogEntry(this.catalogEntry(db, loadSave(db, save.id), filePath));
         return contract;
       } catch (error) {
-        if (error instanceof ChairmanManagerError) throw appError("INVALID_SELECTION", error.message);
+        if (error instanceof ChairmanManagerError)
+          throw appError("INVALID_SELECTION", error.message);
         throw error;
       }
     });
   }
 
-  createInfrastructureProject(clubId: EntityId, projectType: InfrastructureProjectType): AppResult<InfrastructureProject> {
+  createInfrastructureProject(
+    clubId: EntityId,
+    projectType: InfrastructureProjectType,
+  ): AppResult<InfrastructureProject> {
     return this.withSession((db, save) => {
       const personId = careerPersonId(db, save);
       if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER") {
-        throw appError("ROLE_NOT_AUTHORIZED", "Only the active chairman/owner may approve infrastructure projects.");
+        throw appError(
+          "ROLE_NOT_AUTHORIZED",
+          "Only the active chairman/owner may approve infrastructure projects.",
+        );
       }
       try {
         return createInfrastructureProjectCommand(db, {
@@ -820,7 +1116,10 @@ export class DesktopApplicationService {
           seed: `${save.randomSeed}:chairman-project`,
         });
       } catch (error) {
-        throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "Infrastructure project could not be created.");
+        throw appError(
+          "INVALID_SELECTION",
+          error instanceof Error ? error.message : "Infrastructure project could not be created.",
+        );
       }
     });
   }
@@ -829,12 +1128,24 @@ export class DesktopApplicationService {
     return this.withSession((db, save) => {
       const personId = careerPersonId(db, save);
       if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER") {
-        throw appError("ROLE_NOT_AUTHORIZED", "Only the active chairman/owner may approve sponsorships.");
+        throw appError(
+          "ROLE_NOT_AUTHORIZED",
+          "Only the active chairman/owner may approve sponsorships.",
+        );
       }
       try {
-        return acceptSponsorOfferCommand(db, { clubId, sponsorshipId, personId, callerRole: "CHAIRMAN_OWNER", date: save.worldDate });
+        return acceptSponsorOfferCommand(db, {
+          clubId,
+          sponsorshipId,
+          personId,
+          callerRole: "CHAIRMAN_OWNER",
+          date: save.worldDate,
+        });
       } catch (error) {
-        throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "Sponsorship offer could not be accepted.");
+        throw appError(
+          "INVALID_SELECTION",
+          error instanceof Error ? error.message : "Sponsorship offer could not be accepted.",
+        );
       }
     });
   }
@@ -843,100 +1154,252 @@ export class DesktopApplicationService {
     return this.withSession((db, save) => {
       const personId = careerPersonId(db, save);
       if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER") {
-        throw appError("ROLE_NOT_AUTHORIZED", "Only the active chairman/owner may reject sponsorships.");
+        throw appError(
+          "ROLE_NOT_AUTHORIZED",
+          "Only the active chairman/owner may reject sponsorships.",
+        );
       }
       try {
-        return rejectSponsorOfferCommand(db, { clubId, sponsorshipId, personId, callerRole: "CHAIRMAN_OWNER" });
+        return rejectSponsorOfferCommand(db, {
+          clubId,
+          sponsorshipId,
+          personId,
+          callerRole: "CHAIRMAN_OWNER",
+        });
       } catch (error) {
-        throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "Sponsorship offer could not be rejected.");
+        throw appError(
+          "INVALID_SELECTION",
+          error instanceof Error ? error.message : "Sponsorship offer could not be rejected.",
+        );
       }
     });
   }
 
-  counterSponsorOffer(clubId: EntityId, sponsorshipId: EntityId, annualValue: number, endDate?: string): AppResult<SponsorshipContract> {
+  counterSponsorOffer(
+    clubId: EntityId,
+    sponsorshipId: EntityId,
+    annualValue: number,
+    endDate?: string,
+  ): AppResult<SponsorshipContract> {
     return this.withSession((db, save) => {
       const personId = careerPersonId(db, save);
-      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER") throw appError("ROLE_NOT_AUTHORIZED", "Only the active chairman/owner may negotiate sponsorships.");
-      try { return counterSponsorOffer(db, { sponsorshipId, annualValue, endDate, date: save.worldDate, seed: save.randomSeed }); }
-      catch (error) { throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "Sponsorship counter could not be submitted."); }
+      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER")
+        throw appError(
+          "ROLE_NOT_AUTHORIZED",
+          "Only the active chairman/owner may negotiate sponsorships.",
+        );
+      try {
+        return counterSponsorOffer(db, {
+          sponsorshipId,
+          annualValue,
+          endDate,
+          date: save.worldDate,
+          seed: save.randomSeed,
+        });
+      } catch (error) {
+        throw appError(
+          "INVALID_SELECTION",
+          error instanceof Error ? error.message : "Sponsorship counter could not be submitted.",
+        );
+      }
     });
   }
 
-  createInvestorStakeOffer(percentage: number, minimumAmount?: number): AppResult<ChairmanDashboard["investorMarket"]> {
+  createInvestorStakeOffer(
+    percentage: number,
+    minimumAmount?: number,
+  ): AppResult<ChairmanDashboard["investorMarket"]> {
     return this.withSession((db, save) => {
       const personId = careerPersonId(db, save);
-      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER") throw appError("ROLE_NOT_AUTHORIZED", "Only the active chairman/owner may offer club shares.");
-      const clubId = heldCareerRoles(db, personId).find((role) => role.role === "CHAIRMAN_OWNER")?.targetId;
+      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER")
+        throw appError(
+          "ROLE_NOT_AUTHORIZED",
+          "Only the active chairman/owner may offer club shares.",
+        );
+      const clubId = heldCareerRoles(db, personId).find(
+        (role) => role.role === "CHAIRMAN_OWNER",
+      )?.targetId;
       if (!clubId) throw appError("ROLE_NOT_AUTHORIZED", "No controlled club is available.");
-      try { return createInvestorStakeOffer(db, { clubId, sellerHolderId: personId, percentage, minimumAmount, date: save.worldDate }); }
-      catch (error) { throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "Investor offer could not be created."); }
+      try {
+        return createInvestorStakeOffer(db, {
+          clubId,
+          sellerHolderId: personId,
+          percentage,
+          minimumAmount,
+          date: save.worldDate,
+        });
+      } catch (error) {
+        throw appError(
+          "INVALID_SELECTION",
+          error instanceof Error ? error.message : "Investor offer could not be created.",
+        );
+      }
     });
   }
 
   decideInvestorBid(offerId: EntityId, accept: boolean): AppResult<OwnershipAcquisitionOffer> {
     return this.withSession((db, save) => {
       const personId = careerPersonId(db, save);
-      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER") throw appError("ROLE_NOT_AUTHORIZED", "Only a controlling chairman/owner may decide investor bids.");
-      try { return decideInvestorBid(db, { offerId, date: save.worldDate, accept }); }
-      catch (error) { throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "Investor bid could not be decided."); }
+      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER")
+        throw appError(
+          "ROLE_NOT_AUTHORIZED",
+          "Only a controlling chairman/owner may decide investor bids.",
+        );
+      try {
+        return decideInvestorBid(db, { offerId, date: save.worldDate, accept });
+      } catch (error) {
+        throw appError(
+          "INVALID_SELECTION",
+          error instanceof Error ? error.message : "Investor bid could not be decided.",
+        );
+      }
     });
   }
 
-  applyClubLoan(lenderId: EntityId, principal: number, termMonths: number, purpose: string): AppResult<ClubLoanApplication> {
+  applyClubLoan(
+    lenderId: EntityId,
+    principal: number,
+    termMonths: number,
+    purpose: string,
+  ): AppResult<ClubLoanApplication> {
     return this.withSession((db, save) => {
       const personId = careerPersonId(db, save);
-      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER") throw appError("ROLE_NOT_AUTHORIZED", "Only the active chairman/owner may apply for club loans.");
-      const clubId = heldCareerRoles(db, personId).find((role) => role.role === "CHAIRMAN_OWNER")?.targetId;
+      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER")
+        throw appError(
+          "ROLE_NOT_AUTHORIZED",
+          "Only the active chairman/owner may apply for club loans.",
+        );
+      const clubId = heldCareerRoles(db, personId).find(
+        (role) => role.role === "CHAIRMAN_OWNER",
+      )?.targetId;
       if (!clubId) throw appError("ROLE_NOT_AUTHORIZED", "No controlled club is available.");
-      try { return applyForClubLoan(db, { clubId, lenderId, principal, termMonths, purpose, date: save.worldDate }); }
-      catch (error) { throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "Loan application failed."); }
+      try {
+        return applyForClubLoan(db, {
+          clubId,
+          lenderId,
+          principal,
+          termMonths,
+          purpose,
+          date: save.worldDate,
+        });
+      } catch (error) {
+        throw appError(
+          "INVALID_SELECTION",
+          error instanceof Error ? error.message : "Loan application failed.",
+        );
+      }
     });
   }
 
   repayClubLoan(debtId: EntityId, amount?: number): AppResult<ClubDebt> {
     return this.withSession((db, save) => {
       const personId = careerPersonId(db, save);
-      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER") throw appError("ROLE_NOT_AUTHORIZED", "Only the active chairman/owner may repay club loans.");
-      try { return repayClubLoan(db, { debtId, amount, date: save.worldDate }); }
-      catch (error) { throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "Loan repayment failed."); }
+      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER")
+        throw appError(
+          "ROLE_NOT_AUTHORIZED",
+          "Only the active chairman/owner may repay club loans.",
+        );
+      try {
+        return repayClubLoan(db, { debtId, amount, date: save.worldDate });
+      } catch (error) {
+        throw appError(
+          "INVALID_SELECTION",
+          error instanceof Error ? error.message : "Loan repayment failed.",
+        );
+      }
     });
   }
 
-  requestManagerBudget(seasonLabel: string, category: ClubBudgetCategory, requestedAmount: number): AppResult<ManagerBudgetRequest> {
+  requestManagerBudget(
+    seasonLabel: string,
+    category: ClubBudgetCategory,
+    requestedAmount: number,
+  ): AppResult<ManagerBudgetRequest> {
     return this.withSession((db, save) => {
       const context = managerContext(db, save);
-      if (!context.club) throw appError("ROLE_NOT_AUTHORIZED", "The active manager has no club budget.");
-      try { return submitManagerBudgetRequest(db, { clubId: context.club.id, managerPersonId: context.managerPerson.id, seasonLabel, category, requestedAmount, date: save.worldDate }); }
-      catch (error) { throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "Budget request failed."); }
+      if (!context.club)
+        throw appError("ROLE_NOT_AUTHORIZED", "The active manager has no club budget.");
+      try {
+        return submitManagerBudgetRequest(db, {
+          clubId: context.club.id,
+          managerPersonId: context.managerPerson.id,
+          seasonLabel,
+          category,
+          requestedAmount,
+          date: save.worldDate,
+        });
+      } catch (error) {
+        throw appError(
+          "INVALID_SELECTION",
+          error instanceof Error ? error.message : "Budget request failed.",
+        );
+      }
     });
   }
 
-  decideManagerBudgetRequest(requestId: EntityId, approve: boolean): AppResult<ManagerBudgetRequest> {
+  decideManagerBudgetRequest(
+    requestId: EntityId,
+    approve: boolean,
+  ): AppResult<ManagerBudgetRequest> {
     return this.withSession((db, save) => {
       const personId = careerPersonId(db, save);
-      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER") throw appError("ROLE_NOT_AUTHORIZED", "Only the active chairman/owner may decide manager budget requests.");
+      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER")
+        throw appError(
+          "ROLE_NOT_AUTHORIZED",
+          "Only the active chairman/owner may decide manager budget requests.",
+        );
       try {
         const economy = new ClubEconomyRepository(db);
         const request = economy.budgetRequests().find((item) => item.id === requestId);
-        const controlled = request && heldCareerRoles(db, personId).some((role) => role.role === "CHAIRMAN_OWNER" && role.targetId === request.clubId);
+        const controlled =
+          request &&
+          heldCareerRoles(db, personId).some(
+            (role) => role.role === "CHAIRMAN_OWNER" && role.targetId === request.clubId,
+          );
         if (!controlled) throw new Error("Budget request is outside the controlled club");
         return decideManagerBudgetRequest(db, { requestId, date: save.worldDate, approve });
-      } catch (error) { throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "Budget request decision failed."); }
+      } catch (error) {
+        throw appError(
+          "INVALID_SELECTION",
+          error instanceof Error ? error.message : "Budget request decision failed.",
+        );
+      }
     });
   }
 
   purchaseEquipment(category: ProcurementCategory, quantity: number): AppResult<ProcurementOrder> {
     return this.withSession((db, save) => {
       const personId = careerPersonId(db, save);
-      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER") throw appError("ROLE_NOT_AUTHORIZED", "Only the active chairman/owner may purchase equipment.");
-      const clubId = heldCareerRoles(db, personId).find((role) => role.role === "CHAIRMAN_OWNER")?.targetId;
+      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER")
+        throw appError(
+          "ROLE_NOT_AUTHORIZED",
+          "Only the active chairman/owner may purchase equipment.",
+        );
+      const clubId = heldCareerRoles(db, personId).find(
+        (role) => role.role === "CHAIRMAN_OWNER",
+      )?.targetId;
       if (!clubId) throw appError("ROLE_NOT_AUTHORIZED", "No controlled club is available.");
       try {
-        const request = createProcurementRequest(db, { clubId, category, quantity, date: save.worldDate, seed: `${save.randomSeed}:owner-equipment` });
+        const request = createProcurementRequest(db, {
+          clubId,
+          category,
+          quantity,
+          date: save.worldDate,
+          seed: `${save.randomSeed}:owner-equipment`,
+        });
         const offer = request.offers.sort((a, b) => a.unitPrice - b.unitPrice)[0];
         if (!offer) throw new Error("No equipment supplier offer is available");
-        return selectProcurementOffer(db, { offerId: offer.id, date: save.worldDate, chairmanApproved: true });
-      } catch (error) { throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "Equipment purchase failed."); }
+        return selectProcurementOffer(db, {
+          offerId: offer.id,
+          date: save.worldDate,
+          chairmanApproved: true,
+        });
+      } catch (error) {
+        throw appError(
+          "INVALID_SELECTION",
+          error instanceof Error ? error.message : "Equipment purchase failed.",
+        );
+      }
     });
   }
 
@@ -1028,53 +1491,19 @@ export class DesktopApplicationService {
   continueCareer(): AppResult<DesktopApplicationState> {
     return this.withSession((db, save, filePath) => {
       const personId = careerPersonId(db, save);
-      const context = activeCareerRole(db, personId) === "MANAGER" ? tryManagerContext(db, save) : undefined;
+      const context =
+        activeCareerRole(db, personId) === "MANAGER" ? tryManagerContext(db, save) : undefined;
       let updated: SaveMetadata;
       let stopReason: string | undefined;
 
       if (!context) {
         const personId = careerPersonId(db, save);
-        const ownerRole = activeCareerRole(db, personId) === "CHAIRMAN_OWNER"
-          ? heldCareerRoles(db, personId).find((role) => role.role === "CHAIRMAN_OWNER")
-          : undefined;
+        const ownerRole =
+          activeCareerRole(db, personId) === "CHAIRMAN_OWNER"
+            ? heldCareerRoles(db, personId).find((role) => role.role === "CHAIRMAN_OWNER")
+            : undefined;
         if (ownerRole?.targetId) {
           const outcome = advanceOwnerCareer(db, save, ownerRole.targetId);
-          updated = { ...save, worldDate: outcome.worldDate, lastSavedAt: new Date().toISOString() };
-          new SaveRepository(db).upsert(updated);
-          new ManagerRepository(db).insertInboxItem({ id: createEntityId(), createdOn: updated.worldDate, type: "COMPETITION_UPDATE", title: "Club operations advanced", body: outcome.message, read: false });
-        } else {
-        // No club to advance fixtures for — let the wider world (AI managers,
-        // board confidence, vacancies) move on until something new appears.
-        const outcome = advanceUnemployedCareer(db, save);
-        updated = { ...save, worldDate: outcome.worldDate, lastSavedAt: new Date().toISOString() };
-        new SaveRepository(db).upsert(updated);
-        new ManagerRepository(db).insertInboxItem({
-          id: createEntityId(),
-          createdOn: updated.worldDate,
-          type: "COMPETITION_UPDATE",
-          title: outcome.newVacancies > 0 ? "New vacancies available" : "Time passes",
-          body: outcome.message,
-          read: false,
-        });
-        }
-      } else {
-        const currentMatch = userMatchRequiresAction(context.fixtures, context.team.id, save.worldDate);
-        if (currentMatch) {
-          // Continue is intentionally idempotent on matchday. The manager must
-          // choose a match action before the calendar can move again.
-          updated = save;
-          stopReason = "MATCHDAY";
-        } else {
-        if (!nextFixtureForTeam(context.fixtures, context.team.id, save.worldDate)) {
-          throw appError("FIXTURE_MISSING", "There is no further fixture to advance to.");
-        }
-        ensureManagerSystems(db, save, context);
-        db.exec("BEGIN;");
-        try {
-          // Day-by-day advance that runs scouting and training and stops at the
-          // first meaningful decision, rather than jumping blindly to the fixture.
-          const outcome = advanceManagerCareer(db, save, context);
-          stopReason = outcome.stopReason;
           updated = {
             ...save,
             worldDate: outcome.worldDate,
@@ -1084,117 +1513,174 @@ export class DesktopApplicationService {
           new ManagerRepository(db).insertInboxItem({
             id: createEntityId(),
             createdOn: updated.worldDate,
-            type: outcome.stopReason === "NEXT_FIXTURE" ? "FIXTURE_UPCOMING" : "COMPETITION_UPDATE",
-            title: continueTitle(outcome.stopReason),
+            type: "COMPETITION_UPDATE",
+            title: "Club operations advanced",
             body: outcome.message,
-            relatedEntity: { type: "team", id: context.team.id },
             read: false,
           });
-          db.exec("COMMIT;");
-        } catch (error) {
-          db.exec("ROLLBACK;");
-          throw error;
+        } else {
+          // No club to advance fixtures for — let the wider world (AI managers,
+          // board confidence, vacancies) move on until something new appears.
+          const outcome = advanceUnemployedCareer(db, save);
+          updated = {
+            ...save,
+            worldDate: outcome.worldDate,
+            lastSavedAt: new Date().toISOString(),
+          };
+          new SaveRepository(db).upsert(updated);
+          new ManagerRepository(db).insertInboxItem({
+            id: createEntityId(),
+            createdOn: updated.worldDate,
+            type: "COMPETITION_UPDATE",
+            title: outcome.newVacancies > 0 ? "New vacancies available" : "Time passes",
+            body: outcome.message,
+            read: false,
+          });
         }
-        // World-level tick: AI clubs fill vacancies, boards judge every
-        // manager (including the player) on results. May end the player's
-        // own contract — `buildState` below picks that up automatically.
-        ensureAiManagersAssigned(db, updated, context.team.id);
-        evaluateBoardConfidence(db, updated);
-
-        // Staff market: AI clubs fill their own support-staff vacancies from
-        // need/budget; every club's staff contracts near expiry are renewed
-        // or lapse; performance reviews drift reputation from real proxies;
-        // licence courses complete; rivals occasionally poach staff. The
-        // player's own club is staffed and renewed by hand via the UI.
-        ensureAiStaffAssigned(db, updated, context.club?.id);
-        evaluateAllStaffContracts(db, updated);
-        if (context.club?.id) evaluateStaffPerformance(db, updated, context.club.id);
-        evaluateLicenceCourses(db, updated);
-        completeTechnicalPartnershipPlacements(db, updated);
-        if (context.club?.id) planTechnicalPartnershipPlacements(db, updated, context.club.id);
-        evaluateStaffPoaching(db, updated, context.club?.id);
-        if (context.club?.id) {
-          defaultResponsibilitiesForClub(db, updated, context.club.id);
-          evaluateStaffDevelopmentPlans(db, context.club.id);
-          evaluateSuccessionNeeds(db, updated, context.club.id);
-        }
-
-        // Medical: every club's active rehab plans progress on the natural
-        // staged schedule (protection -> rehab -> partial -> full ->
-        // match-ready). Absent an explicit manager decision this IS
-        // "follow medical advice" — the sensible default AI clubs use.
-        // Only the player's own squad gets inbox notifications since only
-        // they read one.
-        const medicalRepo = new MedicalRepository(db);
-        const beforeReady = new Set(
-          new PlayerRepository(db)
-            .attributesForTeam(context.team.id)
-            .filter(
-              (attributes) =>
-                medicalRepo.activeRehabilitationPlan(attributes.personId)?.stage === "MATCH_READY",
-            )
-            .map((attributes) => attributes.personId),
+      } else {
+        const currentMatch = userMatchRequiresAction(
+          context.fixtures,
+          context.team.id,
+          save.worldDate,
         );
-        advanceAllRehabilitationPlans(db, updated);
-        for (const attributes of new PlayerRepository(db).attributesForTeam(context.team.id)) {
-          const plan = medicalRepo.activeRehabilitationPlan(attributes.personId);
-          if (plan?.stage === "MATCH_READY" && !beforeReady.has(attributes.personId)) {
-            const player = getPerson(db, attributes.personId);
+        if (currentMatch) {
+          // Continue is intentionally idempotent on matchday. The manager must
+          // choose a match action before the calendar can move again.
+          updated = save;
+          stopReason = "MATCHDAY";
+        } else {
+          if (!nextFixtureForTeam(context.fixtures, context.team.id, save.worldDate)) {
+            throw appError("FIXTURE_MISSING", "There is no further fixture to advance to.");
+          }
+          ensureManagerSystems(db, save, context);
+          db.exec("BEGIN;");
+          try {
+            // Day-by-day advance that runs scouting and training and stops at the
+            // first meaningful decision, rather than jumping blindly to the fixture.
+            const outcome = advanceManagerCareer(db, save, context);
+            stopReason = outcome.stopReason;
+            updated = {
+              ...save,
+              worldDate: outcome.worldDate,
+              lastSavedAt: new Date().toISOString(),
+            };
+            new SaveRepository(db).upsert(updated);
             new ManagerRepository(db).insertInboxItem({
               id: createEntityId(),
               createdOn: updated.worldDate,
-              type: "INJURY",
-              title: `${displayName(player)} is match-ready`,
-              body: `${displayName(player)} has completed rehabilitation and is available for selection.`,
-              relatedEntity: { type: "person", id: attributes.personId },
+              type:
+                outcome.stopReason === "NEXT_FIXTURE" ? "FIXTURE_UPCOMING" : "COMPETITION_UPDATE",
+              title: continueTitle(outcome.stopReason),
+              body: outcome.message,
+              relatedEntity: { type: "team", id: context.team.id },
+              read: false,
+            });
+            db.exec("COMMIT;");
+          } catch (error) {
+            db.exec("ROLLBACK;");
+            throw error;
+          }
+          // World-level tick: AI clubs fill vacancies, boards judge every
+          // manager (including the player) on results. May end the player's
+          // own contract — `buildState` below picks that up automatically.
+          ensureAiManagersAssigned(db, updated, context.team.id);
+          evaluateBoardConfidence(db, updated);
+
+          // Staff market: AI clubs fill their own support-staff vacancies from
+          // need/budget; every club's staff contracts near expiry are renewed
+          // or lapse; performance reviews drift reputation from real proxies;
+          // licence courses complete; rivals occasionally poach staff. The
+          // player's own club is staffed and renewed by hand via the UI.
+          ensureAiStaffAssigned(db, updated, context.club?.id);
+          evaluateAllStaffContracts(db, updated);
+          if (context.club?.id) evaluateStaffPerformance(db, updated, context.club.id);
+          evaluateLicenceCourses(db, updated);
+          completeTechnicalPartnershipPlacements(db, updated);
+          if (context.club?.id) planTechnicalPartnershipPlacements(db, updated, context.club.id);
+          evaluateStaffPoaching(db, updated, context.club?.id);
+          if (context.club?.id) {
+            defaultResponsibilitiesForClub(db, updated, context.club.id);
+            evaluateStaffDevelopmentPlans(db, context.club.id);
+            evaluateSuccessionNeeds(db, updated, context.club.id);
+          }
+
+          // Medical: every club's active rehab plans progress on the natural
+          // staged schedule (protection -> rehab -> partial -> full ->
+          // match-ready). Absent an explicit manager decision this IS
+          // "follow medical advice" — the sensible default AI clubs use.
+          // Only the player's own squad gets inbox notifications since only
+          // they read one.
+          const medicalRepo = new MedicalRepository(db);
+          const beforeReady = new Set(
+            new PlayerRepository(db)
+              .attributesForTeam(context.team.id)
+              .filter(
+                (attributes) =>
+                  medicalRepo.activeRehabilitationPlan(attributes.personId)?.stage ===
+                  "MATCH_READY",
+              )
+              .map((attributes) => attributes.personId),
+          );
+          advanceAllRehabilitationPlans(db, updated);
+          for (const attributes of new PlayerRepository(db).attributesForTeam(context.team.id)) {
+            const plan = medicalRepo.activeRehabilitationPlan(attributes.personId);
+            if (plan?.stage === "MATCH_READY" && !beforeReady.has(attributes.personId)) {
+              const player = getPerson(db, attributes.personId);
+              new ManagerRepository(db).insertInboxItem({
+                id: createEntityId(),
+                createdOn: updated.worldDate,
+                type: "INJURY",
+                title: `${displayName(player)} is match-ready`,
+                body: `${displayName(player)} has completed rehabilitation and is available for selection.`,
+                relatedEntity: { type: "person", id: attributes.personId },
+                read: false,
+              });
+            }
+          }
+
+          // Squad dynamics: only the player's own squad, since only they read
+          // an inbox — raised/escalated concerns become inbox items, resolved
+          // ones do not, so the inbox reacts to real change, not every tick.
+          const dynamicsOutcome = evaluateSquadDynamics(
+            db,
+            updated,
+            context.team.id,
+            context.club?.id,
+            context.manager.id,
+          );
+          for (const concern of [
+            ...dynamicsOutcome.raisedConcerns,
+            ...dynamicsOutcome.escalatedConcerns,
+          ]) {
+            const player = getPerson(db, concern.personId);
+            new ManagerRepository(db).insertInboxItem({
+              id: createEntityId(),
+              createdOn: updated.worldDate,
+              type: "COMPETITION_UPDATE",
+              title: `${displayName(player)}: ${concernTitle(concern.type)}`,
+              body: concern.note ?? "A squad concern needs your attention.",
+              relatedEntity: { type: "person", id: concern.personId },
               read: false,
             });
           }
-        }
-
-        // Squad dynamics: only the player's own squad, since only they read
-        // an inbox — raised/escalated concerns become inbox items, resolved
-        // ones do not, so the inbox reacts to real change, not every tick.
-        const dynamicsOutcome = evaluateSquadDynamics(
-          db,
-          updated,
-          context.team.id,
-          context.club?.id,
-          context.manager.id,
-        );
-        for (const concern of [
-          ...dynamicsOutcome.raisedConcerns,
-          ...dynamicsOutcome.escalatedConcerns,
-        ]) {
-          const player = getPerson(db, concern.personId);
-          new ManagerRepository(db).insertInboxItem({
-            id: createEntityId(),
-            createdOn: updated.worldDate,
-            type: "COMPETITION_UPDATE",
-            title: `${displayName(player)}: ${concernTitle(concern.type)}`,
-            body: concern.note ?? "A squad concern needs your attention.",
-            relatedEntity: { type: "person", id: concern.personId },
-            read: false,
-          });
-        }
-        for (const promise of [
-          ...dynamicsOutcome.keptPromises,
-          ...dynamicsOutcome.brokenPromises,
-        ]) {
-          const player = getPerson(db, promise.personId);
-          const kept = promise.status === "KEPT";
-          new ManagerRepository(db).insertInboxItem({
-            id: createEntityId(),
-            createdOn: updated.worldDate,
-            type: "COMPETITION_UPDATE",
-            title: `${displayName(player)}: promise ${kept ? "kept" : "broken"}`,
-            body: kept
-              ? `You followed through on your promise to ${displayName(player)}.`
-              : `You did not follow through on your promise to ${displayName(player)} — trust has taken a hit.`,
-            relatedEntity: { type: "person", id: promise.personId },
-            read: false,
-          });
-        }
+          for (const promise of [
+            ...dynamicsOutcome.keptPromises,
+            ...dynamicsOutcome.brokenPromises,
+          ]) {
+            const player = getPerson(db, promise.personId);
+            const kept = promise.status === "KEPT";
+            new ManagerRepository(db).insertInboxItem({
+              id: createEntityId(),
+              createdOn: updated.worldDate,
+              type: "COMPETITION_UPDATE",
+              title: `${displayName(player)}: promise ${kept ? "kept" : "broken"}`,
+              body: kept
+                ? `You followed through on your promise to ${displayName(player)}.`
+                : `You did not follow through on your promise to ${displayName(player)} — trust has taken a hit.`,
+              relatedEntity: { type: "person", id: promise.personId },
+              read: false,
+            });
+          }
         }
       }
 
@@ -1402,7 +1888,10 @@ export class DesktopApplicationService {
     return this.withSession((db, save, filePath) => {
       const personId = careerPersonId(db, save);
       if (activeCareerRole(db, personId) !== "MANAGER") {
-        throw appError("ROLE_NOT_AUTHORIZED", "The active career role cannot use manager commands.");
+        throw appError(
+          "ROLE_NOT_AUTHORIZED",
+          "The active career role cannot use manager commands.",
+        );
       }
       const context = managerContext(db, save);
       ensureManagerSystems(db, save, context);
@@ -2173,9 +2662,16 @@ export class DesktopApplicationService {
             ...base,
             characterName: displayName(person),
             activeRole: activeCareerRole(db, person.id),
-            organisation: activeCareerRole(db, person.id) === "CHAIRMAN_OWNER"
-              ? (db.prepare("SELECT c.name FROM club_ownership_stakes s JOIN clubs c ON c.id=s.club_id WHERE s.holder_id=? AND s.holder_type='PERSON' AND s.status='ACTIVE' AND s.percentage>=51 ORDER BY s.percentage DESC LIMIT 1").get(person.id) as { name?: string } | undefined)?.name ?? "Owner / Founder"
-              : "Unemployed",
+            organisation:
+              activeCareerRole(db, person.id) === "CHAIRMAN_OWNER"
+                ? ((
+                    db
+                      .prepare(
+                        "SELECT c.name FROM club_ownership_stakes s JOIN clubs c ON c.id=s.club_id WHERE s.holder_id=? AND s.holder_type='PERSON' AND s.status='ACTIVE' AND s.percentage>=51 ORDER BY s.percentage DESC LIMIT 1",
+                      )
+                      .get(person.id) as { name?: string } | undefined
+                  )?.name ?? "Owner / Founder")
+                : "Unemployed",
           };
         }
       }
@@ -2247,30 +2743,40 @@ const startingClubOptions = (dataset: NepalWorldDataset): StartingClubOption[] =
     const competition = dataset.competitions.find((item) => item.key === membership.competitionKey);
     if (!competition || competition.category !== "PYRAMID_LEAGUE") continue;
     const current = membershipByTeam.get(teamKey);
-    if (!current || /[ABC]-DIVISION/i.test(competition.name)) membershipByTeam.set(teamKey, { competitionKey: membership.competitionKey, name: competition.name });
+    if (!current || /[ABC]-DIVISION/i.test(competition.name))
+      membershipByTeam.set(teamKey, {
+        competitionKey: membership.competitionKey,
+        name: competition.name,
+      });
   }
 
   return dataset.teams
-    .filter((team) => team.level === "senior" && team.gender === "men" && membershipByTeam.has(team.key))
+    .filter(
+      (team) => team.level === "senior" && team.gender === "men" && membershipByTeam.has(team.key),
+    )
     .map((team) => {
       const clubKey = team.clubKey?.value;
       const membership = membershipByTeam.get(team.key)!;
       const club = clubKey ? dataset.clubs.find((item) => item.key === clubKey) : undefined;
-      const locationName = club?.locationKey.value ? dataset.locations.find((item) => item.key === club.locationKey.value)?.name : undefined;
+      const locationName = club?.locationKey.value
+        ? dataset.locations.find((item) => item.key === club.locationKey.value)?.name
+        : undefined;
       return {
         teamId: createStableEntityId("team", team.key),
         clubId: clubKey ? createStableEntityId("club", clubKey) : undefined,
         clubName: (clubKey ? clubNames.get(clubKey) : undefined) ?? team.name,
         teamName: team.name,
-        competitionName: membership.name ?? competitionNames.get(membership.competitionKey) ?? "Nepal football",
+        competitionName:
+          membership.name ?? competitionNames.get(membership.competitionKey) ?? "Nepal football",
         squadSize: squadSizes.get(team.key) ?? 0,
-        division: membership.name.match(/([ABC])-DIVISION/i)?.[1] ?? "Other playable Nepal competition",
+        division:
+          membership.name.match(/([ABC])-DIVISION/i)?.[1] ?? "Other playable Nepal competition",
         locationName,
         professionalStatus: club?.ownershipType.value === "DEPARTMENTAL" ? "Departmental" : "Club",
       };
     })
     .sort((a, b) => {
-      const rank = (division: string): number => ({ A: 0, B: 1, C: 2 }[division] ?? 3);
+      const rank = (division: string): number => ({ A: 0, B: 1, C: 2 })[division] ?? 3;
       return rank(a.division) - rank(b.division) || a.clubName.localeCompare(b.clubName);
     });
 };
@@ -2377,7 +2883,12 @@ const tryManagerContext = (db: GameDatabase, save: SaveMetadata): ManagerContext
   return managerContext(db, save);
 };
 
-const advanceOwnerCareer = (db: GameDatabase, save: SaveMetadata, clubId: EntityId, maxDays = 5): { worldDate: string; message: string } => {
+const advanceOwnerCareer = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  clubId: EntityId,
+  maxDays = 5,
+): { worldDate: string; message: string } => {
   let date = save.worldDate;
   let previousMonth = date.slice(0, 7);
   for (let day = 0; day < maxDays; day += 1) {
@@ -2391,14 +2902,25 @@ const advanceOwnerCareer = (db: GameDatabase, save: SaveMetadata, clubId: Entity
     advanceProcurementOrders(db, { date: next, seed: `${save.randomSeed}:owner:${clubId}` });
     advanceClubLoanRepayments(db, next);
     if (next.slice(0, 7) !== previousMonth) {
-      advanceMacroEconomyForWorldDate(db, { date: next, seed: `${save.randomSeed}:economy:${next.slice(0, 7)}` });
-      processClubEconomyMonth(db, { date: next, seed: `${save.randomSeed}:economy:${next.slice(0, 7)}` });
+      advanceMacroEconomyForWorldDate(db, {
+        date: next,
+        seed: `${save.randomSeed}:economy:${next.slice(0, 7)}`,
+      });
+      processClubEconomyMonth(db, {
+        date: next,
+        seed: `${save.randomSeed}:economy:${next.slice(0, 7)}`,
+      });
       previousMonth = next.slice(0, 7);
     }
     date = next;
   }
-  const account = db.prepare("SELECT cash_balance FROM club_financial_accounts WHERE club_id = ?").get(clubId) as { cash_balance?: number } | undefined;
-  return { worldDate: date, message: `Club operations advanced to ${date}. Cash balance: NPR ${Math.round(account?.cash_balance ?? 0).toLocaleString("en-IN")}. Budget, sponsorship, procurement, and infrastructure systems are now progressing with the world.` };
+  const account = db
+    .prepare("SELECT cash_balance FROM club_financial_accounts WHERE club_id = ?")
+    .get(clubId) as { cash_balance?: number } | undefined;
+  return {
+    worldDate: date,
+    message: `Club operations advanced to ${date}. Cash balance: NPR ${Math.round(account?.cash_balance ?? 0).toLocaleString("en-IN")}. Budget, sponsorship, procurement, and infrastructure systems are now progressing with the world.`,
+  };
 };
 
 const addWorldDays = (date: string, days: number): string => {
@@ -2735,7 +3257,12 @@ const unemployedCareerHeader = (db: GameDatabase, save: SaveMetadata): CareerHea
     : undefined;
   const person = character ? getPerson(db, character.personId) : undefined;
   const ownedClub = person
-    ? db.prepare("SELECT c.name, t.name AS team_name, cs.name AS competition_name FROM club_ownership_stakes s JOIN clubs c ON c.id=s.club_id LEFT JOIN teams t ON t.club_id=c.id AND t.level='senior' LEFT JOIN club_memberships cm ON cm.team_id=t.id AND cm.status='ACTIVE' LEFT JOIN competition_seasons cs ON cs.id=cm.competition_season_id WHERE s.holder_id=? AND s.holder_type='PERSON' AND s.status='ACTIVE' AND s.percentage>=51 ORDER BY s.percentage DESC LIMIT 1").get(person.id) as { name?: string; team_name?: string; competition_name?: string } | undefined
+    ? (db
+        .prepare(
+          "SELECT c.name, t.name AS team_name, cs.name AS competition_name FROM club_ownership_stakes s JOIN clubs c ON c.id=s.club_id LEFT JOIN teams t ON t.club_id=c.id AND t.level='senior' LEFT JOIN club_memberships cm ON cm.team_id=t.id AND cm.status='ACTIVE' LEFT JOIN competition_seasons cs ON cs.id=cm.competition_season_id WHERE s.holder_id=? AND s.holder_type='PERSON' AND s.status='ACTIVE' AND s.percentage>=51 ORDER BY s.percentage DESC LIMIT 1",
+        )
+        .get(person.id) as
+        { name?: string; team_name?: string; competition_name?: string } | undefined)
     : undefined;
   return {
     saveId: save.id,
@@ -2777,7 +3304,11 @@ const careerHeader = (db: GameDatabase, save: SaveMetadata): CareerHeader => {
   return context ? careerHeaderFromContext(db, save, context) : unemployedCareerHeader(db, save);
 };
 
-const careerHeaderFromContext = (db: GameDatabase, save: SaveMetadata, context: ManagerContext): CareerHeader => ({
+const careerHeaderFromContext = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  context: ManagerContext,
+): CareerHeader => ({
   saveId: save.id,
   saveName: save.name,
   worldDate: save.worldDate,

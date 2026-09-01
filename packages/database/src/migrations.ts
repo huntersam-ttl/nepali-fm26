@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 69;
+export const CURRENT_DATABASE_VERSION = 71;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -3363,6 +3363,35 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       );
       CREATE INDEX IF NOT EXISTS idx_club_debts_due ON club_debts(status, next_payment_date);
       CREATE INDEX IF NOT EXISTS idx_budget_requests_club ON manager_budget_requests(club_id, status, created_on);
+    `,
+  },
+  {
+    version: 71,
+    sql: `
+      CREATE TABLE IF NOT EXISTS person_personality_profiles (
+        person_id TEXT PRIMARY KEY REFERENCES persons(id),
+        traits_json TEXT NOT NULL,
+        archetype TEXT NOT NULL,
+        updated_on TEXT NOT NULL,
+        provenance_status TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS person_relationships (
+        id TEXT PRIMARY KEY,
+        from_person_id TEXT NOT NULL REFERENCES persons(id),
+        to_person_id TEXT NOT NULL REFERENCES persons(id),
+        relationship_kind TEXT NOT NULL,
+        affinity INTEGER NOT NULL,
+        trust INTEGER NOT NULL,
+        respect INTEGER NOT NULL,
+        tension INTEGER NOT NULL,
+        updated_on TEXT NOT NULL,
+        provenance_status TEXT NOT NULL,
+        UNIQUE(from_person_id, to_person_id, relationship_kind)
+      );
+      CREATE INDEX IF NOT EXISTS idx_person_relationships_from
+        ON person_relationships(from_person_id, relationship_kind);
+      CREATE INDEX IF NOT EXISTS idx_person_relationships_to
+        ON person_relationships(to_person_id, relationship_kind);
     `,
   },
 ];

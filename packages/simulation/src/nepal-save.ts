@@ -26,11 +26,15 @@ import { applyFederationComplianceSnapshot } from "./federation-compliance.js";
 import { ensureLowerLeaguePlayableWorld } from "./workforce-supply.js";
 import { advanceMacroEconomyForWorldDate } from "./macro-economy.js";
 import { initializeSupporterCultureForSave } from "./supporter-culture.js";
-import { ensureNepalFounderLocations, initializeNepalTerritorialStructure } from "./territorial-football.js";
+import {
+  ensureNepalFounderLocations,
+  initializeNepalTerritorialStructure,
+} from "./territorial-football.js";
 import { ensurePlayableClubVenues } from "./club-creation.js";
 import { applyCanonicalGlobalDatasetSeed } from "./global-football-seed.js";
 import { reconcilePlayablePlayerProfilesOnce } from "./player-profile-reconciliation.js";
 import { initializeClubFinanceMarkets } from "./club-finance-markets.js";
+import { initializePeopleFoundation } from "./people-foundation.js";
 
 export type CreateNepalSaveInput = {
   databasePath: string;
@@ -114,11 +118,15 @@ export const createNepalSave = (input: CreateNepalSaveInput): NepalSaveResult =>
       randomSeed: input.randomSeed,
     });
     importNepalWorld(db, dataset);
-    initializeNepalTerritorialStructure(db, input.worldDate ?? `${dataset.meta.targetDatabaseDate}-01`);
+    initializeNepalTerritorialStructure(
+      db,
+      input.worldDate ?? `${dataset.meta.targetDatabaseDate}-01`,
+    );
     ensureNepalFounderLocations(db);
     ensurePlayableClubVenues(db, save.worldDate);
     advanceMacroEconomyForWorldDate(db, { date: save.worldDate, seed: input.randomSeed });
     ensureLowerLeaguePlayableWorld({ db, date: save.worldDate, seed: input.randomSeed });
+    initializePeopleFoundation({ db, date: save.worldDate, seed: input.randomSeed });
     initializeSupporterCultureForSave({ db, worldDate: save.worldDate, seed: input.randomSeed });
     db.exec("COMMIT;");
 
