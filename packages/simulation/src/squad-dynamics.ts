@@ -490,12 +490,27 @@ export const manageAiPromisesForTeam = (
     if (contract && daysLeft > 0 && daysLeft <= 180) action = "PROMISE_CONTRACT_REVIEW";
   } else if (concern.type === "TRANSFER_INTEREST") {
     const status = transfers.transferStatus(concern.personId)?.status;
-    if (status === "INTERESTED_IN_MOVE") action = "PROMISE_TRANSFER_STANCE";
+    if (status === "INTERESTED_IN_MOVE") {
+      const alreadyOnLoan = transfers
+        .activeLoans(save.worldDate)
+        .some((loan) => loan.playerId === concern.personId);
+      action = alreadyOnLoan ? "PROMISE_TRANSFER_STANCE" : "PROMISE_LOAN_CONSIDERATION";
+    }
+  } else if (concern.type === "ROLE_STATUS" && contract && clubId) {
+    const squadSize = Number(
+      (
+        db
+          .prepare(
+            "SELECT COUNT(*) AS count FROM player_contracts WHERE club_id=? AND status='ACTIVE' AND start_date<=? AND (end_date IS NULL OR end_date>=?)",
+          )
+          .get(clubId, save.worldDate, save.worldDate) as SqlRow | undefined
+      )?.count ?? 0,
+    );
+    // A thin squad gives the existing transfer planner a concrete
+    // strengthening objective; otherwise answer the player's role concern.
+    action = squadSize < 18 ? "PROMISE_SQUAD_STRENGTHENING" : "PROMISE_SQUAD_ROLE";
   }
 
-  // Role, loan and squad-strengthening commitments require a concrete AI
-  // action path that is not currently present in the match planner. Leaving
-  // them unmade is safer than promising an outcome the AI cannot pursue.
   if (!action) return outcome;
 
   const promise = createPromise(
