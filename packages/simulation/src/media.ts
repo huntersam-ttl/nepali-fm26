@@ -257,6 +257,14 @@ const inboxTypeForEvent = (event: HistoricalEvent): InboxItem["type"] => {
 
 const legacyText = (item: InboxItem): string => `${item.title} ${item.body}`.toUpperCase();
 
+/** Inbox types that only ever describe day-to-day squad/fixture management. */
+const MANAGER_ONLY_LEGACY_TYPES: ReadonlySet<InboxItem["type"]> = new Set([
+  "FIXTURE_UPCOMING",
+  "MATCH_RESULT",
+  "INJURY",
+  "SUSPENSION",
+]);
+
 /**
  * Legacy inbox rows predate role deliveries and often have no entity
  * metadata. Keep those rows Manager-only; only positively classified public
@@ -273,6 +281,10 @@ const legacyVisibleToRole = (
     return managerEvent(sourceEvent) || sourceEvent.scope === "person";
   }
   if (role === "MANAGER") return true;
+  // These types are unambiguous day-to-day squad/fixture management, not
+  // public news — never let a title/body keyword coincidence (e.g. a club
+  // literally named "... Youth Club") leak one into Owner/President.
+  if (MANAGER_ONLY_LEGACY_TYPES.has(item.type)) return false;
   const text = legacyText(item);
   if (role === "PRESIDENT") {
     return /(ELECTION|FEDERATION|GOVERNANCE|POLICY|PROJECT|FUNDING|NATIONAL TEAM|REFEREE|WOMEN|GIRLS|YOUTH)/.test(

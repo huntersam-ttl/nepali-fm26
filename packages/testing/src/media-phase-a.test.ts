@@ -373,4 +373,29 @@ describe("Media phase A", () => {
     expect(owner[0]?.read).toBe(true);
     db.close();
   });
+
+  it("never leaks a Manager-only fixture/match/injury/suspension notice to Owner or President, even when an opponent's name coincidentally matches a public-event keyword", () => {
+    const db = openGameDatabase(makeSave("media-legacy-type-guard"));
+    // "Tushal Youth Club" is a real fixture opponent name in this dataset, and
+    // "YOUTH" is a legitimate federation-development keyword — this fixture
+    // notice must stay Manager-only on its declared type, not leak to
+    // President purely because its title/body text happens to contain it.
+    const item = {
+      id: createStableEntityId("inbox", "legacy-fixture-youth-club"),
+      createdOn: "2026-09-05",
+      type: "FIXTURE_UPCOMING" as const,
+      title: "Next fixture reached",
+      body: "Matchday: Tushal Youth Club Men's First Team.",
+      read: false,
+    };
+    const personId = createStableEntityId("person", "legacy-type-guard");
+    new ManagerRepository(db).insertInboxItem(item);
+    const owner = roleInboxItems(db, { personId, role: "OWNER", legacyItems: [item] });
+    const president = roleInboxItems(db, { personId, role: "PRESIDENT", legacyItems: [item] });
+    const manager = roleInboxItems(db, { personId, role: "MANAGER", legacyItems: [item] });
+    expect(owner).toHaveLength(0);
+    expect(president).toHaveLength(0);
+    expect(manager.map((entry) => entry.id)).toEqual([item.id]);
+    db.close();
+  });
 });
