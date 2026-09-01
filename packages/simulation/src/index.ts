@@ -77,6 +77,7 @@ export * from "./licensing.js";
 export * from "./career-identity.js";
 export * from "./career-control.js";
 export * from "./supporter-culture.js";
+export * from "./supporter-politics.js";
 export * from "./football-history.js";
 export * from "./workforce-supply.js";
 export * from "./referee-assignment.js";

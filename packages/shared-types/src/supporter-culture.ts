@@ -11,6 +11,11 @@ export type SupporterProvenance = "SIMULATION_ONLY";
 
 export type SupporterUnrestState = "CONTENT" | "CONCERNED" | "FRUSTRATED" | "ANGRY" | "PROTESTING";
 
+export type SupporterReactionState = "SUPPORTIVE" | "CONTENT" | "RESTLESS" | "ANGRY" | "PROTESTING";
+
+export type SupporterFaction =
+  "TRADITIONALISTS" | "RESULTS_FIRST" | "YOUTH_FOCUSED" | "OWNERSHIP_CRITICAL" | "GROWTH_FOCUSED";
+
 export type SupporterAffinityBand = "FAN_FAVOURITE" | "RESPECTED" | "NEUTRAL" | "UNPOPULAR";
 
 export type SupporterLegendTier = "NONE" | "CULT_HERO" | "CLUB_ICON" | "CLUB_LEGEND";
@@ -127,6 +132,17 @@ export type SupporterEvent = {
   provenanceStatus: SupporterProvenance;
 };
 
+export type MediaStoryFrame = {
+  sourceEventId: EntityId;
+  eventType: string;
+  importance: number;
+  subjectIds: EntityId[];
+  sentiment: "POSITIVE" | "NEUTRAL" | "NEGATIVE";
+  frame: "FACTUAL" | "ANALYSIS" | "SENSATIONAL";
+  publishedOn: ISODate;
+  provenanceStatus: SupporterProvenance;
+};
+
 export type NationalTeamSupporterState = {
   nationalTeamId: EntityId;
   gender: "men" | "women";
@@ -197,4 +213,8 @@ export type SupporterReadModel = {
   topRivalries: ClubRivalry[];
   fanFavourites: SupporterPlayerAffinity[];
   recentEvents: SupporterEvent[];
+  reaction?: SupporterReactionState;
+  activeConcerns?: string[];
+  factions?: SupporterFaction[];
+  protestCooldownUntil?: ISODate;
 };
