@@ -2772,6 +2772,59 @@ export type MatchResult = {
   pitch?: string;
 };
 
+/** Analytics facts reconstructed only from persisted match events and player lines. */
+export type MatchAnalyticsSnapshot = {
+  matchId: EntityId;
+  fixtureId: EntityId;
+  playedDate?: ISODate;
+  teams: Array<{
+    teamId: EntityId;
+    goals: number;
+    shots: number;
+    shotsOnTarget: number;
+    xg: number;
+    corners: number;
+    fouls: number;
+    yellowCards: number;
+    redCards: number;
+  }>;
+  playerLines: Array<{
+    playerId: EntityId;
+    teamId: EntityId;
+    minutes: number;
+    rating: number;
+    goals: number;
+    assists: number;
+    shots: number;
+    shotsOnTarget: number;
+    keyPasses: number;
+    passesAttempted: number;
+    passesCompleted: number;
+    tackles: number;
+    interceptions: number;
+    saves: number;
+    yellowCards: number;
+    redCard: boolean;
+  }>;
+  supportedMetrics: readonly string[];
+  deferredMetrics: readonly string[];
+};
+
+export type TeamAnalyticsSummary = {
+  competitionSeasonId: EntityId;
+  teamId: EntityId;
+  matches: number;
+  goals: number;
+  shots: number;
+  shotsOnTarget: number;
+  xg: number;
+  corners: number;
+  fouls: number;
+  yellowCards: number;
+  redCards: number;
+  averageRating: number;
+};
+
 export type InboxItem = {
   id: EntityId;
   createdOn: ISODate;

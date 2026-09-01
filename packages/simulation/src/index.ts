@@ -66,6 +66,7 @@ export * from "./strength.js";
 export * from "./team-selection.js";
 export * from "./tactics.js";
 export * from "./transfer-market.js";
+export * from "./analytics.js";
 export * from "./youth-intake.js";
 export * from "./youth-partnerships.js";
 export * from "./world.js";
