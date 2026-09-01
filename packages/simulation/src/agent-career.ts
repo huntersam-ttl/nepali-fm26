@@ -1,5 +1,7 @@
 import {
+  CareerIdentityRepository,
   CareerTimelineRepository,
+  StaffMarketRepository,
   TransferMarketRepository,
   WorldRepository,
   type GameDatabase,
@@ -127,3 +129,52 @@ export const careerTimeline = (
   db: GameDatabase,
   filter: CareerTimelineFilter,
 ): CareerTimelineEvent[] => new CareerTimelineRepository(db).events(filter);
+
+/** Projects persisted career evidence into the shared timeline; it never invents prior history. */
+export const syncCareerTimeline = (db: GameDatabase, personId: EntityId): CareerTimelineEvent[] => {
+  const events: CareerTimelineEvent[] = [];
+  const identity = new CareerIdentityRepository(db).get(personId);
+  for (const milestone of identity?.milestones ?? []) {
+    const event: CareerTimelineEvent = {
+      id: createStableEntityId("career-timeline-milestone", milestone.id),
+      personId,
+      occurredOn: milestone.date,
+      role: milestone.role,
+      category: "MILESTONE",
+      title: milestone.title,
+      importance: ["TROPHY", "MAJOR_TRANSFER", "RETIREMENT", "PROMOTION", "OWNERSHIP"].includes(
+        milestone.type,
+      )
+        ? "HIGH"
+        : "MEDIUM",
+      sourceEntityId: milestone.sourceEntityId,
+      provenanceStatus: "SIMULATION_ONLY",
+    };
+    recordCareerTimelineEvent(db, event);
+    events.push(event);
+  }
+  for (const history of new StaffMarketRepository(db).staffHistoryForPerson(personId)) {
+    const isDeparture =
+      history.eventType.includes("LEFT") ||
+      history.eventType.includes("SACKED") ||
+      history.eventType.includes("RESIGNED");
+    const event: CareerTimelineEvent = {
+      id: createStableEntityId("career-timeline-staff", history.id),
+      personId,
+      occurredOn: history.occurredOn,
+      role: "STAFF",
+      category: isDeparture ? "DEPARTURE" : "APPOINTMENT",
+      title: history.description ?? history.eventType.replaceAll("_", " "),
+      importance: "MEDIUM",
+      clubId: history.clubId,
+      federationId: history.federationId,
+      sourceEntityId: history.appointmentId,
+      provenanceStatus: "SIMULATION_ONLY",
+    };
+    recordCareerTimelineEvent(db, event);
+    events.push(event);
+  }
+  return events.sort(
+    (a, b) => a.occurredOn.localeCompare(b.occurredOn) || a.id.localeCompare(b.id),
+  );
+};
