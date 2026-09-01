@@ -7,9 +7,17 @@ const money = (minor?: number): string => (minor === undefined ? "—" : `NPR ${
 
 const DOMAINS = ["TRANSFERS", "SCOUTING", "CONTRACTS", "YOUTH", "TRAINING", "MEDICAL"] as const;
 
-export const StaffScreen = (): React.ReactElement => {
-  const [state, refresh] = useRuntimeData(() => managerBridge.getStaffMarket());
-  const [hierarchyState, refreshHierarchy] = useRuntimeData(() => managerBridge.getStaffHierarchy());
+export const StaffScreen = ({ refreshKey }: { refreshKey: number }): React.ReactElement => {
+  // Candidate/vacancy state changes from world events outside this screen's
+  // own actions too (season-boundary staff-pool reconciliation, AI hiring on
+  // every Continue) — without depending on refreshKey, a manager sitting on
+  // this screen across a Continue never sees the club's actual current
+  // staff market until they navigate away and back.
+  const [state, refresh] = useRuntimeData(() => managerBridge.getStaffMarket(), [refreshKey]);
+  const [hierarchyState, refreshHierarchy] = useRuntimeData(
+    () => managerBridge.getStaffHierarchy(),
+    [refreshKey],
+  );
   const [salaryDrafts, setSalaryDrafts] = useState<Record<string, string>>({});
   const [planDrafts, setPlanDrafts] = useState<Record<string, string>>({});
   const [actionBusy, setActionBusy] = useState<string | null>(null);

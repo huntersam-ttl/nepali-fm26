@@ -419,7 +419,9 @@ export const ManagerCareer = ({
         {header.activeRole === "MANAGER" && screen === "scouting" && <ScoutingScreen onSelectPlayer={openPlayer} />}
         {header.activeRole === "MANAGER" && screen === "transfers" && <TransfersScreen onSelectPlayer={openPlayer} />}
         {header.activeRole === "MANAGER" && screen === "contracts" && <ContractsScreen />}
-        {header.activeRole === "MANAGER" && screen === "staff" && <StaffScreen />}
+        {header.activeRole === "MANAGER" && screen === "staff" && (
+          <StaffScreen refreshKey={refreshKey} />
+        )}
         {header.activeRole === "MANAGER" && screen === "medical" && <MedicalScreen />}
         {header.activeRole === "MANAGER" && screen === "media" && <MediaScreen />}
       </section>

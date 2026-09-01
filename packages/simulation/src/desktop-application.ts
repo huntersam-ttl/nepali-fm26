@@ -1598,26 +1598,35 @@ export class DesktopApplicationService {
           ensureAiManagersAssigned(db, updated, context.team.id);
           evaluateBoardConfidence(db, updated);
 
-          // Tops up the shared free-agent staff pool once per season (idempotent
-          // via workforce_intake_events; a no-op on every other tick). Built and
-          // tested, but previously only reachable from the offline career-cli
-          // simulator, never from real desktop play — every division's staff
-          // pool could run dry with nothing ever refilling it. Runs before the
-          // AI fill-in below so both AI and human clubs draw from the same
-          // replenished pool.
-          reconcileWorkforceSupply({
-            db,
-            date: updated.worldDate,
-            seed: updated.randomSeed,
-            seasonLabel: context.ruleSet.seasonStartDate.slice(0, 4),
-          });
-
           // Staff market: AI clubs fill their own support-staff vacancies from
           // need/budget; every club's staff contracts near expiry are renewed
           // or lapse; performance reviews drift reputation from real proxies;
           // licence courses complete; rivals occasionally poach staff. The
           // player's own club is staffed and renewed by hand via the UI.
           ensureAiStaffAssigned(db, updated, context.club?.id);
+
+          // Tops up the shared free-agent staff pool once per season (idempotent
+          // via workforce_intake_events; a no-op on every other tick). Built and
+          // tested, but previously only reachable from the offline career-cli
+          // simulator, never from real desktop play — every division's staff
+          // pool could run dry with nothing ever refilling it.
+          //
+          // Runs AFTER ensureAiStaffAssigned above, not before: AI demand
+          // (every other club's open core roles, every tick) vastly exceeds
+          // the season's bounded intake, so a top-up placed before the AI
+          // fill-in is hired away in the same synchronous tick and the human
+          // never sees it — confirmed empirically (0 visible candidates even
+          // immediately after the top-up ran, with this call before AI
+          // fill-in). Placing it after means this season's newly generated
+          // candidates sit unemployed until the *next* tick, giving the human
+          // the same real window any AI club gets on its next opportunity —
+          // same market, same rules, just observed a tick later.
+          reconcileWorkforceSupply({
+            db,
+            date: updated.worldDate,
+            seed: updated.randomSeed,
+            seasonLabel: context.ruleSet.seasonStartDate.slice(0, 4),
+          });
           evaluateAllStaffContracts(db, updated);
           if (context.club?.id) evaluateStaffPerformance(db, updated, context.club.id);
           evaluateLicenceCourses(db, updated);
