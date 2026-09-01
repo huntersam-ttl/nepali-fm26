@@ -1663,14 +1663,18 @@ export class SquadDynamicsRepository {
 
   activePromisesForTeam(teamId: EntityId): ManagerPromise[] {
     return this.db
-      .prepare("SELECT * FROM manager_promises WHERE team_id = ? AND status = 'ACTIVE'")
+      .prepare(
+        "SELECT * FROM manager_promises WHERE team_id = ? AND status IN ('ACTIVE', 'AT_RISK') ORDER BY due_on, id",
+      )
       .all(teamId)
       .map(mapPromise);
   }
 
   activePromiseForConcern(concernId: EntityId): ManagerPromise | undefined {
     const row = this.db
-      .prepare("SELECT * FROM manager_promises WHERE concern_id = ? AND status = 'ACTIVE'")
+      .prepare(
+        "SELECT * FROM manager_promises WHERE concern_id = ? AND status IN ('ACTIVE', 'AT_RISK') ORDER BY made_on DESC LIMIT 1",
+      )
       .get(concernId) as any;
     return row ? mapPromise(row) : undefined;
   }

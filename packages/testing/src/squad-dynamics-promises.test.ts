@@ -229,14 +229,26 @@ describe("squad dynamics phase B: conversations and promises", () => {
 
   it("rejects a response to a concern that does not exist", () => {
     expect(() =>
-      respondToConcern(db, saveAt("2026-10-15"), managerProfileId, createStableEntityId("concern", "missing"), "REASSURE"),
+      respondToConcern(
+        db,
+        saveAt("2026-10-15"),
+        managerProfileId,
+        createStableEntityId("concern", "missing"),
+        "REASSURE",
+      ),
     ).toThrow(ConcernActionError);
   });
 
   it("rejects an action that does not fit the concern type", () => {
     const concern = new SquadDynamicsRepository(db).concern(keyPlayerId, team.id, "PLAYING_TIME")!;
     expect(() =>
-      respondToConcern(db, saveAt("2026-10-15"), managerProfileId, concern.id, "PROMISE_CONTRACT_REVIEW"),
+      respondToConcern(
+        db,
+        saveAt("2026-10-15"),
+        managerProfileId,
+        concern.id,
+        "PROMISE_CONTRACT_REVIEW",
+      ),
     ).toThrow(ConcernActionError);
   });
 
@@ -313,7 +325,7 @@ describe("squad dynamics phase B: conversations and promises", () => {
     evaluateSquadDynamics(db, saveAt(promise.dueOn), team.id, club.id, managerProfileId);
 
     const resolvedPromise = dynamics.promiseById(promise.id)!;
-    expect(resolvedPromise.status).toBe("KEPT");
+    expect(resolvedPromise.status).toBe("FULFILLED");
     const concern = dynamics.concernById(concernId)!;
     expect(concern.status).toBe("RESOLVED");
     const after = dynamics.relationship(managerProfileId, keyPlayerId)?.score ?? 0;
@@ -391,7 +403,12 @@ describe("squad dynamics phase B: a broken promise", () => {
       membershipType: "LEAGUE_MEMBER",
       status: "ACTIVE",
     });
-    world.insertPerson({ id: playerId, fullName: "Bench Player", nationalityCountryId: country.id, languages: ["ne"] });
+    world.insertPerson({
+      id: playerId,
+      fullName: "Bench Player",
+      nationalityCountryId: country.id,
+      languages: ["ne"],
+    });
     world.insertPersonRole({
       id: createStableEntityId("role", `${playerId}:player`),
       personId: playerId,
@@ -481,13 +498,21 @@ describe("squad dynamics phase B: a broken promise", () => {
       id: createStableEntityId("relationship", `${managerProfileId}:${playerId}`),
       managerProfileId,
       personId: playerId,
-      score: 80,
+      // The seeded response roll is intentionally outside the normal success
+      // band; use the maximum relationship only to make promise setup stable.
+      score: 100,
       level: "STRONG",
       updatedOn: "2026-10-15",
     });
 
     const concern = dynamics.concern(playerId, team.id, "PLAYING_TIME")!;
-    const response = respondToConcern(db, saveAt("2026-10-15"), managerProfileId, concern.id, "PROMISE_PLAYING_TIME");
+    const response = respondToConcern(
+      db,
+      saveAt("2026-10-15"),
+      managerProfileId,
+      concern.id,
+      "PROMISE_PLAYING_TIME",
+    );
     expect(response.outcome).not.toBe("REJECTED");
     const promise = dynamics.promiseById(response.promiseId!)!;
 

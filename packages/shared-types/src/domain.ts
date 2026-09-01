@@ -4257,6 +4257,8 @@ export type ConcernResponseAction =
   | "PROMISE_CONTRACT_REVIEW"
   | "PROMISE_SQUAD_ROLE"
   | "PROMISE_TRANSFER_STANCE"
+  | "PROMISE_LOAN_CONSIDERATION"
+  | "PROMISE_SQUAD_STRENGTHENING"
   | "DISMISS";
 
 export type ConcernResponseOutcome = "ACCEPTED" | "SKEPTICAL" | "REJECTED";
@@ -4275,8 +4277,15 @@ export type ManagerConcernResponse = {
 };
 
 export type ManagerPromiseType =
-  "PLAYING_TIME" | "CONTRACT_REVIEW" | "SQUAD_ROLE" | "TRANSFER_STANCE";
-export type ManagerPromiseStatus = "ACTIVE" | "KEPT" | "BROKEN" | "EXPIRED";
+  | "PLAYING_TIME"
+  | "CONTRACT_REVIEW"
+  | "SQUAD_ROLE"
+  | "TRANSFER_STANCE"
+  | "LOAN_CONSIDERATION"
+  | "SQUAD_STRENGTHENING";
+/** KEPT is retained for legacy saves; new resolutions use the clearer FULFILLED label. */
+export type ManagerPromiseStatus =
+  "ACTIVE" | "AT_RISK" | "FULFILLED" | "KEPT" | "BROKEN" | "EXPIRED";
 
 /**
  * A concrete commitment made in response to a concern. `baselineMetric` snapshots

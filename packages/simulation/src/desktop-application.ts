@@ -198,7 +198,7 @@ import {
   userMatchRequiresAction,
 } from "./manager-flow.js";
 import { ensureNepalFounderLocations, NEPAL_PROVINCE_DISTRICTS } from "./territorial-football.js";
-import { ensureLowerLeaguePlayableWorld } from "./workforce-supply.js";
+import { ensureLowerLeaguePlayableWorld, reconcileWorkforceSupply } from "./workforce-supply.js";
 import { initializePeopleFoundation } from "./people-foundation.js";
 import { reconcilePlayablePlayerProfilesOnce } from "./player-profile-reconciliation.js";
 import { initializeTransferMarketForSave, rebalanceNewNepalSaveSquads } from "./transfer-market.js";
@@ -1598,6 +1598,20 @@ export class DesktopApplicationService {
           ensureAiManagersAssigned(db, updated, context.team.id);
           evaluateBoardConfidence(db, updated);
 
+          // Tops up the shared free-agent staff pool once per season (idempotent
+          // via workforce_intake_events; a no-op on every other tick). Built and
+          // tested, but previously only reachable from the offline career-cli
+          // simulator, never from real desktop play — every division's staff
+          // pool could run dry with nothing ever refilling it. Runs before the
+          // AI fill-in below so both AI and human clubs draw from the same
+          // replenished pool.
+          reconcileWorkforceSupply({
+            db,
+            date: updated.worldDate,
+            seed: updated.randomSeed,
+            seasonLabel: context.ruleSet.seasonStartDate.slice(0, 4),
+          });
+
           // Staff market: AI clubs fill their own support-staff vacancies from
           // need/budget; every club's staff contracts near expiry are renewed
           // or lapse; performance reviews drift reputation from real proxies;
@@ -1680,7 +1694,7 @@ export class DesktopApplicationService {
             ...dynamicsOutcome.brokenPromises,
           ]) {
             const player = getPerson(db, promise.personId);
-            const kept = promise.status === "KEPT";
+            const kept = promise.status === "FULFILLED" || promise.status === "KEPT";
             new ManagerRepository(db).insertInboxItem({
               id: createEntityId(),
               createdOn: updated.worldDate,
@@ -1689,6 +1703,18 @@ export class DesktopApplicationService {
               body: kept
                 ? `You followed through on your promise to ${displayName(player)}.`
                 : `You did not follow through on your promise to ${displayName(player)} — trust has taken a hit.`,
+              relatedEntity: { type: "person", id: promise.personId },
+              read: false,
+            });
+          }
+          for (const promise of dynamicsOutcome.atRiskPromises) {
+            const player = getPerson(db, promise.personId);
+            new ManagerRepository(db).insertInboxItem({
+              id: createEntityId(),
+              createdOn: updated.worldDate,
+              type: "COMPETITION_UPDATE",
+              title: `${displayName(player)}: promise at risk`,
+              body: `Your ${promise.description.toLowerCase()} commitment needs attention before ${promise.dueOn}.`,
               relatedEntity: { type: "person", id: promise.personId },
               read: false,
             });

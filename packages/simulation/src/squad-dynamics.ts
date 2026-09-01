@@ -267,6 +267,7 @@ export type SquadDynamicsOutcome = {
   escalatedConcerns: PlayerConcern[];
   resolvedConcerns: PlayerConcern[];
   keptPromises: ManagerPromise[];
+  atRiskPromises: ManagerPromise[];
   brokenPromises: ManagerPromise[];
   expiredPromises: ManagerPromise[];
 };
@@ -308,6 +309,7 @@ export const evaluateSquadDynamics = (
     escalatedConcerns: [],
     resolvedConcerns: [],
     keptPromises: [],
+    atRiskPromises: [],
     brokenPromises: [],
     expiredPromises: [],
   };
@@ -907,7 +909,9 @@ export const holdSquadMeeting = (
   if (command.type === "SQUAD_MEETING") {
     const severityDelta = outcome === "POSITIVE" ? -1 : outcome === "NEGATIVE" ? 1 : 0;
     if (severityDelta !== 0) {
-      for (const concern of dynamics.concernsForTeam(teamId).filter((entry) => entry.status !== "RESOLVED")) {
+      for (const concern of dynamics
+        .concernsForTeam(teamId)
+        .filter((entry) => entry.status !== "RESOLVED")) {
         dynamics.upsertConcern({
           ...concern,
           severity: clamp(concern.severity + severityDelta, 1, 10),
@@ -933,8 +937,13 @@ export class ConcernActionError extends Error {
 const VALID_ACTIONS_FOR_CONCERN: Record<PlayerConcernType, ConcernResponseAction[]> = {
   PLAYING_TIME: ["REASSURE", "PROMISE_PLAYING_TIME", "DISMISS"],
   CONTRACT: ["REASSURE", "PROMISE_CONTRACT_REVIEW", "DISMISS"],
-  ROLE_STATUS: ["REASSURE", "PROMISE_SQUAD_ROLE", "DISMISS"],
-  TRANSFER_INTEREST: ["REASSURE", "PROMISE_TRANSFER_STANCE", "DISMISS"],
+  ROLE_STATUS: ["REASSURE", "PROMISE_SQUAD_ROLE", "PROMISE_SQUAD_STRENGTHENING", "DISMISS"],
+  TRANSFER_INTEREST: [
+    "REASSURE",
+    "PROMISE_TRANSFER_STANCE",
+    "PROMISE_LOAN_CONSIDERATION",
+    "DISMISS",
+  ],
 };
 
 export const validActionsForConcern = (type: PlayerConcernType): ConcernResponseAction[] =>
@@ -945,6 +954,8 @@ const PROMISE_TYPE_FOR_ACTION: Partial<Record<ConcernResponseAction, ManagerProm
   PROMISE_CONTRACT_REVIEW: "CONTRACT_REVIEW",
   PROMISE_SQUAD_ROLE: "SQUAD_ROLE",
   PROMISE_TRANSFER_STANCE: "TRANSFER_STANCE",
+  PROMISE_LOAN_CONSIDERATION: "LOAN_CONSIDERATION",
+  PROMISE_SQUAD_STRENGTHENING: "SQUAD_STRENGTHENING",
 };
 
 const CONCERN_TYPE_FOR_PROMISE: Record<ManagerPromiseType, PlayerConcernType> = {
@@ -952,6 +963,8 @@ const CONCERN_TYPE_FOR_PROMISE: Record<ManagerPromiseType, PlayerConcernType> = 
   CONTRACT_REVIEW: "CONTRACT",
   SQUAD_ROLE: "ROLE_STATUS",
   TRANSFER_STANCE: "TRANSFER_INTEREST",
+  LOAN_CONSIDERATION: "TRANSFER_INTEREST",
+  SQUAD_STRENGTHENING: "ROLE_STATUS",
 };
 
 const PROMISE_DURATION_DAYS: Record<ManagerPromiseType, number> = {
@@ -959,6 +972,8 @@ const PROMISE_DURATION_DAYS: Record<ManagerPromiseType, number> = {
   CONTRACT_REVIEW: 45,
   SQUAD_ROLE: 45,
   TRANSFER_STANCE: 60,
+  LOAN_CONSIDERATION: 45,
+  SQUAD_STRENGTHENING: 60,
 };
 
 const ROLE_RANK: Record<PlayerSquadRole, number> = {
@@ -1067,7 +1082,11 @@ export const respondToConcern = (
     0.1,
     0.9,
   );
-  if (action === "REASSURE" && hierarchyRole && ["CAPTAIN", "VICE_CAPTAIN", "SENIOR_PLAYER"].includes(hierarchyRole)) {
+  if (
+    action === "REASSURE" &&
+    hierarchyRole &&
+    ["CAPTAIN", "VICE_CAPTAIN", "SENIOR_PLAYER"].includes(hierarchyRole)
+  ) {
     // Senior players want concrete commitments, not just words.
     successChance -= 0.15;
   }
@@ -1107,7 +1126,13 @@ export const respondToConcern = (
       relationshipDelta = -5;
     }
     if (outcome !== "REJECTED") {
-      promise = createPromise(db, save, managerProfileId, concern, PROMISE_TYPE_FOR_ACTION[action]!);
+      promise = createPromise(
+        db,
+        save,
+        managerProfileId,
+        concern,
+        PROMISE_TYPE_FOR_ACTION[action]!,
+      );
       concernUpdate = { ...concern, status: "ACTIVE", updatedOn: worldDate };
     }
   }
@@ -1157,8 +1182,35 @@ const resolvePromisesForPlayer = (
 
   for (const promise of dynamics
     .promisesForPerson(personId, teamId)
-    .filter((entry) => entry.status === "ACTIVE")) {
-    if (worldDate < promise.dueOn) continue;
+    .filter((entry) => entry.status === "ACTIVE" || entry.status === "AT_RISK")) {
+    if (worldDate < promise.dueOn) {
+      const daysLeft = daysBetween(worldDate, promise.dueOn);
+      const transferStatus = new TransferMarketRepository(db).transferStatus(personId);
+      const atRisk =
+        (promise.type === "PLAYING_TIME" &&
+          daysLeft <= 10 &&
+          currentAppearances <= (promise.baselineMetric ?? 0)) ||
+        (promise.type === "CONTRACT_REVIEW" &&
+          daysLeft <= 14 &&
+          (!contract || daysBetween(worldDate, contract.endDate) <= 30)) ||
+        (promise.type === "SQUAD_ROLE" &&
+          daysLeft <= 14 &&
+          (!contract || ROLE_RANK[contract.squadRole] <= (promise.baselineMetric ?? 0))) ||
+        (promise.type === "TRANSFER_STANCE" && transferStatus?.status === "TRANSFER_LISTED") ||
+        (promise.type === "LOAN_CONSIDERATION" &&
+          daysLeft <= 14 &&
+          !new TransferMarketRepository(db)
+            .activeLoans(worldDate)
+            .some((loan) => loan.playerId === personId)) ||
+        (promise.type === "SQUAD_STRENGTHENING" && daysLeft <= 14);
+      const nextStatus = atRisk ? "AT_RISK" : "ACTIVE";
+      if (promise.status !== nextStatus) {
+        const updated = { ...promise, status: nextStatus as ManagerPromise["status"] };
+        dynamics.upsertPromise(updated);
+        if (atRisk) outcome.atRiskPromises.push(updated);
+      }
+      continue;
+    }
 
     let evaluable = true;
     let kept = false;
@@ -1202,19 +1254,41 @@ const resolvePromisesForPlayer = (
       continue;
     }
 
-    const resolved: ManagerPromise = { ...promise, status: kept ? "KEPT" : "BROKEN", resolvedOn: worldDate };
+    const resolved: ManagerPromise = {
+      ...promise,
+      status: kept ? "FULFILLED" : "BROKEN",
+      resolvedOn: worldDate,
+    };
     dynamics.upsertPromise(resolved);
-    logEvent(db, personId, teamId, managerProfileId, kept ? "PROMISE_KEPT" : "PROMISE_BROKEN", worldDate, {
-      type: promise.type,
-    });
+    logEvent(
+      db,
+      personId,
+      teamId,
+      managerProfileId,
+      kept ? "PROMISE_KEPT" : "PROMISE_BROKEN",
+      worldDate,
+      {
+        type: promise.type,
+      },
+    );
 
     if (kept) {
       relationshipDelta += 12;
       outcome.keptPromises.push(resolved);
       const concern = promise.concernId ? dynamics.concernById(promise.concernId) : undefined;
       if (concern && concern.status !== "RESOLVED") {
-        dynamics.upsertConcern({ ...concern, status: "RESOLVED", updatedOn: worldDate, resolvedOn: worldDate });
-        outcome.resolvedConcerns.push({ ...concern, status: "RESOLVED", updatedOn: worldDate, resolvedOn: worldDate });
+        dynamics.upsertConcern({
+          ...concern,
+          status: "RESOLVED",
+          updatedOn: worldDate,
+          resolvedOn: worldDate,
+        });
+        outcome.resolvedConcerns.push({
+          ...concern,
+          status: "RESOLVED",
+          updatedOn: worldDate,
+          resolvedOn: worldDate,
+        });
       }
       continue;
     }
