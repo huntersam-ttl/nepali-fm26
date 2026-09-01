@@ -37,3 +37,4 @@ export * from "./people-foundation-repository.js";
 export * from "./referee-assignment-repository.js";
 export * from "./global-football-context-repository.js";
 export * from "./international-trials-repository.js";
+export * from "./federation-policy-repository.js";

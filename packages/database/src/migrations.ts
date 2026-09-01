@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 72;
+export const CURRENT_DATABASE_VERSION = 74;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -3422,6 +3422,25 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
     sql: `
       -- Advanced loan structures: distinguish optional and mandatory purchase terms.
       ALTER TABLE player_loans ADD COLUMN purchase_obligation INTEGER;
+    `,
+  },
+  {
+    version: 74,
+    sql: `
+      CREATE TABLE IF NOT EXISTS federation_campaigns (
+        id TEXT PRIMARY KEY, cycle_id TEXT NOT NULL REFERENCES federation_election_cycles(id), federation_id TEXT NOT NULL REFERENCES federations(id), candidate_id TEXT NOT NULL REFERENCES federation_election_candidates(id),
+        platform_json TEXT NOT NULL, campaign_events_json TEXT NOT NULL, support_estimate REAL NOT NULL, status TEXT NOT NULL, updated_on TEXT NOT NULL, provenance_status TEXT NOT NULL,
+        UNIQUE(cycle_id, candidate_id)
+      );
+      CREATE TABLE IF NOT EXISTS federation_endorsements (
+        id TEXT PRIMARY KEY, campaign_id TEXT NOT NULL REFERENCES federation_campaigns(id), candidate_id TEXT NOT NULL REFERENCES federation_election_candidates(id), stakeholder_type TEXT NOT NULL, stakeholder_id TEXT, support REAL NOT NULL, reason TEXT NOT NULL, endorsed_on TEXT NOT NULL, provenance_status TEXT NOT NULL,
+        UNIQUE(campaign_id, stakeholder_type, stakeholder_id)
+      );
+      CREATE TABLE IF NOT EXISTS federation_policies (
+        id TEXT PRIMARY KEY, federation_id TEXT NOT NULL REFERENCES federations(id), category TEXT NOT NULL, title TEXT NOT NULL, status TEXT NOT NULL, start_date TEXT NOT NULL, end_date TEXT, funding_committed INTEGER NOT NULL, implementation_progress REAL NOT NULL, target_value REAL NOT NULL, effects_json TEXT NOT NULL, source_commitment_id TEXT REFERENCES federation_manifesto_commitments(id), provenance_status TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_federation_campaign_cycle ON federation_campaigns(cycle_id, status);
+      CREATE INDEX IF NOT EXISTS idx_federation_policy_federation ON federation_policies(federation_id, status, start_date);
     `,
   },
 ];
