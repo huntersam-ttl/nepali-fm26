@@ -4589,6 +4589,13 @@ export type CareerReputationDimensions = {
   nationalInternational: number;
 };
 export type CareerMilestoneType =
+  | "DEBUT"
+  | "FIRST_GOAL"
+  | "APPEARANCE_MILESTONE"
+  | "CAPTAINCY"
+  | "RETIREMENT"
+  | "MAJOR_TRANSFER"
+  | "NATIONAL_TEAM_DEBUT"
   | "APPOINTMENT"
   | "RESIGNATION"
   | "SACKING"
@@ -4602,7 +4609,7 @@ export type CareerMilestone = {
   id: EntityId;
   date: ISODate;
   type: CareerMilestoneType;
-  role: "MANAGER" | "CHAIRMAN_OWNER" | "FEDERATION_PRESIDENT";
+  role: "PLAYER" | "MANAGER" | "CHAIRMAN_OWNER" | "FEDERATION_PRESIDENT";
   title: string;
   sourceEntityId?: EntityId;
   impact: Partial<CareerReputationDimensions>;
@@ -4620,8 +4627,40 @@ export type CareerIdentity = {
     federationTerms: number;
     majorRecords: string[];
     careerWealth: number;
+    labels?: string[];
   };
+  careerPhase?: string;
   lastUpdatedAt: ISODate;
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+export type PlayerCareerPhase =
+  "EMERGING" | "BREAKTHROUGH" | "ESTABLISHED" | "PRIME" | "DECLINING" | "VETERAN";
+
+export type ClubCultureLabel =
+  | "YOUTH_DEVELOPMENT"
+  | "ATTACKING"
+  | "PRAGMATIC"
+  | "HIGH_PRESSURE"
+  | "COMMUNITY_FOCUSED"
+  | "TRANSFER_TRADING"
+  | "STABILITY"
+  | "WIN_NOW";
+
+export type ClubCulture = {
+  clubId: EntityId;
+  labels: ClubCultureLabel[];
+  seasonStrength: number;
+  updatedOn: ISODate;
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+export type CareerArcReadModel = {
+  personId: EntityId;
+  phase: PlayerCareerPhase;
+  trajectory: "IMPROVING" | "STABLE" | "DECLINING";
+  milestones: CareerMilestone[];
+  legacyLabels: string[];
   provenanceStatus: "SIMULATION_ONLY";
 };
 export type CareerOpportunity = {
