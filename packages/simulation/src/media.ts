@@ -247,6 +247,51 @@ export const roleInboxEvents = (
   });
 };
 
+const inboxTypeForEvent = (event: HistoricalEvent): InboxItem["type"] => {
+  const normalized = event.eventType.toUpperCase();
+  if (normalized.includes("INJUR")) return "INJURY";
+  if (normalized.includes("MATCH")) return "MATCH_RESULT";
+  if (normalized.includes("FIXTURE")) return "FIXTURE_UPCOMING";
+  return "COMPETITION_UPDATE";
+};
+
+/** Role-facing inbox items, retaining legacy records with no public event. */
+export const roleInboxItems = (
+  db: GameDatabase,
+  input: { personId: EntityId; role: PublicEventRole; legacyItems?: InboxItem[] },
+): InboxItem[] => {
+  const deliveries = roleInboxEvents(db, input.personId, input.role);
+  const eventIds = new Set(deliveries.map((item) => item.event.id));
+  const stories = new MediaRepository(db).stories();
+  const legacyReadByEvent = new Map<EntityId, boolean>();
+  for (const item of input.legacyItems ?? new ManagerRepository(db).inboxItems()) {
+    const story = stories.find((candidate) =>
+      item.id === createStableEntityId("media-inbox", candidate.id),
+    );
+    if (story && eventIds.has(story.sourceEntityId)) {
+      legacyReadByEvent.set(story.sourceEntityId, item.read);
+    }
+  }
+  const legacy = (input.legacyItems ?? new ManagerRepository(db).inboxItems()).filter((item) => {
+    const story = stories.find((candidate) =>
+      item.id === createStableEntityId("media-inbox", candidate.id),
+    );
+    return !story || !eventIds.has(story.sourceEntityId);
+  });
+  const routed = deliveries.map(({ event }) => ({
+    id: createStableEntityId("role-inbox", `${input.role}:${input.personId}:${event.id}`),
+    createdOn: event.occurredOn,
+    type: inboxTypeForEvent(event),
+    title: event.title,
+    body: event.title,
+    relatedEntity: event.involvedEntities[0],
+    read: legacyReadByEvent.get(event.id) ?? false,
+  } satisfies InboxItem));
+  return [...legacy, ...routed].sort(
+    (a, b) => b.createdOn.localeCompare(a.createdOn) || b.id.localeCompare(a.id),
+  );
+};
+
 /**
  * Applies the supporter side of public promise outcomes exactly once. Other
  * club events keep their existing specialised supporter hooks; this adapter

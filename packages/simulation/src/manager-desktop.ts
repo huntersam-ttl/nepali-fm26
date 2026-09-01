@@ -126,6 +126,7 @@ import {
 } from "./transfer-market.js";
 import type { ManagerContext } from "./desktop-application.js";
 import { assertResponsibilityPermits, ResponsibilityError } from "./staff-market.js";
+import { roleInboxItems } from "./media.js";
 
 type SqlRow = Record<string, any>;
 
@@ -2023,7 +2024,11 @@ export const buildManagerDashboard = (
     transferActivity,
     contractIssues: contracts,
     staffIssues,
-    inbox: new ManagerRepository(db).inboxItems().slice(0, 12),
+    inbox: roleInboxItems(db, {
+      personId: context.managerPerson.id,
+      role: "MANAGER",
+      legacyItems: new ManagerRepository(db).inboxItems(),
+    }).slice(0, 12),
     medicalCentre: clubId
       ? medicalCentreReadModel(db, { clubId, date: save.worldDate }).map((entry) => ({
           ...entry,

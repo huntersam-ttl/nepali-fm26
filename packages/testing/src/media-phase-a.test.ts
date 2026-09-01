@@ -15,6 +15,7 @@ import {
   initialSupporterCultureProfile,
   initializeSupporterCultureForSave,
   publishMediaForDate,
+  roleInboxItems,
   roleInboxEvents,
 } from "@nepal-football-sim/simulation";
 import {
@@ -183,6 +184,11 @@ describe("Media phase A", () => {
     );
     expect(first).toHaveLength(1);
     expect(second).toEqual(first);
+    const merged = roleInboxItems(db, {
+      personId: manager!.personId,
+      role: "MANAGER",
+    });
+    expect(merged.filter((item) => item.title === event.title)).toHaveLength(1);
     db.close();
   });
 

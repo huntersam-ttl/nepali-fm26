@@ -16,6 +16,7 @@ import { getClubFinancialSummary } from "./club-economy.js";
 import { getFederationFinances, getFederationOverview } from "./federation-governance.js";
 import { heldCareerRoles } from "./career-control.js";
 import { buildOwnershipInvestorMarket } from "./ownership.js";
+import { roleInboxItems } from "./media.js";
 
 const personName = (db: GameDatabase, personId: EntityId): string => {
   const row = db.prepare("SELECT display_name, full_name FROM persons WHERE id=?").get(personId) as
@@ -71,6 +72,11 @@ export const buildChairmanDashboard = (db: GameDatabase, save: SaveMetadata): Ch
     equipment: new ClubEconomyRepository(db).assets(clubId).filter((asset) => asset.assetType === "EQUIPMENT"),
     sponsorships: new ClubEconomyRepository(db).sponsorships(clubId),
     manager: manager ? { name: personName(db, manager.personId), contract: manager } : undefined,
+    inbox: roleInboxItems(db, {
+      personId,
+      role: "OWNER",
+      legacyItems: new ManagerRepository(db).inboxItems(),
+    }).slice(0, 12),
   };
 };
 
@@ -95,5 +101,10 @@ export const buildFederationPresidentDashboard = (db: GameDatabase, save: SaveMe
     proposals: phaseB.proposals(federationId),
     projects: overview.projects,
     nationalTeams,
+    inbox: roleInboxItems(db, {
+      personId: careerPersonId(db, save),
+      role: "PRESIDENT",
+      legacyItems: new ManagerRepository(db).inboxItems(),
+    }).slice(0, 12),
   };
 };

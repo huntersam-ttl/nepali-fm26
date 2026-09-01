@@ -242,6 +242,7 @@ export type ChairmanDashboard = {
   equipment: ClubAsset[];
   sponsorships: SponsorshipContract[];
   manager?: { name: string; contract: ManagerContract };
+  inbox: InboxItem[];
 };
 
 export type FederationNationalTeamSummary = {
@@ -266,6 +267,7 @@ export type FederationPresidentDashboard = {
   proposals: FederationGovernanceProposal[];
   projects: FederationProject[];
   nationalTeams: FederationNationalTeamSummary[];
+  inbox: InboxItem[];
 };
 
 export type FederationCandidacyAssessment = {
