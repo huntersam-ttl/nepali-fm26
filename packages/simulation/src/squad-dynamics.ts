@@ -1164,7 +1164,24 @@ const resolvePromisesForPlayer = (
     let kept = false;
     if (promise.type === "PLAYING_TIME") {
       evaluable = promise.baselineMetric !== undefined;
-      kept = evaluable && currentAppearances - (promise.baselineMetric ?? 0) >= 2;
+      const appearances = currentAppearances - (promise.baselineMetric ?? 0);
+      // A player cannot honour a playing-time commitment while unavailable.
+      // Scale the concrete appearance threshold by fixtures that were
+      // actually available during the promise window, using only persisted
+      // fixtures and injury records.
+      const scheduledMatches = promiseWindowMatches(db, teamId, promise.madeOn, promise.dueOn);
+      const unavailableMatches = promiseWindowUnavailableMatches(
+        db,
+        personId,
+        teamId,
+        promise.madeOn,
+        promise.dueOn,
+      );
+      const availableMatches = Math.max(0, scheduledMatches - unavailableMatches);
+      // Legacy/imported saves may not have fixture rows for the promise
+      // window. Preserve the original measurable threshold in that case.
+      const requiredAppearances = scheduledMatches > 0 ? Math.min(2, availableMatches) : 2;
+      kept = evaluable && (requiredAppearances === 0 || appearances >= requiredAppearances);
     } else if (promise.type === "CONTRACT_REVIEW") {
       evaluable = contract !== undefined && promise.baselineMetric !== undefined;
       kept = evaluable && daysBetween("1970-01-01", contract!.endDate) > (promise.baselineMetric ?? 0);
@@ -1235,4 +1252,52 @@ const resolvePromisesForPlayer = (
   }
 
   return relationshipDelta;
+};
+
+const promiseWindowMatches = (
+  db: GameDatabase,
+  teamId: EntityId,
+  from: string,
+  to: string,
+): number =>
+  Number(
+    (
+      db
+        .prepare(
+          `SELECT COUNT(*) AS count FROM fixtures
+           WHERE status = 'played' AND scheduled_date > ? AND scheduled_date <= ?
+           AND (home_team_id = ? OR away_team_id = ?)`,
+        )
+        .get(from, to, teamId, teamId) as SqlRow | undefined
+    )?.count ?? 0,
+  );
+
+const promiseWindowUnavailableMatches = (
+  db: GameDatabase,
+  personId: EntityId,
+  teamId: EntityId,
+  from: string,
+  to: string,
+): number => {
+  const fixtures = db
+    .prepare(
+      `SELECT scheduled_date FROM fixtures
+       WHERE status = 'played' AND scheduled_date > ? AND scheduled_date <= ?
+       AND (home_team_id = ? OR away_team_id = ?)
+       ORDER BY scheduled_date`,
+    )
+    .all(from, to, teamId, teamId) as SqlRow[];
+  const injuries = db
+    .prepare(
+      `SELECT date_occurred, expected_recovery_date FROM injuries
+       WHERE person_id = ? AND date_occurred <= ? AND expected_recovery_date > ?`,
+    )
+    .all(personId, to, from) as SqlRow[];
+  return fixtures.filter((fixture) =>
+    injuries.some(
+      (injury) =>
+        fixture.scheduled_date >= injury.date_occurred &&
+        fixture.scheduled_date <= injury.expected_recovery_date,
+    ),
+  ).length;
 };
