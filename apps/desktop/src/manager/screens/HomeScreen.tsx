@@ -82,13 +82,11 @@ export const CandidacyPanel = (): React.ReactElement => {
 };
 
 export const HomeScreen = ({
-  onContinue,
   busy,
   refreshKey,
   onAction,
   onNavigate,
 }: {
-  onContinue: () => void;
   busy: boolean;
   refreshKey: number;
   onAction: () => Promise<void>;
@@ -125,7 +123,6 @@ export const HomeScreen = ({
               {actionError}
             </div>
           )}
-          <CandidacyPanel />
           <Panel title="Club">
             {dashboard.employmentStatus === "UNEMPLOYED" ? (
               <>
@@ -136,12 +133,15 @@ export const HomeScreen = ({
               <>
                 <Metrics
                   items={[
-                    { label: "Club", value: dashboard.clubName ?? "Unemployed" },
-                    { label: "Competition", value: dashboard.competitionName },
+                    /*
+                     * Club, competition and date are permanently on screen in the
+                     * sidebar and top bar. Repeating them here squeezed a full
+                     * league name into a narrow metric cell, so this panel now
+                     * carries only the standing that belongs to it.
+                     */
                     { label: "Position", value: dashboard.leaguePosition ?? "—" },
                     { label: "Played", value: dashboard.played },
                     { label: "Points", value: dashboard.points },
-                    { label: "Date", value: dashboard.worldDate },
                     { label: "Board confidence", value: dashboard.boardConfidence ?? "—" },
                     { label: "Board expects", value: dashboard.boardExpectation ?? "—" },
                   ]}
@@ -151,10 +151,12 @@ export const HomeScreen = ({
                 </p>
               </>
             )}
+            {/*
+             * Advancing the world is the shell's Continue, which also refuses to
+             * skip a matchday. A second copy here ran the same action without
+             * that guard, so the club panel keeps only what is specific to it.
+             */}
             <div className="button-row">
-              <button className="primary" disabled={busy} onClick={onContinue}>
-                {busy ? "Advancing…" : "Continue"}
-              </button>
               {dashboard.employmentStatus === "EMPLOYED" && (
                 <button
                   className="ghost"
@@ -598,6 +600,13 @@ export const HomeScreen = ({
               </AsyncPanel>
             </Panel>
           )}
+
+          {/*
+           * The federation path is a long-horizon career option, not a manager's
+           * daily business: it sits after the club, the next match and the squad
+           * rather than above them.
+           */}
+          <CandidacyPanel />
         </section>
       )}
     </AsyncPanel>

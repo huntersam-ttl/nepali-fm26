@@ -318,7 +318,9 @@ export const ManagerCareer = ({
           </label>
           <div className="date-block">
             <strong>{header.worldDate}</strong>
-            <span>{header.competitionName ?? ""}</span>
+            {/* The competition name is ellipsised when the bar is tight, so the
+                full name stays reachable on hover rather than being lost. */}
+            <span title={header.competitionName ?? undefined}>{header.competitionName ?? ""}</span>
           </div>
           <div className="topbar-actions">
             {matchdayFixture && (
@@ -373,7 +375,6 @@ export const ManagerCareer = ({
 
         {header.activeRole === "MANAGER" && screen === "home" && (
           <HomeScreen
-            onContinue={() => void advance()}
             busy={busy}
             refreshKey={refreshKey}
             onAction={async () => {

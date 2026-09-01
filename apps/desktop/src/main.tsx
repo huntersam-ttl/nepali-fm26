@@ -142,13 +142,19 @@ const App = (): React.ReactElement => {
           <p className="eyebrow">Nepal Football Universe</p>
           <h1>Career Saves</h1>
           <div className="club-choice">
-            <button className="club-row" disabled={busy} onClick={() => setEntry("new")}>
+            {/*
+             * Each card is a button whose visible text is a heading plus a
+             * description. An explicit label keeps the announced name short and
+             * stable instead of the two run together.
+             */}
+            <button className="club-row" aria-label="New career" disabled={busy} onClick={() => setEntry("new")}>
               <strong>New Career</strong>
               <span>Start a manager career in the real Nepal football world.</span>
             </button>
             {mostRecent && (
               <button
                 className="club-row"
+                aria-label={`Continue career ${mostRecent.saveName}`}
                 disabled={busy}
                 onClick={() => void run(() => bridge.loadCareer(mostRecent.saveId))}
               >
@@ -158,7 +164,7 @@ const App = (): React.ReactElement => {
                 </span>
               </button>
             )}
-            <button className="club-row" disabled={busy} onClick={() => setEntry("load")}>
+            <button className="club-row" aria-label="Load career" disabled={busy} onClick={() => setEntry("load")}>
               <strong>Load Career</strong>
               <span>
                 {saves.length} save{saves.length === 1 ? "" : "s"} available.
