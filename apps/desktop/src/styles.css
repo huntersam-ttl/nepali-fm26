@@ -1093,6 +1093,58 @@ button.link {
 .role-detail .panel-head { align-items: center; }
 .role-detail .compact-list { color: var(--muted); }
 .role-detail .panel + .panel { margin-top: 0; }
+
+/* -------------------------------------------------------------------------
+   UI polish pass: compact desktop management shell.
+   Presentation-only rules; data, routes, and interaction semantics stay put.
+   ------------------------------------------------------------------------- */
+.manager-shell { min-height: 100vh; align-items: stretch; }
+.sidebar { min-width: 0; }
+.workspace { min-width: 0; overflow-x: hidden; }
+.topbar { display: grid; grid-template-columns: minmax(190px, 1.25fr) 175px minmax(170px, .85fr) auto; align-items: center; gap: 18px; }
+.topbar > div { min-width: 0; }
+.topbar > .topbar-actions { display: flex; align-items: center; justify-content: flex-end; gap: 5px; margin-left: 0; }
+.topbar-actions button { white-space: nowrap; }
+.topbar-actions .primary { min-height: 38px; }
+.topbar-actions .ghost { min-height: 34px; padding: 6px 9px; }
+.identity span, .date-block span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dashboard, .role-dashboard, .role-detail, .staff-screen, .matchday { align-content: start; align-items: start; grid-auto-rows: max-content; }
+.dashboard > .panel, .role-dashboard > .panel, .role-detail > .panel { min-width: 0; }
+.panel-head .button-row { margin-top: 0; }
+.panel-head h2 { letter-spacing: -.01em; }
+.panel, .player-profile { padding: 15px 16px; }
+.metrics { gap: 8px; }
+.metrics > div { min-width: 0; }
+.metrics dd { overflow-wrap: anywhere; }
+.table-scroll { border: 1px solid var(--line); border-radius: 8px; }
+.table-scroll table { border: 0; }
+th { height: 34px; letter-spacing: .06em; }
+td { height: 38px; }
+tbody tr:last-child td { border-bottom: 0; }
+.workspace button.small:not(.link), .workspace .inline-form > button, .workspace .button-row > button:not(.primary) { border: 1px solid var(--line); border-radius: 7px; background: var(--surface-2); color: var(--text); }
+.workspace button.small:not(.link):hover, .workspace .inline-form > button:hover, .workspace .button-row > button:not(.primary):hover { border-color: rgba(155,124,255,.65); background: rgba(155,124,255,.16); }
+.workspace button:disabled { cursor: not-allowed; opacity: .55; }
+.workspace input::placeholder { color: #6f7e98; }
+.workspace label { color: var(--muted); }
+.workspace .notice, .workspace .warning, .workspace .ok { line-height: 1.45; }
+.empty-state { min-height: 38px; display: flex; align-items: center; margin: 0; padding: 10px 0; }
+.report-list, .compact-list { line-height: 1.55; }
+
+@media (max-width: 1240px) {
+  .topbar { grid-template-columns: minmax(180px, 1fr) 155px minmax(150px, .8fr); }
+  .topbar > .topbar-actions { grid-column: 1 / -1; justify-content: flex-start; padding-top: 2px; border-top: 1px solid var(--line); }
+}
+
+@media (max-width: 1080px) {
+  .topbar { display: flex; flex-wrap: wrap; }
+  .topbar > .topbar-actions { flex: 1 1 100%; }
+}
+
+@media (min-width: 1440px) {
+  .workspace { padding-left: 36px; padding-right: 36px; }
+  .dashboard, .summary-grid { gap: 14px; }
+  .panel, .player-profile { padding: 17px 18px; }
+}
 @media (min-width: 1440px) {
   .workspace { padding-left: 36px; padding-right: 36px; }
   .dashboard, .role-detail { grid-template-columns: repeat(2, minmax(0, 1fr)); }
