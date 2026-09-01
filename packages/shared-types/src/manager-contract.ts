@@ -34,6 +34,7 @@ import type {
   TrainingIntensity,
   TrainingPlan,
 } from "./domain.js";
+import type { MentoringFocus, MentoringStatus } from "./people-foundation.js";
 
 /**
  * Manager gameplay contract.
@@ -1020,6 +1021,64 @@ export type MediaCentreView = {
   eligibleForInterview: MediaStory[];
   pendingInterview?: PressConferenceView;
   completedInterviews: MediaInterview[];
+};
+
+/**
+ * Dressing-room presentation labels only. No personality trait, affinity,
+ * trust, respect, tension, or raw influence value is ever included here —
+ * every field below is a derived band or a factual attribute (name, focus,
+ * status), computed server-side from the hidden values so the client never
+ * sees them.
+ */
+export type DressingRoomHierarchyLabel =
+  "TEAM_LEADER" | "HIGHLY_INFLUENTIAL" | "REGULAR" | "FRINGE" | "YOUNGSTER";
+
+export type DressingRoomHierarchyEntry = {
+  personId: EntityId;
+  playerName: string;
+  label: DressingRoomHierarchyLabel;
+  groupType: SquadGroupType;
+};
+
+export type DressingRoomSocialGroup = {
+  type: "FRIENDSHIP" | "MENTORSHIP" | "RIVALRY" | "DISTRUST" | "INFLUENTIAL";
+  memberNames: string[];
+  clue: string;
+};
+
+export type DressingRoomLifestyleEntry = {
+  personId: EntityId;
+  playerName: string;
+  professionalismHabits: "INCONSISTENT" | "STEADY" | "ELITE";
+  trainingDiscipline: "LOW" | "NORMAL" | "HIGH";
+  mediaActivity: "LOW" | "MODERATE" | "HIGH";
+  offFieldFocus: "FOOTBALL_FIRST" | "BALANCED" | "DISTRACTED";
+};
+
+export type ManagerSupportLabel = "FULLY_ONSIDE" | "NEUTRAL" | "AT_ODDS";
+
+export type DressingRoomManagerSupportEntry = {
+  personId: EntityId;
+  playerName: string;
+  support: ManagerSupportLabel;
+};
+
+export type DressingRoomMentoringProgressBand = "STARTING" | "UNDERWAY" | "NEARLY_DONE" | "COMPLETE";
+
+export type DressingRoomMentoringEntry = {
+  mentorName: string;
+  menteeName: string;
+  focus: MentoringFocus;
+  status: MentoringStatus;
+  progressBand: DressingRoomMentoringProgressBand;
+};
+
+export type DressingRoomView = {
+  hierarchy: DressingRoomHierarchyEntry[];
+  socialGroups: DressingRoomSocialGroup[];
+  lifestyle: DressingRoomLifestyleEntry[];
+  managerSupport: DressingRoomManagerSupportEntry[];
+  mentoring: DressingRoomMentoringEntry[];
 };
 
 export type ManagerDashboard = {

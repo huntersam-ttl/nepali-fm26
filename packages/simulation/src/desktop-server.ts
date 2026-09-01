@@ -385,6 +385,8 @@ const dispatch = (
       );
     case "getSupporterOverview":
       return service.getSupporterOverview();
+    case "getDressingRoom":
+      return service.getDressingRoom();
     default:
       return {
         ok: false,

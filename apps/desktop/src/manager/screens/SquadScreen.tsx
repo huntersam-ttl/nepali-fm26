@@ -1,7 +1,12 @@
 import React, { useMemo, useState } from "react";
-import type { EntityId, SquadPlayerRow } from "@nepal-football-sim/shared-types";
+import type {
+  DressingRoomHierarchyLabel,
+  EntityId,
+  ManagerSupportLabel,
+  SquadPlayerRow,
+} from "@nepal-football-sim/shared-types";
 import { managerBridge } from "../managerBridge.js";
-import { AsyncPanel, Badge, FactValue, Panel, availabilityTone, useRuntimeData } from "../ui.js";
+import { AsyncPanel, Badge, EmptyState, FactValue, Panel, availabilityTone, useRuntimeData } from "../ui.js";
 
 type SortKey = "ability" | "name" | "fitness" | "goals" | "appearances";
 
@@ -17,26 +22,192 @@ export const SquadScreen = ({
   const [sortKey, setSortKey] = useState<SortKey>("ability");
 
   return (
-    <AsyncPanel
-      state={state}
-      isEmpty={(data) => data.players.length === 0}
-      empty="No players registered."
-    >
-      {(squad) => (
-        <SquadTable
-          players={squad.players}
-          positionOptions={squad.positionOptions}
-          query={query}
-          setQuery={setQuery}
-          position={position}
-          setPosition={setPosition}
-          availability={availability}
-          setAvailability={setAvailability}
-          sortKey={sortKey}
-          setSortKey={setSortKey}
-          onSelectPlayer={onSelectPlayer}
-        />
-      )}
+    <>
+      <AsyncPanel
+        state={state}
+        isEmpty={(data) => data.players.length === 0}
+        empty="No players registered."
+      >
+        {(squad) => (
+          <SquadTable
+            players={squad.players}
+            positionOptions={squad.positionOptions}
+            query={query}
+            setQuery={setQuery}
+            position={position}
+            setPosition={setPosition}
+            availability={availability}
+            setAvailability={setAvailability}
+            sortKey={sortKey}
+            setSortKey={setSortKey}
+            onSelectPlayer={onSelectPlayer}
+          />
+        )}
+      </AsyncPanel>
+      <DressingRoomPanel onSelectPlayer={onSelectPlayer} />
+    </>
+  );
+};
+
+const HIERARCHY_LABELS: Record<DressingRoomHierarchyLabel, string> = {
+  TEAM_LEADER: "Team leader",
+  HIGHLY_INFLUENTIAL: "Highly influential",
+  REGULAR: "Regular",
+  FRINGE: "Fringe",
+  YOUNGSTER: "Youngster",
+};
+
+const hierarchyTone = (label: DressingRoomHierarchyLabel): "ok" | "warn" | "bad" | "info" => {
+  switch (label) {
+    case "TEAM_LEADER":
+    case "HIGHLY_INFLUENTIAL":
+      return "ok";
+    case "FRINGE":
+      return "warn";
+    default:
+      return "info";
+  }
+};
+
+const SUPPORT_LABELS: Record<ManagerSupportLabel, string> = {
+  FULLY_ONSIDE: "Fully onside",
+  NEUTRAL: "Neutral",
+  AT_ODDS: "At odds",
+};
+
+const supportTone = (label: ManagerSupportLabel): "ok" | "warn" | "bad" | "info" =>
+  label === "FULLY_ONSIDE" ? "ok" : label === "AT_ODDS" ? "bad" : "info";
+
+const SOCIAL_GROUP_LABELS: Record<string, string> = {
+  FRIENDSHIP: "Friendship",
+  MENTORSHIP: "Mentorship",
+  RIVALRY: "Rivalry",
+  DISTRUST: "Distrust",
+  INFLUENTIAL: "Influential",
+};
+
+const DressingRoomPanel = ({
+  onSelectPlayer,
+}: {
+  onSelectPlayer: (playerId: EntityId) => void;
+}): React.ReactElement => {
+  const [state] = useRuntimeData(() => managerBridge.getDressingRoom());
+
+  return (
+    <AsyncPanel state={state}>
+      {(room) => {
+        const notable = room.hierarchy.filter((entry) => entry.label !== "REGULAR");
+        const lifestyleByPerson = new Map(room.lifestyle.map((entry) => [entry.personId, entry]));
+        const supportByPerson = new Map(room.managerSupport.map((entry) => [entry.personId, entry]));
+        const detailPersonIds = Array.from(
+          new Set([...lifestyleByPerson.keys(), ...supportByPerson.keys()]),
+        );
+
+        return (
+          <>
+            <Panel title="Dressing room">
+              <h3>Notable players</h3>
+              {notable.length === 0 ? (
+                <EmptyState>No standout hierarchy figures yet.</EmptyState>
+              ) : (
+                <ul className="report-list">
+                  {notable.map((entry) => (
+                    <li key={entry.personId}>
+                      <button className="link" onClick={() => onSelectPlayer(entry.personId)}>
+                        {entry.playerName}
+                      </button>{" "}
+                      <Badge tone={hierarchyTone(entry.label)}>{HIERARCHY_LABELS[entry.label]}</Badge>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <h3>Social groups</h3>
+              {room.socialGroups.length === 0 ? (
+                <EmptyState>No notable social groups detected yet.</EmptyState>
+              ) : (
+                <ul className="report-list">
+                  {room.socialGroups.map((group, index) => (
+                    <li key={`${group.type}-${index}`}>
+                      <Badge tone={group.type === "RIVALRY" || group.type === "DISTRUST" ? "bad" : "ok"}>
+                        {SOCIAL_GROUP_LABELS[group.type] ?? group.type}
+                      </Badge>{" "}
+                      {group.memberNames.join(" & ")} <span className="subtle">{group.clue}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <h3>Mentoring</h3>
+              {room.mentoring.length === 0 ? (
+                <EmptyState>No active mentoring assignments.</EmptyState>
+              ) : (
+                <ul className="report-list">
+                  {room.mentoring.map((entry, index) => (
+                    <li key={index}>
+                      {entry.mentorName} mentors {entry.menteeName} on{" "}
+                      {entry.focus.replace(/_/g, " ").toLowerCase()}{" "}
+                      <span className="subtle">
+                        {entry.status.toLowerCase()} · {entry.progressBand.replace(/_/g, " ").toLowerCase()}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Panel>
+
+            <Panel title="Player lifestyle & manager support" className="panel-wide">
+              {detailPersonIds.length === 0 ? (
+                <EmptyState>No lifestyle or relationship reads available yet.</EmptyState>
+              ) : (
+                <div className="table-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Player</th>
+                        <th>Professionalism</th>
+                        <th>Training</th>
+                        <th>Media activity</th>
+                        <th>Off-field focus</th>
+                        <th>Manager support</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {detailPersonIds.map((personId) => {
+                        const lifestyle = lifestyleByPerson.get(personId);
+                        const support = supportByPerson.get(personId);
+                        const name = lifestyle?.playerName ?? support?.playerName ?? "Unknown player";
+                        return (
+                          <tr key={personId}>
+                            <td>
+                              <button className="link" onClick={() => onSelectPlayer(personId)}>
+                                {name}
+                              </button>
+                            </td>
+                            <td>{lifestyle ? lifestyle.professionalismHabits.toLowerCase() : "—"}</td>
+                            <td>{lifestyle ? lifestyle.trainingDiscipline.toLowerCase() : "—"}</td>
+                            <td>{lifestyle ? lifestyle.mediaActivity.toLowerCase() : "—"}</td>
+                            <td>{lifestyle ? lifestyle.offFieldFocus.replace(/_/g, " ").toLowerCase() : "—"}</td>
+                            <td>
+                              {support ? (
+                                <Badge tone={supportTone(support.support)}>
+                                  {SUPPORT_LABELS[support.support]}
+                                </Badge>
+                              ) : (
+                                "—"
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Panel>
+          </>
+        );
+      }}
     </AsyncPanel>
   );
 };

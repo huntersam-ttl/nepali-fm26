@@ -1,9 +1,14 @@
 import React, { useState } from "react";
-import type { EntityId } from "@nepal-football-sim/shared-types";
+import type {
+  DressingRoomHierarchyLabel,
+  EntityId,
+  ManagerSupportLabel,
+} from "@nepal-football-sim/shared-types";
 import { managerBridge } from "../managerBridge.js";
 import {
   AsyncPanel,
   Badge,
+  EmptyState,
   FactValue,
   Metrics,
   Panel,
@@ -11,6 +16,100 @@ import {
   money,
   useRuntimeData,
 } from "../ui.js";
+
+const HIERARCHY_LABELS: Record<DressingRoomHierarchyLabel, string> = {
+  TEAM_LEADER: "Team leader",
+  HIGHLY_INFLUENTIAL: "Highly influential",
+  REGULAR: "Regular",
+  FRINGE: "Fringe",
+  YOUNGSTER: "Youngster",
+};
+
+const hierarchyTone = (label: DressingRoomHierarchyLabel): "ok" | "warn" | "bad" | "info" => {
+  switch (label) {
+    case "TEAM_LEADER":
+    case "HIGHLY_INFLUENTIAL":
+      return "ok";
+    case "FRINGE":
+      return "warn";
+    default:
+      return "info";
+  }
+};
+
+const SUPPORT_LABELS: Record<ManagerSupportLabel, string> = {
+  FULLY_ONSIDE: "Fully onside",
+  NEUTRAL: "Neutral",
+  AT_ODDS: "At odds",
+};
+
+const supportTone = (label: ManagerSupportLabel): "ok" | "warn" | "bad" | "info" =>
+  label === "FULLY_ONSIDE" ? "ok" : label === "AT_ODDS" ? "bad" : "info";
+
+/** Reuses the same squad-wide dressing-room bridge as SquadScreen; no per-player endpoint needed. */
+const PlayerDressingRoomPanel = ({ playerId }: { playerId: EntityId }): React.ReactElement => {
+  const [state] = useRuntimeData(() => managerBridge.getDressingRoom());
+
+  return (
+    <AsyncPanel state={state}>
+      {(room) => {
+        const hierarchy = room.hierarchy.find((entry) => entry.personId === playerId);
+        const lifestyle = room.lifestyle.find((entry) => entry.personId === playerId);
+        const support = room.managerSupport.find((entry) => entry.personId === playerId);
+        const groups = room.socialGroups.filter((group) =>
+          group.memberNames.includes(hierarchy?.playerName ?? ""),
+        );
+        const mentoring = room.mentoring.filter(
+          (entry) => entry.mentorName === hierarchy?.playerName || entry.menteeName === hierarchy?.playerName,
+        );
+        const hasAnything = Boolean(hierarchy || lifestyle || support || groups.length || mentoring.length);
+
+        return (
+          <Panel title="Dressing room">
+            {!hasAnything ? (
+              <EmptyState>No dressing-room reads available for this player yet.</EmptyState>
+            ) : (
+              <>
+                {hierarchy && (
+                  <p>
+                    Standing <Badge tone={hierarchyTone(hierarchy.label)}>{HIERARCHY_LABELS[hierarchy.label]}</Badge>
+                  </p>
+                )}
+                {support && (
+                  <p>
+                    Relationship with you <Badge tone={supportTone(support.support)}>{SUPPORT_LABELS[support.support]}</Badge>
+                  </p>
+                )}
+                {lifestyle && (
+                  <p className="subtle">
+                    {lifestyle.professionalismHabits.toLowerCase()} professionalism ·{" "}
+                    {lifestyle.trainingDiscipline.toLowerCase()} training discipline ·{" "}
+                    {lifestyle.mediaActivity.toLowerCase()} media activity ·{" "}
+                    {lifestyle.offFieldFocus.replace(/_/g, " ").toLowerCase()}
+                  </p>
+                )}
+                {groups.map((group, index) => (
+                  <p key={index} className="subtle">
+                    {group.type.charAt(0) + group.type.slice(1).toLowerCase()}: {group.clue}
+                  </p>
+                ))}
+                {mentoring.map((entry, index) => (
+                  <p key={index} className="subtle">
+                    {entry.mentorName === hierarchy?.playerName
+                      ? `Mentoring ${entry.menteeName}`
+                      : `Mentored by ${entry.mentorName}`}{" "}
+                    on {entry.focus.replace(/_/g, " ").toLowerCase()} ·{" "}
+                    {entry.progressBand.replace(/_/g, " ").toLowerCase()}
+                  </p>
+                ))}
+              </>
+            )}
+          </Panel>
+        );
+      }}
+    </AsyncPanel>
+  );
+};
 
 export const PlayerProfileScreen = ({
   playerId,
@@ -164,6 +263,8 @@ export const PlayerProfileScreen = ({
                 </p>
               </Panel>
             )}
+
+            <PlayerDressingRoomPanel playerId={playerId} />
 
             <Panel title="Attributes">
               <p className="subtle">

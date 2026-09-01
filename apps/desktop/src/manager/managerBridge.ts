@@ -16,6 +16,7 @@ import type {
   ManagerCareerHistoryView,
   ManagerCompetitionView,
   ManagerDashboard,
+  DressingRoomView,
   MediaCentreView,
   MediaResponseStance,
   PressConferenceView,
@@ -86,6 +87,7 @@ export const managerBridge = {
   }) => runtimeCall<PressConferenceView>("answerPressConference", { input }),
   getSupporterOverview: () =>
     runtimeCall<SupporterReadModel | undefined>("getSupporterOverview"),
+  getDressingRoom: () => runtimeCall<DressingRoomView>("getDressingRoom"),
   getTactics: () => runtimeCall<TacticsView>("getTactics"),
   updateTactics: (command: TacticsUpdateCommand) =>
     runtimeCall<TacticsView>("updateTactics", { command }),

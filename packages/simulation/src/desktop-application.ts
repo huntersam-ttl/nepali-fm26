@@ -111,6 +111,7 @@ import {
   type MediaResponseStance,
   type PressConferenceView,
   type SupporterReadModel,
+  type DressingRoomView,
   type Person,
   type PlayerAttributeSet,
   type PlayerProfile,
@@ -339,6 +340,7 @@ import {
   buildSupporterOverview,
   requestManagerPressConference,
 } from "./manager-media-desktop.js";
+import { buildDressingRoomView } from "./manager-people-desktop.js";
 import {
   advanceAllRehabilitationPlans,
   buildMedicalCentreEntry,
@@ -2044,6 +2046,10 @@ export class DesktopApplicationService {
 
   getSupporterOverview(): AppResult<SupporterReadModel | undefined> {
     return this.managerCommand((db, _save, context) => buildSupporterOverview(db, context));
+  }
+
+  getDressingRoom(): AppResult<DressingRoomView> {
+    return this.managerCommand((db, save, context) => buildDressingRoomView(db, save, context));
   }
 
   getSquad(): AppResult<SquadList> {
