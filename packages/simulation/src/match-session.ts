@@ -142,6 +142,8 @@ export const deserializeMatchState = (json: string): LiveMatchState => {
   const state = JSON.parse(json) as Partial<LiveMatchState>;
   return {
     ...state,
+    home: state.home ? { ...state.home, momentum: state.home.momentum ?? 50 } : state.home,
+    away: state.away ? { ...state.away, momentum: state.away.momentum ?? 50 } : state.away,
     winnerResolution: state.winnerResolution ?? "EXTRA_TIME_THEN_PENALTIES",
     allowExtraTime: state.allowExtraTime ?? true,
     allowPenalties: state.allowPenalties ?? true,
@@ -431,10 +433,22 @@ const persistPlayerOutcomes = (
     });
     if (player.injuryDuringMatch) {
       players.insertInjury(player.injuryDuringMatch);
-      const clubId = (db.prepare("SELECT club_id AS clubId FROM teams WHERE id = ?").get(player.teamId) as { clubId?: EntityId } | undefined)?.clubId;
+      const clubId = (
+        db.prepare("SELECT club_id AS clubId FROM teams WHERE id = ?").get(player.teamId) as
+          { clubId?: EntityId } | undefined
+      )?.clubId;
       if (clubId) {
-        const insuranceClaim = settleMatchInjuryInsurance(db, { clubId, injury: player.injuryDuringMatch, date: player.injuryDuringMatch.dateOccurred });
-        settleFederationInjuryWelfare(db, { clubId, injury: player.injuryDuringMatch, date: player.injuryDuringMatch.dateOccurred, insuranceClaim });
+        const insuranceClaim = settleMatchInjuryInsurance(db, {
+          clubId,
+          injury: player.injuryDuringMatch,
+          date: player.injuryDuringMatch.dateOccurred,
+        });
+        settleFederationInjuryWelfare(db, {
+          clubId,
+          injury: player.injuryDuringMatch,
+          date: player.injuryDuringMatch.dateOccurred,
+          insuranceClaim,
+        });
       }
     }
     if (player.redCard && context.fixture.competitionSeasonId) {

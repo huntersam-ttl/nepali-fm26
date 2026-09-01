@@ -1173,6 +1173,8 @@ export type SetPieceAssignments = {
   directFreeKickTaker?: EntityId;
   leftCornerTaker?: EntityId;
   rightCornerTaker?: EntityId;
+  cornerRoutine?: "NEAR_POST" | "FAR_POST" | "SHORT_CORNER" | "CROWD_KEEPER";
+  freeKickRoutine?: "DIRECT" | "INDIRECT" | "CROSS";
 };
 
 export type TacticalAssignment = {

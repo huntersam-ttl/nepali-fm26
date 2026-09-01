@@ -74,6 +74,8 @@ export type RuntimeTeam = {
   substitutionsUsed: number;
   /** Minutes in which this side was the attacking team, for live possession. */
   controlTicks: number;
+  /** Bounded match-state confidence/pressure signal, persisted in session state. */
+  momentum: number;
   /** Person ids named on the bench, in order. */
   benchIds: EntityId[];
   /** Attribute sets for bench players, so a substitute can actually come on. */
@@ -423,6 +425,7 @@ const reviewGoalWithVar = (
  */
 const simulateMinute = (state: LiveMatchState, rng: SeededRandom, minute: number): void => {
   const { home, away, environment, matchId } = state;
+  updateMomentum(state);
   const attacking = chooseAttackingTeam(rng, home, away);
   const defending = attacking === home ? away : home;
   attacking.controlTicks += 1;
@@ -507,7 +510,19 @@ const simulateMinute = (state: LiveMatchState, rng: SeededRandom, minute: number
       }
     } else if (rng.next() < 0.22) {
       attacking.stats.corners += 1;
-      pushEvent(state, minute, "CORNER", attacking.teamId);
+      const routine = attacking.setup?.setPieces.cornerRoutine ?? "NEAR_POST";
+      const familiarity = attacking.setup
+        ? (attacking.setup.familiarity.instructions + attacking.setup.familiarity.roles) / 2
+        : 50;
+      const routineQuality = clamp(
+        0.88 + (familiarity - 50) / 500 + attacking.strength.setPieces / 500,
+        0.88,
+        1.18,
+      );
+      pushEvent(state, minute, "CORNER", attacking.teamId, undefined, undefined, {
+        routine,
+        routineQuality: Number(routineQuality.toFixed(3)),
+      });
     }
   }
 
@@ -540,6 +555,20 @@ const simulateMinute = (state: LiveMatchState, rng: SeededRandom, minute: number
     if (injury.severity !== "minor") {
       state.pauseReason = "INJURY_DECISION";
     }
+  }
+};
+
+const updateMomentum = (state: LiveMatchState): void => {
+  const lastEvent = state.events.at(-1);
+  const lastGoalTeam = lastEvent?.type === "GOAL" ? lastEvent.teamId : undefined;
+  for (const [team, goalsFor, goalsAgainst] of [
+    [state.home, state.homeGoals, state.awayGoals],
+    [state.away, state.awayGoals, state.homeGoals],
+  ] as const) {
+    const scoreSignal = clamp((goalsFor - goalsAgainst) * 9, -24, 24);
+    const eventSignal = lastGoalTeam === team.teamId ? 9 : lastGoalTeam ? -5 : 0;
+    const target = clamp(50 + scoreSignal + eventSignal, 20, 80);
+    team.momentum = clamp(team.momentum + (target - team.momentum) * 0.16, 20, 80);
   }
 };
 
@@ -846,6 +875,9 @@ const createRuntimeTeam = (
   states: selection.map(createInitialPlayerState),
   substitutionsUsed: 0,
   controlTicks: 0,
+  momentum: tacticalSetup
+    ? clamp(50 + (average(Object.values(tacticalSetup.familiarity)) - 65) * 0.2, 35, 65)
+    : 50,
   benchIds: [],
   benchPlayers: [],
   setup: tacticalSetup,
@@ -858,9 +890,13 @@ const chooseAttackingTeam = (
   away: RuntimeTeam,
 ): RuntimeTeam => {
   const homeControl =
-    (home.strength.midfield + home.strength.attack * 0.35) * home.tactical.control;
+    (home.strength.midfield + home.strength.attack * 0.35) *
+    home.tactical.control *
+    (0.92 + home.momentum / 500);
   const awayControl =
-    (away.strength.midfield + away.strength.attack * 0.35) * away.tactical.control;
+    (away.strength.midfield + away.strength.attack * 0.35) *
+    away.tactical.control *
+    (0.92 + away.momentum / 500);
   return rng.next() < homeControl / (homeControl + awayControl) ? home : away;
 };
 
@@ -877,7 +913,8 @@ const attackingSequenceChance = (
         defending.strength.defense * defending.tactical.transitionDefense) /
         980) *
       tempo *
-      pitch,
+      pitch *
+      (0.96 + (attacking.momentum - 50) / 500),
     0.098,
     0.192,
   );
