@@ -7,6 +7,7 @@ import {
   type FederationManifestoCommitment,
   type FederationPolicy,
   type FederationPolicyCategory,
+  type FederationOutcomeSummary,
   type FederationStakeholderType,
   type EntityId,
 } from "@nepal-football-sim/shared-types";
@@ -41,6 +42,108 @@ const policyDimension = (category: FederationPolicyCategory): string | undefined
     NATIONAL_TEAM_INVESTMENT: "nationalTeams",
     LEAGUE_STRUCTURE: "competitionQuality",
   })[category];
+
+const emptyRecord = () => ({ fixtures: 0, wins: 0, draws: 0, losses: 0 });
+
+const federationOutcomes = (db: GameDatabase, federationId: EntityId): FederationOutcomeSummary => {
+  const teams = db
+    .prepare(
+      "SELECT id, level, gender FROM teams WHERE federation_id = ? AND club_id IS NULL ORDER BY id",
+    )
+    .all(federationId) as Array<{ id: EntityId; level: string; gender: string }>;
+  const teamKinds = new Map<EntityId, "senior" | "youth" | "women">();
+  for (const team of teams) {
+    teamKinds.set(
+      team.id,
+      team.gender === "women" ? "women" : team.level === "senior" ? "senior" : "youth",
+    );
+  }
+  const outcomes = { senior: emptyRecord(), youth: emptyRecord(), women: emptyRecord() };
+  const fixtures = new FederationGovernanceRepository(db)
+    .nationalTeamFixtures()
+    .filter((fixture) => fixture.federationId === federationId && fixture.status === "PLAYED");
+  for (const fixture of fixtures) {
+    const kind = teamKinds.get(fixture.nationalTeamId);
+    if (!kind || fixture.homeGoals === undefined || fixture.awayGoals === undefined) continue;
+    const result = outcomes[kind];
+    result.fixtures += 1;
+    if (fixture.homeGoals > fixture.awayGoals) result.wins += 1;
+    else if (fixture.homeGoals === fixture.awayGoals) result.draws += 1;
+    else result.losses += 1;
+  }
+  const nationalAppearances = new FederationGovernanceRepository(db)
+    .nationalTeamAppearances()
+    .filter((appearance) => teamKinds.has(appearance.nationalTeamId));
+  const womenNationalAppearances = nationalAppearances.filter(
+    (appearance) => teamKinds.get(appearance.nationalTeamId) === "women",
+  ).length;
+  const nationalByPlayer = new Map<EntityId, Set<"senior" | "youth">>();
+  for (const appearance of nationalAppearances) {
+    const kind = teamKinds.get(appearance.nationalTeamId);
+    if (kind !== "senior" && kind !== "youth") continue;
+    const levels = nationalByPlayer.get(appearance.playerId) ?? new Set();
+    levels.add(kind);
+    nationalByPlayer.set(appearance.playerId, levels);
+  }
+  const academyPlayers = db
+    .prepare(
+      "SELECT DISTINCT player_id FROM generated_player_origins WHERE academy_id IS NOT NULL AND country_id = (SELECT country_id FROM federations WHERE id = ?)",
+    )
+    .all(federationId) as Array<{ player_id: EntityId }>;
+  const academyIds = new Set(academyPlayers.map((row) => row.player_id));
+  const playerStats = db
+    .prepare(
+      `SELECT person_id, SUM(appearances) AS appearances
+       FROM player_season_stats pss
+       JOIN teams t ON t.id = pss.team_id
+       WHERE t.club_id IS NOT NULL
+       GROUP BY person_id`,
+    )
+    .all() as Array<{ person_id: EntityId; appearances: number }>;
+  const firstTeamDebuts = playerStats.filter((row) => academyIds.has(row.person_id)).length;
+  const regularFirstTeamPlayers = playerStats.filter(
+    (row) => academyIds.has(row.person_id) && Number(row.appearances) >= 10,
+  ).length;
+  const youthNationalPlayers = [...academyIds].filter((id) =>
+    nationalByPlayer.get(id)?.has("youth"),
+  ).length;
+  const seniorNationalPlayers = [...academyIds].filter((id) =>
+    nationalByPlayer.get(id)?.has("senior"),
+  ).length;
+  const womenProgress = outcomes.women.fixtures + womenNationalAppearances;
+  const girlsDevelopment =
+    womenProgress >= 8
+      ? "ESTABLISHED"
+      : womenProgress >= 4
+        ? "PROGRESSING"
+        : womenProgress > 0
+          ? "BUILDING"
+          : "LIMITED";
+  const stages = [
+    ["academy intake", academyPlayers.length],
+    ["first-team debut", firstTeamDebuts],
+    ["regular first-team use", regularFirstTeamPlayers],
+    ["youth national progression", youthNationalPlayers],
+    ["senior national progression", seniorNationalPlayers],
+  ] as const;
+  const strongest = [...stages].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0];
+  const weakest = [...stages].sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0]))[0][0];
+  return {
+    senior: outcomes.senior,
+    youth: outcomes.youth,
+    women: outcomes.women,
+    pathway: {
+      academyPlayers: academyPlayers.length,
+      firstTeamDebuts,
+      regularFirstTeamPlayers,
+      youthNationalPlayers,
+      seniorNationalPlayers,
+    },
+    girlsDevelopment,
+    strongestPathwayStage: strongest,
+    weakestPathwayStage: weakest,
+  };
+};
 
 const CATEGORY_MAP: Record<string, FederationPolicyCategory> = {
   YOUTH_ELITE_DEVELOPMENT: "YOUTH_DEVELOPMENT",
@@ -312,6 +415,7 @@ export const federationDevelopmentSummary = (
     strengths,
     priorities,
     impactSummaries: impactSummaries.slice(0, 8),
+    outcomes: federationOutcomes(db, federationId),
     governmentRelationship:
       governmentTrust >= 70 ? "STRONG" : governmentTrust >= 40 ? "WORKING" : "LIMITED",
     asOf: date,

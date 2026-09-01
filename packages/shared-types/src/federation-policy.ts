@@ -59,6 +59,21 @@ export type FederationPolicy = {
 };
 
 export type FederationDevelopmentBand = "FOUNDATION" | "BUILDING" | "PROGRESSING" | "ESTABLISHED";
+export type FederationOutcomeSummary = {
+  senior: { fixtures: number; wins: number; draws: number; losses: number };
+  youth: { fixtures: number; wins: number; draws: number; losses: number };
+  women: { fixtures: number; wins: number; draws: number; losses: number };
+  pathway: {
+    academyPlayers: number;
+    firstTeamDebuts: number;
+    regularFirstTeamPlayers: number;
+    youthNationalPlayers: number;
+    seniorNationalPlayers: number;
+  };
+  girlsDevelopment: "LIMITED" | "BUILDING" | "PROGRESSING" | "ESTABLISHED";
+  strongestPathwayStage: string;
+  weakestPathwayStage: string;
+};
 export type FederationDevelopmentSummary = {
   federationId: EntityId;
   band: FederationDevelopmentBand;
@@ -67,6 +82,7 @@ export type FederationDevelopmentSummary = {
   strengths: string[];
   priorities: string[];
   impactSummaries: string[];
+  outcomes: FederationOutcomeSummary;
   governmentRelationship: "LIMITED" | "WORKING" | "STRONG";
   asOf: string;
   provenanceStatus: "SIMULATION_ONLY";

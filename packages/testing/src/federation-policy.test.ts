@@ -129,6 +129,9 @@ describe("federation campaigning and policy foundation", () => {
     expect(first.dimensions.refereeing).toBeDefined();
     expect(first.impactSummaries).toContain("REFEREE_DEVELOPMENT: 50% implemented");
     expect(first.trend).toBe("IMPROVING");
+    expect(first.outcomes.senior.fixtures).toBe(0);
+    expect(first.outcomes.pathway.firstTeamDebuts).toBeGreaterThanOrEqual(0);
+    expect(first.outcomes.weakestPathwayStage).toBeTruthy();
     db.close();
     rmSync(directory, { recursive: true, force: true });
   });
