@@ -3449,6 +3449,11 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       CREATE TABLE IF NOT EXISTS federation_hosting_bids (
         id TEXT PRIMARY KEY, federation_id TEXT NOT NULL REFERENCES federations(id), event_type TEXT NOT NULL, event_name TEXT NOT NULL, host_scope TEXT NOT NULL, venue_id TEXT, readiness REAL NOT NULL, funding_plan REAL NOT NULL, government_support REAL NOT NULL, federation_contribution REAL NOT NULL, projected_benefit REAL NOT NULL, status TEXT NOT NULL, proposed_on TEXT NOT NULL, decision_date TEXT, provenance_status TEXT NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS federation_hosting_events (
+        id TEXT PRIMARY KEY, bid_id TEXT NOT NULL UNIQUE REFERENCES federation_hosting_bids(id), federation_id TEXT NOT NULL,
+        competition_key TEXT NOT NULL, edition_id TEXT NOT NULL UNIQUE, start_date TEXT NOT NULL, end_date TEXT NOT NULL,
+        venue_ids_json TEXT NOT NULL, status TEXT NOT NULL, completed_on TEXT, provenance_status TEXT NOT NULL
+      );
       CREATE INDEX IF NOT EXISTS idx_federation_hosting_bids_status ON federation_hosting_bids(federation_id, status, proposed_on);
     `,
   },
