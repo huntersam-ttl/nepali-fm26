@@ -24,6 +24,7 @@ import {
   resignFromClub,
   sackManager,
   testLicence,
+  withdrawJobApplication,
 } from "@nepal-football-sim/simulation";
 import {
   createStableEntityId,
@@ -279,6 +280,26 @@ describe("manager career world: board confidence, sacking and AI reassignment", 
         vacancy.id,
       );
       day += 1;
+    }
+    expect(application.status).toBe("OFFERED");
+
+    const withdrawn = withdrawJobApplication(
+      db,
+      saveAt("2026-09-25"),
+      character.managerProfile,
+      application.id,
+    );
+    expect(withdrawn.status).toBe("WITHDRAWN");
+    application = applyForJob(db, saveAt("2026-09-26"), character.managerProfile, vacancy.id);
+    let replacementDay = 1;
+    while (application.status === "REJECTED" && replacementDay < 20) {
+      application = applyForJob(
+        db,
+        saveAt(`2026-10-${String(replacementDay).padStart(2, "0")}`),
+        character.managerProfile,
+        vacancy.id,
+      );
+      replacementDay += 1;
     }
     expect(application.status).toBe("OFFERED");
 

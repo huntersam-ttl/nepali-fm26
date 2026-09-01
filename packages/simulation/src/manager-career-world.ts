@@ -493,7 +493,12 @@ const addYears = (date: string, years: number): string => {
 
 export class JobApplicationError extends Error {
   constructor(
-    readonly code: "VACANCY_NOT_OPEN" | "NOT_ELIGIBLE" | "ALREADY_APPLIED",
+    readonly code:
+      | "VACANCY_NOT_OPEN"
+      | "NOT_ELIGIBLE"
+      | "ALREADY_APPLIED"
+      | "APPLICATION_NOT_FOUND"
+      | "APPLICATION_NOT_WITHDRAWABLE",
     message: string,
   ) {
     super(message);
@@ -563,6 +568,29 @@ export const applyForJob = (
   };
   careerWorld.insertApplication(application);
   return application;
+};
+
+/** Withdraws a human manager's pending or offered application without touching the vacancy. */
+export const withdrawJobApplication = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  managerProfile: ManagerProfile,
+  applicationId: EntityId,
+): JobApplication => {
+  const careerWorld = new CareerWorldRepository(db);
+  const application = careerWorld.application(applicationId);
+  if (!application || application.managerProfileId !== managerProfile.id) {
+    throw new JobApplicationError("APPLICATION_NOT_FOUND", "That job application does not exist.");
+  }
+  if (application.status !== "PENDING" && application.status !== "OFFERED") {
+    throw new JobApplicationError(
+      "APPLICATION_NOT_WITHDRAWABLE",
+      "That job application can no longer be withdrawn.",
+    );
+  }
+  const withdrawn = { ...application, status: "WITHDRAWN" as const, decidedOn: save.worldDate };
+  careerWorld.insertApplication(withdrawn);
+  return withdrawn;
 };
 
 export class JobOfferError extends Error {
