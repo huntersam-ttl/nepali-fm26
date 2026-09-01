@@ -5,6 +5,7 @@ import type {
   CareerRoleState,
   ClubBudgetCategory,
   FederationPresidentDashboard,
+  InboxItem,
   OwnerManagerCandidate,
 } from "@nepal-football-sim/shared-types";
 import type { AppError, DesktopRuntimeApi } from "../appBridge.js";
@@ -345,6 +346,7 @@ const ChairmanDashboardView = ({
       <Panel title="Recent club transactions">
         <TransactionList entries={dashboard.finances.ledgerEntries} />
       </Panel>
+      <InboxPanel inbox={dashboard.inbox} />
       {/*
        * Standing for the federation presidency is a long-horizon career option,
        * not the owner's daily business, so it sits below the club rather than
@@ -496,9 +498,33 @@ const FederationDashboardView = ({
         </p>
         <TransactionList entries={dashboard.finances.ledgerEntries} />
       </Panel>
+      <InboxPanel inbox={dashboard.inbox} />
     </section>
   );
 };
+
+/*
+ * Shared with HomeScreen's own Inbox panel: the role-aware backend already
+ * routes club events to Owner and federation events to President (see
+ * media.ts's routeHistoricalEvent), so this is presentation only — no new
+ * event infrastructure, just the same read-only rendering the manager
+ * workspace already uses.
+ */
+const InboxPanel = ({ inbox }: { inbox: InboxItem[] }): React.ReactElement => (
+  <Panel title="Inbox">
+    {inbox.length === 0 ? (
+      <p className="empty-state">Your inbox is empty.</p>
+    ) : (
+      inbox.map((item) => (
+        <div className="inbox-item" key={item.id}>
+          <strong>{item.title}</strong>
+          <span>{item.body}</span>
+          <span className="subtle">{item.createdOn}</span>
+        </div>
+      ))
+    )}
+  </Panel>
+);
 
 const TransactionList = ({
   entries,

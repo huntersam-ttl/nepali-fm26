@@ -267,4 +267,45 @@ describe("Media phase A", () => {
     ).toBe(false);
     db.close();
   });
+
+  it("routes a loan transfer variant to the controlling owner, not only permanent transfers", () => {
+    const db = openGameDatabase(makeSave("media-loan-routing"));
+    const clubId = (
+      db.prepare("SELECT id FROM clubs ORDER BY id LIMIT 1").get() as { id: EntityId }
+    ).id;
+    const personId = (
+      db.prepare("SELECT id FROM persons ORDER BY id LIMIT 1").get() as { id: EntityId }
+    ).id;
+    db.prepare(
+      "INSERT INTO club_ownership_stakes (id,club_id,holder_type,holder_id,holder_name,role,percentage,voting_percentage,start_date,status,ownership_model,provenance_status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+    ).run(
+      createStableEntityId("ownership-stake", "media-loan-owner"),
+      clubId,
+      "PERSON",
+      personId,
+      "Loan Routing Owner",
+      "MAJORITY_OWNER",
+      75,
+      75,
+      "2026-01-01",
+      "ACTIVE",
+      "BUYABLE",
+      "SIMULATION_ONLY",
+    );
+    const loanEvent: HistoricalEvent = {
+      id: createStableEntityId("history", "loan-routing-event"),
+      occurredOn: "2026-09-01",
+      eventType: "LOAN_STARTED",
+      involvedEntities: [{ id: clubId, type: "club" }],
+      title: "Player joins on loan",
+      importance: "high",
+      scope: "club",
+    };
+    new EventRepository(db).insertHistoricalEvent(loanEvent);
+    publishMediaForDate(db, { date: "2026-09-02" });
+    expect(
+      roleInboxEvents(db, personId, "OWNER").some((item) => item.event.id === loanEvent.id),
+    ).toBe(true);
+    db.close();
+  });
 });
