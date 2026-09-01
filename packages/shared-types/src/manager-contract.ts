@@ -36,6 +36,7 @@ import type {
   TrainingPlan,
 } from "./domain.js";
 import type { MentoringFocus, MentoringStatus } from "./people-foundation.js";
+import type { BackroomSummary } from "./continental-careers.js";
 
 /**
  * Manager gameplay contract.
@@ -883,6 +884,7 @@ export type StaffHierarchyView = {
   responsibilities: StaffResponsibilityView[];
   developmentPlans: StaffDevelopmentPlanView[];
   successionPlans: StaffSuccessionPlanView[];
+  backroom: BackroomSummary;
 };
 
 // ---------------------------------------------------------------------------

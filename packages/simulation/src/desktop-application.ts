@@ -7,6 +7,7 @@ import {
   ManagerRepository,
   MatchSessionRepository,
   MedicalRepository,
+  PeopleFoundationRepository,
   PlayerRepository,
   SaveRepository,
   SquadDynamicsRepository,
@@ -229,6 +230,7 @@ import {
   dismissStaff,
   enrolInLicenceCourse,
   ensureAiStaffAssigned,
+  evaluateAiStaffDevelopment,
   evaluateAllStaffContracts,
   evaluateLicenceCourses,
   completeTechnicalPartnershipPlacements,
@@ -281,6 +283,7 @@ import {
 } from "./tactics.js";
 import { suitability } from "./team-selection.js";
 import { activeCareerRole, heldCareerRoles, switchActiveCareerRole } from "./career-control.js";
+import { backroomSummary } from "./career-market-deepening.js";
 import { createInvestorStakeOffer, decideInvestorBid } from "./ownership.js";
 import { buildChairmanDashboard, buildFederationPresidentDashboard } from "./role-desktop.js";
 import { initializeFederationGovernanceForSave } from "./federation-governance.js";
@@ -1632,6 +1635,10 @@ export class DesktopApplicationService {
           evaluateAllStaffContracts(db, updated);
           if (context.club?.id) evaluateStaffPerformance(db, updated, context.club.id);
           evaluateLicenceCourses(db, updated);
+          // AI clubs use the same enrolInLicenceCourse pipeline the human
+          // path does — bounded per-tick chance, real course dates, same
+          // affordability/willingness/max-licence rejections.
+          evaluateAiStaffDevelopment(db, updated, context.club?.id);
           completeTechnicalPartnershipPlacements(db, updated);
           if (context.club?.id) planTechnicalPartnershipPlacements(db, updated, context.club.id);
           evaluateStaffPoaching(db, updated, context.club?.id);
@@ -3212,7 +3219,18 @@ const buildStaffHierarchyView = (db: GameDatabase, clubId: EntityId): StaffHiera
       reason: plan.reason,
     }));
 
-  return { hierarchy, responsibilities, developmentPlans, successionPlans };
+  // Advisory only — the same aligned/strained relationship math that already
+  // feeds staff cooperation elsewhere (recruitment/course/retention
+  // modifiers), just surfaced here as a read-only backroom-atmosphere
+  // summary. Never exposes the underlying trust/respect/tension scores.
+  const people = new PeopleFoundationRepository(db);
+  const backroom = backroomSummary({
+    clubId,
+    activeStaff: hierarchy.length,
+    relationships: hierarchy.flatMap((entry) => people.relationshipsForPerson(entry.personId)),
+  });
+
+  return { hierarchy, responsibilities, developmentPlans, successionPlans, backroom };
 };
 
 const buildMedicalCentreView = (

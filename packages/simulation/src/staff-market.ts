@@ -1831,6 +1831,48 @@ export const evaluateLicenceCourses = (
   return completed;
 };
 
+const AI_COURSE_ENROLMENT_CHANCE_PER_TICK = 12;
+
+/**
+ * AI clubs occasionally send an eligible staff member on the same
+ * licence-course pipeline the human path uses (`enrolInLicenceCourse`) — no
+ * separate course system, no instant upgrades. A deterministic, seeded
+ * per-appointment roll each tick keeps this bounded (not every eligible
+ * AI staff member enrols the moment they qualify), and every rejection
+ * reason `enrolInLicenceCourse` already enforces (already enrolled, max
+ * licence, cannot afford, not personally willing) applies exactly as it
+ * does for the human path.
+ */
+export const evaluateAiStaffDevelopment = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  playerClubId: EntityId | undefined,
+): StaffLicenceCourse[] => {
+  const market = new StaffMarketRepository(db);
+  const worldDate = save.worldDate;
+  const clubIds = new Set(
+    seniorTeams(db, worldDate)
+      .map((team) => team.clubId)
+      .filter((id): id is EntityId => Boolean(id)),
+  );
+  const started: StaffLicenceCourse[] = [];
+  for (const clubId of clubIds) {
+    if (clubId === playerClubId) continue;
+    for (const appointment of market.activeAppointmentsForClub(clubId)) {
+      if (market.activeLicenceCourseForPerson(appointment.personId)) continue;
+      const rng = new SeededRandom(`ai-staff-course:${appointment.id}:${worldDate}`);
+      if (rng.next() * 100 >= AI_COURSE_ENROLMENT_CHANCE_PER_TICK) continue;
+      try {
+        started.push(enrolInLicenceCourse(db, save, appointment.personId, clubId));
+      } catch (error) {
+        if (error instanceof LicenceCourseError) continue;
+        throw error;
+      }
+    }
+  }
+  return started;
+};
+
 // ---------------------------------------------------------------------------
 // Poaching and resignations
 // ---------------------------------------------------------------------------

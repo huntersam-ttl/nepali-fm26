@@ -366,6 +366,31 @@ export const StaffScreen = ({ refreshKey }: { refreshKey: number }): React.React
       <AsyncPanel state={hierarchyState}>
         {(hierarchy) => (
           <>
+            <Panel title="Backroom">
+              <p>
+                <Badge
+                  tone={
+                    hierarchy.backroom.atmosphere === "ALIGNED"
+                      ? "ok"
+                      : hierarchy.backroom.atmosphere === "CONFLICT"
+                        ? "bad"
+                        : hierarchy.backroom.atmosphere === "STRAINED"
+                          ? "warn"
+                          : "info"
+                  }
+                >
+                  {hierarchy.backroom.atmosphere.toLowerCase()}
+                </Badge>{" "}
+                <span className="subtle">{hierarchy.backroom.clue}</span>
+              </p>
+              <p className="subtle">
+                {hierarchy.backroom.activeStaff} active staff ·{" "}
+                {hierarchy.backroom.alignedRelationships} aligned relationship
+                {hierarchy.backroom.alignedRelationships === 1 ? "" : "s"} ·{" "}
+                {hierarchy.backroom.strainedRelationships} strained relationship
+                {hierarchy.backroom.strainedRelationships === 1 ? "" : "s"}
+              </p>
+            </Panel>
             <Panel title="Staff hierarchy">
               {hierarchy.hierarchy.length === 0 ? (
                 <p className="empty-state">No staff appointments to chart.</p>
