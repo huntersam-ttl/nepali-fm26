@@ -10,6 +10,7 @@ import type {
   SquadMeetingCommand,
   EntityId,
   LiveTacticsCommand,
+  MediaResponseStance,
   RecruitmentSearchCommand,
   ScoutingAssignmentCommand,
   CreateDevelopmentPlanCommand,
@@ -374,6 +375,16 @@ const dispatch = (
       return service.resignFromClub();
     case "getCareerHistory":
       return service.getCareerHistory();
+    case "getMediaCentre":
+      return service.getMediaCentre();
+    case "requestPressConference":
+      return service.requestPressConference(body.storyId as EntityId);
+    case "answerPressConference":
+      return service.answerPressConference(
+        body.input as { interviewId: EntityId; stance: MediaResponseStance; response: string },
+      );
+    case "getSupporterOverview":
+      return service.getSupporterOverview();
     default:
       return {
         ok: false,

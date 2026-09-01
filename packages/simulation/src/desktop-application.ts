@@ -107,6 +107,10 @@ import {
   type MatchEvent,
   type MatchSessionRecord,
   type MatchViewMode,
+  type MediaCentreView,
+  type MediaResponseStance,
+  type PressConferenceView,
+  type SupporterReadModel,
   type Person,
   type PlayerAttributeSet,
   type PlayerProfile,
@@ -329,6 +333,12 @@ import {
   setManagerTransferStatus,
   toggleManagerShortlist,
 } from "./manager-desktop.js";
+import {
+  answerManagerPressConference,
+  buildMediaCentreView,
+  buildSupporterOverview,
+  requestManagerPressConference,
+} from "./manager-media-desktop.js";
 import {
   advanceAllRehabilitationPlans,
   buildMedicalCentreEntry,
@@ -2008,6 +2018,32 @@ export class DesktopApplicationService {
         })),
       };
     });
+  }
+
+  getMediaCentre(): AppResult<MediaCentreView> {
+    return this.managerCommand((db, save, context) => buildMediaCentreView(db, save, context));
+  }
+
+  requestPressConference(storyId: EntityId): AppResult<PressConferenceView> {
+    return this.managerCommand(
+      (db, save, context) => requestManagerPressConference(db, save, context, storyId),
+      true,
+    );
+  }
+
+  answerPressConference(input: {
+    interviewId: EntityId;
+    stance: MediaResponseStance;
+    response: string;
+  }): AppResult<PressConferenceView> {
+    return this.managerCommand(
+      (db, _save, context) => answerManagerPressConference(db, context, input),
+      true,
+    );
+  }
+
+  getSupporterOverview(): AppResult<SupporterReadModel | undefined> {
+    return this.managerCommand((db, _save, context) => buildSupporterOverview(db, context));
   }
 
   getSquad(): AppResult<SquadList> {

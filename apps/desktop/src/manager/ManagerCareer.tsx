@@ -15,6 +15,7 @@ import { TransfersScreen } from "./screens/TransfersScreen.js";
 import { ContractsScreen } from "./screens/ContractsScreen.js";
 import { StaffScreen } from "./screens/StaffScreen.js";
 import { MedicalScreen } from "./screens/MedicalScreen.js";
+import { MediaScreen } from "./screens/MediaScreen.js";
 import { MatchdayScreen } from "./matchday/MatchdayScreen.js";
 import { RoleLandingScreen } from "./RoleLandingScreen.js";
 import type { ChairmanScreen, PresidentScreen } from "./RoleDetailScreen.js";
@@ -31,13 +32,14 @@ const SCREENS = [
   "contracts",
   "staff",
   "medical",
+  "media",
 ] as const;
 
 const NAV_GROUPS: Array<{ label: string; items: Screen[] }> = [
   { label: "Team", items: ["home", "squad", "tactics", "training", "medical"] },
   { label: "Competition", items: ["fixtures", "competition"] },
   { label: "Recruitment", items: ["scouting", "transfers", "contracts"] },
-  { label: "Club", items: ["staff"] },
+  { label: "Club", items: ["staff", "media"] },
 ];
 
 type Screen = (typeof SCREENS)[number];
@@ -67,6 +69,7 @@ const LABELS: Record<Screen, string> = {
   contracts: "Contracts",
   staff: "Staff",
   medical: "Medical",
+  media: "Media",
 };
 
 const SUBTITLES: Record<Screen, string> = {
@@ -81,6 +84,7 @@ const SUBTITLES: Record<Screen, string> = {
   contracts: "Keep player terms aligned with the club plan.",
   staff: "Build the support team around your squad.",
   medical: "Monitor recovery and return-to-play decisions.",
+  media: "Supporter mood, press coverage, and press conferences.",
 };
 
 /**
@@ -417,6 +421,7 @@ export const ManagerCareer = ({
         {header.activeRole === "MANAGER" && screen === "contracts" && <ContractsScreen />}
         {header.activeRole === "MANAGER" && screen === "staff" && <StaffScreen />}
         {header.activeRole === "MANAGER" && screen === "medical" && <MedicalScreen />}
+        {header.activeRole === "MANAGER" && screen === "media" && <MediaScreen />}
       </section>
     </main>
   );

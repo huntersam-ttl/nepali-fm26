@@ -16,6 +16,10 @@ import type {
   ManagerCareerHistoryView,
   ManagerCompetitionView,
   ManagerDashboard,
+  MediaCentreView,
+  MediaResponseStance,
+  PressConferenceView,
+  SupporterReadModel,
   PostMatchReport,
   PlayerProfile,
   QuickSimSummary,
@@ -72,6 +76,16 @@ export const managerBridge = {
     runtimeCall<SquadMeetingResult>("holdSquadMeeting", { command }),
   getPlayerProfile: (playerId: EntityId) =>
     runtimeCall<PlayerProfile>("getPlayerProfile", { playerId }),
+  getMediaCentre: () => runtimeCall<MediaCentreView>("getMediaCentre"),
+  requestPressConference: (storyId: EntityId) =>
+    runtimeCall<PressConferenceView>("requestPressConference", { storyId }),
+  answerPressConference: (input: {
+    interviewId: EntityId;
+    stance: MediaResponseStance;
+    response: string;
+  }) => runtimeCall<PressConferenceView>("answerPressConference", { input }),
+  getSupporterOverview: () =>
+    runtimeCall<SupporterReadModel | undefined>("getSupporterOverview"),
   getTactics: () => runtimeCall<TacticsView>("getTactics"),
   updateTactics: (command: TacticsUpdateCommand) =>
     runtimeCall<TacticsView>("updateTactics", { command }),

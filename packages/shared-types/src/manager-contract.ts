@@ -9,6 +9,8 @@ import type {
   ManagerPromiseStatus,
   ManagerPromiseType,
   MatchViewMode,
+  MediaInterview,
+  MediaStory,
   KnowledgeConfidence,
   KnowledgeRange,
   PlayerAttributeSet,
@@ -984,6 +986,40 @@ export type ManagerCareerHistoryView = {
   jobsHeld: number;
   history: ManagerCareerHistoryEntry[];
   trophies: ManagerTrophyEntry[];
+};
+
+export type MediaResponseStance = "CALM" | "AMBITIOUS" | "PROTECTIVE" | "CONCILIATORY";
+
+/** Derived per-story reaction, one summary per factual story, never per account/post. */
+export type MediaSocialReaction = {
+  label: "POSITIVE" | "MIXED" | "CRITICAL" | "VIRAL";
+  summary: string;
+};
+
+export type MediaFeedItem = {
+  story: MediaStory;
+  reaction: MediaSocialReaction;
+};
+
+export type PressConferenceQuestion = {
+  id: string;
+  prompt: string;
+  options: MediaResponseStance[];
+};
+
+export type PressConferenceView = {
+  interview: MediaInterview;
+  questions: PressConferenceQuestion[];
+  status: "OPEN" | "COMPLETED";
+  framing: "POSITIVE" | "NEUTRAL" | "CRITICAL" | "SENSATIONAL";
+};
+
+export type MediaCentreView = {
+  recentStories: MediaFeedItem[];
+  /** Stories significant enough to request an interview about, not already open/answered. */
+  eligibleForInterview: MediaStory[];
+  pendingInterview?: PressConferenceView;
+  completedInterviews: MediaInterview[];
 };
 
 export type ManagerDashboard = {

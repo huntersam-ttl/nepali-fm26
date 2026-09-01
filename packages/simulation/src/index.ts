@@ -46,6 +46,7 @@ export * from "./manager-career.js";
 export * from "./manager-career-world.js";
 export * from "./manager-interviews.js";
 export * from "./manager-flow.js";
+export * from "./manager-media-desktop.js";
 export * from "./match-environment.js";
 export * from "./match-engine.js";
 export * from "./match-session.js";
