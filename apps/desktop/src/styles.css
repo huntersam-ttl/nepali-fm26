@@ -430,7 +430,7 @@ tbody tr:hover {
 }
 
 dt {
-  color: #6a776f;
+  color: var(--muted);
   font-size: 0.72rem;
   font-weight: 800;
   text-transform: uppercase;
@@ -652,14 +652,17 @@ tbody tr[tabindex]:focus-visible {
   padding: 0 3px;
 }
 
+/* Secondary text used to be a light-theme green-grey that the dark palette never
+   overrode, so helper text, empty states, metric labels, commentary minutes and
+   slot fit labels all sat near 3.2:1. They use the theme's muted token, 6.67:1. */
 .subtle,
 .muted {
-  color: #61706a;
+  color: var(--muted);
   font-size: 12px;
 }
 
 .empty-state {
-  color: #61706a;
+  color: var(--muted);
   font-style: italic;
   padding: 10px 0;
 }
@@ -821,7 +824,7 @@ tbody tr:hover { background: rgba(155,124,255,.1); }
 .slot-fit {
   display: block;
   font-size: 10px;
-  color: #61706a;
+  color: var(--muted);
   font-style: normal;
 }
 
@@ -879,7 +882,7 @@ button.link {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #61706a;
+  color: var(--muted);
 }
 
 .player-detail {
@@ -1005,14 +1008,14 @@ button.link {
 }
 
 .commentary-minute {
-  color: #61706a;
+  color: var(--muted);
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
 
 /* Quieter for routine play, louder for the moments that matter. */
 .commentary-line.importance-minor {
-  color: #61706a;
+  color: var(--muted);
 }
 
 .commentary-line.importance-major {
@@ -1107,7 +1110,7 @@ button.link {
 }
 
 .stat-table th[scope="row"] {
-  color: #61706a;
+  color: var(--muted);
   font-weight: 500;
   font-size: 12px;
 }
