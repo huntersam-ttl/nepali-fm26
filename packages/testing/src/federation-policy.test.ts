@@ -132,6 +132,8 @@ describe("federation campaigning and policy foundation", () => {
     expect(first.outcomes.senior.fixtures).toBe(0);
     expect(first.outcomes.pathway.firstTeamDebuts).toBeGreaterThanOrEqual(0);
     expect(first.outcomes.weakestPathwayStage).toBeTruthy();
+    expect(first.outcomes.academyConversionBySeason).toEqual([]);
+    expect(first.outcomes.womenProgramme.participationBand).toBeDefined();
     db.close();
     rmSync(directory, { recursive: true, force: true });
   });
