@@ -255,6 +255,35 @@ const inboxTypeForEvent = (event: HistoricalEvent): InboxItem["type"] => {
   return "COMPETITION_UPDATE";
 };
 
+const legacyText = (item: InboxItem): string => `${item.title} ${item.body}`.toUpperCase();
+
+/**
+ * Legacy inbox rows predate role deliveries and often have no entity
+ * metadata. Keep those rows Manager-only; only positively classified public
+ * events may fall back into the Owner or President inbox.
+ */
+const legacyVisibleToRole = (
+  role: PublicEventRole,
+  item: InboxItem,
+  sourceEvent?: HistoricalEvent,
+): boolean => {
+  if (sourceEvent) {
+    if (role === "PRESIDENT") return federationEvent(sourceEvent);
+    if (role === "OWNER") return ownerEvent(sourceEvent);
+    return managerEvent(sourceEvent) || sourceEvent.scope === "person";
+  }
+  if (role === "MANAGER") return true;
+  const text = legacyText(item);
+  if (role === "PRESIDENT") {
+    return /(ELECTION|FEDERATION|GOVERNANCE|POLICY|PROJECT|FUNDING|NATIONAL TEAM|REFEREE|WOMEN|GIRLS|YOUTH)/.test(
+      text,
+    );
+  }
+  return /(OWNERSHIP|INVESTOR|TAKEOVER|SPONSOR|COMMERCIAL|FACILITY|STADIUM|DEBT|DEFAULT|MANAGER APPOINT|MANAGER DISMISS|TRANSFER|PROMOTION|RELEGATION|TROPHY|CHAMPION|PROTEST)/.test(
+    text,
+  );
+};
+
 /** Role-facing inbox items, retaining legacy records with no public event. */
 export const roleInboxItems = (
   db: GameDatabase,
@@ -263,30 +292,39 @@ export const roleInboxItems = (
   const deliveries = roleInboxEvents(db, input.personId, input.role);
   const eventIds = new Set(deliveries.map((item) => item.event.id));
   const stories = new MediaRepository(db).stories();
+  const events = new Map(
+    new EventRepository(db).historicalEvents().map((event) => [event.id, event]),
+  );
   const legacyReadByEvent = new Map<EntityId, boolean>();
   for (const item of input.legacyItems ?? new ManagerRepository(db).inboxItems()) {
-    const story = stories.find((candidate) =>
-      item.id === createStableEntityId("media-inbox", candidate.id),
+    const story = stories.find(
+      (candidate) => item.id === createStableEntityId("media-inbox", candidate.id),
     );
     if (story && eventIds.has(story.sourceEntityId)) {
       legacyReadByEvent.set(story.sourceEntityId, item.read);
     }
   }
   const legacy = (input.legacyItems ?? new ManagerRepository(db).inboxItems()).filter((item) => {
-    const story = stories.find((candidate) =>
-      item.id === createStableEntityId("media-inbox", candidate.id),
+    const story = stories.find(
+      (candidate) => item.id === createStableEntityId("media-inbox", candidate.id),
     );
-    return !story || !eventIds.has(story.sourceEntityId);
+    return (
+      legacyVisibleToRole(input.role, item, story ? events.get(story.sourceEntityId) : undefined) &&
+      (!story || !eventIds.has(story.sourceEntityId))
+    );
   });
-  const routed = deliveries.map(({ event }) => ({
-    id: createStableEntityId("role-inbox", `${input.role}:${input.personId}:${event.id}`),
-    createdOn: event.occurredOn,
-    type: inboxTypeForEvent(event),
-    title: event.title,
-    body: event.title,
-    relatedEntity: event.involvedEntities[0],
-    read: legacyReadByEvent.get(event.id) ?? false,
-  } satisfies InboxItem));
+  const routed = deliveries.map(
+    ({ event }) =>
+      ({
+        id: createStableEntityId("role-inbox", `${input.role}:${input.personId}:${event.id}`),
+        createdOn: event.occurredOn,
+        type: inboxTypeForEvent(event),
+        title: event.title,
+        body: event.title,
+        relatedEntity: event.involvedEntities[0],
+        read: legacyReadByEvent.get(event.id) ?? false,
+      }) satisfies InboxItem,
+  );
   return [...legacy, ...routed].sort(
     (a, b) => b.createdOn.localeCompare(a.createdOn) || b.id.localeCompare(a.id),
   );

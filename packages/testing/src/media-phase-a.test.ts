@@ -308,4 +308,69 @@ describe("Media phase A", () => {
     ).toBe(true);
     db.close();
   });
+
+  it("scopes legacy fallback items by role and keeps unclassifiable items manager-only", () => {
+    const db = openGameDatabase(makeSave("media-legacy-role-filter"));
+    const items: Array<{
+      id: EntityId;
+      createdOn: string;
+      type: "COMPETITION_UPDATE";
+      title: string;
+      body: string;
+      read: boolean;
+    }> = [
+      {
+        id: createStableEntityId("inbox", "legacy-squad"),
+        createdOn: "2026-09-01",
+        type: "COMPETITION_UPDATE",
+        title: "Player squad concern",
+        body: "A player wants to discuss playing time.",
+        read: false,
+      },
+      {
+        id: createStableEntityId("inbox", "legacy-owner"),
+        createdOn: "2026-09-02",
+        type: "COMPETITION_UPDATE",
+        title: "Ownership change completed",
+        body: "The club has a new controlling owner.",
+        read: true,
+      },
+      {
+        id: createStableEntityId("inbox", "legacy-president"),
+        createdOn: "2026-09-03",
+        type: "COMPETITION_UPDATE",
+        title: "Federation governance proposal passed",
+        body: "The federation approved a new policy.",
+        read: false,
+      },
+      {
+        id: createStableEntityId("inbox", "legacy-unknown"),
+        createdOn: "2026-09-04",
+        type: "COMPETITION_UPDATE",
+        title: "A private note",
+        body: "No public classification is available.",
+        read: true,
+      },
+    ];
+    const repository = new ManagerRepository(db);
+    for (const item of items) repository.insertInboxItem(item);
+
+    const manager = roleInboxItems(db, {
+      personId: items[0].id,
+      role: "MANAGER",
+      legacyItems: items,
+    });
+    const owner = roleInboxItems(db, { personId: items[0].id, role: "OWNER", legacyItems: items });
+    const president = roleInboxItems(db, {
+      personId: items[0].id,
+      role: "PRESIDENT",
+      legacyItems: items,
+    });
+
+    expect(manager.map((item) => item.id).sort()).toEqual(items.map((item) => item.id).sort());
+    expect(owner.map((item) => item.id)).toEqual([items[1].id]);
+    expect(president.map((item) => item.id)).toEqual([items[2].id]);
+    expect(owner[0]?.read).toBe(true);
+    db.close();
+  });
 });
