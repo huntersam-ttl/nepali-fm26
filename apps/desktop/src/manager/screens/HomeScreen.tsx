@@ -142,7 +142,13 @@ export const HomeScreen = ({
                     { label: "Position", value: dashboard.leaguePosition ?? "—" },
                     { label: "Played", value: dashboard.played },
                     { label: "Points", value: dashboard.points },
-                    { label: "Board confidence", value: dashboard.boardConfidence ?? "—" },
+                    {
+                      label: "Board confidence",
+                      value:
+                        dashboard.boardConfidence === undefined
+                          ? "—"
+                          : Math.round(dashboard.boardConfidence),
+                    },
                     { label: "Board expects", value: dashboard.boardExpectation ?? "—" },
                   ]}
                 />
@@ -307,7 +313,7 @@ export const HomeScreen = ({
               <Panel title="Medical Centre">
                 {(dashboard.medicalCentre ?? []).filter((item) => item.availabilityRecommendation !== "FULLY_FIT").slice(0, 5).map((item) => (
                   <p key={item.id} className="subtle">
-                    <span className="unknown">Player identity unavailable</span>: {item.availabilityRecommendation.replaceAll("_", " ").toLowerCase()} · return {item.estimatedReturnStart}–{item.estimatedReturnEnd} · {item.workloadFlag.toLowerCase()} load
+                    <strong>{item.playerName}</strong>: {item.availabilityRecommendation.replaceAll("_", " ").toLowerCase()} · return {item.estimatedReturnStart}–{item.estimatedReturnEnd} · {item.workloadFlag.toLowerCase()} load
                   </p>
                 ))}
                 {(dashboard.medicalCentre ?? []).every((item) => item.availabilityRecommendation === "FULLY_FIT") && <p className="ok">No medical restrictions.</p>}

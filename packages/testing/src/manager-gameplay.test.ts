@@ -65,6 +65,21 @@ describe("manager gameplay", () => {
     expect(result.data.trainingSummary).not.toBe("No training plan set");
   });
 
+  it("resolves a real player name for every medical centre entry, never a placeholder", () => {
+    const dashboard = service.getManagerDashboard();
+    expect(dashboard.ok).toBe(true);
+    if (!dashboard.ok) return;
+    const squad = service.getSquad();
+    expect(squad.ok).toBe(true);
+    if (!squad.ok) return;
+    const squadNames = new Set(squad.data.players.map((player) => player.name));
+    for (const entry of dashboard.data.medicalCentre ?? []) {
+      expect(entry.playerName).toBeTruthy();
+      expect(entry.playerName).not.toBe("Unknown player");
+      expect(squadNames.has(entry.playerName)).toBe(true);
+    }
+  });
+
   it("lists the real imported squad with usable filter data", () => {
     const result = service.getSquad();
     expect(result.ok).toBe(true);
@@ -150,6 +165,44 @@ describe("manager gameplay", () => {
     expect(after.data.setup.style).toBe("HIGH_PRESS");
     expect(after.data.setup.assignments[0]?.playerId).toBe(eleven[0]!.personId);
     expect(after.data.setup.bench).toHaveLength(7);
+  });
+
+  it("persists set-piece assignments across reload (desktop bridge for the completed set-piece domain)", () => {
+    const before = service.getTactics();
+    expect(before.ok).toBe(true);
+    if (!before.ok) return;
+    const squad = service.getSquad();
+    expect(squad.ok).toBe(true);
+    if (!squad.ok) return;
+    const [taker, target, marker] = squad.data.players;
+
+    const updated = service.updateTactics({
+      setPieces: {
+        penaltyTaker: taker!.personId,
+        cornerRoutine: "FAR_POST",
+        cornerPrimaryTarget: target!.personId,
+        defensiveCornerScheme: "MAN_ORIENTED",
+        defensiveCornerAssignments: [marker!.personId],
+        freeKickRoutine: "DIRECT",
+        directFreeKickTaker: taker!.personId,
+      },
+    });
+    expect(updated.ok).toBe(true);
+    if (!updated.ok) return;
+    expect(updated.data.setup.setPieces.penaltyTaker).toBe(taker!.personId);
+    expect(updated.data.setup.setPieces.cornerRoutine).toBe("FAR_POST");
+    expect(updated.data.setup.setPieces.defensiveCornerAssignments).toEqual([marker!.personId]);
+
+    reopen();
+    const after = service.getTactics();
+    expect(after.ok).toBe(true);
+    if (!after.ok) return;
+    expect(after.data.setup.setPieces.penaltyTaker).toBe(taker!.personId);
+    expect(after.data.setup.setPieces.cornerRoutine).toBe("FAR_POST");
+    expect(after.data.setup.setPieces.cornerPrimaryTarget).toBe(target!.personId);
+    expect(after.data.setup.setPieces.defensiveCornerScheme).toBe("MAN_ORIENTED");
+    expect(after.data.setup.setPieces.freeKickRoutine).toBe("DIRECT");
+    expect(after.data.setup.setPieces.directFreeKickTaker).toBe(taker!.personId);
   });
 
   it("rejects an illegal XI without hard-locking poor role fits", () => {

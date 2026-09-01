@@ -325,14 +325,34 @@ const teamName = (db: GameDatabase, id: EntityId): string => {
 };
 
 const playerNationality = (db: GameDatabase, playerId: EntityId): string | undefined => {
-  const row = db.prepare("SELECT c.iso_code FROM persons p LEFT JOIN countries c ON c.id = p.nationality_country_id WHERE p.id = ?").get(playerId) as SqlRow | undefined;
+  const row = db
+    .prepare(
+      "SELECT c.iso_code FROM persons p LEFT JOIN countries c ON c.id = p.nationality_country_id WHERE p.id = ?",
+    )
+    .get(playerId) as SqlRow | undefined;
   return row?.iso_code as string | undefined;
 };
 
-const simulationPhysicalFallbacks = (player: PlayerAttributeSet): { heightCm: number; preferredFoot: string } => {
-  const heightByPosition: Record<string, number> = { GK: 185, CB: 182, LB: 176, RB: 176, DM: 178, CM: 177, AM: 175, LW: 174, RW: 174, ST: 180 };
+const simulationPhysicalFallbacks = (
+  player: PlayerAttributeSet,
+): { heightCm: number; preferredFoot: string } => {
+  const heightByPosition: Record<string, number> = {
+    GK: 185,
+    CB: 182,
+    LB: 176,
+    RB: 176,
+    DM: 178,
+    CM: 177,
+    AM: 175,
+    LW: 174,
+    RW: 174,
+    ST: 180,
+  };
   const last = player.personId.charCodeAt(player.personId.length - 1);
-  return { heightCm: (heightByPosition[player.primaryPosition] ?? 177) + (last % 7) - 3, preferredFoot: last % 2 === 0 ? "Right" : "Left" };
+  return {
+    heightCm: (heightByPosition[player.primaryPosition] ?? 177) + (last % 7) - 3,
+    preferredFoot: last % 2 === 0 ? "Right" : "Left",
+  };
 };
 
 const factualProfile = (db: GameDatabase, playerId: EntityId): SqlRow | undefined => {
@@ -436,12 +456,24 @@ const squadRow = (
   const person = personRow(db, player.personId);
   const profile = factualProfile(db, player.personId);
   const ability = playerAbility(player);
-  const dob = (person?.date_of_birth as string | undefined) ?? profile?.factual?.dateOfBirth ?? profile?.simulation?.simulationDateOfBirth;
+  const dob =
+    (person?.date_of_birth as string | undefined) ??
+    profile?.factual?.dateOfBirth ??
+    profile?.simulation?.simulationDateOfBirth;
   return {
     personId: player.personId,
     name: (person?.display_name as string) ?? (person?.full_name as string) ?? "Unknown",
-    age: dob ? fact(ageOn(dob, save.worldDate), profile?.factual?.dateOfBirth || person?.date_of_birth ? "REPORTED" : "SIMULATION_ONLY") : { status: "UNKNOWN" },
-    nationality: (profile?.factual?.nationality as string) ?? (profile?.simulation?.simulationNationality as string) ?? playerNationality(db, player.personId) ?? "NEP",
+    age: dob
+      ? fact(
+          ageOn(dob, save.worldDate),
+          profile?.factual?.dateOfBirth || person?.date_of_birth ? "REPORTED" : "SIMULATION_ONLY",
+        )
+      : { status: "UNKNOWN" },
+    nationality:
+      (profile?.factual?.nationality as string) ??
+      (profile?.simulation?.simulationNationality as string) ??
+      playerNationality(db, player.personId) ??
+      "NEP",
     primaryPosition: player.primaryPosition,
     positions: [player.primaryPosition, ...player.secondaryPositions],
     squadStatus: (profile?.factual?.squadStatus as string) ?? "UNKNOWN",
@@ -1740,6 +1772,7 @@ export const renewManagerContract = (
   command: ContractRenewalCommand,
 ): ContractList => {
   assertManagerAuthority(context, undefined, "NEGOTIATE_CONTRACT");
+  assertManagerResponsibility(db, save, context, "CONTRACTS", "renewContract");
   const clubId = context.club?.id;
   if (!clubId) throw new ManagerCommandError("ROLE_NOT_AUTHORIZED", "Manager has no club.");
   const market = new TransferMarketRepository(db);
@@ -1949,7 +1982,9 @@ export const buildManagerDashboard = (
   const dominantMorale =
     Object.entries(moraleCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "Unknown";
 
-  const boardConfidence = clubId ? new CareerWorldRepository(db).boardConfidence(clubId) : undefined;
+  const boardConfidence = clubId
+    ? new CareerWorldRepository(db).boardConfidence(clubId)
+    : undefined;
   const concernCount = activeConcernCount(db, context.team.id);
   const cohesion = new SquadDynamicsRepository(db).cohesion(context.team.id);
 
@@ -1989,7 +2024,14 @@ export const buildManagerDashboard = (
     contractIssues: contracts,
     staffIssues,
     inbox: new ManagerRepository(db).inboxItems().slice(0, 12),
-    medicalCentre: clubId ? medicalCentreReadModel(db, { clubId, date: save.worldDate }) : [],
+    medicalCentre: clubId
+      ? medicalCentreReadModel(db, { clubId, date: save.worldDate }).map((entry) => ({
+          ...entry,
+          playerName:
+            squad.players.find((player) => player.personId === entry.personId)?.name ??
+            "Unknown player",
+        }))
+      : [],
   };
 };
 
@@ -2179,11 +2221,14 @@ const rollTrainingInjury = (
   date: string,
   seed: string,
 ): void => {
-  const alreadyInjured = players.activeInjuries(date).some((injury) => injury.personId === personId);
+  const alreadyInjured = players
+    .activeInjuries(date)
+    .some((injury) => injury.personId === personId);
   if (alreadyInjured) return;
   const random = new SeededRandom(`${seed}:injury:${personId}:${date}`);
   if (random.next() >= risk) return;
-  const severity: InjuryRecord["severity"] = risk >= 0.15 ? "major" : risk >= 0.08 ? "moderate" : "minor";
+  const severity: InjuryRecord["severity"] =
+    risk >= 0.15 ? "major" : risk >= 0.08 ? "moderate" : "minor";
   const recoveryDays = severity === "major" ? 45 : severity === "moderate" ? 21 : 7;
   const recovery = new Date(`${date}T00:00:00.000Z`);
   recovery.setUTCDate(recovery.getUTCDate() + recoveryDays);
@@ -2290,9 +2335,20 @@ const applyDailyTraining = (
             : undefined;
       const recentDeltas = players
         .trainingHistoryForPlayer(attributes.personId, 12)
-        .filter((event) => event.eventType === "ATTRIBUTE_IMPROVED" || event.eventType === "ATTRIBUTE_DECLINED")
-        .map((event) => Number((event.data as { averageDelta?: number } | undefined)?.averageDelta ?? 0));
-      const review = reviewDevelopmentPlanIfDue(db, save.worldDate, individualPlan, familiarity, recentDeltas);
+        .filter(
+          (event) =>
+            event.eventType === "ATTRIBUTE_IMPROVED" || event.eventType === "ATTRIBUTE_DECLINED",
+        )
+        .map((event) =>
+          Number((event.data as { averageDelta?: number } | undefined)?.averageDelta ?? 0),
+        );
+      const review = reviewDevelopmentPlanIfDue(
+        db,
+        save.worldDate,
+        individualPlan,
+        familiarity,
+        recentDeltas,
+      );
       if (review) {
         if (review.plateaued) {
           players.insertTrainingHistoryEvent({
@@ -2334,62 +2390,79 @@ export const buildPlayerDevelopmentView = (
   const world = new WorldRepository(db);
   const environment = computeDevelopmentEnvironment(db, context.club?.id);
 
-  const entries: PlayerDevelopmentEntry[] = players.attributesForTeam(context.team.id).map((attributes) => {
-    const person = personRow(db, attributes.personId);
-    const dob = person?.date_of_birth as string | undefined;
-    const age = dob ? ageOn(dob, save.worldDate) : undefined;
-    const state = players.developmentState(attributes.personId);
-    const plan = world.activeIndividualDevelopmentPlan(attributes.personId);
-    const injured = players.activeInjuries(save.worldDate).some((injury) => injury.personId === attributes.personId);
-    const risk = state ? trainingInjuryRiskSignal(state).risk : 0;
-    const history = players.trainingHistoryForPlayer(attributes.personId, 8);
-    const plateaued = history.some((event) => event.eventType === "DEVELOPMENT_PLATEAU_DETECTED");
-    const latestReview = history.find((event) => event.eventType === "DEVELOPMENT_PLAN_REVIEWED");
-    return {
-      personId: attributes.personId,
-      name: personName(db, attributes.personId),
-      age,
-      primaryPosition: attributes.primaryPosition,
-      phase: state?.developmentPhase ?? developmentPhaseForAge(age ?? 25),
-      trend: developmentTrend(state?.developmentMomentum ?? 0),
-      momentum: state?.developmentMomentum ?? 0,
-      currentAbility: playerAbility(attributes),
-      fitness: Math.round(state?.fitness ?? 85),
-      fatigue: Math.round(state?.fatigue ?? 0),
-      recovery: Math.round(state?.recovery ?? 80),
-      injuryRisk: risk,
-      currentlyInjured: injured,
-      trainingAvailability: trainingAvailabilityFor(db, attributes.personId, save.worldDate),
-      plateaued,
-      latestRecommendation: (latestReview?.data as { recommendation?: string } | undefined)?.recommendation,
-      activePlan: plan
-        ? {
-            id: plan.id,
-            focusType: plan.focusType,
-            targetPosition: plan.targetPosition,
-            targetRole: plan.targetRole,
-            targetAttributeGroup: plan.targetAttributeGroup,
-            intensity: plan.intensity,
-            startDate: plan.startDate,
-            endDate: plan.endDate,
-            status: plan.status,
-          }
-        : undefined,
-      recentHistory: players.trainingHistoryForPlayer(attributes.personId, 5).map((event) => ({
-        eventType: event.eventType,
-        occurredOn: event.occurredOn,
-        data: event.data,
-      })),
-    };
-  });
+  const entries: PlayerDevelopmentEntry[] = players
+    .attributesForTeam(context.team.id)
+    .map((attributes) => {
+      const person = personRow(db, attributes.personId);
+      const dob = person?.date_of_birth as string | undefined;
+      const age = dob ? ageOn(dob, save.worldDate) : undefined;
+      const state = players.developmentState(attributes.personId);
+      const plan = world.activeIndividualDevelopmentPlan(attributes.personId);
+      const injured = players
+        .activeInjuries(save.worldDate)
+        .some((injury) => injury.personId === attributes.personId);
+      const risk = state ? trainingInjuryRiskSignal(state).risk : 0;
+      const history = players.trainingHistoryForPlayer(attributes.personId, 8);
+      const plateaued = history.some((event) => event.eventType === "DEVELOPMENT_PLATEAU_DETECTED");
+      const latestReview = history.find((event) => event.eventType === "DEVELOPMENT_PLAN_REVIEWED");
+      return {
+        personId: attributes.personId,
+        name: personName(db, attributes.personId),
+        age,
+        primaryPosition: attributes.primaryPosition,
+        phase: state?.developmentPhase ?? developmentPhaseForAge(age ?? 25),
+        trend: developmentTrend(state?.developmentMomentum ?? 0),
+        momentum: state?.developmentMomentum ?? 0,
+        currentAbility: playerAbility(attributes),
+        fitness: Math.round(state?.fitness ?? 85),
+        fatigue: Math.round(state?.fatigue ?? 0),
+        recovery: Math.round(state?.recovery ?? 80),
+        injuryRisk: risk,
+        currentlyInjured: injured,
+        trainingAvailability: trainingAvailabilityFor(db, attributes.personId, save.worldDate),
+        plateaued,
+        latestRecommendation: (latestReview?.data as { recommendation?: string } | undefined)
+          ?.recommendation,
+        activePlan: plan
+          ? {
+              id: plan.id,
+              focusType: plan.focusType,
+              targetPosition: plan.targetPosition,
+              targetRole: plan.targetRole,
+              targetAttributeGroup: plan.targetAttributeGroup,
+              intensity: plan.intensity,
+              startDate: plan.startDate,
+              endDate: plan.endDate,
+              status: plan.status,
+            }
+          : undefined,
+        recentHistory: players.trainingHistoryForPlayer(attributes.personId, 5).map((event) => ({
+          eventType: event.eventType,
+          occurredOn: event.occurredOn,
+          data: event.data,
+        })),
+      };
+    });
 
   return {
     players: entries,
-    focusTypeOptions: ["ATTRIBUTE", "POSITION", "ROLE", "PHYSICAL", "TECHNICAL", "MENTAL", "BALANCED", "MAINTENANCE"],
+    focusTypeOptions: [
+      "ATTRIBUTE",
+      "POSITION",
+      "ROLE",
+      "PHYSICAL",
+      "TECHNICAL",
+      "MENTAL",
+      "BALANCED",
+      "MAINTENANCE",
+    ],
     attributeGroupOptions: ["technical", "mental", "physical", "goalkeeping"],
     positionOptions: ["GK", "RB", "CB", "LB", "DM", "CM", "AM", "RW", "LW", "ST"],
     intensityOptions: ["LOW", "NORMAL", "HIGH", "VERY_HIGH"],
-    environment: { coachingQuality: environment.coachingQuality, facilitiesEffect: environment.facilitiesEffect },
+    environment: {
+      coachingQuality: environment.coachingQuality,
+      facilitiesEffect: environment.facilitiesEffect,
+    },
   };
 };
 
@@ -2415,12 +2488,19 @@ export const createDevelopmentPlan = (
 ): IndividualDevelopmentPlan => {
   assertManagerAuthority(context, undefined, "SET_TRAINING");
   const players = new PlayerRepository(db);
-  if (!players.attributesForTeam(context.team.id).some((attributes) => attributes.personId === command.personId)) {
+  if (
+    !players
+      .attributesForTeam(context.team.id)
+      .some((attributes) => attributes.personId === command.personId)
+  ) {
     throw new DevelopmentPlanError("NOT_ON_ROSTER", "That player is not part of this squad.");
   }
   const focusType = command.focusType as DevelopmentFocusType;
   if (focusType === "POSITION" && !command.targetPosition) {
-    throw new DevelopmentPlanError("MISSING_TARGET", "Select a target position for position retraining.");
+    throw new DevelopmentPlanError(
+      "MISSING_TARGET",
+      "Select a target position for position retraining.",
+    );
   }
   if (focusType === "ROLE" && !command.targetRole) {
     throw new DevelopmentPlanError("MISSING_TARGET", "Select a target role.");
@@ -2431,7 +2511,11 @@ export const createDevelopmentPlan = (
   const world = new WorldRepository(db);
   const previous = world.activeIndividualDevelopmentPlan(command.personId);
   if (previous) {
-    world.upsertIndividualDevelopmentPlan({ ...previous, status: "COMPLETED", endDate: save.worldDate });
+    world.upsertIndividualDevelopmentPlan({
+      ...previous,
+      status: "COMPLETED",
+      endDate: save.worldDate,
+    });
   }
   const plan: IndividualDevelopmentPlan = {
     id: createEntityId(),
@@ -2439,7 +2523,8 @@ export const createDevelopmentPlan = (
     focusType,
     targetPosition: command.targetPosition as PlayerPosition | undefined,
     targetRole: command.targetRole,
-    targetAttributeGroup: command.targetAttributeGroup as IndividualDevelopmentPlan["targetAttributeGroup"],
+    targetAttributeGroup:
+      command.targetAttributeGroup as IndividualDevelopmentPlan["targetAttributeGroup"],
     intensity: command.intensity,
     startDate: save.worldDate,
     endDate: addDaysISO(save.worldDate, DEVELOPMENT_BLOCK_DAYS),
@@ -2455,9 +2540,8 @@ export const setDevelopmentPlanStatus = (
   planId: EntityId,
   status: "ACTIVE" | "PAUSED" | "COMPLETED",
 ): void => {
-  const plan = db
-    .prepare("SELECT * FROM individual_development_plans WHERE id = ?")
-    .get(planId) as SqlRow | undefined;
+  const plan = db.prepare("SELECT * FROM individual_development_plans WHERE id = ?").get(planId) as
+    SqlRow | undefined;
   if (!plan) return;
   new WorldRepository(db).upsertIndividualDevelopmentPlan({
     id: plan.id,
@@ -2468,7 +2552,10 @@ export const setDevelopmentPlanStatus = (
     targetAttributeGroup: plan.target_attribute_group ?? undefined,
     intensity: plan.intensity,
     startDate: plan.start_date,
-    endDate: status === "ACTIVE" ? addDaysISO(save.worldDate, DEVELOPMENT_BLOCK_DAYS) : (plan.end_date ?? save.worldDate),
+    endDate:
+      status === "ACTIVE"
+        ? addDaysISO(save.worldDate, DEVELOPMENT_BLOCK_DAYS)
+        : (plan.end_date ?? save.worldDate),
     status,
   });
 };

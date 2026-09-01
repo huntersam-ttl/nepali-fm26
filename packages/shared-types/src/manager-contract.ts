@@ -1114,7 +1114,7 @@ export type ManagerDashboard = {
   contractIssues: number;
   staffIssues: number;
   inbox: InboxItem[];
-  medicalCentre?: MedicalAssessment[];
+  medicalCentre?: Array<MedicalAssessment & { playerName: string }>;
 };
 
 export type CalendarEntry = {
