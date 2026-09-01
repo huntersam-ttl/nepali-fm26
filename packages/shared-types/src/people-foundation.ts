@@ -46,6 +46,31 @@ export type PersonRelationship = {
   provenanceStatus: "SIMULATION_ONLY";
 };
 
+/** Derived coaching identity; source of truth remains ManagerProfile and people foundation. */
+export type CoachingIdentity = {
+  managerProfileId: EntityId;
+  personId: EntityId;
+  preferredStyle?: string;
+  reputationProfile: string;
+  reputation: number;
+  archetype: PersonalityArchetype;
+  strengths: string[];
+  developmentFocus: string[];
+  managerPlayerRelationships: number;
+  averagePlayerTrust: number;
+  averagePlayerTension: number;
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+export type CoachingJobMarketListing = {
+  vacancyId: EntityId;
+  teamId: EntityId;
+  boardExpectation: string;
+  eligible: boolean;
+  fitScore: number;
+  rationale: string[];
+};
+
 export type MentoringFocus = "TECHNICAL" | "TACTICAL" | "PROFESSIONALISM" | "LEADERSHIP";
 export type MentoringStatus = "ACTIVE" | "COMPLETED" | "CANCELLED";
 
