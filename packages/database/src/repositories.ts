@@ -1054,6 +1054,14 @@ export class ManagerRepository {
     return row ? mapManagerProfile(row) : undefined;
   }
 
+  /** Bounded candidate intake for vacancy processing; callers choose the limit. */
+  managerProfiles(limit = 64): ManagerProfile[] {
+    return this.db
+      .prepare("SELECT * FROM manager_profiles ORDER BY created_on, id LIMIT ?")
+      .all(Math.max(1, Math.min(256, Math.floor(limit))))
+      .map(mapManagerProfile);
+  }
+
   insertContract(contract: ManagerContract): void {
     this.db
       .prepare(

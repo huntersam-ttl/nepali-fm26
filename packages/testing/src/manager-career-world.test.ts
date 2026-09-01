@@ -209,6 +209,23 @@ describe("manager career world: board confidence, sacking and AI reassignment", 
     expect(contract?.status).toBe("ACTIVE");
   });
 
+  it("records AI interview and negotiation state before appointment", () => {
+    const vacancyRow = db
+      .prepare(
+        "SELECT id FROM manager_job_vacancies WHERE team_id = ? ORDER BY opened_on DESC LIMIT 1",
+      )
+      .get(team.id) as { id: EntityId } | undefined;
+    expect(vacancyRow).toBeDefined();
+    if (!vacancyRow) return;
+    const applications = new CareerWorldRepository(db).applicationsForVacancy(vacancyRow.id);
+    expect(applications.length).toBeGreaterThan(0);
+    for (const application of applications.filter(
+      (item) => item.status === "OFFERED" || item.status === "ACCEPTED",
+    )) {
+      expect(new CareerWorldRepository(db).managerJobNegotiation(application.id)).toBeDefined();
+    }
+  });
+
   it("sacks a manager once the board's confidence bottoms out and opens a vacancy", () => {
     const contract = new ManagerRepository(db).activeContractForTeam(team.id) as ManagerContract;
     new CareerWorldRepository(db).upsertBoardConfidence({

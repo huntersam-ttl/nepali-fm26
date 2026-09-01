@@ -5,6 +5,7 @@ import {
   EventRepository,
   ManagerRepository,
   SupporterCultureRepository,
+  TransferMarketRepository,
   WorldRepository,
   type GameDatabase,
 } from "@nepal-football-sim/database";
@@ -216,15 +217,24 @@ export const ensureAiManagersAssigned = (
     };
     if (!openVacancy) careerWorld.insertVacancy(vacancy);
 
-    const freeAgent = managers
-      .unemployedManagerProfiles()
-      .find((profile) => profile.id !== playerManagerProfileId);
-    let personId: EntityId;
-    let profileId: EntityId;
-    if (freeAgent) {
-      personId = freeAgent.personId;
-      profileId = freeAgent.id;
-    } else {
+    const available = managers
+      .managerProfiles(64)
+      .filter((profile) => profile.id !== playerManagerProfileId)
+      .filter((profile) => {
+        const current = managers.activeContract(profile.id);
+        if (!current) return true;
+        // Only approach employed managers who have a deterministic reason to
+        // consider moving; there is no silent universal poaching.
+        const personality = profile.attributes.personality;
+        return personality.ambition >= 9 || personality.loyalty <= 5;
+      })
+      .sort(
+        (left, right) =>
+          managerPoolScore(right, vacancy) - managerPoolScore(left, vacancy) ||
+          left.id.localeCompare(right.id),
+      )
+      .slice(0, 4);
+    if (available.length === 0) {
       countryId ??= firstCountryId(db);
       const generated = generateAiManager(
         `ai-manager:${team.id}:${save.worldDate}`,
@@ -235,31 +245,53 @@ export const ensureAiManagersAssigned = (
         world.insertPerson(generated.person);
       }
       managers.insertProfile(generated.profile);
-      personId = generated.person.id;
-      profileId = generated.profile.id;
+      available.push(generated.profile);
     }
-
-    if (vacancy.clubId) {
-      const interview = interviewManagerForApplication(db, {
-        vacancy,
-        profile: managers.getProfile(profileId)!,
-        date: save.worldDate,
+    for (const profile of available) {
+      if (careerWorld.vacancy(vacancy.id)?.status !== "OPEN") break;
+      const application = applyForJob(db, save, profile, vacancy.id);
+      if (application.status !== "OFFERED") continue;
+      const negotiation = negotiateManagerJobOfferAsAi({
+        db,
+        save,
+        managerProfile: profile,
+        applicationId: application.id,
+        seed: `${save.randomSeed}:${vacancy.id}:${profile.id}`,
       });
-      if (!interview.successful) continue;
+      if (negotiation.stage !== "ACCEPTED") continue;
+      try {
+        const currentContract = managers.activeContract(profile.id);
+        if (currentContract && currentContract.teamId !== vacancy.teamId) {
+          // An employed candidate only reaches this point when the bounded
+          // approach rule says a move is plausible. End the old employment
+          // through the canonical resignation path before appointing them.
+          resignFromClub(db, save, currentContract);
+        }
+        acceptJobOffer(db, save, profile, application.id);
+      } catch (error) {
+        // A stronger concurrent candidate may have closed the vacancy. The
+        // next vacancy tick will discover another candidate if still needed.
+        if (!(error instanceof JobOfferError)) throw error;
+      }
     }
-
-    const contract = createManagerContract({
-      managerProfileId: profileId,
-      personId,
-      teamId: team.id,
-      clubId: team.clubId ?? undefined,
-      contractStart: save.worldDate,
-      salaryAmountMinor: 2_000_000,
-    });
-    managers.insertContract(contract);
-
-    careerWorld.fillVacancy(vacancy.id, save.worldDate, contract.id);
   }
+};
+
+const managerPoolScore = (profile: ManagerProfile, vacancy: JobVacancy): number => {
+  const a = profile.attributes;
+  const expectationFit =
+    vacancy.boardExpectation === "YOUTH_DEVELOPMENT"
+      ? a.coaching.youthDevelopment * 3
+      : vacancy.boardExpectation === "TITLE_CHALLENGE"
+        ? a.tactical.matchManagement * 3
+        : a.people.manManagement * 2;
+  return (
+    expectationFit +
+    a.coaching.technicalCoaching +
+    a.tactical.adaptability +
+    a.personality.reputation * 4 +
+    a.personality.ambition
+  );
 };
 
 const expectationForClub = (db: GameDatabase, clubId: EntityId): string => {
@@ -533,8 +565,7 @@ export class JobApplicationError extends Error {
 
 /**
  * Applying resolves immediately into an interview outcome (offered or
- * rejected) rather than staying pending indefinitely — there is no pool of
- * competing AI applicants to model a longer negotiation against yet.
+ * rejected); AI callers may repeat this through the bounded vacancy pool.
  */
 export const applyForJob = (
   db: GameDatabase,
@@ -612,6 +643,72 @@ export const applyForJob = (
 };
 
 export type ManagerJobNegotiationAction = "ACCEPT" | "REJECT" | "COUNTER" | "WITHDRAW";
+
+/**
+ * Deterministic AI action selection over the same persisted negotiation used
+ * by human managers. It returns no hidden score; the persisted reason is the
+ * broad demand that drove the decision.
+ */
+export const negotiateManagerJobOfferAsAi = (input: {
+  db: GameDatabase;
+  save: SaveMetadata;
+  managerProfile: ManagerProfile;
+  applicationId: EntityId;
+  seed: string;
+}): ManagerJobNegotiation => {
+  const careerWorld = new CareerWorldRepository(input.db);
+  const application = careerWorld.application(input.applicationId);
+  if (!application || application.managerProfileId !== input.managerProfile.id)
+    throw new JobApplicationError("APPLICATION_NOT_FOUND", "That job application does not exist.");
+  const current = careerWorld.managerJobNegotiation(application.id);
+  const vacancy = application ? careerWorld.vacancy(application.vacancyId) : undefined;
+  if (!current || !vacancy || application.status !== "OFFERED")
+    throw new JobApplicationError(
+      "APPLICATION_NOT_WITHDRAWABLE",
+      "That offer is no longer negotiable.",
+    );
+
+  const personality = input.managerProfile.attributes.personality;
+  const clubFinance = vacancy.clubId
+    ? new TransferMarketRepository(input.db).clubFinancialProfile(vacancy.clubId)
+    : undefined;
+  const currentContract = new ManagerRepository(input.db).activeContract(input.managerProfile.id);
+  const currentSalary = currentContract?.salaryAmountMinor ?? 0;
+  const offered = current.offeredSalaryMinor;
+  const maxAffordable = clubFinance
+    ? Math.max(offered, clubFinance.wageBudget - clubFinance.currentWageSpend + offered)
+    : offered;
+  const ambitionPremium = Math.min(0.24, 0.04 + personality.ambition * 0.02);
+  const loyaltyDiscount = personality.loyalty >= 8 ? 0.04 : 0;
+  const negotiationCeiling = 0.08 + personality.ambition * 0.01;
+  const desired = Math.round(
+    Math.min(
+      maxAffordable,
+      offered * (1 + negotiationCeiling),
+      Math.max(offered, currentSalary * (1 + 0.05 + ambitionPremium - loyaltyDiscount)),
+    ),
+  );
+  const fit = managerPoolScore(input.managerProfile, vacancy);
+  const strongFit = fit >= 65;
+  const moveIsWorthwhile =
+    !currentContract || desired >= currentSalary * 1.08 || personality.ambition >= 9;
+  let action: ManagerJobNegotiationAction;
+  if (current.round >= current.maxRounds) action = "REJECT";
+  else if (!moveIsWorthwhile && personality.loyalty >= 7) action = "WITHDRAW";
+  else if (strongFit && desired <= offered * 1.05) action = "ACCEPT";
+  else if (desired > offered && desired <= maxAffordable) action = "COUNTER";
+  else action = strongFit ? "ACCEPT" : "REJECT";
+  const result = negotiateManagerJobOffer({
+    db: input.db,
+    save: input.save,
+    managerProfile: input.managerProfile,
+    applicationId: input.applicationId,
+    action,
+    requestedSalaryMinor: desired,
+    requestedContractEnd: current.offeredContractEnd,
+  });
+  return result;
+};
 
 export const negotiateManagerJobOffer = (input: {
   db: GameDatabase;

@@ -29,7 +29,7 @@ Audit basis: HEAD `f5c82d9` and the production source/tests in this checkout. Ol
 | Football economy/sponsorship/attendance       | COMPLETE | Club/federation finance separation, attendance, sponsorship and economic trends are persisted and tested.                                                                                                                                                                                                                        |
 | Broadcast rights/distribution                 | COMPLETE | Valuation, equal/merit/mixed distribution and exact-once settlement are implemented.                                                                                                                                                                                                                                             |
 | Continental coefficients                      | PARTIAL  | Completed Nepal continental fixtures now feed persisted association/club contributions and the five-season window. Qualification/seeding consumption is explicitly `DEFERRED_UNTIL_COMPETITION_PATH` because no supported coefficient-aware draw/seeding path exists.                                                            |
-| Manager jobs/interviews                       | PARTIAL  | Vacancies, applications, interviews, offers, human withdrawal, bounded wage counters and deterministic appointment-time candidate resolution exist; AI negotiation, competing-candidate intake and cooldown behavior remain incomplete.                                                                                          |
+| Manager jobs/interviews                       | COMPLETE | Vacancies now source a bounded deterministic pool of unemployed and movement-ready employed Managers; applications, interviews, AI accept/reject/counter/withdraw actions, affordability, competing-candidate resolution and exact-once appointments all use the persisted canonical flow.                                       |
 | Staff personalities/job market/backroom       | PARTIAL  | Canonical personality now drives deterministic course willingness, tenure-protected departure assessment, manager-cooperation labels and bounded recruitment effects; broader staff-course scheduling and full backroom decision coverage remain incomplete.                                                                     |
 | Sporting Director/DoF/CEO/Secretary           | PARTIAL  | Role assignments, authority maps, majority-control gate and fit ranking exist; Manager transfer, loan, scouting, shortlist and contract mutation paths now enforce delegated responsibility, but CEO/Secretary commercial, licensing, registration, budget and staff-administration command paths still need actor-aware wiring. |
 | Agent career                                  | COMPLETE | Human/AI-compatible client strategy persistence, bounded preference consumption, personal fee settlement, reputation progression, representation timeline events and one-active-agent safety are production-backed.                                                                                                              |
@@ -37,8 +37,8 @@ Audit basis: HEAD `f5c82d9` and the production source/tests in this checkout. Ol
 
 ### Count
 
-- COMPLETE: **12**
-- PARTIAL: **15**
+- COMPLETE: **13**
+- PARTIAL: **14**
 - FOUNDATION_ONLY: **1**
 - MISSING: **0**
 - BLOCKED: **0**
@@ -48,7 +48,7 @@ The roadmap currently has no technically blocked item. The `FOUNDATION_ONLY` lab
 ## Cross-cutting checks
 
 - Persistence: most implemented systems have repositories/migrations and idempotent keys. The audit found timeline projection to be the highest-value missing bridge because it affects Manager, Owner, President, executive, Agent and Player histories without adding another simulation engine.
-- Progression: match/season systems are real; funded federation policies now advance at the season boundary and the national-development read model aggregates matching policy impacts, played senior/youth/women results, persisted academy pathway outcomes and cohort conversion without duplicating completed project effects. Recruitment decisions consume persisted knowledge confidence and trial progression before supported transfer choices.
+- Progression: match/season systems are real; funded federation policies now advance at the season boundary and the national-development read model aggregates matching policy impacts, played senior/youth/women results, persisted academy pathway outcomes and cohort conversion without duplicating completed project effects. Recruitment decisions consume persisted knowledge confidence and trial progression before supported transfer choices. Manager vacancies now progress through deterministic discovery, interview, negotiation and appointment/fallback processing.
 - Roles: Manager and Owner/Chairman command paths are production-backed. President has governance paths. Sporting Director/DoF and CEO/Secretary have authority foundations; Manager recruitment/transfer/contract mutations now respect delegated responsibility, while executive actor command paths for commercial, licensing, registration, budgets and staff administration remain incomplete. Agent now has a persisted strategy, fee, reputation and timeline career path.
 - A/B/C: competition and founder paths use shared-root logic; no division-specific patch is warranted for this audit gap.
 - External world: foreign clubs/leagues remain `CONTEXT_ONLY`; no full foreign executive, agent or media simulation is introduced.
