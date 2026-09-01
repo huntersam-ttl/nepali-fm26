@@ -11,11 +11,13 @@ import {
 } from "@nepal-football-sim/shared-types";
 import {
   EventRepository,
+  EventRoutingRepository,
   ManagerRepository,
   MediaPhaseBRepository,
   MediaRepository,
   SupporterCultureRepository,
   type GameDatabase,
+  type PublicEventRole,
 } from "@nepal-football-sim/database";
 import {
   buildSupporterEvent,
@@ -104,6 +106,147 @@ const eventStory = (event: HistoricalEvent, outlet: MediaOutlet): MediaStory => 
   };
 };
 
+const numericImportance = (event: HistoricalEvent): number =>
+  event.importance === "historic" ? 10 : importance(event);
+
+const idsOfType = (event: HistoricalEvent, type: "club" | "federation"): EntityId[] =>
+  event.involvedEntities.filter((entity) => entity.type === type).map((entity) => entity.id);
+
+const eventDataId = (event: HistoricalEvent, key: string): EntityId | undefined => {
+  const value = event.data?.[key];
+  return typeof value === "string" ? (value as EntityId) : undefined;
+};
+
+const federationEvent = (event: HistoricalEvent): boolean =>
+  event.scope === "federation" ||
+  event.scope === "country" ||
+  /(ELECTION|FEDERATION|GOVERNANCE|POLICY|PROJECT|FUNDING|NATIONAL_TEAM|REFEREE|WOMEN|GIRLS|YOUTH|LEAGUE_REFORM)/i.test(
+    event.eventType,
+  );
+
+const ownerEvent = (event: HistoricalEvent): boolean =>
+  numericImportance(event) >= 5 &&
+  /(OWNERSHIP|INVESTOR|TAKEOVER|CAPITAL|SPONSOR|COMMERCIAL|FACILITY|STADIUM|DEBT|DEFAULT|MANAGER_APPOINT|MANAGER_DISMISS|STAFF_APPOINT|TRANSFER|PROMOTION|RELEGATION|TROPHY|CHAMPION|PROTEST)/i.test(
+    event.eventType,
+  );
+
+const managerEvent = (event: HistoricalEvent): boolean =>
+  numericImportance(event) >= 5 &&
+  /(PROMISE|TRANSFER|LOAN|INJURY|MANAGER|MATCH|PROMOTION|RELEGATION|TROPHY|CHAMPION|PROTEST)/i.test(
+    event.eventType,
+  );
+
+const activeManagersForClub = (db: GameDatabase, clubId: EntityId): EntityId[] =>
+  (
+    db
+      .prepare(
+        `SELECT mc.person_id AS personId FROM manager_contracts mc
+       WHERE mc.club_id=? AND mc.status='ACTIVE' ORDER BY mc.person_id`,
+      )
+      .all(clubId) as Array<{ personId: EntityId }>
+  ).map((row) => row.personId);
+
+const activeOwnersForClub = (db: GameDatabase, clubId: EntityId): EntityId[] =>
+  (
+    db
+      .prepare(
+        `SELECT holder_id AS personId FROM club_ownership_stakes
+       WHERE club_id=? AND status='ACTIVE' AND holder_type='PERSON'
+         AND holder_id IS NOT NULL AND COALESCE(voting_percentage, percentage, 0) >= 51
+       ORDER BY holder_id`,
+      )
+      .all(clubId) as Array<{ personId: EntityId }>
+  ).map((row) => row.personId);
+
+const activePresidentsForFederation = (db: GameDatabase, federationId: EntityId): EntityId[] =>
+  (
+    db
+      .prepare(
+        `SELECT person_id AS personId FROM federation_leadership_tenures
+       WHERE federation_id=? AND role='FEDERATION_PRESIDENT' AND status IN ('ACTIVE','INTERIM')
+       ORDER BY person_id`,
+      )
+      .all(federationId) as Array<{ personId: EntityId }>
+  ).map((row) => row.personId);
+
+/** Central routing policy for all persisted public gameplay events. */
+const routeHistoricalEvent = (db: GameDatabase, event: HistoricalEvent): void => {
+  const routing = new EventRoutingRepository(db);
+  const clubIds = [
+    ...new Set(
+      [...idsOfType(event, "club"), eventDataId(event, "clubId")].filter(Boolean) as EntityId[],
+    ),
+  ];
+  const federationIds = [
+    ...new Set(
+      [...idsOfType(event, "federation"), eventDataId(event, "federationId")].filter(
+        Boolean,
+      ) as EntityId[],
+    ),
+  ];
+  if (federationEvent(event)) {
+    for (const federationId of federationIds) {
+      for (const personId of activePresidentsForFederation(db, federationId)) {
+        routing.insert({
+          id: createStableEntityId("event-delivery", `${event.id}:PRESIDENT:${personId}`),
+          eventId: event.id,
+          role: "PRESIDENT",
+          personId,
+          federationId,
+          createdOn: event.occurredOn,
+        });
+      }
+    }
+  }
+  for (const clubId of clubIds) {
+    if (managerEvent(event)) {
+      for (const personId of activeManagersForClub(db, clubId)) {
+        routing.insert({
+          id: createStableEntityId("event-delivery", `${event.id}:MANAGER:${personId}`),
+          eventId: event.id,
+          role: "MANAGER",
+          personId,
+          clubId,
+          createdOn: event.occurredOn,
+        });
+      }
+    }
+    if (ownerEvent(event)) {
+      for (const personId of activeOwnersForClub(db, clubId)) {
+        routing.insert({
+          id: createStableEntityId("event-delivery", `${event.id}:OWNER:${personId}`),
+          eventId: event.id,
+          role: "OWNER",
+          personId,
+          clubId,
+          createdOn: event.occurredOn,
+        });
+      }
+    }
+  }
+};
+
+export type RoleInboxEvent = {
+  delivery: import("@nepal-football-sim/database").EventInboxDelivery;
+  event: HistoricalEvent;
+  category: string;
+  source: "SIMULATION_ONLY";
+};
+
+export const roleInboxEvents = (
+  db: GameDatabase,
+  personId: EntityId,
+  role: PublicEventRole,
+): RoleInboxEvent[] => {
+  const events = new Map(
+    new EventRepository(db).historicalEvents().map((event) => [event.id, event]),
+  );
+  return new EventRoutingRepository(db).deliveries(personId, role).flatMap((delivery) => {
+    const event = events.get(delivery.eventId);
+    return event ? [{ delivery, event, category: event.eventType, source: status }] : [];
+  });
+};
+
 /**
  * Applies the supporter side of public promise outcomes exactly once. Other
  * club events keep their existing specialised supporter hooks; this adapter
@@ -154,12 +297,13 @@ export const publishMediaForDate = (
   initializeMediaForSave(db);
   const threshold = input.minimumImportance ?? 4;
   const published: MediaStory[] = [];
-  for (const event of new EventRepository(db)
+  const events = new EventRepository(db)
     .historicalEvents()
-    .filter(
-      (item) =>
-        item.occurredOn <= input.date && importance(item) >= threshold && !repo.hasStory(item.id),
-    )) {
+    .filter((item) => item.occurredOn <= input.date);
+  for (const event of events) routeHistoricalEvent(db, event);
+  for (const event of events.filter(
+    (item) => importance(item) >= threshold && !repo.hasStory(item.id),
+  )) {
     applyPromiseSupporterReaction(db, event);
     const outlet = outletFor(repo, importance(event));
     const story = eventStory(event, outlet);

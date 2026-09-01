@@ -15,6 +15,7 @@ import {
   initialSupporterCultureProfile,
   initializeSupporterCultureForSave,
   publishMediaForDate,
+  roleInboxEvents,
 } from "@nepal-football-sim/simulation";
 import {
   createStableEntityId,
@@ -121,6 +122,143 @@ describe("Media phase A", () => {
     expect(new SupporterCultureRepository(db).profile(clubId, "men")!.currentMood).toBe(
       after.currentMood,
     );
+    db.close();
+  });
+
+  it("routes a significant club event to the active manager exactly once", () => {
+    const db = openGameDatabase(makeSave("media-routing"));
+    const clubId = (
+      db.prepare("SELECT id FROM clubs ORDER BY id LIMIT 1").get() as { id: EntityId }
+    ).id;
+    const teamId = (
+      db.prepare("SELECT id FROM teams WHERE club_id=? ORDER BY id LIMIT 1").get(clubId) as {
+        id: EntityId;
+      }
+    ).id;
+    const personId = (
+      db.prepare("SELECT id FROM persons ORDER BY id LIMIT 1").get() as { id: EntityId }
+    ).id;
+    const managerProfileId = createStableEntityId("manager-profile", "media-routing-manager");
+    db.prepare(
+      "INSERT INTO manager_profiles (id,person_id,attributes_json,preferred_style,reputation_profile,created_on) VALUES (?,?,?,?,?,?)",
+    ).run(managerProfileId, personId, JSON.stringify({}), null, "LOCAL", "2026-01-01");
+    db.prepare(
+      "INSERT INTO manager_contracts (id,manager_profile_id,person_id,team_id,club_id,job_title,contract_start,contract_end,salary_amount_minor,currency,status) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+    ).run(
+      createStableEntityId("manager-contract", "media-routing-manager"),
+      managerProfileId,
+      personId,
+      teamId,
+      clubId,
+      "Manager",
+      "2026-01-01",
+      null,
+      1,
+      "NPR",
+      "ACTIVE",
+    );
+    const manager = db
+      .prepare(
+        "SELECT person_id AS personId, club_id AS clubId FROM manager_contracts WHERE status='ACTIVE' ORDER BY person_id LIMIT 1",
+      )
+      .get() as { personId: EntityId; clubId: EntityId } | undefined;
+    expect(manager).toBeDefined();
+    const event: HistoricalEvent = {
+      id: createStableEntityId("history", "manager-routing-event"),
+      occurredOn: "2026-09-01",
+      eventType: "TRANSFER_COMPLETED",
+      involvedEntities: [{ id: manager!.clubId, type: "club" }],
+      title: "Important signing completed",
+      importance: "high",
+      scope: "club",
+    };
+    new EventRepository(db).insertHistoricalEvent(event);
+    publishMediaForDate(db, { date: "2026-09-02" });
+    const first = roleInboxEvents(db, manager!.personId, "MANAGER").filter(
+      (item) => item.event.id === event.id,
+    );
+    publishMediaForDate(db, { date: "2026-09-02" });
+    const second = roleInboxEvents(db, manager!.personId, "MANAGER").filter(
+      (item) => item.event.id === event.id,
+    );
+    expect(first).toHaveLength(1);
+    expect(second).toEqual(first);
+    db.close();
+  });
+
+  it("routes ownership to the controlling owner and federation events to the president", () => {
+    const db = openGameDatabase(makeSave("media-role-routing"));
+    const clubId = (
+      db.prepare("SELECT id FROM clubs ORDER BY id LIMIT 1").get() as { id: EntityId }
+    ).id;
+    const federationId = (
+      db.prepare("SELECT id FROM federations ORDER BY id LIMIT 1").get() as { id: EntityId }
+    ).id;
+    const personId = (
+      db.prepare("SELECT id FROM persons ORDER BY id LIMIT 1").get() as { id: EntityId }
+    ).id;
+    db.prepare(
+      "INSERT INTO club_ownership_stakes (id,club_id,holder_type,holder_id,holder_name,role,percentage,voting_percentage,start_date,status,ownership_model,provenance_status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+    ).run(
+      createStableEntityId("ownership-stake", "media-role-owner"),
+      clubId,
+      "PERSON",
+      personId,
+      "Routing Owner",
+      "MAJORITY_OWNER",
+      75,
+      75,
+      "2026-01-01",
+      "ACTIVE",
+      "BUYABLE",
+      "SIMULATION_ONLY",
+    );
+    db.prepare(
+      "INSERT INTO federation_leadership_tenures (id,person_id,federation_id,role,term_start,status,provenance_status) VALUES (?,?,?,?,?,?,?)",
+    ).run(
+      createStableEntityId("federation-leadership", "media-role-president"),
+      personId,
+      federationId,
+      "FEDERATION_PRESIDENT",
+      "2026-01-01",
+      "ACTIVE",
+      "SIMULATION_ONLY",
+    );
+    const ownershipEvent: HistoricalEvent = {
+      id: createStableEntityId("history", "owner-routing-event"),
+      occurredOn: "2026-09-01",
+      eventType: "CLUB_OWNERSHIP_TRANSFERRED",
+      involvedEntities: [{ id: clubId, type: "club" }],
+      title: "Club ownership transferred",
+      importance: "high",
+      scope: "club",
+    };
+    const federationEvent: HistoricalEvent = {
+      id: createStableEntityId("history", "president-routing-event"),
+      occurredOn: "2026-09-01",
+      eventType: "FEDERATION_ELECTION_COMPLETED",
+      involvedEntities: [{ id: federationId, type: "federation" }],
+      title: "Federation election completed",
+      importance: "high",
+      scope: "federation",
+    };
+    const events = new EventRepository(db);
+    events.insertHistoricalEvent(ownershipEvent);
+    events.insertHistoricalEvent(federationEvent);
+    publishMediaForDate(db, { date: "2026-09-02" });
+    expect(
+      roleInboxEvents(db, personId, "OWNER").some((item) => item.event.id === ownershipEvent.id),
+    ).toBe(true);
+    expect(
+      roleInboxEvents(db, personId, "PRESIDENT").some(
+        (item) => item.event.id === federationEvent.id,
+      ),
+    ).toBe(true);
+    expect(
+      roleInboxEvents(db, personId, "PRESIDENT").some(
+        (item) => item.event.id === ownershipEvent.id,
+      ),
+    ).toBe(false);
     db.close();
   });
 });

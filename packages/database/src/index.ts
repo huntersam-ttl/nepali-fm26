@@ -43,3 +43,4 @@ export * from "./continental-career-repository.js";
 export * from "./executive-role-repository.js";
 export * from "./career-timeline-repository.js";
 export * from "./agent-career-repository.js";
+export * from "./event-routing-repository.js";
