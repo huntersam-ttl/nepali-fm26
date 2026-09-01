@@ -192,7 +192,6 @@ const ChairmanDashboardView = ({
           {message}
         </p>
       )}
-      <CandidacyPanel />
       <div className="summary-grid">
         <Panel title="Club summary">
           <Metrics
@@ -346,6 +345,12 @@ const ChairmanDashboardView = ({
       <Panel title="Recent club transactions">
         <TransactionList entries={dashboard.finances.ledgerEntries} />
       </Panel>
+      {/*
+       * Standing for the federation presidency is a long-horizon career option,
+       * not the owner's daily business, so it sits below the club rather than
+       * above it — the same order the manager workspace uses.
+       */}
+      <CandidacyPanel />
     </section>
   );
 };
