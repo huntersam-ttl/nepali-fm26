@@ -9,6 +9,7 @@ import {
   StaffMarketRepository,
   TransferMarketRepository,
   WorldRepository,
+  PeopleFoundationRepository,
   type GameDatabase,
 } from "@nepal-football-sim/database";
 import {
@@ -88,6 +89,7 @@ import {
   simulateTrainingDay,
   trainingInjuryRiskSignal,
 } from "./player-development.js";
+import { derivePlayerLifestyle } from "./press-social-lifestyle.js";
 import {
   addDaysISO,
   computeCongestionMultiplier,
@@ -127,7 +129,11 @@ import {
   startLoan,
 } from "./transfer-market.js";
 import type { ManagerContext } from "./desktop-application.js";
-import { assertResponsibilityPermits, ResponsibilityError, staffEligibility } from "./staff-market.js";
+import {
+  assertResponsibilityPermits,
+  ResponsibilityError,
+  staffEligibility,
+} from "./staff-market.js";
 import { roleInboxItems } from "./media.js";
 
 type SqlRow = Record<string, any>;
@@ -1929,7 +1935,10 @@ export const buildStaffList = (
     // itself enforces, run against every open vacancy at this club, so the
     // UI never has to guess (or worse, offer a hire it knows will fail).
     const eligibleVacancyIds = openVacancies
-      .filter((vacancy) => staffEligibility(vacancy.role as FootballStaffRole, profile, licences).eligible)
+      .filter(
+        (vacancy) =>
+          staffEligibility(vacancy.role as FootballStaffRole, profile, licences).eligible,
+      )
       .map((vacancy) => vacancy.id);
     return {
       personId,
@@ -2309,6 +2318,12 @@ const applyDailyTraining = (
     const state =
       players.developmentState(attributes.personId) ??
       createInitialDevelopmentState(attributes, age, date);
+    const lifestylePersonality = new PeopleFoundationRepository(db).personality(
+      attributes.personId,
+    );
+    const lifestyle = lifestylePersonality
+      ? derivePlayerLifestyle(lifestylePersonality)
+      : undefined;
     const individualPlan = world.activeIndividualDevelopmentPlan(attributes.personId);
     const playingTime = players.latestPlayingTime(attributes.personId);
     const availability = trainingAvailabilityFor(db, attributes.personId, date);
@@ -2335,6 +2350,7 @@ const applyDailyTraining = (
       playingTime,
       environment: { ...environment, competitionMultiplier: congestion },
       trainingAvailability: availability,
+      lifestyle,
     });
     players.upsertDevelopmentState(output.updatedState);
     players.upsertAttributes(output.updatedAttributes);

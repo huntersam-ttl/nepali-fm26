@@ -28,6 +28,7 @@ import {
 import {
   ClubNetworkRepository,
   EventRepository,
+  PlayerRepository,
   RecruitmentRepository,
   TransferMarketRepository,
   PeopleFoundationRepository,
@@ -40,7 +41,11 @@ import {
   recordTransferEconomy,
 } from "./club-economy.js";
 import { applySupporterTransferOutcome } from "./supporter-culture.js";
-import { applyPlayerRelationshipEvent } from "./press-social-lifestyle.js";
+import {
+  applyPlayerLifestyleEvent,
+  applyPlayerRelationshipEvent,
+  derivePlayerLifestyle,
+} from "./press-social-lifestyle.js";
 import {
   effectiveAgentPlayerPreferences,
   agentFeeForContract,
@@ -1241,12 +1246,21 @@ const defaultPersonalTerms = (
   const player = marketPlayer(db, offer.playerId);
   const agent = new TransferMarketRepository(db).agentForPlayer(offer.playerId);
   const current = new TransferMarketRepository(db).activeContract(offer.playerId, worldDate);
+  const personality = new PeopleFoundationRepository(db).personality(offer.playerId);
+  const lifestyle = personality ? derivePlayerLifestyle(personality) : undefined;
   const rng = new SeededRandom(`${seed}:player-terms:${offer.id}`);
+  const lifestyleSalaryFactor =
+    lifestyle?.offFieldFocus === "FOOTBALL_FIRST"
+      ? 0.99
+      : lifestyle?.offFieldFocus === "DISTRACTED"
+        ? 1.01
+        : 1;
   const salary = Math.max(
     current?.salary ?? 0,
     Math.round(
       ((player?.currentAbility ?? 7) * 18000 + (agent?.feeExpectation ?? 8) * 2500) *
         (agent ? 1.04 + agent.negotiationSkill / 220 + agent.aggressiveness / 260 : 0.94) *
+        lifestyleSalaryFactor *
         (1 + rng.next() * 0.12),
     ),
   );
@@ -1552,6 +1566,8 @@ export const negotiatePlayerContract = (
   const player = marketPlayer(db, offer.playerId);
   const agent = new TransferMarketRepository(db).agentForPlayer(offer.playerId);
   const current = new TransferMarketRepository(db).activeContract(offer.playerId, worldDate);
+  const personality = new PeopleFoundationRepository(db).personality(offer.playerId);
+  const lifestyle = personality ? derivePlayerLifestyle(personality) : undefined;
   const rng = new SeededRandom(`${seed}:player-negotiation:${offer.id}`);
   const representationMultiplier = agent
     ? 1.04 + agent.negotiationSkill / 220 + agent.aggressiveness / 260
@@ -1568,7 +1584,16 @@ export const negotiatePlayerContract = (
     ),
   );
   const role = salary > 190000 ? "FIRST_TEAM" : salary > 130000 ? "ROTATION" : "BACKUP";
-  const length = 10 + Math.floor(rng.next() * 14);
+  const length = Math.max(
+    6,
+    10 +
+      Math.floor(rng.next() * 14) +
+      (lifestyle?.offFieldFocus === "FOOTBALL_FIRST"
+        ? 2
+        : lifestyle?.offFieldFocus === "DISTRACTED"
+          ? -1
+          : 0),
+  );
   const market = new TransferMarketRepository(db);
   market.insertNegotiationRound({
     id: createStableEntityId("negotiation-round", `${offer.id}:agent:2`),
@@ -1848,6 +1873,25 @@ export const completePermanentTransfer = (
   market.upsertPlayerContract(contract);
   movePlayerAssignment(db, offer.playerId, offer.buyingClubId, worldDate);
   market.updatePlayerClub(offer.playerId, offer.buyingClubId);
+  const people = new PeopleFoundationRepository(db);
+  const personality = people.personality(offer.playerId);
+  const development = new PlayerRepository(db).developmentState(offer.playerId);
+  if (personality && development) {
+    const lifestyle = {
+      ...derivePlayerLifestyle(personality),
+      adaptation: development.adaptation ?? derivePlayerLifestyle(personality).adaptation,
+    };
+    const settled = applyPlayerLifestyleEvent({
+      profile: lifestyle,
+      event: "TRANSFER_SETTLING",
+      positive: personality.traits.adaptability >= 45,
+    });
+    new PlayerRepository(db).upsertDevelopmentState({
+      ...development,
+      adaptation: settled.adaptation,
+      lastDevelopmentUpdate: worldDate,
+    });
+  }
   market.updateOfferStatus(offer.id, "COMPLETED");
   for (const competing of market
     .transferOffers()
@@ -1923,7 +1967,6 @@ export const completePermanentTransfer = (
   // A completed move is a real relationship event for the player's existing
   // representation edge. The cooldown/idempotency rules live in the shared
   // people event adapter, so replaying settlement cannot double-count trust.
-  const people = new PeopleFoundationRepository(db);
   for (const relationship of people
     .relationshipsForPerson(offer.playerId)
     .filter((item) => item.kind === "PLAYER_AGENT")) {

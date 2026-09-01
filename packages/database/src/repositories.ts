@@ -4892,9 +4892,9 @@ export class PlayerRepository {
       .prepare(
         `INSERT INTO player_development_states
         (id, player_id, development_phase, training_load, fatigue, match_sharpness,
-          fitness, recovery, development_momentum, position_familiarity_json,
-          role_familiarity_json, last_training_date, last_development_update)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        fitness, recovery, development_momentum, position_familiarity_json,
+          role_familiarity_json, last_training_date, last_development_update, adaptation)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(player_id) DO UPDATE SET
           development_phase = excluded.development_phase,
           training_load = excluded.training_load,
@@ -4906,7 +4906,8 @@ export class PlayerRepository {
           position_familiarity_json = excluded.position_familiarity_json,
           role_familiarity_json = excluded.role_familiarity_json,
           last_training_date = excluded.last_training_date,
-          last_development_update = excluded.last_development_update`,
+          last_development_update = excluded.last_development_update,
+          adaptation = excluded.adaptation`,
       )
       .run(
         state.id,
@@ -4922,6 +4923,7 @@ export class PlayerRepository {
         json.stringify(state.roleFamiliarity),
         state.lastTrainingDate ?? null,
         state.lastDevelopmentUpdate ?? null,
+        state.adaptation ?? 50,
       );
   }
 
@@ -5300,6 +5302,7 @@ const mapDevelopmentState = (row: any): PlayerDevelopmentState => ({
   fitness: row.fitness,
   recovery: row.recovery,
   developmentMomentum: row.development_momentum,
+  adaptation: row.adaptation ?? 50,
   positionFamiliarity: json.parse(row.position_familiarity_json, {}),
   roleFamiliarity: json.parse(row.role_familiarity_json, {}),
   lastTrainingDate: row.last_training_date ?? undefined,

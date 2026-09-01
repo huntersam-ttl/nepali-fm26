@@ -6,6 +6,7 @@ import {
   type PlayerAttributeSet,
   type PlayerDevelopmentCurve,
   type PlayerDevelopmentState,
+  type PlayerLifestyleProfile,
   type PlayerPlayingTimeSnapshot,
   type PlayerPosition,
   type PlayerPotential,
@@ -48,6 +49,7 @@ export type PlayerDevelopmentInput = {
    * full load on day one.
    */
   trainingAvailability?: "FULL" | "INJURED" | "RETURNING";
+  lifestyle?: PlayerLifestyleProfile;
 };
 
 export type PlayerDevelopmentOutput = {
@@ -109,6 +111,7 @@ export const createInitialDevelopmentState = (
   fitness: 88,
   recovery: 78,
   developmentMomentum: 0,
+  adaptation: 50,
   positionFamiliarity: { [attributes.primaryPosition]: 100 },
   roleFamiliarity: {},
   lastTrainingDate: date,
@@ -156,8 +159,15 @@ export const updatePlayerDevelopment = (input: PlayerDevelopmentInput): PlayerDe
   // Injured players are in rehab, not training — the plan's sessions do not
   // apply. A returning player is eased back in at reduced effective load
   // rather than resuming the full plan on day one.
-  const load = injured ? 12 : returning ? trainingLoadForSessions(sessions) * 0.6 : trainingLoadForSessions(sessions);
-  const restCount = injured ? sessions.length : sessions.filter((training) => training.category === "REST").length;
+  const discipline = input.lifestyle?.trainingDiscipline ?? "NORMAL";
+  const disciplineFactor = discipline === "HIGH" ? 1.04 : discipline === "LOW" ? 0.94 : 1;
+  const load = injured
+    ? 12
+    : (returning ? trainingLoadForSessions(sessions) * 0.6 : trainingLoadForSessions(sessions)) *
+      disciplineFactor;
+  const restCount = injured
+    ? sessions.length
+    : sessions.filter((training) => training.category === "REST").length;
   const recoveryCount = injured
     ? 0
     : sessions.filter((training) => training.category === "RECOVERY").length;
@@ -193,13 +203,17 @@ export const updatePlayerDevelopment = (input: PlayerDevelopmentInput): PlayerDe
     recovery: round(
       clamp(
         input.state.recovery +
-          (restCount * 5.5 + recoveryCount * 3 - Math.max(0, load - 45) * 0.12 + (injured ? 6 : 0)) *
+          (restCount * 5.5 +
+            recoveryCount * 3 -
+            Math.max(0, load - 45) * 0.12 +
+            (injured ? 6 : 0)) *
             periodScale,
         0,
         100,
       ),
     ),
     developmentMomentum: input.state.developmentMomentum,
+    adaptation: round(clamp(input.lifestyle?.adaptation ?? input.state.adaptation ?? 50, 0, 100)),
     lastTrainingDate: input.date,
     lastDevelopmentUpdate: input.date,
   };
@@ -224,7 +238,12 @@ export const updatePlayerDevelopment = (input: PlayerDevelopmentInput): PlayerDe
   );
   // Injured players earn no training-driven growth (rehab is not practice);
   // a returning player's growth is ramped rather than immediately full.
-  const availabilityGrowthFactor = injured ? 0 : returning ? 0.5 : 1;
+  const adaptationFactor = clamp((input.state.adaptation ?? 50) / 100, 0.8, 1.1);
+  const availabilityGrowthFactor = injured
+    ? 0
+    : returning
+      ? 0.5 * adaptationFactor
+      : adaptationFactor;
   const developmentDelta =
     potentialGap *
     0.0045 *
@@ -307,7 +326,8 @@ export const trainingInjuryRiskSignal = (
  * near-zero periods that continuing the same plan is no longer paying off.
  */
 export const isPlateaued = (recentAverageDeltas: number[], threshold = 0.03): boolean =>
-  recentAverageDeltas.length >= 3 && recentAverageDeltas.every((delta) => Math.abs(delta) < threshold);
+  recentAverageDeltas.length >= 3 &&
+  recentAverageDeltas.every((delta) => Math.abs(delta) < threshold);
 
 const session = (
   day: TrainingSession["day"],
@@ -515,22 +535,54 @@ const historyForChange = (
   if (delta <= -0.05) {
     events.push(history(input, "ATTRIBUTE_DECLINED", { averageDelta: round(delta) }));
   }
-  if (input.individualPlan?.status === "ACTIVE" && input.individualPlan.focusType === "POSITION" && input.individualPlan.targetPosition) {
+  if (
+    input.individualPlan?.status === "ACTIVE" &&
+    input.individualPlan.focusType === "POSITION" &&
+    input.individualPlan.targetPosition
+  ) {
     const position = input.individualPlan.targetPosition;
     const before = input.state.positionFamiliarity[position] ?? 0;
     const familiarity = state.positionFamiliarity[position] ?? 0;
-    events.push(history(input, "POSITION_FAMILIARITY_INCREASED", { position, familiarity, level: familiarityLevel(familiarity) }));
+    events.push(
+      history(input, "POSITION_FAMILIARITY_INCREASED", {
+        position,
+        familiarity,
+        level: familiarityLevel(familiarity),
+      }),
+    );
     if (before < 70 && familiarity >= 70) {
-      events.push(history(input, "RETRAINING_MILESTONE_REACHED", { position, familiarity, level: familiarityLevel(familiarity) }));
+      events.push(
+        history(input, "RETRAINING_MILESTONE_REACHED", {
+          position,
+          familiarity,
+          level: familiarityLevel(familiarity),
+        }),
+      );
     }
   }
-  if (input.individualPlan?.status === "ACTIVE" && input.individualPlan.focusType === "ROLE" && input.individualPlan.targetRole) {
+  if (
+    input.individualPlan?.status === "ACTIVE" &&
+    input.individualPlan.focusType === "ROLE" &&
+    input.individualPlan.targetRole
+  ) {
     const role = input.individualPlan.targetRole;
     const before = input.state.roleFamiliarity[role] ?? 0;
     const familiarity = state.roleFamiliarity[role] ?? 0;
-    events.push(history(input, "ROLE_FAMILIARITY_INCREASED", { role, familiarity, level: familiarityLevel(familiarity) }));
+    events.push(
+      history(input, "ROLE_FAMILIARITY_INCREASED", {
+        role,
+        familiarity,
+        level: familiarityLevel(familiarity),
+      }),
+    );
     if (before < 70 && familiarity >= 70) {
-      events.push(history(input, "RETRAINING_MILESTONE_REACHED", { role, familiarity, level: familiarityLevel(familiarity) }));
+      events.push(
+        history(input, "RETRAINING_MILESTONE_REACHED", {
+          role,
+          familiarity,
+          level: familiarityLevel(familiarity),
+        }),
+      );
     }
   }
   if (state.trainingLoad >= 70 && state.fatigue >= 65) {

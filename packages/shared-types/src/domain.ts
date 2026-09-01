@@ -1405,6 +1405,8 @@ export type PlayerDevelopmentState = {
   fitness: number;
   recovery: number;
   developmentMomentum: number;
+  /** Persisted settling signal; optional for saves written before lifestyle integration. */
+  adaptation?: number;
   positionFamiliarity: Record<string, number>;
   roleFamiliarity: Record<string, number>;
   lastTrainingDate?: ISODate;

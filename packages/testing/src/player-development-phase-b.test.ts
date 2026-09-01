@@ -2,7 +2,12 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { migrateDatabase, openGameDatabase, PlayerRepository, WorldRepository } from "@nepal-football-sim/database";
+import {
+  migrateDatabase,
+  openGameDatabase,
+  PlayerRepository,
+  WorldRepository,
+} from "@nepal-football-sim/database";
 import {
   computeCongestionMultiplier,
   createDefaultTrainingPlan,
@@ -24,6 +29,7 @@ import type {
   PlayerDevelopmentState,
   PlayerPlayingTimeSnapshot,
   PlayerPotential,
+  PlayerLifestyleProfile,
 } from "@nepal-football-sim/shared-types";
 
 const tempDirs: string[] = [];
@@ -36,15 +42,58 @@ afterEach(() => {
   for (const dir of tempDirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
-const attributesFor = (key: string, primaryPosition: PlayerAttributeSet["primaryPosition"] = "AM"): PlayerAttributeSet => ({
+const attributesFor = (
+  key: string,
+  primaryPosition: PlayerAttributeSet["primaryPosition"] = "AM",
+): PlayerAttributeSet => ({
   id: createStableEntityId("player-attribute", key),
   personId: createStableEntityId("person", key),
   primaryPosition,
   secondaryPositions: [],
-  technical: { firstTouch: 10, passing: 10, crossing: 9, dribbling: 10, finishing: 10, heading: 9, tackling: 9, technique: 10, longShots: 9, setPieces: 9 },
-  mental: { decisions: 10, vision: 10, composure: 10, positioning: 10, anticipation: 10, workRate: 10, teamwork: 10, leadership: 9, aggression: 9, determination: 11, professionalism: 10 },
-  physical: { pace: 10, acceleration: 10, strength: 10, stamina: 10, agility: 10, balance: 10, jumping: 9, naturalFitness: 10 },
-  goalkeeping: { handling: 2, reflexes: 2, oneOnOnes: 2, aerialReach: 2, kicking: 2, distribution: 2, commandOfArea: 2 },
+  technical: {
+    firstTouch: 10,
+    passing: 10,
+    crossing: 9,
+    dribbling: 10,
+    finishing: 10,
+    heading: 9,
+    tackling: 9,
+    technique: 10,
+    longShots: 9,
+    setPieces: 9,
+  },
+  mental: {
+    decisions: 10,
+    vision: 10,
+    composure: 10,
+    positioning: 10,
+    anticipation: 10,
+    workRate: 10,
+    teamwork: 10,
+    leadership: 9,
+    aggression: 9,
+    determination: 11,
+    professionalism: 10,
+  },
+  physical: {
+    pace: 10,
+    acceleration: 10,
+    strength: 10,
+    stamina: 10,
+    agility: 10,
+    balance: 10,
+    jumping: 9,
+    naturalFitness: 10,
+  },
+  goalkeeping: {
+    handling: 2,
+    reflexes: 2,
+    oneOnOnes: 2,
+    aerialReach: 2,
+    kicking: 2,
+    distribution: 2,
+    commandOfArea: 2,
+  },
 });
 
 const potentialFor = (attributes: PlayerAttributeSet): PlayerPotential => ({
@@ -72,7 +121,12 @@ const positionPlan = (
 });
 
 const average = (attributes: PlayerAttributeSet): number => {
-  const values = [...Object.values(attributes.technical), ...Object.values(attributes.mental), ...Object.values(attributes.physical), ...Object.values(attributes.goalkeeping)];
+  const values = [
+    ...Object.values(attributes.technical),
+    ...Object.values(attributes.mental),
+    ...Object.values(attributes.physical),
+    ...Object.values(attributes.goalkeeping),
+  ];
   return values.reduce((sum, v) => sum + v, 0) / values.length;
 };
 
@@ -125,17 +179,30 @@ describe("player development & training phase B", () => {
   it("retrains younger players into a new position faster than older players", () => {
     const young = runWeeksWith(19, 10, { individualPlan: positionPlan("young", "ST") });
     const old = runWeeksWith(34, 10, { individualPlan: positionPlan("old", "ST") });
-    expect(young.updatedState.positionFamiliarity.ST ?? 0).toBeGreaterThan(old.updatedState.positionFamiliarity.ST ?? 0);
+    expect(young.updatedState.positionFamiliarity.ST ?? 0).toBeGreaterThan(
+      old.updatedState.positionFamiliarity.ST ?? 0,
+    );
   });
 
   it("applies diminishing returns as familiarity climbs toward mastery", () => {
     const lowStartAttrs = attributesFor("low-start");
     const highStartAttrs = attributesFor("high-start");
     const lowStart = createInitialDevelopmentState(lowStartAttrs, 24, "2026-08-01");
-    const highStart = { ...createInitialDevelopmentState(highStartAttrs, 24, "2026-08-01"), positionFamiliarity: { ST: 88 } };
+    const highStart = {
+      ...createInitialDevelopmentState(highStartAttrs, 24, "2026-08-01"),
+      positionFamiliarity: { ST: 88 },
+    };
 
-    const fromLow = runWeeksWith(24, 1, { individualPlan: positionPlan("low-start", "ST"), attributes: lowStartAttrs, state: lowStart });
-    const fromHigh = runWeeksWith(24, 1, { individualPlan: positionPlan("high-start", "ST"), attributes: highStartAttrs, state: highStart });
+    const fromLow = runWeeksWith(24, 1, {
+      individualPlan: positionPlan("low-start", "ST"),
+      attributes: lowStartAttrs,
+      state: lowStart,
+    });
+    const fromHigh = runWeeksWith(24, 1, {
+      individualPlan: positionPlan("high-start", "ST"),
+      attributes: highStartAttrs,
+      state: highStart,
+    });
 
     const gainLow = (fromLow.updatedState.positionFamiliarity.ST ?? 0) - 0;
     const gainHigh = (fromHigh.updatedState.positionFamiliarity.ST ?? 0) - 88;
@@ -145,19 +212,45 @@ describe("player development & training phase B", () => {
   it("rewards real playing-time exposure over training-only retraining", () => {
     const withMinutes = runWeeksWith(24, 6, {
       individualPlan: positionPlan("exposed", "ST"),
-      playingTime: { id: createStableEntityId("pt", "exposed"), playerId: createStableEntityId("person", "exposed"), minutesLast30Days: 360, minutesSeason: 360, startsSeason: 4, subAppearances: 0, updatedOn: "2026-08-01" },
+      playingTime: {
+        id: createStableEntityId("pt", "exposed"),
+        playerId: createStableEntityId("person", "exposed"),
+        minutesLast30Days: 360,
+        minutesSeason: 360,
+        startsSeason: 4,
+        subAppearances: 0,
+        updatedOn: "2026-08-01",
+      },
     });
     const withoutMinutes = runWeeksWith(24, 6, {
       individualPlan: positionPlan("bench", "ST"),
-      playingTime: { id: createStableEntityId("pt", "bench"), playerId: createStableEntityId("person", "bench"), minutesLast30Days: 0, minutesSeason: 0, startsSeason: 0, subAppearances: 0, updatedOn: "2026-08-01" },
+      playingTime: {
+        id: createStableEntityId("pt", "bench"),
+        playerId: createStableEntityId("person", "bench"),
+        minutesLast30Days: 0,
+        minutesSeason: 0,
+        startsSeason: 0,
+        subAppearances: 0,
+        updatedOn: "2026-08-01",
+      },
     });
-    expect(withMinutes.updatedState.positionFamiliarity.ST ?? 0).toBeGreaterThan(withoutMinutes.updatedState.positionFamiliarity.ST ?? 0);
+    expect(withMinutes.updatedState.positionFamiliarity.ST ?? 0).toBeGreaterThan(
+      withoutMinutes.updatedState.positionFamiliarity.ST ?? 0,
+    );
   });
 
   it("makes coaching and facility quality real drivers of retraining and attribute effectiveness", () => {
-    const good = runWeeksWith(24, 8, { individualPlan: positionPlan("good-env", "ST"), environment: { coachingQuality: 1.3, facilitiesEffect: 1.25 } });
-    const poor = runWeeksWith(24, 8, { individualPlan: positionPlan("poor-env", "ST"), environment: { coachingQuality: 0.7, facilitiesEffect: 0.75 } });
-    expect(good.updatedState.positionFamiliarity.ST ?? 0).toBeGreaterThan(poor.updatedState.positionFamiliarity.ST ?? 0);
+    const good = runWeeksWith(24, 8, {
+      individualPlan: positionPlan("good-env", "ST"),
+      environment: { coachingQuality: 1.3, facilitiesEffect: 1.25 },
+    });
+    const poor = runWeeksWith(24, 8, {
+      individualPlan: positionPlan("poor-env", "ST"),
+      environment: { coachingQuality: 0.7, facilitiesEffect: 0.75 },
+    });
+    expect(good.updatedState.positionFamiliarity.ST ?? 0).toBeGreaterThan(
+      poor.updatedState.positionFamiliarity.ST ?? 0,
+    );
   });
 
   it("gives youth, prime and veteran players distinct development curves", () => {
@@ -171,7 +264,10 @@ describe("player development & training phase B", () => {
   it("slows decline for a veteran on a maintenance-focused plan versus no plan", () => {
     const attrs = attributesFor("veteran-plain");
     const maintainedAttrs = attributesFor("veteran-maintained");
-    const plain = runWeeksWith(37, 20, { attributes: attrs, state: createInitialDevelopmentState(attrs, 37, "2026-08-01") });
+    const plain = runWeeksWith(37, 20, {
+      attributes: attrs,
+      state: createInitialDevelopmentState(attrs, 37, "2026-08-01"),
+    });
     const maintained = runWeeksWith(37, 20, {
       attributes: maintainedAttrs,
       state: createInitialDevelopmentState(maintainedAttrs, 37, "2026-08-01"),
@@ -209,24 +305,41 @@ describe("player development & training phase B", () => {
     expect(injured.updatedState.positionFamiliarity.ST ?? 0).toBe(0);
     expect(injured.updatedState.recovery).toBeGreaterThanOrEqual(state.recovery);
 
-    const returning = runWeeksWith(24, 6, { individualPlan: positionPlan("returning-player", "ST"), trainingAvailability: "RETURNING" });
-    const full = runWeeksWith(24, 6, { individualPlan: positionPlan("full-player", "ST"), trainingAvailability: "FULL" });
-    expect(returning.updatedState.positionFamiliarity.ST ?? 0).toBeLessThan(full.updatedState.positionFamiliarity.ST ?? 0);
+    const returning = runWeeksWith(24, 6, {
+      individualPlan: positionPlan("returning-player", "ST"),
+      trainingAvailability: "RETURNING",
+    });
+    const full = runWeeksWith(24, 6, {
+      individualPlan: positionPlan("full-player", "ST"),
+      trainingAvailability: "FULL",
+    });
+    expect(returning.updatedState.positionFamiliarity.ST ?? 0).toBeLessThan(
+      full.updatedState.positionFamiliarity.ST ?? 0,
+    );
   });
 
   it("dampens development in congested fixture weeks", () => {
     const teamId = createStableEntityId("team", "congestion");
     const other = createStableEntityId("team", "opponent");
-    const busyFixtures: FixtureRecord[] = ["2026-07-28", "2026-07-31", "2026-08-03"].map((scheduledDate, i) => ({
-      id: createStableEntityId("fixture", `busy-${i}`),
-      homeTeamId: teamId,
-      awayTeamId: other,
-      scheduledDate,
-      status: "scheduled",
-      round: i,
-    }));
+    const busyFixtures: FixtureRecord[] = ["2026-07-28", "2026-07-31", "2026-08-03"].map(
+      (scheduledDate, i) => ({
+        id: createStableEntityId("fixture", `busy-${i}`),
+        homeTeamId: teamId,
+        awayTeamId: other,
+        scheduledDate,
+        status: "scheduled",
+        round: i,
+      }),
+    );
     const quietFixtures: FixtureRecord[] = [
-      { id: createStableEntityId("fixture", "quiet-0"), homeTeamId: teamId, awayTeamId: other, scheduledDate: "2026-08-01", status: "scheduled", round: 0 },
+      {
+        id: createStableEntityId("fixture", "quiet-0"),
+        homeTeamId: teamId,
+        awayTeamId: other,
+        scheduledDate: "2026-08-01",
+        status: "scheduled",
+        round: 0,
+      },
     ];
     const busy = computeCongestionMultiplier(busyFixtures, teamId, "2026-08-01");
     const quiet = computeCongestionMultiplier(quietFixtures, teamId, "2026-08-01");
@@ -246,16 +359,43 @@ describe("player development & training phase B", () => {
     migrateDatabase(db);
     const world = new WorldRepository(db);
     const players = new PlayerRepository(db);
-    const country: Country = { id: createStableEntityId("country", "NP"), name: "Nepal", isoCode: "NP" };
+    const country: Country = {
+      id: createStableEntityId("country", "NP"),
+      name: "Nepal",
+      isoCode: "NP",
+    };
     world.insertCountry(country);
     const team = createStableEntityId("team", "sensible-plans");
-    world.insertClub({ id: createStableEntityId("club", "sensible-plans"), name: "Sensible FC", countryId: country.id, ownershipType: "PRIVATE" });
-    world.insertTeam({ id: team, clubId: createStableEntityId("club", "sensible-plans"), name: "Sensible FC", level: "senior", gender: "men" });
+    world.insertClub({
+      id: createStableEntityId("club", "sensible-plans"),
+      name: "Sensible FC",
+      countryId: country.id,
+      ownershipType: "PRIVATE",
+    });
+    world.insertTeam({
+      id: team,
+      clubId: createStableEntityId("club", "sensible-plans"),
+      name: "Sensible FC",
+      level: "senior",
+      gender: "men",
+    });
 
     const makePlayer = (key: string, dateOfBirth: string) => {
-      const person: Person = { id: createStableEntityId("person", key), fullName: key, dateOfBirth, nationalityCountryId: country.id, languages: ["ne"] };
+      const person: Person = {
+        id: createStableEntityId("person", key),
+        fullName: key,
+        dateOfBirth,
+        nationalityCountryId: country.id,
+        languages: ["ne"],
+      };
       world.insertPerson(person);
-      world.insertTeamPersonAssignment({ id: createStableEntityId("assignment", key), teamId: team, personId: person.id, role: "PLAYER", startedOn: "2026-08-01" });
+      world.insertTeamPersonAssignment({
+        id: createStableEntityId("assignment", key),
+        teamId: team,
+        personId: person.id,
+        role: "PLAYER",
+        startedOn: "2026-08-01",
+      });
       const attrs = attributesFor(key);
       players.upsertAttributes(attrs);
       return person.id;
@@ -274,7 +414,11 @@ describe("player development & training phase B", () => {
     expect(world.activeIndividualDevelopmentPlan(veteranId)?.intensity).toBe("LOW");
 
     const manualPlan = world.activeIndividualDevelopmentPlan(youthId)!;
-    world.upsertIndividualDevelopmentPlan({ ...manualPlan, focusType: "ROLE", targetRole: "wing-back" });
+    world.upsertIndividualDevelopmentPlan({
+      ...manualPlan,
+      focusType: "ROLE",
+      targetRole: "wing-back",
+    });
     ensureSensibleDevelopmentPlan(db, "2026-08-08", team);
     expect(world.activeIndividualDevelopmentPlan(youthId)?.focusType).toBe("ROLE");
 
@@ -286,9 +430,18 @@ describe("player development & training phase B", () => {
     const db = openGameDatabase(dbPath);
     migrateDatabase(db);
     const world = new WorldRepository(db);
-    const country: Country = { id: createStableEntityId("country", "NP"), name: "Nepal", isoCode: "NP" };
+    const country: Country = {
+      id: createStableEntityId("country", "NP"),
+      name: "Nepal",
+      isoCode: "NP",
+    };
     world.insertCountry(country);
-    const person: Person = { id: createStableEntityId("person", "review-target"), fullName: "Review Target", nationalityCountryId: country.id, languages: ["ne"] };
+    const person: Person = {
+      id: createStableEntityId("person", "review-target"),
+      fullName: "Review Target",
+      nationalityCountryId: country.id,
+      languages: ["ne"],
+    };
     world.insertPerson(person);
 
     const duePlan: IndividualDevelopmentPlan = {
@@ -310,9 +463,19 @@ describe("player development & training phase B", () => {
     expect(achieved?.recommendation).toBe("GOAL_ACHIEVED");
     expect(world.activeIndividualDevelopmentPlan(person.id)).toBeUndefined();
 
-    const plateauPlan: IndividualDevelopmentPlan = { ...duePlan, id: createStableEntityId("individual-development-plan", "plateau"), targetPosition: "CM" };
+    const plateauPlan: IndividualDevelopmentPlan = {
+      ...duePlan,
+      id: createStableEntityId("individual-development-plan", "plateau"),
+      targetPosition: "CM",
+    };
     world.upsertIndividualDevelopmentPlan(plateauPlan);
-    const plateaued = reviewDevelopmentPlanIfDue(db, "2026-02-11", plateauPlan, 30, [0.01, -0.01, 0.02]);
+    const plateaued = reviewDevelopmentPlanIfDue(
+      db,
+      "2026-02-11",
+      plateauPlan,
+      30,
+      [0.01, -0.01, 0.02],
+    );
     expect(plateaued?.recommendation).toBe("CONSIDER_NEW_FOCUS");
     expect(plateaued?.plateaued).toBe(true);
     const stillActive = world.activeIndividualDevelopmentPlan(person.id);
@@ -328,18 +491,70 @@ describe("player development & training phase B", () => {
     migrateDatabase(db);
     const world = new WorldRepository(db);
     const players = new PlayerRepository(db);
-    const country: Country = { id: createStableEntityId("country", "NP"), name: "Nepal", isoCode: "NP" };
+    const country: Country = {
+      id: createStableEntityId("country", "NP"),
+      name: "Nepal",
+      isoCode: "NP",
+    };
     world.insertCountry(country);
-    const person: Person = { id: createStableEntityId("person", "availability-target"), fullName: "Availability Target", nationalityCountryId: country.id, languages: ["ne"] };
+    const person: Person = {
+      id: createStableEntityId("person", "availability-target"),
+      fullName: "Availability Target",
+      nationalityCountryId: country.id,
+      languages: ["ne"],
+    };
     world.insertPerson(person);
 
     expect(trainingAvailabilityFor(db, person.id, "2026-08-01")).toBe("FULL");
 
-    players.insertInjury({ id: createStableEntityId("injury", "avail-1"), personId: person.id, injuryType: "Knock", dateOccurred: "2026-08-01", expectedRecoveryDate: "2026-08-10", severity: "minor" });
+    players.insertInjury({
+      id: createStableEntityId("injury", "avail-1"),
+      personId: person.id,
+      injuryType: "Knock",
+      dateOccurred: "2026-08-01",
+      expectedRecoveryDate: "2026-08-10",
+      severity: "minor",
+    });
     expect(trainingAvailabilityFor(db, person.id, "2026-08-05")).toBe("INJURED");
     expect(trainingAvailabilityFor(db, person.id, "2026-08-12")).toBe("RETURNING");
     expect(trainingAvailabilityFor(db, person.id, "2026-08-25")).toBe("FULL");
 
     db.close();
+  });
+
+  it("uses the canonical lifestyle profile in real training and preserves settling state", () => {
+    const attrs = attributesFor("lifestyle-training");
+    const base = {
+      attributes: attrs,
+      state: createInitialDevelopmentState(attrs, 22, "2026-08-01"),
+      potential: potentialFor(attrs),
+      age: 22,
+      date: "2026-08-08",
+      seed: "lifestyle-seed",
+      plan: createDefaultTrainingPlan("team", "2026-08-01"),
+      trainingAvailability: "FULL" as const,
+    };
+    const high: PlayerLifestyleProfile = {
+      personId: attrs.personId,
+      professionalismHabits: "ELITE",
+      trainingDiscipline: "HIGH",
+      mediaActivity: "LOW",
+      offFieldFocus: "FOOTBALL_FIRST",
+      adaptation: 82,
+      provenanceStatus: "SIMULATION_ONLY",
+    };
+    const low: PlayerLifestyleProfile = {
+      ...high,
+      trainingDiscipline: "LOW",
+      offFieldFocus: "DISTRACTED",
+      adaptation: 18,
+    };
+    const highOutput = simulateTrainingWeek({ ...base, lifestyle: high });
+    const lowOutput = simulateTrainingWeek({ ...base, lifestyle: low });
+    expect(highOutput.updatedState.trainingLoad).toBeGreaterThan(
+      lowOutput.updatedState.trainingLoad,
+    );
+    expect(highOutput.updatedState.adaptation).toBe(82);
+    expect(lowOutput.updatedState.adaptation).toBe(18);
   });
 });

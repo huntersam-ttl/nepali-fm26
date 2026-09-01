@@ -3586,6 +3586,10 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
         ON referee_governance_reviews(federation_id, review_date);
     `,
   },
+  {
+    version: 84,
+    sql: `ALTER TABLE player_development_states ADD COLUMN adaptation REAL NOT NULL DEFAULT 50;`,
+  },
 ];
 
 export const migrateDatabase = (db: GameDatabase): number => {
