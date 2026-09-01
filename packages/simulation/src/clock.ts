@@ -5,6 +5,7 @@ import { EventRepository, updateSaveWorldDate } from "@nepal-football-sim/databa
 import { advanceMacroEconomyForWorldDate } from "./macro-economy.js";
 import { advanceTerritorialDevelopment } from "./territorial-football.js";
 import { processPartnershipLifecycle } from "./club-networks.js";
+import { publishMediaForDate } from "./media.js";
 
 const addDays = (date: string, days: number): string => {
   const parsed = new Date(`${date}T00:00:00.000Z`);
@@ -54,10 +55,18 @@ export class SimulationClock {
       seed: this.save.randomSeed,
     });
     if (this.save.worldDate.endsWith("-28")) {
-      advanceTerritorialDevelopment(this.db, { date: this.save.worldDate, seed: this.save.randomSeed });
+      advanceTerritorialDevelopment(this.db, {
+        date: this.save.worldDate,
+        seed: this.save.randomSeed,
+      });
     }
     this.options.onAdvanceDay?.(this.save.worldDate);
     this.processDueEvents();
+    // The historical-event table is the canonical public-event source. A
+    // single daily consumer makes transfers, ownership, federation, promise,
+    // injury and match events visible after normal progression, while the
+    // media repository keeps publication and inbox delivery idempotent.
+    publishMediaForDate(this.db, { date: this.save.worldDate });
   }
 
   advanceDays(days: number): void {

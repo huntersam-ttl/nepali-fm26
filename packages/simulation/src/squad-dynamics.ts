@@ -1,4 +1,5 @@
 import {
+  EventRepository,
   PlayerRepository,
   SquadDynamicsRepository,
   TransferMarketRepository,
@@ -812,6 +813,32 @@ const logEvent = (
     occurredOn: worldDate,
     data,
   });
+  if (eventType === "PROMISE_KEPT" || eventType === "PROMISE_BROKEN") {
+    const club = db
+      .prepare("SELECT club_id AS clubId FROM teams WHERE id = ? LIMIT 1")
+      .get(teamId) as { clubId?: EntityId } | undefined;
+    if (club?.clubId) {
+      const historyId = createStableEntityId(
+        "historical-event",
+        `promise:${data.promiseId ?? `${personId}:${teamId}:${eventType}:${worldDate}:${data.type ?? "unknown"}`}`,
+      );
+      if (!db.prepare("SELECT 1 FROM historical_events WHERE id = ?").get(historyId)) {
+        new EventRepository(db).insertHistoricalEvent({
+          id: historyId,
+          occurredOn: worldDate,
+          eventType,
+          involvedEntities: [
+            { id: personId, type: "person" },
+            { id: club.clubId, type: "club" },
+          ],
+          title: eventType === "PROMISE_KEPT" ? "Manager promise fulfilled" : "Manager promise broken",
+          data: { ...data, teamId, managerProfileId },
+          importance: eventType === "PROMISE_BROKEN" ? "high" : "medium",
+          scope: "club",
+        });
+      }
+    }
+  }
 };
 
 export const activeConcernCount = (db: GameDatabase, teamId: EntityId): number =>
