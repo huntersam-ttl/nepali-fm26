@@ -1277,6 +1277,30 @@ const latestPersonalTerms = (
     : fallback;
 };
 
+const playerChoiceScore = (
+  offer: TransferOffer,
+  terms: PlayerPersonalTerms,
+  preferences: PlayerPersonalTermsPreferences = {},
+): number => {
+  const roleValue: Record<PlayerSquadRole, number> = {
+    KEY_PLAYER: 7,
+    IMPORTANT_PLAYER: 6,
+    FIRST_TEAM: 5,
+    ROTATION: 3,
+    BACKUP: 1,
+    PROSPECT: 2,
+    YOUTH: 0,
+  };
+  const preferredRole = preferences.expectedPlayingTime;
+  const roleScore = preferredRole
+    ? (roleValue[terms.squadRole] - roleValue[preferredRole]) * 9
+    : roleValue[terms.squadRole] * 2;
+  const securityScore = (preferences.securityPreference ?? 6) * terms.contractLengthMonths * 0.12;
+  const packageScore = Math.min(24, calculateTransferPackageValue(offer) / 250_000);
+  const agentFeePenalty = terms.agentFee > 0 ? Math.min(8, terms.agentFee / 100_000) : 0;
+  return terms.salary / 10_000 + roleScore + securityScore + packageScore - agentFeePenalty;
+};
+
 export const negotiatePlayerTerms = (
   db: GameDatabase,
   offer: TransferOffer,
@@ -1890,6 +1914,7 @@ export const resolveCompetingPlayerOffers = (
       const aTerms = latestPersonalTerms(db, a, worldDate, seed);
       const bTerms = latestPersonalTerms(db, b, worldDate, seed);
       return (
+        playerChoiceScore(b, bTerms, preferences) - playerChoiceScore(a, aTerms, preferences) ||
         bTerms.salary - aTerms.salary ||
         bTerms.contractLengthMonths - aTerms.contractLengthMonths ||
         String(a.id).localeCompare(String(b.id))
@@ -1922,6 +1947,7 @@ export const startLoan = (
     playingTimeExpectation?: PlayerSquadRole;
     recallAllowed?: boolean;
     purchaseOption?: number;
+    purchaseObligation?: number;
   } = {},
 ): PlayerLoanRecord => {
   const market = new TransferMarketRepository(db);
@@ -1952,11 +1978,21 @@ export const startLoan = (
     throw new Error("Loan fee must be a finite non-negative amount");
   }
   const requestedPurchaseOption = options.purchaseOption;
+  const requestedPurchaseObligation = options.purchaseObligation;
+  if (requestedPurchaseOption !== undefined && requestedPurchaseObligation !== undefined) {
+    throw new Error("A loan cannot have both a purchase option and a purchase obligation");
+  }
   if (
     requestedPurchaseOption !== undefined &&
     (!Number.isFinite(requestedPurchaseOption) || requestedPurchaseOption <= 0)
   ) {
     throw new Error("Purchase option must be a finite positive amount");
+  }
+  if (
+    requestedPurchaseObligation !== undefined &&
+    (!Number.isFinite(requestedPurchaseObligation) || requestedPurchaseObligation <= 0)
+  ) {
+    throw new Error("Purchase obligation must be a finite positive amount");
   }
   const loanFee = Math.round(requestedLoanFee);
   if (loanFee > 0 && !clubCanAffordTransfer(db, loanClubId, loanFee, worldDate)) {
@@ -1977,6 +2013,7 @@ export const startLoan = (
     playingTimeExpectation: options.playingTimeExpectation ?? "ROTATION",
     recallAllowed: options.recallAllowed ?? true,
     purchaseOption: requestedPurchaseOption,
+    purchaseObligation: requestedPurchaseObligation,
     status: "ACTIVE",
   };
   market.upsertLoan(loan);
@@ -2015,6 +2052,8 @@ export const startLoan = (
     data: {
       wageContributionPercent: loan.wageContributionPercent,
       loanFee: loan.loanFee,
+      purchaseOption: loan.purchaseOption,
+      purchaseObligation: loan.purchaseObligation,
       playingTimeExpectation: loan.playingTimeExpectation,
     },
   });
@@ -2206,7 +2245,8 @@ export const signFreeAgent = (
   return new TransferMarketRepository(db).activeContract(playerId, worldDate)?.clubId === clubId;
 };
 
-export type LoanTerminationReason = "NORMAL_EXPIRY" | "RECALL" | "PERMANENT_OPTION_PURCHASE";
+export type LoanTerminationReason =
+  "NORMAL_EXPIRY" | "RECALL" | "PERMANENT_OPTION_PURCHASE" | "PERMANENT_OBLIGATION_PURCHASE";
 
 const finishLoan = (
   db: GameDatabase,
@@ -2238,7 +2278,48 @@ const finishLoan = (
   return true;
 };
 
+const completeMandatoryLoanPurchase = (
+  db: GameDatabase,
+  loan: PlayerLoanRecord,
+  worldDate: string,
+  seed: string,
+): boolean => {
+  const market = new TransferMarketRepository(db);
+  if (
+    !loan.purchaseObligation ||
+    !clubCanAffordTransfer(db, loan.loanClubId, loan.purchaseObligation, worldDate)
+  ) {
+    finishLoan(db, loan, worldDate, "NORMAL_EXPIRY", true);
+    return false;
+  }
+  const offer = createTransferOffer(db, {
+    buyingClubId: loan.loanClubId,
+    sellingClubId: loan.parentClubId,
+    playerId: loan.playerId,
+    submittedAt: worldDate,
+    fee: loan.purchaseObligation,
+    installments: 0,
+    addOns: 0,
+    sellOnPercentage: 0,
+  });
+  market.updateOfferStatus(offer.id, "ACCEPTED");
+  completePermanentTransfer(db, offer, worldDate, `${seed}:${loan.id}`);
+  const settled = new TransferMarketRepository(db)
+    .transferOffers()
+    .find((item) => item.id === offer.id);
+  if (settled?.status !== "COMPLETED") {
+    finishLoan(db, loan, worldDate, "NORMAL_EXPIRY", true);
+    return false;
+  }
+  finishLoan(db, loan, worldDate, "PERMANENT_OBLIGATION_PURCHASE", false);
+  return true;
+};
+
 export const endLoan = (db: GameDatabase, loan: PlayerLoanRecord, worldDate: string): void => {
+  if (loan.purchaseObligation && worldDate >= loan.endDate) {
+    completeMandatoryLoanPurchase(db, loan, worldDate, "loan-obligation");
+    return;
+  }
   finishLoan(db, loan, worldDate, "NORMAL_EXPIRY", true);
 };
 
@@ -2313,6 +2394,56 @@ export const exerciseLoanOption = (
     completed: settledOffer.status === "COMPLETED",
     loan: new TransferMarketRepository(db).loan(loan.id)!,
     offer: settledOffer,
+  };
+};
+
+export type ReleaseClauseExerciseResult = {
+  completed: boolean;
+  offer: TransferOffer;
+  contract: PlayerContractRecord;
+};
+
+/** Execute a player's currently active release clause through the normal offer pipeline. */
+export const exerciseReleaseClause = (
+  db: GameDatabase,
+  input: {
+    playerId: EntityId;
+    buyingClubId: EntityId;
+    worldDate: string;
+    seed: string;
+  },
+): ReleaseClauseExerciseResult => {
+  const market = new TransferMarketRepository(db);
+  const contract = market.activeContract(input.playerId, input.worldDate);
+  if (!contract) throw new Error("Player has no active contract");
+  if (contract.clubId === input.buyingClubId)
+    throw new Error("Buying club already employs the player");
+  if (!contract.releaseClause || contract.releaseClause <= 0) {
+    throw new Error("Player contract has no release clause");
+  }
+  if (!clubCanAffordTransfer(db, input.buyingClubId, contract.releaseClause, input.worldDate)) {
+    throw new Error("Buying club cannot afford the release clause");
+  }
+  const offer = createTransferOffer(db, {
+    buyingClubId: input.buyingClubId,
+    sellingClubId: contract.clubId,
+    playerId: input.playerId,
+    submittedAt: input.worldDate,
+    fee: contract.releaseClause,
+    installments: 0,
+    addOns: 0,
+    sellOnPercentage: 0,
+  });
+  market.updateOfferStatus(offer.id, "ACCEPTED");
+  completePermanentTransfer(db, offer, input.worldDate, `${input.seed}:release-clause`);
+  const settledOffer = new TransferMarketRepository(db)
+    .transferOffers()
+    .find((item) => item.id === offer.id)!;
+  return {
+    completed: settledOffer.status === "COMPLETED",
+    offer: settledOffer,
+    contract:
+      new TransferMarketRepository(db).activeContract(input.playerId, input.worldDate) ?? contract,
   };
 };
 

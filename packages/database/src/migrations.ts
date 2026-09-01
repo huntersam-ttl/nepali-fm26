@@ -3417,6 +3417,13 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
         ON mentoring_assignments(mentor_person_id, mentee_person_id, status);
     `,
   },
+  {
+    version: 73,
+    sql: `
+      -- Advanced loan structures: distinguish optional and mandatory purchase terms.
+      ALTER TABLE player_loans ADD COLUMN purchase_obligation INTEGER;
+    `,
+  },
 ];
 
 export const migrateDatabase = (db: GameDatabase): number => {

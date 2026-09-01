@@ -387,7 +387,12 @@ export type YouthDevelopmentActivity = {
   clubId?: EntityId;
   academyId?: EntityId;
   activityDate: ISODate;
-  activityType: "ACADEMY_TRAINING" | "RESERVE_ACTIVITY" | "LOCAL_COMPETITION" | "TRIAL" | "FOREIGN_DEVELOPMENT_PROGRAMME";
+  activityType:
+    | "ACADEMY_TRAINING"
+    | "RESERVE_ACTIVITY"
+    | "LOCAL_COMPETITION"
+    | "TRIAL"
+    | "FOREIGN_DEVELOPMENT_PROGRAMME";
   developmentMinutes: number;
   exposureLevel: number;
   data?: Record<string, unknown>;
@@ -1329,7 +1334,14 @@ export type TrainingPlan = {
 };
 
 export type DevelopmentFocusType =
-  "ATTRIBUTE" | "POSITION" | "ROLE" | "PHYSICAL" | "TECHNICAL" | "MENTAL" | "BALANCED" | "MAINTENANCE";
+  | "ATTRIBUTE"
+  | "POSITION"
+  | "ROLE"
+  | "PHYSICAL"
+  | "TECHNICAL"
+  | "MENTAL"
+  | "BALANCED"
+  | "MAINTENANCE";
 
 export type IndividualDevelopmentPlan = {
   id: EntityId;
@@ -1907,7 +1919,8 @@ export type OwnershipAcquisitionTransaction = {
   provenanceStatus: "SIMULATION_ONLY";
 };
 
-export type OwnershipInvestorType = "LOCAL_BUSINESS" | "STRATEGIC_COMPANY" | "WEALTHY_INDIVIDUAL" | "INSTITUTIONAL";
+export type OwnershipInvestorType =
+  "LOCAL_BUSINESS" | "STRATEGIC_COMPANY" | "WEALTHY_INDIVIDUAL" | "INSTITUTIONAL";
 export type OwnershipInvestorBidView = {
   offer: OwnershipAcquisitionOffer;
   investorName: string;
@@ -2198,8 +2211,12 @@ export type ClubAsset = {
 };
 
 export type ProcurementCategory =
-  | "KITS_TRAINING_WEAR" | "FOOTBALL_EQUIPMENT" | "GYM_PERFORMANCE"
-  | "MEDICAL_SUPPLIES" | "ANALYSIS_SCOUTING" | "GROUNDS_STADIUM";
+  | "KITS_TRAINING_WEAR"
+  | "FOOTBALL_EQUIPMENT"
+  | "GYM_PERFORMANCE"
+  | "MEDICAL_SUPPLIES"
+  | "ANALYSIS_SCOUTING"
+  | "GROUNDS_STADIUM";
 
 export type ProcurementSupplier = {
   id: EntityId;
@@ -2252,7 +2269,8 @@ export type ProcurementOrder = {
   provenanceStatus: "SIMULATION_ONLY";
 };
 
-export type ProcurementAgreementType = "PREFERRED_SUPPLIER" | "RECURRING_SUPPLY" | "MAINTENANCE_SERVICE";
+export type ProcurementAgreementType =
+  "PREFERRED_SUPPLIER" | "RECURRING_SUPPLY" | "MAINTENANCE_SERVICE";
 export type ProcurementContractStatus = "OFFERED" | "ACTIVE" | "EXPIRED" | "TERMINATED";
 export type ProcurementContract = {
   id: EntityId;
@@ -2543,6 +2561,7 @@ export type PlayerLoanRecord = {
   playingTimeExpectation: PlayerSquadRole;
   recallAllowed: boolean;
   purchaseOption?: number;
+  purchaseObligation?: number;
   status: LoanStatus;
 };
 
@@ -2629,8 +2648,10 @@ export type InjuryRecord = {
   severity: "minor" | "moderate" | "major";
 };
 
-export type MedicalRehabStage = "DIAGNOSIS" | "REHABILITATION" | "RETURN_TO_TRAINING" | "RETURN_TO_PLAY" | "CLEARED";
-export type MedicalAvailabilityRecommendation = "UNAVAILABLE" | "LIMITED_TRAINING" | "AVAILABLE_WITH_RISK" | "FULLY_FIT";
+export type MedicalRehabStage =
+  "DIAGNOSIS" | "REHABILITATION" | "RETURN_TO_TRAINING" | "RETURN_TO_PLAY" | "CLEARED";
+export type MedicalAvailabilityRecommendation =
+  "UNAVAILABLE" | "LIMITED_TRAINING" | "AVAILABLE_WITH_RISK" | "FULLY_FIT";
 export type MedicalAssessment = {
   id: EntityId;
   personId: EntityId;
@@ -2654,7 +2675,8 @@ export type MedicalAssessment = {
 // ---------------------------------------------------------------------------
 
 /** A distinct, staged rehab track — protection through match-ready — separate from the coarser MedicalRehabStage used by the standing assessment. */
-export type RehabStage = "PROTECTION_REST" | "REHABILITATION" | "PARTIAL_TRAINING" | "FULL_TRAINING" | "MATCH_READY";
+export type RehabStage =
+  "PROTECTION_REST" | "REHABILITATION" | "PARTIAL_TRAINING" | "FULL_TRAINING" | "MATCH_READY";
 
 export type RehabilitationPlan = {
   id: EntityId;
@@ -2910,7 +2932,16 @@ export type FederationAiDecision = {
   status: "SIMULATION_ONLY";
 };
 
-export type ExternalFootballRegion = "SOUTH_ASIA" | "WIDER_ASIA" | "MIDDLE_EAST" | "AUSTRALIA" | "EUROPE" | "AFRICA" | "SOUTH_AMERICA" | "NORTH_CENTRAL_AMERICA" | "OCEANIA";
+export type ExternalFootballRegion =
+  | "SOUTH_ASIA"
+  | "WIDER_ASIA"
+  | "MIDDLE_EAST"
+  | "AUSTRALIA"
+  | "EUROPE"
+  | "AFRICA"
+  | "SOUTH_AMERICA"
+  | "NORTH_CENTRAL_AMERICA"
+  | "OCEANIA";
 
 export type ExternalFootballRegionProfile = {
   id: EntityId;
@@ -3064,17 +3095,72 @@ export type FederationElectionResult = {
   provenanceStatus: "SIMULATION_ONLY";
 };
 
-export type FederationCommitteeMembership = { id: EntityId; federationId: EntityId; committeeId: EntityId; personId: EntityId; influence: number; startsOn: ISODate; endsOn?: ISODate; status: "ACTIVE" | "FORMER"; provenanceStatus: "SIMULATION_ONLY" };
-export type FederationGovernanceProposal = {
-  id: EntityId; federationId: EntityId; proposedByPersonId: EntityId; title: string;
-  policyArea: "COMPETITION" | "DEVELOPMENT" | "INFRASTRUCTURE" | "GRANTS" | "COMMERCIAL";
-  targetCommittee: FederationCommitteeType; payload: Record<string, unknown>; proposedAt: ISODate;
-  reviewedAt?: ISODate; decidedAt?: ISODate; status: "PROPOSED" | "COMMITTEE_REVIEW" | "APPROVED" | "REJECTED" | "IMPLEMENTED";
-  votes: Record<string, number>; provenanceStatus: "SIMULATION_ONLY";
+export type FederationCommitteeMembership = {
+  id: EntityId;
+  federationId: EntityId;
+  committeeId: EntityId;
+  personId: EntityId;
+  influence: number;
+  startsOn: ISODate;
+  endsOn?: ISODate;
+  status: "ACTIVE" | "FORMER";
+  provenanceStatus: "SIMULATION_ONLY";
 };
-export type FederationManifestoCommitment = { id: EntityId; federationId: EntityId; presidentPersonId: EntityId; electionCycleId: EntityId; policyArea: string; promise: string; targetValue: number; progress: number; dueDate: ISODate; status: "OPEN" | "FULFILLED" | "BROKEN"; lastUpdated: ISODate; provenanceStatus: "SIMULATION_ONLY" };
-export type FederationCoalitionState = { federationId: EntityId; presidentPersonId: EntityId; confidence: number; coalitionSupport: number; noConfidenceThreshold: number; lastUpdated: ISODate; status: "CONFIDENT" | "STRAINED" | "NO_CONFIDENCE"; provenanceStatus: "SIMULATION_ONLY" };
-export type FederationGovernanceEvent = { id: EntityId; federationId: EntityId; date: ISODate; eventType: "PROPOSAL" | "COMMITTEE_REVIEW" | "POLICY_DECISION" | "CONFIDENCE_CHANGE" | "RESIGNATION" | "REMOVAL"; subjectId: EntityId; summary: string; payload: Record<string, unknown>; provenanceStatus: "SIMULATION_ONLY" };
+export type FederationGovernanceProposal = {
+  id: EntityId;
+  federationId: EntityId;
+  proposedByPersonId: EntityId;
+  title: string;
+  policyArea: "COMPETITION" | "DEVELOPMENT" | "INFRASTRUCTURE" | "GRANTS" | "COMMERCIAL";
+  targetCommittee: FederationCommitteeType;
+  payload: Record<string, unknown>;
+  proposedAt: ISODate;
+  reviewedAt?: ISODate;
+  decidedAt?: ISODate;
+  status: "PROPOSED" | "COMMITTEE_REVIEW" | "APPROVED" | "REJECTED" | "IMPLEMENTED";
+  votes: Record<string, number>;
+  provenanceStatus: "SIMULATION_ONLY";
+};
+export type FederationManifestoCommitment = {
+  id: EntityId;
+  federationId: EntityId;
+  presidentPersonId: EntityId;
+  electionCycleId: EntityId;
+  policyArea: string;
+  promise: string;
+  targetValue: number;
+  progress: number;
+  dueDate: ISODate;
+  status: "OPEN" | "FULFILLED" | "BROKEN";
+  lastUpdated: ISODate;
+  provenanceStatus: "SIMULATION_ONLY";
+};
+export type FederationCoalitionState = {
+  federationId: EntityId;
+  presidentPersonId: EntityId;
+  confidence: number;
+  coalitionSupport: number;
+  noConfidenceThreshold: number;
+  lastUpdated: ISODate;
+  status: "CONFIDENT" | "STRAINED" | "NO_CONFIDENCE";
+  provenanceStatus: "SIMULATION_ONLY";
+};
+export type FederationGovernanceEvent = {
+  id: EntityId;
+  federationId: EntityId;
+  date: ISODate;
+  eventType:
+    | "PROPOSAL"
+    | "COMMITTEE_REVIEW"
+    | "POLICY_DECISION"
+    | "CONFIDENCE_CHANGE"
+    | "RESIGNATION"
+    | "REMOVAL";
+  subjectId: EntityId;
+  summary: string;
+  payload: Record<string, unknown>;
+  provenanceStatus: "SIMULATION_ONLY";
+};
 
 export type FederationCommitteeType =
   | "COMPETITION_COMMITTEE"
@@ -3562,21 +3648,159 @@ export type NationalTeamCampaign = {
   status: "SIMULATION_ONLY";
 };
 
-export type NationalTeamSquadRegistration = { id: EntityId; federationId: EntityId; nationalTeamId: EntityId; competitionEditionId: EntityId; registrationDeadline: ISODate; provisionalPlayerIds: EntityId[]; finalPlayerIds?: EntityId[]; status: "PROVISIONAL" | "FINAL" | "REPLACEMENT_WINDOW_CLOSED"; provenanceStatus: "SIMULATION_ONLY" };
-export type NationalTeamCampLifecycle = { id: EntityId; federationId: EntityId; nationalTeamId: EntityId; competitionEditionId?: EntityId; callupDate: ISODate; arrivalDate?: ISODate; trainingStart?: ISODate; matchDate?: ISODate; releaseDate?: ISODate; status: "CALLED_UP" | "ARRIVED" | "TRAINING" | "MATCH" | "RELEASED"; playerIds: EntityId[]; fitnessEffect: number; provenanceStatus: "SIMULATION_ONLY" };
-export type InternationalCommitment = { playerId: EntityId; federationId: EntityId; status: "ACTIVE" | "TEMPORARILY_RELUCTANT" | "RETIRED"; decidedOn: ISODate; reason?: string; provenanceStatus: "SIMULATION_ONLY" };
-export type DiasporaRecruitment = { id: EntityId; federationId: EntityId; playerId: EntityId; status: "IDENTIFIED" | "CONTACTED" | "INTERESTED" | "ELIGIBLE_CONFIRMED" | "COMMITTED"; lastUpdated: ISODate; provenanceStatus: "SIMULATION_ONLY" };
+export type NationalTeamSquadRegistration = {
+  id: EntityId;
+  federationId: EntityId;
+  nationalTeamId: EntityId;
+  competitionEditionId: EntityId;
+  registrationDeadline: ISODate;
+  provisionalPlayerIds: EntityId[];
+  finalPlayerIds?: EntityId[];
+  status: "PROVISIONAL" | "FINAL" | "REPLACEMENT_WINDOW_CLOSED";
+  provenanceStatus: "SIMULATION_ONLY";
+};
+export type NationalTeamCampLifecycle = {
+  id: EntityId;
+  federationId: EntityId;
+  nationalTeamId: EntityId;
+  competitionEditionId?: EntityId;
+  callupDate: ISODate;
+  arrivalDate?: ISODate;
+  trainingStart?: ISODate;
+  matchDate?: ISODate;
+  releaseDate?: ISODate;
+  status: "CALLED_UP" | "ARRIVED" | "TRAINING" | "MATCH" | "RELEASED";
+  playerIds: EntityId[];
+  fitnessEffect: number;
+  provenanceStatus: "SIMULATION_ONLY";
+};
+export type InternationalCommitment = {
+  playerId: EntityId;
+  federationId: EntityId;
+  status: "ACTIVE" | "TEMPORARILY_RELUCTANT" | "RETIRED";
+  decidedOn: ISODate;
+  reason?: string;
+  provenanceStatus: "SIMULATION_ONLY";
+};
+export type DiasporaRecruitment = {
+  id: EntityId;
+  federationId: EntityId;
+  playerId: EntityId;
+  status: "IDENTIFIED" | "CONTACTED" | "INTERESTED" | "ELIGIBLE_CONFIRMED" | "COMMITTED";
+  lastUpdated: ISODate;
+  provenanceStatus: "SIMULATION_ONLY";
+};
 
-export type NationalTeamSelectionPolicy = "FORM_FIRST" | "EXPERIENCE_FIRST" | "YOUTH_DEVELOPMENT" | "DOMESTIC_CORE" | "DIASPORA_INCLUSIVE" | "BALANCED";
-export type NationalTeamWatchlistItem = { id: EntityId; federationId: EntityId; nationalTeamId: EntityId; playerId: EntityId; playerKnowledgeLevel: PlayerKnowledgeLevel; reason: string; lastReviewed: ISODate; status: "MONITORING" | "SELECTED" | "DROPPED"; provenanceStatus: "SIMULATION_ONLY" };
-export type NationalTeamOperationalPlan = { id: EntityId; federationId: EntityId; nationalTeamId: EntityId; competitionEditionId?: EntityId; campStart: ISODate; campEnd: ISODate; travelPlan: string; baseVenue?: EntityId; registrationDeadline?: ISODate; recoveryDaysBetweenFixtures: number; status: "PLANNED" | "ACTIVE" | "COMPLETED"; provenanceStatus: "SIMULATION_ONLY" };
-export type NationalTeamInternationalForm = { id: EntityId; nationalTeamId: EntityId; playerId: EntityId; windowDate: ISODate; appearances: number; minutes: number; goals: number; formRating: number; rationale: string; provenanceStatus: "SIMULATION_ONLY" };
+export type NationalTeamSelectionPolicy =
+  | "FORM_FIRST"
+  | "EXPERIENCE_FIRST"
+  | "YOUTH_DEVELOPMENT"
+  | "DOMESTIC_CORE"
+  | "DIASPORA_INCLUSIVE"
+  | "BALANCED";
+export type NationalTeamWatchlistItem = {
+  id: EntityId;
+  federationId: EntityId;
+  nationalTeamId: EntityId;
+  playerId: EntityId;
+  playerKnowledgeLevel: PlayerKnowledgeLevel;
+  reason: string;
+  lastReviewed: ISODate;
+  status: "MONITORING" | "SELECTED" | "DROPPED";
+  provenanceStatus: "SIMULATION_ONLY";
+};
+export type NationalTeamOperationalPlan = {
+  id: EntityId;
+  federationId: EntityId;
+  nationalTeamId: EntityId;
+  competitionEditionId?: EntityId;
+  campStart: ISODate;
+  campEnd: ISODate;
+  travelPlan: string;
+  baseVenue?: EntityId;
+  registrationDeadline?: ISODate;
+  recoveryDaysBetweenFixtures: number;
+  status: "PLANNED" | "ACTIVE" | "COMPLETED";
+  provenanceStatus: "SIMULATION_ONLY";
+};
+export type NationalTeamInternationalForm = {
+  id: EntityId;
+  nationalTeamId: EntityId;
+  playerId: EntityId;
+  windowDate: ISODate;
+  appearances: number;
+  minutes: number;
+  goals: number;
+  formRating: number;
+  rationale: string;
+  provenanceStatus: "SIMULATION_ONLY";
+};
 
-export type MediaOutlet = { id: EntityId; name: string; scope: "LOCAL" | "NATIONAL" | "REGIONAL_INTERNATIONAL"; reputation: number; reach: number; bias: "NEUTRAL" | "CLUB_FOCUSED" | "NATIONAL_FOCUS" | "DEVELOPMENT_FOCUS"; style: "WIRE" | "ANALYSIS" | "TABLOID" | "TRADE"; status: "SIMULATION_ONLY" };
-export type MediaStory = { id: EntityId; outletId: EntityId; eventType: "MATCH_RESULT" | "TRANSFER" | "STAFF_CHANGE" | "INJURY" | "COMPETITION" | "MILESTONE" | "NATIONAL_TEAM"; sourceEntityId: EntityId; publishedOn: ISODate; importance: number; headline: string; summary: string; subjectIds: EntityId[]; reputationEffect: number; status: "PUBLISHED" | "ARCHIVED"; provenanceStatus: "SIMULATION_ONLY" };
-export type MediaJournalist = { id: EntityId; outletId: EntityId; name: string; beat: string; temperament: "FRIENDLY" | "NEUTRAL" | "SCEPTICAL"; reputation: number; status: "SIMULATION_ONLY" };
-export type MediaJournalistRelationship = { id: EntityId; journalistId: EntityId; managerPersonId?: EntityId; trust: number; lastInteraction?: ISODate; status: "SIMULATION_ONLY" };
-export type MediaInterview = { id: EntityId; outletId: EntityId; journalistId: EntityId; sourceEntityId: EntityId; managerPersonId?: EntityId; interviewDate: ISODate; context: "PRE_MATCH" | "POST_MATCH" | "EVENT"; importance: number; questions: string[]; responses: string[]; summary: string; managerReputationEffect: number; clubSupportEffect: number; status: "OPEN" | "COMPLETED"; provenanceStatus: "SIMULATION_ONLY" };
+export type MediaOutlet = {
+  id: EntityId;
+  name: string;
+  scope: "LOCAL" | "NATIONAL" | "REGIONAL_INTERNATIONAL";
+  reputation: number;
+  reach: number;
+  bias: "NEUTRAL" | "CLUB_FOCUSED" | "NATIONAL_FOCUS" | "DEVELOPMENT_FOCUS";
+  style: "WIRE" | "ANALYSIS" | "TABLOID" | "TRADE";
+  status: "SIMULATION_ONLY";
+};
+export type MediaStory = {
+  id: EntityId;
+  outletId: EntityId;
+  eventType:
+    | "MATCH_RESULT"
+    | "TRANSFER"
+    | "STAFF_CHANGE"
+    | "INJURY"
+    | "COMPETITION"
+    | "MILESTONE"
+    | "NATIONAL_TEAM";
+  sourceEntityId: EntityId;
+  publishedOn: ISODate;
+  importance: number;
+  headline: string;
+  summary: string;
+  subjectIds: EntityId[];
+  reputationEffect: number;
+  status: "PUBLISHED" | "ARCHIVED";
+  provenanceStatus: "SIMULATION_ONLY";
+};
+export type MediaJournalist = {
+  id: EntityId;
+  outletId: EntityId;
+  name: string;
+  beat: string;
+  temperament: "FRIENDLY" | "NEUTRAL" | "SCEPTICAL";
+  reputation: number;
+  status: "SIMULATION_ONLY";
+};
+export type MediaJournalistRelationship = {
+  id: EntityId;
+  journalistId: EntityId;
+  managerPersonId?: EntityId;
+  trust: number;
+  lastInteraction?: ISODate;
+  status: "SIMULATION_ONLY";
+};
+export type MediaInterview = {
+  id: EntityId;
+  outletId: EntityId;
+  journalistId: EntityId;
+  sourceEntityId: EntityId;
+  managerPersonId?: EntityId;
+  interviewDate: ISODate;
+  context: "PRE_MATCH" | "POST_MATCH" | "EVENT";
+  importance: number;
+  questions: string[];
+  responses: string[];
+  summary: string;
+  managerReputationEffect: number;
+  clubSupportEffect: number;
+  status: "OPEN" | "COMPLETED";
+  provenanceStatus: "SIMULATION_ONLY";
+};
 
 export type InternationalRetirementStatus = "ACTIVE" | "CONSIDERING" | "RETIRED_INTERNATIONAL";
 
@@ -3943,10 +4167,7 @@ export type ManagerConcernResponse = {
 };
 
 export type ManagerPromiseType =
-  | "PLAYING_TIME"
-  | "CONTRACT_REVIEW"
-  | "SQUAD_ROLE"
-  | "TRANSFER_STANCE";
+  "PLAYING_TIME" | "CONTRACT_REVIEW" | "SQUAD_ROLE" | "TRANSFER_STANCE";
 export type ManagerPromiseStatus = "ACTIVE" | "KEPT" | "BROKEN" | "EXPIRED";
 
 /**
@@ -4065,7 +4286,8 @@ export type StaffApplication = {
   counterSalaryMinor?: number;
 };
 
-export type StaffEmploymentContractStatus = "ACTIVE" | "EXPIRED" | "TERMINATED" | "RESIGNED" | "RETIRED";
+export type StaffEmploymentContractStatus =
+  "ACTIVE" | "EXPIRED" | "TERMINATED" | "RESIGNED" | "RETIRED";
 
 /**
  * The employment contract behind a `StaffAppointment` (referenced by its
@@ -4229,25 +4451,108 @@ export type StaffSuccessionPlan = {
   status: StaffSuccessionPlanStatus;
 };
 
-export type InvestorExpectationType = "FINANCIAL_RETURN" | "SPORTING_GROWTH" | "INFRASTRUCTURE_GROWTH" | "REPUTATION_GROWTH";
-export type InvestorExpectation = { type: InvestorExpectationType; target: number; progress: number; status: "ON_TRACK" | "AT_RISK" | "MET" | "MISSED" };
-export type OwnershipInvestorProfile = {
-  id: EntityId; clubId: EntityId; personId: EntityId; influence: number;
-  expectations: Record<InvestorExpectationType, InvestorExpectation>; trust: number; confidence: number;
-  lastReviewedOn: ISODate; status: "ACTIVE" | "EXITED"; provenanceStatus: "SIMULATION_ONLY";
+export type InvestorExpectationType =
+  "FINANCIAL_RETURN" | "SPORTING_GROWTH" | "INFRASTRUCTURE_GROWTH" | "REPUTATION_GROWTH";
+export type InvestorExpectation = {
+  type: InvestorExpectationType;
+  target: number;
+  progress: number;
+  status: "ON_TRACK" | "AT_RISK" | "MET" | "MISSED";
 };
-
-export type ClubLicenceCaseStatus = "PENDING" | "PASSED" | "CONDITIONAL" | "FAILED" | "APPEALED" | "RESOLVED";
-export type ClubLicenceRemediation = { key: string; requirement: string; deadline: ISODate; completed: boolean };
-export type ClubLicenceHistoryEvent = { date: ISODate; action: "OPENED" | "ASSESSED" | "CONDITIONAL" | "PASSED" | "FAILED" | "APPEALED" | "RESOLVED" | "CLOSED"; note: string };
-export type ClubLicenceCase = {
-  id: EntityId; federationId: EntityId; clubId: EntityId; competitionSeasonId: EntityId; seasonLabel: string;
-  status: ClubLicenceCaseStatus; remediation: ClubLicenceRemediation[]; sanctions: string[]; history: ClubLicenceHistoryEvent[]; reviewedAt: ISODate;
+export type OwnershipInvestorProfile = {
+  id: EntityId;
+  clubId: EntityId;
+  personId: EntityId;
+  influence: number;
+  expectations: Record<InvestorExpectationType, InvestorExpectation>;
+  trust: number;
+  confidence: number;
+  lastReviewedOn: ISODate;
+  status: "ACTIVE" | "EXITED";
   provenanceStatus: "SIMULATION_ONLY";
 };
 
-export type CareerReputationDimensions = { sporting: number; businessOwnership: number; governance: number; nationalInternational: number };
-export type CareerMilestoneType = "APPOINTMENT" | "RESIGNATION" | "SACKING" | "PROMOTION" | "TROPHY" | "OWNERSHIP" | "INFRASTRUCTURE" | "FEDERATION_TERM" | "NATIONAL_TEAM";
-export type CareerMilestone = { id: EntityId; date: ISODate; type: CareerMilestoneType; role: "MANAGER" | "CHAIRMAN_OWNER" | "FEDERATION_PRESIDENT"; title: string; sourceEntityId?: EntityId; impact: Partial<CareerReputationDimensions> };
-export type CareerIdentity = { personId: EntityId; reputation: CareerReputationDimensions; milestones: CareerMilestone[]; activeRoles: string[]; retired: boolean; legacy: { clubsServed: number; trophies: number; ownershipEvents: number; federationTerms: number; majorRecords: string[]; careerWealth: number }; lastUpdatedAt: ISODate; provenanceStatus: "SIMULATION_ONLY" };
-export type CareerOpportunity = { id: EntityId; role: "MANAGER" | "CHAIRMAN_OWNER" | "FEDERATION_PRESIDENT"; sourceEntityId?: EntityId; eligible: boolean; rationale: string };
+export type ClubLicenceCaseStatus =
+  "PENDING" | "PASSED" | "CONDITIONAL" | "FAILED" | "APPEALED" | "RESOLVED";
+export type ClubLicenceRemediation = {
+  key: string;
+  requirement: string;
+  deadline: ISODate;
+  completed: boolean;
+};
+export type ClubLicenceHistoryEvent = {
+  date: ISODate;
+  action:
+    | "OPENED"
+    | "ASSESSED"
+    | "CONDITIONAL"
+    | "PASSED"
+    | "FAILED"
+    | "APPEALED"
+    | "RESOLVED"
+    | "CLOSED";
+  note: string;
+};
+export type ClubLicenceCase = {
+  id: EntityId;
+  federationId: EntityId;
+  clubId: EntityId;
+  competitionSeasonId: EntityId;
+  seasonLabel: string;
+  status: ClubLicenceCaseStatus;
+  remediation: ClubLicenceRemediation[];
+  sanctions: string[];
+  history: ClubLicenceHistoryEvent[];
+  reviewedAt: ISODate;
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+export type CareerReputationDimensions = {
+  sporting: number;
+  businessOwnership: number;
+  governance: number;
+  nationalInternational: number;
+};
+export type CareerMilestoneType =
+  | "APPOINTMENT"
+  | "RESIGNATION"
+  | "SACKING"
+  | "PROMOTION"
+  | "TROPHY"
+  | "OWNERSHIP"
+  | "INFRASTRUCTURE"
+  | "FEDERATION_TERM"
+  | "NATIONAL_TEAM";
+export type CareerMilestone = {
+  id: EntityId;
+  date: ISODate;
+  type: CareerMilestoneType;
+  role: "MANAGER" | "CHAIRMAN_OWNER" | "FEDERATION_PRESIDENT";
+  title: string;
+  sourceEntityId?: EntityId;
+  impact: Partial<CareerReputationDimensions>;
+};
+export type CareerIdentity = {
+  personId: EntityId;
+  reputation: CareerReputationDimensions;
+  milestones: CareerMilestone[];
+  activeRoles: string[];
+  retired: boolean;
+  legacy: {
+    clubsServed: number;
+    trophies: number;
+    ownershipEvents: number;
+    federationTerms: number;
+    majorRecords: string[];
+    careerWealth: number;
+  };
+  lastUpdatedAt: ISODate;
+  provenanceStatus: "SIMULATION_ONLY";
+};
+export type CareerOpportunity = {
+  id: EntityId;
+  role: "MANAGER" | "CHAIRMAN_OWNER" | "FEDERATION_PRESIDENT";
+  sourceEntityId?: EntityId;
+  eligible: boolean;
+  rationale: string;
+};

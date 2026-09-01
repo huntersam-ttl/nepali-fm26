@@ -1641,7 +1641,13 @@ export class SquadDynamicsRepository {
           group_type = excluded.group_type,
           updated_on = excluded.updated_on`,
       )
-      .run(membership.id, membership.teamId, membership.personId, membership.groupType, membership.updatedOn);
+      .run(
+        membership.id,
+        membership.teamId,
+        membership.personId,
+        membership.groupType,
+        membership.updatedOn,
+      );
   }
 
   groupsForTeam(teamId: EntityId): SquadGroupMembership[] {
@@ -1712,7 +1718,9 @@ export class SquadDynamicsRepository {
 
   openDisputesForTeam(teamId: EntityId): SquadDispute[] {
     return this.db
-      .prepare("SELECT * FROM squad_disputes WHERE team_id = ? AND status = 'OPEN' ORDER BY raised_on")
+      .prepare(
+        "SELECT * FROM squad_disputes WHERE team_id = ? AND status = 'OPEN' ORDER BY raised_on",
+      )
       .all(teamId)
       .map(mapDispute);
   }
@@ -1915,7 +1923,9 @@ export class StaffMarketRepository {
   constructor(private readonly db: GameDatabase) {}
 
   staffProfile(personId: EntityId): StaffProfile | undefined {
-    const row = this.db.prepare("SELECT * FROM staff_profiles WHERE person_id = ?").get(personId) as any;
+    const row = this.db
+      .prepare("SELECT * FROM staff_profiles WHERE person_id = ?")
+      .get(personId) as any;
     return row ? mapStaffProfile(row) : undefined;
   }
 
@@ -1927,24 +1937,67 @@ export class StaffMarketRepository {
   }
 
   updateStaffSimulationProfile(profile: StaffSimulationProfile): void {
-    this.db.prepare(`UPDATE staff_simulation_profiles SET coaching_technical=?, coaching_tactical=?, coaching_physical=?, coaching_mental=?, goalkeeping=?, youth_development=?, man_management=? WHERE person_id=?`).run(profile.coachingTechnical, profile.coachingTactical, profile.coachingPhysical, profile.coachingMental, profile.goalkeeping, profile.youthDevelopment, profile.manManagement, profile.personId);
+    this.db
+      .prepare(
+        `UPDATE staff_simulation_profiles SET coaching_technical=?, coaching_tactical=?, coaching_physical=?, coaching_mental=?, goalkeeping=?, youth_development=?, man_management=? WHERE person_id=?`,
+      )
+      .run(
+        profile.coachingTechnical,
+        profile.coachingTactical,
+        profile.coachingPhysical,
+        profile.coachingMental,
+        profile.goalkeeping,
+        profile.youthDevelopment,
+        profile.manManagement,
+        profile.personId,
+      );
   }
 
   upsertTechnicalPlacement(placement: StaffTechnicalPlacement): void {
-    this.db.prepare(`INSERT INTO staff_technical_placements (id,person_id,home_club_id,partner_club_id,partnership_id,programme_type,start_date,end_date,status,development_applied,completed_on) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,development_applied=excluded.development_applied,completed_on=excluded.completed_on`).run(placement.id, placement.personId, placement.homeClubId, placement.partnerClubId, placement.partnershipId, placement.programmeType, placement.startDate, placement.endDate, placement.status, placement.developmentApplied ? 1 : 0, placement.completedOn ?? null);
+    this.db
+      .prepare(
+        `INSERT INTO staff_technical_placements (id,person_id,home_club_id,partner_club_id,partnership_id,programme_type,start_date,end_date,status,development_applied,completed_on) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,development_applied=excluded.development_applied,completed_on=excluded.completed_on`,
+      )
+      .run(
+        placement.id,
+        placement.personId,
+        placement.homeClubId,
+        placement.partnerClubId,
+        placement.partnershipId,
+        placement.programmeType,
+        placement.startDate,
+        placement.endDate,
+        placement.status,
+        placement.developmentApplied ? 1 : 0,
+        placement.completedOn ?? null,
+      );
   }
 
   technicalPlacementsForClub(clubId: EntityId): StaffTechnicalPlacement[] {
-    return (this.db.prepare("SELECT * FROM staff_technical_placements WHERE home_club_id=? ORDER BY start_date,id").all(clubId) as any[]).map(mapStaffTechnicalPlacementRow);
+    return (
+      this.db
+        .prepare(
+          "SELECT * FROM staff_technical_placements WHERE home_club_id=? ORDER BY start_date,id",
+        )
+        .all(clubId) as any[]
+    ).map(mapStaffTechnicalPlacementRow);
   }
 
   activeTechnicalPlacementForPerson(personId: EntityId): StaffTechnicalPlacement | undefined {
-    const row = this.db.prepare("SELECT * FROM staff_technical_placements WHERE person_id=? AND status='ACTIVE'").get(personId) as any;
+    const row = this.db
+      .prepare("SELECT * FROM staff_technical_placements WHERE person_id=? AND status='ACTIVE'")
+      .get(personId) as any;
     return row ? mapStaffTechnicalPlacementRow(row) : undefined;
   }
 
   dueTechnicalPlacements(worldDate: string): StaffTechnicalPlacement[] {
-    return (this.db.prepare("SELECT * FROM staff_technical_placements WHERE status='ACTIVE' AND end_date<=? ORDER BY end_date,id").all(worldDate) as any[]).map(mapStaffTechnicalPlacementRow);
+    return (
+      this.db
+        .prepare(
+          "SELECT * FROM staff_technical_placements WHERE status='ACTIVE' AND end_date<=? ORDER BY end_date,id",
+        )
+        .all(worldDate) as any[]
+    ).map(mapStaffTechnicalPlacementRow);
   }
 
   staffLicencesForPerson(personId: EntityId): StaffLicence[] {
@@ -1956,14 +2009,18 @@ export class StaffMarketRepository {
 
   activeAppointment(personId: EntityId): StaffAppointment | undefined {
     const row = this.db
-      .prepare("SELECT * FROM staff_appointments WHERE person_id = ? AND employment_status = 'ACTIVE'")
+      .prepare(
+        "SELECT * FROM staff_appointments WHERE person_id = ? AND employment_status = 'ACTIVE'",
+      )
       .get(personId) as any;
     return row ? mapStaffAppointmentRow(row) : undefined;
   }
 
   activeAppointmentsForClub(clubId: EntityId): StaffAppointment[] {
     return this.db
-      .prepare("SELECT * FROM staff_appointments WHERE club_id = ? AND employment_status = 'ACTIVE'")
+      .prepare(
+        "SELECT * FROM staff_appointments WHERE club_id = ? AND employment_status = 'ACTIVE'",
+      )
       .all(clubId)
       .map(mapStaffAppointmentRow);
   }
@@ -2162,7 +2219,9 @@ export class StaffMarketRepository {
 
   renewalOffersForAppointment(appointmentId: EntityId): StaffRenewalOffer[] {
     return this.db
-      .prepare("SELECT * FROM staff_renewal_offers WHERE appointment_id = ? ORDER BY created_on DESC")
+      .prepare(
+        "SELECT * FROM staff_renewal_offers WHERE appointment_id = ? ORDER BY created_on DESC",
+      )
       .all(appointmentId)
       .map(mapStaffRenewalOfferRow);
   }
@@ -2177,7 +2236,15 @@ export class StaffMarketRepository {
         VALUES (?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO NOTHING`,
       )
-      .run(record.id, record.personId, record.appointmentId, record.clubId, record.periodEnd, record.score, record.note ?? null);
+      .run(
+        record.id,
+        record.personId,
+        record.appointmentId,
+        record.clubId,
+        record.periodEnd,
+        record.score,
+        record.note ?? null,
+      );
   }
 
   performanceHistoryForPerson(personId: EntityId): StaffPerformanceRecord[] {
@@ -2287,7 +2354,9 @@ export class StaffMarketRepository {
   }
 
   employmentContractById(id: EntityId): StaffEmploymentContract | undefined {
-    const row = this.db.prepare("SELECT * FROM staff_employment_contracts WHERE id = ?").get(id) as any;
+    const row = this.db
+      .prepare("SELECT * FROM staff_employment_contracts WHERE id = ?")
+      .get(id) as any;
     return row ? mapStaffEmploymentContractRow(row) : undefined;
   }
 
@@ -2300,14 +2369,18 @@ export class StaffMarketRepository {
 
   activeEmploymentContracts(): StaffEmploymentContract[] {
     return this.db
-      .prepare("SELECT * FROM staff_employment_contracts WHERE status = 'ACTIVE' ORDER BY club_id, person_id")
+      .prepare(
+        "SELECT * FROM staff_employment_contracts WHERE status = 'ACTIVE' ORDER BY club_id, person_id",
+      )
       .all()
       .map(mapStaffEmploymentContractRow);
   }
 
   employmentContractsForPerson(personId: EntityId): StaffEmploymentContract[] {
     return this.db
-      .prepare("SELECT * FROM staff_employment_contracts WHERE person_id = ? ORDER BY contract_start")
+      .prepare(
+        "SELECT * FROM staff_employment_contracts WHERE person_id = ? ORDER BY contract_start",
+      )
       .all(personId)
       .map(mapStaffEmploymentContractRow);
   }
@@ -2445,7 +2518,9 @@ export class StaffMarketRepository {
 
   activeSuccessionPlanFor(outgoingAppointmentId: EntityId): StaffSuccessionPlan | undefined {
     const row = this.db
-      .prepare("SELECT * FROM staff_succession_plans WHERE outgoing_appointment_id = ? AND status = 'ACTIVE'")
+      .prepare(
+        "SELECT * FROM staff_succession_plans WHERE outgoing_appointment_id = ? AND status = 'ACTIVE'",
+      )
       .get(outgoingAppointmentId) as any;
     return row ? mapStaffSuccessionPlanRow(row) : undefined;
   }
@@ -2722,8 +2797,12 @@ export class CompetitionRepository {
         json.stringify({
           ...(ruleSet.specialRules ?? {}),
           ...(ruleSet.winnerResolution ? { winnerResolution: ruleSet.winnerResolution } : {}),
-          ...(ruleSet.allowExtraTime !== undefined ? { allowExtraTime: ruleSet.allowExtraTime } : {}),
-          ...(ruleSet.allowPenalties !== undefined ? { allowPenalties: ruleSet.allowPenalties } : {}),
+          ...(ruleSet.allowExtraTime !== undefined
+            ? { allowExtraTime: ruleSet.allowExtraTime }
+            : {}),
+          ...(ruleSet.allowPenalties !== undefined
+            ? { allowPenalties: ruleSet.allowPenalties }
+            : {}),
         }),
       );
   }
@@ -2756,7 +2835,8 @@ export class CompetitionRepository {
           promotionEnabled: Boolean(row.promotion_enabled),
           relegationEnabled: Boolean(row.relegation_enabled),
           specialRules,
-          winnerResolution: specialRules?.winnerResolution as CompetitionRuleSet["winnerResolution"],
+          winnerResolution:
+            specialRules?.winnerResolution as CompetitionRuleSet["winnerResolution"],
           allowExtraTime: specialRules?.allowExtraTime as boolean | undefined,
           allowPenalties: specialRules?.allowPenalties as boolean | undefined,
         }
@@ -2884,9 +2964,15 @@ export class CompetitionRepository {
     this.db.prepare("UPDATE fixtures SET status = 'played' WHERE id = ?").run(fixtureId);
   }
 
-  rescheduleFixture(fixtureId: EntityId, scheduledDate: string, status: FixtureRecord["status"] = "postponed"): void {
+  rescheduleFixture(
+    fixtureId: EntityId,
+    scheduledDate: string,
+    status: FixtureRecord["status"] = "postponed",
+  ): void {
     this.db
-      .prepare("UPDATE fixtures SET scheduled_date = ?, status = ? WHERE id = ? AND status NOT IN ('played', 'cancelled')")
+      .prepare(
+        "UPDATE fixtures SET scheduled_date = ?, status = ? WHERE id = ? AND status NOT IN ('played', 'cancelled')",
+      )
       .run(scheduledDate, status, fixtureId);
   }
 
@@ -3940,16 +4026,44 @@ export class TransferMarketRepository {
   }
 
   upsertSellOnEntitlement(entitlement: SellOnEntitlement): void {
-    this.db.prepare(`INSERT INTO sell_on_entitlements (id,player_id,entitled_club_id,originating_transfer_id,originating_seller_club_id,originating_buyer_club_id,percentage,basis,status,settled_transfer_id,settled_on) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,settled_transfer_id=excluded.settled_transfer_id,settled_on=excluded.settled_on`).run(entitlement.id, entitlement.playerId, entitlement.entitledClubId, entitlement.originatingTransferId, entitlement.originatingSellerClubId, entitlement.originatingBuyerClubId, entitlement.percentage, entitlement.basis, entitlement.status, entitlement.settledTransferId ?? null, entitlement.settledOn ?? null);
+    this.db
+      .prepare(
+        `INSERT INTO sell_on_entitlements (id,player_id,entitled_club_id,originating_transfer_id,originating_seller_club_id,originating_buyer_club_id,percentage,basis,status,settled_transfer_id,settled_on) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,settled_transfer_id=excluded.settled_transfer_id,settled_on=excluded.settled_on`,
+      )
+      .run(
+        entitlement.id,
+        entitlement.playerId,
+        entitlement.entitledClubId,
+        entitlement.originatingTransferId,
+        entitlement.originatingSellerClubId,
+        entitlement.originatingBuyerClubId,
+        entitlement.percentage,
+        entitlement.basis,
+        entitlement.status,
+        entitlement.settledTransferId ?? null,
+        entitlement.settledOn ?? null,
+      );
   }
 
   sellOnEntitlements(playerId?: EntityId): SellOnEntitlement[] {
-    const rows = (playerId ? this.db.prepare("SELECT * FROM sell_on_entitlements WHERE player_id=? ORDER BY id").all(playerId) : this.db.prepare("SELECT * FROM sell_on_entitlements ORDER BY player_id,id").all()) as any[];
+    const rows = (
+      playerId
+        ? this.db
+            .prepare("SELECT * FROM sell_on_entitlements WHERE player_id=? ORDER BY id")
+            .all(playerId)
+        : this.db.prepare("SELECT * FROM sell_on_entitlements ORDER BY player_id,id").all()
+    ) as any[];
     return rows.map(mapSellOnEntitlement);
   }
 
   activeSellOnEntitlements(playerId: EntityId, sellingClubId: EntityId): SellOnEntitlement[] {
-    return (this.db.prepare("SELECT * FROM sell_on_entitlements WHERE player_id=? AND originating_buyer_club_id=? AND status='ACTIVE' ORDER BY id").all(playerId, sellingClubId) as any[]).map(mapSellOnEntitlement);
+    return (
+      this.db
+        .prepare(
+          "SELECT * FROM sell_on_entitlements WHERE player_id=? AND originating_buyer_club_id=? AND status='ACTIVE' ORDER BY id",
+        )
+        .all(playerId, sellingClubId) as any[]
+    ).map(mapSellOnEntitlement);
   }
 
   insertNegotiationRound(round: NegotiationRound): void {
@@ -3989,8 +4103,8 @@ export class TransferMarketRepository {
         `INSERT INTO player_loans
         (id, parent_club_id, loan_club_id, player_id, start_date, end_date,
           wage_contribution_percent, loan_fee, playing_time_expectation, recall_allowed,
-          purchase_option, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          purchase_option, purchase_obligation, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET status = excluded.status`,
       )
       .run(
@@ -4005,6 +4119,7 @@ export class TransferMarketRepository {
         loan.playingTimeExpectation,
         Number(loan.recallAllowed),
         loan.purchaseOption ?? null,
+        loan.purchaseObligation ?? null,
         loan.status,
       );
   }
@@ -4391,20 +4506,56 @@ export class YouthRepository {
   }
 
   upsertPartnershipDevelopmentProgramme(programme: YouthPartnershipDevelopmentProgramme): void {
-    this.db.prepare(`INSERT INTO youth_partnership_development_programmes (id,player_id,home_club_id,partner_club_id,partnership_id,programme_type,start_date,end_date,status,development_applied,completed_on) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,development_applied=excluded.development_applied,completed_on=excluded.completed_on`).run(programme.id, programme.playerId, programme.homeClubId, programme.partnerClubId, programme.partnershipId, programme.programmeType, programme.startDate, programme.endDate, programme.status, programme.developmentApplied ? 1 : 0, programme.completedOn ?? null);
+    this.db
+      .prepare(
+        `INSERT INTO youth_partnership_development_programmes (id,player_id,home_club_id,partner_club_id,partnership_id,programme_type,start_date,end_date,status,development_applied,completed_on) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,development_applied=excluded.development_applied,completed_on=excluded.completed_on`,
+      )
+      .run(
+        programme.id,
+        programme.playerId,
+        programme.homeClubId,
+        programme.partnerClubId,
+        programme.partnershipId,
+        programme.programmeType,
+        programme.startDate,
+        programme.endDate,
+        programme.status,
+        programme.developmentApplied ? 1 : 0,
+        programme.completedOn ?? null,
+      );
   }
 
-  partnershipDevelopmentProgrammesForClub(clubId: EntityId): YouthPartnershipDevelopmentProgramme[] {
-    return (this.db.prepare("SELECT * FROM youth_partnership_development_programmes WHERE home_club_id=? ORDER BY start_date,id").all(clubId) as any[]).map(mapYouthPartnershipDevelopmentProgramme);
+  partnershipDevelopmentProgrammesForClub(
+    clubId: EntityId,
+  ): YouthPartnershipDevelopmentProgramme[] {
+    return (
+      this.db
+        .prepare(
+          "SELECT * FROM youth_partnership_development_programmes WHERE home_club_id=? ORDER BY start_date,id",
+        )
+        .all(clubId) as any[]
+    ).map(mapYouthPartnershipDevelopmentProgramme);
   }
 
-  activePartnershipDevelopmentForPlayer(playerId: EntityId): YouthPartnershipDevelopmentProgramme | undefined {
-    const row = this.db.prepare("SELECT * FROM youth_partnership_development_programmes WHERE player_id=? AND status='ACTIVE'").get(playerId) as any;
+  activePartnershipDevelopmentForPlayer(
+    playerId: EntityId,
+  ): YouthPartnershipDevelopmentProgramme | undefined {
+    const row = this.db
+      .prepare(
+        "SELECT * FROM youth_partnership_development_programmes WHERE player_id=? AND status='ACTIVE'",
+      )
+      .get(playerId) as any;
     return row ? mapYouthPartnershipDevelopmentProgramme(row) : undefined;
   }
 
   duePartnershipDevelopmentProgrammes(worldDate: string): YouthPartnershipDevelopmentProgramme[] {
-    return (this.db.prepare("SELECT * FROM youth_partnership_development_programmes WHERE status='ACTIVE' AND end_date<=? ORDER BY end_date,id").all(worldDate) as any[]).map(mapYouthPartnershipDevelopmentProgramme);
+    return (
+      this.db
+        .prepare(
+          "SELECT * FROM youth_partnership_development_programmes WHERE status='ACTIVE' AND end_date<=? ORDER BY end_date,id",
+        )
+        .all(worldDate) as any[]
+    ).map(mapYouthPartnershipDevelopmentProgramme);
   }
 
   upsertRetirementState(record: PlayerRetirementRecord): void {
@@ -4551,7 +4702,12 @@ export class PlayerRepository {
   attributesForPlayers(playerIds: readonly EntityId[]): PlayerAttributeSet[] {
     if (playerIds.length === 0) return [];
     const placeholders = playerIds.map(() => "?").join(",");
-    return this.db.prepare(`SELECT * FROM player_attributes WHERE person_id IN (${placeholders}) ORDER BY person_id`).all(...playerIds).map(mapAttributes);
+    return this.db
+      .prepare(
+        `SELECT * FROM player_attributes WHERE person_id IN (${placeholders}) ORDER BY person_id`,
+      )
+      .all(...playerIds)
+      .map(mapAttributes);
   }
 
   insertFactualProfile(profile: PlayerFactualProfile): void {
@@ -4984,7 +5140,9 @@ const mapYouthPlayerStatus = (row: any): YouthPlayerStatusRecord => ({
   pathway: json.parse(row.pathway_json, {}),
 });
 
-const mapYouthPartnershipDevelopmentProgramme = (row: any): YouthPartnershipDevelopmentProgramme => ({
+const mapYouthPartnershipDevelopmentProgramme = (
+  row: any,
+): YouthPartnershipDevelopmentProgramme => ({
   id: row.id,
   playerId: row.player_id,
   homeClubId: row.home_club_id,
@@ -5647,6 +5805,7 @@ const mapPlayerLoan = (row: any): PlayerLoanRecord => ({
   playingTimeExpectation: row.playing_time_expectation,
   recallAllowed: Boolean(row.recall_allowed),
   purchaseOption: row.purchase_option ?? undefined,
+  purchaseObligation: row.purchase_obligation ?? undefined,
   status: row.status,
 });
 
@@ -5954,13 +6113,26 @@ export class ClubEconomyRepository {
   }
 
   ledgerEntries(clubId?: EntityId, datePrefix?: string): ClubLedgerEntry[] {
-    const rows = clubId && datePrefix
-      ? this.db.prepare("SELECT * FROM club_ledger_entries WHERE club_id = ? AND entry_date LIKE ? ORDER BY entry_date, id").all(clubId, `${datePrefix}%`)
-      : clubId
-        ? this.db.prepare("SELECT * FROM club_ledger_entries WHERE club_id = ? ORDER BY entry_date, id").all(clubId)
-        : datePrefix
-          ? this.db.prepare("SELECT * FROM club_ledger_entries WHERE entry_date LIKE ? ORDER BY entry_date, id").all(`${datePrefix}%`)
-          : this.db.prepare("SELECT * FROM club_ledger_entries ORDER BY entry_date, id").all();
+    const rows =
+      clubId && datePrefix
+        ? this.db
+            .prepare(
+              "SELECT * FROM club_ledger_entries WHERE club_id = ? AND entry_date LIKE ? ORDER BY entry_date, id",
+            )
+            .all(clubId, `${datePrefix}%`)
+        : clubId
+          ? this.db
+              .prepare(
+                "SELECT * FROM club_ledger_entries WHERE club_id = ? ORDER BY entry_date, id",
+              )
+              .all(clubId)
+          : datePrefix
+            ? this.db
+                .prepare(
+                  "SELECT * FROM club_ledger_entries WHERE entry_date LIKE ? ORDER BY entry_date, id",
+                )
+                .all(`${datePrefix}%`)
+            : this.db.prepare("SELECT * FROM club_ledger_entries ORDER BY entry_date, id").all();
     return rows.map(mapClubLedgerEntry);
   }
 
@@ -6174,29 +6346,117 @@ export class ClubEconomyRepository {
   }
 
   upsertLender(lender: ClubLender): void {
-    this.db.prepare(`INSERT INTO club_lenders (id,name,institution_type,country_id,source_url,status) VALUES (?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,institution_type=excluded.institution_type,country_id=excluded.country_id,source_url=excluded.source_url,status=excluded.status`).run(lender.id, lender.name, lender.institutionType, lender.countryId ?? null, lender.sourceUrl ?? null, lender.status);
+    this.db
+      .prepare(
+        `INSERT INTO club_lenders (id,name,institution_type,country_id,source_url,status) VALUES (?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,institution_type=excluded.institution_type,country_id=excluded.country_id,source_url=excluded.source_url,status=excluded.status`,
+      )
+      .run(
+        lender.id,
+        lender.name,
+        lender.institutionType,
+        lender.countryId ?? null,
+        lender.sourceUrl ?? null,
+        lender.status,
+      );
   }
 
   lenders(): ClubLender[] {
-    return (this.db.prepare("SELECT * FROM club_lenders ORDER BY name").all() as any[]).map((row) => ({ id: row.id, name: row.name, institutionType: row.institution_type, countryId: row.country_id ?? undefined, sourceUrl: row.source_url ?? undefined, status: row.status }));
+    return (this.db.prepare("SELECT * FROM club_lenders ORDER BY name").all() as any[]).map(
+      (row) => ({
+        id: row.id,
+        name: row.name,
+        institutionType: row.institution_type,
+        countryId: row.country_id ?? undefined,
+        sourceUrl: row.source_url ?? undefined,
+        status: row.status,
+      }),
+    );
   }
 
   loanApplications(clubId?: EntityId): ClubLoanApplication[] {
-    const rows = (clubId ? this.db.prepare("SELECT * FROM club_loan_applications WHERE club_id=? ORDER BY created_on,id").all(clubId) : this.db.prepare("SELECT * FROM club_loan_applications ORDER BY created_on,id").all()) as any[];
-    return rows.map((row) => ({ id: row.id, clubId: row.club_id, lenderId: row.lender_id, principal: row.principal, termMonths: row.term_months, purpose: row.purpose, status: row.status, createdOn: row.created_on, decidedOn: row.decided_on ?? undefined, reason: row.reason ?? undefined, provenanceStatus: row.provenance_status }));
+    const rows = (
+      clubId
+        ? this.db
+            .prepare("SELECT * FROM club_loan_applications WHERE club_id=? ORDER BY created_on,id")
+            .all(clubId)
+        : this.db.prepare("SELECT * FROM club_loan_applications ORDER BY created_on,id").all()
+    ) as any[];
+    return rows.map((row) => ({
+      id: row.id,
+      clubId: row.club_id,
+      lenderId: row.lender_id,
+      principal: row.principal,
+      termMonths: row.term_months,
+      purpose: row.purpose,
+      status: row.status,
+      createdOn: row.created_on,
+      decidedOn: row.decided_on ?? undefined,
+      reason: row.reason ?? undefined,
+      provenanceStatus: row.provenance_status,
+    }));
   }
 
   upsertLoanApplication(application: ClubLoanApplication): void {
-    this.db.prepare(`INSERT INTO club_loan_applications (id,club_id,lender_id,principal,term_months,purpose,status,created_on,decided_on,reason,provenance_status) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,decided_on=excluded.decided_on,reason=excluded.reason`).run(application.id, application.clubId, application.lenderId, application.principal, application.termMonths, application.purpose, application.status, application.createdOn, application.decidedOn ?? null, application.reason ?? null, application.provenanceStatus);
+    this.db
+      .prepare(
+        `INSERT INTO club_loan_applications (id,club_id,lender_id,principal,term_months,purpose,status,created_on,decided_on,reason,provenance_status) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,decided_on=excluded.decided_on,reason=excluded.reason`,
+      )
+      .run(
+        application.id,
+        application.clubId,
+        application.lenderId,
+        application.principal,
+        application.termMonths,
+        application.purpose,
+        application.status,
+        application.createdOn,
+        application.decidedOn ?? null,
+        application.reason ?? null,
+        application.provenanceStatus,
+      );
   }
 
   budgetRequests(clubId?: EntityId): ManagerBudgetRequest[] {
-    const rows = (clubId ? this.db.prepare("SELECT * FROM manager_budget_requests WHERE club_id=? ORDER BY created_on,id").all(clubId) : this.db.prepare("SELECT * FROM manager_budget_requests ORDER BY created_on,id").all()) as any[];
-    return rows.map((row) => ({ id: row.id, clubId: row.club_id, managerPersonId: row.manager_person_id, seasonLabel: row.season_label, category: row.category, requestedAmount: row.requested_amount, status: row.status, createdOn: row.created_on, decidedOn: row.decided_on ?? undefined, decisionNote: row.decision_note ?? undefined, provenanceStatus: row.provenance_status }));
+    const rows = (
+      clubId
+        ? this.db
+            .prepare("SELECT * FROM manager_budget_requests WHERE club_id=? ORDER BY created_on,id")
+            .all(clubId)
+        : this.db.prepare("SELECT * FROM manager_budget_requests ORDER BY created_on,id").all()
+    ) as any[];
+    return rows.map((row) => ({
+      id: row.id,
+      clubId: row.club_id,
+      managerPersonId: row.manager_person_id,
+      seasonLabel: row.season_label,
+      category: row.category,
+      requestedAmount: row.requested_amount,
+      status: row.status,
+      createdOn: row.created_on,
+      decidedOn: row.decided_on ?? undefined,
+      decisionNote: row.decision_note ?? undefined,
+      provenanceStatus: row.provenance_status,
+    }));
   }
 
   upsertBudgetRequest(request: ManagerBudgetRequest): void {
-    this.db.prepare(`INSERT INTO manager_budget_requests (id,club_id,manager_person_id,season_label,category,requested_amount,status,created_on,decided_on,decision_note,provenance_status) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,decided_on=excluded.decided_on,decision_note=excluded.decision_note`).run(request.id, request.clubId, request.managerPersonId, request.seasonLabel, request.category, request.requestedAmount, request.status, request.createdOn, request.decidedOn ?? null, request.decisionNote ?? null, request.provenanceStatus);
+    this.db
+      .prepare(
+        `INSERT INTO manager_budget_requests (id,club_id,manager_person_id,season_label,category,requested_amount,status,created_on,decided_on,decision_note,provenance_status) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,decided_on=excluded.decided_on,decision_note=excluded.decision_note`,
+      )
+      .run(
+        request.id,
+        request.clubId,
+        request.managerPersonId,
+        request.seasonLabel,
+        request.category,
+        request.requestedAmount,
+        request.status,
+        request.createdOn,
+        request.decidedOn ?? null,
+        request.decisionNote ?? null,
+        request.provenanceStatus,
+      );
   }
 
   upsertSponsor(sponsor: SponsorOrganisation): void {
@@ -6278,38 +6538,69 @@ export class ClubEconomyRepository {
   }
 
   upsertCommercialProfile(profile: ClubCommercialProfile): void {
-    this.db.prepare(`INSERT INTO club_commercial_profiles
+    this.db
+      .prepare(
+        `INSERT INTO club_commercial_profiles
       (club_id, brand_strength, digital_reach, broadcast_appeal, merchandise_appeal, ticket_price_elasticity, updated_on, status)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(club_id) DO UPDATE SET brand_strength=excluded.brand_strength, digital_reach=excluded.digital_reach,
       broadcast_appeal=excluded.broadcast_appeal, merchandise_appeal=excluded.merchandise_appeal,
-      ticket_price_elasticity=excluded.ticket_price_elasticity, updated_on=excluded.updated_on, status=excluded.status`).run(
-      profile.clubId, profile.brandStrength, profile.digitalReach, profile.broadcastAppeal, profile.merchandiseAppeal,
-      profile.ticketPriceElasticity, profile.updatedOn, profile.status);
+      ticket_price_elasticity=excluded.ticket_price_elasticity, updated_on=excluded.updated_on, status=excluded.status`,
+      )
+      .run(
+        profile.clubId,
+        profile.brandStrength,
+        profile.digitalReach,
+        profile.broadcastAppeal,
+        profile.merchandiseAppeal,
+        profile.ticketPriceElasticity,
+        profile.updatedOn,
+        profile.status,
+      );
   }
 
   commercialProfile(clubId: EntityId): ClubCommercialProfile | undefined {
-    const row = this.db.prepare("SELECT * FROM club_commercial_profiles WHERE club_id = ?").get(clubId) as any;
+    const row = this.db
+      .prepare("SELECT * FROM club_commercial_profiles WHERE club_id = ?")
+      .get(clubId) as any;
     return row ? mapClubCommercialProfile(row) : undefined;
   }
 
   upsertMediaRights(rights: CompetitionMediaRights): void {
-    this.db.prepare(`INSERT INTO competition_media_rights
+    this.db
+      .prepare(
+        `INSERT INTO competition_media_rights
       (id, competition_season_id, rights_partner, annual_value, streaming_share, currency, rights_type, start_date, end_date, contract_status, exclusive, status)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(competition_season_id) DO UPDATE SET rights_partner=excluded.rights_partner,
       annual_value=excluded.annual_value, streaming_share=excluded.streaming_share, currency=excluded.currency,
       rights_type=excluded.rights_type, start_date=excluded.start_date, end_date=excluded.end_date,
-      contract_status=excluded.contract_status, exclusive=excluded.exclusive, status=excluded.status`).run(
-      rights.id, rights.competitionSeasonId, rights.rightsPartner, rights.annualValue, rights.streamingShare,
-      rights.currency, rights.rightsType ?? "DOMESTIC_AND_STREAMING", rights.startDate ?? null, rights.endDate ?? null,
-      rights.contractStatus ?? "ACTIVE", rights.exclusive === false ? 0 : 1, rights.status);
+      contract_status=excluded.contract_status, exclusive=excluded.exclusive, status=excluded.status`,
+      )
+      .run(
+        rights.id,
+        rights.competitionSeasonId,
+        rights.rightsPartner,
+        rights.annualValue,
+        rights.streamingShare,
+        rights.currency,
+        rights.rightsType ?? "DOMESTIC_AND_STREAMING",
+        rights.startDate ?? null,
+        rights.endDate ?? null,
+        rights.contractStatus ?? "ACTIVE",
+        rights.exclusive === false ? 0 : 1,
+        rights.status,
+      );
   }
 
   mediaRights(competitionSeasonId?: EntityId): CompetitionMediaRights[] {
     const rows = competitionSeasonId
-      ? this.db.prepare("SELECT * FROM competition_media_rights WHERE competition_season_id = ?").all(competitionSeasonId)
-      : this.db.prepare("SELECT * FROM competition_media_rights ORDER BY competition_season_id").all();
+      ? this.db
+          .prepare("SELECT * FROM competition_media_rights WHERE competition_season_id = ?")
+          .all(competitionSeasonId)
+      : this.db
+          .prepare("SELECT * FROM competition_media_rights ORDER BY competition_season_id")
+          .all();
     return rows.map(mapCompetitionMediaRights);
   }
 
@@ -6375,26 +6666,105 @@ export class ClubEconomyRepository {
   }
 
   upsertSeasonMembership(membership: ClubSeasonMembership): void {
-    this.db.prepare(`INSERT INTO club_season_memberships
+    this.db
+      .prepare(
+        `INSERT INTO club_season_memberships
       (id, club_id, season_label, member_count, price, revenue, status) VALUES (?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(club_id, season_label) DO UPDATE SET member_count=excluded.member_count, price=excluded.price, revenue=excluded.revenue, status=excluded.status`).run(
-      membership.id, membership.clubId, membership.seasonLabel, membership.memberCount, membership.price, membership.revenue, membership.status);
+      ON CONFLICT(club_id, season_label) DO UPDATE SET member_count=excluded.member_count, price=excluded.price, revenue=excluded.revenue, status=excluded.status`,
+      )
+      .run(
+        membership.id,
+        membership.clubId,
+        membership.seasonLabel,
+        membership.memberCount,
+        membership.price,
+        membership.revenue,
+        membership.status,
+      );
   }
   seasonMemberships(clubId?: EntityId): ClubSeasonMembership[] {
-    const rows = clubId ? this.db.prepare("SELECT * FROM club_season_memberships WHERE club_id = ? ORDER BY season_label").all(clubId) : this.db.prepare("SELECT * FROM club_season_memberships ORDER BY club_id, season_label").all();
-    return rows.map((row: any) => ({ id: row.id, clubId: row.club_id, seasonLabel: row.season_label, memberCount: row.member_count, price: row.price, revenue: row.revenue, status: row.status }));
+    const rows = clubId
+      ? this.db
+          .prepare("SELECT * FROM club_season_memberships WHERE club_id = ? ORDER BY season_label")
+          .all(clubId)
+      : this.db
+          .prepare("SELECT * FROM club_season_memberships ORDER BY club_id, season_label")
+          .all();
+    return rows.map((row: any) => ({
+      id: row.id,
+      clubId: row.club_id,
+      seasonLabel: row.season_label,
+      memberCount: row.member_count,
+      price: row.price,
+      revenue: row.revenue,
+      status: row.status,
+    }));
   }
   insertCommercialHistory(event: CommercialHistoryEvent): void {
-    this.db.prepare(`INSERT INTO commercial_history_events (id, club_id, event_date, event_type, amount, audience_impact, description) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING`).run(event.id, event.clubId, event.date, event.eventType, event.amount, event.audienceImpact, event.description);
+    this.db
+      .prepare(
+        `INSERT INTO commercial_history_events (id, club_id, event_date, event_type, amount, audience_impact, description) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING`,
+      )
+      .run(
+        event.id,
+        event.clubId,
+        event.date,
+        event.eventType,
+        event.amount,
+        event.audienceImpact,
+        event.description,
+      );
   }
   commercialHistory(clubId: EntityId): CommercialHistoryEvent[] {
-    return (this.db.prepare("SELECT * FROM commercial_history_events WHERE club_id = ? ORDER BY event_date, id").all(clubId) as any[]).map((row) => ({ id: row.id, clubId: row.club_id, date: row.event_date, eventType: row.event_type, amount: row.amount, audienceImpact: row.audience_impact, description: row.description }));
+    return (
+      this.db
+        .prepare(
+          "SELECT * FROM commercial_history_events WHERE club_id = ? ORDER BY event_date, id",
+        )
+        .all(clubId) as any[]
+    ).map((row) => ({
+      id: row.id,
+      clubId: row.club_id,
+      date: row.event_date,
+      eventType: row.event_type,
+      amount: row.amount,
+      audienceImpact: row.audience_impact,
+      description: row.description,
+    }));
   }
   upsertCommercialCamp(camp: PreseasonCommercialCamp): void {
-    this.db.prepare(`INSERT INTO preseason_commercial_camps (id, club_id, destination, start_date, end_date, cost, commercial_reach, sporting_impact, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET status=excluded.status`).run(camp.id, camp.clubId, camp.destination, camp.startDate, camp.endDate, camp.cost, camp.commercialReach, camp.sportingImpact, camp.status);
+    this.db
+      .prepare(
+        `INSERT INTO preseason_commercial_camps (id, club_id, destination, start_date, end_date, cost, commercial_reach, sporting_impact, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET status=excluded.status`,
+      )
+      .run(
+        camp.id,
+        camp.clubId,
+        camp.destination,
+        camp.startDate,
+        camp.endDate,
+        camp.cost,
+        camp.commercialReach,
+        camp.sportingImpact,
+        camp.status,
+      );
   }
   commercialCamps(clubId: EntityId): PreseasonCommercialCamp[] {
-    return (this.db.prepare("SELECT * FROM preseason_commercial_camps WHERE club_id = ? ORDER BY start_date").all(clubId) as any[]).map((row) => ({ id: row.id, clubId: row.club_id, destination: row.destination, startDate: row.start_date, endDate: row.end_date, cost: row.cost, commercialReach: row.commercial_reach, sportingImpact: row.sporting_impact, status: row.status }));
+    return (
+      this.db
+        .prepare("SELECT * FROM preseason_commercial_camps WHERE club_id = ? ORDER BY start_date")
+        .all(clubId) as any[]
+    ).map((row) => ({
+      id: row.id,
+      clubId: row.club_id,
+      destination: row.destination,
+      startDate: row.start_date,
+      endDate: row.end_date,
+      cost: row.cost,
+      commercialReach: row.commercial_reach,
+      sportingImpact: row.sporting_impact,
+      status: row.status,
+    }));
   }
 
   upsertFacilityProfile(profile: ClubFacilityProfile): void {
@@ -6602,27 +6972,51 @@ export class ClubEconomyRepository {
   }
 
   upsertAiDecision(decision: ClubAiDecision): void {
-    this.db.prepare(`INSERT INTO club_ai_decision_history
+    this.db
+      .prepare(
+        `INSERT INTO club_ai_decision_history
       (id, club_id, decision_date, season_label, objective, priorities_json, actions_json, context_json, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING`).run(
-      decision.id, decision.clubId, decision.date, decision.seasonLabel, decision.objective,
-      json.stringify(decision.priorities), json.stringify(decision.actions), json.stringify(decision.context), decision.status,
-    );
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING`,
+      )
+      .run(
+        decision.id,
+        decision.clubId,
+        decision.date,
+        decision.seasonLabel,
+        decision.objective,
+        json.stringify(decision.priorities),
+        json.stringify(decision.actions),
+        json.stringify(decision.context),
+        decision.status,
+      );
   }
 
   aiDecisions(clubId?: EntityId): ClubAiDecision[] {
-    const rows = (clubId
-      ? this.db.prepare("SELECT * FROM club_ai_decision_history WHERE club_id = ? ORDER BY decision_date, id").all(clubId)
-      : this.db.prepare("SELECT * FROM club_ai_decision_history ORDER BY club_id, decision_date, id").all()) as any[];
+    const rows = (
+      clubId
+        ? this.db
+            .prepare(
+              "SELECT * FROM club_ai_decision_history WHERE club_id = ? ORDER BY decision_date, id",
+            )
+            .all(clubId)
+        : this.db
+            .prepare("SELECT * FROM club_ai_decision_history ORDER BY club_id, decision_date, id")
+            .all()
+    ) as any[];
     return rows.map((row) => {
       const context = json.parse(row.context_json, {}) as any;
       return {
-      id: row.id, clubId: row.club_id, date: row.decision_date, seasonLabel: row.season_label,
-      objective: row.objective, priorities: json.parse(row.priorities_json, {}), actions: json.parse(row.actions_json, []),
-      context,
-      identity: context.strategicIdentity,
-      identityStrength: context.identityStrength,
-      status: row.status,
+        id: row.id,
+        clubId: row.club_id,
+        date: row.decision_date,
+        seasonLabel: row.season_label,
+        objective: row.objective,
+        priorities: json.parse(row.priorities_json, {}),
+        actions: json.parse(row.actions_json, []),
+        context,
+        identity: context.strategicIdentity,
+        identityStrength: context.identityStrength,
+        status: row.status,
       };
     });
   }
@@ -7009,22 +7403,47 @@ export class FederationGovernanceRepository {
   }
 
   upsertAiDecision(decision: FederationAiDecision): void {
-    this.db.prepare(`INSERT INTO federation_ai_decision_history
+    this.db
+      .prepare(
+        `INSERT INTO federation_ai_decision_history
       (id, federation_id, decision_date, season_label, priorities_json, actions_json, context_json, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING`).run(
-      decision.id, decision.federationId, decision.date, decision.seasonLabel,
-      json.stringify(decision.priorities), json.stringify(decision.actions), json.stringify(decision.context), decision.status,
-    );
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING`,
+      )
+      .run(
+        decision.id,
+        decision.federationId,
+        decision.date,
+        decision.seasonLabel,
+        json.stringify(decision.priorities),
+        json.stringify(decision.actions),
+        json.stringify(decision.context),
+        decision.status,
+      );
   }
 
   aiDecisions(federationId?: EntityId): FederationAiDecision[] {
-    const rows = (federationId
-      ? this.db.prepare("SELECT * FROM federation_ai_decision_history WHERE federation_id = ? ORDER BY decision_date, id").all(federationId)
-      : this.db.prepare("SELECT * FROM federation_ai_decision_history ORDER BY federation_id, decision_date, id").all()) as any[];
+    const rows = (
+      federationId
+        ? this.db
+            .prepare(
+              "SELECT * FROM federation_ai_decision_history WHERE federation_id = ? ORDER BY decision_date, id",
+            )
+            .all(federationId)
+        : this.db
+            .prepare(
+              "SELECT * FROM federation_ai_decision_history ORDER BY federation_id, decision_date, id",
+            )
+            .all()
+    ) as any[];
     return rows.map((row) => ({
-      id: row.id, federationId: row.federation_id, date: row.decision_date, seasonLabel: row.season_label,
-      priorities: json.parse(row.priorities_json, {}), actions: json.parse(row.actions_json, []),
-      context: json.parse(row.context_json, {}), status: row.status,
+      id: row.id,
+      federationId: row.federation_id,
+      date: row.decision_date,
+      seasonLabel: row.season_label,
+      priorities: json.parse(row.priorities_json, {}),
+      actions: json.parse(row.actions_json, []),
+      context: json.parse(row.context_json, {}),
+      status: row.status,
     }));
   }
 
@@ -8785,7 +9204,9 @@ export class ExternalFootballRepository {
   constructor(private readonly db: GameDatabase) {}
 
   upsertProfile(profile: ExternalFootballRegionProfile): void {
-    this.db.prepare(`INSERT INTO external_football_region_profiles
+    this.db
+      .prepare(
+        `INSERT INTO external_football_region_profiles
       (id, region, season_label, economic_strength, football_reputation, club_strength,
        transfer_demand, foreign_recruitment_appeal, national_team_strength, commercial_growth, status)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -8794,22 +9215,49 @@ export class ExternalFootballRepository {
         club_strength = excluded.club_strength, transfer_demand = excluded.transfer_demand,
         foreign_recruitment_appeal = excluded.foreign_recruitment_appeal,
         national_team_strength = excluded.national_team_strength, commercial_growth = excluded.commercial_growth,
-        status = excluded.status`).run(
-      profile.id, profile.region, profile.seasonLabel, profile.economicStrength, profile.footballReputation,
-      profile.clubStrength, profile.transferDemand, profile.foreignRecruitmentAppeal,
-      profile.nationalTeamStrength, profile.commercialGrowth, profile.status,
-    );
+        status = excluded.status`,
+      )
+      .run(
+        profile.id,
+        profile.region,
+        profile.seasonLabel,
+        profile.economicStrength,
+        profile.footballReputation,
+        profile.clubStrength,
+        profile.transferDemand,
+        profile.foreignRecruitmentAppeal,
+        profile.nationalTeamStrength,
+        profile.commercialGrowth,
+        profile.status,
+      );
   }
 
   profiles(seasonLabel?: string): ExternalFootballRegionProfile[] {
-    const rows = (seasonLabel
-      ? this.db.prepare("SELECT * FROM external_football_region_profiles WHERE season_label = ? ORDER BY region").all(seasonLabel)
-      : this.db.prepare("SELECT * FROM external_football_region_profiles ORDER BY season_label, region").all()) as any[];
+    const rows = (
+      seasonLabel
+        ? this.db
+            .prepare(
+              "SELECT * FROM external_football_region_profiles WHERE season_label = ? ORDER BY region",
+            )
+            .all(seasonLabel)
+        : this.db
+            .prepare(
+              "SELECT * FROM external_football_region_profiles ORDER BY season_label, region",
+            )
+            .all()
+    ) as any[];
     return rows.map((row) => ({
-      id: row.id, region: row.region, seasonLabel: row.season_label, economicStrength: row.economic_strength,
-      footballReputation: row.football_reputation, clubStrength: row.club_strength,
-      transferDemand: row.transfer_demand, foreignRecruitmentAppeal: row.foreign_recruitment_appeal,
-      nationalTeamStrength: row.national_team_strength, commercialGrowth: row.commercial_growth, status: row.status,
+      id: row.id,
+      region: row.region,
+      seasonLabel: row.season_label,
+      economicStrength: row.economic_strength,
+      footballReputation: row.football_reputation,
+      clubStrength: row.club_strength,
+      transferDemand: row.transfer_demand,
+      foreignRecruitmentAppeal: row.foreign_recruitment_appeal,
+      nationalTeamStrength: row.national_team_strength,
+      commercialGrowth: row.commercial_growth,
+      status: row.status,
     }));
   }
 }
