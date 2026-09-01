@@ -493,6 +493,7 @@ export const federationDevelopmentSummary = (
       .filter((item) => item.entityId === federationId)
       .map((item) => item.trust)[0] ?? 0;
   const governanceProfile = governance.profile(federationId);
+  const outcomes = federationOutcomes(db, federationId);
   if (governanceProfile && strengths.length === 0 && governanceProfile.reputation >= 7)
     strengths.push("governance stability");
   const dimensionScores: Record<string, number> = {
@@ -509,6 +510,66 @@ export const federationDevelopmentSummary = (
     commercialStrength: clamp(governanceProfile?.commercialStrength ?? averageProgress / 10) * 10,
   };
   const impactSummaries: string[] = [];
+
+  const resultSignal = (record: typeof outcomes.senior): number =>
+    record.fixtures > 0
+      ? clamp(((record.wins + record.draws * 0.5) / record.fixtures) * 100)
+      : 0;
+  const addOutcomeSignal = (dimension: string, value: number, label: string): void => {
+    const bounded = clamp(value, -6, 6);
+    if (bounded === 0) return;
+    dimensionScores[dimension] = clamp(dimensionScores[dimension] + bounded);
+    impactSummaries.push(`${label}: ${bounded > 0 ? "positive" : "negative"} outcome signal`);
+  };
+
+  // Results and pathway achievements are outcome signals, separate from the
+  // policy/project progress signals below. They are deliberately capped so a
+  // large historical database cannot overwhelm the slow-moving profile base.
+  if (outcomes.senior.fixtures > 0)
+    addOutcomeSignal(
+      "nationalTeams",
+      (resultSignal(outcomes.senior) - 50) * 0.12,
+      "Senior national-team results",
+    );
+  if (outcomes.youth.fixtures > 0)
+    addOutcomeSignal(
+      "youth",
+      (resultSignal(outcomes.youth) - 50) * 0.12,
+      "Youth national-team results",
+    );
+  if (outcomes.women.fixtures > 0)
+    addOutcomeSignal(
+      "womenGirls",
+      (resultSignal(outcomes.women) - 50) * 0.12,
+      "Women national-team results",
+    );
+
+  const pathwaySignal = Math.min(
+    6,
+    outcomes.pathway.firstTeamDebuts * 0.25 +
+      outcomes.pathway.regularFirstTeamPlayers * 0.45 +
+      outcomes.pathway.youthNationalPlayers * 0.35 +
+      outcomes.pathway.seniorNationalPlayers * 0.5,
+  );
+  addOutcomeSignal("youth", pathwaySignal, "Academy pathway outcomes");
+
+  const womenPathwaySignal = Math.min(
+    6,
+    outcomes.womenProgramme.academyProgression * 0.3 +
+      outcomes.womenProgramme.youthNationalProgression * 0.45 +
+      outcomes.womenProgramme.seniorNationalProgression * 0.6,
+  );
+  addOutcomeSignal("womenGirls", womenPathwaySignal, "Women/girls pathway outcomes");
+
+  const completedProjects = governance
+    .projects(federationId)
+    .filter((project) => project.status === "COMPLETED").length;
+  addOutcomeSignal(
+    "infrastructure",
+    Math.min(4, completedProjects * 0.75),
+    "Completed federation projects",
+  );
+
   for (const policy of policies.filter((item) => item.implementationProgress > 0)) {
     const dimension = policyDimension(policy.category);
     if (!dimension) continue;
@@ -526,11 +587,15 @@ export const federationDevelopmentSummary = (
   const overallScore =
     Object.values(dimensionScores).reduce((sum, value) => sum + value, 0) /
     Object.keys(dimensionScores).length;
+  const positiveOutcome = impactSummaries.some((summary) => summary.includes("positive outcome"));
+  const negativeOutcome = impactSummaries.some((summary) => summary.includes("negative outcome"));
   const trend = policies.some(
     (policy) => policy.status === "IMPLEMENTING" && policy.implementationProgress > 0,
-  )
+  ) || (positiveOutcome && !negativeOutcome)
     ? "IMPROVING"
-    : "STABLE";
+    : negativeOutcome && !positiveOutcome
+      ? "DECLINING"
+      : "STABLE";
   return {
     federationId,
     band: developmentBand(overallScore),
@@ -539,7 +604,7 @@ export const federationDevelopmentSummary = (
     strengths,
     priorities,
     impactSummaries: impactSummaries.slice(0, 8),
-    outcomes: federationOutcomes(db, federationId),
+    outcomes,
     governmentRelationship:
       governmentTrust >= 70 ? "STRONG" : governmentTrust >= 40 ? "WORKING" : "LIMITED",
     asOf: date,
