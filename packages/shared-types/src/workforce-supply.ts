@@ -110,7 +110,7 @@ export type WorldSustainabilityReport = {
 
 export type LowerLeagueClubCoverage = {
   clubId: EntityId;
-  division: "B" | "C";
+  division: "A" | "B" | "C";
   realPlayers: number;
   generatedStartingPlayers: number;
   realStaff: number;
@@ -121,12 +121,14 @@ export type LowerLeagueClubCoverage = {
 export type LowerLeagueCoverageReport = {
   generatedOn: ISODate;
   realPlayers: number;
+  aDivisionRealPlayers: number;
   bDivisionRealPlayers: number;
   cDivisionRealPlayers: number;
   generatedStartingPlayers: number;
   freeAgents: number;
   unknownClub: number;
   realStaff: number;
+  aDivisionHeadCoaches: number;
   bDivisionHeadCoaches: number;
   cDivisionHeadCoaches: number;
   generatedLowerLeagueManagers: number;
