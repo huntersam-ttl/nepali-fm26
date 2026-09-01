@@ -163,6 +163,23 @@ export const derivePlayerLifestyle = (
   provenanceStatus: "SIMULATION_ONLY",
 });
 
+/** Applies a real event to the derived lifestyle/adaptation view without
+ * inventing a second persisted lifestyle model. */
+export const applyPlayerLifestyleEvent = (input: {
+  profile: PlayerLifestyleProfile;
+  event: "TRANSFER_SETTLING" | "TRAINING_DISCIPLINE" | "MEDIA_ATTENTION" | "RELATIONSHIP";
+  positive?: boolean;
+}): PlayerLifestyleProfile => {
+  const delta = input.positive === false ? -3 : 2;
+  return {
+    ...input.profile,
+    adaptation: Math.max(
+      0,
+      Math.min(100, input.profile.adaptation + (input.event === "TRANSFER_SETTLING" ? delta : 0)),
+    ),
+  };
+};
+
 const daysBetween = (from: string, to: string): number =>
   Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
 

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { derivePlayerLifestyle, deriveSocialReaction } from "@nepal-football-sim/simulation";
+import {
+  applyPlayerLifestyleEvent,
+  derivePlayerLifestyle,
+  deriveSocialReaction,
+} from "@nepal-football-sim/simulation";
 import type { MediaStory, PersonPersonalityProfile } from "@nepal-football-sim/shared-types";
 
 const personality: PersonPersonalityProfile = {
@@ -50,5 +54,19 @@ describe("press, social reaction, and lifestyle foundations", () => {
     expect(reaction.sourceEventId).toBe(story.sourceEntityId);
     expect(reaction.importance).toBeLessThanOrEqual(10);
     expect(reaction.summary).toContain(story.headline);
+  });
+
+  it("keeps event-driven adaptation bounded and deterministic", () => {
+    const profile = derivePlayerLifestyle(personality);
+    const settled = applyPlayerLifestyleEvent({
+      profile,
+      event: "TRANSFER_SETTLING",
+      positive: true,
+    });
+    expect(settled.adaptation).toBe(profile.adaptation + 2);
+    expect(
+      applyPlayerLifestyleEvent({ profile: settled, event: "TRANSFER_SETTLING", positive: false })
+        .adaptation,
+    ).toBe(profile.adaptation - 1);
   });
 });

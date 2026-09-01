@@ -1,6 +1,6 @@
 # Roadmap completeness audit
 
-Audit basis: HEAD `6d847a8` and the production source/tests in this checkout. Old chat summaries were not treated as evidence. “Complete” means a persisted, deterministic simulation path exists; a type, schema, diagnostic, or read model alone is not counted as complete.
+Audit basis: HEAD `f5c82d9` and the production source/tests in this checkout. Old chat summaries were not treated as evidence. “Complete” means a persisted, deterministic simulation path exists; a type, schema, diagnostic, or read model alone is not counted as complete.
 
 ## Classification
 
@@ -56,7 +56,7 @@ The roadmap currently has no technically blocked item. The `FOUNDATION_ONLY` lab
 
 ## Implementation completed in this audit
 
-The shared career timeline has `syncCareerTimeline(db, personId)`, which projects only already-persisted career milestones and staff-history events, uses stable IDs/insert-ignore semantics, supports existing-save backfill without invented history, and preserves timeline filters. Tactical workflow now has deterministic persisted variants, richer live instruction changes, familiarity carry-over and score-state AI adjustments; set-piece events remain grounded in real corners and fouls. Continental coefficient progression is wired into completed continental season processing with real persisted Nepal fixture results and idempotent season snapshots. National development derives ten banded dimensions, capped policy impacts, bounded trends and explainable contributors from the existing federation profile and policy/project systems, plus played national-team results, women/girls programme signals and season-specific academy pathway conversion.
+The shared career timeline has `syncCareerTimeline(db, personId)`, which projects only already-persisted career milestones and staff-history events, uses stable IDs/insert-ignore semantics, supports existing-save backfill without invented history, and preserves timeline filters. Tactical workflow now has deterministic persisted variants, richer live instruction changes, familiarity carry-over and score-state AI adjustments; set-piece events remain grounded in real corners and fouls. The event integration pass confirms match finalization, transfer settlement, ownership decisions, historical-event publication, supporter effects, and media stories already share canonical idempotent hooks; transfer settlement now also applies a cooldown-protected player-agent relationship update. Continental coefficient progression is wired into completed continental season processing with real persisted Nepal fixture results and idempotent season snapshots. National development derives ten banded dimensions, capped policy impacts, bounded trends and explainable contributors from the existing federation profile and policy/project systems, plus played national-team results, women/girls programme signals and season-specific academy pathway conversion.
 
 ## Next highest-priority gap
 

@@ -41,6 +41,7 @@ import {
 } from "./club-economy.js";
 import { applySupporterTransferOutcome } from "./supporter-culture.js";
 import { publishMediaForDate } from "./media.js";
+import { applyPlayerRelationshipEvent } from "./press-social-lifestyle.js";
 import { evaluateRelatedPartyTransfer } from "./club-networks.js";
 import { upsertPersonRelationship } from "./people-foundation.js";
 import { SeededRandom } from "./rng.js";
@@ -1882,6 +1883,23 @@ export const completePermanentTransfer = (
     date: worldDate,
     transferFee: offer.transferFee,
   });
+  // A completed move is a real relationship event for the player's existing
+  // representation edge. The cooldown/idempotency rules live in the shared
+  // people event adapter, so replaying settlement cannot double-count trust.
+  const people = new PeopleFoundationRepository(db);
+  for (const relationship of people
+    .relationshipsForPerson(offer.playerId)
+    .filter((item) => item.kind === "PLAYER_AGENT")) {
+    applyPlayerRelationshipEvent({
+      db,
+      relationship,
+      date: worldDate,
+      trustDelta: 2,
+      respectDelta: 1,
+      tensionDelta: -1,
+      cooldownDays: 7,
+    });
+  }
 };
 
 /** Resolve a player's open offer set once at a deterministic market tick. */
