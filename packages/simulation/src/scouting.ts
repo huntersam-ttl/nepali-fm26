@@ -16,9 +16,19 @@ import {
   type ScoutingAssignment,
   type ScoutingAssignmentPriority,
 } from "@nepal-football-sim/shared-types";
-import { ClubNetworkRepository, RecruitmentRepository, type GameDatabase } from "@nepal-football-sim/database";
+import {
+  ClubNetworkRepository,
+  RecruitmentRepository,
+  type GameDatabase,
+} from "@nepal-football-sim/database";
 import { SeededRandom } from "./rng.js";
-type ScoutingCoverage = { clubId: EntityId; reachable: boolean; effectiveQuality: number; budgetAvailable: number; rationale: string };
+type ScoutingCoverage = {
+  clubId: EntityId;
+  reachable: boolean;
+  effectiveQuality: number;
+  budgetAvailable: number;
+  rationale: string;
+};
 
 type TruePlayer = {
   playerId: EntityId;
@@ -68,21 +78,220 @@ export type RecruitmentSearchResult = {
 };
 
 const REGION_COUNTRIES: Record<ExternalFootballRegion, readonly string[]> = {
-  SOUTH_ASIA: ["NP", "NPL", "IN", "IND", "BD", "BGD", "MV", "MDV", "BT", "BTN", "PK", "PAK", "LK", "LKA", "AF", "AFG"],
-  WIDER_ASIA: ["CN", "CHN", "HK", "HKG", "MO", "MAC", "MN", "MNG", "KP", "PRK", "KR", "KOR", "TW", "TPE", "JP", "JPN"],
-  MIDDLE_EAST: ["AE", "ARE", "SA", "SAU", "QA", "QAT", "IR", "IRN", "IQ", "IRQ", "IL", "ISR", "JO", "JOR", "KW", "KWT", "OM", "OMN", "BH", "BHR", "YE", "YEM"],
+  SOUTH_ASIA: [
+    "NP",
+    "NPL",
+    "IN",
+    "IND",
+    "BD",
+    "BGD",
+    "MV",
+    "MDV",
+    "BT",
+    "BTN",
+    "PK",
+    "PAK",
+    "LK",
+    "LKA",
+    "AF",
+    "AFG",
+  ],
+  WIDER_ASIA: [
+    "CN",
+    "CHN",
+    "HK",
+    "HKG",
+    "MO",
+    "MAC",
+    "MN",
+    "MNG",
+    "KP",
+    "PRK",
+    "KR",
+    "KOR",
+    "TW",
+    "TPE",
+    "JP",
+    "JPN",
+  ],
+  MIDDLE_EAST: [
+    "AE",
+    "ARE",
+    "SA",
+    "SAU",
+    "QA",
+    "QAT",
+    "IR",
+    "IRN",
+    "IQ",
+    "IRQ",
+    "IL",
+    "ISR",
+    "JO",
+    "JOR",
+    "KW",
+    "KWT",
+    "OM",
+    "OMN",
+    "BH",
+    "BHR",
+    "YE",
+    "YEM",
+  ],
   AUSTRALIA: ["AU", "AUS", "NZ", "NZL", "FJ", "FJI", "PG", "PNG"],
-  EUROPE: ["GB", "GBR", "IE", "IRL", "FR", "FRA", "DE", "DEU", "ES", "ESP", "IT", "ITA", "PT", "PRT", "NL", "NLD", "BE", "BEL", "CH", "CHE", "AT", "AUT", "SE", "SWE", "NO", "NOR", "DK", "DNK", "FI", "FIN", "IS", "ISL", "PL", "POL", "CZ", "CZE", "SK", "SVK", "HU", "HUN", "RO", "ROU", "BG", "BGR", "GR", "GRC", "HR", "HRV", "RS", "SRB", "UA", "UKR", "TR", "TUR"],
-  AFRICA: ["NG", "NGA", "GH", "GHA", "CM", "CMR", "SN", "SEN", "CI", "CIV", "ZA", "ZAF", "KE", "KEN", "TZ", "TZA", "UG", "UGA", "ET", "ETH", "MA", "MAR", "DZ", "DZA", "TN", "TUN", "EG", "EGY", "ZM", "ZMB", "ZW", "ZWE", "MZ", "MOZ", "AO", "AGO", "CD", "COD", "CG", "COG", "RW", "RWA"],
-  SOUTH_AMERICA: ["BR", "BRA", "AR", "ARG", "UY", "URY", "CL", "CHL", "CO", "COL", "PE", "PER", "EC", "ECU", "BO", "BOL", "PY", "PRY", "VE", "VEN"],
-  NORTH_CENTRAL_AMERICA: ["US", "USA", "CA", "CAN", "MX", "MEX", "CR", "CRI", "PA", "PAN", "HN", "HND", "GT", "GTM", "SV", "SLV", "JM", "JAM", "HT", "HTI"],
+  EUROPE: [
+    "GB",
+    "GBR",
+    "IE",
+    "IRL",
+    "FR",
+    "FRA",
+    "DE",
+    "DEU",
+    "ES",
+    "ESP",
+    "IT",
+    "ITA",
+    "PT",
+    "PRT",
+    "NL",
+    "NLD",
+    "BE",
+    "BEL",
+    "CH",
+    "CHE",
+    "AT",
+    "AUT",
+    "SE",
+    "SWE",
+    "NO",
+    "NOR",
+    "DK",
+    "DNK",
+    "FI",
+    "FIN",
+    "IS",
+    "ISL",
+    "PL",
+    "POL",
+    "CZ",
+    "CZE",
+    "SK",
+    "SVK",
+    "HU",
+    "HUN",
+    "RO",
+    "ROU",
+    "BG",
+    "BGR",
+    "GR",
+    "GRC",
+    "HR",
+    "HRV",
+    "RS",
+    "SRB",
+    "UA",
+    "UKR",
+    "TR",
+    "TUR",
+  ],
+  AFRICA: [
+    "NG",
+    "NGA",
+    "GH",
+    "GHA",
+    "CM",
+    "CMR",
+    "SN",
+    "SEN",
+    "CI",
+    "CIV",
+    "ZA",
+    "ZAF",
+    "KE",
+    "KEN",
+    "TZ",
+    "TZA",
+    "UG",
+    "UGA",
+    "ET",
+    "ETH",
+    "MA",
+    "MAR",
+    "DZ",
+    "DZA",
+    "TN",
+    "TUN",
+    "EG",
+    "EGY",
+    "ZM",
+    "ZMB",
+    "ZW",
+    "ZWE",
+    "MZ",
+    "MOZ",
+    "AO",
+    "AGO",
+    "CD",
+    "COD",
+    "CG",
+    "COG",
+    "RW",
+    "RWA",
+  ],
+  SOUTH_AMERICA: [
+    "BR",
+    "BRA",
+    "AR",
+    "ARG",
+    "UY",
+    "URY",
+    "CL",
+    "CHL",
+    "CO",
+    "COL",
+    "PE",
+    "PER",
+    "EC",
+    "ECU",
+    "BO",
+    "BOL",
+    "PY",
+    "PRY",
+    "VE",
+    "VEN",
+  ],
+  NORTH_CENTRAL_AMERICA: [
+    "US",
+    "USA",
+    "CA",
+    "CAN",
+    "MX",
+    "MEX",
+    "CR",
+    "CRI",
+    "PA",
+    "PAN",
+    "HN",
+    "HND",
+    "GT",
+    "GTM",
+    "SV",
+    "SLV",
+    "JM",
+    "JAM",
+    "HT",
+    "HTI",
+  ],
   OCEANIA: ["WS", "WSM", "TO", "TON", "VU", "VUT", "SB", "SLB"],
 };
 
 export const countryToRecruitmentRegion = (value?: string): ExternalFootballRegion | undefined => {
   const normalized = value?.trim().toUpperCase();
   if (!normalized) return undefined;
-  return (Object.entries(REGION_COUNTRIES).find(([, countries]) => countries.includes(normalized))?.[0] ?? undefined) as ExternalFootballRegion | undefined;
+  return (Object.entries(REGION_COUNTRIES).find(([, countries]) =>
+    countries.includes(normalized),
+  )?.[0] ?? undefined) as ExternalFootballRegion | undefined;
 };
 
 export type ScoutingDiagnostic = {
@@ -116,6 +325,20 @@ const levels: PlayerKnowledgeLevel[] = [
   "COMPLETE",
 ];
 
+const scoutQuality = (db: GameDatabase, clubId: EntityId, scoutPersonId?: EntityId): number => {
+  const profile = scoutPersonId
+    ? new RecruitmentRepository(db).scoutingStaffSimulationProfile(scoutPersonId)
+    : undefined;
+  const club = new RecruitmentRepository(db).clubRecruitmentProfile(clubId);
+  const staffQuality = profile
+    ? (profile.playerJudgement + profile.potentialJudgement + profile.adaptability) / 3
+    : 5;
+  const networkQuality = club
+    ? (club.domesticKnowledge + club.regionalKnowledge + club.internationalKnowledge) * 6
+    : 0;
+  return Math.max(1, Math.min(10, staffQuality * 0.75 + networkQuality * 0.25));
+};
+
 export const initializeRecruitmentForSave = (input: {
   db: GameDatabase;
   worldDate: string;
@@ -127,7 +350,11 @@ export const initializeRecruitmentForSave = (input: {
     // External clubs use the bounded global-context scouting layer. Seeding
     // full player knowledge for every imported club is both redundant and
     // quadratic; Nepal clubs retain the normal detailed knowledge bootstrap.
-    if (club.canonicalExternalId?.startsWith("CLB-") || club.canonicalExternalId?.startsWith("SIM-FOREIGN-")) continue;
+    if (
+      club.canonicalExternalId?.startsWith("CLB-") ||
+      club.canonicalExternalId?.startsWith("SIM-FOREIGN-")
+    )
+      continue;
     seedClubKnowledge(input.db, club.id, input.worldDate, input.seed);
   }
 };
@@ -232,8 +459,13 @@ export const searchPlayersForClub = (
     );
 };
 
-export const marketRegionForPlayer = (db: GameDatabase, playerId: EntityId): ExternalFootballRegion | undefined => {
-  const row = db.prepare(`
+export const marketRegionForPlayer = (
+  db: GameDatabase,
+  playerId: EntityId,
+): ExternalFootballRegion | undefined => {
+  const row = db
+    .prepare(
+      `
     SELECT co.iso_code AS iso_code
     FROM persons p
     LEFT JOIN player_factual_profiles pfp ON pfp.player_id = p.id
@@ -241,23 +473,35 @@ export const marketRegionForPlayer = (db: GameDatabase, playerId: EntityId): Ext
     LEFT JOIN clubs c ON c.id = COALESCE(pfp.current_club_id, pc.club_id)
     LEFT JOIN countries co ON co.id = c.country_id
     WHERE p.id = ?
-  `).get(playerId) as { iso_code?: string } | undefined;
+  `,
+    )
+    .get(playerId) as { iso_code?: string } | undefined;
   return countryToRecruitmentRegion(row?.iso_code);
 };
 
-export const accessibleRecruitmentRegions = (db: GameDatabase, clubId: EntityId, worldDate = "2026-08-01"): ExternalFootballRegion[] => {
+export const accessibleRecruitmentRegions = (
+  db: GameDatabase,
+  clubId: EntityId,
+  worldDate = "2026-08-01",
+): ExternalFootballRegion[] => {
   const profile = new RecruitmentRepository(db).clubRecruitmentProfile(clubId);
   if (!profile) return [];
-  if (profile.networkReach === "GLOBAL") return Object.keys(REGION_COUNTRIES) as ExternalFootballRegion[];
+  if (profile.networkReach === "GLOBAL")
+    return Object.keys(REGION_COUNTRIES) as ExternalFootballRegion[];
   const regions: ExternalFootballRegion[] = ["SOUTH_ASIA"];
-  if (profile.networkReach === "SOUTH_ASIA" || profile.internationalKnowledge >= 0.2) regions.push("WIDER_ASIA");
+  if (profile.networkReach === "SOUTH_ASIA" || profile.internationalKnowledge >= 0.2)
+    regions.push("WIDER_ASIA");
   if (profile.internationalKnowledge >= 0.2) regions.push("AFRICA");
-  if (profile.internationalKnowledge >= 0.28 && profile.networkReach !== "REGIONAL") regions.push("EUROPE");
+  if (profile.internationalKnowledge >= 0.28 && profile.networkReach !== "REGIONAL")
+    regions.push("EUROPE");
   for (const partnership of activeScoutingPartnerships(db, clubId, worldDate)) {
     const region = clubRegion(db, partnership.toClubId);
     if (region && !regions.includes(region)) regions.push(region);
   }
-  for (const relatedClubId of new ClubNetworkRepository(db).activeRelatedClubIds(clubId, worldDate)) {
+  for (const relatedClubId of new ClubNetworkRepository(db).activeRelatedClubIds(
+    clubId,
+    worldDate,
+  )) {
     const region = clubRegion(db, relatedClubId);
     if (region && !regions.includes(region)) regions.push(region);
   }
@@ -304,7 +548,11 @@ export const searchRegionalCandidatesForClub = (
   return visible
     .map((candidate) => candidate)
     .filter((candidate) => candidate.marketRegion && accessible.has(candidate.marketRegion))
-    .sort((a, b) => String(a.marketRegion).localeCompare(String(b.marketRegion)) || String(a.playerId).localeCompare(String(b.playerId)))
+    .sort(
+      (a, b) =>
+        String(a.marketRegion).localeCompare(String(b.marketRegion)) ||
+        String(a.playerId).localeCompare(String(b.playerId)),
+    )
     .slice(0, Math.max(1, Math.min(limit, 24)));
 };
 
@@ -323,29 +571,32 @@ export const searchPreferredTransferCandidatesForClub = (
       if (seen.has(player.playerId)) continue;
       seen.add(player.playerId);
       const existing = recruitment.playerKnowledge(clubId, player.playerId);
-      const knowledge = existing ?? knowledgeFor(player, clubId, {
-        level: "MINIMAL",
-        discoveryStatus: "DISCOVERED",
-        confidence: "LOW",
-        sourceType: "PUBLIC",
-        observations: 1,
-        date: worldDate,
-        seed: `preferred-transfer:${clubId}:${player.playerId}`,
-      });
+      const knowledge =
+        existing ??
+        knowledgeFor(player, clubId, {
+          level: "MINIMAL",
+          discoveryStatus: "DISCOVERED",
+          confidence: "LOW",
+          sourceType: "PUBLIC",
+          observations: 1,
+          date: worldDate,
+          seed: `preferred-transfer:${clubId}:${player.playerId}`,
+        });
       results.push(searchResult(player, knowledge));
     }
   }
   return results;
 };
 
-const activeScoutingPartnerships = (
-  db: GameDatabase,
-  clubId: EntityId,
-  worldDate: string,
-) => new ClubNetworkRepository(db).activeScoutingPartnerships(clubId, worldDate);
+const activeScoutingPartnerships = (db: GameDatabase, clubId: EntityId, worldDate: string) =>
+  new ClubNetworkRepository(db).activeScoutingPartnerships(clubId, worldDate);
 
 const clubRegion = (db: GameDatabase, clubId: EntityId): ExternalFootballRegion | undefined => {
-  const row = db.prepare("SELECT co.iso_code AS iso_code FROM clubs c LEFT JOIN countries co ON co.id = c.country_id WHERE c.id = ? LIMIT 1").get(clubId) as { iso_code?: string } | undefined;
+  const row = db
+    .prepare(
+      "SELECT co.iso_code AS iso_code FROM clubs c LEFT JOIN countries co ON co.id = c.country_id WHERE c.id = ? LIMIT 1",
+    )
+    .get(clubId) as { iso_code?: string } | undefined;
   return countryToRecruitmentRegion(row?.iso_code);
 };
 
@@ -391,12 +642,38 @@ export const createScoutingAssignment = (
   return assignment;
 };
 
-export const scoutingCoverage = (db: GameDatabase, clubId: EntityId, worldDate: string): ScoutingCoverage => {
-  const recruitment = new RecruitmentRepository(db); const profile = recruitment.clubRecruitmentProfile(clubId); const staff = db.prepare("SELECT COUNT(*) AS count FROM staff_appointments WHERE club_id=? AND employment_status='ACTIVE' AND role IN ('SCOUT','RECRUITMENT_ANALYST','HEAD_SCOUT')").get(clubId) as { count?: number } | undefined; const budget = profile?.scoutingBudget ?? 0; const quality = Math.min(10, (staff?.count ?? 0) * 2 + (profile?.domesticKnowledge ?? 0) / 10); return { clubId, reachable: Boolean(profile && budget > 0 && (staff?.count ?? 0) > 0), effectiveQuality: quality, budgetAvailable: budget, rationale: profile ? `Coverage ${profile.networkReach} with ${staff?.count ?? 0} active scouting staff on a ${budget} budget.` : "No recruitment network profile is available." };
+export const scoutingCoverage = (
+  db: GameDatabase,
+  clubId: EntityId,
+  worldDate: string,
+): ScoutingCoverage => {
+  const recruitment = new RecruitmentRepository(db);
+  const profile = recruitment.clubRecruitmentProfile(clubId);
+  const staff = db
+    .prepare(
+      "SELECT COUNT(*) AS count FROM staff_appointments WHERE club_id=? AND employment_status='ACTIVE' AND role IN ('SCOUT','RECRUITMENT_ANALYST','HEAD_SCOUT')",
+    )
+    .get(clubId) as { count?: number } | undefined;
+  const budget = profile?.scoutingBudget ?? 0;
+  const quality = Math.min(10, (staff?.count ?? 0) * 2 + (profile?.domesticKnowledge ?? 0) / 10);
+  return {
+    clubId,
+    reachable: Boolean(profile && budget > 0 && (staff?.count ?? 0) > 0),
+    effectiveQuality: quality,
+    budgetAvailable: budget,
+    rationale: profile
+      ? `Coverage ${profile.networkReach} with ${staff?.count ?? 0} active scouting staff on a ${budget} budget.`
+      : "No recruitment network profile is available.",
+  };
 };
 
-export const planScoutingAssignment = (db: GameDatabase, input: Parameters<typeof createScoutingAssignment>[1]): ScoutingAssignment => {
-  const coverage = scoutingCoverage(db, input.clubId, input.startedAt); if (!coverage.reachable) throw new Error("Scouting network cannot support this assignment"); return createScoutingAssignment(db, input);
+export const planScoutingAssignment = (
+  db: GameDatabase,
+  input: Parameters<typeof createScoutingAssignment>[1],
+): ScoutingAssignment => {
+  const coverage = scoutingCoverage(db, input.clubId, input.startedAt);
+  if (!coverage.reachable) throw new Error("Scouting network cannot support this assignment");
+  return createScoutingAssignment(db, input);
 };
 
 export const simulateScoutingDay = (input: {
@@ -410,7 +687,12 @@ export const simulateScoutingDay = (input: {
     const targets = assignmentTargets(input.db, assignment);
     for (const player of targets) {
       const existing = recruitment.playerKnowledge(assignment.clubId, player.playerId);
-      const nextLevel = improveLevel(existing?.knowledgeLevel ?? "MINIMAL", assignment.priority);
+      const quality = scoutQuality(input.db, assignment.clubId, assignment.scoutPersonId);
+      const nextLevel = improveLevel(
+        existing?.knowledgeLevel ?? "MINIMAL",
+        assignment.priority,
+        quality,
+      );
       const observations = (existing?.observations ?? 0) + (assignment.priority === "HIGH" ? 3 : 2);
       const knowledge = knowledgeFor(player, assignment.clubId, {
         level: nextLevel,
@@ -423,6 +705,7 @@ export const simulateScoutingDay = (input: {
         observations,
         date: input.worldDate,
         seed: `${input.seed}:${assignment.id}`,
+        scoutQuality: quality,
       });
       recruitment.upsertPlayerKnowledge(knowledge);
       recruitment.insertScoutReport(
@@ -458,7 +741,12 @@ export const completeScoutingAssignment = (
   let reportsGenerated = 0;
   for (const player of assignmentTargets(db, assignment)) {
     const existing = recruitment.playerKnowledge(assignment.clubId, player.playerId);
-    const nextLevel = improveLevel(existing?.knowledgeLevel ?? "MINIMAL", assignment.priority);
+    const quality = scoutQuality(db, assignment.clubId, assignment.scoutPersonId);
+    const nextLevel = improveLevel(
+      existing?.knowledgeLevel ?? "MINIMAL",
+      assignment.priority,
+      quality,
+    );
     recruitment.upsertPlayerKnowledge(
       knowledgeFor(player, assignment.clubId, {
         level: nextLevel,
@@ -468,6 +756,7 @@ export const completeScoutingAssignment = (
         observations: (existing?.observations ?? 0) + (assignment.priority === "HIGH" ? 3 : 2),
         date: worldDate,
         seed: `${seed}:${assignment.id}`,
+        scoutQuality: quality,
       }),
     );
     recruitment.insertScoutReport(
@@ -669,6 +958,7 @@ const knowledgeFor = (
     observations: number;
     date: string;
     seed: string;
+    scoutQuality?: number;
   },
 ): PlayerKnowledge => {
   const exactPositionVisible = levelRank[input.level] >= levelRank.GOOD;
@@ -693,7 +983,12 @@ const knowledgeFor = (
       exactPositionStatus: exactPositionVisible ? "GAMEPLAY_KNOWLEDGE" : undefined,
     },
     abilityKnowledge: {
-      estimatedAbility: estimateRange(player.currentAbility, input.level, input.seed),
+      estimatedAbility: estimateRange(
+        player.currentAbility,
+        input.level,
+        input.seed,
+        input.scoutQuality,
+      ),
       rangeOnly: true,
     },
     potentialKnowledge: {
@@ -774,8 +1069,10 @@ const estimateRange = (
   actual: number,
   level: PlayerKnowledgeLevel,
   seed: string,
+  quality = 5,
 ): KnowledgeRange => {
-  const width = { NONE: 10, MINIMAL: 7, BASIC: 5, GOOD: 2, EXTENSIVE: 1, COMPLETE: 1 }[level];
+  const baseWidth = { NONE: 10, MINIMAL: 7, BASIC: 5, GOOD: 2, EXTENSIVE: 1, COMPLETE: 1 }[level];
+  const width = Math.max(1, baseWidth * (1.12 - Math.max(1, Math.min(10, quality)) * 0.024));
   const rng = new SeededRandom(`${seed}:estimate:${actual}:${level}`);
   const bias = (rng.next() - 0.5) * Math.max(1, width / 2);
   const center = actual + bias;
@@ -858,8 +1155,9 @@ const assignmentTargets = (db: GameDatabase, assignment: ScoutingAssignment): Tr
 const improveLevel = (
   current: PlayerKnowledgeLevel,
   priority: ScoutingAssignmentPriority,
+  quality = 5,
 ): PlayerKnowledgeLevel => {
-  const step = priority === "HIGH" ? 2 : 1;
+  const step = priority === "HIGH" ? (quality >= 7 ? 2 : 1) : quality >= 8 ? 2 : 1;
   return levels[Math.min(levels.length - 2, levelRank[current] + step)]!;
 };
 
@@ -986,10 +1284,16 @@ const mapTruePlayer = (row: any): TruePlayer => {
     currentClubId: row.current_club_id ?? undefined,
     teamId: row.team_id ?? undefined,
     nationality: factual.nationality,
-    factualPositionGroup: factual.factualPositionGroup ?? (factualPosition ? positionGroup(factualPosition) : undefined),
-    simulationPosition: simulation.simulationPrimaryPosition ?? row.primary_position ?? factualPosition ?? "MID",
+    factualPositionGroup:
+      factual.factualPositionGroup ??
+      (factualPosition ? positionGroup(factualPosition) : undefined),
+    simulationPosition:
+      simulation.simulationPrimaryPosition ?? row.primary_position ?? factualPosition ?? "MID",
     currentAbility:
-      simulation.currentAbility ?? (Object.keys({ ...technical, ...mental, ...physical }).length > 0 ? averageObject({ ...technical, ...mental, ...physical }) : 7),
+      simulation.currentAbility ??
+      (Object.keys({ ...technical, ...mental, ...physical }).length > 0
+        ? averageObject({ ...technical, ...mental, ...physical })
+        : 7),
     potentialAbility: simulation.potentialAbility ?? 10,
     hiddenTraits: simulation.hiddenTraits ?? {},
     attributes: { ...technical, ...mental, ...physical, ...goalkeeping },

@@ -3478,6 +3478,13 @@ export class RecruitmentRepository {
       );
   }
 
+  scoutingStaffSimulationProfile(personId: EntityId): ScoutingStaffSimulationProfile | undefined {
+    const row = this.db
+      .prepare("SELECT * FROM scouting_staff_simulation_profiles WHERE person_id = ?")
+      .get(personId) as any;
+    return row ? mapScoutingStaffSimulationProfile(row) : undefined;
+  }
+
   insertAssignment(assignment: ScoutingAssignment): void {
     this.db
       .prepare(
@@ -5312,6 +5319,17 @@ const mapClubRecruitmentProfile = (row: any): ClubRecruitmentProfile => ({
   scoutingBudget: row.scouting_budget,
   networkReach: row.network_reach,
   preferredMarkets: json.parse(row.preferred_markets_json, []),
+  status: row.status,
+});
+
+const mapScoutingStaffSimulationProfile = (row: any): ScoutingStaffSimulationProfile => ({
+  id: row.id,
+  personId: row.person_id,
+  playerJudgement: row.player_judgement,
+  potentialJudgement: row.potential_judgement,
+  adaptability: row.adaptability,
+  regionalKnowledge: row.regional_knowledge,
+  assignmentSpeed: row.assignment_speed,
   status: row.status,
 });
 
