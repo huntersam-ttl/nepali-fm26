@@ -588,6 +588,8 @@ export const applyCompetitionReform = (
   const competitions = new CompetitionRepository(db);
   for (const season of seasons) {
     if (seasonHasHistoricalMatches(db, season.id)) continue;
+    // Rule sets are immutable once a season has started; apply only at a future boundary.
+    if (season.start_date <= decidedAt) continue;
     const rule = competitions.getRuleSet(season.id);
     if (!rule) continue;
     competitions.insertRuleSet({
