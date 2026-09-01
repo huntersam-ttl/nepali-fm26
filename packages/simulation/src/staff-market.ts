@@ -2165,8 +2165,15 @@ export const assertResponsibilityPermits = (
   clubId: EntityId,
   domain: StaffResponsibilityDomain,
   action: string,
+  actor: "SYSTEM" | "MANAGER" = "SYSTEM",
 ): StaffResponsibility => {
   const owner = responsibilityOwner(db, clubId, domain);
+  if (actor === "MANAGER" && owner.ownerType === "STAFF") {
+    throw new ResponsibilityError(
+      "BOARD_APPROVAL_REQUIRED",
+      `This ${domain.toLowerCase()} responsibility is delegated to an executive or specialist.`,
+    );
+  }
   if (owner.ownerType === "BOARD") {
     const stillValid =
       owner.boardApprovalGrantedUntil && owner.boardApprovalGrantedUntil >= save.worldDate;

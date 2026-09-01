@@ -49,6 +49,7 @@ import {
   type RecruitmentSearchCommand,
   type RecruitmentSearchPage,
   type SaveMetadata,
+  type StaffResponsibilityDomain,
   type ScoutingAssignmentCommand,
   type ScoutingDashboard,
   type ScoutingReportView,
@@ -124,6 +125,7 @@ import {
   startLoan,
 } from "./transfer-market.js";
 import type { ManagerContext } from "./desktop-application.js";
+import { assertResponsibilityPermits, ResponsibilityError } from "./staff-market.js";
 
 type SqlRow = Record<string, any>;
 
@@ -141,6 +143,25 @@ export class ManagerCommandError extends Error {
     super(message);
   }
 }
+
+const assertManagerResponsibility = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  context: ManagerContext,
+  domain: StaffResponsibilityDomain,
+  action: string,
+): void => {
+  if (!context.club?.id)
+    throw new ManagerCommandError("ROLE_NOT_AUTHORIZED", "Manager has no club.");
+  try {
+    assertResponsibilityPermits(db, save, context.club.id, domain, action, "MANAGER");
+  } catch (error) {
+    if (error instanceof ResponsibilityError) {
+      throw new ManagerCommandError("ROLE_NOT_AUTHORIZED", error.message);
+    }
+    throw error;
+  }
+};
 
 const MANAGER_PERMISSIONS: readonly ManagerPermission[] = [
   "SELECT_SQUAD",
@@ -518,13 +539,26 @@ export const buildPlayerProfile = (
       dobFact.value !== undefined
         ? { value: ageOn(dobFact.value, save.worldDate), status: dobFact.status }
         : { status: "UNKNOWN" },
-    nationality: factual.nationality ? fact(factual.nationality as string, "REPORTED") : fact((simulation.simulationNationality as string | undefined) ?? playerNationality(db, playerId) ?? "NEP", "SIMULATION_ONLY"),
+    nationality: factual.nationality
+      ? fact(factual.nationality as string, "REPORTED")
+      : fact(
+          (simulation.simulationNationality as string | undefined) ??
+            playerNationality(db, playerId) ??
+            "NEP",
+          "SIMULATION_ONLY",
+        ),
     heightCm: factual.heightCm
       ? fact(factual.heightCm as number, "REPORTED")
-      : fact((simulation.heightCm as number | undefined) ?? physicalFallbacks.heightCm, "SIMULATION_ONLY"),
+      : fact(
+          (simulation.heightCm as number | undefined) ?? physicalFallbacks.heightCm,
+          "SIMULATION_ONLY",
+        ),
     preferredFoot: factual.preferredFoot
       ? fact(factual.preferredFoot as string, "REPORTED")
-      : fact((simulation.preferredFoot as string | undefined) ?? physicalFallbacks.preferredFoot, "SIMULATION_ONLY"),
+      : fact(
+          (simulation.preferredFoot as string | undefined) ?? physicalFallbacks.preferredFoot,
+          "SIMULATION_ONLY",
+        ),
     primaryPosition: attributes.primaryPosition,
     secondaryPositions: attributes.secondaryPositions,
     clubName: clubName(db, (profile?.current_club_id as EntityId) ?? context.club?.id),
@@ -1203,6 +1237,7 @@ export const createManagerScoutingAssignment = (
   command: ScoutingAssignmentCommand,
 ): ScoutingDashboard => {
   assertManagerAuthority(context, undefined, "SCOUT_PLAYERS");
+  assertManagerResponsibility(db, save, context, "SCOUTING", "createScoutingAssignment");
   const clubId = context.club?.id;
   if (!clubId) throw new ManagerCommandError("ROLE_NOT_AUTHORIZED", "Manager has no club.");
   if (!command.targetPlayerId && !command.targetClubId && !command.targetCompetitionId) {
@@ -1229,6 +1264,7 @@ export const toggleManagerShortlist = (
   playerId: EntityId,
 ): ScoutingDashboard => {
   assertManagerAuthority(context, undefined, "SCOUT_PLAYERS");
+  assertManagerResponsibility(db, save, context, "SCOUTING", "toggleShortlist");
   const clubId = context.club?.id;
   if (!clubId) throw new ManagerCommandError("ROLE_NOT_AUTHORIZED", "Manager has no club.");
   if (shortlistIds(db, clubId).has(playerId)) {
@@ -1477,6 +1513,7 @@ export const makeManagerTransferRequest = (
   command: TransferRequestCommand,
 ): TransferCentre => {
   assertManagerAuthority(context, undefined, "LIST_PLAYER");
+  assertManagerResponsibility(db, save, context, "TRANSFERS", "requestPlayerTransfer");
   if (command.playerId && context.club?.id) {
     requestPlayerTransfer(db, { ...command, worldDate: save.worldDate });
   }
@@ -1490,6 +1527,7 @@ export const respondManagerTransferRequest = (
   command: TransferRequestResponseCommand,
 ): TransferCentre => {
   assertManagerAuthority(context, undefined, "LIST_PLAYER");
+  assertManagerResponsibility(db, save, context, "TRANSFERS", "respondPlayerTransferRequest");
   const market = new TransferMarketRepository(db);
   const request = market.transferRequests().find((item) => item.id === command.requestId);
   if (!request || request.clubId !== context.club?.id) {
@@ -1509,6 +1547,7 @@ export const negotiateManagerLoan = (
   command: TransferLoanCommand,
 ): TransferCentre => {
   assertManagerAuthority(context, undefined, "OFFER_TRANSFER");
+  assertManagerResponsibility(db, save, context, "TRANSFERS", "startLoan");
   const parentClubId = new TransferMarketRepository(db).activeContract(
     command.playerId,
     save.worldDate,
@@ -1536,6 +1575,7 @@ export const makeManagerTransferOffer = (
   command: TransferOfferCommand,
 ): TransferCentre => {
   assertManagerAuthority(context, undefined, "OFFER_TRANSFER");
+  assertManagerResponsibility(db, save, context, "TRANSFERS", "makeTransferOffer");
   const clubId = context.club?.id;
   if (!clubId) throw new ManagerCommandError("ROLE_NOT_AUTHORIZED", "Manager has no club.");
   const profile = factualProfile(db, command.playerId);
@@ -1592,6 +1632,7 @@ export const respondToTransferOffer = (
   command: TransferResponseCommand,
 ): TransferCentre => {
   assertManagerAuthority(context, undefined, "OFFER_TRANSFER");
+  assertManagerResponsibility(db, save, context, "TRANSFERS", "respondToTransferOffer");
   const market = new TransferMarketRepository(db);
   const offer = market.transferOffers().find((candidate) => candidate.id === command.offerId);
   if (!offer) throw new ManagerCommandError("INVALID_SELECTION", "Unknown transfer offer.");
