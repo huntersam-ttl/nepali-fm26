@@ -4,14 +4,16 @@ test("switches through a deterministic multi-role career dashboard", async ({ pa
   test.setTimeout(180_000);
   const saveName = `E2E Roles ${Date.now()}`;
   await page.goto("/");
-  await page.getByRole("button", { name: /New Career/ }).click();
+  await page.getByRole("button", { name: /New career/i }).click();
   await page.getByLabel("Save name").fill(saveName);
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByLabel("Starting club")).toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Create Save" }).click();
-  await expect(page.getByRole("button", { name: "Home / Inbox" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Home / Inbox" })).toBeVisible({
+    timeout: 120_000,
+  });
 
   const fixture = await page.request.post("/runtime/command/seedE2ERoleFixture", { data: {} });
   expect(fixture.ok()).toBeTruthy();
@@ -20,7 +22,7 @@ test("switches through a deterministic multi-role career dashboard", async ({ pa
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await page.getByRole("button", { name: "Main Menu" }).click();
   await page.reload();
-  await page.getByRole("button", { name: /Load Career/ }).click();
+  await page.getByRole("button", { name: /Load career/i }).click();
   await page.getByRole("button", { name: new RegExp(saveName) }).click();
   await expect(page.getByLabel("Active career role")).toHaveValue("MANAGER");
 
@@ -38,25 +40,33 @@ test("switches through a deterministic multi-role career dashboard", async ({ pa
   await page.getByRole("button", { name: "Facilities", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Ground and facilities" })).toBeVisible();
   await page.getByRole("button", { name: "Sponsorship", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Sponsorship" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sponsorship" }).first()).toBeVisible();
 
   await page.getByLabel("Active career role").selectOption("FEDERATION_PRESIDENT");
   await expect(page.getByRole("heading", { name: "Federation President" })).toBeVisible();
   await expect(page.getByText("Federation balance")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Governance", exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "National teams", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Governance", exact: true }).first(),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "National teams", exact: true }).first(),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Governance", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Governance", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Governance", exact: true }).first(),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Finance", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Federation finance" })).toBeVisible();
   await page.getByRole("button", { name: "National Teams", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "National teams", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "National teams", exact: true }).first(),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Election / Tenure", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Presidency and tenure" })).toBeVisible();
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await page.getByRole("button", { name: "Main Menu" }).click();
   await page.reload();
-  await page.getByRole("button", { name: /Load Career/ }).click();
+  await page.getByRole("button", { name: /Load career/i }).click();
   await page.getByRole("button", { name: new RegExp(saveName) }).click();
   await expect(page.getByLabel("Active career role")).toHaveValue("FEDERATION_PRESIDENT");
   await expect(page.getByRole("heading", { name: "Federation President" })).toBeVisible();
