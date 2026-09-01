@@ -3491,6 +3491,28 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
     version: 79,
     sql: `ALTER TABLE continental_coefficient_snapshots ADD COLUMN club_contributions_json TEXT NOT NULL DEFAULT '{}';`,
   },
+  {
+    version: 80,
+    sql: `
+      CREATE TABLE IF NOT EXISTS manager_job_negotiations (
+        id TEXT PRIMARY KEY,
+        application_id TEXT NOT NULL UNIQUE REFERENCES manager_job_applications(id),
+        vacancy_id TEXT NOT NULL REFERENCES manager_job_vacancies(id),
+        stage TEXT NOT NULL,
+        round INTEGER NOT NULL,
+        max_rounds INTEGER NOT NULL,
+        offered_salary_minor INTEGER NOT NULL,
+        offered_contract_end TEXT,
+        requested_salary_minor INTEGER,
+        requested_contract_end TEXT,
+        decision_reason TEXT,
+        updated_on TEXT NOT NULL,
+        provenance_status TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_manager_job_negotiations_vacancy
+        ON manager_job_negotiations(vacancy_id, stage, updated_on);
+    `,
+  },
 ];
 
 export const migrateDatabase = (db: GameDatabase): number => {

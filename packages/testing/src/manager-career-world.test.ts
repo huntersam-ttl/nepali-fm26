@@ -21,6 +21,7 @@ import {
   ensureAiManagersAssigned,
   evaluateBoardConfidence,
   listVacancies,
+  negotiateManagerJobOffer,
   resignFromClub,
   sackManager,
   testLicence,
@@ -302,6 +303,16 @@ describe("manager career world: board confidence, sacking and AI reassignment", 
       replacementDay += 1;
     }
     expect(application.status).toBe("OFFERED");
+
+    const negotiated = negotiateManagerJobOffer({
+      db,
+      save: saveAt("2026-09-27"),
+      managerProfile: character.managerProfile,
+      applicationId: application.id,
+      action: "COUNTER",
+      requestedSalaryMinor: Math.round((application.offeredSalaryMinor ?? 0) * 1.05),
+    });
+    expect(negotiated.stage).toBe("ACCEPTED");
 
     const newContract = acceptJobOffer(
       db,

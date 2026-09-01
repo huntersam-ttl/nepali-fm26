@@ -668,6 +668,25 @@ export type JobApplication = {
   offeredContractEnd?: ISODate;
 };
 
+export type ManagerJobNegotiationStage =
+  "OFFERED" | "COUNTERED" | "ACCEPTED" | "REJECTED" | "WITHDRAWN";
+
+export type ManagerJobNegotiation = {
+  id: EntityId;
+  applicationId: EntityId;
+  vacancyId: EntityId;
+  stage: ManagerJobNegotiationStage;
+  round: number;
+  maxRounds: number;
+  offeredSalaryMinor: number;
+  offeredContractEnd?: ISODate;
+  requestedSalaryMinor?: number;
+  requestedContractEnd?: ISODate;
+  decisionReason?: string;
+  updatedOn: ISODate;
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
 /**
  * The board's running trust in the current manager. One row per club;
  * `contractId` lets a fresh appointment start from a neutral confidence

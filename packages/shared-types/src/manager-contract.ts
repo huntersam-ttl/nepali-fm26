@@ -568,7 +568,12 @@ export type TransferOfferView = {
   signingFee: number;
   agentContact: "SELF_REPRESENTED" | "AGENT";
   conditionals: Array<{ type: string; threshold: number; amount: number; description: string }>;
-  playerExchanges: Array<{ playerId: EntityId; playerName?: string; valuation?: KnowledgeRange; requestedBy: string }>;
+  playerExchanges: Array<{
+    playerId: EntityId;
+    playerName?: string;
+    valuation?: KnowledgeRange;
+    requestedBy: string;
+  }>;
   sellerRequestedPlayerId?: EntityId;
   currency: string;
   status: string;
@@ -593,8 +598,22 @@ export type TransferCentre = {
   budget: TransferBudgetView;
   windowOpen: boolean;
   windowCloses?: ISODate;
-  expiringContracts: Array<{ playerId: EntityId; playerName?: string; endDate: ISODate; monthsRemaining: number; squadRole: string }>;
-  requests: Array<{ id: EntityId; playerId: EntityId; playerName?: string; reason: string; pressureScore: number; status: string; askingRange?: KnowledgeRange }>;
+  expiringContracts: Array<{
+    playerId: EntityId;
+    playerName?: string;
+    endDate: ISODate;
+    monthsRemaining: number;
+    squadRole: string;
+  }>;
+  requests: Array<{
+    id: EntityId;
+    playerId: EntityId;
+    playerName?: string;
+    reason: string;
+    pressureScore: number;
+    status: string;
+    askingRange?: KnowledgeRange;
+  }>;
   targets: ShortlistEntry[];
   incoming: TransferOfferView[];
   outgoing: TransferOfferView[];
@@ -624,7 +643,12 @@ export type TransferOfferCommand = {
   installments?: number;
   addOns?: number;
   sellOnPercentage?: number;
-  conditionals?: Array<{ type: "APPEARANCE" | "PERFORMANCE"; threshold: number; amount: number; description: string }>;
+  conditionals?: Array<{
+    type: "APPEARANCE" | "PERFORMANCE";
+    threshold: number;
+    amount: number;
+    description: string;
+  }>;
   exchangePlayerIds?: EntityId[];
   sellerRequestedPlayerId?: EntityId;
 };
@@ -847,6 +871,10 @@ export type JobApplicationView = {
   decidedOn?: ISODate;
   offeredSalaryMinor?: number;
   offeredContractEnd?: ISODate;
+  negotiationStage?: string;
+  competingCandidateCount?: number;
+  candidateStanding?: "LEADING" | "COMPETITIVE" | "OUTSIDE_CHALLENGE";
+  decisionReason?: string;
 };
 
 export type JobCentreView = {
@@ -1060,17 +1088,35 @@ export type ManagerRuntimeApi = {
   getStaff(clubId?: EntityId): Promise<unknown>;
   // Staff Market Phase B.
   getStaffMarket(): Promise<unknown>;
-  applyForStaffRole(vacancyId: EntityId, personId: EntityId, salaryAmountMinor: number, contractMonths: number): Promise<unknown>;
+  applyForStaffRole(
+    vacancyId: EntityId,
+    personId: EntityId,
+    salaryAmountMinor: number,
+    contractMonths: number,
+  ): Promise<unknown>;
   respondToStaffApplication(applicationId: EntityId, accept: boolean): Promise<unknown>;
-  offerStaffContractRenewal(appointmentId: EntityId, salaryAmountMinor: number, contractMonths: number): Promise<unknown>;
+  offerStaffContractRenewal(
+    appointmentId: EntityId,
+    salaryAmountMinor: number,
+    contractMonths: number,
+  ): Promise<unknown>;
   respondToStaffRenewal(offerId: EntityId, accept: boolean): Promise<unknown>;
   dismissStaffMember(appointmentId: EntityId): Promise<unknown>;
   enrolStaffLicenceCourse(personId: EntityId, clubFunded: boolean): Promise<unknown>;
   // Staff Market Phase C.
   getStaffHierarchy(): Promise<unknown>;
-  assignStaffResponsibility(domain: string, ownerType: string, ownerAppointmentId?: EntityId): Promise<unknown>;
+  assignStaffResponsibility(
+    domain: string,
+    ownerType: string,
+    ownerAppointmentId?: EntityId,
+  ): Promise<unknown>;
   requestStaffBoardApproval(domain: string): Promise<unknown>;
-  createStaffDevelopmentPlan(personId: EntityId, focus: string, targetLicenceType?: string, clubFunded?: boolean): Promise<unknown>;
+  createStaffDevelopmentPlan(
+    personId: EntityId,
+    focus: string,
+    targetLicenceType?: string,
+    clubFunded?: boolean,
+  ): Promise<unknown>;
   getCalendar(): Promise<unknown>;
   // Manager Career World (Step 5).
   getJobCentre(): Promise<unknown>;

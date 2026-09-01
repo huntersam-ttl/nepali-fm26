@@ -14,6 +14,7 @@ import {
   type EntityId,
   type JobApplication,
   type JobApplicationStatus,
+  type ManagerJobNegotiation,
   type JobVacancy,
   type JobVacancyReason,
   type ManagerAttributeSet,
@@ -485,6 +486,31 @@ const offeredSalaryFor = (vacancy: JobVacancy): number => {
   return scale[vacancy.boardExpectation] ?? 3_000_000;
 };
 
+const candidateStandingScore = (
+  db: GameDatabase,
+  application: JobApplication,
+  vacancy: JobVacancy,
+): number => {
+  const profile = new ManagerRepository(db).getProfile(application.managerProfileId);
+  if (!profile) return -1;
+  const attributes = profile.attributes;
+  const coaching =
+    attributes.coaching.youthDevelopment +
+    attributes.coaching.technicalCoaching +
+    attributes.tactical.matchManagement;
+  const fit =
+    vacancy.boardExpectation === "YOUTH_DEVELOPMENT"
+      ? attributes.coaching.youthDevelopment * 3
+      : vacancy.boardExpectation === "TITLE_CHALLENGE"
+        ? attributes.tactical.matchManagement * 3
+        : attributes.people.manManagement * 2;
+  const reputation = profile.attributes.personality.reputation * 4;
+  const terms = application.offeredSalaryMinor
+    ? Math.min(20, application.offeredSalaryMinor / 500_000)
+    : 0;
+  return coaching + fit + reputation + terms;
+};
+
 const addYears = (date: string, years: number): string => {
   const parsed = new Date(`${date}T00:00:00Z`);
   parsed.setUTCFullYear(parsed.getUTCFullYear() + years);
@@ -527,6 +553,7 @@ export const applyForJob = (
       "Context-only external clubs cannot become player-managed careers.",
     );
   }
+
   const alreadyApplied = careerWorld
     .applicationsForManager(managerProfile.id)
     .some(
@@ -567,7 +594,138 @@ export const applyForJob = (
     offeredContractEnd: offered ? addYears(save.worldDate, 2) : undefined,
   };
   careerWorld.insertApplication(application);
+  if (offered) {
+    careerWorld.upsertManagerJobNegotiation({
+      id: createStableEntityId("manager-job-negotiation", application.id),
+      applicationId: application.id,
+      vacancyId,
+      stage: "OFFERED",
+      round: 0,
+      maxRounds: 2,
+      offeredSalaryMinor: application.offeredSalaryMinor!,
+      offeredContractEnd: application.offeredContractEnd,
+      updatedOn: save.worldDate,
+      provenanceStatus: "SIMULATION_ONLY",
+    });
+  }
   return application;
+};
+
+export type ManagerJobNegotiationAction = "ACCEPT" | "REJECT" | "COUNTER" | "WITHDRAW";
+
+export const negotiateManagerJobOffer = (input: {
+  db: GameDatabase;
+  save: SaveMetadata;
+  managerProfile: ManagerProfile;
+  applicationId: EntityId;
+  action: ManagerJobNegotiationAction;
+  requestedSalaryMinor?: number;
+  requestedContractEnd?: string;
+}): ManagerJobNegotiation => {
+  const careerWorld = new CareerWorldRepository(input.db);
+  const application = careerWorld.application(input.applicationId);
+  if (!application || application.managerProfileId !== input.managerProfile.id) {
+    throw new JobApplicationError("APPLICATION_NOT_FOUND", "That job application does not exist.");
+  }
+  const current = careerWorld.managerJobNegotiation(application.id);
+  if (!current || application.status !== "OFFERED") {
+    throw new JobApplicationError(
+      "APPLICATION_NOT_WITHDRAWABLE",
+      "That offer is no longer negotiable.",
+    );
+  }
+  if (current.stage === "REJECTED" || current.stage === "WITHDRAWN") {
+    throw new JobApplicationError(
+      "APPLICATION_NOT_WITHDRAWABLE",
+      "That negotiation is already closed.",
+    );
+  }
+  if (input.action === "WITHDRAW") {
+    withdrawJobApplication(input.db, input.save, input.managerProfile, application.id);
+    const next = {
+      ...current,
+      stage: "WITHDRAWN" as const,
+      decisionReason: "Candidate withdrew",
+      updatedOn: input.save.worldDate,
+    };
+    careerWorld.upsertManagerJobNegotiation(next);
+    return next;
+  }
+  if (input.action === "REJECT") {
+    careerWorld.insertApplication({
+      ...application,
+      status: "DECLINED",
+      decidedOn: input.save.worldDate,
+    });
+    const next = {
+      ...current,
+      stage: "REJECTED" as const,
+      decisionReason: "Candidate rejected the offer",
+      updatedOn: input.save.worldDate,
+    };
+    careerWorld.upsertManagerJobNegotiation(next);
+    return next;
+  }
+  if (input.action === "ACCEPT") {
+    const next = {
+      ...current,
+      stage: "ACCEPTED" as const,
+      decisionReason: "Terms accepted; appointment remains a separate explicit action",
+      updatedOn: input.save.worldDate,
+    };
+    careerWorld.upsertManagerJobNegotiation(next);
+    return next;
+  }
+  const requestedSalary = Math.max(
+    0,
+    Math.round(input.requestedSalaryMinor ?? current.offeredSalaryMinor),
+  );
+  const round = current.round + 1;
+  const ambition = input.managerProfile.attributes.personality.ambition;
+  const acceptablePremium = 0.08 + ambition * 0.01;
+  const accepted =
+    requestedSalary <= current.offeredSalaryMinor * (1 + acceptablePremium) &&
+    round <= current.maxRounds;
+  if (accepted) {
+    const updatedApplication = {
+      ...application,
+      offeredSalaryMinor: requestedSalary,
+      offeredContractEnd: input.requestedContractEnd ?? application.offeredContractEnd,
+    };
+    careerWorld.insertApplication(updatedApplication);
+    const next = {
+      ...current,
+      stage: "ACCEPTED" as const,
+      round,
+      requestedSalaryMinor: requestedSalary,
+      requestedContractEnd: input.requestedContractEnd,
+      offeredSalaryMinor: requestedSalary,
+      offeredContractEnd: updatedApplication.offeredContractEnd,
+      decisionReason: "Club accepted the counter",
+      updatedOn: input.save.worldDate,
+    };
+    careerWorld.upsertManagerJobNegotiation(next);
+    return next;
+  }
+  const terminal = round >= current.maxRounds;
+  if (terminal) {
+    careerWorld.insertApplication({
+      ...application,
+      status: "DECLINED",
+      decidedOn: input.save.worldDate,
+    });
+  }
+  const next = {
+    ...current,
+    stage: terminal ? ("REJECTED" as const) : ("COUNTERED" as const),
+    round,
+    requestedSalaryMinor: requestedSalary,
+    requestedContractEnd: input.requestedContractEnd,
+    decisionReason: terminal ? "Negotiation limit reached" : "Club requested more reasonable terms",
+    updatedOn: input.save.worldDate,
+  };
+  careerWorld.upsertManagerJobNegotiation(next);
+  return next;
 };
 
 /** Withdraws a human manager's pending or offered application without touching the vacancy. */
@@ -629,6 +787,35 @@ export const acceptJobOffer = (
     );
   }
 
+  // Resolve all active offers together at appointment time. The score is a
+  // bounded fit ordering over existing manager attributes and offered terms;
+  // application order is never used as the deciding factor.
+  const competing = careerWorld
+    .applicationsForVacancy(vacancy.id)
+    .filter((item) => item.id !== application.id && item.status === "OFFERED")
+    .map((item) => ({ item, score: candidateStandingScore(db, item, vacancy) }))
+    .sort((a, b) => b.score - a.score || a.item.id.localeCompare(b.item.id));
+  const currentScore = candidateStandingScore(db, application, vacancy);
+  if (competing[0] && competing[0].score > currentScore) {
+    careerWorld.insertApplication({
+      ...application,
+      status: "REJECTED",
+      decidedOn: save.worldDate,
+    });
+    const negotiation = careerWorld.managerJobNegotiation(application.id);
+    if (negotiation)
+      careerWorld.upsertManagerJobNegotiation({
+        ...negotiation,
+        stage: "REJECTED",
+        decisionReason: "A stronger competing candidate was selected",
+        updatedOn: save.worldDate,
+      });
+    throw new JobOfferError(
+      "OFFER_NOT_PENDING",
+      "A stronger competing candidate has been selected.",
+    );
+  }
+
   const contract = createManagerContract({
     managerProfileId: managerProfile.id,
     personId: managerProfile.personId,
@@ -646,6 +833,18 @@ export const acceptJobOffer = (
     if (other.id !== application.id && other.status === "OFFERED") {
       careerWorld.insertApplication({ ...other, status: "WITHDRAWN", decidedOn: save.worldDate });
     }
+  }
+  for (const other of careerWorld.applicationsForVacancy(vacancy.id)) {
+    if (other.id === application.id || other.status !== "OFFERED") continue;
+    careerWorld.insertApplication({ ...other, status: "REJECTED", decidedOn: save.worldDate });
+    const negotiation = careerWorld.managerJobNegotiation(other.id);
+    if (negotiation)
+      careerWorld.upsertManagerJobNegotiation({
+        ...negotiation,
+        stage: "REJECTED",
+        decisionReason: "Vacancy filled by a stronger appointed candidate",
+        updatedOn: save.worldDate,
+      });
   }
 
   managers.insertInboxItem({

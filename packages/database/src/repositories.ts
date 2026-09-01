@@ -109,6 +109,7 @@ import type {
   InjuryRecord,
   InboxItem,
   JobApplication,
+  ManagerJobNegotiation,
   JobVacancy,
   ClubBoardConfidence,
   ManagerPlayerRelationship,
@@ -1309,6 +1310,62 @@ export class CareerWorldRepository {
       .map(mapJobApplication);
   }
 
+  applicationsForVacancy(vacancyId: EntityId): JobApplication[] {
+    return this.db
+      .prepare(
+        "SELECT * FROM manager_job_applications WHERE vacancy_id = ? ORDER BY created_on, id",
+      )
+      .all(vacancyId)
+      .map(mapJobApplication);
+  }
+
+  upsertManagerJobNegotiation(value: ManagerJobNegotiation): void {
+    this.db
+      .prepare(
+        `INSERT INTO manager_job_negotiations
+        (id, application_id, vacancy_id, stage, round, max_rounds, offered_salary_minor,
+         offered_contract_end, requested_salary_minor, requested_contract_end, decision_reason,
+         updated_on, provenance_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(application_id) DO UPDATE SET
+          stage=excluded.stage, round=excluded.round, offered_salary_minor=excluded.offered_salary_minor,
+          offered_contract_end=excluded.offered_contract_end, requested_salary_minor=excluded.requested_salary_minor,
+          requested_contract_end=excluded.requested_contract_end, decision_reason=excluded.decision_reason,
+          updated_on=excluded.updated_on`,
+      )
+      .run(
+        value.id,
+        value.applicationId,
+        value.vacancyId,
+        value.stage,
+        value.round,
+        value.maxRounds,
+        value.offeredSalaryMinor,
+        value.offeredContractEnd ?? null,
+        value.requestedSalaryMinor ?? null,
+        value.requestedContractEnd ?? null,
+        value.decisionReason ?? null,
+        value.updatedOn,
+        value.provenanceStatus,
+      );
+  }
+
+  managerJobNegotiation(applicationId: EntityId): ManagerJobNegotiation | undefined {
+    const row = this.db
+      .prepare("SELECT * FROM manager_job_negotiations WHERE application_id = ?")
+      .get(applicationId) as any;
+    return row ? mapManagerJobNegotiation(row) : undefined;
+  }
+
+  managerJobNegotiationsForVacancy(vacancyId: EntityId): ManagerJobNegotiation[] {
+    return this.db
+      .prepare(
+        "SELECT * FROM manager_job_negotiations WHERE vacancy_id = ? ORDER BY updated_on, id",
+      )
+      .all(vacancyId)
+      .map(mapManagerJobNegotiation);
+  }
+
   boardConfidence(clubId: EntityId): ClubBoardConfidence | undefined {
     const row = this.db
       .prepare("SELECT * FROM club_board_confidence WHERE club_id = ?")
@@ -1360,6 +1417,22 @@ const mapJobApplication = (row: any): JobApplication => ({
   decidedOn: row.decided_on ?? undefined,
   offeredSalaryMinor: row.offered_salary_minor ?? undefined,
   offeredContractEnd: row.offered_contract_end ?? undefined,
+});
+
+const mapManagerJobNegotiation = (row: any): ManagerJobNegotiation => ({
+  id: row.id,
+  applicationId: row.application_id,
+  vacancyId: row.vacancy_id,
+  stage: row.stage,
+  round: row.round,
+  maxRounds: row.max_rounds,
+  offeredSalaryMinor: row.offered_salary_minor,
+  offeredContractEnd: row.offered_contract_end ?? undefined,
+  requestedSalaryMinor: row.requested_salary_minor ?? undefined,
+  requestedContractEnd: row.requested_contract_end ?? undefined,
+  decisionReason: row.decision_reason ?? undefined,
+  updatedOn: row.updated_on,
+  provenanceStatus: row.provenance_status,
 });
 
 const mapBoardConfidence = (row: any): ClubBoardConfidence => ({
