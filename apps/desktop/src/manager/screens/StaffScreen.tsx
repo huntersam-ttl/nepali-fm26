@@ -45,13 +45,8 @@ export const StaffScreen = (): React.ReactElement => {
       <AsyncPanel state={state}>
         {(market) => (
           <>
-            <header className="page-header">
-              <div>
-                <p className="eyebrow">Club operations</p>
-                <h1>Staff</h1>
-                <p className="subtle">Manage coaching, recruitment, medical, and support personnel.</p>
-              </div>
-            </header>
+            {/* The workspace shell already titles this screen; a second page
+                header here stacked two "Staff" headings on top of each other. */}
             <div className="metrics staff-metrics">
               <div><dt>Staff count</dt><dd>{market.staff.length}</dd></div>
               <div><dt>Open vacancies</dt><dd>{market.vacancies.filter((v) => v.status === "VACANT").length}</dd></div>
