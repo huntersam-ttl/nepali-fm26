@@ -30,6 +30,7 @@ import {
   EventRepository,
   RecruitmentRepository,
   TransferMarketRepository,
+  PeopleFoundationRepository,
   type GameDatabase,
 } from "@nepal-football-sim/database";
 import {
@@ -41,6 +42,7 @@ import {
 import { applySupporterTransferOutcome } from "./supporter-culture.js";
 import { publishMediaForDate } from "./media.js";
 import { evaluateRelatedPartyTransfer } from "./club-networks.js";
+import { upsertPersonRelationship } from "./people-foundation.js";
 import { SeededRandom } from "./rng.js";
 import {
   initializeRecruitmentForSave,
@@ -118,7 +120,13 @@ export const initializeTransferMarketForSave = (input: {
   initializeRecruitmentForSave(input);
   const clubs = marketClubs(input.db);
   const playerCounts = new Map(
-    (input.db.prepare("SELECT current_club_id AS club_id, COUNT(*) AS count FROM player_factual_profiles WHERE current_club_id IS NOT NULL GROUP BY current_club_id").all() as Array<{ club_id: EntityId; count: number }>).map((row) => [row.club_id, Number(row.count)]),
+    (
+      input.db
+        .prepare(
+          "SELECT current_club_id AS club_id, COUNT(*) AS count FROM player_factual_profiles WHERE current_club_id IS NOT NULL GROUP BY current_club_id",
+        )
+        .all() as Array<{ club_id: EntityId; count: number }>
+    ).map((row) => [row.club_id, Number(row.count)]),
   );
   for (const club of clubs) {
     const employment = employmentProfile(club);
@@ -133,12 +141,22 @@ export const initializeTransferMarketForSave = (input: {
   const activeContracts = new Map(
     market
       .allPlayerContracts()
-      .filter((contract) => contract.status === "ACTIVE" && contract.startDate <= input.worldDate && contract.endDate >= input.worldDate)
+      .filter(
+        (contract) =>
+          contract.status === "ACTIVE" &&
+          contract.startDate <= input.worldDate &&
+          contract.endDate >= input.worldDate,
+      )
       .map((contract) => [contract.playerId, contract]),
   );
   const clubsById = new Map(clubs.map((club) => [club.id, club]));
   const countryCodes = new Map(
-    (input.db.prepare("SELECT id, iso_code FROM countries").all() as Array<{ id: EntityId; iso_code: string }>).map((row) => [row.id, row.iso_code]),
+    (
+      input.db.prepare("SELECT id, iso_code FROM countries").all() as Array<{
+        id: EntityId;
+        iso_code: string;
+      }>
+    ).map((row) => [row.id, row.iso_code]),
   );
   for (const player of marketPlayers(input.db)) {
     if (!player.currentClubId) {
@@ -149,12 +167,12 @@ export const initializeTransferMarketForSave = (input: {
     if (!club) {
       continue;
     }
-    const domesticClub = ['NP', 'NPL'].includes(countryCodes.get(club.countryId) ?? '');
+    const domesticClub = ["NP", "NPL"].includes(countryCodes.get(club.countryId) ?? "");
     // Imported context clubs have factual identities but no real contract
     // terms. Give their players deterministic simulation-only agreements so
     // the global loan and purchase pathways can see them without claiming
     // that a source supplied the financial terms.
-    if (!domesticClub && !club.canonicalExternalId?.startsWith('CLB-')) continue;
+    if (!domesticClub && !club.canonicalExternalId?.startsWith("CLB-")) continue;
     /*
      * A player generated during world creation already holds an active youth
      * contract. Issuing a starting contract on top would leave one player with
@@ -176,13 +194,20 @@ export const initializeTransferMarketForSave = (input: {
 /** New-save-only roster trim; existing saves are never migrated implicitly. */
 export const rebalanceNewNepalSaveSquads = (db: GameDatabase, worldDate: string): number => {
   let released = 0;
-  const clubs = db.prepare(`SELECT DISTINCT c.id AS club_id, CASE WHEN lower(comp.name) LIKE '%a-division%' THEN 25 WHEN lower(comp.name) LIKE '%b-division%' THEN 22 WHEN lower(comp.name) LIKE '%c-division%' THEN 20 ELSE 0 END AS target FROM clubs c JOIN countries co ON co.id=c.country_id JOIN club_memberships cm ON cm.club_id=c.id JOIN competitions comp ON comp.id=cm.competition_id WHERE co.iso_code IN ('NP','NPL') AND cm.status='ACTIVE' AND lower(comp.name) LIKE '%division%' ORDER BY c.id`).all() as Array<{club_id: EntityId; target: number}>;
+  const clubs = db
+    .prepare(
+      `SELECT DISTINCT c.id AS club_id, CASE WHEN lower(comp.name) LIKE '%a-division%' THEN 25 WHEN lower(comp.name) LIKE '%b-division%' THEN 22 WHEN lower(comp.name) LIKE '%c-division%' THEN 20 ELSE 0 END AS target FROM clubs c JOIN countries co ON co.id=c.country_id JOIN club_memberships cm ON cm.club_id=c.id JOIN competitions comp ON comp.id=cm.competition_id WHERE co.iso_code IN ('NP','NPL') AND cm.status='ACTIVE' AND lower(comp.name) LIKE '%division%' ORDER BY c.id`,
+    )
+    .all() as Array<{ club_id: EntityId; target: number }>;
   for (const club of clubs) {
     if (!club.target) continue;
-    const rows = new TransferMarketRepository(db).activeContractsForClub(club.club_id, worldDate).sort((a, b) => {
-      const rank = (role: string): number => ({ YOUTH: 0, PROSPECT: 1, BACKUP: 2, ROTATION: 3, FIRST_TEAM: 5 }[role] ?? 4);
-      return rank(a.squadRole) - rank(b.squadRole) || a.playerId.localeCompare(b.playerId);
-    });
+    const rows = new TransferMarketRepository(db)
+      .activeContractsForClub(club.club_id, worldDate)
+      .sort((a, b) => {
+        const rank = (role: string): number =>
+          ({ YOUTH: 0, PROSPECT: 1, BACKUP: 2, ROTATION: 3, FIRST_TEAM: 5 })[role] ?? 4;
+        return rank(a.squadRole) - rank(b.squadRole) || a.playerId.localeCompare(b.playerId);
+      });
     for (const contract of rows.slice(club.target)) {
       releasePlayer(db, contract, worldDate, "New-save squad balancing");
       released += 1;
@@ -229,7 +254,11 @@ export const simulateTransferWindow = (input: {
   const squadSizes = activeSquadSizes(input.db);
   const activeClubs = clubs
     .filter((club) => (squadSizes.get(club.id) ?? 0) >= 11)
-    .sort((a, b) => Number(isNepalClub(input.db, b.id)) - Number(isNepalClub(input.db, a.id)) || a.name.localeCompare(b.name));
+    .sort(
+      (a, b) =>
+        Number(isNepalClub(input.db, b.id)) - Number(isNepalClub(input.db, a.id)) ||
+        a.name.localeCompare(b.name),
+    );
   for (const contract of market
     .contractsExpiringBetween(input.worldDate, addDays(input.worldDate, 90))
     .slice(0, 18)) {
@@ -399,12 +428,19 @@ const processBoundedForeignInterest = (
 ): void => {
   if (!windowOpen) return;
   const market = new TransferMarketRepository(db);
-  const existing = new Set(market.transferOffers().map((offer) => `${offer.buyingClubId}:${offer.playerId}`));
+  const existing = new Set(
+    market.transferOffers().map((offer) => `${offer.buyingClubId}:${offer.playerId}`),
+  );
   for (const offer of market
     .transferOffers()
     .filter((offer) => offer.offerType === "PERMANENT" && offer.status === "ACCEPTED")
     .slice(0, 3)) {
-    if (market.negotiationRounds(offer.id).some((round) => round.actor === "PLAYER" || round.actor === "PLAYER_AGENT")) continue;
+    if (
+      market
+        .negotiationRounds(offer.id)
+        .some((round) => round.actor === "PLAYER" || round.actor === "PLAYER_AGENT")
+    )
+      continue;
     completePermanentTransfer(db, offer, worldDate, `${seed}:global-interest`, {
       prefersOverseas: true,
       expectedPlayingTime: "FIRST_TEAM",
@@ -428,7 +464,9 @@ const processBoundedForeignInterest = (
       continentalOpportunity: true,
     });
   }
-  const rows = db.prepare(`
+  const rows = db
+    .prepare(
+      `
     SELECT interest.external_club_id AS buying_club_id, interest.target_player_id AS player_id,
            profile.current_club_id AS selling_club_id
     FROM foreign_scouting_interest interest
@@ -438,7 +476,9 @@ const processBoundedForeignInterest = (
     GROUP BY interest.target_player_id
     ORDER BY MAX(interest.score) DESC, interest.external_club_id, interest.target_player_id
     LIMIT 3
-  `).all() as Array<{ buying_club_id: EntityId; player_id: EntityId; selling_club_id: EntityId }>;
+  `,
+    )
+    .all() as Array<{ buying_club_id: EntityId; player_id: EntityId; selling_club_id: EntityId }>;
   for (const row of rows) {
     if (existing.has(`${row.buying_club_id}:${row.player_id}`)) continue;
     const offer = createTransferOffer(db, {
@@ -448,7 +488,15 @@ const processBoundedForeignInterest = (
       submittedAt: worldDate,
     });
     const evaluation = evaluateTransferOffer(db, offer, worldDate, `${seed}:global-interest`);
-    if (evaluation.accepted && clubCanAffordTransfer(db, offer.buyingClubId, offer.transferFee + offer.addOns + offer.agentFee + offer.signingFee, worldDate)) {
+    if (
+      evaluation.accepted &&
+      clubCanAffordTransfer(
+        db,
+        offer.buyingClubId,
+        offer.transferFee + offer.addOns + offer.agentFee + offer.signingFee,
+        worldDate,
+      )
+    ) {
       completePermanentTransfer(db, offer, worldDate, `${seed}:global-interest`, {
         prefersOverseas: true,
         expectedPlayingTime: "FIRST_TEAM",
@@ -601,7 +649,10 @@ export const evaluateTransferOffer = (
 ): { accepted: boolean; reason: string } => {
   const market = new TransferMarketRepository(db);
   const network = new ClubNetworkRepository(db);
-  if (offer.sellingClubId && network.hasSameCompetitionConflict(offer.buyingClubId, offer.sellingClubId, worldDate)) {
+  if (
+    offer.sellingClubId &&
+    network.hasSameCompetitionConflict(offer.buyingClubId, offer.sellingClubId, worldDate)
+  ) {
     market.updateOfferStatus(offer.id, "REJECTED");
     market.insertNegotiationRound({
       id: createStableEntityId("negotiation-round", `${offer.id}:governance:same-competition`),
@@ -626,7 +677,10 @@ export const evaluateTransferOffer = (
         worldDate,
       });
   const packageValue = calculateTransferPackageValue(offer);
-  if (offer.sellingClubId && network.areRelatedClubs(offer.buyingClubId, offer.sellingClubId, worldDate)) {
+  if (
+    offer.sellingClubId &&
+    network.areRelatedClubs(offer.buyingClubId, offer.sellingClubId, worldDate)
+  ) {
     const relatedParty = evaluateRelatedPartyTransfer({
       fee: packageValue,
       askingRange: valuation.askingRange,
@@ -1127,6 +1181,17 @@ export const processAgentRepresentation = (
       startedAt: input.worldDate,
       status: "ACTIVE",
     });
+    upsertPersonRelationship({
+      db,
+      fromPersonId: input.playerId,
+      toPersonId: agent.personId,
+      kind: "PLAYER_AGENT",
+      affinity: 62,
+      trust: 60,
+      respect: 58,
+      tension: 4,
+      date: input.worldDate,
+    });
   }
   return approach;
 };
@@ -1332,6 +1397,19 @@ export const negotiatePlayerTerms = (
         : 0;
   const satisfactionScore =
     prefs.currentClubSatisfaction !== undefined ? (50 - prefs.currentClubSatisfaction) / 4 : 0;
+  const representationRelationship = agent
+    ? new PeopleFoundationRepository(db).relationship(
+        offer.playerId,
+        agent.personId,
+        "PLAYER_AGENT",
+      )
+    : undefined;
+  const representationTrustScore = representationRelationship
+    ? (representationRelationship.trust - 50) * 0.18 +
+      (representationRelationship.affinity - 50) * 0.12 +
+      (representationRelationship.respect - 50) * 0.08 -
+      representationRelationship.tension * 0.06
+    : 0;
   const competing = market
     .transferOffers()
     .filter(
@@ -1365,6 +1443,7 @@ export const negotiatePlayerTerms = (
     continentalScore +
     careerStageScore +
     satisfactionScore +
+    representationTrustScore +
     competingScore;
   let state: PlayerPersonalTermsState;
   let reason: string;
@@ -1566,11 +1645,18 @@ const persistSellOnEntitlement = (db: GameDatabase, offer: TransferOffer): void 
   new TransferMarketRepository(db).upsertSellOnEntitlement(entitlement);
 };
 
-const settleSellOnEntitlements = (db: GameDatabase, resale: TransferOffer, worldDate: string): void => {
+const settleSellOnEntitlements = (
+  db: GameDatabase,
+  resale: TransferOffer,
+  worldDate: string,
+): void => {
   if (!resale.sellingClubId) return;
   const market = new TransferMarketRepository(db);
-  for (const entitlement of market.activeSellOnEntitlements(resale.playerId, resale.sellingClubId)) {
-    const amount = Math.max(0, Math.round(resale.transferFee * entitlement.percentage / 100));
+  for (const entitlement of market.activeSellOnEntitlements(
+    resale.playerId,
+    resale.sellingClubId,
+  )) {
+    const amount = Math.max(0, Math.round((resale.transferFee * entitlement.percentage) / 100));
     if (amount > 0) {
       postClubTransaction(db, {
         clubId: resale.sellingClubId,
@@ -1599,10 +1685,20 @@ const settleSellOnEntitlements = (db: GameDatabase, resale: TransferOffer, world
         relatedClubId: resale.sellingClubId,
         eventType: "SELL_ON_CLAUSE_PAID",
         occurredOn: worldDate,
-        data: { resaleTransferId: resale.id, originatingTransferId: entitlement.originatingTransferId, amount, percentage: entitlement.percentage },
+        data: {
+          resaleTransferId: resale.id,
+          originatingTransferId: entitlement.originatingTransferId,
+          amount,
+          percentage: entitlement.percentage,
+        },
       });
     }
-    market.upsertSellOnEntitlement({ ...entitlement, status: "SETTLED", settledTransferId: resale.id, settledOn: worldDate });
+    market.upsertSellOnEntitlement({
+      ...entitlement,
+      status: "SETTLED",
+      settledTransferId: resale.id,
+      settledOn: worldDate,
+    });
   }
 };
 
@@ -1619,7 +1715,9 @@ export const completePermanentTransfer = (
   if (!persistedOffer || persistedOffer.status === "COMPLETED") return;
   const currentContract = market.activeContract(offer.playerId, worldDate);
   if (
-    market.transferOffers().some((item) => item.playerId === offer.playerId && item.status === "COMPLETED") &&
+    market
+      .transferOffers()
+      .some((item) => item.playerId === offer.playerId && item.status === "COMPLETED") &&
     (!currentContract || !offer.sellingClubId || currentContract.clubId !== offer.sellingClubId)
   ) {
     market.updateOfferStatus(offer.id, "REJECTED");
@@ -1679,19 +1777,21 @@ export const completePermanentTransfer = (
   movePlayerAssignment(db, offer.playerId, offer.buyingClubId, worldDate);
   market.updatePlayerClub(offer.playerId, offer.buyingClubId);
   market.updateOfferStatus(offer.id, "COMPLETED");
-  for (const competing of market.transferOffers().filter(
-    (item) =>
-      item.playerId === offer.playerId &&
-      item.id !== offer.id &&
-      [
-        "SUBMITTED",
-        "NEGOTIATING",
-        "ACCEPTED",
-        "PLAYER_ACCEPTED",
-        "COMPETING_OFFER",
-        "COUNTERED",
-      ].includes(item.status),
-  )) {
+  for (const competing of market
+    .transferOffers()
+    .filter(
+      (item) =>
+        item.playerId === offer.playerId &&
+        item.id !== offer.id &&
+        [
+          "SUBMITTED",
+          "NEGOTIATING",
+          "ACCEPTED",
+          "PLAYER_ACCEPTED",
+          "COMPETING_OFFER",
+          "COUNTERED",
+        ].includes(item.status),
+    )) {
     market.updateOfferStatus(competing.id, "REJECTED");
   }
   market.upsertTransferStatus({
@@ -1716,13 +1816,17 @@ export const completePermanentTransfer = (
     occurredOn: worldDate,
     data: { transferFee: offer.transferFee, currency: offer.currency },
   });
-  const nepalClubInvolved = [offer.buyingClubId, offer.sellingClubId].filter((clubId): clubId is EntityId => Boolean(clubId)).some((clubId) =>
-    Boolean(
-      db
-        .prepare("SELECT 1 FROM clubs c JOIN countries co ON co.id=c.country_id WHERE c.id=? AND co.iso_code IN ('NP','NPL') LIMIT 1")
-        .get(clubId),
-    ),
-  );
+  const nepalClubInvolved = [offer.buyingClubId, offer.sellingClubId]
+    .filter((clubId): clubId is EntityId => Boolean(clubId))
+    .some((clubId) =>
+      Boolean(
+        db
+          .prepare(
+            "SELECT 1 FROM clubs c JOIN countries co ON co.id=c.country_id WHERE c.id=? AND co.iso_code IN ('NP','NPL') LIMIT 1",
+          )
+          .get(clubId),
+      ),
+    );
   if (nepalClubInvolved && offer.transferFee >= 1_000_000) {
     const mediaEventId = createStableEntityId("history", `TRANSFER_MEDIA:${transferHistoryId}`);
     if (!db.prepare("SELECT 1 FROM historical_events WHERE id=?").get(mediaEventId)) {
@@ -1801,9 +1905,7 @@ export const resolveCompetingPlayerOffers = (
   }
   const winnerTerms = latestPersonalTerms(db, winner, worldDate, seed);
   completePermanentTransfer(db, winner, worldDate, `${seed}:resolved`, preferences, winnerTerms);
-  return new TransferMarketRepository(db)
-    .transferOffers()
-    .find((offer) => offer.id === winner.id);
+  return new TransferMarketRepository(db).transferOffers().find((offer) => offer.id === winner.id);
 };
 
 export const startLoan = (
@@ -2104,10 +2206,7 @@ export const signFreeAgent = (
   return new TransferMarketRepository(db).activeContract(playerId, worldDate)?.clubId === clubId;
 };
 
-export type LoanTerminationReason =
-  | "NORMAL_EXPIRY"
-  | "RECALL"
-  | "PERMANENT_OPTION_PURCHASE";
+export type LoanTerminationReason = "NORMAL_EXPIRY" | "RECALL" | "PERMANENT_OPTION_PURCHASE";
 
 const finishLoan = (
   db: GameDatabase,
@@ -2128,10 +2227,7 @@ const finishLoan = (
     registerContractedPlayer(db, persisted.playerId, persisted.parentClubId, worldDate);
   }
   market.insertTransferHistoryEvent({
-    id: createStableEntityId(
-      "transfer-history",
-      `${persisted.id}:loan-ended:${reason}`,
-    ),
+    id: createStableEntityId("transfer-history", `${persisted.id}:loan-ended:${reason}`),
     playerId: persisted.playerId,
     clubId: persisted.parentClubId,
     relatedClubId: persisted.loanClubId,
@@ -2142,11 +2238,7 @@ const finishLoan = (
   return true;
 };
 
-export const endLoan = (
-  db: GameDatabase,
-  loan: PlayerLoanRecord,
-  worldDate: string,
-): void => {
+export const endLoan = (db: GameDatabase, loan: PlayerLoanRecord, worldDate: string): void => {
   finishLoan(db, loan, worldDate, "NORMAL_EXPIRY", true);
 };
 
@@ -2401,17 +2493,39 @@ export const findPermanentTransferCandidatesForClub = (
 ) => {
   const regionalCandidates = searchRegionalCandidatesForClub(db, clubId, {}, worldDate, 12);
   const network = new ClubNetworkRepository(db);
-  const preferredClubIds = new Set(network.activePreferredTransferPartnerships(clubId, worldDate).map((partnership) => partnership.toClubId));
-  const preferredCandidates = searchPreferredTransferCandidatesForClub(db, clubId, [...preferredClubIds], worldDate);
+  const preferredClubIds = new Set(
+    network
+      .activePreferredTransferPartnerships(clubId, worldDate)
+      .map((partnership) => partnership.toClubId),
+  );
+  const preferredCandidates = searchPreferredTransferCandidatesForClub(
+    db,
+    clubId,
+    [...preferredClubIds],
+    worldDate,
+  );
   const relatedClubIds = new Set(network.activeRelatedClubIds(clubId, worldDate));
-  const baseCandidates = regionalCandidates.length > 0 ? regionalCandidates : searchPlayersForClub(db, clubId, {}, worldDate);
-  const candidates = [...new Map([...baseCandidates, ...preferredCandidates].map((candidate) => [candidate.playerId, candidate])).values()]
+  const baseCandidates =
+    regionalCandidates.length > 0
+      ? regionalCandidates
+      : searchPlayersForClub(db, clubId, {}, worldDate);
+  const candidates = [
+    ...new Map(
+      [...baseCandidates, ...preferredCandidates].map((candidate) => [
+        candidate.playerId,
+        candidate,
+      ]),
+    ).values(),
+  ]
     .filter((candidate) => candidate.clubId && candidate.clubId !== clubId)
     .filter(
       (candidate) =>
         need.positionGroup === "DEPTH" || candidate.publicPositionGroup === need.positionGroup,
     )
-    .filter((candidate) => (candidate.estimatedAbility?.max ?? 0) >= 7 || preferredClubIds.has(candidate.clubId!))
+    .filter(
+      (candidate) =>
+        (candidate.estimatedAbility?.max ?? 0) >= 7 || preferredClubIds.has(candidate.clubId!),
+    )
     .sort(
       (a, b) =>
         Number(preferredClubIds.has(b.clubId!)) - Number(preferredClubIds.has(a.clubId!)) ||
@@ -2453,7 +2567,9 @@ const findFreeAgentForNeed = (
   const activeOfferPlayers = new Set(
     new TransferMarketRepository(db)
       .transferOffers()
-      .filter((offer) => ["SUBMITTED", "NEGOTIATING", "ACCEPTED", "PLAYER_ACCEPTED"].includes(offer.status))
+      .filter((offer) =>
+        ["SUBMITTED", "NEGOTIATING", "ACCEPTED", "PLAYER_ACCEPTED"].includes(offer.status),
+      )
       .map((offer) => offer.playerId),
   );
   return marketPlayers(db)
@@ -2468,13 +2584,21 @@ const findFreeAgentForNeed = (
       const foreignPreference = isNepalClub(db, clubId)
         ? Number(isForeignBased(db, b.currentClubId)) - Number(isForeignBased(db, a.currentClubId))
         : 0;
-      return foreignPreference || b.currentAbility - a.currentAbility || String(a.playerId).localeCompare(String(b.playerId));
+      return (
+        foreignPreference ||
+        b.currentAbility - a.currentAbility ||
+        String(a.playerId).localeCompare(String(b.playerId))
+      );
     })[0];
 };
 
 const isNepalClub = (db: GameDatabase, clubId: EntityId): boolean =>
   Boolean(
-    db.prepare("SELECT 1 FROM clubs c JOIN countries country ON country.id=c.country_id WHERE c.id=? AND country.iso_code IN ('NP','NPL')").get(clubId),
+    db
+      .prepare(
+        "SELECT 1 FROM clubs c JOIN countries country ON country.id=c.country_id WHERE c.id=? AND country.iso_code IN ('NP','NPL')",
+      )
+      .get(clubId),
   );
 
 export const findLoanCandidateForClub = (
@@ -2500,7 +2624,14 @@ export const findLoanCandidateForClub = (
     .filter((item) => item.currentClubId && item.currentClubId !== clubId)
     .filter((item) => !alreadyLoaned.has(item.playerId))
     .filter((item) => need.positionGroup === "DEPTH" || item.positionGroup === need.positionGroup)
-    .sort((a, b) => Number(partnerParentClubs.has(b.currentClubId!)) - Number(partnerParentClubs.has(a.currentClubId!)) || a.appearances - b.appearances || a.age - b.age || String(a.playerId).localeCompare(String(b.playerId)))) {
+    .sort(
+      (a, b) =>
+        Number(partnerParentClubs.has(b.currentClubId!)) -
+          Number(partnerParentClubs.has(a.currentClubId!)) ||
+        a.appearances - b.appearances ||
+        a.age - b.age ||
+        String(a.playerId).localeCompare(String(b.playerId)),
+    )) {
     const contract = market.activeContract(player.playerId, worldDate);
     if (contract && ["BACKUP", "PROSPECT", "YOUTH", "ROTATION"].includes(contract.squadRole)) {
       return { parentClubId: contract.clubId, playerId: player.playerId };
@@ -2511,11 +2642,7 @@ export const findLoanCandidateForClub = (
 
 const findLoanCandidate = findLoanCandidateForClub;
 
-const registerLoanPlayer = (
-  db: GameDatabase,
-  loan: PlayerLoanRecord,
-  worldDate: string,
-): void => {
+const registerLoanPlayer = (db: GameDatabase, loan: PlayerLoanRecord, worldDate: string): void => {
   const market = new TransferMarketRepository(db);
   const seasons = db
     .prepare(
@@ -2554,17 +2681,15 @@ const closePlayerRegistrations = (
   registrationType: "CONTRACTED" | "LOAN",
   worldDate: string,
 ): void => {
-  db
-    .prepare(
-      `UPDATE competition_registrations
+  db.prepare(
+    `UPDATE competition_registrations
        SET status = 'EXPIRED',
            registered_until = CASE
              WHEN registered_until IS NULL OR registered_until > ? THEN ?
              ELSE registered_until
            END
        WHERE player_id = ? AND club_id = ? AND registration_type = ? AND status = 'ACTIVE'`,
-    )
-    .run(worldDate, worldDate, playerId, clubId, registrationType);
+  ).run(worldDate, worldDate, playerId, clubId, registrationType);
 };
 
 const registerContractedPlayer = (
@@ -2660,7 +2785,8 @@ const startingContract = (
   const salary = Math.round(
     (isNepalClub(db, club.id)
       ? 12000 + player.currentAbility * 2800 + player.reputation * 1200
-      : 28000 + player.currentAbility * 14500 + player.reputation * 4200) * clubSalaryMultiplier(club),
+      : 28000 + player.currentAbility * 14500 + player.reputation * 4200) *
+      clubSalaryMultiplier(club),
   );
   return {
     id: createStableEntityId("player-contract", `${player.playerId}:${club.id}:starting`),
@@ -2695,12 +2821,19 @@ const financialProfile = (
 ): ClubFinancialProfile => {
   const rng = new SeededRandom(`${seed}:finance:${club.id}`);
   const multiplier = clubSalaryMultiplier(club);
-  const contextOnly = club.canonicalExternalId?.startsWith("CLB-") || club.canonicalExternalId?.startsWith("SIM-FOREIGN-");
+  const contextOnly =
+    club.canonicalExternalId?.startsWith("CLB-") ||
+    club.canonicalExternalId?.startsWith("SIM-FOREIGN-");
   return {
     id: createStableEntityId("club-financial-profile", club.id),
     clubId: club.id,
-    wageBudget: Math.round((contextOnly ? 7200000 : 3600000) * multiplier + rng.next() * (contextOnly ? 1800000 : 900000)),
-    transferBudget: Math.round((contextOnly ? 3600000 : 900000) * multiplier + rng.next() * (contextOnly ? 1400000 : 500000)),
+    wageBudget: Math.round(
+      (contextOnly ? 7200000 : 3600000) * multiplier +
+        rng.next() * (contextOnly ? 1800000 : 900000),
+    ),
+    transferBudget: Math.round(
+      (contextOnly ? 3600000 : 900000) * multiplier + rng.next() * (contextOnly ? 1400000 : 500000),
+    ),
     currentWageSpend: playerCount * Math.round(55000 * multiplier),
     financialHealth: multiplier > 1.25 ? "GOOD" : multiplier > 0.9 ? "STABLE" : "POOR",
     currency,
@@ -2987,7 +3120,8 @@ const marketPlayers = (db: GameDatabase, playerId?: EntityId): MarketPlayer[] =>
     .map((row: any) => {
       const simulation = JSON.parse(row.simulation_json ?? "{}");
       const factual = JSON.parse(row.factual_json ?? "{}");
-      const position = simulation.simulationPrimaryPosition ?? row.primary_position ?? factual.primary_position;
+      const position =
+        simulation.simulationPrimaryPosition ?? row.primary_position ?? factual.primary_position;
       return {
         playerId: row.player_id,
         fullName: row.full_name,
@@ -3026,8 +3160,7 @@ export const positionGroupForPlayer = (
        WHERE p.id = ?`,
     )
     .get(playerId) as
-    | { primary_position?: string; factual_json?: string; simulation_json?: string }
-    | undefined;
+    { primary_position?: string; factual_json?: string; simulation_json?: string } | undefined;
   if (!row) return undefined;
   const factual = JSON.parse(row.factual_json ?? "{}");
   const simulation = JSON.parse(row.simulation_json ?? "{}");

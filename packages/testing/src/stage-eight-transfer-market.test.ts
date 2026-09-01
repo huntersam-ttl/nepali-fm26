@@ -1,16 +1,9 @@
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
-  afterAll,
-  afterEach,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-} from "vitest";
-import {
+  PeopleFoundationRepository,
   TransferMarketRepository,
   WorldRepository,
   openGameDatabase,
@@ -410,6 +403,15 @@ describe("transfer and contract market", () => {
     expect(signed.decision).toBe("SIGNED");
     expect(signed.interestScore).toBeGreaterThanOrEqual(52);
     expect(market.agentForPlayer(playerId)).toBeDefined();
+    const agent = market.agentForPlayer(playerId)!;
+    expect(
+      new PeopleFoundationRepository(db).relationship(playerId, agent.personId, "PLAYER_AGENT"),
+    ).toMatchObject({
+      affinity: 62,
+      trust: 60,
+      respect: 58,
+      tension: 4,
+    });
 
     const decliningPlayerId = playerForClub(db, clubIdByCanonical(db, "NEP-DIVA-FRN"));
     insertNationalTeamExposure(db, decliningPlayerId, { seniorCallup: true });
