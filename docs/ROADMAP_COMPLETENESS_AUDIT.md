@@ -13,7 +13,7 @@ Audit basis: HEAD `f5c82d9` and the production source/tests in this checkout. Ol
 | People/personality/relationships              | COMPLETE        | Canonical persisted profiles and typed relationships are used by players, managers, staff and agents.                                                                                                                                                                                                                     |
 | Dressing-room hierarchy, promises, mentoring  | PARTIAL         | Hierarchy, trust, promise state and mentoring assignments exist; broad promise follow-through across transfers, board, media and career outcomes is not centrally evaluated.                                                                                                                                              |
 | Transfers, loans, contracts, agents           | PARTIAL         | Advanced deal structures, competing offers and canonical player-agent representation work; agent career commands, personal fee settlement and complete client-career progression are still being expanded.                                                                                                                |
-| Recruitment uncertainty/scouting              | PARTIAL         | Progressive knowledge and staff/network precision exist; knowledge is not yet consistently consumed by every recruitment decision and every human/AI market path.                                                                                                                                                         |
+| Recruitment uncertainty/scouting              | COMPLETE        | Human search/shortlist, contextual valuation, AI candidate selection, trials, knowledge confidence, and represented competing-offer/contract decisions consume the canonical persisted scouting and agent state; external clubs remain lightweight CONTEXT_ONLY inputs.                                                   |
 | Supporter politics and media                  | PARTIAL         | Sentiment, protest thresholds and structured media/press/social reactions exist; the event ecosystem is not yet uniformly emitted by every real transfer, ownership, promise and federation event.                                                                                                                        |
 | Player lifestyle/off-field relationships      | PARTIAL         | Event-driven lifestyle and relationship updates exist; there is no broad downstream integration into all contract, adaptation and training decisions.                                                                                                                                                                     |
 | Dynamic injuries/medical/physical development | COMPLETE        | Risk, rehabilitation decisions, return states and bounded physical effects are persisted and tested.                                                                                                                                                                                                                      |
@@ -37,8 +37,8 @@ Audit basis: HEAD `f5c82d9` and the production source/tests in this checkout. Ol
 
 ### Count
 
-- COMPLETE: **9**
-- PARTIAL: **16**
+- COMPLETE: **10**
+- PARTIAL: **15**
 - FOUNDATION_ONLY: **3**
 - MISSING: **0**
 - BLOCKED: **0**
@@ -48,7 +48,7 @@ The roadmap currently has no technically blocked item. The `FOUNDATION_ONLY` lab
 ## Cross-cutting checks
 
 - Persistence: most implemented systems have repositories/migrations and idempotent keys. The audit found timeline projection to be the highest-value missing bridge because it affects Manager, Owner, President, executive, Agent and Player histories without adding another simulation engine.
-- Progression: match/season systems are real; funded federation policies now advance at the season boundary and the national-development read model aggregates matching policy impacts, played senior/youth/women results, persisted academy pathway outcomes and cohort conversion without duplicating completed project effects.
+- Progression: match/season systems are real; funded federation policies now advance at the season boundary and the national-development read model aggregates matching policy impacts, played senior/youth/women results, persisted academy pathway outcomes and cohort conversion without duplicating completed project effects. Recruitment decisions consume persisted knowledge confidence and trial progression before supported transfer choices.
 - Roles: Manager and Owner/Chairman command paths are production-backed. President has governance paths. Sporting Director/DoF and CEO/Secretary currently have authority foundations but incomplete command integration. Agent now has a human creation/client path but not full financial career play.
 - A/B/C: competition and founder paths use shared-root logic; no division-specific patch is warranted for this audit gap.
 - External world: foreign clubs/leagues remain `CONTEXT_ONLY`; no full foreign executive, agent or media simulation is introduced.
