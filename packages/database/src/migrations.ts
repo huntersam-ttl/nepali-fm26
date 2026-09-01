@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 78;
+export const CURRENT_DATABASE_VERSION = 79;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -3486,6 +3486,10 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       );
       CREATE INDEX IF NOT EXISTS idx_career_timeline_person_date ON career_timeline_events(person_id, occurred_on, id);
     `,
+  },
+  {
+    version: 79,
+    sql: `ALTER TABLE continental_coefficient_snapshots ADD COLUMN club_contributions_json TEXT NOT NULL DEFAULT '{}';`,
   },
 ];
 

@@ -28,7 +28,7 @@ Audit basis: HEAD `6d847a8` and the production source/tests in this checkout. Ol
 | National development                          | PARTIAL         | Explainable bands and policy/project inputs exist; season-boundary progression is incomplete across all dimensions.                                                                                                         |
 | Football economy/sponsorship/attendance       | COMPLETE        | Club/federation finance separation, attendance, sponsorship and economic trends are persisted and tested.                                                                                                                   |
 | Broadcast rights/distribution                 | COMPLETE        | Valuation, equal/merit/mixed distribution and exact-once settlement are implemented.                                                                                                                                        |
-| Continental coefficients                      | FOUNDATION_ONLY | Five-season persisted coefficient calculation exists, but no production hook currently ingests completed continental match results into association/club history automatically.                                             |
+| Continental coefficients                      | PARTIAL         | Completed Nepal continental fixtures now feed persisted association/club contributions and the five-season window. Qualification/seeding has no existing coefficient consumer, so that connection remains unsupported.      |
 | Manager jobs/interviews                       | PARTIAL         | Vacancies, applications, interviews, offers and deterministic AI appointments exist; withdrawal, negotiation, competing-candidate and cooldown behavior is not a complete lifecycle.                                        |
 | Staff personalities/job market/backroom       | PARTIAL         | Staff use canonical profiles, vacancies, approaches and relationship summaries; personality is not yet applied to every course, departure and manager-cooperation decision.                                                 |
 | Sporting Director/DoF/CEO/Secretary           | FOUNDATION_ONLY | Role assignments, authority maps, majority-control gate and fit ranking exist; commands are not yet wired through every transfer, scouting, contract, commercial and licensing mutation.                                    |
@@ -38,8 +38,8 @@ Audit basis: HEAD `6d847a8` and the production source/tests in this checkout. Ol
 ### Count
 
 - COMPLETE: **8**
-- PARTIAL: **16**
-- FOUNDATION_ONLY: **4**
+- PARTIAL: **17**
+- FOUNDATION_ONLY: **3**
 - MISSING: **0**
 - BLOCKED: **0**
 
@@ -56,8 +56,8 @@ The roadmap currently has no technically blocked item. The `FOUNDATION_ONLY` lab
 
 ## Implementation completed in this audit
 
-The shared career timeline now has `syncCareerTimeline(db, personId)`, which projects only already-persisted career milestones and staff-history events, uses stable IDs/insert-ignore semantics, supports existing-save backfill without invented history, and preserves timeline filters. This is the isolated highest-value gap closed in the same pass.
+The shared career timeline has `syncCareerTimeline(db, personId)`, which projects only already-persisted career milestones and staff-history events, uses stable IDs/insert-ignore semantics, supports existing-save backfill without invented history, and preserves timeline filters. Continental coefficient progression is now also wired into completed continental season processing with real persisted Nepal fixture results and idempotent season snapshots.
 
 ## Next highest-priority gap
 
-Wire continental coefficient updates to the existing completed continental-result/season boundary path, then connect the resulting coefficient to qualification/seeding context where the current competition format supports it. The next broader gap after that is season-boundary evaluation of federation policy and national-development outcomes.
+Connect the resulting continental coefficient to qualification/seeding context if a supported competition format gains such a consumer. The next broader production gap is season-boundary evaluation of federation policy and national-development outcomes.

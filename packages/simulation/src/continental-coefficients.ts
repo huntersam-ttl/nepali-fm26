@@ -13,14 +13,30 @@ const clamp = (value: number, min: number, max: number): number =>
 export const calculateContinentalCoefficient = (
   results: ContinentalResult[],
   seasonLabel: string,
-): { coefficient: number; resultPoints: number; participatingClubs: number } => {
+): {
+  coefficient: number;
+  resultPoints: number;
+  participatingClubs: number;
+  clubContributions: Record<EntityId, number>;
+} => {
   const current = results.filter((result) => result.seasonLabel === seasonLabel);
   const clubs = new Set(current.map((result) => result.clubId));
-  const points = current.reduce((sum, result) => sum + clamp(result.resultPoints, 0, 12), 0);
+  const points = current.reduce((sum, result) => sum + clamp(result.resultPoints, 0, 100), 0);
+  const clubContributions = Object.fromEntries(
+    [...clubs]
+      .sort()
+      .map((clubId) => [
+        clubId,
+        current
+          .filter((result) => result.clubId === clubId)
+          .reduce((sum, result) => sum + clamp(result.resultPoints, 0, 100), 0),
+      ]),
+  ) as Record<EntityId, number>;
   return {
     coefficient: Number((points / Math.max(1, clubs.size)).toFixed(3)),
     resultPoints: points,
     participatingClubs: clubs.size,
+    clubContributions,
   };
 };
 
@@ -65,6 +81,7 @@ export const persistContinentalCoefficient = (
     coefficient: rollingContinentalCoefficient([...prior, current.coefficient]),
     resultPoints: current.resultPoints,
     participatingClubs: current.participatingClubs,
+    clubContributions: current.clubContributions,
     rollingWindow: [...prior, current.coefficient].slice(-5),
     calculatedOn: input.calculatedOn,
     provenanceStatus: "SIMULATION_ONLY",
@@ -77,3 +94,76 @@ export const continentalCoefficientReadModel = (
   db: GameDatabase,
   associationId: EntityId,
 ): ContinentalCoefficientSnapshot[] => new ContinentalCareerRepository(db).snapshots(associationId);
+
+/** Ingests only completed, persisted fixtures in a continental competition. */
+export const processCompletedContinentalSeason = (
+  db: GameDatabase,
+  input: { competitionSeasonId: EntityId; calculatedOn: string },
+): ContinentalCoefficientSnapshot | undefined => {
+  const rows = db
+    .prepare(
+      `SELECT c.federation_id AS association_id, cs.start_date, f.id AS fixture_id,
+      m.home_goals, m.away_goals, m.played_date, hc.id AS home_club_id, ac.id AS away_club_id,
+      hcountry.iso_code AS home_iso, acountry.iso_code AS away_iso
+    FROM fixtures f JOIN matches m ON m.fixture_id=f.id
+    JOIN competition_seasons cs ON cs.id=f.competition_season_id
+    JOIN competitions c ON c.id=cs.competition_id
+    JOIN teams ht ON ht.id=f.home_team_id JOIN teams at ON at.id=f.away_team_id
+    JOIN clubs hc ON hc.id=ht.club_id JOIN clubs ac ON ac.id=at.club_id
+    JOIN countries hcountry ON hcountry.id=hc.country_id JOIN countries acountry ON acountry.id=ac.country_id
+    WHERE f.competition_season_id=? AND c.scope='continental'
+      AND (hcountry.iso_code IN ('NP','NPL') OR acountry.iso_code IN ('NP','NPL'))
+    ORDER BY f.id`,
+    )
+    .all(input.competitionSeasonId) as Array<Record<string, unknown>>;
+  if (rows.length === 0 || !rows[0]!.association_id) return undefined;
+  const associationId = rows[0]!.association_id as EntityId;
+  const seasonLabel = String(rows[0]!.start_date).slice(0, 4);
+  const byClub = new Map<EntityId, ContinentalResult>();
+  for (const row of rows) {
+    const homeGoals = Number(row.home_goals ?? 0);
+    const awayGoals = Number(row.away_goals ?? 0);
+    const homeNepal = ["NP", "NPL"].includes(String(row.home_iso));
+    const awayNepal = ["NP", "NPL"].includes(String(row.away_iso));
+    const date = String(row.played_date ?? input.calculatedOn);
+    const add = (clubId: EntityId, points: number) => {
+      const previous = byClub.get(clubId);
+      byClub.set(
+        clubId,
+        previous
+          ? {
+              ...previous,
+              resultPoints: previous.resultPoints + points,
+              matches: previous.matches + 1,
+            }
+          : {
+              associationId,
+              clubId,
+              seasonLabel,
+              resultPoints: points,
+              matches: 1,
+              completedOn: date,
+              provenanceStatus: "SIMULATION_ONLY",
+            },
+      );
+    };
+    if (homeGoals === awayGoals) {
+      if (homeNepal) add(row.home_club_id as EntityId, 1);
+      if (awayNepal) add(row.away_club_id as EntityId, 1);
+    } else if (homeGoals > awayGoals) {
+      if (homeNepal) add(row.home_club_id as EntityId, 3);
+      if (awayNepal) add(row.away_club_id as EntityId, 0);
+    } else {
+      if (homeNepal) add(row.home_club_id as EntityId, 0);
+      if (awayNepal) add(row.away_club_id as EntityId, 3);
+    }
+  }
+  return byClub.size === 0
+    ? undefined
+    : persistContinentalCoefficient(db, {
+        associationId,
+        seasonLabel,
+        results: [...byClub.values()],
+        calculatedOn: input.calculatedOn,
+      });
+};

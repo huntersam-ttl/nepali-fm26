@@ -82,7 +82,10 @@ import {
   type YouthAnnualReport,
 } from "./youth-intake.js";
 import { ensureWomensFootballWorldForSave } from "./womens-youth.js";
-import { completeYouthDevelopmentPartnerships, planYouthDevelopmentPartnerships } from "./youth-partnerships.js";
+import {
+  completeYouthDevelopmentPartnerships,
+  planYouthDevelopmentPartnerships,
+} from "./youth-partnerships.js";
 import {
   reconcileWorkforceSupply,
   type WorkforceReconciliationReport,
@@ -92,6 +95,7 @@ import { ensureFederationLeadershipContinuity } from "./federation-politics.js";
 import { advanceMacroEconomyForWorldDate } from "./macro-economy.js";
 import { recordCompetitionSeasonHistory, recordFootballMatchHistory } from "./football-history.js";
 import { processClubLicensingForSeason } from "./licensing.js";
+import { processCompletedContinentalSeason } from "./continental-coefficients.js";
 import { advanceTerritorialDevelopment } from "./territorial-football.js";
 import {
   evolveSupporterCultureSeason,
@@ -244,7 +248,9 @@ export const simulateNepalCareer = (input: {
   // save. Legacy saves without the marker retain the generated 11-market
   // bootstrap for backwards compatibility.
   const hasAppliedGlobalDataset = Boolean(
-    (input.db.prepare("SELECT 1 FROM global_dataset_imports WHERE status = 'ACTIVE' LIMIT 1").get() as { 1?: number } | undefined),
+    input.db
+      .prepare("SELECT 1 FROM global_dataset_imports WHERE status = 'ACTIVE' LIMIT 1")
+      .get() as { 1?: number } | undefined,
   );
   if (!hasAppliedGlobalDataset) {
     initializeForeignFootballWorldForSave({
@@ -347,7 +353,13 @@ export const simulateNepalCareer = (input: {
       });
       for (const clubId of licensing.eligibleClubIds) licensingEligible.add(clubId);
     }
-    const movementCounts = applyProgression(input.db, activeSeasons, completed, nextSeasons, licensingEligible);
+    const movementCounts = applyProgression(
+      input.db,
+      activeSeasons,
+      completed,
+      nextSeasons,
+      licensingEligible,
+    );
     const movements = completed.flatMap((item) =>
       new CompetitionRepository(input.db)
         .movements(item.season.id)
@@ -401,10 +413,15 @@ export const simulateNepalCareer = (input: {
       const youthDate = addDays(latestSeasonEnd(activeSeasons), 45);
       completeYouthDevelopmentPartnerships(input.db, youthDate);
       const youthClubs = input.db
-        .prepare("SELECT DISTINCT club_id FROM youth_player_statuses WHERE club_id IS NOT NULL ORDER BY club_id")
+        .prepare(
+          "SELECT DISTINCT club_id FROM youth_player_statuses WHERE club_id IS NOT NULL ORDER BY club_id",
+        )
         .all() as Array<{ club_id: EntityId }>;
       for (const youthClub of youthClubs) {
-        planYouthDevelopmentPartnerships(input.db, { clubId: youthClub.club_id, worldDate: youthDate });
+        planYouthDevelopmentPartnerships(input.db, {
+          clubId: youthClub.club_id,
+          worldDate: youthDate,
+        });
       }
       youthReports.push(
         runAnnualYouthAndRetirementCycle({
@@ -606,9 +623,13 @@ const simulateCompetitionSeason = (
   // fixture IDs once, then update this set as the current pass persists
   // results instead of issuing one existence query per fixture twice.
   const completedFixtureIds = new Set<EntityId>(
-    (db.prepare(
-      "SELECT m.fixture_id FROM matches m JOIN fixtures f ON f.id = m.fixture_id WHERE f.competition_season_id = ?",
-    ).all(input.season.id) as Array<{ fixture_id: EntityId }>).map((row) => row.fixture_id),
+    (
+      db
+        .prepare(
+          "SELECT m.fixture_id FROM matches m JOIN fixtures f ON f.id = m.fixture_id WHERE f.competition_season_id = ?",
+        )
+        .all(input.season.id) as Array<{ fixture_id: EntityId }>
+    ).map((row) => row.fixture_id),
   );
   for (const fixture of fixtures) {
     if (fixture.status === "played" || completedFixtureIds.has(fixture.id)) {
@@ -619,14 +640,8 @@ const simulateCompetitionSeason = (
     }
     markSeasonState(db, input.season, "IN_PROGRESS", { currentRound: fixture.round });
     const unavailable = unavailablePlayers(db, input.season.id, fixture.scheduledDate);
-    const homePlayers = availablePlayers(
-      attributesForMatch(fixture.homeTeamId),
-      unavailable,
-    );
-    const awayPlayers = availablePlayers(
-      attributesForMatch(fixture.awayTeamId),
-      unavailable,
-    );
+    const homePlayers = availablePlayers(attributesForMatch(fixture.homeTeamId), unavailable);
+    const awayPlayers = availablePlayers(attributesForMatch(fixture.awayTeamId), unavailable);
     recordSquadHealth(squadHealth, homePlayers, unavailable);
     recordSquadHealth(squadHealth, awayPlayers, unavailable);
     const result = simulateMatch({
@@ -679,7 +694,9 @@ const simulateCompetitionSeason = (
 
   const finalPlayerStats = playerSeasonStats(db, input.season.id);
   const champion = standings[0];
-  if (fixtures.every((fixture) => fixture.status === "played" || completedFixtureIds.has(fixture.id))) {
+  if (
+    fixtures.every((fixture) => fixture.status === "played" || completedFixtureIds.has(fixture.id))
+  ) {
     persistChampionAndAwards(db, input, champion, finalPlayerStats);
     recordCompetitionSeasonHistory(db, {
       seasonId: input.season.id,
@@ -687,6 +704,10 @@ const simulateCompetitionSeason = (
       championTeamId: champion?.teamId,
       championClubId: champion ? clubIdForTeam(db, champion.teamId) : undefined,
       date: input.ruleSet.seasonEndDate,
+    });
+    processCompletedContinentalSeason(db, {
+      competitionSeasonId: input.season.id,
+      calculatedOn: input.ruleSet.seasonEndDate,
     });
     markSeasonState(db, input.season, "COMPLETED", {
       currentRound: Math.max(...fixtures.map((fixture) => fixture.round), 0),
@@ -702,7 +723,13 @@ const simulateCompetitionSeason = (
       if (competitionRights.contractStatus === "OFFERED") {
         acceptCompetitionMediaRights(db, competitionRights.id, input.ruleSet.seasonEndDate);
       }
-      const federationId = (db.prepare("SELECT federation_id AS id FROM competitions WHERE id = (SELECT competition_id FROM competition_seasons WHERE id = ?)").get(input.season.id) as { id?: EntityId } | undefined)?.id;
+      const federationId = (
+        db
+          .prepare(
+            "SELECT federation_id AS id FROM competitions WHERE id = (SELECT competition_id FROM competition_seasons WHERE id = ?)",
+          )
+          .get(input.season.id) as { id?: EntityId } | undefined
+      )?.id;
       if (federationId) {
         settleFederationMediaRightsForCompetition(db, {
           federationId,
@@ -908,8 +935,17 @@ const persistMatchResult = (
       const injury = event.data as any;
       const clubId = event.teamId ? clubIdForTeam(db, event.teamId) : undefined;
       if (clubId) {
-        const insuranceClaim = settleMatchInjuryInsurance(db, { clubId, injury, date: injury.dateOccurred });
-        settleFederationInjuryWelfare(db, { clubId, injury, date: injury.dateOccurred, insuranceClaim });
+        const insuranceClaim = settleMatchInjuryInsurance(db, {
+          clubId,
+          injury,
+          date: injury.dateOccurred,
+        });
+        settleFederationInjuryWelfare(db, {
+          clubId,
+          injury,
+          date: injury.dateOccurred,
+          insuranceClaim,
+        });
       }
     }
     if (event.type === "RED_CARD" && event.personId && personExists(db, event.personId)) {

@@ -19,6 +19,7 @@ export type ContinentalCoefficientSnapshot = {
   coefficient: number;
   resultPoints: number;
   participatingClubs: number;
+  clubContributions: Record<EntityId, number>;
   rollingWindow: number[];
   calculatedOn: ISODate;
   provenanceStatus: "SIMULATION_ONLY";
