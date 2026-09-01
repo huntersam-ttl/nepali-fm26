@@ -196,7 +196,10 @@ export const advanceFederationPolicies = (
   const repository = new FederationPolicyRepository(db);
   const progressed: FederationPolicy[] = [];
   for (const policy of repository.policies(input.federationId)) {
-    if (policy.status === "COMPLETED" || policy.status === "SUSPENDED") continue;
+    // A proposal has no implementation outcome until it is funded.  Keeping
+    // this gate here prevents an unapproved manifesto commitment from
+    // accumulating progress during the seasonal simulation pass.
+    if (policy.status !== "FUNDED" && policy.status !== "IMPLEMENTING") continue;
     const increment = clamp(input.seasonalProgress ?? 12, 1, 25);
     const progress = clamp(policy.implementationProgress + increment);
     const next: FederationPolicy = {

@@ -20,7 +20,7 @@ Audit basis: HEAD `6d847a8` and the production source/tests in this checkout. Ol
 | Career arcs, legacy, club culture             | COMPLETE        | Phases, milestones, legacy labels, academy provenance and inertial culture are implemented from real state.                                                                                                                                                           |
 | Career timeline                               | PARTIAL         | Timeline storage/filtering and agent events exist. Prior persisted career milestones/staff history were not automatically projected into the shared timeline; this audit pass closes that gap with an idempotent sync path.                                           |
 | Academy geography, schools, talent hotspots   | COMPLETE        | Nepal geography, grassroots/school participation and hotspot-driven intake are implemented; outside Nepal remains context-only.                                                                                                                                       |
-| Federation elections/campaigns/policies       | PARTIAL         | Campaigns, endorsements, promises and policy lifecycle exist; policy outcomes are not yet uniformly wired into every season-boundary development input.                                                                                                               |
+| Federation elections/campaigns/policies       | PARTIAL         | Campaigns, endorsements, promises and policy lifecycle exist; funded/implementing policies now advance at the canonical season boundary, but outcomes are not yet uniformly wired into every development input.                                                       |
 | League restructuring                          | COMPLETE        | Proposals are boundary-gated and fixture/promotion math is dynamic and tested.                                                                                                                                                                                        |
 | Referee assignment/development/politics       | PARTIAL         | Deterministic appointments, workload, development and event summaries exist; federation appointment confidence/controversy is mainly a derived foundation, not a complete political lifecycle.                                                                        |
 | Infrastructure strategy/projects              | COMPLETE        | Prioritization, funding, lifecycle and bounded effects reuse project/facility systems.                                                                                                                                                                                |
@@ -43,12 +43,12 @@ Audit basis: HEAD `6d847a8` and the production source/tests in this checkout. Ol
 - MISSING: **0**
 - BLOCKED: **0**
 
-The roadmap currently has no technically blocked item. The `FOUNDATION_ONLY` labels are production gaps, not claims of completion.
+The roadmap currently has no technically blocked item. The `FOUNDATION_ONLY` labels are production gaps, not claims of completion. Continental qualification/seeding consumption remains explicitly `DEFERRED_UNTIL_COMPETITION_PATH`.
 
 ## Cross-cutting checks
 
 - Persistence: most implemented systems have repositories/migrations and idempotent keys. The audit found timeline projection to be the highest-value missing bridge because it affects Manager, Owner, President, executive, Agent and Player histories without adding another simulation engine.
-- Progression: match/season systems are real; several newer policy/coefficient/read-model systems still need explicit season-boundary hooks.
+- Progression: match/season systems are real; funded federation policies now have an explicit season-boundary hook, while broader national-development outcome aggregation remains incomplete.
 - Roles: Manager and Owner/Chairman command paths are production-backed. President has governance paths. Sporting Director/DoF and CEO/Secretary currently have authority foundations but incomplete command integration. Agent now has a human creation/client path but not full financial career play.
 - A/B/C: competition and founder paths use shared-root logic; no division-specific patch is warranted for this audit gap.
 - External world: foreign clubs/leagues remain `CONTEXT_ONLY`; no full foreign executive, agent or media simulation is introduced.
@@ -60,4 +60,4 @@ The shared career timeline has `syncCareerTimeline(db, personId)`, which project
 
 ## Next highest-priority gap
 
-Qualification/seeding consumption remains `DEFERRED_UNTIL_COMPETITION_PATH` until a supported continental competition format gains a real draw/seeding consumer. The next broader production gap is season-boundary evaluation of federation policy and national-development outcomes.
+Qualification/seeding consumption remains `DEFERRED_UNTIL_COMPETITION_PATH` until a supported continental competition format gains a real draw/seeding consumer. The next broader production gap is national-development outcome aggregation across the remaining supported dimensions.

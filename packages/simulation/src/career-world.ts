@@ -92,6 +92,7 @@ import {
 } from "./workforce-supply.js";
 import { processOwnershipContinuity } from "./ownership.js";
 import { ensureFederationLeadershipContinuity } from "./federation-politics.js";
+import { advanceFederationPolicies } from "./federation-policy.js";
 import { advanceMacroEconomyForWorldDate } from "./macro-economy.js";
 import { recordCompetitionSeasonHistory, recordFootballMatchHistory } from "./football-history.js";
 import { processClubLicensingForSeason } from "./licensing.js";
@@ -593,6 +594,18 @@ const processFederationForSeasonPeriod = (
     seasonLabel: String(endYear),
     date: input.seasonEndDate,
   });
+  // Policy outcomes are seasonal, not monthly.  This is the single
+  // progression point for every Nepal federation in the career world and is
+  // intentionally after the federation's financial close.
+  const federations = db.prepare("SELECT id FROM federations ORDER BY id").all() as Array<{
+    id: EntityId;
+  }>;
+  for (const federation of federations) {
+    advanceFederationPolicies(db, {
+      federationId: federation.id,
+      date: input.seasonEndDate,
+    });
+  }
 };
 
 const simulateCompetitionSeason = (
