@@ -499,6 +499,19 @@ const SubstitutionDrawer = ({
   );
 };
 
+const GK_DISTRIBUTION_OPTIONS = [
+  "SHORT",
+  "CENTRE_BACKS",
+  "FULLBACKS",
+  "TARGET_FORWARD",
+  "MIXED",
+  "LONG",
+] as const;
+
+/** Describes a slider's movement in plain language; no raw engine numbers are exposed. */
+const trend = (value: number, risingWord: string, fallingWord: string): string =>
+  value >= 65 ? risingWord : value <= 35 ? fallingWord : "steady";
+
 const TacticsDrawer = ({
   team,
   busy,
@@ -513,12 +526,41 @@ const TacticsDrawer = ({
     mentality?: string;
     pressingIntensity?: number;
     defensiveLine?: number;
+    engagementLine?: number;
+    tacklingIntensity?: number;
     tempo?: number;
+    passingLength?: number;
+    width?: number;
+    buildUpRisk?: number;
+    counterPress?: boolean;
+    regroup?: boolean;
+    counter?: boolean;
+    holdShape?: boolean;
+    playFromBack?: boolean;
+    workBallIntoBox?: boolean;
+    earlyCrosses?: boolean;
+    goalkeeperDistributionStyle?: (typeof GK_DISTRIBUTION_OPTIONS)[number];
   }) => void;
 }): React.ReactElement => {
   const [style, setStyle] = useState(team.style ?? "BALANCED");
   const [mentality, setMentality] = useState(team.mentality ?? "BALANCED");
+  const [tempo, setTempo] = useState(50);
+  const [passingLength, setPassingLength] = useState(50);
+  const [width, setWidth] = useState(50);
+  const [buildUpRisk, setBuildUpRisk] = useState(50);
+  const [playFromBack, setPlayFromBack] = useState(false);
+  const [workBallIntoBox, setWorkBallIntoBox] = useState(false);
+  const [earlyCrosses, setEarlyCrosses] = useState(false);
+  const [counterPress, setCounterPress] = useState(false);
+  const [regroup, setRegroup] = useState(false);
+  const [counter, setCounter] = useState(false);
+  const [holdShape, setHoldShape] = useState(false);
+  const [goalkeeperDistributionStyle, setGoalkeeperDistributionStyle] =
+    useState<(typeof GK_DISTRIBUTION_OPTIONS)[number]>("MIXED");
   const [pressing, setPressing] = useState(50);
+  const [defensiveLine, setDefensiveLine] = useState(50);
+  const [engagementLine, setEngagementLine] = useState(50);
+  const [tacklingIntensity, setTacklingIntensity] = useState(50);
   const [feedback, setFeedback] = useState<string | null>(null);
 
   return (
@@ -578,6 +620,137 @@ const TacticsDrawer = ({
             ))}
           </select>
         </label>
+
+        <h3>In possession</h3>
+        <label>
+          Tempo ({tempo})
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={tempo}
+            onChange={(event) => setTempo(Number(event.target.value))}
+            disabled={busy}
+          />
+        </label>
+        <label>
+          Passing length ({passingLength})
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={passingLength}
+            onChange={(event) => setPassingLength(Number(event.target.value))}
+            disabled={busy}
+          />
+        </label>
+        <label>
+          Width ({width})
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={width}
+            onChange={(event) => setWidth(Number(event.target.value))}
+            disabled={busy}
+          />
+        </label>
+        <label>
+          Build-up risk ({buildUpRisk})
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={buildUpRisk}
+            onChange={(event) => setBuildUpRisk(Number(event.target.value))}
+            disabled={busy}
+          />
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={playFromBack}
+            onChange={(event) => setPlayFromBack(event.target.checked)}
+            disabled={busy}
+          />{" "}
+          Play from the back
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={workBallIntoBox}
+            onChange={(event) => setWorkBallIntoBox(event.target.checked)}
+            disabled={busy}
+          />{" "}
+          Work ball into box
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={earlyCrosses}
+            onChange={(event) => setEarlyCrosses(event.target.checked)}
+            disabled={busy}
+          />{" "}
+          Early crosses
+        </label>
+
+        <h3>Transition</h3>
+        <label>
+          <input
+            type="checkbox"
+            checked={counterPress}
+            onChange={(event) => setCounterPress(event.target.checked)}
+            disabled={busy}
+          />{" "}
+          Counter-press
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={regroup}
+            onChange={(event) => setRegroup(event.target.checked)}
+            disabled={busy}
+          />{" "}
+          Regroup
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={counter}
+            onChange={(event) => setCounter(event.target.checked)}
+            disabled={busy}
+          />{" "}
+          Counter
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={holdShape}
+            onChange={(event) => setHoldShape(event.target.checked)}
+            disabled={busy}
+          />{" "}
+          Hold shape
+        </label>
+        <label>
+          Goalkeeper distribution
+          <select
+            value={goalkeeperDistributionStyle}
+            onChange={(event) =>
+              setGoalkeeperDistributionStyle(
+                event.target.value as (typeof GK_DISTRIBUTION_OPTIONS)[number],
+              )
+            }
+            disabled={busy}
+          >
+            {GK_DISTRIBUTION_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {option.replace(/_/g, " ")}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <h3>Out of possession</h3>
         <label>
           Pressing intensity ({pressing})
           <input
@@ -589,16 +762,70 @@ const TacticsDrawer = ({
             disabled={busy}
           />
         </label>
+        <label>
+          Defensive line ({defensiveLine})
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={defensiveLine}
+            onChange={(event) => setDefensiveLine(Number(event.target.value))}
+            disabled={busy}
+          />
+        </label>
+        <label>
+          Engagement line ({engagementLine})
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={engagementLine}
+            onChange={(event) => setEngagementLine(Number(event.target.value))}
+            disabled={busy}
+          />
+        </label>
+        <label>
+          Tackling intensity ({tacklingIntensity})
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={tacklingIntensity}
+            onChange={(event) => setTacklingIntensity(Number(event.target.value))}
+            disabled={busy}
+          />
+        </label>
+
         <button
           className="primary"
           disabled={busy}
           onClick={() => {
-            onApply({ style, mentality, pressingIntensity: pressing });
+            onApply({
+              style,
+              mentality,
+              pressingIntensity: pressing,
+              defensiveLine,
+              engagementLine,
+              tacklingIntensity,
+              tempo,
+              passingLength,
+              width,
+              buildUpRisk,
+              counterPress,
+              regroup,
+              counter,
+              holdShape,
+              playFromBack,
+              workBallIntoBox,
+              earlyCrosses,
+              goalkeeperDistributionStyle,
+            });
             // Qualitative confirmation only; no engine numbers are exposed.
             setFeedback(
               `Style ${style.replace(/_/g, " ").toLowerCase()}, mentality ${mentality
                 .replace(/_/g, " ")
-                .toLowerCase()}, pressing ${pressing >= 65 ? "increased" : pressing <= 35 ? "reduced" : "steady"}.`,
+                .toLowerCase()}, pressing ${trend(pressing, "increased", "reduced")}, ` +
+                `tempo ${trend(tempo, "faster", "slower")}, line ${trend(defensiveLine, "higher", "deeper")}.`,
             );
           }}
         >
