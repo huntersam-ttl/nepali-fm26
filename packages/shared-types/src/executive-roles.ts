@@ -14,7 +14,9 @@ export type ExecutiveAuthority =
   | "CONTRACT_ADMINISTRATION"
   | "COMMERCIAL_OVERSIGHT"
   | "LICENSING"
-  | "COMPETITION_REGISTRATION";
+  | "COMPETITION_REGISTRATION"
+  | "FACILITY_OVERSIGHT"
+  | "BUDGET_ADMINISTRATION";
 
 export type ExecutiveRoleAssignment = {
   id: EntityId;
@@ -82,9 +84,11 @@ export const executiveAuthorities: Record<ExecutiveRole, ExecutiveAuthority[]> =
   ],
   CEO: [
     "CONTRACT_ADMINISTRATION",
+    "BUDGET_ADMINISTRATION",
     "COMMERCIAL_OVERSIGHT",
     "LICENSING",
     "COMPETITION_REGISTRATION",
+    "FACILITY_OVERSIGHT",
     "STAFF_RECRUITMENT",
   ],
   GENERAL_SECRETARY: [

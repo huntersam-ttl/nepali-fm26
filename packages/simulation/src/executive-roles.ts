@@ -75,6 +75,41 @@ export const canExecutiveAct = (request: {
   );
 };
 
+/** Resolves authority from the persisted filled executive assignment. */
+export const executiveHasAuthority = (
+  db: GameDatabase,
+  clubId: EntityId,
+  personId: EntityId,
+  authority: ExecutiveAuthority,
+): boolean => {
+  const assignment = new ExecutiveRoleRepository(db)
+    .rolesForClub(clubId)
+    .find((role) => role.personId === personId && role.status === "FILLED");
+  return Boolean(assignment && executiveAuthorities[assignment.role].includes(authority));
+};
+
+export const assertExecutiveAuthority = (input: {
+  db: GameDatabase;
+  clubId: EntityId;
+  personId: EntityId;
+  role: ExecutiveRole;
+  authority: ExecutiveAuthority;
+}): void => {
+  const assignment = new ExecutiveRoleRepository(input.db)
+    .rolesForClub(input.clubId)
+    .find((item) => item.personId === input.personId && item.status === "FILLED");
+  if (
+    !assignment ||
+    assignment.role !== input.role ||
+    !executiveAuthorities[input.role].includes(input.authority)
+  ) {
+    throw new ExecutiveRoleError(
+      "AUTHORITY_DENIED",
+      `Assigned ${input.role.replace(/_/g, " ").toLowerCase()} authority is required for ${input.authority.toLowerCase()}.`,
+    );
+  }
+};
+
 export class ExecutiveRoleError extends Error {
   constructor(
     readonly code:

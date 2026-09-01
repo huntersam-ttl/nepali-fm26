@@ -34,6 +34,7 @@ import {
   type SponsorshipType,
   type TransferOffer,
 } from "@nepal-football-sim/shared-types";
+import { executiveHasAuthority } from "./executive-roles.js";
 import {
   ClubEconomyRepository,
   ClubNetworkRepository,
@@ -537,13 +538,14 @@ export const setClubBudgetCommand = (
   input: {
     clubId: EntityId;
     personId: EntityId;
-    callerRole: "MANAGER" | "CHAIRMAN_OWNER" | "FEDERATION_PRESIDENT";
+    callerRole: "MANAGER" | "CHAIRMAN_OWNER" | "FEDERATION_PRESIDENT" | "CEO";
     seasonLabel: string;
     category: ClubBudgetCategory;
     amount: number;
   },
 ): ClubBudget => {
-  if (input.callerRole !== "CHAIRMAN_OWNER")
+  if (input.callerRole !== "CHAIRMAN_OWNER" &&
+      !(input.callerRole === "CEO" && executiveHasAuthority(db, input.clubId, input.personId, "BUDGET_ADMINISTRATION")))
     throw new Error("Only the active chairman/owner may set a club budget");
   const club = db
     .prepare(
@@ -556,7 +558,7 @@ export const setClubBudgetCommand = (
       "SELECT 1 FROM club_ownership_stakes WHERE club_id=? AND holder_type='PERSON' AND holder_id=? AND status='ACTIVE' AND percentage>=51 LIMIT 1",
     )
     .get(input.clubId, input.personId);
-  if (!controllingStake) throw new Error("Only a controlling owner may set this club budget");
+  if (!controllingStake && input.callerRole !== "CEO") throw new Error("Only a controlling owner or assigned CEO may set this club budget");
   if (!Number.isFinite(input.amount) || input.amount < 0)
     throw new Error("Budget amount must be a non-negative number");
   return setClubBudget(db, input);
@@ -757,11 +759,12 @@ export const acceptSponsorOfferCommand = (
     sponsorshipId: EntityId;
     clubId: EntityId;
     personId: EntityId;
-    callerRole: "MANAGER" | "CHAIRMAN_OWNER" | "FEDERATION_PRESIDENT";
+    callerRole: "MANAGER" | "CHAIRMAN_OWNER" | "FEDERATION_PRESIDENT" | "CEO";
     date: string;
   },
 ): SponsorshipContract => {
-  if (input.callerRole !== "CHAIRMAN_OWNER")
+  if (input.callerRole !== "CHAIRMAN_OWNER" &&
+      !(input.callerRole === "CEO" && executiveHasAuthority(db, input.clubId, input.personId, "COMMERCIAL_OVERSIGHT")))
     throw new Error("Only the active chairman/owner may approve sponsorships");
   const club = db
     .prepare(
@@ -782,7 +785,7 @@ export const acceptSponsorOfferCommand = (
       "SELECT 1 FROM club_ownership_stakes WHERE club_id=? AND holder_type='PERSON' AND holder_id=? AND status='ACTIVE' AND percentage>=51 LIMIT 1",
     )
     .get(input.clubId, input.personId);
-  if (!controllingStake) throw new Error("Only a controlling owner may approve this sponsorship");
+  if (!controllingStake && input.callerRole !== "CEO") throw new Error("Only a controlling owner or assigned CEO may approve this sponsorship");
   const offer = new ClubEconomyRepository(db)
     .sponsorships()
     .find((item) => item.id === input.sponsorshipId);
@@ -809,10 +812,11 @@ export const rejectSponsorOfferCommand = (
     sponsorshipId: EntityId;
     clubId: EntityId;
     personId: EntityId;
-    callerRole: "MANAGER" | "CHAIRMAN_OWNER" | "FEDERATION_PRESIDENT";
+    callerRole: "MANAGER" | "CHAIRMAN_OWNER" | "FEDERATION_PRESIDENT" | "CEO";
   },
 ): SponsorshipContract => {
-  if (input.callerRole !== "CHAIRMAN_OWNER")
+  if (input.callerRole !== "CHAIRMAN_OWNER" &&
+      !(input.callerRole === "CEO" && executiveHasAuthority(db, input.clubId, input.personId, "COMMERCIAL_OVERSIGHT")))
     throw new Error("Only the active chairman/owner may reject sponsorships");
   const club = db
     .prepare(
@@ -833,7 +837,7 @@ export const rejectSponsorOfferCommand = (
       "SELECT 1 FROM club_ownership_stakes WHERE club_id=? AND holder_type='PERSON' AND holder_id=? AND status='ACTIVE' AND percentage>=51 LIMIT 1",
     )
     .get(input.clubId, input.personId);
-  if (!controllingStake) throw new Error("Only a controlling owner may reject this sponsorship");
+  if (!controllingStake && input.callerRole !== "CEO") throw new Error("Only a controlling owner or assigned CEO may reject this sponsorship");
   const offer = new ClubEconomyRepository(db)
     .sponsorships()
     .find((item) => item.id === input.sponsorshipId);
@@ -1029,13 +1033,14 @@ export const createInfrastructureProjectCommand = (
   input: {
     clubId: EntityId;
     personId: EntityId;
-    callerRole: "MANAGER" | "CHAIRMAN_OWNER" | "FEDERATION_PRESIDENT";
+    callerRole: "MANAGER" | "CHAIRMAN_OWNER" | "FEDERATION_PRESIDENT" | "CEO";
     projectType: InfrastructureProjectType;
     date: string;
     seed: string;
   },
 ): InfrastructureProject => {
-  if (input.callerRole !== "CHAIRMAN_OWNER")
+  if (input.callerRole !== "CHAIRMAN_OWNER" &&
+      !(input.callerRole === "CEO" && executiveHasAuthority(db, input.clubId, input.personId, "FACILITY_OVERSIGHT")))
     throw new Error("Only the active chairman/owner may approve infrastructure projects");
   const club = db
     .prepare(
@@ -1055,7 +1060,7 @@ export const createInfrastructureProjectCommand = (
       "SELECT 1 FROM club_ownership_stakes WHERE club_id=? AND holder_type='PERSON' AND holder_id=? AND status='ACTIVE' AND percentage>=51 LIMIT 1",
     )
     .get(input.clubId, input.personId);
-  if (!controllingStake) throw new Error("Only a controlling owner may approve this club project");
+  if (!controllingStake && input.callerRole !== "CEO") throw new Error("Only a controlling owner or assigned CEO may approve this club project");
   return createInfrastructureProject(db, input);
 };
 

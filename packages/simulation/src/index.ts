@@ -37,6 +37,7 @@ export * from "./foreign-football-world.js";
 export * from "./continental-coefficients.js";
 export * from "./career-market-deepening.js";
 export * from "./executive-roles.js";
+export * from "./executive-authority.js";
 export * from "./agent-career.js";
 export * from "./clubmart.js";
 export * from "./club-finance-markets.js";
