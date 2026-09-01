@@ -1508,6 +1508,26 @@ export type TrainingInjuryRiskSignal = {
   risk: number;
 };
 
+export type WorkloadLabel = "LOW" | "OPTIMAL" | "HIGH" | "VERY_HIGH";
+
+export type DynamicInjuryRiskInput = {
+  baseRisk: number;
+  age: number;
+  minutesLast30Days?: number;
+  trainingIntensity?: number;
+  priorInjuriesLastYear?: number;
+  physicalCondition?: number;
+  recovery?: number;
+  trainingDiscipline?: number;
+};
+
+export type DynamicInjuryRiskResult = {
+  risk: number;
+  recurrenceRisk: number;
+  workload: WorkloadLabel;
+  factors: string[];
+};
+
 export type TrainingHistoryEvent = {
   id: EntityId;
   playerId?: EntityId;
