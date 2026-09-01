@@ -1,12 +1,28 @@
 import type { EntityId } from "./ids.js";
+import type { ISODate } from "./domain.js";
 
 export type RefereeGovernanceSummary = {
   federationId: EntityId;
   appointmentConfidence: "LIMITED" | "WORKING" | "STRONG";
   developmentPriority: "POOL_DEPTH" | "EXPERIENCE" | "CONSISTENCY" | "MAINTENANCE";
   stakeholderTrust: "LIMITED" | "WORKING" | "STRONG";
+  controversyPressure?: "LOW" | "MODERATE" | "HIGH";
   recentAssignments: number;
   recentMatchEvents: { cards: number; fouls: number; varReviews: number };
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+export type RefereeGovernanceReview = {
+  id: EntityId;
+  federationId: EntityId;
+  reviewDate: ISODate;
+  assignments: number;
+  matchEvents: { cards: number; fouls: number; varReviews: number };
+  appointmentConfidence: "LIMITED" | "WORKING" | "STRONG";
+  controversyPressure: "LOW" | "MODERATE" | "HIGH";
+  developmentPriority: "POOL_DEPTH" | "EXPERIENCE" | "CONSISTENCY" | "MAINTENANCE";
+  stakeholderTrust: "LIMITED" | "WORKING" | "STRONG";
+  status: "OPEN" | "REVIEWED" | "ACTIONED";
   provenanceStatus: "SIMULATION_ONLY";
 };
 

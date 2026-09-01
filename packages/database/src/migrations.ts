@@ -3565,6 +3565,27 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
         ON manager_promises(commitment_source, status, due_on);
     `,
   },
+  {
+    version: 83,
+    sql: `
+      CREATE TABLE IF NOT EXISTS referee_governance_reviews (
+        id TEXT PRIMARY KEY,
+        federation_id TEXT NOT NULL REFERENCES federations(id),
+        review_date TEXT NOT NULL,
+        assignments INTEGER NOT NULL,
+        match_events_json TEXT NOT NULL,
+        appointment_confidence TEXT NOT NULL,
+        controversy_pressure TEXT NOT NULL,
+        development_priority TEXT NOT NULL,
+        stakeholder_trust TEXT NOT NULL,
+        status TEXT NOT NULL,
+        provenance_status TEXT NOT NULL,
+        UNIQUE(federation_id, review_date)
+      );
+      CREATE INDEX IF NOT EXISTS idx_referee_governance_reviews_federation
+        ON referee_governance_reviews(federation_id, review_date);
+    `,
+  },
 ];
 
 export const migrateDatabase = (db: GameDatabase): number => {

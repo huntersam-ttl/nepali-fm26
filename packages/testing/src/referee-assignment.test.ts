@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
   RefereeAssignmentRepository,
+  RefereeGovernanceRepository,
   WorkforceSupplyRepository,
   migrateDatabase,
   openGameDatabase,
 } from "@nepal-football-sim/database";
-import { assignOfficialsToFixture, createMatchState } from "@nepal-football-sim/simulation";
+import {
+  assignOfficialsToFixture,
+  createMatchState,
+  recordRefereeGovernanceReview,
+} from "@nepal-football-sim/simulation";
 import type {
   EntityId,
   FixtureRecord,
@@ -56,7 +61,10 @@ const setup = () => {
     "INSERT INTO teams (id,club_id,name,level,gender) VALUES ('home','club','Home','A','MALE'),('away','club','Away','A','MALE')",
   ).run();
   db.prepare(
-    "INSERT INTO competitions (id,name,scope) VALUES ('competition','League','DOMESTIC')",
+    "INSERT INTO federations (id,country_id,name) VALUES ('federation','nepal','Nepal FA')",
+  ).run();
+  db.prepare(
+    "INSERT INTO competitions (id,federation_id,name,scope) VALUES ('competition','federation','League','DOMESTIC')",
   ).run();
   db.prepare(
     "INSERT INTO competition_seasons (id,competition_id,name,start_date,end_date) VALUES ('season','competition','2027','2027-01-01','2027-12-31')",
@@ -118,6 +126,25 @@ describe("fixture referee assignment", () => {
     });
     expect(state.refereeAssignment).toEqual(assignment);
     expect(state.environment.refereeStrictness).toBeGreaterThan(1);
+    db.close();
+  });
+
+  it("persists one event-grounded governance review per federation period", () => {
+    const db = setup();
+    assignOfficialsToFixture(db, fixture("fixture-1"));
+    const review = recordRefereeGovernanceReview(db, {
+      federationId: id("federation"),
+      reviewDate: "2027-01-31",
+    });
+    expect(review.status).toBe("REVIEWED");
+    expect(review.assignments).toBe(1);
+    expect(
+      recordRefereeGovernanceReview(db, {
+        federationId: id("federation"),
+        reviewDate: "2027-01-31",
+      }),
+    ).toEqual(review);
+    expect(new RefereeGovernanceRepository(db).history(id("federation"))).toHaveLength(1);
     db.close();
   });
 });

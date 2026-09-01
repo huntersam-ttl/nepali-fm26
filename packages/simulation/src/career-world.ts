@@ -99,6 +99,7 @@ import { advanceMacroEconomyForWorldDate } from "./macro-economy.js";
 import { recordCompetitionSeasonHistory, recordFootballMatchHistory } from "./football-history.js";
 import { processClubLicensingForSeason } from "./licensing.js";
 import { processCompletedContinentalSeason } from "./continental-coefficients.js";
+import { recordRefereeGovernanceReview } from "./federation-strategy.js";
 import { advanceTerritorialDevelopment } from "./territorial-football.js";
 import {
   evolveSupporterCultureSeason,
@@ -745,6 +746,19 @@ const simulateCompetitionSeason = (
       competitionSeasonId: input.season.id,
       calculatedOn: input.ruleSet.seasonEndDate,
     });
+    const refereeFederationId = (
+      db
+        .prepare(
+          "SELECT federation_id AS id FROM competitions WHERE id = (SELECT competition_id FROM competition_seasons WHERE id = ?)",
+        )
+        .get(input.season.id) as { id?: EntityId } | undefined
+    )?.id;
+    if (refereeFederationId) {
+      recordRefereeGovernanceReview(db, {
+        federationId: refereeFederationId,
+        reviewDate: input.ruleSet.seasonEndDate,
+      });
+    }
     markSeasonState(db, input.season, "COMPLETED", {
       currentRound: Math.max(...fixtures.map((fixture) => fixture.round), 0),
       championClubId: champion ? clubIdForTeam(db, champion.teamId) : undefined,

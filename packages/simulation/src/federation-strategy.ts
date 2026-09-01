@@ -10,10 +10,12 @@ import {
 import {
   FederationGovernanceRepository,
   FederationPolicyRepository,
-  RefereeAssignmentRepository,
+  RefereeGovernanceRepository,
+  RefereeDevelopmentRepository,
   TerritorialFootballRepository,
   type GameDatabase,
 } from "@nepal-football-sim/database";
+import { createStableEntityId } from "@nepal-football-sim/shared-types";
 
 const clamp = (value: number, min = 0, max = 100): number => Math.max(min, Math.min(max, value));
 
@@ -76,17 +78,25 @@ export const refereeGovernanceSummary = (
   federationId: EntityId,
   date: string,
 ): RefereeGovernanceSummary => {
-  const assignments = new RefereeAssignmentRepository(db);
   const rows = db
     .prepare(
-      "SELECT COUNT(*) AS count FROM fixture_official_assignments WHERE assigned_on >= date(?, '-90 day') AND status='ASSIGNED'",
+      `SELECT COUNT(*) AS count FROM fixture_official_assignments oa
+       JOIN fixtures f ON f.id=oa.fixture_id
+       JOIN competition_seasons cs ON cs.id=f.competition_season_id
+       JOIN competitions c ON c.id=cs.competition_id
+       WHERE oa.assigned_on >= date(?, '-90 day') AND oa.status='ASSIGNED' AND c.federation_id=?`,
     )
-    .get(date) as { count?: number };
+    .get(date, federationId) as { count?: number };
   const eventRows = db
     .prepare(
-      `SELECT me.type AS type, COUNT(*) AS count FROM match_events me JOIN matches m ON m.id=me.match_id JOIN fixtures f ON f.id=m.fixture_id JOIN fixture_official_assignments oa ON oa.fixture_id=f.id WHERE oa.assigned_on >= date(?, '-90 day') GROUP BY me.type`,
+      `SELECT me.type AS type, COUNT(*) AS count FROM match_events me
+       JOIN matches m ON m.id=me.match_id JOIN fixtures f ON f.id=m.fixture_id
+       JOIN competition_seasons cs ON cs.id=f.competition_season_id
+       JOIN competitions c ON c.id=cs.competition_id
+       JOIN fixture_official_assignments oa ON oa.fixture_id=f.id
+       WHERE oa.assigned_on >= date(?, '-90 day') AND c.federation_id=? GROUP BY me.type`,
     )
-    .all(date) as Array<{ type: string; count: number }>;
+    .all(date, federationId) as Array<{ type: string; count: number }>;
   const cards = eventRows
     .filter((row) => row.type.includes("card"))
     .reduce((sum, row) => sum + Number(row.count), 0);
@@ -96,6 +106,7 @@ export const refereeGovernanceSummary = (
   const varReviews = eventRows
     .filter((row) => row.type.includes("var") || row.type.includes("review"))
     .reduce((sum, row) => sum + Number(row.count), 0);
+  new RefereeDevelopmentRepository(db);
   const profiles = db
     .prepare(
       "SELECT AVG(current_quality) AS quality, AVG(consistency) AS consistency FROM referee_development_profiles",
@@ -115,6 +126,12 @@ export const refereeGovernanceSummary = (
         : "MAINTENANCE";
   const trust =
     new FederationGovernanceRepository(db).profile(federationId)?.governanceStability ?? 0;
+  const controversyPressure =
+    Number(rows?.count ?? 0) === 0 || cards / Math.max(1, Number(rows?.count ?? 0)) < 1.5
+      ? "LOW"
+      : cards / Math.max(1, Number(rows?.count ?? 0)) < 2.5
+        ? "MODERATE"
+        : "HIGH";
   return {
     federationId,
     appointmentConfidence: confidence,
@@ -122,8 +139,40 @@ export const refereeGovernanceSummary = (
     stakeholderTrust: trust >= 7 ? "STRONG" : trust >= 4 ? "WORKING" : "LIMITED",
     recentAssignments: Number(rows?.count ?? 0),
     recentMatchEvents: { cards, fouls, varReviews },
+    controversyPressure,
     provenanceStatus: "SIMULATION_ONLY",
   };
+};
+
+/**
+ * Closes one event-grounded federation referee review period. The stable
+ * federation/date key makes season-boundary retries and save reloads safe.
+ * No controversy is inferred from reputation or prose: only assigned fixtures
+ * and their persisted match events contribute.
+ */
+export const recordRefereeGovernanceReview = (
+  db: GameDatabase,
+  input: { federationId: EntityId; reviewDate: string },
+) => {
+  const summary = refereeGovernanceSummary(db, input.federationId, input.reviewDate);
+  const review = {
+    id: createStableEntityId(
+      "referee-governance-review",
+      `${input.federationId}:${input.reviewDate}`,
+    ),
+    federationId: input.federationId,
+    reviewDate: input.reviewDate,
+    assignments: summary.recentAssignments,
+    matchEvents: summary.recentMatchEvents,
+    appointmentConfidence: summary.appointmentConfidence,
+    controversyPressure: summary.controversyPressure ?? "LOW",
+    developmentPriority: summary.developmentPriority,
+    stakeholderTrust: summary.stakeholderTrust,
+    status: "REVIEWED" as const,
+    provenanceStatus: "SIMULATION_ONLY" as const,
+  };
+  new RefereeGovernanceRepository(db).upsert(review);
+  return review;
 };
 
 export const prioritizeInfrastructure = (input: {
