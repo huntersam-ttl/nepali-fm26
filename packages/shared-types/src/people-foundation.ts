@@ -71,6 +71,22 @@ export type CoachingJobMarketListing = {
   rationale: string[];
 };
 
+export type PlayerLifestyleProfile = {
+  personId: EntityId;
+  professionalismHabits: "INCONSISTENT" | "STEADY" | "ELITE";
+  trainingDiscipline: "LOW" | "NORMAL" | "HIGH";
+  mediaActivity: "LOW" | "MODERATE" | "HIGH";
+  offFieldFocus: "FOOTBALL_FIRST" | "BALANCED" | "DISTRACTED";
+  adaptation: number;
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+export type SquadSocialGroup = {
+  type: "FRIENDSHIP" | "MENTORSHIP" | "RIVALRY" | "DISTRUST" | "INFLUENTIAL";
+  personIds: EntityId[];
+  clue: string;
+};
+
 /** Derived current board brief; policy, finance, and AI decisions remain authoritative. */
 export type ClubVision = {
   clubId: EntityId;
