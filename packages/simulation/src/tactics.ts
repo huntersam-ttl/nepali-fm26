@@ -30,6 +30,23 @@ export type TacticalMatchModifiers = {
   managerQuality: number;
 };
 
+export type TacticalPreparationInput = {
+  setup: TacticalSetup;
+  preparedOn: string;
+  daysAvailable: number;
+  trainingQuality?: number;
+  managerQuality?: number;
+  averageRoleFit?: number;
+  /** Confidence in observed opposition tendencies; no value is inferred here. */
+  oppositionKnowledge?: number;
+};
+
+export type TacticalPreparationResult = {
+  setup: TacticalSetup;
+  preparationScore: number;
+  gains: TacticalFamiliarity;
+};
+
 export const DEFAULT_FAMILIARITY: TacticalFamiliarity = {
   formation: 72,
   style: 68,
@@ -450,6 +467,51 @@ export const createTacticalSetup = (input: {
     setPieces: {},
     createdOn: "2026-08-01",
     updatedOn: "2026-08-01",
+  };
+};
+
+/**
+ * Advance the existing setup's pre-match familiarity. This is intentionally a
+ * pure setup transformation: persistence remains the tactical-setups
+ * repository and match simulation still consumes TacticalSetup directly.
+ */
+export const prepareTacticalSetup = (
+  input: TacticalPreparationInput,
+): TacticalPreparationResult => {
+  const days = Math.max(0, Math.min(21, input.daysAvailable));
+  const trainingQuality = Math.max(0, Math.min(100, input.trainingQuality ?? 60));
+  const managerQuality = Math.max(0, Math.min(100, input.managerQuality ?? 60));
+  const roleFit = Math.max(0, Math.min(100, input.averageRoleFit ?? 70));
+  const oppositionKnowledge = Math.max(0, Math.min(100, input.oppositionKnowledge ?? 0));
+  const preparationScore =
+    days * 0.65 +
+    trainingQuality * 0.18 +
+    managerQuality * 0.1 +
+    roleFit * 0.07 +
+    oppositionKnowledge * 0.08;
+  const gains: TacticalFamiliarity = {
+    formation: Math.min(100, Math.round(days * (0.35 + trainingQuality / 500))),
+    style: Math.min(100, Math.round(days * (0.28 + managerQuality / 600))),
+    roles: Math.min(100, Math.round(days * (0.22 + roleFit / 700))),
+    instructions: Math.min(
+      100,
+      Math.round(days * (0.2 + (trainingQuality + oppositionKnowledge) / 800)),
+    ),
+  };
+  const nextFamiliarity: TacticalFamiliarity = {
+    formation: Math.min(100, input.setup.familiarity.formation + gains.formation),
+    style: Math.min(100, input.setup.familiarity.style + gains.style),
+    roles: Math.min(100, input.setup.familiarity.roles + gains.roles),
+    instructions: Math.min(100, input.setup.familiarity.instructions + gains.instructions),
+  };
+  return {
+    setup: {
+      ...input.setup,
+      familiarity: nextFamiliarity,
+      updatedOn: input.preparedOn,
+    },
+    preparationScore: Math.round(preparationScore * 100) / 100,
+    gains,
   };
 };
 
