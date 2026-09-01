@@ -212,7 +212,7 @@ const TrainingBoard = ({
         </Panel>
       )}
 
-      <Panel title="Squad development">
+      <Panel title="Squad development" className="panel-wide">
         {view.squadDevelopment.length === 0 ? (
           <p className="empty-state">No development data recorded yet.</p>
         ) : (
@@ -360,7 +360,7 @@ const PlayerDevelopmentBoard = ({
         </div>
       </Panel>
 
-      <Panel title="Player progress">
+      <Panel title="Player progress" className="panel-wide">
         {view.players.length === 0 ? (
           <p className="empty-state">No players to develop yet.</p>
         ) : (

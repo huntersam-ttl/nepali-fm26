@@ -239,6 +239,12 @@ select {
   gap: 14px;
 }
 
+/* A panel holding a wide table takes the whole dashboard row rather than one
+   auto-fit column, which otherwise clipped most of its columns away. */
+.panel-wide {
+  grid-column: 1 / -1;
+}
+
 /* Fixtures is a single wide table rather than a bank of cards, so it uses a
    full-width column instead of the auto-fit dashboard grid. */
 .fixtures-screen {

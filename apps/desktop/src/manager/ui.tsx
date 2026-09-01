@@ -69,13 +69,16 @@ export const EmptyState = ({ children }: { children: React.ReactNode }): React.R
 export const Panel = ({
   title,
   actions,
+  className,
   children,
 }: {
   title: string;
   actions?: React.ReactNode;
+  /** Lets a panel opt out of the dashboard's auto-fit column, e.g. a wide table. */
+  className?: string;
   children: React.ReactNode;
 }): React.ReactElement => (
-  <article className="panel">
+  <article className={className ? `panel ${className}` : "panel"}>
     <header className="panel-head">
       <h2>{title}</h2>
       {actions}
