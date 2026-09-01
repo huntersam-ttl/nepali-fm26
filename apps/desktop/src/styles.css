@@ -239,6 +239,14 @@ select {
   gap: 14px;
 }
 
+/* Fixtures is a single wide table rather than a bank of cards, so it uses a
+   full-width column instead of the auto-fit dashboard grid. */
+.fixtures-screen {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+
 .club-row {
   display: grid;
   gap: 4px;

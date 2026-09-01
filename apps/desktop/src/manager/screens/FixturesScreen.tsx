@@ -12,7 +12,12 @@ export const FixturesScreen = ({
   const [tab, setTab] = useState<"upcoming" | "results">("upcoming");
 
   return (
-    <section className="dashboard">
+    /*
+     * The dashboard grid is auto-fit at 260px, so this screen's one panel was
+     * given a single narrow column while a line of helper text claimed another
+     * and the rest of the row sat empty. Fixtures needs the full width.
+     */
+    <section className="fixtures-screen">
       <Panel
         title="Fixtures"
         actions={
@@ -39,13 +44,21 @@ export const FixturesScreen = ({
                 </p>
               );
             }
+            /*
+             * A club usually plays one competition, so the column repeated the
+             * same long league name on every row and squeezed the opponent out.
+             * When it is the same throughout it is stated once instead.
+             */
+            const competitions = [...new Set(rows.map((fixture) => fixture.competition))];
+            const sharedCompetition = competitions.length === 1 ? competitions[0] : undefined;
             return (
               <div className="table-scroll">
+                {sharedCompetition && <p className="subtle">{sharedCompetition}</p>}
                 <table>
                   <thead>
                     <tr>
                       <th>Date</th>
-                      <th>Competition</th>
+                      {!sharedCompetition && <th>Competition</th>}
                       <th>H/A</th>
                       <th>Opponent</th>
                       <th>Venue</th>
@@ -54,10 +67,14 @@ export const FixturesScreen = ({
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map((fixture) => (
+                    {rows.map((fixture, index) => (
                       <FixtureLine
                         key={fixture.id}
                         fixture={fixture}
+                        showCompetition={!sharedCompetition}
+                        /* Upcoming fixtures are listed in date order, so the
+                           first is the one being prepared for. */
+                        isNext={tab === "upcoming" && index === 0}
                         actionable={tab === "results" || fixture.date <= list.worldDate}
                         onSelect={() => onOpenMatch(fixture.id)}
                       />
@@ -80,10 +97,14 @@ export const FixturesScreen = ({
 const FixtureLine = ({
   fixture,
   actionable,
+  showCompetition,
+  isNext,
   onSelect,
 }: {
   fixture: FixtureRow;
   actionable: boolean;
+  showCompetition: boolean;
+  isNext: boolean;
   onSelect: () => void;
 }): React.ReactElement => (
   <tr
@@ -95,8 +116,16 @@ const FixtureLine = ({
       if (actionable && event.key === "Enter") onSelect();
     }}
   >
-    <td>{fixture.date}</td>
-    <td>{fixture.competition}</td>
+    <td>
+      {fixture.date}
+      {isNext && (
+        <>
+          {" "}
+          <Badge tone="info">Next</Badge>
+        </>
+      )}
+    </td>
+    {showCompetition && <td>{fixture.competition}</td>}
     <td>{fixture.homeAway === "home" ? "H" : "A"}</td>
     <td>{fixture.opponent}</td>
     <td>{fixture.venue ?? <span className="unknown">Unknown</span>}</td>
