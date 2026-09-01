@@ -3546,6 +3546,20 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
         ON agent_fee_settlements(source_entity_id, event_type);
     `,
   },
+  {
+    version: 82,
+    sql: `
+      -- Shared structured metadata for non-concern manager commitments.
+      ALTER TABLE manager_promises ADD COLUMN commitment_source TEXT NOT NULL DEFAULT 'PLAYER_CONCERN';
+      ALTER TABLE manager_promises ADD COLUMN recipient_type TEXT;
+      ALTER TABLE manager_promises ADD COLUMN recipient_id TEXT;
+      ALTER TABLE manager_promises ADD COLUMN target_criteria TEXT;
+      ALTER TABLE manager_promises ADD COLUMN origin_event_id TEXT;
+      ALTER TABLE manager_promises ADD COLUMN importance INTEGER;
+      CREATE INDEX IF NOT EXISTS idx_manager_promises_source_status
+        ON manager_promises(commitment_source, status, due_on);
+    `,
+  },
 ];
 
 export const migrateDatabase = (db: GameDatabase): number => {

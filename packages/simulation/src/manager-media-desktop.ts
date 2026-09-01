@@ -16,6 +16,7 @@ import {
   resolvePressConference,
   type PressConferenceReadModel,
 } from "./press-social-lifestyle.js";
+import { commitmentFromPressResponse } from "./commitments.js";
 import { supporterReadModel } from "./supporter-culture.js";
 
 /** Minimum story importance eligible for a press-conference request, matching createMediaInterview's own gate. */
@@ -128,9 +129,16 @@ export const answerManagerPressConference = (
     status: interview.status,
     framing: interview.importance >= 8 ? "CRITICAL" : interview.importance >= 6 ? "NEUTRAL" : "POSITIVE",
   };
-  return toView(
-    resolvePressConference(db, { conference, stance: input.stance, response: input.response }),
-  );
+  const resolved = resolvePressConference(db, { conference, stance: input.stance, response: input.response });
+  commitmentFromPressResponse(db, interview.interviewDate, {
+    managerProfileId: context.manager.id,
+    managerPersonId: context.character.personId,
+    teamId: context.team.id,
+    originEventId: input.interviewId,
+    dueOn: `${Number(interview.interviewDate.slice(0, 4)) + 1}-05-31`,
+    response: input.response,
+  });
+  return toView(resolved);
 };
 
 export const buildSupporterOverview = (

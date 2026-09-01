@@ -4282,7 +4282,12 @@ export type ManagerPromiseType =
   | "SQUAD_ROLE"
   | "TRANSFER_STANCE"
   | "LOAN_CONSIDERATION"
-  | "SQUAD_STRENGTHENING";
+  | "SQUAD_STRENGTHENING"
+  | "PROMOTION_CHALLENGE"
+  | "YOUTH_USAGE"
+  | "FINANCIAL_DISCIPLINE"
+  | "FACILITY_PROJECT"
+  | "TACTICAL_STYLE";
 /** KEPT is retained for legacy saves; new resolutions use the clearer FULFILLED label. */
 export type ManagerPromiseStatus =
   "ACTIVE" | "AT_RISK" | "FULFILLED" | "KEPT" | "BROKEN" | "EXPIRED";
@@ -4305,6 +4310,12 @@ export type ManagerPromise = {
   status: ManagerPromiseStatus;
   baselineMetric?: number;
   resolvedOn?: ISODate;
+  commitmentSource?: "PLAYER_CONCERN" | "BOARD_INTERVIEW" | "PRESS_CONFERENCE" | "FEDERATION";
+  recipientType?: "PLAYER" | "BOARD" | "SUPPORTERS" | "MEDIA" | "FEDERATION";
+  recipientId?: EntityId;
+  targetCriteria?: string;
+  originEventId?: EntityId;
+  importance?: number;
 };
 
 // ---------------------------------------------------------------------------

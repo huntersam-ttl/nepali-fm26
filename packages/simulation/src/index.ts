@@ -45,6 +45,7 @@ export * from "./international-football.js";
 export * from "./manager-career.js";
 export * from "./manager-career-world.js";
 export * from "./manager-interviews.js";
+export * from "./commitments.js";
 export * from "./manager-flow.js";
 export * from "./manager-media-desktop.js";
 export * from "./manager-people-desktop.js";

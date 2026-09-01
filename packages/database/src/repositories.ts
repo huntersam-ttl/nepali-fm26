@@ -1634,11 +1634,18 @@ export class SquadDynamicsRepository {
       .prepare(
         `INSERT INTO manager_promises
         (id, manager_profile_id, person_id, team_id, concern_id, type, description,
-          made_on, due_on, status, baseline_metric, resolved_on)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          made_on, due_on, status, baseline_metric, resolved_on, commitment_source,
+          recipient_type, recipient_id, target_criteria, origin_event_id, importance)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           status = excluded.status,
-          resolved_on = excluded.resolved_on`,
+          resolved_on = excluded.resolved_on,
+          commitment_source = excluded.commitment_source,
+          recipient_type = excluded.recipient_type,
+          recipient_id = excluded.recipient_id,
+          target_criteria = excluded.target_criteria,
+          origin_event_id = excluded.origin_event_id,
+          importance = excluded.importance`,
       )
       .run(
         promise.id,
@@ -1653,6 +1660,12 @@ export class SquadDynamicsRepository {
         promise.status,
         promise.baselineMetric ?? null,
         promise.resolvedOn ?? null,
+        promise.commitmentSource ?? "PLAYER_CONCERN",
+        promise.recipientType ?? (promise.concernId ? "PLAYER" : "BOARD"),
+        promise.recipientId ?? null,
+        promise.targetCriteria ?? null,
+        promise.originEventId ?? null,
+        promise.importance ?? null,
       );
   }
 
@@ -1958,6 +1971,12 @@ const mapPromise = (row: any): ManagerPromise => ({
   status: row.status,
   baselineMetric: row.baseline_metric ?? undefined,
   resolvedOn: row.resolved_on ?? undefined,
+  commitmentSource: row.commitment_source ?? "PLAYER_CONCERN",
+  recipientType: row.recipient_type ?? (row.concern_id ? "PLAYER" : "BOARD"),
+  recipientId: row.recipient_id ?? undefined,
+  targetCriteria: row.target_criteria ?? undefined,
+  originEventId: row.origin_event_id ?? undefined,
+  importance: row.importance ?? undefined,
 });
 
 const mapSatisfaction = (row: any): PlayerClubSatisfaction => ({

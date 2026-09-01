@@ -7,6 +7,7 @@ import {
   SupporterCultureRepository,
   TransferMarketRepository,
   WorldRepository,
+  UniversalInteractionRepository,
   type GameDatabase,
 } from "@nepal-football-sim/database";
 import {
@@ -32,6 +33,8 @@ import { SeededRandom } from "./rng.js";
 import { isContextOnlyClub } from "./foreign-football-world.js";
 import { refreshManagerBoardRelationship } from "./club-vision-politics.js";
 import { publishMediaForDate } from "./media.js";
+import { commitmentsFromManagerInterview } from "./commitments.js";
+import { evaluateStructuredCommitments } from "./commitments.js";
 
 type SqlRow = Record<string, any>;
 
@@ -348,6 +351,7 @@ export const evaluateBoardConfidence = (
 
   for (const contract of managers.allActiveContracts()) {
     if (!contract.clubId || !contract.teamId) continue;
+    evaluateStructuredCommitments(db, save, contract.teamId);
     const tenureDays = daysBetween(contract.contractStart, save.worldDate);
     const expectation = expectationForClub(db, contract.clubId);
     const position = standings.findIndex((row) => row.teamId === contract.teamId) + 1;
@@ -957,6 +961,28 @@ export const acceptJobOffer = (
   managers.insertContract(contract);
   careerWorld.fillVacancy(vacancy.id, save.worldDate, contract.id);
   careerWorld.insertApplication({ ...application, status: "ACCEPTED", decidedOn: save.worldDate });
+
+  const interview = new UniversalInteractionRepository(db)
+    .all()
+    .find(
+      (item) =>
+        item.interactionType === "MANAGER_INTERVIEW" &&
+        item.linkedReference?.canonicalId === vacancy.id &&
+        item.initiator.entityId === managerProfile.personId,
+    );
+  const answers = interview?.offers.answers
+    ? (JSON.parse(String(interview.offers.answers)) as { youthCommitment?: "PRIORITIZE" | "BALANCED" | "EXPERIENCE" })
+    : undefined;
+  commitmentsFromManagerInterview({
+    db,
+    save,
+    managerProfileId: managerProfile.id,
+    managerPersonId: managerProfile.personId,
+    teamId: vacancy.teamId,
+    vacancyId: vacancy.id,
+    boardExpectation: vacancy.boardExpectation,
+    youthCommitment: answers?.youthCommitment,
+  });
 
   for (const other of careerWorld.applicationsForManager(managerProfile.id)) {
     if (other.id !== application.id && other.status === "OFFERED") {

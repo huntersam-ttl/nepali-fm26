@@ -8,6 +8,7 @@ import type {
   ISODate,
   ManagerPromiseStatus,
   ManagerPromiseType,
+  ManagerPromise,
   MatchViewMode,
   MediaInterview,
   MediaStory,
@@ -933,6 +934,10 @@ export type SquadPromiseView = {
   madeOn: ISODate;
   dueOn: ISODate;
   status: ManagerPromiseStatus;
+  commitmentSource?: ManagerPromise["commitmentSource"];
+  recipientType?: ManagerPromise["recipientType"];
+  targetCriteria?: string;
+  importance?: number;
 };
 
 export type SquadConcernView = {

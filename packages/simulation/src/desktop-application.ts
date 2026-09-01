@@ -3080,6 +3080,10 @@ const toPromiseView = (promise: ManagerPromise): SquadPromiseView => ({
   madeOn: promise.madeOn,
   dueOn: promise.dueOn,
   status: promise.status,
+  commitmentSource: promise.commitmentSource,
+  recipientType: promise.recipientType,
+  targetCriteria: promise.targetCriteria,
+  importance: promise.importance,
 });
 
 const buildStaffMarketView = (
