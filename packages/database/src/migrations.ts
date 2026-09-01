@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 77;
+export const CURRENT_DATABASE_VERSION = 78;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -3474,6 +3474,17 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
         status TEXT NOT NULL, assigned_on TEXT NOT NULL, provenance_status TEXT NOT NULL,
         UNIQUE(club_id, role)
       );
+    `,
+  },
+  {
+    version: 78,
+    sql: `
+      CREATE TABLE IF NOT EXISTS career_timeline_events (
+        id TEXT PRIMARY KEY, person_id TEXT NOT NULL REFERENCES persons(id), occurred_on TEXT NOT NULL,
+        role TEXT NOT NULL, category TEXT NOT NULL, title TEXT NOT NULL, importance TEXT NOT NULL,
+        club_id TEXT, federation_id TEXT, source_entity_id TEXT, season_label TEXT, provenance_status TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_career_timeline_person_date ON career_timeline_events(person_id, occurred_on, id);
     `,
   },
 ];
