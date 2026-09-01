@@ -1022,34 +1022,34 @@ button.link {
 }
 
 .commentary-line.importance-major {
-  background: #f3f6f2;
+  background: var(--surface-2);
 }
 
 .commentary-line.importance-critical {
-  background: #e6f0e8;
+  background: rgba(94, 234, 212, 0.1);
   font-weight: 600;
 }
 
 .commentary-line.type-goal {
-  background: #dcefe0;
-  border-left: 3px solid #2f7a45;
+  background: rgba(94, 234, 212, 0.16);
+  border-left: 3px solid var(--accent-2);
 }
 
 .commentary-line.type-red_card,
 .commentary-line.type-second_yellow {
-  background: #fadfdf;
-  border-left: 3px solid #a83232;
+  background: rgba(251, 113, 133, 0.14);
+  border-left: 3px solid var(--danger);
 }
 
 .commentary-line.type-injury {
-  background: #fdf0d5;
-  border-left: 3px solid #b8860b;
+  background: rgba(251, 191, 36, 0.14);
+  border-left: 3px solid #a8791d;
 }
 
 .commentary-line.type-half_time,
 .commentary-line.type-full_time {
-  border-top: 1px solid #cdd6d0;
-  border-bottom: 1px solid #cdd6d0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
   margin: 6px 0;
   font-weight: 700;
   text-transform: uppercase;
@@ -1156,7 +1156,7 @@ button.link {
 
 /* Final surface pass keeps late screen-specific rules inside the same dark system. */
 .manager-shell, .workspace { background-color: #0b1020; color: #e8edf5; }
-.workspace .panel, .workspace .player-profile, .workspace .inbox-item, .workspace .event, .workspace .form-strip { background: #151e32; border-color: #2c3954; color: #e8edf5; }
+.workspace .panel, .workspace .player-profile, .workspace .inbox-item, .workspace .event, .workspace .form-strip, .workspace .commentary, .workspace .matchday-controls { background: #151e32; border-color: #2c3954; color: #e8edf5; }
 .workspace .transfer-form { background: #111a2d; border-color: #2c3954; }
 .workspace table, .workspace .panel table { background: #151e32; border-color: #2c3954; }
 .workspace th, .workspace td { border-color: #2c3954; color: #aebbd0; }
