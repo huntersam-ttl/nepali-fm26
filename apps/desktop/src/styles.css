@@ -698,7 +698,43 @@ tbody tr:hover { background: rgba(155,124,255,.1); }
 .badge-bad { background: rgba(251,113,133,.16); color: #fda4af; }
 .badge-info { background: rgba(155,124,255,.16); color: #d9ceff; }
 .unknown, .sim-tag { color: #8492aa; }
-.matchday-cta { border-color: #2dd4bf; background: rgba(45,212,191,.16); color: #a7fff4; }
+/* On a match day the live action is the match, but it was drawn as a thin
+   outline next to a filled Continue that is disabled precisely because a match
+   is waiting — the dead control outranked the live one. The call to action now
+   carries the weight, in its own accent so it still reads as a different kind of
+   action from an ordinary day's Continue, and disabled top-bar buttons recede
+   the way they already do inside the workspace. */
+.matchday-cta {
+  min-height: 38px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #2dd4bf, #14a89a);
+  color: #04231f;
+  font-weight: 800;
+  box-shadow: 0 5px 14px rgba(45, 212, 191, 0.25);
+  /* Opponent names run long enough to overrun the date beside it, so the label
+     is bounded and elided; the full name stays available as a tooltip. */
+  max-width: 260px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* The club-name headings here are already reduced to a single word, but the
+   table's letter spacing still pushed them past the panel and clipped the away
+   side mid-word. They wrap instead of forcing the table wider. */
+.stat-table th {
+  letter-spacing: 0;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.topbar-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  box-shadow: none;
+}
 
 @media (min-width: 1280px) { .workspace { padding-left: 30px; padding-right: 30px; } .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 

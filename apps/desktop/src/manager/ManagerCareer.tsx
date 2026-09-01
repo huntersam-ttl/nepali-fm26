@@ -324,7 +324,11 @@ export const ManagerCareer = ({
           </div>
           <div className="topbar-actions">
             {matchdayFixture && (
-              <button className="matchday-cta" onClick={() => openMatch(matchdayFixture.id)}>
+              <button
+                className="matchday-cta"
+                title={`Matchday · ${matchdayFixture.homeAway === "home" ? "vs" : "at"} ${matchdayFixture.opponent}`}
+                onClick={() => openMatch(matchdayFixture.id)}
+              >
                 Matchday · {matchdayFixture.homeAway === "home" ? "vs" : "at"} {matchdayFixture.opponent}
               </button>
             )}
