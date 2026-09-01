@@ -21,11 +21,14 @@ const desktopRuntime = (): Plugin => {
   const start = (): Promise<Handshake> => {
     child = spawn("node", [runtimeEntry], {
       cwd: repoRoot,
-      env: {
-        ...process.env,
-        NEPAL_SAVES_DIR: process.env.NEPAL_SAVES_DIR ?? "",
-        NEPAL_RUNTIME_TRACE: process.env.NEPAL_RUNTIME_TRACE ?? "",
-      },
+      /*
+       * Inherit the environment as-is. Defaulting these to "" used to override
+       * the inherited value with an empty string, and an empty string is not
+       * nullish, so the sidecar's own fallback never ran and it tried to create
+       * a saves directory called "". Tauri and the e2e runner both pass a real
+       * directory, so only `pnpm dev` was affected.
+       */
+      env: process.env,
       stdio: ["ignore", "pipe", "inherit"],
     }) as ChildProcessWithoutNullStreams;
 

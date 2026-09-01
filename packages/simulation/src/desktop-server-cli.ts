@@ -6,7 +6,9 @@ import { startDesktopServer } from "./desktop-server.js";
  * Sidecar entrypoint. Tauri (and Vite dev) spawn this and read the JSON
  * handshake line from stdout to learn the port and token.
  */
-const savesDirectory = process.env.NEPAL_SAVES_DIR ?? defaultSavesDirectory();
+/* An empty value means unset here: a launcher that exports the variable blank
+ * should still get the platform default rather than a directory called "". */
+const savesDirectory = process.env.NEPAL_SAVES_DIR || defaultSavesDirectory();
 const worldDatasetPath = resolve(
   process.env.NEPAL_WORLD_DATASET ?? "data/nepal/2026-08/club-registry.json",
 );
