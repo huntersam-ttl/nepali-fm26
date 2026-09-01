@@ -1,6 +1,7 @@
 import {
   ClubEconomyRepository,
   ClubNetworkRepository,
+  PeopleFoundationRepository,
   StaffMarketRepository,
   TransferMarketRepository,
   WorldRepository,
@@ -38,11 +39,18 @@ import {
   type Team,
 } from "@nepal-football-sim/shared-types";
 import { SeededRandom } from "./rng.js";
+import {
+  assessStaffCooperation,
+  assessStaffDeparture,
+  assessStaffDevelopmentWillingness,
+} from "./career-market-deepening.js";
 
 type SqlRow = Record<string, any>;
 
 const daysBetween = (from: string, to: string): number =>
-  Math.round((new Date(`${to}T00:00:00Z`).getTime() - new Date(`${from}T00:00:00Z`).getTime()) / 86_400_000);
+  Math.round(
+    (new Date(`${to}T00:00:00Z`).getTime() - new Date(`${from}T00:00:00Z`).getTime()) / 86_400_000,
+  );
 
 const addDays = (date: string, days: number): string => {
   const next = new Date(`${date}T00:00:00Z`);
@@ -50,11 +58,14 @@ const addDays = (date: string, days: number): string => {
   return next.toISOString().slice(0, 10);
 };
 
-const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
+const clamp = (value: number, min: number, max: number): number =>
+  Math.max(min, Math.min(max, value));
 
 const currentSeasonId = (db: GameDatabase, worldDate: string): EntityId | undefined => {
   const row = db
-    .prepare("SELECT id FROM competition_seasons WHERE start_date <= ? ORDER BY start_date DESC LIMIT 1")
+    .prepare(
+      "SELECT id FROM competition_seasons WHERE start_date <= ? ORDER BY start_date DESC LIMIT 1",
+    )
     .get(worldDate) as SqlRow | undefined;
   return row?.id;
 };
@@ -66,15 +77,15 @@ const seniorTeams = (db: GameDatabase, worldDate: string): Team[] => {
 };
 
 const firstCountryId = (db: GameDatabase): EntityId => {
-  const row = db.prepare("SELECT id FROM countries ORDER BY name LIMIT 1").get() as SqlRow | undefined;
+  const row = db.prepare("SELECT id FROM countries ORDER BY name LIMIT 1").get() as
+    SqlRow | undefined;
   if (!row) throw new Error("The world has no country records.");
   return row.id;
 };
 
 const nepalCountryId = (db: GameDatabase): EntityId | undefined => {
   const row = db.prepare("SELECT id FROM countries WHERE iso_code IN ('NP','NPL')").get() as
-    | SqlRow
-    | undefined;
+    SqlRow | undefined;
   return row?.id;
 };
 
@@ -82,9 +93,9 @@ const nepalCountryId = (db: GameDatabase): EntityId | undefined => {
 export const isDomesticPerson = (db: GameDatabase, personId: EntityId): boolean => {
   const nepal = nepalCountryId(db);
   if (!nepal) return true;
-  const row = db.prepare("SELECT nationality_country_id FROM persons WHERE id = ?").get(personId) as
-    | SqlRow
-    | undefined;
+  const row = db
+    .prepare("SELECT nationality_country_id FROM persons WHERE id = ?")
+    .get(personId) as SqlRow | undefined;
   return !row?.nationality_country_id || row.nationality_country_id === nepal;
 };
 
@@ -139,7 +150,10 @@ export const staffEligibility = (
     }
   }
   if (profile?.preferredRole && profile.preferredRole !== role) {
-    return { eligible: true, note: `Prefers ${profile.preferredRole.replace(/_/g, " ").toLowerCase()}, but can cover this role.` };
+    return {
+      eligible: true,
+      note: `Prefers ${profile.preferredRole.replace(/_/g, " ").toLowerCase()}, but can cover this role.`,
+    };
   }
   return { eligible: true };
 };
@@ -182,14 +196,22 @@ export const estimateSalaryExpectation = (
 };
 
 /** Whether the club's wage budget can absorb one more contract at this salary. */
-export const clubCanAffordSalary = (db: GameDatabase, clubId: EntityId, salaryAmountMinor: number): boolean => {
+export const clubCanAffordSalary = (
+  db: GameDatabase,
+  clubId: EntityId,
+  salaryAmountMinor: number,
+): boolean => {
   const finances = new TransferMarketRepository(db).clubFinancialProfile(clubId);
   if (!finances) return true; // No modelled budget: don't block hiring on missing data.
   return finances.wageBudget - finances.currentWageSpend >= salaryAmountMinor;
 };
 
 /** The domestic finance ledger is authoritative; CONTEXT_ONLY clubs have no full payroll model. */
-const adjustClubWageSpend = (db: GameDatabase, clubId: EntityId | undefined, deltaMinor: number): void => {
+const adjustClubWageSpend = (
+  db: GameDatabase,
+  clubId: EntityId | undefined,
+  deltaMinor: number,
+): void => {
   if (!clubId || deltaMinor === 0) return;
   const finances = new TransferMarketRepository(db);
   const profile = finances.clubFinancialProfile(clubId);
@@ -205,8 +227,16 @@ const adjustClubWageSpend = (db: GameDatabase, clubId: EntityId | undefined, del
 // ---------------------------------------------------------------------------
 
 const NAME_POOL = [
-  "Suresh Thapa", "Bikash Gurung", "Anil Rai", "Dipesh Shrestha", "Nabin Magar",
-  "Ramesh Tamang", "Kiran Bhandari", "Sujan Karki", "Prakash Lama", "Rajan Basnet",
+  "Suresh Thapa",
+  "Bikash Gurung",
+  "Anil Rai",
+  "Dipesh Shrestha",
+  "Nabin Magar",
+  "Ramesh Tamang",
+  "Kiran Bhandari",
+  "Sujan Karki",
+  "Prakash Lama",
+  "Rajan Basnet",
 ];
 
 /**
@@ -219,7 +249,12 @@ export const generateAiStaff = (
   worldDate: string,
   countryId: EntityId,
   role: FootballStaffRole,
-): { person: Person; profile: StaffProfile; simulation: StaffSimulationProfile; licences: StaffLicence[] } => {
+): {
+  person: Person;
+  profile: StaffProfile;
+  simulation: StaffSimulationProfile;
+  licences: StaffLicence[];
+} => {
   const rng = new SeededRandom(seedKey);
   const fullName = rng.pick(NAME_POOL);
   const personId = createStableEntityId("ai-staff-person", seedKey);
@@ -233,7 +268,8 @@ export const generateAiStaff = (
             id: createStableEntityId("ai-staff-licence", seedKey),
             personId,
             licenceType:
-              Object.entries(LICENCE_RANK).find(([, rank]) => rank === requiredRank)?.[0] ?? "AFC_C",
+              Object.entries(LICENCE_RANK).find(([, rank]) => rank === requiredRank)?.[0] ??
+              "AFC_C",
             issuer: "ANFA",
             status: "UNKNOWN",
           },
@@ -313,7 +349,12 @@ const logStaffHistory = (
   personId: EntityId,
   eventType: StaffHistoryEvent["eventType"],
   worldDate: string,
-  extra: { appointmentId?: EntityId; clubId?: EntityId; teamId?: EntityId; description?: string } = {},
+  extra: {
+    appointmentId?: EntityId;
+    clubId?: EntityId;
+    teamId?: EntityId;
+    description?: string;
+  } = {},
 ): void => {
   new WorldRepository(db).insertStaffHistoryEvent({
     id: createEntityId(),
@@ -326,7 +367,13 @@ const logStaffHistory = (
 
 export class StaffActionError extends Error {
   constructor(
-    readonly code: "NOT_ELIGIBLE" | "CANNOT_AFFORD" | "ALREADY_EMPLOYED" | "RETIRED" | "APPOINTMENT_NOT_FOUND" | "VACANCY_NOT_FOUND",
+    readonly code:
+      | "NOT_ELIGIBLE"
+      | "CANNOT_AFFORD"
+      | "ALREADY_EMPLOYED"
+      | "RETIRED"
+      | "APPOINTMENT_NOT_FOUND"
+      | "VACANCY_NOT_FOUND",
     message: string,
   ) {
     super(message);
@@ -460,7 +507,11 @@ export const dismissStaff = (
   if (appointment.contractId) {
     const contract = market.employmentContractById(appointment.contractId);
     if (contract?.status === "ACTIVE") {
-      market.upsertEmploymentContract({ ...contract, status: "TERMINATED", contractEnd: worldDate });
+      market.upsertEmploymentContract({
+        ...contract,
+        status: "TERMINATED",
+        contractEnd: worldDate,
+      });
       adjustClubWageSpend(db, contract.clubId, -contract.salaryAmountMinor);
     }
   }
@@ -494,7 +545,8 @@ export const retireStaff = (db: GameDatabase, save: SaveMetadata, personId: Enti
         adjustClubWageSpend(db, contract.clubId, -contract.salaryAmountMinor);
       }
     }
-    if (appointment.clubId) openStaffVacancy(db, appointment.clubId, appointment.role, "RESIGNED", worldDate);
+    if (appointment.clubId)
+      openStaffVacancy(db, appointment.clubId, appointment.role, "RESIGNED", worldDate);
     logStaffHistory(db, personId, "STAFF_LEFT", worldDate, {
       appointmentId: appointment.id,
       clubId: appointment.clubId,
@@ -504,8 +556,9 @@ export const retireStaff = (db: GameDatabase, save: SaveMetadata, personId: Enti
   }
   const profile = market.staffProfile(personId);
   if (profile) new WorldRepository(db).insertStaffProfile({ ...profile, availability: "RETIRED" });
-  db.prepare("UPDATE person_roles SET active_to = ? WHERE person_id = ? AND role = 'STAFF' AND active_to IS NULL")
-    .run(worldDate, personId);
+  db.prepare(
+    "UPDATE person_roles SET active_to = ? WHERE person_id = ? AND role = 'STAFF' AND active_to IS NULL",
+  ).run(worldDate, personId);
 };
 
 // ---------------------------------------------------------------------------
@@ -538,7 +591,8 @@ export const evaluateStaffContracts = (
 
     const profile = market.staffProfile(contract.personId);
     const rng = new SeededRandom(`staff-renewal:${contract.id}:${worldDate}`);
-    const renewChance = profile?.reputation === "HIGH" ? 0.75 : profile?.reputation === "LOW" ? 0.35 : 0.55;
+    const renewChance =
+      profile?.reputation === "HIGH" ? 0.75 : profile?.reputation === "LOW" ? 0.35 : 0.55;
     if (rng.next() < renewChance) {
       const renewed: StaffEmploymentContract = {
         ...contract,
@@ -553,7 +607,13 @@ export const evaluateStaffContracts = (
       if (appointment) {
         market.updateAppointmentStatus(appointment.id, "CONTRACT_EXPIRED", contract.contractEnd);
         if (appointment.clubId) {
-          openStaffVacancy(db, appointment.clubId, appointment.role, "EXPIRED", contract.contractEnd);
+          openStaffVacancy(
+            db,
+            appointment.clubId,
+            appointment.role,
+            "EXPIRED",
+            contract.contractEnd,
+          );
         }
         logStaffHistory(db, contract.personId, "STAFF_LEFT", contract.contractEnd, {
           appointmentId: appointment.id,
@@ -570,10 +630,16 @@ export const evaluateStaffContracts = (
 
 /** Runs the expiry/renewal check across every senior club, not just the player's — this is
  * what makes contract expiry and free-agent movement a world-wide fact, not a player-only one. */
-export const evaluateAllStaffContracts = (db: GameDatabase, save: SaveMetadata): StaffContractTickOutcome => {
+export const evaluateAllStaffContracts = (
+  db: GameDatabase,
+  save: SaveMetadata,
+): StaffContractTickOutcome => {
   const market = new StaffMarketRepository(db);
   const clubIds = new Set(
-    market.activeEmploymentContracts().map((contract) => contract.clubId).filter((id): id is EntityId => Boolean(id)),
+    market
+      .activeEmploymentContracts()
+      .map((contract) => contract.clubId)
+      .filter((id): id is EntityId => Boolean(id)),
   );
   const combined: StaffContractTickOutcome = { renewed: [], expired: [] };
   for (const clubId of clubIds) {
@@ -605,7 +671,9 @@ export const ensureAiStaffAssigned = (
   const worldDate = save.worldDate;
   let countryId: EntityId | undefined;
 
-  const clubIds = new Set(teams.map((team) => team.clubId).filter((id): id is EntityId => Boolean(id)));
+  const clubIds = new Set(
+    teams.map((team) => team.clubId).filter((id): id is EntityId => Boolean(id)),
+  );
   for (const clubId of clubIds) {
     if (clubId === playerClubId) continue;
     const team = teams.find((entry) => entry.clubId === clubId);
@@ -617,7 +685,10 @@ export const ensureAiStaffAssigned = (
       if (alreadyStaffed) continue;
 
       const openVacancy = market.openVacancyForRole(clubId, role);
-      if (openVacancy?.openedOn && daysBetween(openVacancy.openedOn, worldDate) < VACANCY_GRACE_DAYS) {
+      if (
+        openVacancy?.openedOn &&
+        daysBetween(openVacancy.openedOn, worldDate) < VACANCY_GRACE_DAYS
+      ) {
         continue;
       }
 
@@ -632,7 +703,8 @@ export const ensureAiStaffAssigned = (
         .find(
           (profile) =>
             (profile.preferredRole === role || !profile.preferredRole) &&
-            staffEligibility(role, profile, market.staffLicencesForPerson(profile.personId)).eligible,
+            staffEligibility(role, profile, market.staffLicencesForPerson(profile.personId))
+              .eligible,
         );
 
       let personId: EntityId;
@@ -646,13 +718,22 @@ export const ensureAiStaffAssigned = (
         );
       } else {
         countryId ??= firstCountryId(db);
-        const generated = generateAiStaff(`ai-staff:${clubId}:${role}:${worldDate}`, worldDate, countryId, role);
+        const generated = generateAiStaff(
+          `ai-staff:${clubId}:${role}:${worldDate}`,
+          worldDate,
+          countryId,
+          role,
+        );
         if (!world.getPerson(generated.person.id)) world.insertPerson(generated.person);
         world.insertStaffProfile(generated.profile);
         world.insertStaffSimulationProfile(generated.simulation);
         for (const licence of generated.licences) world.insertStaffLicence(licence);
         personId = generated.person.id;
-        salaryAmountMinor = estimateSalaryExpectation(role, generated.licences, generated.profile.reputation);
+        salaryAmountMinor = estimateSalaryExpectation(
+          role,
+          generated.licences,
+          generated.profile.reputation,
+        );
       }
 
       if (!clubCanAffordSalary(db, clubId, salaryAmountMinor)) continue;
@@ -666,16 +747,30 @@ export const ensureAiStaffAssigned = (
 };
 
 const TECHNICAL_PLACEMENT_ROLES = new Set<FootballStaffRole>([
-  "HEAD_COACH", "ASSISTANT_COACH", "FIRST_TEAM_COACH", "GOALKEEPER_COACH",
-  "FITNESS_COACH", "SET_PIECE_COACH", "YOUTH_COACH", "ACADEMY_DIRECTOR",
-  "SCOUT", "CHIEF_SCOUT", "ANALYST", "HEAD_ANALYST", "SPORTING_DIRECTOR",
-  "TECHNICAL_DIRECTOR", "DIRECTOR_OF_FOOTBALL",
+  "HEAD_COACH",
+  "ASSISTANT_COACH",
+  "FIRST_TEAM_COACH",
+  "GOALKEEPER_COACH",
+  "FITNESS_COACH",
+  "SET_PIECE_COACH",
+  "YOUTH_COACH",
+  "ACADEMY_DIRECTOR",
+  "SCOUT",
+  "CHIEF_SCOUT",
+  "ANALYST",
+  "HEAD_ANALYST",
+  "SPORTING_DIRECTOR",
+  "TECHNICAL_DIRECTOR",
+  "DIRECTOR_OF_FOOTBALL",
 ]);
 const TECHNICAL_PLACEMENT_DAYS = 30;
 const MAX_TECHNICAL_PLACEMENTS_PER_CLUB_SEASON = 2;
 
 const technicalPartnerCountry = (db: GameDatabase, partnerClubId: EntityId): EntityId | undefined =>
-  (db.prepare("SELECT country_id FROM clubs WHERE id=? LIMIT 1").get(partnerClubId) as { country_id?: EntityId } | undefined)?.country_id;
+  (
+    db.prepare("SELECT country_id FROM clubs WHERE id=? LIMIT 1").get(partnerClubId) as
+      { country_id?: EntityId } | undefined
+  )?.country_id;
 
 /** Plans at most two partner-club placements per home club and season. */
 export const planTechnicalPartnershipPlacements = (
@@ -689,8 +784,13 @@ export const planTechnicalPartnershipPlacements = (
   if (partnerships.length === 0) return [];
   const market = new StaffMarketRepository(db);
   const year = save.worldDate.slice(0, 4);
-  const seasonCount = market.technicalPlacementsForClub(clubId).filter((item) => item.startDate.startsWith(year)).length;
-  const remaining = Math.max(0, Math.min(maxPlacements, MAX_TECHNICAL_PLACEMENTS_PER_CLUB_SEASON) - seasonCount);
+  const seasonCount = market
+    .technicalPlacementsForClub(clubId)
+    .filter((item) => item.startDate.startsWith(year)).length;
+  const remaining = Math.max(
+    0,
+    Math.min(maxPlacements, MAX_TECHNICAL_PLACEMENTS_PER_CLUB_SEASON) - seasonCount,
+  );
   if (remaining === 0) return [];
   const planned: StaffTechnicalPlacement[] = [];
   for (const appointment of market.activeAppointmentsForClub(clubId)) {
@@ -699,7 +799,10 @@ export const planTechnicalPartnershipPlacements = (
     const partnership = partnerships[planned.length % partnerships.length]!;
     if (!technicalPartnerCountry(db, partnership.toClubId)) continue;
     const placement: StaffTechnicalPlacement = {
-      id: createStableEntityId("staff-technical-placement", `${clubId}:${appointment.personId}:${partnership.id}:${save.worldDate}`),
+      id: createStableEntityId(
+        "staff-technical-placement",
+        `${clubId}:${appointment.personId}:${partnership.id}:${save.worldDate}`,
+      ),
       personId: appointment.personId,
       homeClubId: clubId,
       partnerClubId: partnership.toClubId,
@@ -728,14 +831,24 @@ export const completeTechnicalPartnershipPlacements = (
     const profile = market.staffProfile(placement.personId);
     const appointment = market.activeAppointment(placement.personId);
     const countryId = technicalPartnerCountry(db, placement.partnerClubId);
-    if (!profile || !appointment || appointment.clubId !== placement.homeClubId || !countryId) continue;
+    if (!profile || !appointment || appointment.clubId !== placement.homeClubId || !countryId)
+      continue;
     const nextCountries = profile.countryKnowledge.includes(countryId)
       ? profile.countryKnowledge
       : [...profile.countryKnowledge, countryId];
     new WorldRepository(db).insertStaffProfile({ ...profile, countryKnowledge: nextCountries });
     const simulation = market.staffSimulationProfile(placement.personId);
-    if (simulation) market.updateStaffSimulationProfile({ ...simulation, coachingTechnical: Math.min(20, simulation.coachingTechnical + 1) });
-    const finished: StaffTechnicalPlacement = { ...placement, status: "COMPLETED", developmentApplied: true, completedOn: save.worldDate };
+    if (simulation)
+      market.updateStaffSimulationProfile({
+        ...simulation,
+        coachingTechnical: Math.min(20, simulation.coachingTechnical + 1),
+      });
+    const finished: StaffTechnicalPlacement = {
+      ...placement,
+      status: "COMPLETED",
+      developmentApplied: true,
+      completedOn: save.worldDate,
+    };
     market.upsertTechnicalPlacement(finished);
     logStaffHistory(db, placement.personId, "INTERNATIONAL_PLACEMENT_COMPLETED", save.worldDate, {
       clubId: placement.homeClubId,
@@ -769,7 +882,10 @@ export const shortlistStaffCandidates = (
   const market = new StaffMarketRepository(db);
   return market
     .staffCandidatesForClub(clubId, role, Math.min(MAX_STAFF_CANDIDATES_PER_VACANCY, maxCandidates))
-    .filter((profile) => staffEligibility(role, profile, market.staffLicencesForPerson(profile.personId)).eligible);
+    .filter(
+      (profile) =>
+        staffEligibility(role, profile, market.staffLicencesForPerson(profile.personId)).eligible,
+    );
 };
 
 /** Opens only a genuine CONTEXT_ONLY staffing need; callers never pre-fill all global clubs. */
@@ -789,7 +905,8 @@ export const ensureExternalStaffVacancies = (
     .get(clubId) as { id?: EntityId } | undefined;
   const vacancies: StaffVacancy[] = [];
   for (const role of roles) {
-    if (market.activeAppointmentsForClub(clubId).some((appointment) => appointment.role === role)) continue;
+    if (market.activeAppointmentsForClub(clubId).some((appointment) => appointment.role === role))
+      continue;
     if (market.openVacancyForRole(clubId, role)) continue;
     vacancies.push(openStaffVacancy(db, clubId, role, "NEW_ROLE", worldDate));
     const vacancy = vacancies[vacancies.length - 1]!;
@@ -801,10 +918,16 @@ export const ensureExternalStaffVacancies = (
 };
 
 const externalOfferMultiplier = (db: GameDatabase, clubId: EntityId): number => {
-  const row = db.prepare("SELECT financial_band FROM external_club_context WHERE club_id = ?").get(clubId) as
-    | { financial_band?: string }
-    | undefined;
-  return row?.financial_band === "ELITE" ? 1.9 : row?.financial_band === "HIGH" ? 1.65 : row?.financial_band === "LOW" ? 1.25 : 1.45;
+  const row = db
+    .prepare("SELECT financial_band FROM external_club_context WHERE club_id = ?")
+    .get(clubId) as { financial_band?: string } | undefined;
+  return row?.financial_band === "ELITE"
+    ? 1.9
+    : row?.financial_band === "HIGH"
+      ? 1.65
+      : row?.financial_band === "LOW"
+        ? 1.25
+        : 1.45;
 };
 
 const generateExternalStaffCandidate = (
@@ -865,12 +988,19 @@ export const processExternalStaffVacancies = (
        ORDER BY sv.opened_on, sv.id
        LIMIT ?`,
     )
-    .all(Math.max(1, Math.min(MAX_EXTERNAL_STAFF_VACANCIES_PER_CADENCE, maxVacancies))) as Array<{ id: EntityId }>;
+    .all(Math.max(1, Math.min(MAX_EXTERNAL_STAFF_VACANCIES_PER_CADENCE, maxVacancies))) as Array<{
+    id: EntityId;
+  }>;
   const outcomes: ExternalStaffVacancyOutcome[] = [];
   for (const { id } of vacancies) {
     const vacancy = market.vacancyById(id);
     if (!vacancy?.clubId) continue;
-    let candidates = shortlistStaffCandidates(db, vacancy.clubId, vacancy.role, MAX_STAFF_CANDIDATES_PER_VACANCY);
+    let candidates = shortlistStaffCandidates(
+      db,
+      vacancy.clubId,
+      vacancy.role,
+      MAX_STAFF_CANDIDATES_PER_VACANCY,
+    );
     let generatedReplacement = false;
     if (candidates.length === 0) {
       const generated = generateExternalStaffCandidate(db, vacancy, save.worldDate);
@@ -885,8 +1015,11 @@ export const processExternalStaffVacancies = (
       continue;
     }
     const salary = Math.round(
-      estimateSalaryExpectation(vacancy.role, market.staffLicencesForPerson(candidate.personId), candidate.reputation) *
-        externalOfferMultiplier(db, vacancy.clubId),
+      estimateSalaryExpectation(
+        vacancy.role,
+        market.staffLicencesForPerson(candidate.personId),
+        candidate.reputation,
+      ) * externalOfferMultiplier(db, vacancy.clubId),
     );
     const application = applyForStaffVacancy(db, save, vacancy.id, candidate.personId, salary);
     if (application.status === "OFFERED" || application.status === "COUNTERED") {
@@ -954,7 +1087,10 @@ export type StaffCareerHistoryView = {
   performance: StaffPerformanceRecord[];
 };
 
-export const staffCareerHistory = (db: GameDatabase, personId: EntityId): StaffCareerHistoryView => {
+export const staffCareerHistory = (
+  db: GameDatabase,
+  personId: EntityId,
+): StaffCareerHistoryView => {
   const market = new StaffMarketRepository(db);
   return {
     history: market.staffHistoryForPerson(personId),
@@ -972,7 +1108,11 @@ export const staffCareerHistory = (db: GameDatabase, personId: EntityId): StaffC
 // ---------------------------------------------------------------------------
 
 /** How prestigious a club looks to a prospective employee — board ambition plus league standing. */
-export const clubReputationScore = (db: GameDatabase, clubId: EntityId, worldDate: string): number => {
+export const clubReputationScore = (
+  db: GameDatabase,
+  clubId: EntityId,
+  worldDate: string,
+): number => {
   const external = db
     .prepare("SELECT reputation FROM external_club_context WHERE club_id = ? LIMIT 1")
     .get(clubId) as { reputation?: number } | undefined;
@@ -1092,13 +1232,32 @@ export const staffInterestScore = (
     }
   }
 
-  const personCountry = db.prepare("SELECT nationality_country_id FROM persons WHERE id = ?").get(personId) as
-    | { nationality_country_id?: EntityId }
-    | undefined;
+  const managerRelationship = new PeopleFoundationRepository(db)
+    .relationshipsForPerson(personId)
+    .filter((relationship) => relationship.kind === "STAFF_MANAGER")
+    .sort((a, b) => b.updatedOn.localeCompare(a.updatedOn))[0];
+  if (managerRelationship) {
+    const cooperation = assessStaffCooperation({
+      trust: managerRelationship.trust,
+      respect: managerRelationship.respect,
+      tension: managerRelationship.tension,
+    });
+    score += cooperation.recruitmentModifier;
+    if (cooperation.label === "CONFLICT" || cooperation.label === "STRAINED") {
+      reasons.push("The manager relationship makes the move less attractive.");
+    }
+  }
+
+  const personCountry = db
+    .prepare("SELECT nationality_country_id FROM persons WHERE id = ?")
+    .get(personId) as { nationality_country_id?: EntityId } | undefined;
   const clubCountry = db.prepare("SELECT country_id FROM clubs WHERE id = ?").get(clubId) as
-    | { country_id?: EntityId }
-    | undefined;
-  if (personCountry?.nationality_country_id && clubCountry?.country_id && personCountry.nationality_country_id !== clubCountry.country_id) {
+    { country_id?: EntityId } | undefined;
+  if (
+    personCountry?.nationality_country_id &&
+    clubCountry?.country_id &&
+    personCountry.nationality_country_id !== clubCountry.country_id
+  ) {
     // Relocation is symmetric: a foreign coach moving to Nepal and a Nepali
     // coach moving abroad both need a materially better offer.
     // Relocation remains a meaningful hurdle even when the salary is strong;
@@ -1106,7 +1265,11 @@ export const staffInterestScore = (
     // identical foreign offer into a higher-interest result than a domestic
     // one at the same salary.
     score += salaryRatio >= 1.3 ? -5 : -20;
-    reasons.push(salaryRatio >= 1.3 ? "Salary partly offsets the relocation hurdle." : "Not enough on offer to relocate abroad.");
+    reasons.push(
+      salaryRatio >= 1.3
+        ? "Salary partly offsets the relocation hurdle."
+        : "Not enough on offer to relocate abroad.",
+    );
   }
 
   const externalReach = db
@@ -1132,7 +1295,12 @@ export const staffInterestScore = (
 
 export class StaffNegotiationError extends Error {
   constructor(
-    readonly code: "APPLICATION_NOT_FOUND" | "APPLICATION_NOT_ACTIONABLE" | "VACANCY_NOT_FOUND" | "OFFER_NOT_FOUND" | "OFFER_NOT_ACTIONABLE",
+    readonly code:
+      | "APPLICATION_NOT_FOUND"
+      | "APPLICATION_NOT_ACTIONABLE"
+      | "VACANCY_NOT_FOUND"
+      | "OFFER_NOT_FOUND"
+      | "OFFER_NOT_ACTIONABLE",
     message: string,
   ) {
     super(message);
@@ -1158,7 +1326,14 @@ export const applyForStaffVacancy = (
   const licences = market.staffLicencesForPerson(personId);
   const eligibility = staffEligibility(vacancy.role, profile, licences);
   const canAfford = clubCanAffordSalary(db, vacancy.clubId, proposedSalaryMinor);
-  const interest = staffInterestScore(db, personId, vacancy.clubId, vacancy.role, proposedSalaryMinor, worldDate);
+  const interest = staffInterestScore(
+    db,
+    personId,
+    vacancy.clubId,
+    vacancy.role,
+    proposedSalaryMinor,
+    worldDate,
+  );
   const rng = new SeededRandom(`staff-application:${vacancyId}:${personId}:${worldDate}`);
   const roll = rng.next() * 100;
 
@@ -1171,7 +1346,10 @@ export const applyForStaffVacancy = (
   } else if (interest.score - roll * 0.3 >= 35) {
     status = "COUNTERED";
     counterSalaryMinor = Math.round(
-      Math.max(proposedSalaryMinor, estimateSalaryExpectation(vacancy.role, licences, profile?.reputation)) * 1.12,
+      Math.max(
+        proposedSalaryMinor,
+        estimateSalaryExpectation(vacancy.role, licences, profile?.reputation),
+      ) * 1.12,
     );
   } else {
     status = "REJECTED";
@@ -1185,7 +1363,8 @@ export const applyForStaffVacancy = (
     createdOn: worldDate,
     decidedOn: worldDate,
     offeredSalaryMinor: status === "OFFERED" ? proposedSalaryMinor : undefined,
-    offeredContractEnd: status === "OFFERED" ? addDays(worldDate, proposedContractMonths * 30) : undefined,
+    offeredContractEnd:
+      status === "OFFERED" ? addDays(worldDate, proposedContractMonths * 30) : undefined,
     counterSalaryMinor,
   };
   market.insertApplication(application);
@@ -1201,16 +1380,22 @@ export const acceptStaffApplication = (
 ): StaffAppointment => {
   const market = new StaffMarketRepository(db);
   const application = market.applicationById(applicationId);
-  if (!application) throw new StaffNegotiationError("APPLICATION_NOT_FOUND", "That application no longer exists.");
+  if (!application)
+    throw new StaffNegotiationError("APPLICATION_NOT_FOUND", "That application no longer exists.");
   if (application.status !== "OFFERED" && application.status !== "COUNTERED") {
-    throw new StaffNegotiationError("APPLICATION_NOT_ACTIONABLE", "That application is no longer open to accept.");
+    throw new StaffNegotiationError(
+      "APPLICATION_NOT_ACTIONABLE",
+      "That application is no longer open to accept.",
+    );
   }
   const vacancy = market.vacancyById(application.vacancyId);
   if (!vacancy || !vacancy.clubId) {
     throw new StaffNegotiationError("VACANCY_NOT_FOUND", "That vacancy is no longer open.");
   }
   const salary =
-    application.status === "COUNTERED" ? application.counterSalaryMinor! : application.offeredSalaryMinor!;
+    application.status === "COUNTERED"
+      ? application.counterSalaryMinor!
+      : application.offeredSalaryMinor!;
   const previous = market.activeAppointment(application.personId);
   if (previous && previous.clubId !== vacancy.clubId) {
     releaseStaffForMove(
@@ -1220,15 +1405,29 @@ export const acceptStaffApplication = (
       `Resigned to join ${vacancy.role.replace(/_/g, " ").toLowerCase()} employment at another club.`,
     );
   }
-  const appointment = hireStaff(db, save, vacancy.clubId, vacancy.teamId, application.personId, vacancy.role, salary, contractMonths);
+  const appointment = hireStaff(
+    db,
+    save,
+    vacancy.clubId,
+    vacancy.teamId,
+    application.personId,
+    vacancy.role,
+    salary,
+    contractMonths,
+  );
   market.insertApplication({ ...application, status: "ACCEPTED", decidedOn: save.worldDate });
   return appointment;
 };
 
-export const declineStaffApplication = (db: GameDatabase, save: SaveMetadata, applicationId: EntityId): void => {
+export const declineStaffApplication = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  applicationId: EntityId,
+): void => {
   const market = new StaffMarketRepository(db);
   const application = market.applicationById(applicationId);
-  if (!application) throw new StaffNegotiationError("APPLICATION_NOT_FOUND", "That application no longer exists.");
+  if (!application)
+    throw new StaffNegotiationError("APPLICATION_NOT_FOUND", "That application no longer exists.");
   market.insertApplication({ ...application, status: "DECLINED", decidedOn: save.worldDate });
 };
 
@@ -1250,7 +1449,14 @@ export const offerStaffRenewal = (
     throw new StaffNegotiationError("APPLICATION_NOT_FOUND", "That appointment is not active.");
   }
   const worldDate = save.worldDate;
-  const interest = staffInterestScore(db, appointment.personId, appointment.clubId, appointment.role, proposedSalaryMinor, worldDate);
+  const interest = staffInterestScore(
+    db,
+    appointment.personId,
+    appointment.clubId,
+    appointment.role,
+    proposedSalaryMinor,
+    worldDate,
+  );
   const rng = new SeededRandom(`staff-renewal-offer:${appointmentId}:${worldDate}`);
   const roll = rng.next() * 100;
 
@@ -1262,7 +1468,14 @@ export const offerStaffRenewal = (
     status = "COUNTERED";
     const licences = market.staffLicencesForPerson(appointment.personId);
     counterSalaryMinor = Math.round(
-      Math.max(proposedSalaryMinor, estimateSalaryExpectation(appointment.role, licences, market.staffProfile(appointment.personId)?.reputation)) * 1.1,
+      Math.max(
+        proposedSalaryMinor,
+        estimateSalaryExpectation(
+          appointment.role,
+          licences,
+          market.staffProfile(appointment.personId)?.reputation,
+        ),
+      ) * 1.1,
     );
   } else {
     status = "REJECTED";
@@ -1300,7 +1513,12 @@ const finalizeRenewal = (
     const contract = market.employmentContractById(appointment.contractId);
     if (contract) {
       adjustClubWageSpend(db, contract.clubId, salaryAmountMinor - contract.salaryAmountMinor);
-      market.upsertEmploymentContract({ ...contract, salaryAmountMinor, contractEnd, status: "ACTIVE" });
+      market.upsertEmploymentContract({
+        ...contract,
+        salaryAmountMinor,
+        contractEnd,
+        status: "ACTIVE",
+      });
     }
   }
   logStaffHistory(db, appointment.personId, "STAFF_JOINED", worldDate, {
@@ -1312,26 +1530,46 @@ const finalizeRenewal = (
 };
 
 /** Accepts the candidate's counter — the manager blinks first, on their terms. */
-export const acceptStaffRenewalCounter = (db: GameDatabase, save: SaveMetadata, offerId: EntityId): StaffRenewalOffer => {
+export const acceptStaffRenewalCounter = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  offerId: EntityId,
+): StaffRenewalOffer => {
   const market = new StaffMarketRepository(db);
   const offer = market.renewalOfferById(offerId);
-  if (!offer) throw new StaffNegotiationError("OFFER_NOT_FOUND", "That renewal offer no longer exists.");
+  if (!offer)
+    throw new StaffNegotiationError("OFFER_NOT_FOUND", "That renewal offer no longer exists.");
   if (offer.status !== "COUNTERED") {
-    throw new StaffNegotiationError("OFFER_NOT_ACTIONABLE", "That offer has no pending counter to accept.");
+    throw new StaffNegotiationError(
+      "OFFER_NOT_ACTIONABLE",
+      "That offer has no pending counter to accept.",
+    );
   }
   const appointment = market.appointmentById(offer.appointmentId);
-  if (!appointment) throw new StaffNegotiationError("APPLICATION_NOT_FOUND", "That appointment is not active.");
+  if (!appointment)
+    throw new StaffNegotiationError("APPLICATION_NOT_FOUND", "That appointment is not active.");
 
   const accepted: StaffRenewalOffer = { ...offer, status: "ACCEPTED", decidedOn: save.worldDate };
   market.upsertRenewalOffer(accepted);
-  finalizeRenewal(db, appointment, offer.counterSalaryMinor!, offer.proposedContractEnd, save.worldDate);
+  finalizeRenewal(
+    db,
+    appointment,
+    offer.counterSalaryMinor!,
+    offer.proposedContractEnd,
+    save.worldDate,
+  );
   return accepted;
 };
 
-export const declineStaffRenewalOffer = (db: GameDatabase, save: SaveMetadata, offerId: EntityId): void => {
+export const declineStaffRenewalOffer = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  offerId: EntityId,
+): void => {
   const market = new StaffMarketRepository(db);
   const offer = market.renewalOfferById(offerId);
-  if (!offer) throw new StaffNegotiationError("OFFER_NOT_FOUND", "That renewal offer no longer exists.");
+  if (!offer)
+    throw new StaffNegotiationError("OFFER_NOT_FOUND", "That renewal offer no longer exists.");
   market.upsertRenewalOffer({ ...offer, status: "DECLINED", decidedOn: save.worldDate });
 };
 
@@ -1348,10 +1586,25 @@ const stepReputation = (current: string | undefined, direction: 1 | -1): string 
 };
 
 const COACHING_ROLES = new Set<FootballStaffRole>([
-  "ASSISTANT_COACH", "FIRST_TEAM_COACH", "GOALKEEPER_COACH", "FITNESS_COACH", "SET_PIECE_COACH", "YOUTH_COACH",
+  "ASSISTANT_COACH",
+  "FIRST_TEAM_COACH",
+  "GOALKEEPER_COACH",
+  "FITNESS_COACH",
+  "SET_PIECE_COACH",
+  "YOUTH_COACH",
 ]);
-const SCOUTING_ROLES = new Set<FootballStaffRole>(["SCOUT", "CHIEF_SCOUT", "ANALYST", "HEAD_ANALYST"]);
-const MEDICAL_ROLES = new Set<FootballStaffRole>(["PHYSIO", "HEAD_PHYSIO", "DOCTOR", "SPORTS_SCIENTIST"]);
+const SCOUTING_ROLES = new Set<FootballStaffRole>([
+  "SCOUT",
+  "CHIEF_SCOUT",
+  "ANALYST",
+  "HEAD_ANALYST",
+]);
+const MEDICAL_ROLES = new Set<FootballStaffRole>([
+  "PHYSIO",
+  "HEAD_PHYSIO",
+  "DOCTOR",
+  "SPORTS_SCIENTIST",
+]);
 
 const rolePerformanceScore = (
   db: GameDatabase,
@@ -1362,12 +1615,17 @@ const rolePerformanceScore = (
     const seasonId = currentSeasonId(db, worldDate);
     const row = seasonId
       ? (db
-          .prepare("SELECT played, points FROM league_standings WHERE team_id = ? AND competition_season_id = ?")
+          .prepare(
+            "SELECT played, points FROM league_standings WHERE team_id = ? AND competition_season_id = ?",
+          )
           .get(appointment.teamId, seasonId) as SqlRow | undefined)
       : undefined;
     if (row?.played) {
       const ppg = row.points / row.played;
-      return { score: clamp(Math.round(ppg * 33.3), 0, 100), note: `Team averaging ${ppg.toFixed(2)} points/game.` };
+      return {
+        score: clamp(Math.round(ppg * 33.3), 0, 100),
+        note: `Team averaging ${ppg.toFixed(2)} points/game.`,
+      };
     }
     return { score: 50, note: "No results yet this season." };
   }
@@ -1378,14 +1636,22 @@ const rolePerformanceScore = (
       )
       .get(appointment.personId) as SqlRow | undefined;
     const completed = row?.total ?? 0;
-    return { score: clamp(40 + completed * 5, 0, 100), note: `${completed} completed scouting assignment(s).` };
+    return {
+      score: clamp(40 + completed * 5, 0, 100),
+      note: `${completed} completed scouting assignment(s).`,
+    };
   }
   if (appointment.teamId && MEDICAL_ROLES.has(appointment.role)) {
     const row = db
-      .prepare("SELECT AVG(fitness) AS avg_fitness FROM player_availability_states WHERE team_id = ?")
+      .prepare(
+        "SELECT AVG(fitness) AS avg_fitness FROM player_availability_states WHERE team_id = ?",
+      )
       .get(appointment.teamId) as SqlRow | undefined;
     const avgFitness = row?.avg_fitness ?? 75;
-    return { score: clamp(Math.round(avgFitness), 0, 100), note: `Squad averaging ${Math.round(avgFitness)} fitness.` };
+    return {
+      score: clamp(Math.round(avgFitness), 0, 100),
+      note: `Squad averaging ${Math.round(avgFitness)} fitness.`,
+    };
   }
   return { score: 50, note: "No role-specific performance signal available." };
 };
@@ -1393,7 +1659,11 @@ const rolePerformanceScore = (
 const PERFORMANCE_REVIEW_INTERVAL_DAYS = 30;
 
 /** Reviews every active appointment at the club once per interval, from real proxies, and drifts reputation accordingly. */
-export const evaluateStaffPerformance = (db: GameDatabase, save: SaveMetadata, clubId: EntityId): StaffPerformanceRecord[] => {
+export const evaluateStaffPerformance = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  clubId: EntityId,
+): StaffPerformanceRecord[] => {
   const market = new StaffMarketRepository(db);
   const worldDate = save.worldDate;
   const records: StaffPerformanceRecord[] = [];
@@ -1419,7 +1689,11 @@ export const evaluateStaffPerformance = (db: GameDatabase, save: SaveMetadata, c
     const profile = market.staffProfile(appointment.personId);
     if (profile) {
       const nextReputation =
-        score >= 70 ? stepReputation(profile.reputation, 1) : score <= 30 ? stepReputation(profile.reputation, -1) : profile.reputation;
+        score >= 70
+          ? stepReputation(profile.reputation, 1)
+          : score <= 30
+            ? stepReputation(profile.reputation, -1)
+            : profile.reputation;
       if (nextReputation !== profile.reputation) {
         new WorldRepository(db).insertStaffProfile({ ...profile, reputation: nextReputation });
       }
@@ -1439,7 +1713,10 @@ const nextLicenceType = (currentRank: number): string | undefined =>
   Object.entries(LICENCE_RANK).find(([, rank]) => rank === currentRank + 1)?.[0];
 
 export class LicenceCourseError extends Error {
-  constructor(readonly code: "ALREADY_ENROLLED" | "MAX_LICENCE" | "CANNOT_AFFORD", message: string) {
+  constructor(
+    readonly code: "ALREADY_ENROLLED" | "MAX_LICENCE" | "CANNOT_AFFORD" | "NOT_WILLING",
+    message: string,
+  ) {
     super(message);
   }
 }
@@ -1457,9 +1734,29 @@ export const enrolInLicenceCourse = (
   }
   const currentRank = licenceRankOf(market.staffLicencesForPerson(personId));
   const target = nextLicenceType(currentRank);
-  if (!target) throw new LicenceCourseError("MAX_LICENCE", "Already holds the highest coaching licence.");
+  if (!target)
+    throw new LicenceCourseError("MAX_LICENCE", "Already holds the highest coaching licence.");
   if (fundedByClubId && !clubCanAffordSalary(db, fundedByClubId, LICENCE_COURSE_COST_MINOR)) {
     throw new LicenceCourseError("CANNOT_AFFORD", "The club cannot fund this course right now.");
+  }
+  const personality = new PeopleFoundationRepository(db).personality(personId);
+  const managerRelationship = new PeopleFoundationRepository(db)
+    .relationshipsForPerson(personId)
+    .filter((relationship) => relationship.kind === "STAFF_MANAGER")
+    .sort((a, b) => b.updatedOn.localeCompare(a.updatedOn))[0];
+  const willingness = assessStaffDevelopmentWillingness({
+    professionalism: personality?.traits.professionalism,
+    ambition: personality?.traits.ambition,
+    adaptability: personality?.traits.adaptability,
+    currentQualification: currentRank,
+    clubSupport: fundedByClubId ? 8 : 5,
+    managerTrust: managerRelationship?.trust,
+  });
+  if (personality && willingness.decision === "DECLINE") {
+    throw new LicenceCourseError(
+      "NOT_WILLING",
+      "The staff member is not willing to prioritise this course now.",
+    );
   }
   const worldDate = save.worldDate;
   const course: StaffLicenceCourse = {
@@ -1476,7 +1773,10 @@ export const enrolInLicenceCourse = (
 };
 
 /** Completes any licence course whose date has arrived, issuing the new licence. */
-export const evaluateLicenceCourses = (db: GameDatabase, save: SaveMetadata): StaffLicenceCourse[] => {
+export const evaluateLicenceCourses = (
+  db: GameDatabase,
+  save: SaveMetadata,
+): StaffLicenceCourse[] => {
   const market = new StaffMarketRepository(db);
   const worldDate = save.worldDate;
   const completed: StaffLicenceCourse[] = [];
@@ -1514,25 +1814,63 @@ const POACH_INTEREST_THRESHOLD = 70;
  * staff it can end in a real resignation — the only real defence is having
  * renewed them onto a competitive contract already.
  */
-export const evaluateStaffPoaching = (db: GameDatabase, save: SaveMetadata, playerClubId: EntityId | undefined): StaffApproach[] => {
+export const evaluateStaffPoaching = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  playerClubId: EntityId | undefined,
+): StaffApproach[] => {
   const market = new StaffMarketRepository(db);
   const worldDate = save.worldDate;
   const teams = seniorTeams(db, worldDate);
-  const clubIds = new Set(teams.map((team) => team.clubId).filter((id): id is EntityId => Boolean(id)));
+  const clubIds = new Set(
+    teams.map((team) => team.clubId).filter((id): id is EntityId => Boolean(id)),
+  );
   const approaches: StaffApproach[] = [];
 
   for (const clubId of clubIds) {
     for (const role of CORE_CLUB_ROLES) {
-      if (market.activeAppointmentsForClub(clubId).some((appointment) => appointment.role === role)) continue;
+      if (market.activeAppointmentsForClub(clubId).some((appointment) => appointment.role === role))
+        continue;
       const vacancy = market.openVacancyForRole(clubId, role);
-      if (!vacancy?.openedOn || daysBetween(vacancy.openedOn, worldDate) < VACANCY_GRACE_DAYS) continue;
+      if (!vacancy?.openedOn || daysBetween(vacancy.openedOn, worldDate) < VACANCY_GRACE_DAYS)
+        continue;
 
       const target = findPoachTarget(db, clubId, role);
       if (!target) continue;
-      const contract = target.contractId ? market.employmentContractById(target.contractId) : undefined;
-      const offeredSalaryMinor = Math.round((contract?.salaryAmountMinor ?? estimateSalaryExpectation(role, [], undefined)) * POACH_SALARY_PREMIUM);
-      const interest = staffInterestScore(db, target.personId, clubId, role, offeredSalaryMinor, worldDate);
+      const contract = target.contractId
+        ? market.employmentContractById(target.contractId)
+        : undefined;
+      const offeredSalaryMinor = Math.round(
+        (contract?.salaryAmountMinor ?? estimateSalaryExpectation(role, [], undefined)) *
+          POACH_SALARY_PREMIUM,
+      );
+      const interest = staffInterestScore(
+        db,
+        target.personId,
+        clubId,
+        role,
+        offeredSalaryMinor,
+        worldDate,
+      );
       if (interest.score < POACH_INTEREST_THRESHOLD) continue;
+      const personality = new PeopleFoundationRepository(db).personality(target.personId);
+      const managerRelationship = new PeopleFoundationRepository(db)
+        .relationshipsForPerson(target.personId)
+        .filter((relationship) => relationship.kind === "STAFF_MANAGER")
+        .sort((a, b) => b.updatedOn.localeCompare(a.updatedOn))[0];
+      const departure = assessStaffDeparture({
+        ambition: personality?.traits.ambition,
+        loyalty: personality?.traits.loyalty,
+        clubReputation: 50,
+        wageStatus: 50,
+        managerTrust: managerRelationship?.trust,
+        tension: managerRelationship?.tension,
+        opportunity: clamp(Math.round((interest.score - 50) * 1.5), 0, 50),
+        tenureMonths: target.startDate
+          ? Math.max(0, Math.round(daysBetween(target.startDate, worldDate) / 30))
+          : 12,
+      });
+      if (departure.decision !== "LEAVE") continue;
       if (!clubCanAffordSalary(db, clubId, offeredSalaryMinor)) continue;
 
       const approach: StaffApproach = {
@@ -1570,7 +1908,14 @@ export const evaluateStaffPoaching = (db: GameDatabase, save: SaveMetadata, play
       if (daysBetween(approach.createdOn, worldDate) < VACANCY_GRACE_DAYS) continue;
       const target = market.activeAppointment(approach.personId);
       if (!target || target.clubId !== playerClubId) continue;
-      const interest = staffInterestScore(db, approach.personId, approach.fromClubId, approach.role, approach.offeredSalaryMinor, worldDate);
+      const interest = staffInterestScore(
+        db,
+        approach.personId,
+        approach.fromClubId,
+        approach.role,
+        approach.offeredSalaryMinor,
+        worldDate,
+      );
       const rng = new SeededRandom(`staff-poach-resolve:${approach.id}:${worldDate}`);
       if (rng.next() * 100 < interest.score) {
         resolvePoach(db, save, approach, target);
@@ -1583,7 +1928,11 @@ export const evaluateStaffPoaching = (db: GameDatabase, save: SaveMetadata, play
   return approaches;
 };
 
-const findPoachTarget = (db: GameDatabase, excludeClubId: EntityId, role: FootballStaffRole): StaffAppointment | undefined => {
+const findPoachTarget = (
+  db: GameDatabase,
+  excludeClubId: EntityId,
+  role: FootballStaffRole,
+): StaffAppointment | undefined => {
   const row = db
     .prepare(
       `SELECT sa.* FROM staff_appointments sa
@@ -1609,15 +1958,33 @@ const findPoachTarget = (db: GameDatabase, excludeClubId: EntityId, role: Footba
   };
 };
 
-const resolvePoach = (db: GameDatabase, save: SaveMetadata, approach: StaffApproach, target: StaffAppointment): void => {
+const resolvePoach = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  approach: StaffApproach,
+  target: StaffAppointment,
+): void => {
   const market = new StaffMarketRepository(db);
   const worldDate = save.worldDate;
   market.insertApproach({ ...approach, status: "ACCEPTED", decidedOn: worldDate });
 
   if (target.employmentStatus === "ACTIVE") {
-    releaseStaffForMove(db, save, target, "Resigned to join another club for a better opportunity.");
+    releaseStaffForMove(
+      db,
+      save,
+      target,
+      "Resigned to join another club for a better opportunity.",
+    );
   }
-  hireStaff(db, save, approach.fromClubId, undefined, approach.personId, approach.role, approach.offeredSalaryMinor);
+  hireStaff(
+    db,
+    save,
+    approach.fromClubId,
+    undefined,
+    approach.personId,
+    approach.role,
+    approach.offeredSalaryMinor,
+  );
 };
 
 // ===========================================================================
@@ -1639,14 +2006,20 @@ const DOMAIN_ELIGIBLE_ROLES: Record<StaffResponsibilityDomain, FootballStaffRole
 };
 
 export const RESPONSIBILITY_DOMAINS: StaffResponsibilityDomain[] = [
-  "TRANSFERS", "SCOUTING", "CONTRACTS", "YOUTH", "TRAINING", "MEDICAL",
+  "TRANSFERS",
+  "SCOUTING",
+  "CONTRACTS",
+  "YOUTH",
+  "TRAINING",
+  "MEDICAL",
 ];
 
 const BOARD_APPROVAL_WINDOW_DAYS = 7;
 
 export class ResponsibilityError extends Error {
   constructor(
-    readonly code: "INVALID_OWNER" | "NOT_ELIGIBLE" | "APPOINTMENT_NOT_FOUND" | "BOARD_APPROVAL_REQUIRED",
+    readonly code:
+      "INVALID_OWNER" | "NOT_ELIGIBLE" | "APPOINTMENT_NOT_FOUND" | "BOARD_APPROVAL_REQUIRED",
     message: string,
   ) {
     super(message);
@@ -1672,8 +2045,15 @@ export const assignResponsibility = (
       throw new ResponsibilityError("INVALID_OWNER", "Select a staff member to delegate to.");
     }
     const appointment = market.appointmentById(ownerAppointmentId);
-    if (!appointment || appointment.employmentStatus !== "ACTIVE" || appointment.clubId !== clubId) {
-      throw new ResponsibilityError("APPOINTMENT_NOT_FOUND", "That staff member is not active at this club.");
+    if (
+      !appointment ||
+      appointment.employmentStatus !== "ACTIVE" ||
+      appointment.clubId !== clubId
+    ) {
+      throw new ResponsibilityError(
+        "APPOINTMENT_NOT_FOUND",
+        "That staff member is not active at this club.",
+      );
     }
     if (!DOMAIN_ELIGIBLE_ROLES[domain].includes(appointment.role)) {
       throw new ResponsibilityError(
@@ -1689,7 +2069,8 @@ export const assignResponsibility = (
     domain,
     ownerType,
     ownerAppointmentId: ownerType === "STAFF" ? ownerAppointmentId : undefined,
-    boardApprovalGrantedUntil: ownerType === "BOARD" ? existing?.boardApprovalGrantedUntil : undefined,
+    boardApprovalGrantedUntil:
+      ownerType === "BOARD" ? existing?.boardApprovalGrantedUntil : undefined,
     updatedOn: save.worldDate,
   };
   market.upsertResponsibility(responsibility);
@@ -1697,7 +2078,11 @@ export const assignResponsibility = (
 };
 
 /** Reads who owns a domain, defaulting to MANAGER when nothing has been assigned yet. */
-export const responsibilityOwner = (db: GameDatabase, clubId: EntityId, domain: StaffResponsibilityDomain): StaffResponsibility => {
+export const responsibilityOwner = (
+  db: GameDatabase,
+  clubId: EntityId,
+  domain: StaffResponsibilityDomain,
+): StaffResponsibility => {
   const existing = new StaffMarketRepository(db).responsibility(clubId, domain);
   return (
     existing ?? {
@@ -1716,13 +2101,26 @@ export const responsibilityOwner = (db: GameDatabase, clubId: EntityId, domain: 
  * small club (no such specialist) naturally keeps everything with the
  * manager, and a larger, well-staffed club specialises on its own.
  */
-export const defaultResponsibilitiesForClub = (db: GameDatabase, save: SaveMetadata, clubId: EntityId): StaffResponsibility[] => {
+export const defaultResponsibilitiesForClub = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  clubId: EntityId,
+): StaffResponsibility[] => {
   const market = new StaffMarketRepository(db);
   const staff = market.activeAppointmentsForClub(clubId);
   return RESPONSIBILITY_DOMAINS.map((domain) => {
     if (market.responsibility(clubId, domain)) return responsibilityOwner(db, clubId, domain);
-    const specialist = staff.find((appointment) => DOMAIN_ELIGIBLE_ROLES[domain].includes(appointment.role));
-    return assignResponsibility(db, save, clubId, domain, specialist ? "STAFF" : "MANAGER", specialist?.id);
+    const specialist = staff.find((appointment) =>
+      DOMAIN_ELIGIBLE_ROLES[domain].includes(appointment.role),
+    );
+    return assignResponsibility(
+      db,
+      save,
+      clubId,
+      domain,
+      specialist ? "STAFF" : "MANAGER",
+      specialist?.id,
+    );
   });
 };
 
@@ -1745,7 +2143,9 @@ export const requestBoardApproval = (
     clubId,
     domain,
     ownerType: "BOARD",
-    boardApprovalGrantedUntil: granted ? addDays(save.worldDate, BOARD_APPROVAL_WINDOW_DAYS) : undefined,
+    boardApprovalGrantedUntil: granted
+      ? addDays(save.worldDate, BOARD_APPROVAL_WINDOW_DAYS)
+      : undefined,
     updatedOn: save.worldDate,
   };
   new StaffMarketRepository(db).upsertResponsibility(responsibility);
@@ -1768,7 +2168,8 @@ export const assertResponsibilityPermits = (
 ): StaffResponsibility => {
   const owner = responsibilityOwner(db, clubId, domain);
   if (owner.ownerType === "BOARD") {
-    const stillValid = owner.boardApprovalGrantedUntil && owner.boardApprovalGrantedUntil >= save.worldDate;
+    const stillValid =
+      owner.boardApprovalGrantedUntil && owner.boardApprovalGrantedUntil >= save.worldDate;
     if (!stillValid) {
       throw new ResponsibilityError(
         "BOARD_APPROVAL_REQUIRED",
@@ -1792,10 +2193,21 @@ export const assertResponsibilityPermits = (
 // Workload
 // ---------------------------------------------------------------------------
 
-export type StaffWorkload = { personId: EntityId; appointmentId: EntityId; domainsCovered: number; level: StaffWorkloadLevel };
+export type StaffWorkload = {
+  personId: EntityId;
+  appointmentId: EntityId;
+  domainsCovered: number;
+  level: StaffWorkloadLevel;
+};
 
 const workloadLevelFor = (domainsCovered: number): StaffWorkloadLevel =>
-  domainsCovered === 0 ? "LIGHT" : domainsCovered === 1 ? "NORMAL" : domainsCovered === 2 ? "HEAVY" : "OVERLOADED";
+  domainsCovered === 0
+    ? "LIGHT"
+    : domainsCovered === 1
+      ? "NORMAL"
+      : domainsCovered === 2
+        ? "HEAVY"
+        : "OVERLOADED";
 
 /** Workload is derived, not stored: how many domains each staff member currently owns. */
 export const staffWorkloadForClub = (db: GameDatabase, clubId: EntityId): StaffWorkload[] => {
@@ -1803,13 +2215,21 @@ export const staffWorkloadForClub = (db: GameDatabase, clubId: EntityId): StaffW
   const counts = new Map<EntityId, number>();
   for (const responsibility of market.responsibilitiesForClub(clubId)) {
     if (responsibility.ownerType !== "STAFF" || !responsibility.ownerAppointmentId) continue;
-    counts.set(responsibility.ownerAppointmentId, (counts.get(responsibility.ownerAppointmentId) ?? 0) + 1);
+    counts.set(
+      responsibility.ownerAppointmentId,
+      (counts.get(responsibility.ownerAppointmentId) ?? 0) + 1,
+    );
   }
   return market
     .activeAppointmentsForClub(clubId)
     .map((appointment) => {
       const domainsCovered = counts.get(appointment.id) ?? 0;
-      return { personId: appointment.personId, appointmentId: appointment.id, domainsCovered, level: workloadLevelFor(domainsCovered) };
+      return {
+        personId: appointment.personId,
+        appointmentId: appointment.id,
+        domainsCovered,
+        level: workloadLevelFor(domainsCovered),
+      };
     })
     .filter((entry) => entry.domainsCovered > 0);
 };
@@ -1858,7 +2278,10 @@ export const createStaffDevelopmentPlan = (
 };
 
 /** Keeps development plans in sync with whatever the underlying licence course actually did. */
-export const evaluateStaffDevelopmentPlans = (db: GameDatabase, clubId: EntityId): StaffDevelopmentPlan[] => {
+export const evaluateStaffDevelopmentPlans = (
+  db: GameDatabase,
+  clubId: EntityId,
+): StaffDevelopmentPlan[] => {
   const market = new StaffMarketRepository(db);
   const updated: StaffDevelopmentPlan[] = [];
   for (const plan of market.developmentPlansForClub(clubId).filter((p) => p.status === "ACTIVE")) {
@@ -1883,7 +2306,13 @@ const SUCCESSION_WINDOW_DAYS = 60;
 
 /** Roles a club would genuinely miss losing without warning. */
 const KEY_ROLES = new Set<FootballStaffRole>([
-  "HEAD_COACH", "ASSISTANT_COACH", "SPORTING_DIRECTOR", "TECHNICAL_DIRECTOR", "CHIEF_SCOUT", "ACADEMY_DIRECTOR", "HEAD_PHYSIO",
+  "HEAD_COACH",
+  "ASSISTANT_COACH",
+  "SPORTING_DIRECTOR",
+  "TECHNICAL_DIRECTOR",
+  "CHIEF_SCOUT",
+  "ACADEMY_DIRECTOR",
+  "HEAD_PHYSIO",
 ]);
 
 /**
@@ -1891,7 +2320,11 @@ const KEY_ROLES = new Set<FootballStaffRole>([
  * within the window, or an active poaching approach against them — and
  * looks for an internal successor already eligible for the role.
  */
-export const evaluateSuccessionNeeds = (db: GameDatabase, save: SaveMetadata, clubId: EntityId): StaffSuccessionPlan[] => {
+export const evaluateSuccessionNeeds = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  clubId: EntityId,
+): StaffSuccessionPlan[] => {
   const market = new StaffMarketRepository(db);
   const worldDate = save.worldDate;
   const plans: StaffSuccessionPlan[] = [];
@@ -1900,12 +2333,17 @@ export const evaluateSuccessionNeeds = (db: GameDatabase, save: SaveMetadata, cl
     if (!KEY_ROLES.has(appointment.role)) continue;
     if (market.activeSuccessionPlanFor(appointment.id)) continue;
 
-    const contract = appointment.contractId ? market.employmentContractById(appointment.contractId) : undefined;
+    const contract = appointment.contractId
+      ? market.employmentContractById(appointment.contractId)
+      : undefined;
     const contractExpiring =
-      contract?.contractEnd !== undefined && daysBetween(worldDate, contract.contractEnd) <= SUCCESSION_WINDOW_DAYS;
+      contract?.contractEnd !== undefined &&
+      daysBetween(worldDate, contract.contractEnd) <= SUCCESSION_WINDOW_DAYS;
     const poachingRisk = market
       .approachesForClub(clubId)
-      .some((approach) => approach.personId === appointment.personId && approach.status === "PENDING");
+      .some(
+        (approach) => approach.personId === appointment.personId && approach.status === "PENDING",
+      );
     if (!contractExpiring && !poachingRisk) continue;
 
     const candidate = market
@@ -1913,7 +2351,11 @@ export const evaluateSuccessionNeeds = (db: GameDatabase, save: SaveMetadata, cl
       .find(
         (other) =>
           other.id !== appointment.id &&
-          staffEligibility(appointment.role, market.staffProfile(other.personId), market.staffLicencesForPerson(other.personId)).eligible,
+          staffEligibility(
+            appointment.role,
+            market.staffProfile(other.personId),
+            market.staffLicencesForPerson(other.personId),
+          ).eligible,
       );
 
     const plan: StaffSuccessionPlan = {
@@ -1947,10 +2389,15 @@ export type StaffHierarchyEntry = {
 };
 
 /** The club's org chart: every active appointment, ranked by seniority, with the domains they own. */
-export const staffHierarchyForClub = (db: GameDatabase, clubId: EntityId): StaffHierarchyEntry[] => {
+export const staffHierarchyForClub = (
+  db: GameDatabase,
+  clubId: EntityId,
+): StaffHierarchyEntry[] => {
   const market = new StaffMarketRepository(db);
   const responsibilities = market.responsibilitiesForClub(clubId);
-  const workload = new Map(staffWorkloadForClub(db, clubId).map((entry) => [entry.appointmentId, entry.level]));
+  const workload = new Map(
+    staffWorkloadForClub(db, clubId).map((entry) => [entry.appointmentId, entry.level]),
+  );
 
   return market
     .activeAppointmentsForClub(clubId)

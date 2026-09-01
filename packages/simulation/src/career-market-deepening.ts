@@ -8,6 +8,9 @@ import type {
   StaffJobDecision,
   StaffPersonalityClues,
   BackroomSummary,
+  StaffCooperationSummary,
+  StaffDepartureAssessment,
+  StaffDevelopmentWillingness,
 } from "@nepal-football-sim/shared-types";
 
 const band = (value: number): "LOW" | "STEADY" | "HIGH" =>
@@ -69,6 +72,146 @@ export const decideStaffJob = (input: StaffJobCandidateInput): StaffJobDecision 
   return score >= 62 ? "ACCEPT" : score >= 48 ? "WAIT" : "DECLINE";
 };
 
+const bounded = (value: number): number => Math.max(-5, Math.min(5, Math.round(value)));
+
+/**
+ * Personality changes whether a staff member wants to start a course, not
+ * whether the course can grant a qualification. Missing personality data is
+ * deliberately neutral so existing saves retain their previous behaviour.
+ */
+export const assessStaffDevelopmentWillingness = (input: {
+  professionalism?: number;
+  ambition?: number;
+  adaptability?: number;
+  currentQualification?: number;
+  clubSupport?: number;
+  managerTrust?: number;
+  careerStage?: "EARLY" | "ESTABLISHED" | "LATE";
+}): StaffDevelopmentWillingness => {
+  const score =
+    (input.professionalism ?? 5) * 2 +
+    (input.ambition ?? 5) * 2 +
+    (input.adaptability ?? 5) * 1.5 +
+    (input.clubSupport ?? 5) * 1.5 +
+    (input.managerTrust ?? 5) * 0.5 -
+    (input.currentQualification ?? 0) * 1.5 +
+    (input.careerStage === "EARLY" ? 4 : input.careerStage === "LATE" ? -3 : 0);
+  if (score >= 60)
+    return {
+      decision: "PURSUE",
+      label: "HIGH",
+      reason: "Development aligns with their professional ambitions.",
+    };
+  if (score >= 42)
+    return {
+      decision: "DEFER",
+      label: "MODERATE",
+      reason: "They are open to development when timing and support improve.",
+    };
+  return {
+    decision: "DECLINE",
+    label: "LOW",
+    reason: "The course has low priority for them at present.",
+  };
+};
+
+/** Shared, bounded cooperation assessment for staff-manager decisions and read models. */
+export const assessStaffCooperation = (input: {
+  trust?: number;
+  respect?: number;
+  tension?: number;
+  personalityCompatibility?: number;
+  roleOverlap?: number;
+  recentDecisionPressure?: number;
+}): StaffCooperationSummary => {
+  const score =
+    ((input.trust ?? 50) + (input.respect ?? 50)) / 2 +
+    ((input.personalityCompatibility ?? 50) - 50) * 0.25 -
+    (input.tension ?? 50) * 0.55 -
+    (input.roleOverlap ?? 0) * 0.15 -
+    (input.recentDecisionPressure ?? 0) * 0.2;
+  const label =
+    score >= 67
+      ? "STRONG"
+      : score >= 55
+        ? "GOOD"
+        : score >= 43
+          ? "NEUTRAL"
+          : score >= 28
+            ? "STRAINED"
+            : "CONFLICT";
+  const modifier =
+    label === "STRONG"
+      ? 3
+      : label === "GOOD"
+        ? 1
+        : label === "STRAINED"
+          ? -2
+          : label === "CONFLICT"
+            ? -4
+            : 0;
+  return {
+    label,
+    trainingModifier: bounded(modifier),
+    recruitmentModifier: bounded(modifier),
+    retentionModifier: bounded(modifier),
+    reason:
+      label === "STRONG" || label === "GOOD"
+        ? "Working relationships support cooperation."
+        : label === "NEUTRAL"
+          ? "Working relationships are professional but unremarkable."
+          : "Working relationships are under pressure.",
+  };
+};
+
+/** Departure assessment is only an assessment; callers still enforce tenure and authority. */
+export const assessStaffDeparture = (input: {
+  ambition?: number;
+  loyalty?: number;
+  clubReputation?: number;
+  wageStatus?: number;
+  managerTrust?: number;
+  tension?: number;
+  opportunity?: number;
+  clubInstability?: number;
+  tenureMonths?: number;
+  cooldownEligible?: boolean;
+}): StaffDepartureAssessment => {
+  if (input.cooldownEligible === false || (input.tenureMonths ?? 12) < 6) {
+    return {
+      decision: "STAY",
+      riskLabel: "LOW",
+      reason: "Recent appointment stability limits movement.",
+    };
+  }
+  const pressure =
+    (input.ambition ?? 5) * 1.2 +
+    (input.opportunity ?? 0) * 0.8 +
+    (input.clubInstability ?? 0) * 0.7 +
+    (input.tension ?? 0) * 0.35 +
+    Math.max(0, 50 - (input.clubReputation ?? 50)) * 0.25 +
+    Math.max(0, 50 - (input.wageStatus ?? 50)) * 0.2 -
+    (input.loyalty ?? 5) * 1.4 -
+    (input.managerTrust ?? 50) * 0.12;
+  if (pressure >= 42)
+    return {
+      decision: "LEAVE",
+      riskLabel: "HIGH",
+      reason: "A stronger opportunity and sustained pressure outweigh current loyalty.",
+    };
+  if (pressure >= 24)
+    return {
+      decision: "CONSIDER",
+      riskLabel: "MODERATE",
+      reason: "Some career or relationship pressure could prompt a move.",
+    };
+  return {
+    decision: "STAY",
+    riskLabel: "LOW",
+    reason: "Loyalty and current conditions support staying.",
+  };
+};
+
 export const backroomSummary = (input: {
   clubId: EntityId;
   activeStaff: number;
@@ -77,11 +220,23 @@ export const backroomSummary = (input: {
   const relevant = input.relationships.filter(
     (relationship) => relationship.kind === "STAFF_MANAGER" || relationship.kind === "STAFF_PLAYER",
   );
-  const aligned = relevant.filter(
-    (relationship) => relationship.trust >= 60 && relationship.tension <= 40,
+  const aligned = relevant.filter((relationship) =>
+    ["STRONG", "GOOD"].includes(
+      assessStaffCooperation({
+        trust: relationship.trust,
+        respect: relationship.respect,
+        tension: relationship.tension,
+      }).label,
+    ),
   ).length;
-  const strained = relevant.filter(
-    (relationship) => relationship.tension >= 60 || relationship.trust <= 40,
+  const strained = relevant.filter((relationship) =>
+    ["STRAINED", "CONFLICT"].includes(
+      assessStaffCooperation({
+        trust: relationship.trust,
+        respect: relationship.respect,
+        tension: relationship.tension,
+      }).label,
+    ),
   ).length;
   const atmosphere =
     strained >= 2 && strained > aligned

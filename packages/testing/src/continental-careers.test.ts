@@ -9,6 +9,9 @@ import {
   backroomSummary,
   decideStaffJob,
   managerJobMarketReadModel,
+  assessStaffCooperation,
+  assessStaffDeparture,
+  assessStaffDevelopmentWillingness,
   staffPersonalityClues,
 } from "@nepal-football-sim/simulation";
 import {
@@ -239,5 +242,46 @@ describe("continental coefficients and career-market foundations", () => {
     expect(summary.atmosphere).toBe("CONFLICT");
     expect(summary.activeStaff).toBe(4);
     expect(summary.clue).not.toContain("score");
+  });
+
+  it("derives deterministic, bounded staff behavior from canonical personality inputs", () => {
+    const eager = assessStaffDevelopmentWillingness({
+      professionalism: 9,
+      ambition: 9,
+      adaptability: 8,
+      clubSupport: 8,
+      managerTrust: 8,
+    });
+    const reluctant = assessStaffDevelopmentWillingness({
+      professionalism: 2,
+      ambition: 2,
+      adaptability: 2,
+      clubSupport: 2,
+      managerTrust: 2,
+      currentQualification: 4,
+    });
+    expect(eager.decision).toBe("PURSUE");
+    expect(reluctant.decision).toBe("DECLINE");
+    expect(eager).toEqual(
+      assessStaffDevelopmentWillingness({
+        professionalism: 9,
+        ambition: 9,
+        adaptability: 8,
+        clubSupport: 8,
+        managerTrust: 8,
+      }),
+    );
+
+    const cooperation = assessStaffCooperation({ trust: 80, respect: 75, tension: 10 });
+    expect(cooperation.label).toBe("STRONG");
+    expect(cooperation.trainingModifier).toBeGreaterThanOrEqual(-5);
+    expect(cooperation.trainingModifier).toBeLessThanOrEqual(5);
+
+    expect(
+      assessStaffDeparture({ ambition: 9, loyalty: 2, opportunity: 50, tenureMonths: 2 }).decision,
+    ).toBe("STAY");
+    expect(
+      assessStaffDeparture({ ambition: 9, loyalty: 2, opportunity: 50, tenureMonths: 24 }).decision,
+    ).toBe("LEAVE");
   });
 });

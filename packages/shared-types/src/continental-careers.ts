@@ -75,3 +75,26 @@ export type StaffJobCandidateInput = {
 };
 
 export type StaffJobDecision = "ACCEPT" | "DECLINE" | "WAIT";
+
+export type StaffDevelopmentDecision = "PURSUE" | "DEFER" | "DECLINE";
+export type StaffDevelopmentWillingness = {
+  decision: StaffDevelopmentDecision;
+  label: "LOW" | "MODERATE" | "HIGH";
+  reason: string;
+};
+
+export type StaffCooperationLabel = "STRONG" | "GOOD" | "NEUTRAL" | "STRAINED" | "CONFLICT";
+export type StaffCooperationSummary = {
+  label: StaffCooperationLabel;
+  trainingModifier: number;
+  recruitmentModifier: number;
+  retentionModifier: number;
+  reason: string;
+};
+
+export type StaffDepartureDecision = "STAY" | "CONSIDER" | "LEAVE";
+export type StaffDepartureAssessment = {
+  decision: StaffDepartureDecision;
+  riskLabel: "LOW" | "MODERATE" | "HIGH";
+  reason: string;
+};
