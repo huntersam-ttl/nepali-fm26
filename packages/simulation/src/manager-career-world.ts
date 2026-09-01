@@ -28,6 +28,7 @@ import { supporterBoardPressureModifier } from "./supporter-culture.js";
 import { interviewManagerForApplication } from "./manager-interviews.js";
 import { SeededRandom } from "./rng.js";
 import { isContextOnlyClub } from "./foreign-football-world.js";
+import { refreshManagerBoardRelationship } from "./club-vision-politics.js";
 
 type SqlRow = Record<string, any>;
 
@@ -38,7 +39,9 @@ type SqlRow = Record<string, any>;
  */
 const currentSeasonId = (db: GameDatabase, worldDate: string): EntityId | undefined => {
   const row = db
-    .prepare("SELECT id FROM competition_seasons WHERE start_date <= ? ORDER BY start_date DESC LIMIT 1")
+    .prepare(
+      "SELECT id FROM competition_seasons WHERE start_date <= ? ORDER BY start_date DESC LIMIT 1",
+    )
     .get(worldDate) as SqlRow | undefined;
   return row?.id;
 };
@@ -76,8 +79,7 @@ const REPUTATION_PROFILES = [
 
 const firstCountryId = (db: GameDatabase): EntityId => {
   const row = db.prepare("SELECT id FROM countries ORDER BY name LIMIT 1").get() as
-    | SqlRow
-    | undefined;
+    SqlRow | undefined;
   if (!row) throw new Error("The world has no country records.");
   return row.id;
 };
@@ -154,8 +156,13 @@ export const ensureOwnerManagerCandidateSupply = (
   const minimum = input.minimum ?? 4;
   const available = managers.unemployedManagerProfiles();
   for (let index = available.length; index < minimum; index += 1) {
-    const generated = generateAiManager(`${input.seed}:owner-candidate:${index}`, input.date, input.countryId);
-    if (!new WorldRepository(db).getPerson(generated.person.id)) new WorldRepository(db).insertPerson(generated.person);
+    const generated = generateAiManager(
+      `${input.seed}:owner-candidate:${index}`,
+      input.date,
+      input.countryId,
+    );
+    if (!new WorldRepository(db).getPerson(generated.person.id))
+      new WorldRepository(db).insertPerson(generated.person);
     managers.insertProfile(generated.profile);
   }
 };
@@ -279,7 +286,9 @@ const MIN_TENURE_DAYS_BEFORE_SACKING = 60;
 const VACANCY_GRACE_DAYS = 30;
 
 const daysBetween = (from: string, to: string): number =>
-  Math.round((new Date(`${to}T00:00:00Z`).getTime() - new Date(`${from}T00:00:00Z`).getTime()) / 86_400_000);
+  Math.round(
+    (new Date(`${to}T00:00:00Z`).getTime() - new Date(`${from}T00:00:00Z`).getTime()) / 86_400_000,
+  );
 
 export type BoardEvaluationOutcome = {
   sackedContracts: ManagerContract[];
@@ -310,8 +319,7 @@ export const evaluateBoardConfidence = (
     const position = standings.findIndex((row) => row.teamId === contract.teamId) + 1;
     const tertile = position > 0 ? positionTertile(position, totalTeams) : "MIDDLE";
     const existing = careerWorld.boardConfidence(contract.clubId);
-    const baseline =
-      existing && existing.contractId === contract.id ? existing.confidence : 60;
+    const baseline = existing && existing.contractId === contract.id ? existing.confidence : 60;
     /* Supporter sentiment is one contextual factor only: finances and club
      * objectives stay authoritative, and supporters never sack anyone alone. */
     const supporters = new SupporterCultureRepository(db).profile(contract.clubId, "men");
@@ -328,6 +336,10 @@ export const evaluateBoardConfidence = (
       expectation,
       lastEvaluatedOn: save.worldDate,
     });
+    const managerProfile = managers.getProfile(contract.managerProfileId);
+    if (managerProfile) {
+      refreshManagerBoardRelationship(db, contract.clubId, managerProfile, save.worldDate);
+    }
 
     if (next <= 0 && tenureDays >= MIN_TENURE_DAYS_BEFORE_SACKING) {
       sackManager(db, save, contract, "SACKED");
@@ -408,7 +420,8 @@ const eligibility = (
   profile: ManagerProfile,
   vacancy: JobVacancy,
 ): { eligible: boolean; note?: string } => {
-  const demanding = vacancy.boardExpectation === "TITLE_CHALLENGE" || vacancy.boardExpectation === "PROMOTION";
+  const demanding =
+    vacancy.boardExpectation === "TITLE_CHALLENGE" || vacancy.boardExpectation === "PROMOTION";
   if (!demanding) return { eligible: true };
   const reputable =
     profile.reputationProfile === "LOCAL_RESPECTED" ||
@@ -431,7 +444,10 @@ export type VacancyListing = {
   eligibilityNote?: string;
 };
 
-export const listVacancies = (db: GameDatabase, managerProfile: ManagerProfile): VacancyListing[] => {
+export const listVacancies = (
+  db: GameDatabase,
+  managerProfile: ManagerProfile,
+): VacancyListing[] => {
   const careerWorld = new CareerWorldRepository(db);
   return careerWorld.openVacancies().map((vacancy) => {
     const check = eligibility(managerProfile, vacancy);
@@ -476,7 +492,10 @@ const addYears = (date: string, years: number): string => {
 };
 
 export class JobApplicationError extends Error {
-  constructor(readonly code: "VACANCY_NOT_OPEN" | "NOT_ELIGIBLE" | "ALREADY_APPLIED", message: string) {
+  constructor(
+    readonly code: "VACANCY_NOT_OPEN" | "NOT_ELIGIBLE" | "ALREADY_APPLIED",
+    message: string,
+  ) {
     super(message);
   }
 }
@@ -498,24 +517,41 @@ export const applyForJob = (
     throw new JobApplicationError("VACANCY_NOT_OPEN", "That vacancy is no longer open.");
   }
   if (vacancy.clubId && isContextOnlyClub(db, vacancy.clubId)) {
-    throw new JobApplicationError("NOT_ELIGIBLE", "Context-only external clubs cannot become player-managed careers.");
+    throw new JobApplicationError(
+      "NOT_ELIGIBLE",
+      "Context-only external clubs cannot become player-managed careers.",
+    );
   }
   const alreadyApplied = careerWorld
     .applicationsForManager(managerProfile.id)
-    .some((application) => application.vacancyId === vacancyId && (application.status === "OFFERED" || application.status === "ACCEPTED"));
+    .some(
+      (application) =>
+        application.vacancyId === vacancyId &&
+        (application.status === "OFFERED" || application.status === "ACCEPTED"),
+    );
   if (alreadyApplied) {
     throw new JobApplicationError("ALREADY_APPLIED", "You already have an offer for this job.");
   }
   const check = eligibility(managerProfile, vacancy);
   if (!check.eligible) {
-    throw new JobApplicationError("NOT_ELIGIBLE", check.note ?? "You are not eligible for this role.");
+    throw new JobApplicationError(
+      "NOT_ELIGIBLE",
+      check.note ?? "You are not eligible for this role.",
+    );
   }
 
-  const interview = interviewManagerForApplication(db, { vacancy, profile: managerProfile, date: save.worldDate });
+  const interview = interviewManagerForApplication(db, {
+    vacancy,
+    profile: managerProfile,
+    date: save.worldDate,
+  });
   const offered = interview.successful;
 
   const application: JobApplication = {
-    id: createStableEntityId("manager-job-application", `${vacancyId}:${managerProfile.id}:${save.worldDate}`),
+    id: createStableEntityId(
+      "manager-job-application",
+      `${vacancyId}:${managerProfile.id}:${save.worldDate}`,
+    ),
     vacancyId,
     managerProfileId: managerProfile.id,
     personId: managerProfile.personId,
@@ -530,7 +566,10 @@ export const applyForJob = (
 };
 
 export class JobOfferError extends Error {
-  constructor(readonly code: "OFFER_NOT_FOUND" | "OFFER_NOT_PENDING", message: string) {
+  constructor(
+    readonly code: "OFFER_NOT_FOUND" | "OFFER_NOT_PENDING",
+    message: string,
+  ) {
     super(message);
   }
 }
@@ -556,7 +595,10 @@ export const acceptJobOffer = (
     throw new JobOfferError("OFFER_NOT_PENDING", "That job has already been filled.");
   }
   if (vacancy.clubId && isContextOnlyClub(db, vacancy.clubId)) {
-    throw new JobOfferError("OFFER_NOT_PENDING", "Context-only external clubs cannot become player-managed careers.");
+    throw new JobOfferError(
+      "OFFER_NOT_PENDING",
+      "Context-only external clubs cannot become player-managed careers.",
+    );
   }
 
   const contract = createManagerContract({
@@ -592,7 +634,10 @@ export const acceptJobOffer = (
 };
 
 export class ChairmanManagerError extends Error {
-  constructor(readonly code: "NOT_AUTHORIZED" | "INVALID_TARGET" | "MANAGER_UNAVAILABLE", message: string) {
+  constructor(
+    readonly code: "NOT_AUTHORIZED" | "INVALID_TARGET" | "MANAGER_UNAVAILABLE",
+    message: string,
+  ) {
     super(message);
   }
 }
@@ -608,25 +653,41 @@ export const appointManagerForChairman = (
   if (!vacancy || vacancy.status !== "OPEN" || !vacancy.clubId) {
     throw new ChairmanManagerError("INVALID_TARGET", "That manager vacancy is not open.");
   }
-  const club = db.prepare(`
+  const club = db
+    .prepare(
+      `
     SELECT c.id FROM clubs c JOIN countries co ON co.id = c.country_id
     WHERE c.id = ? AND co.iso_code IN ('NP', 'NPL')
-  `).get(vacancy.clubId) as { id?: EntityId } | undefined;
+  `,
+    )
+    .get(vacancy.clubId) as { id?: EntityId } | undefined;
   if (!club || isContextOnlyClub(db, vacancy.clubId)) {
-    throw new ChairmanManagerError("NOT_AUTHORIZED", "Only a Nepal playable club can be controlled.");
+    throw new ChairmanManagerError(
+      "NOT_AUTHORIZED",
+      "Only a Nepal playable club can be controlled.",
+    );
   }
-  const stake = db.prepare(`
+  const stake = db
+    .prepare(
+      `
     SELECT 1 FROM club_ownership_stakes
     WHERE club_id = ? AND holder_type = 'PERSON' AND holder_id = ?
       AND status = 'ACTIVE' AND percentage >= 51
-  `).get(vacancy.clubId, input.ownerPersonId);
-  if (!stake) throw new ChairmanManagerError("NOT_AUTHORIZED", "The chairman does not control this club.");
+  `,
+    )
+    .get(vacancy.clubId, input.ownerPersonId);
+  if (!stake)
+    throw new ChairmanManagerError("NOT_AUTHORIZED", "The chairman does not control this club.");
   const profile = managers.getProfile(input.managerProfileId);
   if (!profile || managers.activeContract(profile.id)) {
     throw new ChairmanManagerError("MANAGER_UNAVAILABLE", "That manager is already employed.");
   }
   const check = eligibility(profile, vacancy);
-  if (!check.eligible) throw new ChairmanManagerError("MANAGER_UNAVAILABLE", check.note ?? "The manager is not eligible.");
+  if (!check.eligible)
+    throw new ChairmanManagerError(
+      "MANAGER_UNAVAILABLE",
+      check.note ?? "The manager is not eligible.",
+    );
   const contract = {
     ...createManagerContract({
       managerProfileId: profile.id,
@@ -645,7 +706,10 @@ export const appointManagerForChairman = (
     id: createStableEntityId("history", `CHAIRMAN_MANAGER_APPOINTED:${contract.id}`),
     occurredOn: input.date,
     eventType: "STAFF_APPOINTED",
-    involvedEntities: [{ id: vacancy.clubId, type: "club" }, { id: profile.personId, type: "person" }],
+    involvedEntities: [
+      { id: vacancy.clubId, type: "club" },
+      { id: profile.personId, type: "person" },
+    ],
     title: "Chairman appointed a manager",
     data: { contractId: contract.id, vacancyId: vacancy.id },
     importance: "medium",
@@ -654,7 +718,11 @@ export const appointManagerForChairman = (
   return contract;
 };
 
-export const declineJobOffer = (db: GameDatabase, save: SaveMetadata, applicationId: EntityId): void => {
+export const declineJobOffer = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  applicationId: EntityId,
+): void => {
   const careerWorld = new CareerWorldRepository(db);
   const application = careerWorld.application(applicationId);
   if (!application || application.status !== "OFFERED") {

@@ -71,6 +71,33 @@ export type CoachingJobMarketListing = {
   rationale: string[];
 };
 
+/** Derived current board brief; policy, finance, and AI decisions remain authoritative. */
+export type ClubVision = {
+  clubId: EntityId;
+  objective: string;
+  identity?: string;
+  priorities: Record<string, number>;
+  financialHealth?: string;
+  financialRiskTolerance?: string;
+  transferPhilosophy?: string;
+  ownershipInfluence: number;
+  updatedOn: ISODate;
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+/** Read model for board politics; the board-confidence row and people graph remain canonical. */
+export type BoardPoliticsSnapshot = {
+  clubId: EntityId;
+  managerProfileId: EntityId;
+  confidence: number;
+  relationshipTrust: number;
+  relationshipTension: number;
+  activePromises: number;
+  brokenPromises: number;
+  pressure: "LOW" | "MEDIUM" | "HIGH";
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
 export type MentoringFocus = "TECHNICAL" | "TACTICAL" | "PROFESSIONALISM" | "LEADERSHIP";
 export type MentoringStatus = "ACTIVE" | "COMPLETED" | "CANCELLED";
 
