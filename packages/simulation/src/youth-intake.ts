@@ -128,7 +128,10 @@ export const initializeYouthSystemForSave = (input: {
    * from tens to hundreds — and this runs on every youth cohort generated.
    */
   const profiledClubs = new Set(
-    youth.academyProfiles().map((profile) => profile.clubId).filter(Boolean),
+    youth
+      .academyProfiles()
+      .map((profile) => profile.clubId)
+      .filter(Boolean),
   );
   for (const club of youthClubs(input.db)) {
     if (!profiledClubs.has(club.id)) {
@@ -165,7 +168,10 @@ export const runAnnualYouthAndRetirementCycle = (input: {
   for (const club of clubs) {
     const baseProfile = profileForClub(profiles, club, academyRows);
     const academyContext = academyPartnershipDevelopmentContext(input.db, club.id, input.worldDate);
-    const profile = { ...baseProfile, regionalReach: Math.min(10, baseProfile.regionalReach + academyContext.regionalReachBonus) };
+    const profile = {
+      ...baseProfile,
+      regionalReach: Math.min(10, baseProfile.regionalReach + academyContext.regionalReachBonus),
+    };
     const linkedAcademy = academyForClub(academyRows, club.id);
     const needBoost = squadNeedBoost(input.db, club.id);
     const volume = clamp(
@@ -227,7 +233,8 @@ export const academyPartnershipDevelopmentContext = (
   clubId: EntityId,
   worldDate: string,
 ): { active: boolean; regionalReachBonus: number } => {
-  const active = new ClubNetworkRepository(db).activeAcademyPartnerships(clubId, worldDate).length > 0;
+  const active =
+    new ClubNetworkRepository(db).activeAcademyPartnerships(clubId, worldDate).length > 0;
   return { active, regionalReachBonus: active ? 0.6 : 0 };
 };
 
@@ -1421,6 +1428,30 @@ const originLocation = (
 ): EntityId | undefined => {
   if (academy?.locationId && rng.next() < 0.72) return academy.locationId;
   if (club?.locationId && rng.next() < 0.7) return club.locationId;
+  const hasTerritorialDistricts = db
+    .prepare(
+      "SELECT 1 FROM sqlite_master WHERE type='table' AND name='territorial_districts' LIMIT 1",
+    )
+    .get();
+  if (hasTerritorialDistricts) {
+    const districts = db
+      .prepare(
+        `SELECT location_id AS locationId,
+                MAX(1, school_participation + youth_participation + coach_supply + ground_availability) AS weight
+         FROM territorial_districts
+         WHERE location_id IS NOT NULL
+         ORDER BY location_id`,
+      )
+      .all() as Array<{ locationId: EntityId; weight: number }>;
+    const total = districts.reduce((sum, row) => sum + Number(row.weight), 0);
+    if (total > 0) {
+      let cursor = rng.next() * total;
+      for (const row of districts) {
+        cursor -= Number(row.weight);
+        if (cursor <= 0) return row.locationId;
+      }
+    }
+  }
   const rows = db
     .prepare(
       "SELECT id FROM locations WHERE kind IN ('district', 'city', 'municipality') ORDER BY name",

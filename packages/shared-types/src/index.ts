@@ -22,3 +22,4 @@ export * from "./referee-assignment.js";
 export * from "./global-football-context.js";
 export * from "./international-trials.js";
 export * from "./people-foundation.js";
+export * from "./academy-geography.js";

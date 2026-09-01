@@ -74,6 +74,7 @@ export * from "./transfer-market.js";
 export * from "./analytics.js";
 export * from "./youth-intake.js";
 export * from "./youth-partnerships.js";
+export * from "./academy-geography.js";
 export * from "./world.js";
 export * from "./investor.js";
 export * from "./licensing.js";
