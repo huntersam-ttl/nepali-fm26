@@ -25,6 +25,7 @@ export const ContractsScreen = (): React.ReactElement => {
           return (
             <Panel
               title="Contracts"
+              className="panel-wide"
               actions={
                 <div className="tab-row">
                   <button

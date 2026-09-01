@@ -57,7 +57,7 @@ export const ScoutingScreen = ({
         </AsyncPanel>
       </Panel>
 
-      <Panel title="Recruitment search">
+      <Panel title="Recruitment search" className="panel-wide">
         <div className="table-tools">
           <label className="sr-label">
             Search players
