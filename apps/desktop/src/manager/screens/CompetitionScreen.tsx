@@ -9,7 +9,8 @@ export const CompetitionScreen = (): React.ReactElement => {
       <AsyncPanel state={state}>
         {(view) => (
           <>
-            <Panel title={view.seasonName}>
+            {/* Ten columns of standings do not fit an auto-fit dashboard column. */}
+            <Panel title={view.seasonName} className="panel-wide">
               <p>
                 Position {view.managerPosition ?? "—"} · Form <FormRun form={view.form} />
               </p>

@@ -597,8 +597,16 @@ tbody tr[tabindex]:focus-visible {
 }
 
 .row-highlight {
-  background: #e6f0e8;
+  /* Another light-theme leftover: a near-white fill under the dark theme's light
+     grey text left the reader's own club as the least legible row in the table.
+     A tint of the accent marks it without fighting the text. */
+  background: rgba(155, 124, 255, 0.16);
+  box-shadow: inset 2px 0 0 var(--accent);
   font-weight: 600;
+}
+
+.row-highlight td {
+  color: var(--text);
 }
 
 .badge {
