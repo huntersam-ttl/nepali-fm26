@@ -87,8 +87,20 @@ export const progressPyramidSeason = (input: PyramidProgressionInput): PyramidPr
             ? []
             : rankedMemberships(completed, relationship)
                 .filter((membership) => input.eligibleClubIds!.has(membership.clubId))
-                .filter((membership) => !sportingSelection.some((selected) => selected.clubId === membership.clubId))
-                .slice(0, Math.max(0, slots - sportingSelection.filter((membership) => input.eligibleClubIds!.has(membership.clubId)).length));
+                .filter(
+                  (membership) =>
+                    !sportingSelection.some((selected) => selected.clubId === membership.clubId),
+                )
+                .slice(
+                  0,
+                  Math.max(
+                    0,
+                    slots -
+                      sportingSelection.filter((membership) =>
+                        input.eligibleClubIds!.has(membership.clubId),
+                      ).length,
+                  ),
+                );
         const selected = [...sportingSelection, ...fallbackSelection];
         selected.forEach((membership, rank) => {
           /*
@@ -238,7 +250,9 @@ export const persistPyramidProgression = (
     competitions.insertMovement(movement);
   }
   for (const event of result.historicalEvents) {
-    events.insertHistoricalEvent(event);
+    if (!db.prepare("SELECT 1 FROM historical_events WHERE id=?").get(event.id)) {
+      events.insertHistoricalEvent(event);
+    }
   }
 };
 
@@ -326,7 +340,10 @@ const movementHistory = (
   movement: CompetitionMovement,
   completedSeason: CompetitionSeason,
 ): HistoricalEvent => ({
-  id: createEntityId(),
+  id: createStableEntityId(
+    "history",
+    `MOVEMENT:${movement.movementType}:${movement.clubId}:${movement.fromCompetitionSeasonId}:${movement.toCompetitionSeasonId}`,
+  ),
   occurredOn: completedSeason.endDate,
   eventType:
     movement.movementType === "PROMOTION"
@@ -356,7 +373,7 @@ const suspendedHistory = (
   season: CompetitionSeason,
   movementType: CompetitionMovementType,
 ): HistoricalEvent => ({
-  id: createEntityId(),
+  id: createStableEntityId("history", `MOVEMENT_SUSPENDED:${movementType}:${season.id}`),
   occurredOn: season.endDate,
   eventType: movementType === "PROMOTION" ? "PROMOTION_SUSPENDED" : "RELEGATION_SUSPENDED",
   involvedEntities: [{ type: "competitionSeason", id: season.id }],
@@ -367,7 +384,7 @@ const suspendedHistory = (
 });
 
 const expansionHistory = (season: CompetitionSeason): HistoricalEvent => ({
-  id: createEntityId(),
+  id: createStableEntityId("history", `COMPETITION_EXPANDED:${season.id}`),
   occurredOn: season.startDate,
   eventType: "COMPETITION_EXPANDED",
   involvedEntities: [{ type: "competitionSeason", id: season.id }],

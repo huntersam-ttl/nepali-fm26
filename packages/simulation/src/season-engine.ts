@@ -108,16 +108,22 @@ export const persistSeasonSimulation = (
   }
   const champion = standings[0];
   if (champion) {
-    const winnerId = createEntityId();
-    competitions.insertWinner({
-      id: winnerId,
-      competitionSeasonId: input.competitionSeason.id,
-      teamId: champion.teamId,
-      decidedOn: input.ruleSet.seasonEndDate,
-    });
-    events.insertHistoricalEvent(
-      championHistory(input.competitionSeason, champion.teamId, winnerId),
+    const winnerId = createStableEntityId(
+      "competition-winner",
+      `${input.competitionSeason.id}:${champion.teamId}`,
     );
+    if (!db.prepare("SELECT 1 FROM competition_winners WHERE id=?").get(winnerId)) {
+      competitions.insertWinner({
+        id: winnerId,
+        competitionSeasonId: input.competitionSeason.id,
+        teamId: champion.teamId,
+        decidedOn: input.ruleSet.seasonEndDate,
+      });
+    }
+    const history = championHistory(input.competitionSeason, champion.teamId, winnerId);
+    if (!db.prepare("SELECT 1 FROM historical_events WHERE id=?").get(history.id)) {
+      events.insertHistoricalEvent(history);
+    }
   }
 };
 
@@ -141,7 +147,7 @@ const championHistory = (
   teamId: EntityId,
   winnerId: EntityId,
 ): HistoricalEvent => ({
-  id: createEntityId(),
+  id: createStableEntityId("history", `COMPETITION_CHAMPION:${season.id}:${teamId}`),
   occurredOn: season.endDate,
   eventType: "COMPETITION_CHAMPION_DECLARED",
   involvedEntities: [

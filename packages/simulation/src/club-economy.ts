@@ -37,6 +37,7 @@ import {
 import {
   ClubEconomyRepository,
   ClubNetworkRepository,
+  EventRepository,
   GlobalFootballContextRepository,
   TransferMarketRepository,
   WorldRepository,
@@ -312,16 +313,39 @@ export const planPreseasonCommercialTour = (
     .activeFriendlyTourPartnerships(input.clubId, input.date)
     .slice(0, 4);
   if (partnerships.length === 0) return undefined;
-  const contexts = new Map(new GlobalFootballContextRepository(db).clubs().map((club) => [club.clubId, club.reputation]));
+  const contexts = new Map(
+    new GlobalFootballContextRepository(db).clubs().map((club) => [club.clubId, club.reputation]),
+  );
   const economy = new ClubEconomyRepository(db);
-  const ranked = partnerships.map((partnership) => {
-    const partnerSupport = economy.supporterProfile(partnership.toClubId);
-    const reputation = contexts.get(partnership.toClubId) ?? (partnerSupport?.footballReputation ?? 4) * 10;
-    const country = db.prepare("SELECT country.name AS name FROM clubs club JOIN countries country ON country.id = club.country_id WHERE club.id = ?").get(partnership.toClubId) as { name?: string } | undefined;
-    return { partnership, reputation, destination: country?.name ?? "International partner market" };
-  }).sort((left, right) => right.partnership.relationshipStrength - left.partnership.relationshipStrength || right.reputation - left.reputation || left.partnership.id.localeCompare(right.partnership.id));
+  const ranked = partnerships
+    .map((partnership) => {
+      const partnerSupport = economy.supporterProfile(partnership.toClubId);
+      const reputation =
+        contexts.get(partnership.toClubId) ?? (partnerSupport?.footballReputation ?? 4) * 10;
+      const country = db
+        .prepare(
+          "SELECT country.name AS name FROM clubs club JOIN countries country ON country.id = club.country_id WHERE club.id = ?",
+        )
+        .get(partnership.toClubId) as { name?: string } | undefined;
+      return {
+        partnership,
+        reputation,
+        destination: country?.name ?? "International partner market",
+      };
+    })
+    .sort(
+      (left, right) =>
+        right.partnership.relationshipStrength - left.partnership.relationshipStrength ||
+        right.reputation - left.reputation ||
+        left.partnership.id.localeCompare(right.partnership.id),
+    );
   const selected = ranked[0]!;
-  return { partnershipId: selected.partnership.id, partnerClubId: selected.partnership.toClubId, destination: selected.destination, candidateCount: ranked.length };
+  return {
+    partnershipId: selected.partnership.id,
+    partnerClubId: selected.partnership.toClubId,
+    destination: selected.destination,
+    candidateCount: ranked.length,
+  };
 };
 
 export const commercialPartnershipIncome = (
@@ -336,15 +360,18 @@ export const commercialPartnershipIncome = (
   const partnerships = new ClubNetworkRepository(db)
     .activeCommercialPartnerships(clubId, simulationDate)
     .slice(0, 4);
-  if (partnerships.length === 0)
-    return { amount: 0, baseCommercialValue: 0, partnershipCount: 0 };
+  if (partnerships.length === 0) return { amount: 0, baseCommercialValue: 0, partnershipCount: 0 };
   const externalQuality = new Map(
-    new GlobalFootballContextRepository(db).clubs().map((club) => [club.clubId, club.reputation / 100]),
+    new GlobalFootballContextRepository(db)
+      .clubs()
+      .map((club) => [club.clubId, club.reputation / 100]),
   );
   const baseCommercialValue = Math.max(
     1000,
     Math.round(
-      (commercial.digitalReach * 12000 + commercial.merchandiseAppeal * 8000 + commercial.brandStrength * 5000) *
+      (commercial.digitalReach * 12000 +
+        commercial.merchandiseAppeal * 8000 +
+        commercial.brandStrength * 5000) *
         (1 + Math.min(0.25, (support?.diasporaSupport ?? 0) / 10000)),
     ),
   );
@@ -352,7 +379,11 @@ export const commercialPartnershipIncome = (
     const partnerSupport = economy.supporterProfile(partnership.toClubId);
     const quality = Math.max(
       0.25,
-      Math.min(1, externalQuality.get(partnership.toClubId) ?? ((partnerSupport?.commercialReputation ?? 4) / 10)),
+      Math.min(
+        1,
+        externalQuality.get(partnership.toClubId) ??
+          (partnerSupport?.commercialReputation ?? 4) / 10,
+      ),
     );
     const strength = Math.max(0, Math.min(100, partnership.relationshipStrength)) / 100;
     return total + baseCommercialValue * 0.08 * strength * (0.75 + quality * 0.5);
@@ -512,12 +543,22 @@ export const setClubBudgetCommand = (
     amount: number;
   },
 ): ClubBudget => {
-  if (input.callerRole !== "CHAIRMAN_OWNER") throw new Error("Only the active chairman/owner may set a club budget");
-  const club = db.prepare("SELECT c.id FROM clubs c JOIN countries co ON co.id=c.country_id WHERE c.id=? AND co.iso_code IN ('NP','NPL')").get(input.clubId) as { id?: EntityId } | undefined;
+  if (input.callerRole !== "CHAIRMAN_OWNER")
+    throw new Error("Only the active chairman/owner may set a club budget");
+  const club = db
+    .prepare(
+      "SELECT c.id FROM clubs c JOIN countries co ON co.id=c.country_id WHERE c.id=? AND co.iso_code IN ('NP','NPL')",
+    )
+    .get(input.clubId) as { id?: EntityId } | undefined;
   if (!club) throw new Error("Club budget commands are unavailable for context-only clubs");
-  const controllingStake = db.prepare("SELECT 1 FROM club_ownership_stakes WHERE club_id=? AND holder_type='PERSON' AND holder_id=? AND status='ACTIVE' AND percentage>=51 LIMIT 1").get(input.clubId, input.personId);
+  const controllingStake = db
+    .prepare(
+      "SELECT 1 FROM club_ownership_stakes WHERE club_id=? AND holder_type='PERSON' AND holder_id=? AND status='ACTIVE' AND percentage>=51 LIMIT 1",
+    )
+    .get(input.clubId, input.personId);
   if (!controllingStake) throw new Error("Only a controlling owner may set this club budget");
-  if (!Number.isFinite(input.amount) || input.amount < 0) throw new Error("Budget amount must be a non-negative number");
+  if (!Number.isFinite(input.amount) || input.amount < 0)
+    throw new Error("Budget amount must be a non-negative number");
   return setClubBudget(db, input);
 };
 
@@ -693,21 +734,60 @@ export const acceptSponsorOffer = (
     relatedEntityId: sponsorshipId,
     idempotencyKey: `sponsor-initial:${sponsorshipId}`,
   });
+  const eventId = createStableEntityId("history", `SPONSORSHIP_ACCEPTED:${sponsorshipId}`);
+  if (!db.prepare("SELECT 1 FROM historical_events WHERE id=?").get(eventId)) {
+    new EventRepository(db).insertHistoricalEvent({
+      id: eventId,
+      occurredOn: date,
+      eventType: "SPONSORSHIP_ACCEPTED",
+      involvedEntities: [{ id: contract.clubId, type: "club" }],
+      title: "Club sponsorship accepted",
+      data: { sponsorshipId, annualValue: contract.annualValue, endDate: contract.endDate },
+      importance: "high",
+      scope: "club",
+    });
+  }
   return { ...contract, status: "ACTIVE" };
 };
 
 /** Role-facing adapter for a controlling chairman's existing sponsorship approval. */
 export const acceptSponsorOfferCommand = (
   db: GameDatabase,
-  input: { sponsorshipId: EntityId; clubId: EntityId; personId: EntityId; callerRole: "MANAGER" | "CHAIRMAN_OWNER" | "FEDERATION_PRESIDENT"; date: string },
+  input: {
+    sponsorshipId: EntityId;
+    clubId: EntityId;
+    personId: EntityId;
+    callerRole: "MANAGER" | "CHAIRMAN_OWNER" | "FEDERATION_PRESIDENT";
+    date: string;
+  },
 ): SponsorshipContract => {
-  if (input.callerRole !== "CHAIRMAN_OWNER") throw new Error("Only the active chairman/owner may approve sponsorships");
-  const club = db.prepare("SELECT c.id FROM clubs c JOIN countries co ON co.id=c.country_id WHERE c.id=? AND co.iso_code IN ('NP','NPL')").get(input.clubId) as { id?: EntityId } | undefined;
-  if (!club || db.prepare("SELECT 1 FROM external_club_context WHERE club_id=? AND simulation_depth='CONTEXT_ONLY' LIMIT 1").get(input.clubId)) throw new Error("Sponsorship commands are unavailable for context-only clubs");
-  const controllingStake = db.prepare("SELECT 1 FROM club_ownership_stakes WHERE club_id=? AND holder_type='PERSON' AND holder_id=? AND status='ACTIVE' AND percentage>=51 LIMIT 1").get(input.clubId, input.personId);
+  if (input.callerRole !== "CHAIRMAN_OWNER")
+    throw new Error("Only the active chairman/owner may approve sponsorships");
+  const club = db
+    .prepare(
+      "SELECT c.id FROM clubs c JOIN countries co ON co.id=c.country_id WHERE c.id=? AND co.iso_code IN ('NP','NPL')",
+    )
+    .get(input.clubId) as { id?: EntityId } | undefined;
+  if (
+    !club ||
+    db
+      .prepare(
+        "SELECT 1 FROM external_club_context WHERE club_id=? AND simulation_depth='CONTEXT_ONLY' LIMIT 1",
+      )
+      .get(input.clubId)
+  )
+    throw new Error("Sponsorship commands are unavailable for context-only clubs");
+  const controllingStake = db
+    .prepare(
+      "SELECT 1 FROM club_ownership_stakes WHERE club_id=? AND holder_type='PERSON' AND holder_id=? AND status='ACTIVE' AND percentage>=51 LIMIT 1",
+    )
+    .get(input.clubId, input.personId);
   if (!controllingStake) throw new Error("Only a controlling owner may approve this sponsorship");
-  const offer = new ClubEconomyRepository(db).sponsorships().find((item) => item.id === input.sponsorshipId);
-  if (!offer || offer.clubId !== input.clubId) throw new Error("Sponsorship offer does not belong to this club");
+  const offer = new ClubEconomyRepository(db)
+    .sponsorships()
+    .find((item) => item.id === input.sponsorshipId);
+  if (!offer || offer.clubId !== input.clubId)
+    throw new Error("Sponsorship offer does not belong to this club");
   return acceptSponsorOffer(db, input.sponsorshipId, input.date);
 };
 
@@ -725,15 +805,40 @@ export const rejectSponsorOffer = (
 /** Role-facing adapter for a controlling chairman's existing sponsorship rejection. */
 export const rejectSponsorOfferCommand = (
   db: GameDatabase,
-  input: { sponsorshipId: EntityId; clubId: EntityId; personId: EntityId; callerRole: "MANAGER" | "CHAIRMAN_OWNER" | "FEDERATION_PRESIDENT" },
+  input: {
+    sponsorshipId: EntityId;
+    clubId: EntityId;
+    personId: EntityId;
+    callerRole: "MANAGER" | "CHAIRMAN_OWNER" | "FEDERATION_PRESIDENT";
+  },
 ): SponsorshipContract => {
-  if (input.callerRole !== "CHAIRMAN_OWNER") throw new Error("Only the active chairman/owner may reject sponsorships");
-  const club = db.prepare("SELECT c.id FROM clubs c JOIN countries co ON co.id=c.country_id WHERE c.id=? AND co.iso_code IN ('NP','NPL')").get(input.clubId) as { id?: EntityId } | undefined;
-  if (!club || db.prepare("SELECT 1 FROM external_club_context WHERE club_id=? AND simulation_depth='CONTEXT_ONLY' LIMIT 1").get(input.clubId)) throw new Error("Sponsorship commands are unavailable for context-only clubs");
-  const controllingStake = db.prepare("SELECT 1 FROM club_ownership_stakes WHERE club_id=? AND holder_type='PERSON' AND holder_id=? AND status='ACTIVE' AND percentage>=51 LIMIT 1").get(input.clubId, input.personId);
+  if (input.callerRole !== "CHAIRMAN_OWNER")
+    throw new Error("Only the active chairman/owner may reject sponsorships");
+  const club = db
+    .prepare(
+      "SELECT c.id FROM clubs c JOIN countries co ON co.id=c.country_id WHERE c.id=? AND co.iso_code IN ('NP','NPL')",
+    )
+    .get(input.clubId) as { id?: EntityId } | undefined;
+  if (
+    !club ||
+    db
+      .prepare(
+        "SELECT 1 FROM external_club_context WHERE club_id=? AND simulation_depth='CONTEXT_ONLY' LIMIT 1",
+      )
+      .get(input.clubId)
+  )
+    throw new Error("Sponsorship commands are unavailable for context-only clubs");
+  const controllingStake = db
+    .prepare(
+      "SELECT 1 FROM club_ownership_stakes WHERE club_id=? AND holder_type='PERSON' AND holder_id=? AND status='ACTIVE' AND percentage>=51 LIMIT 1",
+    )
+    .get(input.clubId, input.personId);
   if (!controllingStake) throw new Error("Only a controlling owner may reject this sponsorship");
-  const offer = new ClubEconomyRepository(db).sponsorships().find((item) => item.id === input.sponsorshipId);
-  if (!offer || offer.clubId !== input.clubId) throw new Error("Sponsorship offer does not belong to this club");
+  const offer = new ClubEconomyRepository(db)
+    .sponsorships()
+    .find((item) => item.id === input.sponsorshipId);
+  if (!offer || offer.clubId !== input.clubId)
+    throw new Error("Sponsorship offer does not belong to this club");
   return rejectSponsorOffer(db, input.sponsorshipId);
 };
 
@@ -797,7 +902,19 @@ export const expireSponsorships = (db: GameDatabase, date: string): SponsorshipC
   const expired = economy
     .sponsorships()
     .filter((item) => item.status === "ACTIVE" && item.endDate < date);
-  for (const contract of expired) economy.updateSponsorshipStatus(contract.id, "EXPIRED");
+  for (const contract of expired) {
+    economy.updateSponsorshipStatus(contract.id, "EXPIRED");
+    new EventRepository(db).insertHistoricalEvent({
+      id: createStableEntityId("history", `SPONSORSHIP_EXPIRED:${contract.id}`),
+      occurredOn: date,
+      eventType: "SPONSORSHIP_EXPIRED",
+      involvedEntities: [{ id: contract.clubId, type: "club" }],
+      title: "Club sponsorship expired",
+      data: { sponsorshipId: contract.id, endDate: contract.endDate },
+      importance: "medium",
+      scope: "club",
+    });
+  }
   return expired.map((contract) => ({ ...contract, status: "EXPIRED" }));
 };
 
@@ -918,12 +1035,26 @@ export const createInfrastructureProjectCommand = (
     seed: string;
   },
 ): InfrastructureProject => {
-  if (input.callerRole !== "CHAIRMAN_OWNER") throw new Error("Only the active chairman/owner may approve infrastructure projects");
-  const club = db.prepare("SELECT c.id FROM clubs c JOIN countries co ON co.id=c.country_id WHERE c.id=? AND co.iso_code IN ('NP','NPL')").get(input.clubId) as { id?: EntityId } | undefined;
+  if (input.callerRole !== "CHAIRMAN_OWNER")
+    throw new Error("Only the active chairman/owner may approve infrastructure projects");
+  const club = db
+    .prepare(
+      "SELECT c.id FROM clubs c JOIN countries co ON co.id=c.country_id WHERE c.id=? AND co.iso_code IN ('NP','NPL')",
+    )
+    .get(input.clubId) as { id?: EntityId } | undefined;
   if (!club) throw new Error("Infrastructure commands are unavailable for context-only clubs");
-  const contextOnly = db.prepare("SELECT 1 FROM external_club_context WHERE club_id=? AND simulation_depth='CONTEXT_ONLY' LIMIT 1").get(input.clubId);
-  if (contextOnly) throw new Error("Infrastructure commands are unavailable for context-only clubs");
-  const controllingStake = db.prepare("SELECT 1 FROM club_ownership_stakes WHERE club_id=? AND holder_type='PERSON' AND holder_id=? AND status='ACTIVE' AND percentage>=51 LIMIT 1").get(input.clubId, input.personId);
+  const contextOnly = db
+    .prepare(
+      "SELECT 1 FROM external_club_context WHERE club_id=? AND simulation_depth='CONTEXT_ONLY' LIMIT 1",
+    )
+    .get(input.clubId);
+  if (contextOnly)
+    throw new Error("Infrastructure commands are unavailable for context-only clubs");
+  const controllingStake = db
+    .prepare(
+      "SELECT 1 FROM club_ownership_stakes WHERE club_id=? AND holder_type='PERSON' AND holder_id=? AND status='ACTIVE' AND percentage>=51 LIMIT 1",
+    )
+    .get(input.clubId, input.personId);
   if (!controllingStake) throw new Error("Only a controlling owner may approve this club project");
   return createInfrastructureProject(db, input);
 };
@@ -1020,6 +1151,16 @@ export const advanceInfrastructureProjects = (
                   : {};
         economy.upsertFacilityProfile({ ...facility, ...quality });
       }
+      new EventRepository(db).insertHistoricalEvent({
+        id: createStableEntityId("history", `FACILITY_PROJECT_COMPLETED:${project.id}`),
+        occurredOn: input.date,
+        eventType: "FACILITY_PROJECT_COMPLETED",
+        involvedEntities: [{ id: project.clubId, type: "club" }],
+        title: `${project.projectType} project completed`,
+        data: { projectId: project.id, projectType: project.projectType },
+        importance: "high",
+        scope: "club",
+      });
     }
     economy.upsertInfrastructureProject(next);
     updated.push(next);
@@ -1341,7 +1482,9 @@ export const processClubEconomyMonth = (
   const economy = new ClubEconomyRepository(db);
   const market = new TransferMarketRepository(db);
   const network = new ClubNetworkRepository(db);
-  const externalClubs = new Map(new GlobalFootballContextRepository(db).clubs().map((club) => [club.clubId, club.reputation]));
+  const externalClubs = new Map(
+    new GlobalFootballContextRepository(db).clubs().map((club) => [club.clubId, club.reputation]),
+  );
   const loanWages = activeLoanWageSettlements(market, input.date);
   const outboundLoanPlayers = new Set(loanWages.map((item) => item.loan.playerId));
   for (const account of economy.financialAccounts()) {
@@ -1437,17 +1580,40 @@ export const processClubEconomyMonth = (
         idempotencyKey: `sponsor-month:${sponsorship.id}:${input.date}`,
       });
     }
-    const commercialPartnerships = network.activeCommercialPartnerships(account.clubId, input.date).slice(0, 4);
+    const commercialPartnerships = network
+      .activeCommercialPartnerships(account.clubId, input.date)
+      .slice(0, 4);
     if (commercialPartnerships.length > 0) {
       const commercial = economy.commercialProfile(account.clubId);
       const support = economy.supporterProfile(account.clubId);
       const baseCommercialValue = commercial
-        ? Math.max(1000, Math.round((commercial.digitalReach * 12000 + commercial.merchandiseAppeal * 8000 + commercial.brandStrength * 5000) * (1 + Math.min(0.25, (support?.diasporaSupport ?? 0) / 10000))))
+        ? Math.max(
+            1000,
+            Math.round(
+              (commercial.digitalReach * 12000 +
+                commercial.merchandiseAppeal * 8000 +
+                commercial.brandStrength * 5000) *
+                (1 + Math.min(0.25, (support?.diasporaSupport ?? 0) / 10000)),
+            ),
+          )
         : 0;
       const settlement = commercialPartnerships.reduce((total, partnership) => {
         const partnerSupport = economy.supporterProfile(partnership.toClubId);
-        const quality = Math.max(0.25, Math.min(1, (externalClubs.get(partnership.toClubId) ?? ((partnerSupport?.commercialReputation ?? 4) * 10)) / 100));
-        return total + baseCommercialValue * 0.08 * (Math.max(0, Math.min(100, partnership.relationshipStrength)) / 100) * (0.75 + quality * 0.5);
+        const quality = Math.max(
+          0.25,
+          Math.min(
+            1,
+            (externalClubs.get(partnership.toClubId) ??
+              (partnerSupport?.commercialReputation ?? 4) * 10) / 100,
+          ),
+        );
+        return (
+          total +
+          baseCommercialValue *
+            0.08 *
+            (Math.max(0, Math.min(100, partnership.relationshipStrength)) / 100) *
+            (0.75 + quality * 0.5)
+        );
       }, 0);
       const amount = Math.min(Math.round(baseCommercialValue * 0.08), Math.round(settlement));
       if (amount > 0)
@@ -1931,7 +2097,10 @@ const isExternalContextClub = (db: GameDatabase, clubId: EntityId): boolean =>
     new GlobalFootballContextRepository(db)
       .clubs()
       .some((club) => club.clubId === clubId && club.simulationDepth === "CONTEXT_ONLY") ||
-      (db.prepare("SELECT canonical_external_id AS value FROM clubs WHERE id = ?").get(clubId) as { value?: string } | undefined)?.value?.startsWith("SIM-FOREIGN-"),
+    (
+      db.prepare("SELECT canonical_external_id AS value FROM clubs WHERE id = ?").get(clubId) as
+        { value?: string } | undefined
+    )?.value?.startsWith("SIM-FOREIGN-"),
   );
 
 export const chairmanPermissions = (): string[] => [
@@ -2133,10 +2302,30 @@ const seedSponsorPool = (db: GameDatabase, date: string, seed: string): void => 
   const economy = new ClubEconomyRepository(db);
   const names: Array<[string, string, string | undefined, "VERIFIED" | "SIMULATION_ONLY"]> = [
     ["Nabil Bank Limited", "Banking", "https://www.nabilbank.com/aboutus", "VERIFIED"],
-    ["Nepal Telecom", "Telecommunications", "https://www.ntc.net.np/about-us/nepal-telecom-in-brief", "VERIFIED"],
-    ["Ncell Axiata Limited", "Telecommunications", "https://www.ncell.com.np/en/about/company-profile", "VERIFIED"],
-    ["Nepal Airlines Corporation", "Airlines", "https://www.nepalairlines.com.np/about", "VERIFIED"],
-    ["Chaudhary Group", "FMCG and diversified industry", "https://www.chaudharygroup.com/", "VERIFIED"],
+    [
+      "Nepal Telecom",
+      "Telecommunications",
+      "https://www.ntc.net.np/about-us/nepal-telecom-in-brief",
+      "VERIFIED",
+    ],
+    [
+      "Ncell Axiata Limited",
+      "Telecommunications",
+      "https://www.ncell.com.np/en/about/company-profile",
+      "VERIFIED",
+    ],
+    [
+      "Nepal Airlines Corporation",
+      "Airlines",
+      "https://www.nepalairlines.com.np/about",
+      "VERIFIED",
+    ],
+    [
+      "Chaudhary Group",
+      "FMCG and diversified industry",
+      "https://www.chaudharygroup.com/",
+      "VERIFIED",
+    ],
     ["Himal Local Partner", "Local services", undefined, "SIMULATION_ONLY"],
     ["Bagmati Community Foods", "Food and beverage", undefined, "SIMULATION_ONLY"],
     ["Koshi Digital", "Technology", undefined, "SIMULATION_ONLY"],

@@ -4,6 +4,7 @@ import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   ClubEconomyRepository,
+  EventRepository,
   TransferMarketRepository,
   openGameDatabase,
 } from "@nepal-football-sim/database";
@@ -105,6 +106,14 @@ describe("club economy and chairman foundation", () => {
       count: 1,
     })[0]!;
     const accepted = acceptSponsorOffer(db, offer.id, "2026-08-01");
+    expect(
+      new EventRepository(db)
+        .historicalEvents()
+        .some(
+          (item) =>
+            item.eventType === "SPONSORSHIP_ACCEPTED" && item.data?.sponsorshipId === accepted.id,
+        ),
+    ).toBe(true);
     const project = createInfrastructureProject(db, {
       clubId,
       projectType: "MEDICAL_ROOM",
@@ -121,6 +130,14 @@ describe("club economy and chairman foundation", () => {
     );
     expect(economy.infrastructureProjects(clubId).map((item) => item.id)).toContain(project.id);
     expect(economy.valuation(clubId)?.valuation).toBe(valuation.valuation);
+    expect(
+      new EventRepository(reloaded)
+        .historicalEvents()
+        .filter(
+          (item) =>
+            item.eventType === "SPONSORSHIP_ACCEPTED" && item.data?.sponsorshipId === accepted.id,
+        ),
+    ).toHaveLength(1);
     reloaded.close();
   });
 
@@ -262,16 +279,34 @@ describe("club economy and chairman foundation", () => {
 
   it("persists commercial profiles, ticket pricing and competition media rights deterministically", () => {
     const first = openGameDatabase(createSave("commercial-phase-a"));
-    initializeClubEconomyForSave({ db: first, worldDate: "2026-08-01", seed: "commercial-phase-a" });
+    initializeClubEconomyForSave({
+      db: first,
+      worldDate: "2026-08-01",
+      seed: "commercial-phase-a",
+    });
     const clubId = clubIdByName(first, "Machhindra FC");
-    const season = first.prepare("SELECT competition_season_id AS id FROM club_memberships WHERE status = 'ACTIVE' ORDER BY competition_season_id LIMIT 1").get() as { id: EntityId };
+    const season = first
+      .prepare(
+        "SELECT competition_season_id AS id FROM club_memberships WHERE status = 'ACTIVE' ORDER BY competition_season_id LIMIT 1",
+      )
+      .get() as { id: EntityId };
     const profile = new ClubEconomyRepository(first).commercialProfile(clubId)!;
     expect(profile.brandStrength).toBeGreaterThan(0);
     setClubTicketPrice(first, clubId, 375);
-    const rights = postCompetitionMediaRights(first, { competitionSeasonId: season.id, date: "2026-08-01", seed: "commercial-phase-a" });
-    expect(new ClubEconomyRepository(first).supporterProfile(clubId)?.standardTicketPrice).toBe(375);
+    const rights = postCompetitionMediaRights(first, {
+      competitionSeasonId: season.id,
+      date: "2026-08-01",
+      seed: "commercial-phase-a",
+    });
+    expect(new ClubEconomyRepository(first).supporterProfile(clubId)?.standardTicketPrice).toBe(
+      375,
+    );
     expect(new ClubEconomyRepository(first).mediaRights(season.id)[0]).toEqual(rights);
-    expect(new ClubEconomyRepository(first).ledgerEntries().some((entry) => entry.category === "BROADCASTING")).toBe(true);
+    expect(
+      new ClubEconomyRepository(first)
+        .ledgerEntries()
+        .some((entry) => entry.category === "BROADCASTING"),
+    ).toBe(true);
     first.close();
   });
 });

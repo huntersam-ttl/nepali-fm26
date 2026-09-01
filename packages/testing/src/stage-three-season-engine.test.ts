@@ -265,12 +265,18 @@ describe("stage three competition and season engine", () => {
     world.insertCompetitionSeason(input.competitionSeason);
     const result = simulateSeason(input);
     persistSeasonSimulation(db, input, result);
+    persistSeasonSimulation(db, input, result);
 
     db.close();
     const reloaded = openGameDatabase(databasePath);
     expect(
       new EventRepository(reloaded).historicalEvents().map((event) => event.eventType),
     ).toContain("COMPETITION_CHAMPION_DECLARED");
+    expect(
+      new EventRepository(reloaded)
+        .historicalEvents()
+        .filter((event) => event.eventType === "COMPETITION_CHAMPION_DECLARED"),
+    ).toHaveLength(1);
     const rows = reloaded
       .prepare("SELECT COUNT(*) AS count FROM league_standings WHERE competition_season_id = ?")
       .get(input.competitionSeason.id) as { count: number };
@@ -430,10 +436,14 @@ describe("stage three competition and season engine", () => {
       relationships: pyramidOnlyRelationships(pyramid),
     });
     persistPyramidProgression(db, result);
+    persistPyramidProgression(db, result);
 
     expect(competitions.historicalEvents().map((event) => event.eventType)).toContain(
       "CLUB_PROMOTED",
     );
+    expect(
+      competitions.historicalEvents().filter((event) => event.eventType === "CLUB_PROMOTED"),
+    ).toHaveLength(1);
     expect(db.prepare("SELECT COUNT(*) AS count FROM competition_movements").get()).toEqual({
       count: 3,
     });
