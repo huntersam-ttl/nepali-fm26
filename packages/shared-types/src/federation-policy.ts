@@ -62,8 +62,11 @@ export type FederationDevelopmentBand = "FOUNDATION" | "BUILDING" | "PROGRESSING
 export type FederationDevelopmentSummary = {
   federationId: EntityId;
   band: FederationDevelopmentBand;
+  dimensions: Record<string, FederationDevelopmentBand>;
+  trend: "IMPROVING" | "STABLE" | "DECLINING";
   strengths: string[];
   priorities: string[];
+  impactSummaries: string[];
   governmentRelationship: "LIMITED" | "WORKING" | "STRONG";
   asOf: string;
   provenanceStatus: "SIMULATION_ONLY";

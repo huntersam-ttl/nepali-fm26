@@ -9,6 +9,7 @@ import {
   campaignSupportEstimate,
   createFederationPolicy,
   createNepalSave,
+  federationDevelopmentSummary,
   policyCategoryForManifesto,
 } from "@nepal-football-sim/simulation";
 
@@ -92,6 +93,42 @@ describe("federation campaigning and policy foundation", () => {
     expect(policy(proposed.id)?.status).toBe("PROPOSED");
     expect(policy(funded.id)?.implementationProgress).toBe(12);
     expect(policy(funded.id)?.status).toBe("IMPLEMENTING");
+    db.close();
+    rmSync(directory, { recursive: true, force: true });
+  });
+
+  it("aggregates policy outcomes into explainable dimension bands", () => {
+    const directory = mkdtempSync(join(tmpdir(), "federation-development-summary-"));
+    const path = join(directory, "career.sqlite");
+    const datasetPath = resolve(process.cwd(), "data/nepal/2026-08/club-registry.json");
+    createNepalSave({
+      databasePath: path,
+      dataset: JSON.parse(readFileSync(datasetPath, "utf8")) as unknown,
+      saveName: "federation-development-summary",
+      gameVersion: "test",
+      randomSeed: "federation-development-summary",
+    });
+    const db = openGameDatabase(path);
+    const federationId = (
+      db.prepare("SELECT id FROM federations ORDER BY id LIMIT 1").get() as { id: string }
+    ).id as typeof candidate.federationId;
+    createFederationPolicy(db, {
+      federationId,
+      category: "REFEREE_DEVELOPMENT",
+      title: "Referee pathway",
+      status: "IMPLEMENTING",
+      startDate: "2026-08-01",
+      fundingCommitted: 100,
+      implementationProgress: 50,
+      targetValue: 100,
+      effects: {},
+    });
+    const first = federationDevelopmentSummary(db, federationId, "2027-07-31");
+    const second = federationDevelopmentSummary(db, federationId, "2027-07-31");
+    expect(first).toEqual(second);
+    expect(first.dimensions.refereeing).toBeDefined();
+    expect(first.impactSummaries).toContain("REFEREE_DEVELOPMENT: 50% implemented");
+    expect(first.trend).toBe("IMPROVING");
     db.close();
     rmSync(directory, { recursive: true, force: true });
   });

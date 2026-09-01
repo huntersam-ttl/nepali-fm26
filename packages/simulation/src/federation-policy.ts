@@ -21,6 +21,26 @@ import {
 const status = "SIMULATION_ONLY" as const;
 const clamp = (value: number, min = 0, max = 100): number => Math.max(min, Math.min(max, value));
 const round = (value: number): number => Number(value.toFixed(3));
+const developmentBand = (value: number): FederationDevelopmentSummary["band"] =>
+  value >= 75
+    ? "ESTABLISHED"
+    : value >= 50
+      ? "PROGRESSING"
+      : value >= 25
+        ? "BUILDING"
+        : "FOUNDATION";
+
+const policyDimension = (category: FederationPolicyCategory): string | undefined =>
+  ({
+    YOUTH_DEVELOPMENT: "youth",
+    WOMENS_DEVELOPMENT: "womenGirls",
+    REFEREE_DEVELOPMENT: "refereeing",
+    COACHING_EDUCATION: "coaching",
+    INFRASTRUCTURE: "infrastructure",
+    REGIONAL_DEVELOPMENT: "schoolFootball",
+    NATIONAL_TEAM_INVESTMENT: "nationalTeams",
+    LEAGUE_STRUCTURE: "competitionQuality",
+  })[category];
 
 const CATEGORY_MAP: Record<string, FederationPolicyCategory> = {
   YOUTH_ELITE_DEVELOPMENT: "YOUTH_DEVELOPMENT",
@@ -240,14 +260,6 @@ export const federationDevelopmentSummary = (
   const averageProgress = policies.length
     ? policies.reduce((sum, policy) => sum + policy.implementationProgress, 0) / policies.length
     : 0;
-  const band =
-    averageProgress >= 75
-      ? "ESTABLISHED"
-      : averageProgress >= 50
-        ? "PROGRESSING"
-        : averageProgress >= 25
-          ? "BUILDING"
-          : "FOUNDATION";
   const governmentTrust =
     new GovernmentRepository(db)
       .relationships()
@@ -256,11 +268,50 @@ export const federationDevelopmentSummary = (
   const governanceProfile = governance.profile(federationId);
   if (governanceProfile && strengths.length === 0 && governanceProfile.reputation >= 7)
     strengths.push("governance stability");
+  const dimensionScores: Record<string, number> = {
+    youth: clamp(governanceProfile?.youthDevelopment ?? averageProgress / 10) * 10,
+    schoolFootball: clamp(governanceProfile?.grassrootsDevelopment ?? averageProgress / 10) * 10,
+    talentHotspots: clamp(governanceProfile?.grassrootsDevelopment ?? averageProgress / 10) * 10,
+    coaching: clamp(governanceProfile?.coachEducation ?? averageProgress / 10) * 10,
+    refereeing: clamp(governanceProfile?.refereeDevelopment ?? averageProgress / 10) * 10,
+    infrastructure: clamp(governanceProfile?.infrastructureLevel ?? averageProgress / 10) * 10,
+    womenGirls: clamp(governanceProfile?.grassrootsDevelopment ?? averageProgress / 10) * 10,
+    nationalTeams: clamp(governanceProfile?.internationalRelations ?? averageProgress / 10) * 10,
+    competitionQuality:
+      clamp(governanceProfile?.competitionOrganisation ?? averageProgress / 10) * 10,
+    commercialStrength: clamp(governanceProfile?.commercialStrength ?? averageProgress / 10) * 10,
+  };
+  const impactSummaries: string[] = [];
+  for (const policy of policies.filter((item) => item.implementationProgress > 0)) {
+    const dimension = policyDimension(policy.category);
+    if (!dimension) continue;
+    // Policy progress is an outcome signal, not a second project/profile
+    // increment. Its contribution is deliberately capped and proportional.
+    const contribution = Math.min(8, policy.implementationProgress * 0.08);
+    dimensionScores[dimension] = clamp(dimensionScores[dimension] + contribution, 0, 100);
+    impactSummaries.push(
+      `${policy.category}: ${Math.round(policy.implementationProgress)}% implemented`,
+    );
+  }
+  const dimensions = Object.fromEntries(
+    Object.entries(dimensionScores).map(([key, value]) => [key, developmentBand(value)]),
+  );
+  const overallScore =
+    Object.values(dimensionScores).reduce((sum, value) => sum + value, 0) /
+    Object.keys(dimensionScores).length;
+  const trend = policies.some(
+    (policy) => policy.status === "IMPLEMENTING" && policy.implementationProgress > 0,
+  )
+    ? "IMPROVING"
+    : "STABLE";
   return {
     federationId,
-    band,
+    band: developmentBand(overallScore),
+    dimensions,
+    trend,
     strengths,
     priorities,
+    impactSummaries: impactSummaries.slice(0, 8),
     governmentRelationship:
       governmentTrust >= 70 ? "STRONG" : governmentTrust >= 40 ? "WORKING" : "LIMITED",
     asOf: date,
