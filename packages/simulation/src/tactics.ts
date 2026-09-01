@@ -470,6 +470,50 @@ export const createTacticalSetup = (input: {
   };
 };
 
+export type TacticalVariant =
+  "PRIMARY" | "ATTACKING" | "DEFENSIVE" | "LATE_GAME_CHASE" | "PROTECT_LEAD";
+
+/** Creates a named variant without resetting formation, roles, or familiarity. */
+export const createTacticalVariant = (
+  setup: TacticalSetup,
+  variant: TacticalVariant,
+): TacticalSetup => {
+  const styleByVariant: Record<Exclude<TacticalVariant, "PRIMARY">, TacticalStyleId> = {
+    ATTACKING: "VERTICAL",
+    DEFENSIVE: "LOW_BLOCK",
+    LATE_GAME_CHASE: "HIGH_PRESS",
+    PROTECT_LEAD: "LOW_BLOCK",
+  };
+  if (variant === "PRIMARY")
+    return {
+      ...setup,
+      name: setup.name.replace(/ \((ATTACKING|DEFENSIVE|LATE_GAME_CHASE|PROTECT_LEAD)\)$/, ""),
+    };
+  const style = styleByVariant[variant];
+  const preset = TACTICAL_STYLE_PRESETS[style];
+  const adjustments =
+    variant === "PROTECT_LEAD"
+      ? {
+          ...preset,
+          mentality: "CAUTIOUS" as const,
+          transition: { ...preset.transition, holdShape: true, regroup: true, counter: false },
+        }
+      : variant === "LATE_GAME_CHASE"
+        ? {
+            ...preset,
+            mentality: "ATTACKING" as const,
+            transition: { ...preset.transition, counter: true, counterPress: true },
+          }
+        : preset;
+  return {
+    ...setup,
+    id: createStableEntityId("tactical-variant", `${setup.id}:${variant}`),
+    name: `${setup.name.replace(/ \((ATTACKING|DEFENSIVE|LATE_GAME_CHASE|PROTECT_LEAD)\)$/, "")} (${variant})`,
+    style,
+    instructions: adjustments,
+  };
+};
+
 /**
  * Advance the existing setup's pre-match familiarity. This is intentionally a
  * pure setup transformation: persistence remains the tactical-setups

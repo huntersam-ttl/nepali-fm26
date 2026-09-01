@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   calculateTacticalModifiers,
   createTacticalSetup,
+  createTacticalVariant,
   prepareTacticalSetup,
 } from "@nepal-football-sim/simulation";
 import { createStableEntityId } from "@nepal-football-sim/shared-types";
@@ -47,5 +48,19 @@ describe("tactical preparation", () => {
     const before = calculateTacticalModifiers({ setup });
     const after = calculateTacticalModifiers({ setup: prepared });
     expect(after.control).toBeGreaterThan(before.control);
+  });
+
+  it("creates deterministic variants while carrying formation, roles, and familiarity forward", () => {
+    const setup = createTacticalSetup({
+      teamId: createStableEntityId("team", "variants"),
+      name: "Primary",
+    });
+    const chase = createTacticalVariant(setup, "LATE_GAME_CHASE");
+    expect(chase.id).toBe(createTacticalVariant(setup, "LATE_GAME_CHASE").id);
+    expect(chase.formation.id).toBe(setup.formation.id);
+    expect(chase.assignments).toEqual(setup.assignments);
+    expect(chase.familiarity).toEqual(setup.familiarity);
+    expect(chase.instructions.mentality).toBe("ATTACKING");
+    expect(createTacticalVariant(chase, "PRIMARY").name).toBe("Primary");
   });
 });

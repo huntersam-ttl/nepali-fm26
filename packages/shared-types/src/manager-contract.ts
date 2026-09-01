@@ -27,6 +27,7 @@ import type {
   TacticalSetup,
   TeamCohesionLevel,
   TeamInstructions,
+  GoalkeeperDistributionStyle,
   TrainingIntensity,
   TrainingPlan,
 } from "./domain.js";
@@ -1278,6 +1279,17 @@ export type LiveTacticsCommand = {
   width?: number;
   pressingIntensity?: number;
   defensiveLine?: number;
+  engagementLine?: number;
+  tacklingIntensity?: number;
+  buildUpRisk?: number;
+  counterPress?: boolean;
+  regroup?: boolean;
+  counter?: boolean;
+  holdShape?: boolean;
+  playFromBack?: boolean;
+  workBallIntoBox?: boolean;
+  earlyCrosses?: boolean;
+  goalkeeperDistributionStyle?: GoalkeeperDistributionStyle;
   assignments?: Array<{ slotId: string; playerId?: EntityId; roleId: string }>;
 };
 

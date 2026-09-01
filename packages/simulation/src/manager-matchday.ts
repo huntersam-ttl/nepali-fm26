@@ -245,11 +245,26 @@ export const applyTacticsCommand = (
         tempo: command.tempo ?? base.inPossession.tempo,
         passingLength: command.passingLength ?? base.inPossession.passingLength,
         width: command.width ?? base.inPossession.width,
+        buildUpRisk: command.buildUpRisk ?? base.inPossession.buildUpRisk,
+        playFromBack: command.playFromBack ?? base.inPossession.playFromBack,
+        workBallIntoBox: command.workBallIntoBox ?? base.inPossession.workBallIntoBox,
+        earlyCrosses: command.earlyCrosses ?? base.inPossession.earlyCrosses,
+      },
+      transition: {
+        ...base.transition,
+        counterPress: command.counterPress ?? base.transition.counterPress,
+        regroup: command.regroup ?? base.transition.regroup,
+        counter: command.counter ?? base.transition.counter,
+        holdShape: command.holdShape ?? base.transition.holdShape,
+        goalkeeperDistributionStyle:
+          command.goalkeeperDistributionStyle ?? base.transition.goalkeeperDistributionStyle,
       },
       outOfPossession: {
         ...base.outOfPossession,
         pressingIntensity: command.pressingIntensity ?? base.outOfPossession.pressingIntensity,
         defensiveLine: command.defensiveLine ?? base.outOfPossession.defensiveLine,
+        engagementLine: command.engagementLine ?? base.outOfPossession.engagementLine,
+        tacklingIntensity: command.tacklingIntensity ?? base.outOfPossession.tacklingIntensity,
       },
     },
   };
