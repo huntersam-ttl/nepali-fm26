@@ -26,3 +26,4 @@ export * from "./academy-geography.js";
 export * from "./federation-policy.js";
 export * from "./federation-strategy.js";
 export * from "./football-economy.js";
+export * from "./continental-careers.js";

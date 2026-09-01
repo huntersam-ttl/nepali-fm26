@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 75;
+export const CURRENT_DATABASE_VERSION = 76;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -3450,6 +3450,19 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
         id TEXT PRIMARY KEY, federation_id TEXT NOT NULL REFERENCES federations(id), event_type TEXT NOT NULL, event_name TEXT NOT NULL, host_scope TEXT NOT NULL, venue_id TEXT, readiness REAL NOT NULL, funding_plan REAL NOT NULL, government_support REAL NOT NULL, federation_contribution REAL NOT NULL, projected_benefit REAL NOT NULL, status TEXT NOT NULL, proposed_on TEXT NOT NULL, decision_date TEXT, provenance_status TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_federation_hosting_bids_status ON federation_hosting_bids(federation_id, status, proposed_on);
+    `,
+  },
+  {
+    version: 76,
+    sql: `
+      CREATE TABLE IF NOT EXISTS continental_coefficient_snapshots (
+        id TEXT PRIMARY KEY, association_id TEXT NOT NULL, season_label TEXT NOT NULL,
+        coefficient REAL NOT NULL, result_points REAL NOT NULL, participating_clubs INTEGER NOT NULL,
+        rolling_window_json TEXT NOT NULL, calculated_on TEXT NOT NULL, provenance_status TEXT NOT NULL,
+        UNIQUE(association_id, season_label)
+      );
+      CREATE INDEX IF NOT EXISTS idx_continental_coefficients_association
+        ON continental_coefficient_snapshots(association_id, season_label);
     `,
   },
 ];
