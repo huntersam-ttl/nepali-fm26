@@ -510,7 +510,10 @@ const simulateMinute = (state: LiveMatchState, rng: SeededRandom, minute: number
       }
     } else if (rng.next() < 0.22) {
       attacking.stats.corners += 1;
-      const routine = attacking.setup?.setPieces.cornerRoutine ?? "NEAR_POST";
+      const setPieces = attacking.setup?.setPieces;
+      const routine = setPieces?.cornerRoutine ?? "NEAR_POST";
+      const target = resolveCornerTarget(attacking, setPieces);
+      const defensive = resolveCornerDefence(defending);
       const familiarity = attacking.setup
         ? (attacking.setup.familiarity.instructions + attacking.setup.familiarity.roles) / 2
         : 50;
@@ -521,6 +524,15 @@ const simulateMinute = (state: LiveMatchState, rng: SeededRandom, minute: number
       );
       pushEvent(state, minute, "CORNER", attacking.teamId, undefined, undefined, {
         routine,
+        deliveryZone: setPieces?.cornerDeliveryZone ?? routine,
+        targetPlayerId: target?.player.personId,
+        targetRole: target?.role,
+        fallbackUsed: target?.fallbackUsed ?? false,
+        stayBackPlayerIds: activeIds(attacking, setPieces?.cornerStayBack),
+        defensiveScheme: defensive.scheme,
+        defensiveAssignmentIds: defensive.assignmentIds,
+        aerialPriorityIds: defensive.aerialPriorityIds,
+        outcome: resolveCornerOutcome(state, minute, attacking, defending, target, routineQuality),
         routineQuality: Number(routineQuality.toFixed(3)),
       });
     }
@@ -536,7 +548,18 @@ const simulateMinute = (state: LiveMatchState, rng: SeededRandom, minute: number
     // set-piece outcomes without inventing a separate event stream.
     if (rng.next() < 0.35) {
       const attacking = fouling === home ? away : home;
-      const routine = attacking.setup?.setPieces.freeKickRoutine ?? "CROSS";
+      const setPieces = attacking.setup?.setPieces;
+      const routine = setPieces?.freeKickRoutine ?? "CROSS";
+      const taker = resolveTaker(
+        attacking,
+        routine === "INDIRECT"
+          ? [setPieces?.indirectFreeKickTaker, setPieces?.directFreeKickTaker]
+          : [setPieces?.directFreeKickTaker, setPieces?.indirectFreeKickTaker],
+      );
+      const target = resolveTarget(attacking, [
+        setPieces?.freeKickTarget,
+        setPieces?.freeKickSecondaryTarget,
+      ]);
       const familiarity = attacking.setup
         ? (attacking.setup.familiarity.instructions + attacking.setup.familiarity.roles) / 2
         : 50;
@@ -545,18 +568,15 @@ const simulateMinute = (state: LiveMatchState, rng: SeededRandom, minute: number
         0.86,
         1.16,
       );
-      pushEvent(
-        state,
-        minute,
-        "FREE_KICK",
-        attacking.teamId,
-        attacking.setup?.setPieces.directFreeKickTaker,
-        undefined,
-        {
-          routine,
-          routineQuality: Number(routineQuality.toFixed(3)),
-        },
-      );
+      pushEvent(state, minute, "FREE_KICK", attacking.teamId, taker?.personId, undefined, {
+        routine,
+        deliveryChoice:
+          routine === "DIRECT" ? "SHOT" : routine === "INDIRECT" ? "DELIVERY" : "CROSS",
+        targetPlayerId: target?.player.personId,
+        fallbackUsed: target?.fallbackUsed ?? false,
+        outcome: target ? "TARGET_AVAILABLE" : "RECYCLE",
+        routineQuality: Number(routineQuality.toFixed(3)),
+      });
     }
     if (rng.next() < 0.105 * fouling.tactical.discipline) {
       bookPlayer(state, fouling, fouler.personId, minute);
@@ -583,6 +603,115 @@ const simulateMinute = (state: LiveMatchState, rng: SeededRandom, minute: number
       state.pauseReason = "INJURY_DECISION";
     }
   }
+};
+
+type SetPieceTarget = {
+  player: SelectedPlayer;
+  role: "PRIMARY" | "SECONDARY" | "EDGE" | "FALLBACK";
+  fallbackUsed: boolean;
+};
+
+const activeIds = (team: RuntimeTeam, ids?: EntityId[]): EntityId[] =>
+  (ids ?? []).filter((id) => team.selection.some((player) => player.personId === id));
+
+const resolveTaker = (
+  team: RuntimeTeam,
+  priorities: Array<EntityId | undefined>,
+): SelectedPlayer | undefined => {
+  for (const id of priorities) {
+    const player = team.selection.find((candidate) => candidate.personId === id);
+    const state = player
+      ? team.states.find((candidate) => candidate.personId === player.personId)
+      : undefined;
+    if (player && state && !state.redCard && state.subbedOffMinute === undefined) return player;
+  }
+  return team.selection.find((player) => player.position !== "GK") ?? team.selection[0];
+};
+
+const resolveTarget = (
+  team: RuntimeTeam,
+  priorities: Array<EntityId | undefined>,
+): SetPieceTarget | undefined => {
+  const active = (id: EntityId | undefined): SelectedPlayer | undefined => {
+    if (!id) return undefined;
+    const player = team.selection.find((candidate) => candidate.personId === id);
+    const state = player
+      ? team.states.find((candidate) => candidate.personId === player.personId)
+      : undefined;
+    return player && state && !state.redCard && state.subbedOffMinute === undefined
+      ? player
+      : undefined;
+  };
+  const roles: SetPieceTarget["role"][] = ["PRIMARY", "SECONDARY", "EDGE"];
+  for (let index = 0; index < priorities.length; index += 1) {
+    const player = active(priorities[index]);
+    if (player) return { player, role: roles[index] ?? "FALLBACK", fallbackUsed: index > 0 };
+  }
+  const fallback = team.selection.find((player) => player.position !== "GK");
+  return fallback ? { player: fallback, role: "FALLBACK", fallbackUsed: true } : undefined;
+};
+
+const resolveCornerTarget = (
+  team: RuntimeTeam,
+  setPieces?: TacticalSetup["setPieces"],
+): SetPieceTarget | undefined =>
+  resolveTarget(team, [
+    setPieces?.cornerPrimaryTarget,
+    setPieces?.cornerSecondaryTarget,
+    setPieces?.cornerEdgeTarget,
+  ]);
+
+const resolveCornerDefence = (
+  team: RuntimeTeam,
+): {
+  scheme: NonNullable<TacticalSetup["setPieces"]["defensiveCornerScheme"]>;
+  assignmentIds: EntityId[];
+  aerialPriorityIds: EntityId[];
+} => {
+  const setPieces = team.setup?.setPieces;
+  const available = activeIds(team, setPieces?.defensiveCornerAssignments);
+  const aerialPriorityIds = activeIds(team, setPieces?.defensiveAerialPriority);
+  return {
+    scheme: setPieces?.defensiveCornerScheme ?? "ZONAL",
+    assignmentIds:
+      available.length > 0
+        ? available
+        : team.selection
+            .filter((p) => p.position !== "GK")
+            .slice(0, 3)
+            .map((p) => p.personId),
+    aerialPriorityIds:
+      aerialPriorityIds.length > 0
+        ? aerialPriorityIds
+        : team.selection
+            .filter((p) => ["CB", "DM", "ST"].includes(p.position))
+            .slice(0, 2)
+            .map((p) => p.personId),
+  };
+};
+
+const resolveCornerOutcome = (
+  state: LiveMatchState,
+  minute: number,
+  attacking: RuntimeTeam,
+  defending: RuntimeTeam,
+  target: SetPieceTarget | undefined,
+  routineQuality: number,
+): "TARGETED" | "AERIAL_CONTEST" | "CLEARED" | "RECYCLED" => {
+  if (!target) return "RECYCLED";
+  const local = new SeededRandom(
+    `${state.seed}:corner:${state.matchId}:${minute}:${attacking.teamId}:${state.eventSequence}`,
+  );
+  const aerial =
+    target.player.attributes.physical.jumping + target.player.attributes.mental.positioning;
+  const defence = defending.strength.defense + defending.tactical.defense * 10;
+  const contestChance = clamp(
+    0.34 + routineQuality * 0.24 + aerial / 260 - defence / 500,
+    0.18,
+    0.78,
+  );
+  if (local.next() > contestChance) return "CLEARED";
+  return local.next() < 0.42 + routineQuality / 8 ? "AERIAL_CONTEST" : "TARGETED";
 };
 
 const updateMomentum = (state: LiveMatchState): void => {
@@ -742,8 +871,21 @@ const resolveShootout = (state: LiveMatchState, rng: SeededRandom): void => {
 
 /** Outfield players first, goalkeeper last, so a keeper only takes a kick if everyone else has. */
 const shootoutTakers = (team: RuntimeTeam): SelectedPlayer[] => {
-  const outfield = team.selection.filter((player) => player.position !== "GK");
-  const keeper = team.selection.filter((player) => player.position === "GK");
+  const eligible = team.selection.filter((player) => {
+    const state = team.states.find((candidate) => candidate.personId === player.personId);
+    return state && !state.redCard && state.subbedOffMinute === undefined;
+  });
+  const configured =
+    team.setup?.setPieces.penaltyTakers ??
+    [team.setup?.setPieces.penaltyTaker].filter((id): id is EntityId => Boolean(id));
+  const configuredPlayers = configured.flatMap((id) =>
+    eligible.filter((player) => player.personId === id),
+  );
+  const remaining = eligible.filter((player) => !configured.includes(player.personId));
+  const outfield = [...configuredPlayers, ...remaining].filter(
+    (player) => player.position !== "GK",
+  );
+  const keeper = [...configuredPlayers, ...remaining].filter((player) => player.position === "GK");
   const pool = [...outfield, ...keeper];
   return pool.length > 0 ? pool : team.selection;
 };

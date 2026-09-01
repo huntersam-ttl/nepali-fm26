@@ -1190,11 +1190,23 @@ export type TacticalFamiliarity = {
 
 export type SetPieceAssignments = {
   penaltyTaker?: EntityId;
+  penaltyTakers?: EntityId[];
   directFreeKickTaker?: EntityId;
+  indirectFreeKickTaker?: EntityId;
   leftCornerTaker?: EntityId;
   rightCornerTaker?: EntityId;
   cornerRoutine?: "NEAR_POST" | "FAR_POST" | "SHORT_CORNER" | "CROWD_KEEPER";
+  cornerDeliveryZone?: "NEAR_POST" | "FAR_POST" | "CENTRE" | "EDGE";
+  cornerPrimaryTarget?: EntityId;
+  cornerSecondaryTarget?: EntityId;
+  cornerEdgeTarget?: EntityId;
+  cornerStayBack?: EntityId[];
+  defensiveCornerScheme?: "ZONAL" | "MAN_ORIENTED" | "MIXED";
+  defensiveCornerAssignments?: EntityId[];
+  defensiveAerialPriority?: EntityId[];
   freeKickRoutine?: "DIRECT" | "INDIRECT" | "CROSS";
+  freeKickTarget?: EntityId;
+  freeKickSecondaryTarget?: EntityId;
 };
 
 export type TacticalAssignment = {
