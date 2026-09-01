@@ -40,7 +40,6 @@ import {
   recordTransferEconomy,
 } from "./club-economy.js";
 import { applySupporterTransferOutcome } from "./supporter-culture.js";
-import { publishMediaForDate } from "./media.js";
 import { applyPlayerRelationshipEvent } from "./press-social-lifestyle.js";
 import {
   effectiveAgentPlayerPreferences,
@@ -1733,6 +1732,48 @@ const settleSellOnEntitlements = (
   }
 };
 
+/**
+ * Promote a completed transfer-history transition into the canonical public
+ * event stream. The transfer tables remain authoritative; this projection is
+ * deliberately Nepal-scoped and insert-idempotent so replaying a settlement
+ * cannot create duplicate media or role deliveries.
+ */
+const emitTransferPublicEvent = (
+  db: GameDatabase,
+  input: {
+    sourceId: EntityId;
+    occurredOn: string;
+    eventType: string;
+    title: string;
+    playerId: EntityId;
+    clubId: EntityId;
+    relatedClubId?: EntityId;
+    data?: Record<string, unknown>;
+    importance?: "medium" | "high";
+  },
+): void => {
+  const clubs = [input.clubId, input.relatedClubId].filter((clubId): clubId is EntityId =>
+    Boolean(clubId),
+  );
+  if (!clubs.some((clubId) => isNepalClub(db, clubId))) return;
+  const id = createStableEntityId("history", `TRANSFER_PUBLIC:${input.sourceId}`);
+  if (!db.prepare("SELECT 1 FROM historical_events WHERE id=?").get(id)) {
+    new EventRepository(db).insertHistoricalEvent({
+      id,
+      occurredOn: input.occurredOn,
+      eventType: input.eventType,
+      involvedEntities: [
+        { id: input.playerId, type: "person" },
+        ...clubs.map((clubId) => ({ id: clubId, type: "club" as const })),
+      ],
+      title: input.title,
+      data: input.data,
+      importance: input.importance ?? "medium",
+      scope: "club",
+    });
+  }
+};
+
 export const completePermanentTransfer = (
   db: GameDatabase,
   offer: TransferOffer,
@@ -1847,37 +1888,18 @@ export const completePermanentTransfer = (
     occurredOn: worldDate,
     data: { transferFee: offer.transferFee, currency: offer.currency },
   });
-  const nepalClubInvolved = [offer.buyingClubId, offer.sellingClubId]
-    .filter((clubId): clubId is EntityId => Boolean(clubId))
-    .some((clubId) =>
-      Boolean(
-        db
-          .prepare(
-            "SELECT 1 FROM clubs c JOIN countries co ON co.id=c.country_id WHERE c.id=? AND co.iso_code IN ('NP','NPL') LIMIT 1",
-          )
-          .get(clubId),
-      ),
-    );
-  if (nepalClubInvolved && offer.transferFee >= 1_000_000) {
-    const mediaEventId = createStableEntityId("history", `TRANSFER_MEDIA:${transferHistoryId}`);
-    if (!db.prepare("SELECT 1 FROM historical_events WHERE id=?").get(mediaEventId)) {
-      new EventRepository(db).insertHistoricalEvent({
-        id: mediaEventId,
-        occurredOn: worldDate,
-        eventType: "TRANSFER_COMPLETED",
-        involvedEntities: [
-          { id: offer.playerId, type: "person" },
-          { id: offer.buyingClubId, type: "club" },
-          ...(offer.sellingClubId ? [{ id: offer.sellingClubId, type: "club" as const }] : []),
-        ],
-        title: "Major transfer completed",
-        data: { transferHistoryId, transferFee: offer.transferFee, currency: offer.currency },
-        importance: "high",
-        scope: "world",
-      });
-    }
-    publishMediaForDate(db, { date: worldDate });
-  }
+  emitTransferPublicEvent(db, {
+    sourceId: transferHistoryId,
+    occurredOn: worldDate,
+    eventType: offer.offerType === "FREE_TRANSFER" ? "FREE_AGENT_SIGNED" : "TRANSFER_COMPLETED",
+    title:
+      offer.offerType === "FREE_TRANSFER" ? "Free-agent signing completed" : "Transfer completed",
+    playerId: offer.playerId,
+    clubId: offer.buyingClubId,
+    relatedClubId: offer.sellingClubId,
+    data: { transferHistoryId, transferFee: offer.transferFee, currency: offer.currency },
+    importance: offer.transferFee >= 1_000_000 ? "high" : "medium",
+  });
   recordTransferEconomy(db, offer, worldDate);
   settleAgentFee(db, {
     playerId: offer.playerId,
@@ -2085,7 +2107,7 @@ export const startLoan = (
     });
   }
   market.insertTransferHistoryEvent({
-    id: createStableEntityId("transfer-history", `${playerId}:loan:${worldDate}:${seed}`),
+    id: createStableEntityId("transfer-history", `${loan.id}:loan-started`),
     playerId,
     clubId: parentClubId,
     relatedClubId: loanClubId,
@@ -2098,6 +2120,16 @@ export const startLoan = (
       purchaseObligation: loan.purchaseObligation,
       playingTimeExpectation: loan.playingTimeExpectation,
     },
+  });
+  emitTransferPublicEvent(db, {
+    sourceId: loan.id,
+    occurredOn: worldDate,
+    eventType: "LOAN_STARTED",
+    title: "Loan move completed",
+    playerId,
+    clubId: loan.loanClubId,
+    relatedClubId: loan.parentClubId,
+    data: { loanId: loan.id, loanFee: loan.loanFee, purchaseOption: loan.purchaseOption },
   });
   return loan;
 };
@@ -2331,13 +2363,23 @@ const finishLoan = (
     registerContractedPlayer(db, persisted.playerId, persisted.parentClubId, worldDate);
   }
   market.insertTransferHistoryEvent({
-    id: createStableEntityId("transfer-history", `${persisted.id}:loan-ended:${reason}`),
+    id: createStableEntityId("transfer-history", `${persisted.id}:loan-ended`),
     playerId: persisted.playerId,
     clubId: persisted.parentClubId,
     relatedClubId: persisted.loanClubId,
     eventType: "LOAN_ENDED",
     occurredOn: worldDate,
     data: { terminationReason: reason },
+  });
+  emitTransferPublicEvent(db, {
+    sourceId: `${persisted.id}:loan-ended` as EntityId,
+    occurredOn: worldDate,
+    eventType: "LOAN_ENDED",
+    title: returnToParent ? "Loan spell ended" : "Loan converted to permanent transfer",
+    playerId: persisted.playerId,
+    clubId: persisted.loanClubId,
+    relatedClubId: persisted.parentClubId,
+    data: { loanId: persisted.id, terminationReason: reason },
   });
   return true;
 };

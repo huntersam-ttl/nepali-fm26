@@ -31,6 +31,7 @@ import { interviewManagerForApplication } from "./manager-interviews.js";
 import { SeededRandom } from "./rng.js";
 import { isContextOnlyClub } from "./foreign-football-world.js";
 import { refreshManagerBoardRelationship } from "./club-vision-politics.js";
+import { publishMediaForDate } from "./media.js";
 
 type SqlRow = Record<string, any>;
 
@@ -415,6 +416,37 @@ export const sackManager = (
       status: "OPEN",
     });
   }
+  const eventType =
+    reason === "SACKED"
+      ? "MANAGER_DISMISSED"
+      : reason === "RESIGNED"
+        ? "MANAGER_RESIGNED"
+        : "MANAGER_CONTRACT_EXPIRED";
+  const eventId = createStableEntityId(
+    "history",
+    `MANAGER_LIFECYCLE:${contract.id}:${eventType}:${save.worldDate}`,
+  );
+  if (!db.prepare("SELECT 1 FROM historical_events WHERE id=?").get(eventId)) {
+    new EventRepository(db).insertHistoricalEvent({
+      id: eventId,
+      occurredOn: save.worldDate,
+      eventType,
+      involvedEntities: [
+        ...(contract.clubId ? [{ id: contract.clubId, type: "club" as const }] : []),
+        { id: contract.personId, type: "person" },
+      ],
+      title:
+        reason === "SACKED"
+          ? "Manager dismissed"
+          : reason === "RESIGNED"
+            ? "Manager resigned"
+            : "Manager contract ended",
+      data: { contractId: contract.id, reason },
+      importance: reason === "SACKED" ? "high" : "medium",
+      scope: "club",
+    });
+  }
+  publishMediaForDate(db, { date: save.worldDate, minimumImportance: 6 });
   if (save.playerCharacterId) {
     const character = new WorldRepository(db).getCareerCharacter(save.playerCharacterId);
     if (character) {
