@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 79;
+export const CURRENT_DATABASE_VERSION = 81;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -3511,6 +3511,39 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       );
       CREATE INDEX IF NOT EXISTS idx_manager_job_negotiations_vacancy
         ON manager_job_negotiations(vacancy_id, stage, updated_on);
+    `,
+  },
+  {
+    version: 81,
+    sql: `
+      CREATE TABLE IF NOT EXISTS agent_client_strategies (
+        id TEXT PRIMARY KEY,
+        agent_id TEXT NOT NULL REFERENCES agents(id),
+        player_id TEXT NOT NULL REFERENCES persons(id),
+        objective TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        status TEXT NOT NULL,
+        outcome_summary TEXT,
+        provenance_status TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_agent_client_strategies_active
+        ON agent_client_strategies(player_id, status, updated_at);
+      CREATE TABLE IF NOT EXISTS agent_fee_settlements (
+        id TEXT PRIMARY KEY,
+        agent_id TEXT NOT NULL REFERENCES agents(id),
+        player_id TEXT NOT NULL REFERENCES persons(id),
+        payer_club_id TEXT NOT NULL REFERENCES clubs(id),
+        amount INTEGER NOT NULL,
+        currency TEXT NOT NULL,
+        event_type TEXT NOT NULL,
+        source_entity_id TEXT NOT NULL,
+        settled_on TEXT NOT NULL,
+        personal_ledger_entry_id TEXT NOT NULL,
+        provenance_status TEXT NOT NULL
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_fee_settlement_source
+        ON agent_fee_settlements(source_entity_id, event_type);
     `,
   },
 ];

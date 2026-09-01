@@ -8,8 +8,13 @@ import {
   careerTimeline,
   createAgentCareer,
   recordCareerTimelineEvent,
+  agentClientStrategies,
+  effectiveAgentPlayerPreferences,
+  settleAgentFee,
+  setAgentClientStrategy,
   signAgentClient,
 } from "@nepal-football-sim/simulation";
+import { ClubEconomyRepository } from "@nepal-football-sim/database";
 import {
   createStableEntityId,
   type AgentProfile,
@@ -73,6 +78,61 @@ describe("agent career and interactive timeline", () => {
     expect(
       signAgentClient(db, { agentId: profile.id, playerId: player.id, date: "2027-01-02" }).status,
     ).toBe("ACTIVE");
+    const strategy = setAgentClientStrategy(db, {
+      agentId: profile.id,
+      playerId: player.id,
+      objective: "PLAYING_TIME",
+      date: "2027-01-03",
+    });
+    expect(strategy.status).toBe("ACTIVE");
+    expect(
+      agentClientStrategies(db, player.id).filter((item) => item.status === "ACTIVE"),
+    ).toHaveLength(1);
+    expect(
+      effectiveAgentPlayerPreferences(db, player.id, { securityPreference: 6 }).expectedPlayingTime,
+    ).toBe("FIRST_TEAM");
+    const clubId = id("club");
+    db.prepare("INSERT INTO clubs (id,name,country_id,ownership_type) VALUES (?,?,?,?)").run(
+      clubId,
+      "Test Club",
+      id("country"),
+      "COMMUNITY",
+    );
+    new ClubEconomyRepository(db).upsertFinancialAccount({
+      clubId,
+      currency: "NPR",
+      cashBalance: 1000000,
+      restrictedCash: 0,
+      receivables: 0,
+      payables: 0,
+      debtBalance: 0,
+      equityBalance: 0,
+      seasonRevenue: 0,
+      seasonExpenses: 0,
+      seasonProfitLoss: 0,
+      financialHealth: "STABLE",
+      lastUpdatedAt: "2027-01-03",
+      status: "SIMULATION_ONLY",
+    });
+    const settlement = settleAgentFee(db, {
+      playerId: player.id,
+      payerClubId: clubId,
+      amount: 25000,
+      sourceEntityId: id("completed-transfer"),
+      eventType: "TRANSFER",
+      date: "2027-01-03",
+    });
+    expect(settlement?.amount).toBe(25000);
+    expect(
+      settleAgentFee(db, {
+        playerId: player.id,
+        payerClubId: clubId,
+        amount: 25000,
+        sourceEntityId: id("completed-transfer"),
+        eventType: "TRANSFER",
+        date: "2027-01-04",
+      }),
+    ).toBeUndefined();
     expect(() =>
       signAgentClient(db, { agentId: profile.id, playerId: player.id, date: "2027-01-03" }),
     ).toThrow("active representation");
@@ -104,9 +164,11 @@ describe("agent career and interactive timeline", () => {
       role: "AGENT",
       category: "REPRESENTATION",
     });
-    expect(timeline).toHaveLength(1);
+    expect(timeline).toHaveLength(2);
     expect(careerTimeline(db, { personId: person.id }).map((event) => event.occurredOn)).toEqual([
       "2027-01-01",
+      "2027-01-02",
+      "2027-01-03",
       "2028-01-01",
     ]);
     db.close();

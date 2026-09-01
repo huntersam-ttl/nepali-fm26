@@ -42,6 +42,11 @@ import {
 import { applySupporterTransferOutcome } from "./supporter-culture.js";
 import { publishMediaForDate } from "./media.js";
 import { applyPlayerRelationshipEvent } from "./press-social-lifestyle.js";
+import {
+  effectiveAgentPlayerPreferences,
+  agentFeeForContract,
+  settleAgentFee,
+} from "./agent-career.js";
 import { evaluateRelatedPartyTransfer } from "./club-networks.js";
 import { upsertPersonRelationship } from "./people-foundation.js";
 import { SeededRandom } from "./rng.js";
@@ -1315,6 +1320,7 @@ export const negotiatePlayerTerms = (
   },
 ): PlayerPersonalTermsResult => {
   const market = new TransferMarketRepository(db);
+  input.preferences = effectiveAgentPlayerPreferences(db, offer.playerId, input.preferences ?? {});
   const agent = market.agentForPlayer(offer.playerId);
   const base = defaultPersonalTerms(db, offer, input.worldDate, input.seed);
   const proposal: PlayerPersonalTerms = {
@@ -1873,6 +1879,15 @@ export const completePermanentTransfer = (
     publishMediaForDate(db, { date: worldDate });
   }
   recordTransferEconomy(db, offer, worldDate);
+  settleAgentFee(db, {
+    playerId: offer.playerId,
+    payerClubId: offer.buyingClubId,
+    amount: offer.agentFee,
+    sourceEntityId: offer.id,
+    eventType: offer.offerType === "FREE_TRANSFER" ? "FREE_AGENT_SIGNING" : "TRANSFER",
+    date: worldDate,
+  });
+  /* The existing transfer expense already includes the negotiated agent fee. */
   settleSellOnEntitlements(db, offer, worldDate);
   persistSellOnEntitlement(db, offer);
   applySupporterTransferOutcome({
@@ -1911,6 +1926,7 @@ export const resolveCompetingPlayerOffers = (
   preferences?: PlayerPersonalTermsPreferences,
 ): TransferOffer | undefined => {
   const market = new TransferMarketRepository(db);
+  const effectivePreferences = effectiveAgentPlayerPreferences(db, playerId, preferences ?? {});
   if (market.activeContract(playerId, worldDate)) return undefined;
   const offers = market
     .transferOffers()
@@ -1932,7 +1948,8 @@ export const resolveCompetingPlayerOffers = (
       const aTerms = latestPersonalTerms(db, a, worldDate, seed);
       const bTerms = latestPersonalTerms(db, b, worldDate, seed);
       return (
-        playerChoiceScore(b, bTerms, preferences) - playerChoiceScore(a, aTerms, preferences) ||
+        playerChoiceScore(b, bTerms, effectivePreferences) -
+          playerChoiceScore(a, aTerms, effectivePreferences) ||
         bTerms.salary - aTerms.salary ||
         bTerms.contractLengthMonths - aTerms.contractLengthMonths ||
         String(a.id).localeCompare(String(b.id))
@@ -1947,7 +1964,14 @@ export const resolveCompetingPlayerOffers = (
     market.updateOfferStatus(winner.id, "ACCEPTED");
   }
   const winnerTerms = latestPersonalTerms(db, winner, worldDate, seed);
-  completePermanentTransfer(db, winner, worldDate, `${seed}:resolved`, preferences, winnerTerms);
+  completePermanentTransfer(
+    db,
+    winner,
+    worldDate,
+    `${seed}:resolved`,
+    effectivePreferences,
+    winnerTerms,
+  );
   return new TransferMarketRepository(db).transferOffers().find((offer) => offer.id === winner.id);
 };
 
@@ -2145,6 +2169,28 @@ const renewContract = (
     occurredOn: worldDate,
     data: { endDate: renewed.endDate },
   });
+  const agent = market.agentForPlayer(contract.playerId);
+  if (agent) {
+    const fee = agentFeeForContract(renewed.salary, agent);
+    postClubTransaction(db, {
+      clubId: contract.clubId,
+      date: worldDate,
+      category: "TRANSFER_EXPENSE",
+      direction: "DEBIT",
+      amount: fee,
+      description: "Player agent renewal fee",
+      relatedEntityId: renewed.id,
+      idempotencyKey: `agent-renewal-fee:${renewed.id}`,
+    });
+    settleAgentFee(db, {
+      playerId: contract.playerId,
+      payerClubId: contract.clubId,
+      amount: fee,
+      sourceEntityId: renewed.id,
+      eventType: "CONTRACT_RENEWAL",
+      date: worldDate,
+    });
+  }
 };
 
 const releasePlayer = (

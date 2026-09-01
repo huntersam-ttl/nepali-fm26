@@ -10,6 +10,43 @@ export type AgentCareerProfile = {
   provenanceStatus: "SIMULATION_ONLY";
 };
 
+export type AgentStrategyObjective =
+  | "STAY"
+  | "TRANSFER"
+  | "PLAYING_TIME"
+  | "WAGE"
+  | "REPUTATION"
+  | "SECURITY"
+  | "LOAN"
+  | "RENEWAL"
+  | "FREE_TRANSFER";
+
+export type AgentClientStrategy = {
+  id: EntityId;
+  agentId: EntityId;
+  playerId: EntityId;
+  objective: AgentStrategyObjective;
+  createdAt: ISODate;
+  updatedAt: ISODate;
+  status: "ACTIVE" | "COMPLETED" | "CANCELLED";
+  outcomeSummary?: string;
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+export type AgentFeeSettlement = {
+  id: EntityId;
+  agentId: EntityId;
+  playerId: EntityId;
+  payerClubId: EntityId;
+  amount: number;
+  currency: string;
+  eventType: "TRANSFER" | "CONTRACT_RENEWAL" | "FREE_AGENT_SIGNING";
+  sourceEntityId: EntityId;
+  settledOn: ISODate;
+  personalLedgerEntryId: EntityId;
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
 export type AgentPortfolioReadModel = {
   profile: AgentCareerProfile;
   clients: AgentClient[];

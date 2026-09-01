@@ -1,6 +1,8 @@
 import {
   CareerIdentityRepository,
   CareerTimelineRepository,
+  AgentCareerRepository,
+  ClubEconomyRepository,
   StaffMarketRepository,
   TransferMarketRepository,
   WorldRepository,
@@ -10,7 +12,10 @@ import {
   createStableEntityId,
   type AgentCareerProfile,
   type AgentClient,
+  type AgentClientStrategy,
+  type AgentFeeSettlement,
   type AgentProfile,
+  type AgentStrategyObjective,
   type AgentReputationOutcome,
   type CareerTimelineEvent,
   type CareerTimelineFilter,
@@ -53,6 +58,20 @@ export const createAgentCareer = (
       activeFrom: input.date,
     });
   new TransferMarketRepository(db).upsertAgent(input.profile);
+  const economy = new ClubEconomyRepository(db);
+  if (!economy.personalFinancialProfile(input.person.id)) {
+    economy.upsertPersonalFinancialProfile({
+      personId: input.person.id,
+      cash: 0,
+      investments: 0,
+      assets: 0,
+      liabilities: 0,
+      netWorth: 0,
+      currency: "NPR",
+      lastUpdatedAt: input.date,
+      status: "SIMULATION_ONLY",
+    });
+  }
   return {
     agent: input.profile,
     personId: input.person.id,
@@ -94,6 +113,17 @@ export const signAgentClient = (
     tension: 4,
     date: input.date,
   });
+  recordCareerTimelineEvent(db, {
+    id: createStableEntityId("career-timeline-agent-client", client.id),
+    personId: agent.personId,
+    occurredOn: input.date,
+    role: "AGENT",
+    category: "REPRESENTATION",
+    title: "Client signed",
+    importance: "MEDIUM",
+    sourceEntityId: input.playerId,
+    provenanceStatus: "SIMULATION_ONLY",
+  });
   return client;
 };
 
@@ -102,8 +132,183 @@ export const releaseAgentClient = (
   input: { playerId: EntityId; date: string },
 ): void => {
   const market = new TransferMarketRepository(db);
-  if (market.agentForPlayer(input.playerId)) market.endActiveAgentClient(input.playerId);
+  const agent = market.agentForPlayer(input.playerId);
+  if (agent) {
+    market.endActiveAgentClient(input.playerId);
+    recordCareerTimelineEvent(db, {
+      id: createStableEntityId(
+        "career-timeline-agent-client-ended",
+        `${agent.id}:${input.playerId}:${input.date}`,
+      ),
+      personId: agent.personId,
+      occurredOn: input.date,
+      role: "AGENT",
+      category: "REPRESENTATION",
+      title: "Client representation ended",
+      importance: "LOW",
+      sourceEntityId: input.playerId,
+      provenanceStatus: "SIMULATION_ONLY",
+    });
+  }
 };
+
+/** Persist the human/AI agent's current objective; only one strategy is active per client. */
+export const setAgentClientStrategy = (
+  db: GameDatabase,
+  input: { agentId: EntityId; playerId: EntityId; objective: AgentStrategyObjective; date: string },
+): AgentClientStrategy => {
+  const market = new TransferMarketRepository(db);
+  const client = market.agentClients(input.playerId).find((item) => item.status === "ACTIVE");
+  if (!client || client.agentId !== input.agentId)
+    throw new Error("Agent does not represent player.");
+  const repo = new AgentCareerRepository(db);
+  const previous = repo.activeStrategy(input.playerId);
+  repo.cancelActiveStrategies(input.playerId, input.date);
+  const strategy: AgentClientStrategy = {
+    id: createStableEntityId(
+      "agent-client-strategy",
+      `${input.agentId}:${input.playerId}:${input.date}`,
+    ),
+    agentId: input.agentId,
+    playerId: input.playerId,
+    objective: input.objective,
+    createdAt: previous?.createdAt ?? input.date,
+    updatedAt: input.date,
+    status: "ACTIVE",
+    provenanceStatus: "SIMULATION_ONLY",
+  };
+  repo.upsertStrategy(strategy);
+  return strategy;
+};
+
+export const agentClientStrategies = (
+  db: GameDatabase,
+  playerId?: EntityId,
+): AgentClientStrategy[] => new AgentCareerRepository(db).strategies(playerId);
+
+/** Apply a deliberately modest agent preference signal while retaining the player's own inputs. */
+export const effectiveAgentPlayerPreferences = <T extends Record<string, any>>(
+  db: GameDatabase,
+  playerId: EntityId,
+  preferences: T,
+): T => {
+  const strategy = new AgentCareerRepository(db).activeStrategy(playerId);
+  if (!strategy) return preferences;
+  const next: Record<string, any> = { ...preferences };
+  switch (strategy.objective) {
+    case "STAY":
+    case "RENEWAL":
+      next.currentClubSatisfaction = Math.min(100, (next.currentClubSatisfaction ?? 50) + 12);
+      break;
+    case "TRANSFER":
+      next.currentClubSatisfaction = Math.max(0, (next.currentClubSatisfaction ?? 50) - 12);
+      next.ambition = Math.min(100, (next.ambition ?? 50) + 6);
+      break;
+    case "PLAYING_TIME":
+    case "LOAN":
+      next.expectedPlayingTime = next.expectedPlayingTime ?? "FIRST_TEAM";
+      break;
+    case "WAGE":
+      next.ambition = Math.min(100, (next.ambition ?? 50) + 5);
+      break;
+    case "REPUTATION":
+      next.minimumClubLevel = Math.min(100, (next.minimumClubLevel ?? 0) + 8);
+      break;
+    case "SECURITY":
+      next.securityPreference = Math.min(10, (next.securityPreference ?? 6) + 1);
+      break;
+    case "FREE_TRANSFER":
+      next.currentClubSatisfaction = Math.max(0, (next.currentClubSatisfaction ?? 50) - 6);
+      break;
+  }
+  return next as T;
+};
+
+export const agentFeeForContract = (salary: number, agent: AgentProfile): number =>
+  Math.max(0, Math.round(salary * (0.02 + agent.feeExpectation / 500)));
+
+/** Credit the agent only after the existing club transfer/contract expense has posted. */
+export const settleAgentFee = (
+  db: GameDatabase,
+  input: {
+    playerId: EntityId;
+    payerClubId: EntityId;
+    amount: number;
+    sourceEntityId: EntityId;
+    eventType: AgentFeeSettlement["eventType"];
+    date: string;
+  },
+): AgentFeeSettlement | undefined => {
+  const market = new TransferMarketRepository(db);
+  const agent = market.agentForPlayer(input.playerId);
+  const amount = Math.max(0, Math.round(input.amount));
+  if (!agent || amount <= 0) return undefined;
+  const economy = new ClubEconomyRepository(db);
+  const account = economy.financialAccount(input.payerClubId);
+  const profile = economy.personalFinancialProfile(agent.personId);
+  if (!profile) {
+    economy.upsertPersonalFinancialProfile({
+      personId: agent.personId,
+      cash: 0,
+      investments: 0,
+      assets: 0,
+      liabilities: 0,
+      netWorth: 0,
+      currency: account?.currency ?? "NPR",
+      lastUpdatedAt: input.date,
+      status: "SIMULATION_ONLY",
+    });
+  }
+  const settlement: AgentFeeSettlement = {
+    id: createStableEntityId("agent-fee-settlement", `${input.sourceEntityId}:${input.eventType}`),
+    agentId: agent.id,
+    playerId: input.playerId,
+    payerClubId: input.payerClubId,
+    amount,
+    currency: account?.currency ?? profile?.currency ?? "NPR",
+    eventType: input.eventType,
+    sourceEntityId: input.sourceEntityId,
+    settledOn: input.date,
+    personalLedgerEntryId: createStableEntityId(
+      "agent-personal-ledger",
+      `${input.sourceEntityId}:${input.eventType}`,
+    ),
+    provenanceStatus: "SIMULATION_ONLY",
+  };
+  if (!new AgentCareerRepository(db).insertFeeSettlement(settlement)) return undefined;
+  economy.updatePersonalCash(agent.personId, amount, input.date);
+  const updatedAgent = {
+    ...agent,
+    reputation: clamp(agent.reputation + 2),
+  };
+  market.upsertAgent(updatedAgent);
+  const strategy = new AgentCareerRepository(db).activeStrategy(input.playerId);
+  if (strategy) {
+    new AgentCareerRepository(db).upsertStrategy({
+      ...strategy,
+      status: "COMPLETED",
+      updatedAt: input.date,
+      outcomeSummary: `${input.eventType.replaceAll("_", " ").toLowerCase()} completed`,
+    });
+  }
+  recordCareerTimelineEvent(db, {
+    id: createStableEntityId("career-timeline-agent-outcome", settlement.id),
+    personId: agent.personId,
+    occurredOn: input.date,
+    role: "AGENT",
+    category: input.eventType === "CONTRACT_RENEWAL" ? "CONTRACT" : "TRANSFER",
+    title:
+      input.eventType === "CONTRACT_RENEWAL" ? "Client contract renewed" : "Client move completed",
+    importance: input.amount >= 500000 ? "HIGH" : "MEDIUM",
+    clubId: input.payerClubId,
+    sourceEntityId: settlement.sourceEntityId,
+    provenanceStatus: "SIMULATION_ONLY",
+  });
+  return settlement;
+};
+
+export const agentFeeSettlements = (db: GameDatabase, agentId?: EntityId): AgentFeeSettlement[] =>
+  new AgentCareerRepository(db).feeSettlements(agentId);
 export const agentPortfolioReadModel = (
   db: GameDatabase,
   agentId: EntityId,
