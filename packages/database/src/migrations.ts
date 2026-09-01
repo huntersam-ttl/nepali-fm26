@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 76;
+export const CURRENT_DATABASE_VERSION = 77;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -3463,6 +3463,17 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       );
       CREATE INDEX IF NOT EXISTS idx_continental_coefficients_association
         ON continental_coefficient_snapshots(association_id, season_label);
+    `,
+  },
+  {
+    version: 77,
+    sql: `
+      CREATE TABLE IF NOT EXISTS club_executive_roles (
+        id TEXT PRIMARY KEY, club_id TEXT NOT NULL REFERENCES clubs(id), role TEXT NOT NULL,
+        person_id TEXT REFERENCES persons(id), appointment_id TEXT REFERENCES staff_appointments(id),
+        status TEXT NOT NULL, assigned_on TEXT NOT NULL, provenance_status TEXT NOT NULL,
+        UNIQUE(club_id, role)
+      );
     `,
   },
 ];

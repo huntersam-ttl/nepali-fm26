@@ -40,3 +40,4 @@ export * from "./international-trials-repository.js";
 export * from "./federation-policy-repository.js";
 export * from "./hosting-bid-repository.js";
 export * from "./continental-career-repository.js";
+export * from "./executive-role-repository.js";
