@@ -214,6 +214,10 @@ const TacticsBoard = ({
                 key={slot.id}
                 className={`slot ${selectedSlot === slot.id ? "slot-active" : ""}`}
                 style={{ left: `${slot.x}%`, top: `${100 - slot.y}%` }}
+                /* The slot is a toggle, and selection was shown only by colour;
+                   aria-pressed makes the same state available non-visually. */
+                aria-pressed={selectedSlot === slot.id}
+                aria-label={`${slot.label ?? slot.id}: ${fit?.playerName ?? "no player selected"}`}
                 onClick={() => setSelectedSlot(slot.id === selectedSlot ? null : slot.id)}
               >
                 <strong>{slot.label ?? slot.id}</strong>
@@ -279,11 +283,14 @@ const TacticsBoard = ({
                 ))}
               </select>
             </label>
+            {/* Fit scores are derived ratings, so they are read as whole numbers
+                rather than to two decimal places. */}
             {fitFor(selectedSlot) && fitFor(selectedSlot)!.overall > 0 && (
               <p className="subtle">
-                Role fit {fitFor(selectedSlot)!.overall} ({fitFor(selectedSlot)!.label}) · position{" "}
-                {fitFor(selectedSlot)!.positionFit} · attributes{" "}
-                {fitFor(selectedSlot)!.attributeFit}
+                Role fit {Math.round(fitFor(selectedSlot)!.overall)} (
+                {fitFor(selectedSlot)!.label}) · position{" "}
+                {Math.round(fitFor(selectedSlot)!.positionFit)} · attributes{" "}
+                {Math.round(fitFor(selectedSlot)!.attributeFit)}
               </p>
             )}
           </div>

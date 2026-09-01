@@ -333,6 +333,22 @@ tbody tr:hover {
   align-items: start;
 }
 
+/* Below roughly 1500px the two fixed side columns take enough room that the
+   pitch drops to its minimum. Narrowing them buys the pitch back, which is the
+   difference between the central midfielders colliding and clearing. */
+@media (max-width: 1500px) {
+  .tactics-layout {
+    grid-template-columns: 236px minmax(420px, 1fr) 252px;
+    gap: 12px;
+  }
+}
+
+.slot:hover,
+.slot:focus-visible,
+.slot.slot-active {
+  z-index: 3;
+}
+
 .controls {
   display: grid;
   gap: 12px;
@@ -366,7 +382,13 @@ tbody tr:hover {
 .slot {
   position: absolute;
   display: grid;
-  width: 104px;
+  /* Slots are placed as a percentage of the pitch, so a fixed width made
+     neighbouring positions collide once the pitch narrowed: a 4-3-3 puts its
+     central three about 12% apart, which is under 50px on a 360px pitch. Sizing
+     against the pitch keeps the spacing proportional, and the hovered or
+     selected slot lifts above its neighbours so it is always fully readable. */
+  width: min(104px, 15%);
+  z-index: 1;
   min-height: 48px;
   transform: translate(-50%, -50%);
   padding: 6px;
