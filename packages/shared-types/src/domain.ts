@@ -1015,6 +1015,7 @@ export type MatchEventType =
   | "SAVE"
   | "CORNER"
   | "FOUL"
+  | "FREE_KICK"
   | "YELLOW_CARD"
   | "RED_CARD"
   | "INJURY"

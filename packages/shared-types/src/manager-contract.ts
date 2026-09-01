@@ -23,6 +23,7 @@ import type {
   SquadDispute,
   SquadMeeting,
   SquadMeetingType,
+  SetPieceAssignments,
   TacticalFamiliarity,
   TacticalSetup,
   TeamCohesionLevel,
@@ -236,7 +237,7 @@ export type TacticsUpdateCommand = {
   instructions?: TeamInstructions;
   assignments?: Array<{ slotId: string; playerId?: EntityId; roleId: string }>;
   bench?: EntityId[];
-  setPieces?: Record<string, EntityId | undefined>;
+  setPieces?: SetPieceAssignments;
 };
 
 // ---------------------------------------------------------------------------

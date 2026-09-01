@@ -531,6 +531,33 @@ const simulateMinute = (state: LiveMatchState, rng: SeededRandom, minute: number
     const fouler = rng.pick(fouling.selection);
     fouling.stats.fouls += 1;
     pushEvent(state, minute, "FOUL", fouling.teamId, fouler.personId);
+    // A foul can create a set piece for the opponent. Record the routine and
+    // quality as event data so the existing analytics/read models can explain
+    // set-piece outcomes without inventing a separate event stream.
+    if (rng.next() < 0.35) {
+      const attacking = fouling === home ? away : home;
+      const routine = attacking.setup?.setPieces.freeKickRoutine ?? "CROSS";
+      const familiarity = attacking.setup
+        ? (attacking.setup.familiarity.instructions + attacking.setup.familiarity.roles) / 2
+        : 50;
+      const routineQuality = clamp(
+        0.86 + (familiarity - 50) / 500 + attacking.strength.setPieces / 500,
+        0.86,
+        1.16,
+      );
+      pushEvent(
+        state,
+        minute,
+        "FREE_KICK",
+        attacking.teamId,
+        attacking.setup?.setPieces.directFreeKickTaker,
+        undefined,
+        {
+          routine,
+          routineQuality: Number(routineQuality.toFixed(3)),
+        },
+      );
+    }
     if (rng.next() < 0.105 * fouling.tactical.discipline) {
       bookPlayer(state, fouling, fouler.personId, minute);
     }
@@ -1240,6 +1267,7 @@ const IMPORTANCE: Record<string, MatchEventImportance> = {
   SHOT: "MINOR",
   CORNER: "MINOR",
   FOUL: "MINOR",
+  FREE_KICK: "MINOR",
 };
 
 export const matchEventImportance = (event: MatchEvent): MatchEventImportance => {
