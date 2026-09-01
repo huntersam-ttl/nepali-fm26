@@ -40,7 +40,10 @@ export const PlayerProfileScreen = ({
           <>
             <Panel title={player.name}>
               <p className="subtle">
-                {player.fullName} · {player.primaryPosition}
+                {/* The panel is titled with the display name, so the full name is
+                    only worth repeating when it actually says something more. */}
+                {player.fullName !== player.name && `${player.fullName} · `}
+                {player.primaryPosition}
                 {player.secondaryPositions.length > 0 &&
                   ` (${player.secondaryPositions.join(", ")})`}{" "}
                 ·{" "}
