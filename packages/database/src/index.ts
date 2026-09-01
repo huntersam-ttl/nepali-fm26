@@ -38,3 +38,4 @@ export * from "./referee-assignment-repository.js";
 export * from "./global-football-context-repository.js";
 export * from "./international-trials-repository.js";
 export * from "./federation-policy-repository.js";
+export * from "./hosting-bid-repository.js";

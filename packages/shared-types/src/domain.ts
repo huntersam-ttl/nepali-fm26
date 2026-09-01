@@ -2078,6 +2078,7 @@ export type CompetitionMediaRights = {
   endDate?: ISODate;
   contractStatus?: "OFFERED" | "ACTIVE" | "EXPIRED" | "REJECTED";
   exclusive?: boolean;
+  distributionModel?: "EQUAL_SHARE" | "MERIT_SHARE" | "MIXED_EQUAL_MERIT";
   status: "SIMULATION_ONLY" | "VERIFIED" | "REPORTED" | "ESTIMATED" | "UNKNOWN";
 };
 

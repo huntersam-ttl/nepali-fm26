@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 74;
+export const CURRENT_DATABASE_VERSION = 75;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -3441,6 +3441,15 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       );
       CREATE INDEX IF NOT EXISTS idx_federation_campaign_cycle ON federation_campaigns(cycle_id, status);
       CREATE INDEX IF NOT EXISTS idx_federation_policy_federation ON federation_policies(federation_id, status, start_date);
+    `,
+  },
+  {
+    version: 75,
+    sql: `
+      CREATE TABLE IF NOT EXISTS federation_hosting_bids (
+        id TEXT PRIMARY KEY, federation_id TEXT NOT NULL REFERENCES federations(id), event_type TEXT NOT NULL, event_name TEXT NOT NULL, host_scope TEXT NOT NULL, venue_id TEXT, readiness REAL NOT NULL, funding_plan REAL NOT NULL, government_support REAL NOT NULL, federation_contribution REAL NOT NULL, projected_benefit REAL NOT NULL, status TEXT NOT NULL, proposed_on TEXT NOT NULL, decision_date TEXT, provenance_status TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_federation_hosting_bids_status ON federation_hosting_bids(federation_id, status, proposed_on);
     `,
   },
 ];
