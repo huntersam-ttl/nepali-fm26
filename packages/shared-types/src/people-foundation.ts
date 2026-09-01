@@ -45,3 +45,20 @@ export type PersonRelationship = {
   updatedOn: ISODate;
   provenanceStatus: "SIMULATION_ONLY";
 };
+
+export type MentoringFocus = "TECHNICAL" | "TACTICAL" | "PROFESSIONALISM" | "LEADERSHIP";
+export type MentoringStatus = "ACTIVE" | "COMPLETED" | "CANCELLED";
+
+export type MentoringAssignment = {
+  id: EntityId;
+  mentorPersonId: EntityId;
+  menteePersonId: EntityId;
+  teamId: EntityId;
+  focus: MentoringFocus;
+  startDate: ISODate;
+  endDate?: ISODate;
+  progress: number;
+  status: MentoringStatus;
+  updatedOn: ISODate;
+  provenanceStatus: "SIMULATION_ONLY";
+};

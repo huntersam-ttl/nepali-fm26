@@ -1,5 +1,6 @@
 import type {
   EntityId,
+  MentoringAssignment,
   PersonPersonalityProfile,
   PersonRelationship,
 } from "@nepal-football-sim/shared-types";
@@ -22,6 +23,20 @@ const relationship = (row: any): PersonRelationship => ({
   trust: row.trust,
   respect: row.respect,
   tension: row.tension,
+  updatedOn: row.updated_on,
+  provenanceStatus: row.provenance_status,
+});
+
+const mentoring = (row: any): MentoringAssignment => ({
+  id: row.id,
+  mentorPersonId: row.mentor_person_id,
+  menteePersonId: row.mentee_person_id,
+  teamId: row.team_id,
+  focus: row.focus,
+  startDate: row.start_date,
+  endDate: row.end_date ?? undefined,
+  progress: row.progress,
+  status: row.status,
   updatedOn: row.updated_on,
   provenanceStatus: row.provenance_status,
 });
@@ -107,5 +122,51 @@ export class PeopleFoundationRepository {
         )
         .all(personId, personId) as any[]
     ).map(relationship);
+  }
+
+  upsertMentoringAssignment(value: MentoringAssignment): void {
+    this.db
+      .prepare(
+        `
+      INSERT INTO mentoring_assignments
+        (id, mentor_person_id, mentee_person_id, team_id, focus, start_date, end_date, progress, status, updated_on, provenance_status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(mentor_person_id, mentee_person_id, team_id, focus) DO UPDATE SET
+        end_date=excluded.end_date, progress=excluded.progress, status=excluded.status, updated_on=excluded.updated_on
+    `,
+      )
+      .run(
+        value.id,
+        value.mentorPersonId,
+        value.menteePersonId,
+        value.teamId,
+        value.focus,
+        value.startDate,
+        value.endDate ?? null,
+        value.progress,
+        value.status,
+        value.updatedOn,
+        value.provenanceStatus,
+      );
+  }
+
+  activeMentoringForTeam(teamId: EntityId): MentoringAssignment[] {
+    return (
+      this.db
+        .prepare(
+          "SELECT * FROM mentoring_assignments WHERE team_id=? AND status='ACTIVE' ORDER BY id",
+        )
+        .all(teamId) as any[]
+    ).map(mentoring);
+  }
+
+  mentoringForPerson(personId: EntityId): MentoringAssignment[] {
+    return (
+      this.db
+        .prepare(
+          "SELECT * FROM mentoring_assignments WHERE mentor_person_id=? OR mentee_person_id=? ORDER BY id",
+        )
+        .all(personId, personId) as any[]
+    ).map(mentoring);
   }
 }

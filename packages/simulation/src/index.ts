@@ -50,6 +50,7 @@ export * from "./player-development.js";
 export * from "./player-development-plans.js";
 export * from "./player-profile-generation.js";
 export * from "./people-foundation.js";
+export * from "./mentoring.js";
 export * from "./player-profile-reconciliation.js";
 export * from "./pyramid-progression.js";
 export * from "./rng.js";

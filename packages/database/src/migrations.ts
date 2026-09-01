@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 71;
+export const CURRENT_DATABASE_VERSION = 72;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -3392,6 +3392,29 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
         ON person_relationships(from_person_id, relationship_kind);
       CREATE INDEX IF NOT EXISTS idx_person_relationships_to
         ON person_relationships(to_person_id, relationship_kind);
+    `,
+  },
+  {
+    version: 72,
+    sql: `
+      CREATE TABLE IF NOT EXISTS mentoring_assignments (
+        id TEXT PRIMARY KEY,
+        mentor_person_id TEXT NOT NULL REFERENCES persons(id),
+        mentee_person_id TEXT NOT NULL REFERENCES persons(id),
+        team_id TEXT NOT NULL REFERENCES teams(id),
+        focus TEXT NOT NULL,
+        start_date TEXT NOT NULL,
+        end_date TEXT,
+        progress INTEGER NOT NULL,
+        status TEXT NOT NULL,
+        updated_on TEXT NOT NULL,
+        provenance_status TEXT NOT NULL,
+        UNIQUE(mentor_person_id, mentee_person_id, team_id, focus)
+      );
+      CREATE INDEX IF NOT EXISTS idx_mentoring_assignments_team_status
+        ON mentoring_assignments(team_id, status);
+      CREATE INDEX IF NOT EXISTS idx_mentoring_assignments_person_status
+        ON mentoring_assignments(mentor_person_id, mentee_person_id, status);
     `,
   },
 ];
