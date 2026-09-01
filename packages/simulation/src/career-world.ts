@@ -14,6 +14,7 @@ import {
 import {
   CompetitionRepository,
   PlayerRepository,
+  ManagerRepository,
   SupporterCultureRepository,
   FootballHistoryRepository,
   WorldRepository,
@@ -65,6 +66,7 @@ import {
 import { calculateStandings, sortStandings, summarizePlayerStats } from "./standings.js";
 import { initializeTransferMarketForSave, simulateTransferWindow } from "./transfer-market.js";
 import { runClubAiSeasonPlanning } from "./ai-club-strategy.js";
+import { manageAiPromisesForTeam } from "./squad-dynamics.js";
 import { ensureAiStaffAssigned, evaluateAllStaffContracts } from "./staff-market.js";
 import { settleFederationInjuryWelfare, settleMatchInjuryInsurance } from "./insurance.js";
 import { processInternationalTrials } from "./international-trials.js";
@@ -329,6 +331,7 @@ export const simulateNepalCareer = (input: {
       const report = simulateCompetitionSeason(input.db, {
         ...season,
         seed: `${input.seed}:season:${index}:${season.season.id}`,
+        save,
         maxFixtures: input.maxFixturesPerSeason,
         economyEnabled,
       });
@@ -610,7 +613,12 @@ const processFederationForSeasonPeriod = (
 
 const simulateCompetitionSeason = (
   db: GameDatabase,
-  input: RunnableSeason & { seed: string; maxFixtures?: number; economyEnabled?: boolean },
+  input: RunnableSeason & {
+    seed: string;
+    save: SaveMetadata;
+    maxFixtures?: number;
+    economyEnabled?: boolean;
+  },
 ): CareerSeasonReport => {
   const competitions = new CompetitionRepository(db);
   const players = new PlayerRepository(db);
@@ -621,6 +629,10 @@ const simulateCompetitionSeason = (
   let playedThisRun = 0;
   const allResults: MatchResult[] = [];
   const squadHealth = blankSquadHealth();
+  const managers = new ManagerRepository(db);
+  const humanPersonId = input.save.playerCharacterId
+    ? new WorldRepository(db).getCareerCharacter(input.save.playerCharacterId)?.personId
+    : undefined;
   // Team assignments and player attributes do not change during one
   // competition season. Keep the static roster projection local to this
   // bounded pass; availability and suspensions remain fixture-date queries.
@@ -687,6 +699,17 @@ const simulateCompetitionSeason = (
     recordMatchKnowledge(db, fixture, result, fixture.scheduledDate, input.seed);
     simulateScoutingDay({ db, worldDate: fixture.scheduledDate, seed: input.seed });
     processInternationalTrials(db, { worldDate: fixture.scheduledDate });
+    for (const teamId of [fixture.homeTeamId, fixture.awayTeamId]) {
+      const managerContract = managers.activeContractForTeam(teamId);
+      if (!managerContract || managerContract.personId === humanPersonId) continue;
+      manageAiPromisesForTeam(
+        db,
+        { ...input.save, worldDate: fixture.scheduledDate },
+        teamId,
+        clubIdForTeam(db, teamId),
+        managerContract.managerProfileId,
+      );
+    }
     playedThisRun += 1;
   }
 

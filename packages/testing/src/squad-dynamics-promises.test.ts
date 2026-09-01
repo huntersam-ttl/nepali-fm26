@@ -16,6 +16,7 @@ import {
   ConcernActionError,
   createCareerCharacter,
   evaluateSquadDynamics,
+  manageAiPromisesForTeam,
   respondToConcern,
   testLicence,
 } from "@nepal-football-sim/simulation";
@@ -24,6 +25,7 @@ import {
   type Club,
   type EntityId,
   type PlayerAttributeSet,
+  type PlayerConcern,
   type Team,
 } from "@nepal-football-sim/shared-types";
 
@@ -344,6 +346,95 @@ describe("squad dynamics phase B: conversations and promises", () => {
     expect(promises.length).toBeGreaterThan(0);
     const responses = dynamics.responsesForConcern(concernId);
     expect(responses.length).toBeGreaterThan(0);
+  });
+
+  it("lets an AI manager make one feasible promise through the canonical path", () => {
+    let dynamics = new SquadDynamicsRepository(db);
+    const concern: PlayerConcern = {
+      id: createStableEntityId("concern", "ai-playing-time"),
+      personId: keyPlayerId,
+      teamId: team.id,
+      type: "PLAYING_TIME",
+      status: "ACTIVE",
+      severity: 7,
+      raisedOn: "2026-10-15",
+      updatedOn: "2026-10-15",
+    };
+    dynamics.upsertConcern(concern);
+    const storedConcern = dynamics.concern(keyPlayerId, team.id, "PLAYING_TIME")!;
+    // Keep contract-review feasibility out of this isolated AI playing-time case.
+    db.prepare("UPDATE player_contracts SET end_date = ? WHERE player_id = ?").run(
+      "2027-12-01",
+      keyPlayerId,
+    );
+    db.prepare(
+      "UPDATE player_season_stats SET appearances = 1 WHERE person_id = ? AND team_id = ?",
+    ).run(keyPlayerId, team.id);
+
+    const outcome = manageAiPromisesForTeam(
+      db,
+      saveAt("2026-10-15"),
+      team.id,
+      club.id,
+      managerProfileId,
+    );
+    expect(outcome.createdPromises).toHaveLength(1);
+    expect(outcome.createdPromises[0]!.type).toBe("PLAYING_TIME");
+    expect(dynamics.responsesForConcern(storedConcern.id).at(-1)!.outcome).toBe("ACCEPTED");
+
+    const replay = manageAiPromisesForTeam(
+      db,
+      saveAt("2026-10-15"),
+      team.id,
+      club.id,
+      managerProfileId,
+    );
+    expect(replay.createdPromises).toHaveLength(0);
+
+    db.close();
+    db = openGameDatabase(dbPath);
+    dynamics = new SquadDynamicsRepository(db);
+    expect(dynamics.promiseById(outcome.createdPromises[0]!.id)?.status).toBe("ACTIVE");
+
+    db.prepare(
+      "UPDATE player_season_stats SET appearances = 5 WHERE person_id = ? AND team_id = ?",
+    ).run(keyPlayerId, team.id);
+    const aiPromise = outcome.createdPromises[0]!;
+    evaluateSquadDynamics(db, saveAt(aiPromise.dueOn), team.id, club.id, managerProfileId);
+    expect(dynamics.promiseById(aiPromise.id)!.status).toBe("FULFILLED");
+    const relationshipAfterFulfilment =
+      dynamics.relationship(managerProfileId, keyPlayerId)?.score ?? 0;
+    evaluateSquadDynamics(db, saveAt(aiPromise.dueOn), team.id, club.id, managerProfileId);
+    expect(dynamics.relationship(managerProfileId, keyPlayerId)?.score).toBe(
+      relationshipAfterFulfilment,
+    );
+  });
+
+  it("does not create an AI transfer promise without a real transfer concern", () => {
+    const dynamics = new SquadDynamicsRepository(db);
+    db.prepare(
+      "UPDATE player_season_stats SET appearances = 5 WHERE person_id = ? AND team_id = ?",
+    ).run(keyPlayerId, team.id);
+    const concern: PlayerConcern = {
+      id: createStableEntityId("concern", "ai-transfer-infeasible"),
+      personId: keyPlayerId,
+      teamId: team.id,
+      type: "TRANSFER_INTEREST",
+      status: "ACTIVE",
+      severity: 7,
+      raisedOn: "2027-02-01",
+      updatedOn: "2027-02-01",
+    };
+    dynamics.upsertConcern(concern);
+    const outcome = manageAiPromisesForTeam(
+      db,
+      saveAt("2027-02-01"),
+      team.id,
+      club.id,
+      managerProfileId,
+    );
+    expect(outcome.createdPromises).toHaveLength(0);
+    expect(dynamics.activePromiseForConcern(concern.id)).toBeUndefined();
   });
 });
 

@@ -6,6 +6,7 @@ import {
 } from "@nepal-football-sim/database";
 import {
   createEntityId,
+  createStableEntityId,
   type CaptainInfluence,
   type ClubSatisfactionLevel,
   type ConcernResponseAction,
@@ -266,6 +267,7 @@ export type SquadDynamicsOutcome = {
   raisedConcerns: PlayerConcern[];
   escalatedConcerns: PlayerConcern[];
   resolvedConcerns: PlayerConcern[];
+  createdPromises: ManagerPromise[];
   keptPromises: ManagerPromise[];
   atRiskPromises: ManagerPromise[];
   brokenPromises: ManagerPromise[];
@@ -308,6 +310,7 @@ export const evaluateSquadDynamics = (
     raisedConcerns: [],
     escalatedConcerns: [],
     resolvedConcerns: [],
+    createdPromises: [],
     keptPromises: [],
     atRiskPromises: [],
     brokenPromises: [],
@@ -437,6 +440,92 @@ export const evaluateSquadDynamics = (
 
   evaluateTeamCohesion(db, save, teamId, managerProfileId, hierarchy, groupByPerson, outcome);
 
+  return outcome;
+};
+
+/**
+ * Gives an AI manager the same narrow promise entry point as a human manager.
+ * This is deliberately event-driven: callers invoke it after a relevant AI
+ * fixture, and it considers at most one highest-severity concern per event.
+ * It never writes a terminal status; the canonical evaluator remains the only
+ * authority for fulfilment, breakage, expiry and consequences.
+ */
+export const manageAiPromisesForTeam = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  teamId: EntityId,
+  clubId: EntityId | undefined,
+  managerProfileId: EntityId,
+): SquadDynamicsOutcome => {
+  const outcome = evaluateSquadDynamics(db, save, teamId, clubId, managerProfileId);
+  const dynamics = new SquadDynamicsRepository(db);
+  const transfers = new TransferMarketRepository(db);
+  const concern = dynamics
+    .concernsForTeam(teamId)
+    .filter(
+      (entry) =>
+        entry.status !== "RESOLVED" && !dynamics.activePromiseForConcern(entry.id),
+    )
+    .sort((a, b) => b.severity - a.severity || a.id.localeCompare(b.id))[0];
+  if (!concern) return outcome;
+
+  const contract = transfers.activeContract(concern.personId, save.worldDate);
+  let action: ConcernResponseAction | undefined;
+  if (concern.type === "PLAYING_TIME") {
+    const currentlyUnavailable = Number(
+      (
+        db
+          .prepare(
+            "SELECT COUNT(*) AS count FROM injuries WHERE person_id = ? AND date_occurred <= ? AND expected_recovery_date > ?",
+          )
+          .get(concern.personId, save.worldDate, save.worldDate) as SqlRow | undefined
+      )?.count ?? 0,
+    );
+    if (contract && currentlyUnavailable === 0 && contract.squadRole !== "YOUTH") {
+      action = "PROMISE_PLAYING_TIME";
+    }
+  } else if (concern.type === "CONTRACT") {
+    const daysLeft = contract ? daysBetween(save.worldDate, contract.endDate) : 0;
+    if (contract && daysLeft > 0 && daysLeft <= 180) action = "PROMISE_CONTRACT_REVIEW";
+  } else if (concern.type === "TRANSFER_INTEREST") {
+    const status = transfers.transferStatus(concern.personId)?.status;
+    if (status === "INTERESTED_IN_MOVE") action = "PROMISE_TRANSFER_STANCE";
+  }
+
+  // Role, loan and squad-strengthening commitments require a concrete AI
+  // action path that is not currently present in the match planner. Leaving
+  // them unmade is safer than promising an outcome the AI cannot pursue.
+  if (!action) return outcome;
+
+  const promise = createPromise(
+    db,
+    save,
+    managerProfileId,
+    concern,
+    PROMISE_TYPE_FOR_ACTION[action]!,
+  );
+  const response: ManagerConcernResponse = {
+    id: createStableEntityId(
+      "ai-promise-response",
+      `${managerProfileId}:${concern.id}:${save.worldDate}:${action}`,
+    ),
+    concernId: concern.id,
+    managerProfileId,
+    personId: concern.personId,
+    teamId,
+    action,
+    outcome: "ACCEPTED",
+    promiseId: promise.id,
+    occurredOn: save.worldDate,
+  };
+  dynamics.insertConcernResponse(response);
+  logEvent(db, concern.personId, teamId, managerProfileId, "CONCERN_RESPONSE", save.worldDate, {
+    action,
+    outcome: response.outcome,
+    ai: true,
+  });
+  dynamics.upsertConcern({ ...concern, status: "ACTIVE", updatedOn: save.worldDate });
+  outcome.createdPromises.push(promise);
   return outcome;
 };
 
