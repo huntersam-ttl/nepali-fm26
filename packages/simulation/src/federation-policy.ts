@@ -91,6 +91,17 @@ const federationOutcomes = (db: GameDatabase, federationId: EntityId): Federatio
     )
     .all(federationId) as Array<{ player_id: EntityId }>;
   const academyIds = new Set(academyPlayers.map((row) => row.player_id));
+  const intakeEvents = db
+    .prepare(
+      `SELECT COALESCE(yie.season_label, substr(gpo.generated_on, 1, 4)) AS season_label,
+              gpo.player_id
+       FROM generated_player_origins gpo
+       LEFT JOIN youth_intake_events yie ON yie.id = gpo.intake_event_id
+       WHERE gpo.academy_id IS NOT NULL
+         AND gpo.country_id = (SELECT country_id FROM federations WHERE id = ?)
+       ORDER BY season_label, player_id`,
+    )
+    .all(federationId) as Array<{ season_label: string; player_id: EntityId }>;
   const playerStats = db
     .prepare(
       `SELECT person_id, SUM(appearances) AS appearances
@@ -100,6 +111,9 @@ const federationOutcomes = (db: GameDatabase, federationId: EntityId): Federatio
        GROUP BY person_id`,
     )
     .all() as Array<{ person_id: EntityId; appearances: number }>;
+  const appearancesByPlayer = new Map(
+    playerStats.map((row) => [row.person_id, Number(row.appearances)]),
+  );
   const firstTeamDebuts = playerStats.filter((row) => academyIds.has(row.person_id)).length;
   const regularFirstTeamPlayers = playerStats.filter(
     (row) => academyIds.has(row.person_id) && Number(row.appearances) >= 10,
@@ -110,7 +124,40 @@ const federationOutcomes = (db: GameDatabase, federationId: EntityId): Federatio
   const seniorNationalPlayers = [...academyIds].filter((id) =>
     nationalByPlayer.get(id)?.has("senior"),
   ).length;
-  const womenProgress = outcomes.women.fixtures + womenNationalAppearances;
+  const womenOrigins = new Set(
+    (
+      db
+        .prepare(
+          `SELECT DISTINCT gpo.player_id
+           FROM generated_player_origins gpo
+           JOIN persons p ON p.id = gpo.player_id
+           WHERE gpo.country_id = (SELECT country_id FROM federations WHERE id = ?)
+             AND p.gender_presentation = 'female'`,
+        )
+        .all(federationId) as Array<{ player_id: EntityId }>
+    ).map((row) => row.player_id),
+  );
+  const womenAcademyProgression = [...womenOrigins].filter(
+    (id) => (appearancesByPlayer.get(id) ?? 0) > 0,
+  ).length;
+  const womenYouthProgression = [...womenOrigins].filter((id) =>
+    nationalAppearances.some(
+      (appearance) =>
+        appearance.playerId === id && teamKinds.get(appearance.nationalTeamId) === "youth",
+    ),
+  ).length;
+  const womenSeniorProgression = [...womenOrigins].filter((id) =>
+    nationalAppearances.some(
+      (appearance) =>
+        appearance.playerId === id && teamKinds.get(appearance.nationalTeamId) === "women",
+    ),
+  ).length;
+  const womenPolicyProgress = new FederationPolicyRepository(db)
+    .policies(federationId)
+    .filter((policy) => policy.category === "WOMENS_DEVELOPMENT")
+    .reduce((max, policy) => Math.max(max, policy.implementationProgress), 0);
+  const womenProgress =
+    outcomes.women.fixtures + womenNationalAppearances + womenPolicyProgress / 12;
   const girlsDevelopment =
     womenProgress >= 8
       ? "ESTABLISHED"
@@ -128,6 +175,74 @@ const federationOutcomes = (db: GameDatabase, federationId: EntityId): Federatio
   ] as const;
   const strongest = [...stages].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0];
   const weakest = [...stages].sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0]))[0][0];
+  const academyConversionBySeason = [...new Set(intakeEvents.map((row) => row.season_label))].map(
+    (seasonLabel) => {
+      const cohort = [
+        ...new Set(
+          intakeEvents
+            .filter((row) => row.season_label === seasonLabel)
+            .map((row) => row.player_id),
+        ),
+      ];
+      const cohortSet = new Set(cohort);
+      const firstTeam = new Set(
+        playerStats
+          .filter((row) => cohortSet.has(row.person_id) && Number(row.appearances) > 0)
+          .map((row) => row.person_id),
+      );
+      const regular = new Set(
+        playerStats
+          .filter((row) => cohortSet.has(row.person_id) && Number(row.appearances) >= 10)
+          .map((row) => row.person_id),
+      );
+      const youth = cohort.filter((id) => nationalByPlayer.get(id)?.has("youth")).length;
+      const senior = cohort.filter((id) => nationalByPlayer.get(id)?.has("senior")).length;
+      const meaningfulExternalTransfers = cohort.length
+        ? new Set(
+            (
+              db
+                .prepare(
+                  `SELECT DISTINCT the.player_id
+                 FROM transfer_history_events the
+                 JOIN clubs c ON c.id = the.related_club_id
+                 JOIN countries co ON co.id = c.country_id
+                 WHERE the.event_type = 'TRANSFER_COMPLETED'
+                   AND co.iso_code NOT IN ('NP', 'NPL')
+                   AND the.player_id IN (${cohort.map(() => "?").join(",")})`,
+                )
+                .all(...cohort) as Array<{ player_id: EntityId }>
+            ).map((row) => row.player_id),
+          ).size
+        : 0;
+      const sampleSize = cohort.length;
+      return {
+        seasonLabel,
+        intakeCount: sampleSize,
+        academyGraduates: firstTeam.size,
+        firstTeamDebuts: firstTeam.size,
+        regularFirstTeamPlayers: regular.size,
+        youthNationalCallups: youth,
+        seniorNationalCallups: senior,
+        meaningfulExternalTransfers,
+        sampleSize,
+        confidence: (sampleSize >= 10 ? "HIGH" : sampleSize >= 3 ? "MEDIUM" : "LOW") as
+          "LOW" | "MEDIUM" | "HIGH",
+      };
+    },
+  );
+  const support =
+    new FederationPolicyRepository(db)
+      .policies(federationId)
+      .some(
+        (policy) => policy.category === "WOMENS_DEVELOPMENT" && policy.implementationProgress > 0,
+      ) ||
+    Boolean(
+      db
+        .prepare(
+          "SELECT 1 FROM federation_projects WHERE federation_id = ? AND project_type = 'WOMENS_DEVELOPMENT' AND status = 'COMPLETED' LIMIT 1",
+        )
+        .get(federationId),
+    );
   return {
     senior: outcomes.senior,
     youth: outcomes.youth,
@@ -138,6 +253,15 @@ const federationOutcomes = (db: GameDatabase, federationId: EntityId): Federatio
       regularFirstTeamPlayers,
       youthNationalPlayers,
       seniorNationalPlayers,
+    },
+    academyConversionBySeason,
+    womenProgramme: {
+      participationBand: girlsDevelopment,
+      intakeCount: womenOrigins.size,
+      academyProgression: womenAcademyProgression,
+      youthNationalProgression: womenYouthProgression,
+      seniorNationalProgression: womenSeniorProgression,
+      coachingInfrastructureSupport: support ? "PRESENT" : "LIMITED",
     },
     girlsDevelopment,
     strongestPathwayStage: strongest,

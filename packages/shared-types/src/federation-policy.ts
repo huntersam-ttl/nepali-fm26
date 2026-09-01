@@ -70,6 +70,26 @@ export type FederationOutcomeSummary = {
     youthNationalPlayers: number;
     seniorNationalPlayers: number;
   };
+  academyConversionBySeason: Array<{
+    seasonLabel: string;
+    intakeCount: number;
+    academyGraduates: number;
+    firstTeamDebuts: number;
+    regularFirstTeamPlayers: number;
+    youthNationalCallups: number;
+    seniorNationalCallups: number;
+    meaningfulExternalTransfers: number;
+    sampleSize: number;
+    confidence: "LOW" | "MEDIUM" | "HIGH";
+  }>;
+  womenProgramme: {
+    participationBand: "LIMITED" | "BUILDING" | "PROGRESSING" | "ESTABLISHED";
+    intakeCount: number;
+    academyProgression: number;
+    youthNationalProgression: number;
+    seniorNationalProgression: number;
+    coachingInfrastructureSupport: "LIMITED" | "PRESENT";
+  };
   girlsDevelopment: "LIMITED" | "BUILDING" | "PROGRESSING" | "ESTABLISHED";
   strongestPathwayStage: string;
   weakestPathwayStage: string;
