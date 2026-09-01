@@ -2,6 +2,7 @@ import { ClubLicensingRepository, type GameDatabase } from "@nepal-football-sim/
 import type { EntityId, SaveMetadata } from "@nepal-football-sim/shared-types";
 import { assertExecutiveAuthority } from "./executive-roles.js";
 import { acceptSponsorOfferCommand, setClubBudgetCommand } from "./club-economy.js";
+import { applyForClubLoanCommand } from "./club-finance-markets.js";
 import { closeClubLicenceCycle } from "./licensing.js";
 import { registerWomenYouthTeam } from "./womens-youth.js";
 import { hireStaff } from "./staff-market.js";
@@ -42,6 +43,26 @@ export const setBudgetForExecutive = (
 ) => {
   requireAuthority(db, input.clubId, input.actor, "BUDGET_ADMINISTRATION");
   return setClubBudgetCommand(db, { ...input, personId: input.actor.personId, callerRole: "CEO" });
+};
+
+export const applyClubLoanForExecutive = (
+  db: GameDatabase,
+  input: {
+    clubId: EntityId;
+    lenderId: EntityId;
+    principal: number;
+    termMonths: number;
+    purpose: string;
+    date: string;
+    actor: Executive;
+  },
+) => {
+  requireAuthority(db, input.clubId, input.actor, "BUDGET_ADMINISTRATION");
+  return applyForClubLoanCommand(db, {
+    ...input,
+    personId: input.actor.personId,
+    callerRole: "CEO",
+  });
 };
 
 export const closeLicenceForSecretary = (

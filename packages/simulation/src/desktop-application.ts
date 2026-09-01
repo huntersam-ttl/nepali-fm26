@@ -43,10 +43,10 @@ import {
 } from "./clubmart.js";
 import {
   advanceClubLoanRepayments,
-  applyForClubLoan,
+  applyForClubLoanCommand,
   decideManagerBudgetRequest,
   initializeClubFinanceMarkets,
-  repayClubLoan,
+  repayClubLoanCommand,
   submitManagerBudgetRequest,
 } from "./club-finance-markets.js";
 import {
@@ -1291,8 +1291,10 @@ export class DesktopApplicationService {
       )?.targetId;
       if (!clubId) throw appError("ROLE_NOT_AUTHORIZED", "No controlled club is available.");
       try {
-        return applyForClubLoan(db, {
+        return applyForClubLoanCommand(db, {
           clubId,
+          personId,
+          callerRole: "CHAIRMAN_OWNER",
           lenderId,
           principal,
           termMonths,
@@ -1317,7 +1319,13 @@ export class DesktopApplicationService {
           "Only the active chairman/owner may repay club loans.",
         );
       try {
-        return repayClubLoan(db, { debtId, amount, date: save.worldDate });
+        return repayClubLoanCommand(db, {
+          debtId,
+          personId,
+          callerRole: "CHAIRMAN_OWNER",
+          amount,
+          date: save.worldDate,
+        });
       } catch (error) {
         throw appError(
           "INVALID_SELECTION",

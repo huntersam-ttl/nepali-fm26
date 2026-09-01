@@ -1,5 +1,6 @@
 import {
   ClubEconomyRepository,
+  ExecutiveRoleRepository,
   type GameDatabase,
 } from "@nepal-football-sim/database";
 import {
@@ -12,6 +13,62 @@ import {
   type ManagerBudgetRequest,
 } from "@nepal-football-sim/shared-types";
 import { calculateClubValuation, postClubTransaction, setClubBudget } from "./club-economy.js";
+import { canExecutiveAct } from "./executive-roles.js";
+
+export class ClubFinanceAuthorityError extends Error {
+  constructor(
+    readonly code: "NOT_AUTHORIZED",
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+/**
+ * Club loan administration is a controlling-owner decision by default, the
+ * same as club budgets and sponsorship — but a CEO the owner has actually
+ * assigned to BUDGET_ADMINISTRATION may also act, using the same
+ * executive-authority model already governing budgets/sponsorship/
+ * infrastructure. This never removes the owner's own authority (majority
+ * control is always authoritative); it only adds the CEO as a second
+ * legitimate actor when one has genuinely been delegated the domain.
+ */
+const assertClubFinanceAuthority = (
+  db: GameDatabase,
+  clubId: EntityId,
+  personId: EntityId,
+  callerRole: "MANAGER" | "CHAIRMAN_OWNER" | "FEDERATION_PRESIDENT" | "CEO",
+): void => {
+  if (callerRole === "CHAIRMAN_OWNER") {
+    const controllingStake = db
+      .prepare(
+        "SELECT 1 FROM club_ownership_stakes WHERE club_id=? AND holder_type='PERSON' AND holder_id=? AND status='ACTIVE' AND percentage>=51 LIMIT 1",
+      )
+      .get(clubId, personId);
+    if (!controllingStake) {
+      throw new ClubFinanceAuthorityError(
+        "NOT_AUTHORIZED",
+        "Only a controlling owner or an assigned CEO may administer club finance.",
+      );
+    }
+    return;
+  }
+  if (callerRole === "CEO") {
+    const assignment = new ExecutiveRoleRepository(db)
+      .rolesForClub(clubId)
+      .find((role) => role.personId === personId);
+    if (
+      assignment &&
+      canExecutiveAct({ role: "CEO", authority: "BUDGET_ADMINISTRATION", assignment })
+    ) {
+      return;
+    }
+  }
+  throw new ClubFinanceAuthorityError(
+    "NOT_AUTHORIZED",
+    "Only a controlling owner or an assigned CEO may administer club finance.",
+  );
+};
 
 const currency = "NPR";
 const status = "SIMULATION_ONLY" as const;
@@ -74,6 +131,24 @@ export const applyForClubLoan = (db: GameDatabase, input: { clubId: EntityId; le
   return application;
 };
 
+/** Role-facing adapter for club loan applications: owner or delegated CEO only. */
+export const applyForClubLoanCommand = (
+  db: GameDatabase,
+  input: {
+    clubId: EntityId;
+    personId: EntityId;
+    callerRole: "MANAGER" | "CHAIRMAN_OWNER" | "FEDERATION_PRESIDENT" | "CEO";
+    lenderId: EntityId;
+    principal: number;
+    termMonths: number;
+    purpose: string;
+    date: string;
+  },
+): ClubLoanApplication => {
+  assertClubFinanceAuthority(db, input.clubId, input.personId, input.callerRole);
+  return applyForClubLoan(db, input);
+};
+
 export const repayClubLoan = (db: GameDatabase, input: { debtId: EntityId; date: string; amount?: number }): ClubDebt => {
   const economy = new ClubEconomyRepository(db);
   const debt = economy.debts().find((item) => item.id === input.debtId);
@@ -90,6 +165,23 @@ export const repayClubLoan = (db: GameDatabase, input: { debtId: EntityId; date:
   const updatedAccount = economy.financialAccount(debt.clubId);
   if (updatedAccount) economy.upsertFinancialAccount({ ...updatedAccount, debtBalance: Math.max(0, updatedAccount.debtBalance - (debt.outstandingPrincipal - outstandingPrincipal)), lastUpdatedAt: input.date });
   return next;
+};
+
+/** Role-facing adapter for club loan repayment: owner or delegated CEO only. */
+export const repayClubLoanCommand = (
+  db: GameDatabase,
+  input: {
+    debtId: EntityId;
+    personId: EntityId;
+    callerRole: "MANAGER" | "CHAIRMAN_OWNER" | "FEDERATION_PRESIDENT" | "CEO";
+    date: string;
+    amount?: number;
+  },
+): ClubDebt => {
+  const debt = new ClubEconomyRepository(db).debts().find((item) => item.id === input.debtId);
+  if (!debt) throw new Error("Active club loan not found");
+  assertClubFinanceAuthority(db, debt.clubId, input.personId, input.callerRole);
+  return repayClubLoan(db, input);
 };
 
 export const advanceClubLoanRepayments = (db: GameDatabase, date: string): ClubDebt[] => {
