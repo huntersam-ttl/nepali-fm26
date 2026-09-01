@@ -1,4 +1,5 @@
 import type { EntityId } from "./ids.js";
+import type { CareerRole } from "./desktop-contract.js";
 import type { ISODate, StaffAppointment, StaffVacancy } from "./domain.js";
 
 export type ExecutiveRole =
@@ -33,6 +34,15 @@ export type ExecutiveRoleReadModel = ExecutiveRoleAssignment & {
   authorities: ExecutiveAuthority[];
   personName?: string;
   rationale: string;
+};
+
+export type ExecutiveAuthorityDesktopView = {
+  actorPersonId: EntityId;
+  actorRole: CareerRole;
+  clubId: EntityId;
+  assignment: ExecutiveRoleReadModel;
+  permittedActions: ExecutiveAuthority[];
+  blockedReason?: string;
 };
 
 export type ExecutiveCandidateInput = {

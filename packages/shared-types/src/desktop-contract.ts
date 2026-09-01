@@ -37,7 +37,9 @@ import type {
   ProcurementOrder,
   OwnershipInvestorMarketView,
   OwnershipAcquisitionOffer,
+  StaffAppointment,
 } from "./domain.js";
+import type { ExecutiveAuthorityDesktopView } from "./executive-roles.js";
 
 /**
  * Canonical desktop application contract.
@@ -84,7 +86,14 @@ export type DesktopAppError = {
 
 export type AppResult<T> = { ok: true; data: T } | { ok: false; error: DesktopAppError };
 
-export type CareerRole = "MANAGER" | "CHAIRMAN_OWNER" | "FEDERATION_PRESIDENT";
+export type CareerRole =
+  | "MANAGER"
+  | "CHAIRMAN_OWNER"
+  | "FEDERATION_PRESIDENT"
+  | "SPORTING_DIRECTOR"
+  | "DIRECTOR_OF_FOOTBALL"
+  | "CEO"
+  | "GENERAL_SECRETARY";
 export type CareerStartMode = "MANAGER" | "OWNER";
 export type CareerRoleState = { activeRole: CareerRole; heldRoles: CareerRole[] };
 export type FounderLocationOption = { id: EntityId; province: string; district: string; locality: string; provenanceStatus: "REPORTED" | "SIMULATION_ONLY" };
@@ -334,6 +343,7 @@ export type DesktopRuntimeApi = {
   closeCareer(): Promise<AppResult<{ closed: boolean }>>;
   getCareerHeader(): Promise<AppResult<CareerHeader>>;
   getCareerRoles(): Promise<AppResult<CareerRoleState>>;
+  getExecutiveAuthority(clubId?: EntityId): Promise<AppResult<ExecutiveAuthorityDesktopView | undefined>>;
   switchActiveCareerRole(targetRole: CareerRole): Promise<AppResult<CareerHeader>>;
   getChairmanDashboard(): Promise<AppResult<ChairmanDashboard>>;
   getFederationPresidentDashboard(): Promise<AppResult<FederationPresidentDashboard>>;
@@ -350,6 +360,14 @@ export type DesktopRuntimeApi = {
   decideInvestorBid(offerId: EntityId, accept: boolean): Promise<AppResult<OwnershipAcquisitionOffer>>;
   applyClubLoan(lenderId: EntityId, principal: number, termMonths: number, purpose: string): Promise<AppResult<ClubLoanApplication>>;
   repayClubLoan(debtId: EntityId, amount?: number): Promise<AppResult<ClubDebt>>;
+  acceptExecutiveSponsorOffer(clubId: EntityId, sponsorshipId: EntityId): Promise<AppResult<SponsorshipContract>>;
+  setExecutiveClubBudget(clubId: EntityId, seasonLabel: string, category: ClubBudgetCategory, amount: number): Promise<AppResult<ClubBudget>>;
+  createExecutiveInfrastructureProject(clubId: EntityId, projectType: InfrastructureProjectType): Promise<AppResult<InfrastructureProject>>;
+  applyExecutiveClubLoan(clubId: EntityId, lenderId: EntityId, principal: number, termMonths: number, purpose: string): Promise<AppResult<ClubLoanApplication>>;
+  closeExecutiveLicence(caseId: EntityId): Promise<AppResult<unknown>>;
+  registerExecutiveCompetitionPlayers(teamId: EntityId, competitionSeasonId: EntityId): Promise<AppResult<unknown>>;
+  hireStaffAsExecutive(clubId: EntityId, personId: EntityId, role: StaffAppointment["role"], salaryAmountMinor: number, teamId?: EntityId, contractMonths?: number): Promise<AppResult<unknown>>;
+  dismissStaffAsExecutive(clubId: EntityId, appointmentId: EntityId): Promise<AppResult<unknown>>;
   requestManagerBudget(seasonLabel: string, category: ClubBudgetCategory, requestedAmount: number): Promise<AppResult<ManagerBudgetRequest>>;
   decideManagerBudgetRequest(requestId: EntityId, approve: boolean): Promise<AppResult<ManagerBudgetRequest>>;
   purchaseEquipment(category: ProcurementCategory, quantity: number): Promise<AppResult<ProcurementOrder>>;

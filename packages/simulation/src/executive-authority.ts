@@ -5,7 +5,7 @@ import { acceptSponsorOfferCommand, setClubBudgetCommand } from "./club-economy.
 import { applyForClubLoanCommand } from "./club-finance-markets.js";
 import { closeClubLicenceCycle } from "./licensing.js";
 import { registerWomenYouthTeam } from "./womens-youth.js";
-import { hireStaff } from "./staff-market.js";
+import { dismissStaff, hireStaff } from "./staff-market.js";
 
 type Executive = { role: "CEO" | "GENERAL_SECRETARY"; personId: EntityId };
 
@@ -114,4 +114,17 @@ export const hireStaffForExecutive = (
     input.salaryAmountMinor,
     input.contractMonths,
   );
+};
+
+export const dismissStaffForExecutive = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  input: { clubId: EntityId; appointmentId: EntityId; actor: Executive },
+) => {
+  requireAuthority(db, input.clubId, input.actor, "STAFF_RECRUITMENT");
+  const appointment = db
+    .prepare("SELECT club_id AS clubId FROM staff_appointments WHERE id=?")
+    .get(input.appointmentId) as { clubId?: EntityId } | undefined;
+  if (appointment?.clubId !== input.clubId) throw new Error("Staff appointment is not at this club");
+  return dismissStaff(db, save, input.appointmentId);
 };

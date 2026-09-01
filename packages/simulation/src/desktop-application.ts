@@ -3,6 +3,7 @@ import { basename, dirname, join } from "node:path";
 import {
   CareerWorldRepository,
   ClubEconomyRepository,
+  ClubLicensingRepository,
   CompetitionRepository,
   ManagerRepository,
   MatchSessionRepository,
@@ -153,6 +154,8 @@ import {
   type StaffResponsibilityView,
   type StaffRowWithContract,
   type StaffSuccessionPlanView,
+  type ExecutiveAuthorityDesktopView,
+  type ExecutiveRole,
   type StartMatchCommand,
   type StartingClubOption,
   type FounderLocationOption,
@@ -283,6 +286,16 @@ import {
 } from "./tactics.js";
 import { suitability } from "./team-selection.js";
 import { activeCareerRole, heldCareerRoles, switchActiveCareerRole } from "./career-control.js";
+import { ExecutiveRoleError, executiveRoleReadModel } from "./executive-roles.js";
+import {
+  acceptSponsorshipForExecutive,
+  applyClubLoanForExecutive,
+  closeLicenceForSecretary,
+  dismissStaffForExecutive,
+  hireStaffForExecutive,
+  registerCompetitionPlayersForSecretary,
+  setBudgetForExecutive,
+} from "./executive-authority.js";
 import { backroomSummary } from "./career-market-deepening.js";
 import { createInvestorStakeOffer, decideInvestorBid } from "./ownership.js";
 import { buildChairmanDashboard, buildFederationPresidentDashboard } from "./role-desktop.js";
@@ -806,6 +819,155 @@ export class DesktopApplicationService {
       const heldRoles = heldCareerRoles(db, personId).map((entry) => entry.role);
       return { activeRole: activeCareerRole(db, personId), heldRoles };
     });
+  }
+
+  getExecutiveAuthority(clubId?: EntityId): AppResult<ExecutiveAuthorityDesktopView | undefined> {
+    return this.withSession((db, save) => {
+      const actorPersonId = careerPersonId(db, save);
+      const actorRole = activeCareerRole(db, actorPersonId);
+      const executiveRoles: ExecutiveRole[] = [
+        "SPORTING_DIRECTOR",
+        "DIRECTOR_OF_FOOTBALL",
+        "CEO",
+        "GENERAL_SECRETARY",
+      ];
+      if (!executiveRoles.includes(actorRole as ExecutiveRole)) return undefined;
+      const targetClubId = clubId ?? heldCareerRoles(db, actorPersonId).find((item) => item.role === actorRole)?.targetId;
+      if (!targetClubId) return undefined;
+      const assignment = executiveRoleReadModel(db, targetClubId, actorRole as ExecutiveRole);
+      return {
+        actorPersonId,
+        actorRole,
+        clubId: targetClubId,
+        assignment,
+        permittedActions: assignment.status === "FILLED" ? assignment.authorities : [],
+        blockedReason: assignment.status === "FILLED" ? undefined : "This executive role is vacant.",
+      };
+    });
+  }
+
+  acceptExecutiveSponsorOffer(
+    clubId: EntityId,
+    sponsorshipId: EntityId,
+  ): AppResult<ReturnType<typeof acceptSponsorshipForExecutive>> {
+    return this.withSession((db, save) =>
+      acceptSponsorshipForExecutive(db, {
+        clubId,
+        sponsorshipId,
+        actor: this.executiveActor(db, save, clubId),
+        date: save.worldDate,
+      }),
+    );
+  }
+
+  setExecutiveClubBudget(
+    clubId: EntityId,
+    seasonLabel: string,
+    category: ClubBudgetCategory,
+    amount: number,
+  ): AppResult<ReturnType<typeof setBudgetForExecutive>> {
+    return this.withSession((db, save) =>
+      setBudgetForExecutive(db, {
+        clubId,
+        seasonLabel,
+        category,
+        amount,
+        actor: this.executiveActor(db, save, clubId),
+      }),
+    );
+  }
+
+  createExecutiveInfrastructureProject(
+    clubId: EntityId,
+    projectType: InfrastructureProjectType,
+  ): AppResult<ReturnType<typeof createInfrastructureProjectCommand>> {
+    return this.withSession((db, save) =>
+      createInfrastructureProjectCommand(db, {
+        clubId,
+        personId: this.executiveActor(db, save, clubId).personId,
+        callerRole: "CEO",
+        projectType,
+        date: save.worldDate,
+        seed: `${save.randomSeed}:executive-project`,
+      }),
+    );
+  }
+
+  applyExecutiveClubLoan(
+    clubId: EntityId,
+    lenderId: EntityId,
+    principal: number,
+    termMonths: number,
+    purpose: string,
+  ): AppResult<ReturnType<typeof applyClubLoanForExecutive>> {
+    return this.withSession((db, save) =>
+      applyClubLoanForExecutive(db, {
+        clubId,
+        lenderId,
+        principal,
+        termMonths,
+        purpose,
+        date: save.worldDate,
+        actor: this.executiveActor(db, save, clubId),
+      }),
+    );
+  }
+
+  closeExecutiveLicence(caseId: EntityId): AppResult<ReturnType<typeof closeLicenceForSecretary>> {
+    return this.withSession((db, save) => {
+      const actor = this.executiveActorForCase(db, save, caseId);
+      return closeLicenceForSecretary(db, { caseId, date: save.worldDate, actor });
+    });
+  }
+
+  registerExecutiveCompetitionPlayers(
+    teamId: EntityId,
+    competitionSeasonId: EntityId,
+  ): AppResult<ReturnType<typeof registerCompetitionPlayersForSecretary>> {
+    return this.withSession((db, save) => {
+      const clubId = (db.prepare("SELECT club_id AS clubId FROM teams WHERE id=?").get(teamId) as { clubId?: EntityId } | undefined)?.clubId;
+      if (!clubId) throw appError("INVALID_SELECTION", "Competition registration team not found.");
+      return registerCompetitionPlayersForSecretary(db, {
+        teamId,
+        competitionSeasonId,
+        date: save.worldDate,
+        actor: this.executiveActor(db, save, clubId),
+      });
+    });
+  }
+
+  hireStaffAsExecutive(
+    clubId: EntityId,
+    personId: EntityId,
+    role: StaffAppointment["role"],
+    salaryAmountMinor: number,
+    teamId?: EntityId,
+    contractMonths?: number,
+  ): AppResult<ReturnType<typeof hireStaffForExecutive>> {
+    return this.withSession((db, save) =>
+      hireStaffForExecutive(db, save, {
+        clubId,
+        teamId,
+        personId,
+        role,
+        salaryAmountMinor,
+        contractMonths,
+        actor: this.executiveActor(db, save, clubId),
+      }),
+    );
+  }
+
+  dismissStaffAsExecutive(
+    clubId: EntityId,
+    appointmentId: EntityId,
+  ): AppResult<ReturnType<typeof dismissStaffForExecutive>> {
+    return this.withSession((db, save) =>
+      dismissStaffForExecutive(db, save, {
+        clubId,
+        appointmentId,
+        actor: this.executiveActor(db, save, clubId),
+      }),
+    );
   }
 
   switchActiveCareerRole(targetRole: CareerRole): AppResult<CareerHeader> {
@@ -2640,6 +2802,33 @@ export class DesktopApplicationService {
     }, true);
   }
 
+  private executiveActor(
+    db: GameDatabase,
+    save: SaveMetadata,
+    clubId: EntityId,
+  ): { role: "CEO" | "GENERAL_SECRETARY"; personId: EntityId } {
+    const personId = careerPersonId(db, save);
+    const role = activeCareerRole(db, personId);
+    if (role !== "CEO" && role !== "GENERAL_SECRETARY")
+      throw appError("ROLE_NOT_AUTHORIZED", "An active CEO or General Secretary role is required.");
+    const held = heldCareerRoles(db, personId).find(
+      (entry) => entry.role === role && entry.targetId === clubId,
+    );
+    if (!held)
+      throw appError("ROLE_NOT_AUTHORIZED", "The active executive role is not assigned to this club.");
+    return { role, personId };
+  }
+
+  private executiveActorForCase(
+    db: GameDatabase,
+    save: SaveMetadata,
+    caseId: EntityId,
+  ): { role: "CEO" | "GENERAL_SECRETARY"; personId: EntityId } {
+    const clubId = (new ClubLicensingRepository(db).get(caseId)?.clubId);
+    if (!clubId) throw appError("INVALID_SELECTION", "Licence case not found.");
+    return this.executiveActor(db, save, clubId);
+  }
+
   private withSession<T>(
     action: (db: GameDatabase, save: SaveMetadata, filePath: string) => T,
   ): AppResult<T> {
@@ -2652,6 +2841,8 @@ export class DesktopApplicationService {
       if (error instanceof MatchAlreadyPlayedError) return fail(error.code, error.message);
       if (error instanceof MatchCommandError) return fail(error.code, error.message);
       if (error instanceof ManagerCommandError) return fail(error.code, error.message);
+      if (error instanceof ExecutiveRoleError)
+        return fail("ROLE_NOT_AUTHORIZED", error.message);
       if (isAppError(error)) return fail(error.code, error.message, error.detail);
       return fail("SIMULATION_ERROR", "The career command failed.", error);
     }

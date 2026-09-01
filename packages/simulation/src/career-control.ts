@@ -1,8 +1,20 @@
-import { CareerControlRepository, type GameDatabase } from "@nepal-football-sim/database";
+import {
+  CareerControlRepository,
+  ExecutiveRoleRepository,
+  type GameDatabase,
+} from "@nepal-football-sim/database";
 import type { CareerRole, EntityId } from "@nepal-football-sim/shared-types";
 
 export type HeldCareerRole = { role: CareerRole; targetId?: EntityId };
-const roleOrder: CareerRole[] = ["MANAGER", "CHAIRMAN_OWNER", "FEDERATION_PRESIDENT"];
+const roleOrder: CareerRole[] = [
+  "MANAGER",
+  "CHAIRMAN_OWNER",
+  "FEDERATION_PRESIDENT",
+  "SPORTING_DIRECTOR",
+  "DIRECTOR_OF_FOOTBALL",
+  "CEO",
+  "GENERAL_SECRETARY",
+];
 
 /** Canonical role ownership lookup. It never creates or mutates appointments. */
 export const heldCareerRoles = (db: GameDatabase, personId: EntityId): HeldCareerRole[] => {
@@ -13,6 +25,15 @@ export const heldCareerRoles = (db: GameDatabase, personId: EntityId): HeldCaree
   if (owner?.club_id) roles.push({ role: "CHAIRMAN_OWNER", targetId: owner.club_id });
   const president = db.prepare(`SELECT lt.federation_id FROM federation_leadership_tenures lt JOIN federations f ON f.id=lt.federation_id JOIN countries co ON co.id=f.country_id WHERE lt.person_id=? AND lt.role='FEDERATION_PRESIDENT' AND lt.status IN ('ACTIVE','INTERIM') AND co.iso_code IN ('NP','NPL') ORDER BY CASE lt.status WHEN 'ACTIVE' THEN 0 ELSE 1 END,lt.term_start DESC,lt.id LIMIT 1`).get(personId) as { federation_id?: EntityId } | undefined;
   if (president?.federation_id) roles.push({ role: "FEDERATION_PRESIDENT", targetId: president.federation_id });
+  const executiveRoles = (
+    db
+      .prepare(
+        "SELECT club_id, role, person_id, status FROM club_executive_roles WHERE person_id=? AND status='FILLED' ORDER BY club_id, role",
+      )
+      .all(personId) as Array<{ club_id?: EntityId; role?: CareerRole; status?: string }>
+  ).filter((assignment) => assignment.club_id && assignment.role);
+  for (const assignment of executiveRoles)
+    roles.push({ role: assignment.role!, targetId: assignment.club_id! });
   return roles.sort((a, b) => roleOrder.indexOf(a.role) - roleOrder.indexOf(b.role));
 };
 

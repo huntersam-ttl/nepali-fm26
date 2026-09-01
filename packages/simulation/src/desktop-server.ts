@@ -159,6 +159,8 @@ const dispatch = (
       return service.getCareerHeader();
     case "getCareerRoles":
       return service.getCareerRoles();
+    case "getExecutiveAuthority":
+      return service.getExecutiveAuthority(body.clubId as EntityId | undefined);
     case "switchActiveCareerRole":
       return service.switchActiveCareerRole(body.targetRole as CareerRole);
     case "getChairmanDashboard":
@@ -195,6 +197,22 @@ const dispatch = (
       return service.applyClubLoan(body.lenderId as EntityId, body.principal as number, body.termMonths as number, body.purpose as string);
     case "repayClubLoan":
       return service.repayClubLoan(body.debtId as EntityId, body.amount as number | undefined);
+    case "acceptExecutiveSponsorOffer":
+      return service.acceptExecutiveSponsorOffer(body.clubId as EntityId, body.sponsorshipId as EntityId);
+    case "setExecutiveClubBudget":
+      return service.setExecutiveClubBudget(body.clubId as EntityId, body.seasonLabel as string, body.category as ClubBudgetCategory, body.amount as number);
+    case "createExecutiveInfrastructureProject":
+      return service.createExecutiveInfrastructureProject(body.clubId as EntityId, body.projectType as InfrastructureProjectType);
+    case "applyExecutiveClubLoan":
+      return service.applyExecutiveClubLoan(body.clubId as EntityId, body.lenderId as EntityId, body.principal as number, body.termMonths as number, body.purpose as string);
+    case "closeExecutiveLicence":
+      return service.closeExecutiveLicence(body.caseId as EntityId);
+    case "registerExecutiveCompetitionPlayers":
+      return service.registerExecutiveCompetitionPlayers(body.teamId as EntityId, body.competitionSeasonId as EntityId);
+    case "hireStaffAsExecutive":
+      return service.hireStaffAsExecutive(body.clubId as EntityId, body.personId as EntityId, body.role as any, body.salaryAmountMinor as number, body.teamId as EntityId | undefined, body.contractMonths as number | undefined);
+    case "dismissStaffAsExecutive":
+      return service.dismissStaffAsExecutive(body.clubId as EntityId, body.appointmentId as EntityId);
     case "requestManagerBudget":
       return service.requestManagerBudget(body.seasonLabel as string, body.category as ClubBudgetCategory, body.requestedAmount as number);
     case "decideManagerBudgetRequest":
