@@ -3,7 +3,12 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { StaffMarketRepository, WorldRepository, openGameDatabase } from "@nepal-football-sim/database";
-import { createNepalSave, simulateNepalCareer } from "@nepal-football-sim/simulation";
+import {
+  createDemoLeagueInput,
+  createNepalSave,
+  hasStructuralPositionShortage,
+  simulateNepalCareer,
+} from "@nepal-football-sim/simulation";
 
 const tempDirs: string[] = [];
 const registryPath = resolve(process.cwd(), "data/nepal/2026-08/club-registry.json");
@@ -33,6 +38,14 @@ afterEach(() => {
 });
 
 describe("full Nepal career season simulation", () => {
+  it("does not treat a temporarily unavailable goalkeeper as a structural shortage", () => {
+    const registered = [...createDemoLeagueInput("squad-health").playersByTeam.values()][0]!;
+    const available = registered.filter((player) => player.primaryPosition !== "GK");
+
+    expect(hasStructuralPositionShortage(registered)).toBe(false);
+    expect(hasStructuralPositionShortage(available)).toBe(true);
+  });
+
   it("runs a fixture-backed three-season Nepal career loop with imported players", () => {
     const databasePath = createSave("three-season-career");
     const db = openGameDatabase(databasePath);

@@ -670,8 +670,8 @@ const simulateCompetitionSeason = (
     const unavailable = unavailablePlayers(db, input.season.id, fixture.scheduledDate);
     const homePlayers = availablePlayers(attributesForMatch(fixture.homeTeamId), unavailable);
     const awayPlayers = availablePlayers(attributesForMatch(fixture.awayTeamId), unavailable);
-    recordSquadHealth(squadHealth, homePlayers, unavailable);
-    recordSquadHealth(squadHealth, awayPlayers, unavailable);
+    recordSquadHealth(squadHealth, attributesForMatch(fixture.homeTeamId), unavailable);
+    recordSquadHealth(squadHealth, attributesForMatch(fixture.awayTeamId), unavailable);
     const result = simulateMatch({
       fixture,
       refereeAssignment: requireFixtureOfficials(db, fixture, {
@@ -1306,7 +1306,7 @@ function matchResultsForStandings(db: GameDatabase, competitionSeasonId: EntityI
 }
 
 function availablePlayers(
-  players: PlayerAttributeSet[],
+  players: readonly PlayerAttributeSet[],
   unavailable: ReadonlySet<EntityId>,
 ): PlayerAttributeSet[] {
   return players.filter((player) => !unavailable.has(player.personId));
@@ -1326,18 +1326,31 @@ function unavailablePlayers(
 
 function recordSquadHealth(
   health: SquadHealthReport,
-  players: readonly PlayerAttributeSet[],
+  registeredPlayers: readonly PlayerAttributeSet[],
   unavailable: ReadonlySet<EntityId>,
 ): void {
+  const players = availablePlayers(registeredPlayers, unavailable);
   if (players.length >= 11) health.clubsWithValidXi += 1;
   if (players.length >= 16) health.clubsWithValidBench += 1;
   if (players.length < 11) health.emergencyLineupCases += 1;
   health.playersUnavailable += unavailable.size;
-  const positions = new Set(players.map((player) => player.primaryPosition));
-  if (!positions.has("GK") || ![...positions].some((position) => position !== "GK")) {
+  if (hasStructuralPositionShortage(registeredPlayers)) {
     health.clubsWithPositionShortages += 1;
   }
 }
+
+/**
+ * Structural squad health is evaluated from the registered roster, not the
+ * matchday-available subset. A short-term injury or suspension must not be
+ * reported as a missing-position roster defect; emergency lineup health still
+ * uses the available subset above.
+ */
+export const hasStructuralPositionShortage = (
+  registeredPlayers: readonly PlayerAttributeSet[],
+): boolean => {
+  const positions = new Set(registeredPlayers.map((player) => player.primaryPosition));
+  return !positions.has("GK") || ![...positions].some((position) => position !== "GK");
+};
 
 function blankSquadHealth(): SquadHealthReport {
   return {
