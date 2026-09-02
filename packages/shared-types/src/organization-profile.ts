@@ -19,6 +19,8 @@ export type OrganizationCommercialDeal = {
   scope: string;
   counterpartId?: EntityId;
   counterpartLabel?: string;
+  /** Canonical navigation target when the counterpart is a supported entity. */
+  counterpartReference?: EntityReference;
   startDate?: string;
   endDate?: string;
   annualValue?: number;

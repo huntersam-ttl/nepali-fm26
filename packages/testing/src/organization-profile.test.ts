@@ -122,6 +122,18 @@ describe("organization profiles", () => {
       expect(sponsor.activeDeals).toEqual(
         expect.arrayContaining([expect.objectContaining({ sourceEntityId: offer.id })]),
       );
+      const clubDeal = sponsor.dealHistory.find((deal) => deal.id === clubContract.id);
+      expect(clubDeal?.counterpartReference).toMatchObject({
+        entityType: "CLUB",
+        id: club.id,
+        label: expect.any(String),
+        visible: true,
+      });
+      expect(sponsor.involvedEntities).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ entityType: "CLUB", id: club.id, visible: true }),
+        ]),
+      );
       expect(sponsor.relationshipClues).toEqual(
         expect.arrayContaining(["Established partner", "Repeated partner"]),
       );

@@ -69,6 +69,7 @@ const clubDeals = (db: GameDatabase, organizationId: EntityId): OrganizationComm
     scope: "CLUB",
     counterpartId: row.club_id,
     counterpartLabel: row.club_name,
+    counterpartReference: buildEntityReference(db, "CLUB", row.club_id, "CHAIRMAN_OWNER"),
     startDate: row.start_date,
     endDate: row.end_date,
     annualValue: row.annual_value,
@@ -140,6 +141,7 @@ const lenderDeals = (db: GameDatabase, organizationId: EntityId): OrganizationCo
     property: "CLUB_LOAN",
     scope: "CLUB_FINANCE",
     counterpartId: row.club_id,
+    counterpartReference: buildEntityReference(db, "CLUB", row.club_id, "CHAIRMAN_OWNER"),
     annualValue: row.principal,
     startDate: row.start_date,
     endDate: row.maturity_date,
@@ -184,6 +186,16 @@ export const buildOrganizationProfile = (
         ? lenderDeals(db, organizationId)
         : [];
   const split = splitDeals(deals);
+  const involvedEntities = deals
+    .flatMap((deal) => (deal.counterpartReference ? [deal.counterpartReference] : []))
+    .filter(
+      (reference, index, references) =>
+        references.findIndex(
+          (candidate) =>
+            candidate.entityType === reference.entityType && candidate.id === reference.id,
+        ) === index,
+    )
+    .sort((left, right) => `${left.label}:${left.id}`.localeCompare(`${right.label}:${right.id}`));
   const clues = new Set<string>();
   if (split.activeDeals.length) clues.add("Established partner");
   if (split.currentNegotiations.length) clues.add("Negotiation in progress");
@@ -197,6 +209,6 @@ export const buildOrganizationProfile = (
     provenanceStatus: entityReference.provenanceStatus,
     relationshipClues: [...clues].sort(),
     ...split,
-    involvedEntities: [],
+    involvedEntities,
   };
 };
