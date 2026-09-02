@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 88;
+export const CURRENT_DATABASE_VERSION = 89;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -3667,6 +3667,26 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
         ON federation_commercial_rights_packages(federation_id, status, available_from);
       CREATE INDEX IF NOT EXISTS idx_federation_rights_offer_package
         ON federation_commercial_rights_offers(package_id, status, offered_on);
+    `,
+  },
+  {
+    version: 89,
+    sql: `
+      CREATE TABLE IF NOT EXISTS competition_commercial_sponsorships (
+        id TEXT PRIMARY KEY,
+        competition_season_id TEXT NOT NULL REFERENCES competition_seasons(id),
+        rights_offer_id TEXT NOT NULL UNIQUE,
+        sponsor_id TEXT NOT NULL,
+        display_title TEXT NOT NULL,
+        start_date TEXT NOT NULL,
+        end_date TEXT NOT NULL,
+        status TEXT NOT NULL,
+        revenue_destination TEXT NOT NULL,
+        provenance_status TEXT NOT NULL,
+        UNIQUE(competition_season_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_competition_commercial_sponsorship_status
+        ON competition_commercial_sponsorships(status, end_date);
     `,
   },
 ];

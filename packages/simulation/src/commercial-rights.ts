@@ -6,10 +6,12 @@ import {
   type FederationCommercialRightsPackage,
 } from "@nepal-football-sim/shared-types";
 import {
+  CompetitionCommercialRepository,
   CommercialRightsRepository,
   EventRepository,
   type GameDatabase,
 } from "@nepal-football-sim/database";
+import type { CompetitionCommercialSponsorship } from "@nepal-football-sim/shared-types";
 import { postFederationTransaction } from "./federation-governance.js";
 
 export type CommercialRightsEvidence = {
@@ -132,6 +134,40 @@ export const ensureFederationMainPartnerPackage = (
   return existing ?? value;
 };
 
+export const ensureADivisionTitleSponsorPackage = (
+  db: GameDatabase,
+  federationId: EntityId,
+  date: string,
+): FederationCommercialRightsPackage => {
+  const competition = db
+    .prepare(
+      "SELECT id, name FROM competitions WHERE federation_id=? AND scope='domestic' AND lower(name) LIKE '%a-division%' ORDER BY id LIMIT 1",
+    )
+    .get(federationId) as { id?: EntityId; name?: string } | undefined;
+  if (!competition?.id || !competition.name)
+    throw new Error("A Division title sponsorship requires a supported A Division competition");
+  const packageId = createStableEntityId(
+    "commercial-rights-package",
+    `${federationId}:A_DIVISION_TITLE_SPONSOR`,
+  );
+  const value: FederationCommercialRightsPackage = {
+    id: packageId,
+    federationId,
+    name: `${competition.name} Title Sponsor`,
+    category: "LEAGUE_TITLE_SPONSOR",
+    exclusivityGroup: "A_DIVISION_TITLE_SPONSOR",
+    scope: "COMPETITION",
+    availableFrom: date,
+    availableTo: addYears(date, 1),
+    status: "AVAILABLE",
+    provenanceStatus: "SIMULATION_ONLY",
+  };
+  const repo = new CommercialRightsRepository(db);
+  const existing = repo.packages(federationId).find((item) => item.id === packageId);
+  if (!existing) repo.upsertPackage(value);
+  return existing ?? value;
+};
+
 const activePresidentForFederation = (
   db: GameDatabase,
   federationId: EntityId,
@@ -158,6 +194,130 @@ export const awardCommercialRightsForPresident = (
   if (!activePresidentForFederation(db, input.federationId, input.presidentPersonId))
     throw new Error("Only the active federation president may award federation commercial rights");
   return awardCommercialRights(db, input);
+};
+
+const aDivisionSeason = (
+  db: GameDatabase,
+  competitionSeasonId: EntityId,
+  federationId: EntityId,
+) => {
+  const row = db
+    .prepare(
+      "SELECT cs.id, c.id AS competition_id, c.name, c.federation_id FROM competition_seasons cs JOIN competitions c ON c.id=cs.competition_id WHERE cs.id=? AND c.federation_id=? AND c.scope='domestic' AND lower(c.name) LIKE '%a-division%'",
+    )
+    .get(competitionSeasonId, federationId) as
+    | { id?: EntityId; competition_id?: EntityId; name?: string; federation_id?: EntityId }
+    | undefined;
+  if (!row?.id || !row.name)
+    throw new Error("A Division commercial sponsorship requires an A Division season");
+  return row;
+};
+
+export const linkADivisionTitleSponsor = (
+  db: GameDatabase,
+  input: { competitionSeasonId: EntityId; offerId: EntityId },
+): CompetitionCommercialSponsorship => {
+  const rightsRepo = new CommercialRightsRepository(db);
+  const offer = rightsRepo.offers().find((item) => item.id === input.offerId);
+  if (!offer || offer.status !== "ACTIVE")
+    throw new Error("Only an active commercial-rights offer can title an A Division season");
+  const season = aDivisionSeason(db, input.competitionSeasonId, offer.federationId);
+  const rightsPackage = rightsRepo
+    .packages(offer.federationId)
+    .find((item) => item.id === offer.packageId);
+  if (
+    !rightsPackage ||
+    rightsPackage.category !== "LEAGUE_TITLE_SPONSOR" ||
+    rightsPackage.scope !== "COMPETITION"
+  )
+    throw new Error("Offer is not an A Division title-sponsor package");
+  const commercialRepo = new CompetitionCommercialRepository(db);
+  const existing = commercialRepo.bySeason(input.competitionSeasonId);
+  if (existing) {
+    if (existing.rightsOfferId !== offer.id)
+      throw new Error("A Division season already has a title sponsor");
+    return existing;
+  }
+  const sponsorship: CompetitionCommercialSponsorship = {
+    id: createStableEntityId(
+      "competition-commercial-sponsorship",
+      `${input.competitionSeasonId}:${offer.id}`,
+    ),
+    competitionSeasonId: input.competitionSeasonId,
+    rightsOfferId: offer.id,
+    sponsorId: offer.sponsorId,
+    displayTitle: `${season.name} presented by ${rightsRepo.sponsor(offer.sponsorId)?.name ?? "Commercial Partner"}`,
+    startDate: offer.startDate ?? "",
+    endDate: offer.endDate ?? "",
+    status: "ACTIVE",
+    revenueDestination: "FEDERATION_LEDGER",
+    provenanceStatus: "SIMULATION_ONLY",
+  };
+  if (!sponsorship.startDate || !sponsorship.endDate)
+    throw new Error("Active commercial-rights offer has no contract dates");
+  commercialRepo.upsert(sponsorship);
+  return sponsorship;
+};
+
+export const activateADivisionTitleSponsorship = (
+  db: GameDatabase,
+  input: {
+    competitionSeasonId: EntityId;
+    offerId: EntityId;
+    presidentPersonId: EntityId;
+    federationId: EntityId;
+    date: string;
+    startDate: string;
+  },
+): CompetitionCommercialSponsorship => {
+  const existing = new CompetitionCommercialRepository(db).bySeason(input.competitionSeasonId);
+  if (existing) return existing;
+  const offer = new CommercialRightsRepository(db)
+    .offers()
+    .find((item) => item.id === input.offerId);
+  if (!offer) throw new Error("Commercial-rights offer not found");
+  if (offer.status !== "ACTIVE") awardCommercialRightsForPresident(db, input);
+  return linkADivisionTitleSponsor(db, input);
+};
+
+export const expireADivisionTitleSponsorships = (
+  db: GameDatabase,
+  date: string,
+): CompetitionCommercialSponsorship[] => {
+  const commercialRepo = new CompetitionCommercialRepository(db);
+  const rightsRepo = new CommercialRightsRepository(db);
+  const expired = commercialRepo
+    .all()
+    .filter((item) => item.status === "ACTIVE" && item.endDate < date);
+  for (const sponsorship of expired) {
+    commercialRepo.upsert({ ...sponsorship, status: "EXPIRED" });
+    const offer = rightsRepo.offers().find((item) => item.id === sponsorship.rightsOfferId);
+    if (offer?.status === "ACTIVE") rightsRepo.upsertOffer({ ...offer, status: "EXPIRED" });
+  }
+  return expired.map((item) => ({ ...item, status: "EXPIRED" as const }));
+};
+
+export const aDivisionCommercialReadModel = (db: GameDatabase, competitionSeasonId: EntityId) => {
+  const link = new CompetitionCommercialRepository(db).bySeason(competitionSeasonId);
+  if (!link) return undefined;
+  const sponsor = new CommercialRightsRepository(db).sponsor(link.sponsorId);
+  const offer = new CommercialRightsRepository(db)
+    .offers()
+    .find((item) => item.id === link.rightsOfferId);
+  return {
+    ...link,
+    canonicalCompetitionName: (
+      db
+        .prepare(
+          "SELECT c.name FROM competition_seasons cs JOIN competitions c ON c.id=cs.competition_id WHERE cs.id=?",
+        )
+        .get(competitionSeasonId) as { name?: string } | undefined
+    )?.name,
+    sponsorName: sponsor?.name,
+    annualValue: offer?.annualValue,
+    negotiationStatus: offer?.status,
+    settlementState: offer?.federationLedgerEntryId ? "SETTLED" : "PENDING",
+  };
 };
 
 export const offerCommercialRights = (

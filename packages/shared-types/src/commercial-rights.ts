@@ -68,3 +68,16 @@ export type FederationCommercialRightsOffer = {
   federationLedgerEntryId?: EntityId;
   provenanceStatus: "SIMULATION_ONLY";
 };
+
+export type CompetitionCommercialSponsorship = {
+  id: EntityId;
+  competitionSeasonId: EntityId;
+  rightsOfferId: EntityId;
+  sponsorId: EntityId;
+  displayTitle: string;
+  startDate: string;
+  endDate: string;
+  status: "ACTIVE" | "EXPIRED";
+  revenueDestination: "FEDERATION_LEDGER";
+  provenanceStatus: "SIMULATION_ONLY";
+};
