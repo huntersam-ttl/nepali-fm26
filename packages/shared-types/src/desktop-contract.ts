@@ -532,10 +532,37 @@ export type NationalTeamSquadPlayer = {
   internationalAppearances: number;
 };
 
-export type NationalTeamSquadReadModel = {
-  nationalTeam: { id: EntityId; label: string };
+export type NationalTeamSelectionHistoryEntry = {
+  id: EntityId;
+  player: EntityReference;
+  callupDate: string;
   programme: string;
+  squadType: string;
+  selectionStatus: string;
+  competitionEditionId?: EntityId;
+  appearance?: {
+    date: string;
+    opponent: string;
+    minutes: number;
+    goals: number;
+  };
+};
+
+export type NationalTeamSquadReadModel = {
+  nationalTeam: { id: EntityId; label: string; entityReference: EntityReference };
+  programme: string;
+  currentWindow?: {
+    callupDate: string;
+    competitionEditionId?: EntityId;
+    campId?: EntityId;
+  };
+  squadSize: number;
+  selectedCount: number;
+  unavailableCount: number;
+  clubDistribution: Array<{ club?: EntityReference; count: number }>;
+  headCoach?: EntityReference;
   players: NationalTeamSquadPlayer[];
+  selectionHistory: NationalTeamSelectionHistoryEntry[];
   asOf: string;
   supported: boolean;
   unsupportedReason?: string;

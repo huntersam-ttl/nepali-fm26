@@ -36,9 +36,11 @@ const descriptors: Record<
     label: "id",
     subtitle: "status",
   },
+  NATIONAL_TEAM: { table: "teams", destination: "national-team", label: "name" },
 };
 
 const roleActions = (type: EntityReferenceType, role: CareerRole): string[] => {
+  if (type === "NATIONAL_TEAM") return ["OPEN_PROFILE", "VIEW_SQUAD"];
   if (type === "SPONSOR") return ["OPEN_PROFILE", "VIEW_DEALS"];
   if (type === "PLAYER" && role === "MANAGER")
     return [

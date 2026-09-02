@@ -10,7 +10,8 @@ export type EntityReferenceType =
   | "LENDER"
   | "INVESTOR"
   | "GOVERNMENT_INSTITUTION"
-  | "INFRASTRUCTURE_PROJECT";
+  | "INFRASTRUCTURE_PROJECT"
+  | "NATIONAL_TEAM";
 
 export type EntityReference = {
   entityType: EntityReferenceType;
