@@ -19,6 +19,7 @@ import {
   createStableEntityId,
   type AgentProfile,
   type Person,
+  type PlayerSquadRole,
 } from "@nepal-football-sim/shared-types";
 
 const dirs: string[] = [];
@@ -89,7 +90,10 @@ describe("agent career and interactive timeline", () => {
       agentClientStrategies(db, player.id).filter((item) => item.status === "ACTIVE"),
     ).toHaveLength(1);
     expect(
-      effectiveAgentPlayerPreferences(db, player.id, { securityPreference: 6 }).expectedPlayingTime,
+      effectiveAgentPlayerPreferences<{
+        securityPreference: number;
+        expectedPlayingTime?: PlayerSquadRole;
+      }>(db, player.id, { securityPreference: 6 }).expectedPlayingTime,
     ).toBe("FIRST_TEAM");
     const clubId = id("club");
     db.prepare("INSERT INTO clubs (id,name,country_id,ownership_type) VALUES (?,?,?,?)").run(

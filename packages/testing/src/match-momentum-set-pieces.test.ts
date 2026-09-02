@@ -6,7 +6,7 @@ import {
   serializeMatchState,
   simulateMatch,
 } from "@nepal-football-sim/simulation";
-import type { FixtureRecord } from "@nepal-football-sim/shared-types";
+import type { EntityId, FixtureRecord } from "@nepal-football-sim/shared-types";
 
 const fixture = {
   id: "fixture-momentum",
@@ -16,7 +16,7 @@ const fixture = {
   status: "scheduled",
 } as unknown as FixtureRecord;
 
-const player = (team: string, index: number) => ({
+const player = (team: EntityId, index: number) => ({
   id: `${team}-attribute-${index}`,
   personId: `${team}-player-${index}`,
   primaryPosition: index === 0 ? "GK" : index === 10 ? "ST" : "CM",
@@ -27,15 +27,15 @@ const player = (team: string, index: number) => ({
   goalkeeping: index === 0 ? { handling: 10, reflexes: 10 } : {},
 });
 
-const squad = (team: string) =>
+const squad = (team: EntityId) =>
   Array.from({ length: 11 }, (_, index) => player(team, index)) as never[];
 
 describe("match momentum and set-piece routines", () => {
   it("persists bounded momentum in the resumable match state", () => {
     const state = createMatchState({
       fixture,
-      homePlayers: squad("home"),
-      awayPlayers: squad("away"),
+      homePlayers: squad("home" as EntityId),
+      awayPlayers: squad("away" as EntityId),
       seed: "momentum-seed",
     });
     state.home.momentum = 78;
@@ -47,31 +47,31 @@ describe("match momentum and set-piece routines", () => {
 
   it("resolves active set-piece targets, defensive assignments, and fallbacks", () => {
     const homeSetup = {
-      ...createTacticalSetup({ teamId: "home", name: "Set pieces" }),
+      ...createTacticalSetup({ teamId: "home" as EntityId, name: "Set pieces" }),
       setPieces: {
         cornerRoutine: "FAR_POST" as const,
         cornerDeliveryZone: "FAR_POST" as const,
-        cornerPrimaryTarget: "home-player-10",
-        cornerSecondaryTarget: "home-player-9",
-        cornerEdgeTarget: "home-player-8",
+        cornerPrimaryTarget: "home-player-10" as EntityId,
+        cornerSecondaryTarget: "home-player-9" as EntityId,
+        cornerEdgeTarget: "home-player-8" as EntityId,
         defensiveCornerScheme: "MIXED" as const,
-        defensiveCornerAssignments: ["home-player-1"],
-        defensiveAerialPriority: ["home-player-2"],
-        directFreeKickTaker: "home-player-10",
-        indirectFreeKickTaker: "home-player-9",
+        defensiveCornerAssignments: ["home-player-1" as EntityId],
+        defensiveAerialPriority: ["home-player-2" as EntityId],
+        directFreeKickTaker: "home-player-10" as EntityId,
+        indirectFreeKickTaker: "home-player-9" as EntityId,
         freeKickRoutine: "CROSS" as const,
-        freeKickTarget: "home-player-10",
-        penaltyTakers: ["home-player-10", "home-player-9"],
+        freeKickTarget: "home-player-10" as EntityId,
+        penaltyTakers: ["home-player-10", "home-player-9"] as EntityId[],
       },
     };
     const awaySetup = {
-      ...createTacticalSetup({ teamId: "away", name: "Defence" }),
+      ...createTacticalSetup({ teamId: "away" as EntityId, name: "Defence" }),
       setPieces: { defensiveCornerScheme: "ZONAL" as const },
     };
     const result = simulateMatch({
       fixture,
-      homePlayers: squad("home"),
-      awayPlayers: squad("away"),
+      homePlayers: squad("home" as EntityId),
+      awayPlayers: squad("away" as EntityId),
       homeTacticalSetup: homeSetup,
       awayTacticalSetup: awaySetup,
       seed: "set-piece-workflow",
@@ -87,8 +87,8 @@ describe("match momentum and set-piece routines", () => {
       serializeMatchState(
         createMatchState({
           fixture,
-          homePlayers: squad("home"),
-          awayPlayers: squad("away"),
+          homePlayers: squad("home" as EntityId),
+          awayPlayers: squad("away" as EntityId),
           homeTacticalSetup: homeSetup,
           awayTacticalSetup: awaySetup,
           seed: "set-piece-workflow-resume",
