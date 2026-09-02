@@ -40,6 +40,7 @@ import type {
   StaffAppointment,
 } from "./domain.js";
 import type { ExecutiveAuthorityDesktopView } from "./executive-roles.js";
+import type { FederationDevelopmentSummary } from "./federation-policy.js";
 
 /**
  * Canonical desktop application contract.
@@ -347,6 +348,7 @@ export type DesktopRuntimeApi = {
   switchActiveCareerRole(targetRole: CareerRole): Promise<AppResult<CareerHeader>>;
   getChairmanDashboard(): Promise<AppResult<ChairmanDashboard>>;
   getFederationPresidentDashboard(): Promise<AppResult<FederationPresidentDashboard>>;
+  getNationalDevelopment(): Promise<AppResult<FederationDevelopmentSummary>>;
   getFederationCandidacy(): Promise<AppResult<FederationCandidacyAssessment>>;
   declareFederationElectionCandidacy(): Promise<AppResult<FederationCandidacyAssessment>>;
   foundClub(name: string, locationName: string): Promise<AppResult<SimulationClubRecord>>;

@@ -61,6 +61,7 @@ import {
   type CareerRole,
   type CareerRoleState,
   type ChairmanDashboard,
+  type FederationDevelopmentSummary,
   type FederationPresidentDashboard,
   type E2ERoleFixtureResult,
   type FederationGovernanceProposal,
@@ -300,6 +301,7 @@ import { backroomSummary } from "./career-market-deepening.js";
 import { createInvestorStakeOffer, decideInvestorBid } from "./ownership.js";
 import { buildChairmanDashboard, buildFederationPresidentDashboard } from "./role-desktop.js";
 import { initializeFederationGovernanceForSave } from "./federation-governance.js";
+import { federationDevelopmentSummary } from "./federation-policy.js";
 import {
   assessFederationCandidacy,
   declareFederationElectionCandidacy,
@@ -1004,6 +1006,20 @@ export class DesktopApplicationService {
         throw appError("ROLE_NOT_AUTHORIZED", "You are not the active Federation President.");
       }
       return buildFederationPresidentDashboard(db, save);
+    });
+  }
+
+  getNationalDevelopment(): AppResult<FederationDevelopmentSummary> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "FEDERATION_PRESIDENT") {
+        throw appError("ROLE_NOT_AUTHORIZED", "You are not the active Federation President.");
+      }
+      const federationId = heldCareerRoles(db, personId).find(
+        (entry) => entry.role === "FEDERATION_PRESIDENT",
+      )?.targetId;
+      if (!federationId) throw appError("ROLE_NOT_AUTHORIZED", "No federation is available.");
+      return federationDevelopmentSummary(db, federationId, save.worldDate);
     });
   }
 

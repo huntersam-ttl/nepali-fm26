@@ -18,6 +18,7 @@ import {
   FederationPolicyRepository,
   GovernmentRepository,
   EventRepository,
+  TerritorialFootballRepository,
   type GameDatabase,
 } from "@nepal-football-sim/database";
 import { refereeGovernanceSummary } from "./federation-strategy.js";
@@ -602,6 +603,10 @@ export const federationDevelopmentSummary = (
         : 0);
   addOutcomeSignal("refereeing", Math.min(4, refereeOutcome), "Referee development outcomes");
 
+  // Ensures territorial_districts exists even on an old save that never
+  // otherwise touched territorial-football state — the same lazy-create
+  // guarantee TerritorialFootballRepository's own callers already get.
+  new TerritorialFootballRepository(db);
   const districts = db
     .prepare(
       `SELECT school_participation, girls_participation, youth_participation,

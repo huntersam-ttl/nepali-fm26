@@ -3,6 +3,8 @@ import type {
   ChairmanDashboard,
   CareerHeader,
   CareerRoleState,
+  FederationDevelopmentBand,
+  FederationDevelopmentSummary,
   FederationPresidentDashboard,
   OwnerManagerCandidate,
 } from "@nepal-football-sim/shared-types";
@@ -11,7 +13,7 @@ import type { AppError, DesktopRuntimeApi } from "../appBridge.js";
 import { AsyncPanel, Badge, ErrorBanner, Metrics, Panel, money, useRuntimeData } from "./ui.js";
 
 export type ChairmanScreen = "dashboard" | "finance" | "manager" | "facilities" | "sponsorship" | "supporters" | "investors";
-export type PresidentScreen = "dashboard" | "governance" | "finance" | "national-teams" | "tenure";
+export type PresidentScreen = "dashboard" | "governance" | "finance" | "national-teams" | "national-development" | "tenure";
 
 type Props = {
   screen: ChairmanScreen | PresidentScreen;
@@ -35,6 +37,10 @@ const SECTION_TITLES: Record<string, { title: string; subtitle: string }> = {
   investors: { title: "Investors", subtitle: "Ownership stakes and equity interest." },
   governance: { title: "Governance", subtitle: "Proposals, policy, and federation decisions." },
   "national-teams": { title: "National teams", subtitle: "Squads, staff, and international programme." },
+  "national-development": {
+    title: "National development",
+    subtitle: "Grassroots, pathway, and federation-wide development outcomes.",
+  },
   tenure: { title: "Tenure", subtitle: "Term, mandate, and election standing." },
 };
 
@@ -157,6 +163,7 @@ const PresidentDetail = ({ screen, bridge, onNavigate }: { screen: PresidentScre
     if (screen === "governance") return <Governance dashboard={dashboard} bridge={bridge} refresh={refresh} />;
     if (screen === "finance") return <FederationFinance dashboard={dashboard} />;
     if (screen === "national-teams") return <NationalTeams dashboard={dashboard} />;
+    if (screen === "national-development") return <NationalDevelopment bridge={bridge} />;
     return <Tenure dashboard={dashboard} />;
   }}</AsyncPanel>;
 };
@@ -171,6 +178,235 @@ const Governance = ({ dashboard, bridge, refresh }: { dashboard: FederationPresi
 const FederationFinance = ({ dashboard }: { dashboard: FederationPresidentDashboard }): React.ReactElement => <section className="role-detail"><Panel title="Federation finance"><Metrics items={[{ label: "Balance", value: money(dashboard.finances.account.cashBalance, dashboard.finances.account.currency) }, { label: "Revenue", value: money(dashboard.finances.account.seasonRevenue, dashboard.finances.account.currency) }, { label: "Expenses", value: money(dashboard.finances.account.seasonExpenses, dashboard.finances.account.currency) }, { label: "Profit / loss", value: money(dashboard.finances.account.seasonProfitLoss, dashboard.finances.account.currency) }, { label: "Government / grants", value: money(dashboard.finances.ledgerEntries.filter((entry) => entry.category.includes("GRANT")).reduce((sum, entry) => sum + entry.amount, 0), dashboard.finances.account.currency) }]} /></Panel><Ledger entries={dashboard.finances.ledgerEntries} /></section>;
 const NationalTeams = ({ dashboard }: { dashboard: FederationPresidentDashboard }): React.ReactElement => <section className="role-detail"><Panel title="National teams"><div className="table-scroll"><table><thead><tr><th>Team</th><th>Level</th><th>Gender</th><th>Head coach</th></tr></thead><tbody>{dashboard.nationalTeams.map((team) => <tr key={team.id}><td>{team.name}</td><td>{team.level}</td><td>{team.gender}</td><td>{team.headCoach ?? "Not recorded"}</td></tr>)}</tbody></table></div></Panel></section>;
 const Tenure = ({ dashboard }: { dashboard: FederationPresidentDashboard }): React.ReactElement => <section className="role-detail"><Panel title="Presidency and tenure"><Metrics items={[{ label: "Federation", value: dashboard.federation.name }, { label: "Current term", value: dashboard.tenure ? `${dashboard.tenure.termStart} – ${dashboard.tenure.termEnd ?? "current"}` : "Not recorded" }, { label: "Status", value: dashboard.tenure?.status ?? "Unknown" }, { label: "Candidacy", value: "See ANFA Presidency Path on Home" }]} /></Panel></section>;
+
+const DEVELOPMENT_DIMENSION_LABELS: Record<string, string> = {
+  youth: "Youth development",
+  schoolFootball: "School football",
+  talentHotspots: "Talent hotspots",
+  coaching: "Coaching",
+  refereeing: "Refereeing",
+  infrastructure: "Infrastructure",
+  womenGirls: "Women & girls",
+  participation: "Grassroots participation",
+  nationalTeams: "National teams",
+  competitionQuality: "Competition quality",
+  commercialStrength: "Commercial strength",
+  governancePolicy: "Governance & policy",
+  internationalPathway: "International pathway",
+};
+
+const bandTone = (band: FederationDevelopmentBand): "ok" | "info" | "warn" | "bad" =>
+  band === "ESTABLISHED" ? "ok" : band === "PROGRESSING" ? "info" : band === "BUILDING" ? "warn" : "bad";
+const bandLabel = (band: FederationDevelopmentBand): string =>
+  band === "ESTABLISHED"
+    ? "Established"
+    : band === "PROGRESSING"
+      ? "Progressing"
+      : band === "BUILDING"
+        ? "Building"
+        : "Foundation";
+const trendLabel = (trend: FederationDevelopmentSummary["trend"]): string =>
+  trend === "IMPROVING" ? "Improving" : trend === "DECLINING" ? "Declining" : "Stable";
+const trendTone = (trend: FederationDevelopmentSummary["trend"]): "ok" | "info" | "bad" =>
+  trend === "IMPROVING" ? "ok" : trend === "DECLINING" ? "bad" : "info";
+
+// Pathway/participation bands reuse the same four-step scale as the overall
+// development band, but their lowest step is spelled "LIMITED" rather than
+// "FOUNDATION" — a separate, real read-model type, not a duplicate scale.
+const participationBandLabel = (band: "LIMITED" | "BUILDING" | "PROGRESSING" | "ESTABLISHED"): string =>
+  band === "ESTABLISHED"
+    ? "Established"
+    : band === "PROGRESSING"
+      ? "Progressing"
+      : band === "BUILDING"
+        ? "Building"
+        : "Limited";
+
+const NationalDevelopment = ({ bridge }: { bridge: DesktopRuntimeApi }): React.ReactElement => {
+  const [state] = useRuntimeData(() => bridge.getNationalDevelopment());
+  return (
+    <AsyncPanel state={state}>
+      {(summary) => <NationalDevelopmentView summary={summary} />}
+    </AsyncPanel>
+  );
+};
+
+const NationalDevelopmentView = ({
+  summary,
+}: {
+  summary: FederationDevelopmentSummary;
+}): React.ReactElement => {
+  const { outcomes } = summary;
+  const fixtureRecord = (record: { fixtures: number; wins: number; draws: number; losses: number }): string =>
+    record.fixtures === 0 ? "No fixtures recorded" : `${record.wins}W ${record.draws}D ${record.losses}L (${record.fixtures} played)`;
+  return (
+    <section className="role-detail">
+      <Panel
+        title="Overall development"
+        actions={
+          <span className="button-row">
+            <Badge tone={bandTone(summary.band)}>{bandLabel(summary.band)}</Badge>
+            <Badge tone={trendTone(summary.trend)}>{trendLabel(summary.trend)}</Badge>
+          </span>
+        }
+      >
+        <p className="subtle">
+          As of {summary.asOf} · Government relationship:{" "}
+          <Badge
+            tone={
+              summary.governmentRelationship === "STRONG"
+                ? "ok"
+                : summary.governmentRelationship === "WORKING"
+                  ? "info"
+                  : "warn"
+            }
+          >
+            {summary.governmentRelationship.toLowerCase()}
+          </Badge>
+        </p>
+        <div className="metrics">
+          {Object.entries(summary.dimensions).map(([key, band]) => (
+            <div key={key}>
+              <dt>{DEVELOPMENT_DIMENSION_LABELS[key] ?? key}</dt>
+              <dd>
+                <Badge tone={bandTone(band)}>{bandLabel(band)}</Badge>
+              </dd>
+            </div>
+          ))}
+        </div>
+      </Panel>
+
+      <div className="summary-grid">
+        <Panel title="Strengths">
+          <ul className="compact-list">
+            {summary.strengths.length ? (
+              summary.strengths.map((item) => <li key={item}>{item.replaceAll("_", " ").toLowerCase()}</li>)
+            ) : (
+              <li className="empty-state">No standout strengths identified yet.</li>
+            )}
+          </ul>
+        </Panel>
+        <Panel title="Priorities">
+          <ul className="compact-list">
+            {summary.priorities.length ? (
+              summary.priorities.map((item) => <li key={item}>{item.replaceAll("_", " ").toLowerCase()}</li>)
+            ) : (
+              <li className="empty-state">No open development priorities recorded.</li>
+            )}
+          </ul>
+        </Panel>
+      </div>
+
+      <Panel title="Recent contributors">
+        <ul className="compact-list">
+          {summary.impactSummaries.length ? (
+            summary.impactSummaries.map((item, index) => <li key={`${item}-${index}`}>{item}</li>)
+          ) : (
+            <li className="empty-state">No recent development activity recorded.</li>
+          )}
+        </ul>
+      </Panel>
+
+      <div className="summary-grid">
+        <Panel title="Senior national team">
+          <p>{fixtureRecord(outcomes.senior)}</p>
+        </Panel>
+        <Panel title="Youth national teams">
+          <p>{fixtureRecord(outcomes.youth)}</p>
+        </Panel>
+        <Panel title="Women's national team">
+          <p>{fixtureRecord(outcomes.women)}</p>
+        </Panel>
+      </div>
+
+      <Panel title="Youth-to-senior pathway">
+        <Metrics
+          items={[
+            { label: "Academy players", value: outcomes.pathway.academyPlayers },
+            { label: "First-team debuts", value: outcomes.pathway.firstTeamDebuts },
+            { label: "Regular first-team players", value: outcomes.pathway.regularFirstTeamPlayers },
+            { label: "Youth national call-ups", value: outcomes.pathway.youthNationalPlayers },
+            { label: "Senior national call-ups", value: outcomes.pathway.seniorNationalPlayers },
+          ]}
+        />
+        <p className="subtle">
+          Strongest stage: {outcomes.strongestPathwayStage.replaceAll("_", " ").toLowerCase()} · Weakest
+          stage: {outcomes.weakestPathwayStage.replaceAll("_", " ").toLowerCase()}
+        </p>
+      </Panel>
+
+      <Panel title="Academy conversion by season">
+        {outcomes.academyConversionBySeason.length === 0 ? (
+          <p className="empty-state">No academy conversion history recorded yet.</p>
+        ) : (
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Season</th>
+                  <th>Intake</th>
+                  <th>Graduates</th>
+                  <th>Debuts</th>
+                  <th>Regulars</th>
+                  <th>Youth caps</th>
+                  <th>Senior caps</th>
+                  <th>Transfers out</th>
+                  <th>Confidence</th>
+                </tr>
+              </thead>
+              <tbody>
+                {outcomes.academyConversionBySeason.map((season) => (
+                  <tr key={season.seasonLabel}>
+                    <td>{season.seasonLabel}</td>
+                    <td>{season.intakeCount}</td>
+                    <td>{season.academyGraduates}</td>
+                    <td>{season.firstTeamDebuts}</td>
+                    <td>{season.regularFirstTeamPlayers}</td>
+                    <td>{season.youthNationalCallups}</td>
+                    <td>{season.seniorNationalCallups}</td>
+                    <td>{season.meaningfulExternalTransfers}</td>
+                    <td>
+                      <Badge
+                        tone={
+                          season.confidence === "HIGH" ? "ok" : season.confidence === "MEDIUM" ? "info" : "warn"
+                        }
+                      >
+                        {season.confidence.toLowerCase()} ({season.sampleSize})
+                      </Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
+
+      <div className="summary-grid">
+        <Panel title="Women & girls programme">
+          <Metrics
+            items={[
+              { label: "Participation", value: participationBandLabel(outcomes.womenProgramme.participationBand) },
+              { label: "Girls development", value: participationBandLabel(outcomes.girlsDevelopment) },
+              {
+                label: "Coaching infrastructure",
+                value: outcomes.womenProgramme.coachingInfrastructureSupport === "PRESENT" ? "Present" : "Limited",
+              },
+            ]}
+          />
+          <Metrics
+            items={[
+              { label: "Intake", value: outcomes.womenProgramme.intakeCount },
+              { label: "Academy progression", value: outcomes.womenProgramme.academyProgression },
+              { label: "Youth national progression", value: outcomes.womenProgramme.youthNationalProgression },
+              { label: "Senior national progression", value: outcomes.womenProgramme.seniorNationalProgression },
+            ]}
+          />
+        </Panel>
+      </div>
+    </section>
+  );
+};
 
 const ProjectList = ({ projects }: { projects: FederationPresidentDashboard["projects"] }): React.ReactElement => <ul className="compact-list">{projects.length ? projects.map((project) => <li key={project.id}>{project.name} · {project.status} · {project.expectedCompletion}</li>) : <li>No federation projects recorded.</li>}</ul>;
 const Ledger = ({ entries }: { entries: Array<{ id: string; date: string; description: string; direction: string; amount: number; currency: string }> }): React.ReactElement => <Panel title="Recent transactions"><ul className="compact-list">{entries.length ? entries.slice(0, 12).map((entry) => <li key={entry.id}>{entry.date} · {entry.description} · {entry.direction === "DEBIT" ? "−" : "+"}{money(entry.amount, entry.currency)}</li>) : <li>No transactions recorded.</li>}</ul></Panel>;

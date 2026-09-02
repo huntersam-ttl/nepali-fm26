@@ -68,7 +68,7 @@ const CHAIRMAN_NAV: Array<{ group: string; items: Array<{ id: ChairmanScreen; la
 ];
 const PRESIDENT_NAV: Array<{ group: string; items: Array<{ id: PresidentScreen; label: string }> }> = [
   { group: "Federation", items: [{ id: "dashboard", label: "Dashboard" }, { id: "governance", label: "Governance" }, { id: "finance", label: "Finance" }] },
-  { group: "Football", items: [{ id: "national-teams", label: "National Teams" }] },
+  { group: "Football", items: [{ id: "national-teams", label: "National Teams" }, { id: "national-development", label: "National Development" }] },
   { group: "Career", items: [{ id: "tenure", label: "Election / Tenure" }] },
 ];
 
