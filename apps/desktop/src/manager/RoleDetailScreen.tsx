@@ -38,6 +38,11 @@ import type {
   InfrastructureProject,
   InfrastructureProjectType,
   ManagerPromise,
+  EntityReference,
+  ActorPlayerActions,
+  PlayerContractContext,
+  PlayerTransferContext,
+  OwnerPlayerRequestIntent,
 } from "@nepal-football-sim/shared-types";
 import type { EntityId } from "@nepal-football-sim/shared-types";
 import type { AppError, DesktopRuntimeApi } from "../appBridge.js";
@@ -118,7 +123,7 @@ const ChairmanDetail = ({ screen, bridge, onNavigate }: { screen: ChairmanScreen
     if (screen === "investors") return <InvestorMeeting bridge={bridge} />;
     if (screen === "bank") return <BankMeeting bridge={bridge} role="CHAIRMAN_OWNER" clubId={dashboard.club.id} />;
     if (screen === "meeting") return <OwnerManagerMeeting bridge={bridge} clubId={dashboard.club.id} />;
-    if (screen === "matchday") return <OwnerMatchday bridge={bridge} />;
+    if (screen === "matchday") return <OwnerMatchday bridge={bridge} onTalkToManager={() => onNavigate("meeting")} />;
     return <ChairmanSupporters dashboard={dashboard} />;
   }}</AsyncPanel>;
 };
@@ -1348,6 +1353,16 @@ const OWNER_MANAGER_TOPIC_LABELS: Record<OwnerManagerMeetingTopic, string> = {
 };
 const OWNER_MANAGER_TOPICS = Object.keys(OWNER_MANAGER_TOPIC_LABELS) as OwnerManagerMeetingTopic[];
 
+const OWNER_PLAYER_REQUEST_LABELS: Record<OwnerPlayerRequestIntent, string> = {
+  CONSIDER_TRANSFER_LIST: "Request transfer consideration",
+  CONSIDER_LOAN_LIST: "Ask Manager to loan-list",
+  CONSIDER_RENEWAL: "Ask Manager to consider renewal",
+  REVIEW_SQUAD_ROLE: "Ask Manager to review squad role",
+  STRENGTHEN_POSITION: "Ask Manager to strengthen this position",
+  CONSIDER_RELEASE: "Ask Manager to consider release",
+};
+const OWNER_PLAYER_REQUEST_INTENTS = Object.keys(OWNER_PLAYER_REQUEST_LABELS) as OwnerPlayerRequestIntent[];
+
 const OWNER_MANAGER_COMMITMENT_LABELS: Record<OwnerManagerCommitmentType, string> = {
   PROMOTION_CHALLENGE: "Promotion challenge",
   YOUTH_USAGE: "Youth usage",
@@ -1658,11 +1673,12 @@ const OwnerManagerMeetingView = ({
  * gated to the MANAGER role) — there is no tactical control to accidentally
  * expose here, because none exists to call.
  */
-export const OwnerMatchday = ({ bridge }: { bridge: DesktopRuntimeApi }): React.ReactElement => {
+export const OwnerMatchday = ({ bridge, onTalkToManager }: { bridge: DesktopRuntimeApi; onTalkToManager?: () => void }): React.ReactElement => {
   const [state, refresh] = useRuntimeData(() => bridge.getOwnerMatchday());
   const [live, setLive] = useState<LiveMatchView | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [selectedPlayerId, setSelectedPlayerId] = useState<EntityId | null>(null);
 
   const watch = async (fixtureId: EntityId): Promise<void> => {
     setBusyId(`watch:${fixtureId}`);
@@ -1706,6 +1722,14 @@ export const OwnerMatchday = ({ bridge }: { bridge: DesktopRuntimeApi }): React.
             <p className="notice" role="status">
               {message}
             </p>
+          )}
+          {selectedPlayerId && (
+            <PlayerContextPanel
+              bridge={bridge}
+              playerId={selectedPlayerId}
+              onClose={() => setSelectedPlayerId(null)}
+              onTalkToManager={onTalkToManager}
+            />
           )}
           <Panel title="Next fixture">
             {matchday.upcoming.length === 0 ? (
@@ -1767,6 +1791,25 @@ export const OwnerMatchday = ({ bridge }: { bridge: DesktopRuntimeApi }): React.
                   ))}
                 </ul>
               )}
+              <div className="summary-grid">
+                {[live.home, live.away].map((team) => (
+                  <div key={team.teamId}>
+                    <h3>{team.teamName}</h3>
+                    <ul className="compact-list">
+                      {team.onPitch.map((player) => (
+                        <li key={player.personId}>
+                          <button className="link" onClick={() => setSelectedPlayerId(player.personId)}>
+                            {player.name}
+                          </button>{" "}
+                          <span className="subtle">
+                            {player.position} · {player.rating > 0 ? player.rating.toFixed(1) : "—"}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
             </Panel>
           )}
           <Panel title="Recent results">
@@ -2289,6 +2332,152 @@ const FacilityLifecycle = ({ planning }: { planning: FacilityPlanningView }): Re
           );
         })}
       </div>
+    </Panel>
+  );
+};
+
+/**
+ * Owner/President player view. Read-only by construction: it never calls a
+ * football-mutating command, it only shows getPlayerActions' own real
+ * reason for why this actor cannot act, plus a pointer into the existing
+ * Owner<->Manager meeting path when one is available. Reused everywhere an
+ * Owner or President screen needs to open a player — never a per-screen
+ * bespoke profile.
+ */
+export const PlayerContextPanel = ({
+  bridge,
+  playerId,
+  onClose,
+  onTalkToManager,
+}: {
+  bridge: DesktopRuntimeApi;
+  playerId: EntityId;
+  onClose: () => void;
+  /** Present only where a real Owner<->Manager meeting path exists to route into. */
+  onTalkToManager?: () => void;
+}): React.ReactElement => {
+  const [state, refresh] = useRuntimeData(async () => {
+    const [reference, contract, transfer, actions, request] = await Promise.all([
+      bridge.getEntityReference("PLAYER", playerId),
+      bridge.getPlayerContractContext(playerId),
+      bridge.getPlayerTransferContext(playerId),
+      bridge.getPlayerActions(playerId),
+      // Owner-only, and only meaningful for a player at the owner's own
+      // club — a failed/unauthorized result here just means no request path
+      // is offered, not that the whole panel breaks.
+      bridge.getOwnerPlayerRequestContext(playerId),
+    ]);
+    if (!reference.ok) return reference;
+    if (!contract.ok) return contract;
+    if (!transfer.ok) return transfer;
+    if (!actions.ok) return actions;
+    return {
+      ok: true as const,
+      data: {
+        reference: reference.data,
+        contract: contract.data,
+        transfer: transfer.data,
+        actions: actions.data,
+        request: request.ok ? request.data : undefined,
+      },
+    };
+  }, [playerId]);
+  const [requestBusy, setRequestBusy] = useState<OwnerPlayerRequestIntent | null>(null);
+
+  return (
+    <Panel
+      title="Player"
+      className="panel-wide player-context-panel"
+      actions={<button className="ghost small" onClick={onClose}>Close</button>}
+    >
+      <AsyncPanel state={state}>
+        {(data) =>
+          !data.reference.visible ? (
+            <p className="empty-state">
+              This player is no longer on record — they may have retired, transferred away and left this
+              database's scope, or the reference is stale.
+            </p>
+          ) : (
+            <>
+              <h2>{data.reference.label}</h2>
+              <Metrics
+                items={[
+                  { label: "Club", value: data.contract.clubName ?? "Unattached" },
+                  { label: "Squad role", value: data.contract.contract?.squadRole ?? "—" },
+                  { label: "Contract status", value: data.contract.contract?.status ?? "No active contract" },
+                ]}
+              />
+              {data.contract.contract && (
+                <Panel title="Contract">
+                  <Metrics
+                    items={[
+                      { label: "Wages", value: `${money(data.contract.contract.salary, data.contract.contract.currency)} / month` },
+                      { label: "Expires", value: data.contract.contract.endDate },
+                      {
+                        label: "Release clause",
+                        value: data.contract.contract.releaseClause
+                          ? money(data.contract.contract.releaseClause, data.contract.contract.currency)
+                          : "None",
+                      },
+                    ]}
+                  />
+                </Panel>
+              )}
+              <Panel title="Transfer status">
+                <Metrics
+                  items={[
+                    { label: "Status", value: band(data.transfer.transferStatus) },
+                    { label: "Active offers", value: data.transfer.activeOfferCount },
+                  ]}
+                />
+                {data.transfer.transferReason && <p className="subtle">{data.transfer.transferReason}</p>}
+              </Panel>
+              <Panel title="Football authority">
+                <p className="subtle">
+                  {data.actions.actions[0]?.reason ??
+                    "Football decisions for this player belong to the Manager or a delegated Director."}
+                </p>
+                {data.request ? (
+                  <div className="action-group">
+                    <h3>Open request</h3>
+                    <p className="subtle">
+                      {OWNER_PLAYER_REQUEST_LABELS[data.request.requestIntent]} · raised {data.request.requestedOn}
+                      {data.request.deadline ? ` · due ${data.request.deadline}` : ""}
+                    </p>
+                    <p className="subtle">Stage: {band(data.request.meeting.stage)}{data.request.meeting.outcome ? ` — ${data.request.meeting.outcome}` : ""}</p>
+                  </div>
+                ) : (
+                  <div className="action-group">
+                    <h3>Ask the Manager</h3>
+                    <div className="button-row">
+                      {OWNER_PLAYER_REQUEST_INTENTS.map((intent) => (
+                        <button
+                          key={intent}
+                          className="ghost small"
+                          disabled={requestBusy !== null}
+                          onClick={async () => {
+                            setRequestBusy(intent);
+                            const result = await bridge.openOwnerPlayerRequest(playerId, intent);
+                            setRequestBusy(null);
+                            if (result.ok) refresh();
+                          }}
+                        >
+                          {requestBusy === intent ? "Raising…" : OWNER_PLAYER_REQUEST_LABELS[intent]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {onTalkToManager && (
+                  <button className="ghost small" onClick={onTalkToManager}>
+                    Discuss with Manager
+                  </button>
+                )}
+              </Panel>
+            </>
+          )
+        }
+      </AsyncPanel>
     </Panel>
   );
 };

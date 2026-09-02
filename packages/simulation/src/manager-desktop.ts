@@ -605,6 +605,12 @@ export const buildPlayerProfile = (
     clubName: clubName(db, (profile?.current_club_id as EntityId) ?? context.club?.id),
     squadStatus: (factual.squadStatus as string) ?? "UNKNOWN",
     availability: availabilityOf(state?.availability),
+    ownSquad,
+    transferListStatus: ownSquad
+      ? (["TRANSFER_LISTED", "LOAN_LISTED"] as const).find(
+          (status) => status === new TransferMarketRepository(db).transferStatus(playerId)?.status,
+        )
+      : undefined,
     attributeProvenance: "SIMULATION_ONLY",
     attributeGroups: attributeGroups(attributes),
     ability,

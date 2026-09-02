@@ -427,7 +427,7 @@ export const ManagerCareer = ({
             <SquadScreen onSelectPlayer={setPlayerId} />
           ))}
         {header.activeRole === "MANAGER" && screen === "tactics" && <TacticsScreen />}
-        {header.activeRole === "MANAGER" && screen === "training" && <TrainingScreen />}
+        {header.activeRole === "MANAGER" && screen === "training" && <TrainingScreen onSelectPlayer={openPlayer} />}
         {header.activeRole === "MANAGER" && screen === "fixtures" &&
           (matchFixtureId ? (
             <MatchdayScreen
@@ -435,6 +435,7 @@ export const ManagerCareer = ({
               resume={resumingMatch}
               onExit={() => void leaveMatch()}
               onMatchComplete={() => void onMatchComplete()}
+              onSelectPlayer={openPlayer}
             />
           ) : (
             <FixturesScreen onOpenMatch={(fixtureId) => openMatch(fixtureId)} />
@@ -442,7 +443,7 @@ export const ManagerCareer = ({
         {header.activeRole === "MANAGER" && screen === "competition" && <CompetitionScreen />}
         {header.activeRole === "MANAGER" && screen === "scouting" && <ScoutingScreen onSelectPlayer={openPlayer} />}
         {header.activeRole === "MANAGER" && screen === "transfers" && <TransfersScreen onSelectPlayer={openPlayer} />}
-        {header.activeRole === "MANAGER" && screen === "contracts" && <ContractsScreen />}
+        {header.activeRole === "MANAGER" && screen === "contracts" && <ContractsScreen onSelectPlayer={openPlayer} />}
         {header.activeRole === "MANAGER" && screen === "staff" && (
           <StaffScreen refreshKey={refreshKey} />
         )}

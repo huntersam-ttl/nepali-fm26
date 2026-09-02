@@ -9,7 +9,11 @@ import { managerBridge } from "../managerBridge.js";
 import { AsyncPanel, Badge, ErrorBanner, Metrics, Panel, useRuntimeData } from "../ui.js";
 import type { AppError } from "../../appBridge.js";
 
-export const TrainingScreen = (): React.ReactElement => {
+export const TrainingScreen = ({
+  onSelectPlayer,
+}: {
+  onSelectPlayer: (playerId: EntityId) => void;
+}): React.ReactElement => {
   const [state, , replace] = useRuntimeData(() => managerBridge.getTraining());
   const [devState, , replaceDev] = useRuntimeData(() => managerBridge.getPlayerDevelopment());
   const [error, setError] = useState<AppError | null>(null);
@@ -55,11 +59,11 @@ export const TrainingScreen = (): React.ReactElement => {
     <>
       {error && <ErrorBanner error={error} />}
       <AsyncPanel state={state}>
-        {(view) => <TrainingBoard view={view} busy={busy} onApply={apply} />}
+        {(view) => <TrainingBoard view={view} busy={busy} onApply={apply} onSelectPlayer={onSelectPlayer} />}
       </AsyncPanel>
       <AsyncPanel state={devState}>
         {(view) => (
-          <PlayerDevelopmentBoard view={view} busy={busy} onCreatePlan={applyPlan} onSetStatus={setPlanStatus} />
+          <PlayerDevelopmentBoard view={view} busy={busy} onCreatePlan={applyPlan} onSetStatus={setPlanStatus} onSelectPlayer={onSelectPlayer} />
         )}
       </AsyncPanel>
     </>
@@ -70,10 +74,12 @@ const TrainingBoard = ({
   view,
   busy,
   onApply,
+  onSelectPlayer,
 }: {
   view: TrainingView;
   busy: boolean;
   onApply: (command: Parameters<typeof managerBridge.updateTraining>[0]) => Promise<void>;
+  onSelectPlayer: (playerId: EntityId) => void;
 }): React.ReactElement => {
   const [name, setName] = useState(view.plan.name);
 
@@ -231,7 +237,11 @@ const TrainingBoard = ({
               <tbody>
                 {view.squadDevelopment.map((player) => (
                   <tr key={player.personId}>
-                    <td>{player.name}</td>
+                    <td>
+                      <button className="link" onClick={() => onSelectPlayer(player.personId)}>
+                        {player.name}
+                      </button>
+                    </td>
                     <td>{player.phase.replace(/_/g, " ").toLowerCase()}</td>
                     <td>{player.momentum.toFixed(2)}</td>
                     <td>{player.fitness}</td>
@@ -253,11 +263,13 @@ const PlayerDevelopmentBoard = ({
   busy,
   onCreatePlan,
   onSetStatus,
+  onSelectPlayer,
 }: {
   view: PlayerDevelopmentView;
   busy: boolean;
   onCreatePlan: (command: CreateDevelopmentPlanCommand) => Promise<void>;
   onSetStatus: (planId: EntityId, status: string) => Promise<void>;
+  onSelectPlayer: (playerId: EntityId) => void;
 }): React.ReactElement => {
   const [focusType, setFocusType] = useState<string>("BALANCED");
   const [targetPosition, setTargetPosition] = useState<string>(view.positionOptions[0] ?? "ST");
@@ -384,7 +396,11 @@ const PlayerDevelopmentBoard = ({
               <tbody>
                 {view.players.map((player) => (
                   <tr key={player.personId}>
-                    <td>{player.name}</td>
+                    <td>
+                      <button className="link" onClick={() => onSelectPlayer(player.personId)}>
+                        {player.name}
+                      </button>
+                    </td>
                     <td>{player.age ?? "—"}</td>
                     <td>{player.primaryPosition}</td>
                     <td>{player.phase.replace(/_/g, " ").toLowerCase()}</td>

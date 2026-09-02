@@ -35,6 +35,7 @@ import type {
   OwnerManagerCommitmentInput,
   OwnerManagerMeetingStance,
   OwnerManagerMeetingTopic,
+  OwnerPlayerRequestIntent,
 } from "@nepal-football-sim/shared-types";
 import { DesktopApplicationService, type DesktopRuntimeOptions } from "./desktop-application.js";
 
@@ -406,6 +407,20 @@ const dispatch = (
       return service.getPlayerActions(body.playerId as EntityId);
     case "getPlayerActionAvailability":
       return service.getPlayerActionAvailability(body.playerId as EntityId);
+    case "getOwnerPlayerRequestContext":
+      return service.getOwnerPlayerRequestContext(body.playerId as EntityId);
+    case "openOwnerPlayerRequest":
+      return service.openOwnerPlayerRequest(
+        body.playerId as EntityId,
+        body.intent as OwnerPlayerRequestIntent,
+        body.deadline as string | undefined,
+      );
+    case "respondToOwnerPlayerRequest":
+      return service.respondToOwnerPlayerRequest(
+        body.interactionId as EntityId,
+        body.stance as OwnerManagerMeetingStance,
+        body.commitment as OwnerManagerCommitmentInput | undefined,
+      );
     case "getPlayerContractContext":
       return service.getPlayerContractContext(body.playerId as EntityId);
     case "getPlayerTransferContext":

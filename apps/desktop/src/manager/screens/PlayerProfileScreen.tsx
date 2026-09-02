@@ -1,8 +1,10 @@
 import React, { useState } from "react";
 import type {
+  AppResult,
   DressingRoomHierarchyLabel,
   EntityId,
   ManagerSupportLabel,
+  PlayerProfile,
 } from "@nepal-football-sim/shared-types";
 import { managerBridge } from "../managerBridge.js";
 import {
@@ -16,6 +18,111 @@ import {
   money,
   useRuntimeData,
 } from "../ui.js";
+
+/**
+ * Real, actor-aware actions only — grouped, not a button dump. RELEASE and
+ * SQUAD_ROLE have no manual command anywhere in the codebase yet (release
+ * only ever happens automatically via contract expiry/squad-balancing
+ * cadence; there is no per-player squad-role change command) — shown
+ * disabled with an honest reason rather than omitted silently or faked.
+ * PROMISES has no per-player command either (createPromise is internal to
+ * squad-dynamics.ts, not exposed as a desktop command).
+ */
+const PlayerActionRail = ({
+  player,
+  actionBusy,
+  setActionBusy,
+  setActionMessage,
+  refresh,
+}: {
+  player: PlayerProfile;
+  actionBusy: string | null;
+  setActionBusy: (id: string | null) => void;
+  setActionMessage: (message: string | null) => void;
+  refresh: () => void;
+}): React.ReactElement => {
+  const run = async (id: string, action: () => Promise<AppResult<unknown>>): Promise<void> => {
+    if (actionBusy) return;
+    setActionBusy(id);
+    setActionMessage(null);
+    const result = await action();
+    setActionBusy(null);
+    if (result.ok) refresh();
+    else setActionMessage(result.error.message);
+  };
+
+  const transferListed = player.transferListStatus === "TRANSFER_LISTED";
+  const loanListed = player.transferListStatus === "LOAN_LISTED";
+
+  return (
+    <Panel title="Actions">
+      {player.ownSquad && (
+        <div className="action-group">
+          <h3>Transfer</h3>
+          <div className="button-row">
+            <button
+              className={transferListed ? "primary small" : "ghost small"}
+              disabled={actionBusy !== null}
+              onClick={() =>
+                void run("transfer", () =>
+                  managerBridge.setTransferStatus({ playerId: player.personId, status: transferListed ? "NOT_FOR_SALE" : "TRANSFER_LISTED" }),
+                )
+              }
+            >
+              {actionBusy === "transfer" ? "Updating…" : transferListed ? "Remove from transfer list" : "Transfer list"}
+            </button>
+            <button
+              className={loanListed ? "primary small" : "ghost small"}
+              disabled={actionBusy !== null}
+              onClick={() =>
+                void run("loan", () =>
+                  managerBridge.setTransferStatus({ playerId: player.personId, status: loanListed ? "NOT_FOR_SALE" : "LOAN_LISTED" }),
+                )
+              }
+            >
+              {actionBusy === "loan" ? "Updating…" : loanListed ? "Remove from loan list" : "Loan list"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="action-group">
+        <h3>Scouting</h3>
+        <div className="button-row">
+          <button
+            className="ghost small"
+            disabled={actionBusy !== null}
+            onClick={() => void run("shortlist", () => managerBridge.toggleShortlist(player.personId))}
+          >
+            {actionBusy === "shortlist" ? "Updating…" : "Toggle shortlist"}
+          </button>
+        </div>
+      </div>
+
+      {player.ownSquad && (
+        <div className="action-group">
+          <h3>Squad status</h3>
+          <div className="button-row">
+            <button className="ghost small" disabled title="Manual release isn't available yet — releases only happen automatically, through contract expiry or squad-balancing.">
+              Release
+            </button>
+            <button className="ghost small" disabled title="Changing a player's squad role isn't available as a direct action yet.">
+              Change squad role
+            </button>
+          </div>
+          <p className="subtle">Release and squad-role changes are not yet available as direct manager actions.</p>
+        </div>
+      )}
+
+      <div className="action-group">
+        <h3>Discussion</h3>
+        <button className="ghost small" disabled title="Per-player promises/discussion is not yet available as a direct action.">
+          Discuss / promise
+        </button>
+      </div>
+    </Panel>
+  );
+};
 
 const HIERARCHY_LABELS: Record<DressingRoomHierarchyLabel, string> = {
   TEAM_LEADER: "Team leader",
@@ -118,11 +225,12 @@ export const PlayerProfileScreen = ({
   playerId: EntityId;
   onClose: () => void;
 }): React.ReactElement => {
-  const [state] = useRuntimeData(() => managerBridge.getPlayerProfile(playerId), [playerId]);
+  const [state, refresh] = useRuntimeData(() => managerBridge.getPlayerProfile(playerId), [playerId]);
   const [salary, setSalary] = useState("");
   const [months, setMonths] = useState("24");
   const [busy, setBusy] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [actionBusy, setActionBusy] = useState<string | null>(null);
 
   return (
     <section
@@ -166,6 +274,19 @@ export const PlayerProfileScreen = ({
                 ]}
               />
             </Panel>
+
+            <PlayerActionRail
+              player={player}
+              actionBusy={actionBusy}
+              setActionBusy={setActionBusy}
+              setActionMessage={setActionMessage}
+              refresh={refresh}
+            />
+            {actionMessage && (
+              <p className="notice" role="status">
+                {actionMessage}
+              </p>
+            )}
 
             <Panel title="Form and condition">
               <Metrics

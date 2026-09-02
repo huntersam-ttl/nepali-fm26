@@ -18,9 +18,11 @@ const FILTERS: Array<{ id: TimelineFilter; label: string; types: string[] }> = [
 export const PostMatchReportScreen = ({
   fixtureId,
   onReturn,
+  onSelectPlayer,
 }: {
   fixtureId: EntityId;
   onReturn: () => void;
+  onSelectPlayer?: (playerId: EntityId) => void;
 }): React.ReactElement => {
   const [state] = useRuntimeData(() => managerBridge.getPostMatchReport(fixtureId), [fixtureId]);
   const [filter, setFilter] = useState<TimelineFilter>("all");
@@ -82,7 +84,16 @@ export const PostMatchReportScreen = ({
                 {report.playerOfTheMatch && (
                   <p>
                     <Badge tone="ok">Player of the match</Badge>{" "}
-                    <strong>{report.playerOfTheMatch.name}</strong> ·{" "}
+                    <strong>
+                      {onSelectPlayer ? (
+                        <button className="link" onClick={() => onSelectPlayer(report.playerOfTheMatch!.personId)}>
+                          {report.playerOfTheMatch.name}
+                        </button>
+                      ) : (
+                        report.playerOfTheMatch.name
+                      )}
+                    </strong>{" "}
+                    ·{" "}
                     {report.playerOfTheMatch.rating.toFixed(2)}
                   </p>
                 )}
@@ -162,7 +173,7 @@ export const PostMatchReportScreen = ({
               </Panel>
 
               <Panel title="Player ratings">
-                <RatingsTable ratings={report.ratings} best={report.playerOfTheMatch} />
+                <RatingsTable ratings={report.ratings} best={report.playerOfTheMatch} onSelectPlayer={onSelectPlayer} />
               </Panel>
 
               <Panel title="Tactical summary">
@@ -249,9 +260,11 @@ const resultLabel = (result: "W" | "D" | "L"): string =>
 const RatingsTable = ({
   ratings,
   best,
+  onSelectPlayer,
 }: {
   ratings: MatchRatingRow[];
   best?: MatchRatingRow;
+  onSelectPlayer?: (playerId: EntityId) => void;
 }): React.ReactElement => {
   const teams = [...new Set(ratings.map((rating) => rating.teamName))];
   return (
@@ -282,7 +295,13 @@ const RatingsTable = ({
                       className={rating.personId === best?.personId ? "row-highlight" : ""}
                     >
                       <td>
-                        {rating.name}
+                        {onSelectPlayer ? (
+                          <button className="link" onClick={() => onSelectPlayer(rating.personId)}>
+                            {rating.name}
+                          </button>
+                        ) : (
+                          rating.name
+                        )}
                         {!rating.started && <span className="subtle"> (sub)</span>}
                       </td>
                       <td>{rating.position ?? "-"}</td>

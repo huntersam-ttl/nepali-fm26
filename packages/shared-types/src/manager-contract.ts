@@ -139,6 +139,10 @@ export type PlayerProfile = {
   clubName?: string;
   squadStatus: string;
   availability: SquadAvailability;
+  /** Whether this player is on the viewing manager's own team — gates which actions the profile can offer (transfer/loan-list and renew only make sense for your own squad; shortlisting works for anyone). */
+  ownSquad: boolean;
+  /** Real player_transfer_statuses row, when this is the manager's own player. Undefined means not listed either way. */
+  transferListStatus?: "TRANSFER_LISTED" | "LOAN_LISTED";
   /** Attribute values are gameplay values, always SIMULATION_ONLY. */
   attributeProvenance: ProvenanceStatus;
   attributeGroups: AttributeGroupView[];

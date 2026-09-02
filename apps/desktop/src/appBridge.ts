@@ -51,6 +51,11 @@ import type {
   OwnerManagerCandidate,
   ManagerContract,
   TacticalSetup,
+  ActorPlayerActions,
+  PlayerContractContext,
+  PlayerTransferContext,
+  OwnerPlayerRequestContext,
+  OwnerPlayerRequestIntent,
 } from "@nepal-football-sim/shared-types";
 
 export type {
@@ -168,6 +173,12 @@ const bindCommands = (call: CommandCaller): DesktopRuntimeApi => ({
   watchOwnerFixture: (fixtureId?: EntityId) => call<LiveMatchView>("watchOwnerFixture", { fixtureId }),
   quickSimOwnerFixture: (fixtureId?: EntityId) => call<LiveMatchView>("quickSimOwnerFixture", { fixtureId }),
   getEntityReference: (entityType: EntityReferenceType, entityId: EntityId) => call<EntityReference>("getEntityReference", { entityType, entityId }),
+  getPlayerActions: (playerId: EntityId) => call<ActorPlayerActions>("getPlayerActions", { playerId }),
+  getPlayerContractContext: (playerId: EntityId) => call<PlayerContractContext>("getPlayerContractContext", { playerId }),
+  getPlayerTransferContext: (playerId: EntityId) => call<PlayerTransferContext>("getPlayerTransferContext", { playerId }),
+  getOwnerPlayerRequestContext: (playerId: EntityId) => call<OwnerPlayerRequestContext | undefined>("getOwnerPlayerRequestContext", { playerId }),
+  openOwnerPlayerRequest: (playerId: EntityId, intent: OwnerPlayerRequestIntent, deadline?: string) => call<UniversalInteraction>("openOwnerPlayerRequest", { playerId, intent, deadline }),
+  respondToOwnerPlayerRequest: (interactionId: EntityId, stance: OwnerManagerMeetingStance, commitment?: OwnerManagerCommitmentInput) => call<UniversalInteraction>("respondToOwnerPlayerRequest", { interactionId, stance, commitment }),
   getFacilityPlanning: (clubId?: EntityId) => call<FacilityPlanningView>("getFacilityPlanning", { clubId }),
   getFacilitySiteOptions: (clubId: EntityId, districtId?: EntityId, municipalityName?: string) => call<FacilitySiteOption[]>("getFacilitySiteOptions", { clubId, districtId, municipalityName }),
   createFacilityProjectPlan: (input: FacilityProjectPlanInput) => call<FacilityProjectPlanResult>("createFacilityProjectPlan", { input }),

@@ -1,9 +1,14 @@
 import React, { useState } from "react";
+import type { EntityId } from "@nepal-football-sim/shared-types";
 import { managerBridge } from "../managerBridge.js";
 import { AsyncPanel, Badge, ErrorBanner, Metrics, Panel, money, useRuntimeData } from "../ui.js";
 import type { AppError } from "../../appBridge.js";
 
-export const ContractsScreen = (): React.ReactElement => {
+export const ContractsScreen = ({
+  onSelectPlayer,
+}: {
+  onSelectPlayer: (playerId: EntityId) => void;
+}): React.ReactElement => {
   const [state, , replace] = useRuntimeData(() => managerBridge.getContracts());
   const [filter, setFilter] = useState<"all" | "expiring">("all");
   const [error, setError] = useState<AppError | null>(null);
@@ -69,7 +74,11 @@ export const ContractsScreen = (): React.ReactElement => {
                     <tbody>
                       {rows.map((contract) => (
                         <tr key={contract.playerId}>
-                          <td>{contract.playerName}</td>
+                          <td>
+                            <button className="link" onClick={() => onSelectPlayer(contract.playerId)}>
+                              {contract.playerName}
+                            </button>
+                          </td>
                           <td>{money(contract.salary, contract.currency)} / month</td>
                           <td>{contract.squadRole.replace(/_/g, " ").toLowerCase()}</td>
                           <td>{contract.endDate}</td>

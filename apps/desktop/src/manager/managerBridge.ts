@@ -59,6 +59,7 @@ import type {
   FederationCandidacyAssessment,
   ClubBudgetCategory,
   ManagerBudgetRequest,
+  ActorPlayerActions,
 } from "@nepal-football-sim/shared-types";
 import { runtimeCall } from "../appBridge.js";
 
@@ -78,6 +79,8 @@ export const managerBridge = {
     runtimeCall<SquadMeetingResult>("holdSquadMeeting", { command }),
   getPlayerProfile: (playerId: EntityId) =>
     runtimeCall<PlayerProfile>("getPlayerProfile", { playerId }),
+  getPlayerActions: (playerId: EntityId) =>
+    runtimeCall<ActorPlayerActions>("getPlayerActions", { playerId }),
   getMediaCentre: () => runtimeCall<MediaCentreView>("getMediaCentre"),
   requestPressConference: (storyId: EntityId) =>
     runtimeCall<PressConferenceView>("requestPressConference", { storyId }),

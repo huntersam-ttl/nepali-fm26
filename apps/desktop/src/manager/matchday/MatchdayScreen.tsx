@@ -16,12 +16,14 @@ export const MatchdayScreen = ({
   resume,
   onExit,
   onMatchComplete,
+  onSelectPlayer,
 }: {
   fixtureId: EntityId;
   /** True when re-entering a match that is already in progress. */
   resume?: boolean;
   onExit: () => void;
   onMatchComplete: () => void;
+  onSelectPlayer?: (playerId: EntityId) => void;
 }): React.ReactElement => {
   const controller = useMatchController(fixtureId);
   const [stage, setStage] = useState<Stage>(resume ? "LIVE" : "PRE_MATCH");
@@ -68,7 +70,7 @@ export const MatchdayScreen = ({
   }
 
   if (stage === "REPORT") {
-    return <PostMatchReportScreen fixtureId={fixtureId} onReturn={onExit} />;
+    return <PostMatchReportScreen fixtureId={fixtureId} onReturn={onExit} onSelectPlayer={onSelectPlayer} />;
   }
 
   return (

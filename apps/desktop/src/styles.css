@@ -1326,3 +1326,9 @@ tbody tr:last-child td { border-bottom: 0; }
 .facility-project-card header strong { text-transform: capitalize; }
 
 .facility-summary { border-left: 3px solid var(--accent); }
+
+/* Player profile action rail: grouped actions (Transfer / Scouting / Squad
+   status / Discussion), never a flat button dump. */
+.action-group { margin-bottom: 14px; }
+.action-group:last-child { margin-bottom: 0; }
+.action-group h3 { margin: 0 0 6px; font-size: .82rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted, #6b7280); }

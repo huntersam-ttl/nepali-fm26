@@ -53,8 +53,14 @@ import type {
   OwnerManagerMeetingOverview,
   OwnerManagerMeetingStance,
   OwnerManagerMeetingTopic,
+  OwnerPlayerRequestContext,
+  OwnerPlayerRequestIntent,
 } from "./owner-manager-meetings.js";
-import type { GovernmentOverview, GovernmentFundingApplication, GovernmentFundingType } from "./government.js";
+import type {
+  GovernmentOverview,
+  GovernmentFundingApplication,
+  GovernmentFundingType,
+} from "./government.js";
 import type {
   FacilityFundingSource,
   FacilityProjectMode,
@@ -62,6 +68,11 @@ import type {
   FacilityProjectScope,
   FacilitySiteOption,
 } from "./facility-planning.js";
+import type {
+  ActorPlayerActions,
+  PlayerContractContext,
+  PlayerTransferContext,
+} from "./player-context.js";
 
 /**
  * Canonical desktop application contract.
@@ -118,8 +129,25 @@ export type CareerRole =
   | "GENERAL_SECRETARY";
 export type CareerStartMode = "MANAGER" | "OWNER";
 export type CareerRoleState = { activeRole: CareerRole; heldRoles: CareerRole[] };
-export type FounderLocationOption = { id: EntityId; province: string; district: string; locality: string; provenanceStatus: "REPORTED" | "SIMULATION_ONLY" };
-export type OwnerManagerCandidate = { vacancyId: EntityId; managerProfileId: EntityId; personId: EntityId; name: string; nationality: string; qualification: string; reputation: number; currentClub?: string; wageExpectation: number; available: boolean };
+export type FounderLocationOption = {
+  id: EntityId;
+  province: string;
+  district: string;
+  locality: string;
+  provenanceStatus: "REPORTED" | "SIMULATION_ONLY";
+};
+export type OwnerManagerCandidate = {
+  vacancyId: EntityId;
+  managerProfileId: EntityId;
+  personId: EntityId;
+  name: string;
+  nationality: string;
+  qualification: string;
+  reputation: number;
+  currentClub?: string;
+  wageExpectation: number;
+  available: boolean;
+};
 
 /** Save catalog entry. Readable without opening the full simulation world. */
 export type SaveCatalogEntry = {
@@ -498,22 +526,58 @@ export type DesktopRuntimeApi = {
   listStartingClubs(): Promise<AppResult<StartingClubOption[]>>;
   listFounderLocations(): Promise<AppResult<FounderLocationOption[]>>;
   listOwnerManagerCandidates(): Promise<AppResult<OwnerManagerCandidate[]>>;
-  appointManager(vacancyId: EntityId, managerProfileId: EntityId): Promise<AppResult<ManagerContract>>;
+  appointManager(
+    vacancyId: EntityId,
+    managerProfileId: EntityId,
+  ): Promise<AppResult<ManagerContract>>;
   createCareer(command: CareerCreationCommand): Promise<AppResult<DesktopApplicationState>>;
   loadCareer(saveId: EntityId): Promise<AppResult<DesktopApplicationState>>;
   closeCareer(): Promise<AppResult<{ closed: boolean }>>;
   getCareerHeader(): Promise<AppResult<CareerHeader>>;
   getCareerRoles(): Promise<AppResult<CareerRoleState>>;
-  getExecutiveAuthority(clubId?: EntityId): Promise<AppResult<ExecutiveAuthorityDesktopView | undefined>>;
+  getExecutiveAuthority(
+    clubId?: EntityId,
+  ): Promise<AppResult<ExecutiveAuthorityDesktopView | undefined>>;
   switchActiveCareerRole(targetRole: CareerRole): Promise<AppResult<CareerHeader>>;
   getChairmanDashboard(): Promise<AppResult<ChairmanDashboard>>;
   getOwnerMatchday(): Promise<AppResult<OwnerMatchdayView>>;
   watchOwnerFixture(fixtureId?: EntityId): Promise<AppResult<LiveMatchView>>;
   quickSimOwnerFixture(fixtureId?: EntityId): Promise<AppResult<LiveMatchView>>;
-  getEntityReference(entityType: EntityReferenceType, entityId: EntityId): Promise<AppResult<EntityReference>>;
+  getEntityReference(
+    entityType: EntityReferenceType,
+    entityId: EntityId,
+  ): Promise<AppResult<EntityReference>>;
+  /** Real actor-aware action availability for one player — the same authority check the mutating commands themselves use, so a profile can grey out a button honestly instead of the command rejecting it after the click. Works for any active role (Manager/Owner/President all get an honest answer). */
+  getPlayerActions(playerId: EntityId): Promise<AppResult<ActorPlayerActions>>;
+  /** Real active contract + club name for any player, safe for any active role to view. */
+  getPlayerContractContext(playerId: EntityId): Promise<AppResult<PlayerContractContext>>;
+  /** Real transfer-market status + recent offer activity for any player, safe for any active role to view. */
+  getPlayerTransferContext(playerId: EntityId): Promise<AppResult<PlayerTransferContext>>;
+  /** Any real, currently-open Owner request to the Manager about this player — undefined when none exists. */
+  getOwnerPlayerRequestContext(
+    playerId: EntityId,
+  ): Promise<AppResult<OwnerPlayerRequestContext | undefined>>;
+  /** Opens a real Owner<->Manager meeting scoped to one player and intent — never a direct football mutation. */
+  openOwnerPlayerRequest(
+    playerId: EntityId,
+    intent: OwnerPlayerRequestIntent,
+    deadline?: string,
+  ): Promise<AppResult<UniversalInteraction>>;
+  /** Manager-side response to an open Owner player request. */
+  respondToOwnerPlayerRequest(
+    interactionId: EntityId,
+    stance: OwnerManagerMeetingStance,
+    commitment?: OwnerManagerCommitmentInput,
+  ): Promise<AppResult<UniversalInteraction>>;
   getFacilityPlanning(clubId?: EntityId): Promise<AppResult<FacilityPlanningView>>;
-  getFacilitySiteOptions(clubId: EntityId, districtId?: EntityId, municipalityName?: string): Promise<AppResult<FacilitySiteOption[]>>;
-  createFacilityProjectPlan(input: FacilityProjectPlanInput): Promise<AppResult<FacilityProjectPlanResult>>;
+  getFacilitySiteOptions(
+    clubId: EntityId,
+    districtId?: EntityId,
+    municipalityName?: string,
+  ): Promise<AppResult<FacilitySiteOption[]>>;
+  createFacilityProjectPlan(
+    input: FacilityProjectPlanInput,
+  ): Promise<AppResult<FacilityProjectPlanResult>>;
   getFederationPresidentDashboard(): Promise<AppResult<FederationPresidentDashboard>>;
   getNationalDevelopment(): Promise<AppResult<FederationDevelopmentSummary>>;
   getGovernmentOverview(): Promise<AppResult<GovernmentOverview>>;
@@ -526,41 +590,125 @@ export type DesktopRuntimeApi = {
   getFederationCandidacy(): Promise<AppResult<FederationCandidacyAssessment>>;
   declareFederationElectionCandidacy(): Promise<AppResult<FederationCandidacyAssessment>>;
   foundClub(name: string, locationName: string): Promise<AppResult<SimulationClubRecord>>;
-  implementFederationGovernanceProposal(proposalId: EntityId): Promise<AppResult<FederationGovernanceProposal>>;
-  setClubBudget(clubId: EntityId, seasonLabel: string, category: ClubBudgetCategory, amount: number): Promise<AppResult<ClubBudget>>;
-  createInfrastructureProject(clubId: EntityId, projectType: InfrastructureProjectType): Promise<AppResult<InfrastructureProject>>;
-  acceptSponsorOffer(clubId: EntityId, sponsorshipId: EntityId): Promise<AppResult<SponsorshipContract>>;
-  rejectSponsorOffer(clubId: EntityId, sponsorshipId: EntityId): Promise<AppResult<SponsorshipContract>>;
-  counterSponsorOffer(clubId: EntityId, sponsorshipId: EntityId, annualValue: number, endDate?: string): Promise<AppResult<SponsorshipContract>>;
+  implementFederationGovernanceProposal(
+    proposalId: EntityId,
+  ): Promise<AppResult<FederationGovernanceProposal>>;
+  setClubBudget(
+    clubId: EntityId,
+    seasonLabel: string,
+    category: ClubBudgetCategory,
+    amount: number,
+  ): Promise<AppResult<ClubBudget>>;
+  createInfrastructureProject(
+    clubId: EntityId,
+    projectType: InfrastructureProjectType,
+  ): Promise<AppResult<InfrastructureProject>>;
+  acceptSponsorOffer(
+    clubId: EntityId,
+    sponsorshipId: EntityId,
+  ): Promise<AppResult<SponsorshipContract>>;
+  rejectSponsorOffer(
+    clubId: EntityId,
+    sponsorshipId: EntityId,
+  ): Promise<AppResult<SponsorshipContract>>;
+  counterSponsorOffer(
+    clubId: EntityId,
+    sponsorshipId: EntityId,
+    annualValue: number,
+    endDate?: string,
+  ): Promise<AppResult<SponsorshipContract>>;
   getSponsorMeeting(clubId?: EntityId): Promise<AppResult<SponsorMeetingOverview>>;
-  rejectExecutiveSponsorOffer(clubId: EntityId, sponsorshipId: EntityId): Promise<AppResult<SponsorshipContract>>;
-  counterExecutiveSponsorOffer(clubId: EntityId, sponsorshipId: EntityId, annualValue: number, endDate?: string): Promise<AppResult<SponsorshipContract>>;
+  rejectExecutiveSponsorOffer(
+    clubId: EntityId,
+    sponsorshipId: EntityId,
+  ): Promise<AppResult<SponsorshipContract>>;
+  counterExecutiveSponsorOffer(
+    clubId: EntityId,
+    sponsorshipId: EntityId,
+    annualValue: number,
+    endDate?: string,
+  ): Promise<AppResult<SponsorshipContract>>;
   getFederationCommercialOverview(): Promise<AppResult<FederationCommercialOverview>>;
-  createInvestorStakeOffer(percentage: number, minimumAmount?: number): Promise<AppResult<OwnershipInvestorMarketView>>;
-  decideInvestorBid(offerId: EntityId, accept: boolean): Promise<AppResult<OwnershipAcquisitionOffer>>;
+  createInvestorStakeOffer(
+    percentage: number,
+    minimumAmount?: number,
+  ): Promise<AppResult<OwnershipInvestorMarketView>>;
+  decideInvestorBid(
+    offerId: EntityId,
+    accept: boolean,
+  ): Promise<AppResult<OwnershipAcquisitionOffer>>;
   getInvestorMeeting(): Promise<AppResult<InvestorMeetingOverview>>;
   injectOwnerCapital(amount: number): Promise<AppResult<OwnerInvestmentTransaction>>;
   getOwnerManagerMeeting(clubId?: EntityId): Promise<AppResult<OwnerManagerMeetingOverview>>;
-  openOwnerManagerMeeting(clubId: EntityId, topic: OwnerManagerMeetingTopic): Promise<AppResult<UniversalInteraction>>;
+  openOwnerManagerMeeting(
+    clubId: EntityId,
+    topic: OwnerManagerMeetingTopic,
+  ): Promise<AppResult<UniversalInteraction>>;
   resolveOwnerManagerMeeting(
     interactionId: EntityId,
     stance: OwnerManagerMeetingStance,
     commitment?: OwnerManagerCommitmentInput,
   ): Promise<AppResult<UniversalInteraction>>;
-  applyClubLoan(lenderId: EntityId, principal: number, termMonths: number, purpose: string): Promise<AppResult<ClubLoanApplication>>;
+  applyClubLoan(
+    lenderId: EntityId,
+    principal: number,
+    termMonths: number,
+    purpose: string,
+  ): Promise<AppResult<ClubLoanApplication>>;
   repayClubLoan(debtId: EntityId, amount?: number): Promise<AppResult<ClubDebt>>;
-  acceptExecutiveSponsorOffer(clubId: EntityId, sponsorshipId: EntityId): Promise<AppResult<SponsorshipContract>>;
-  setExecutiveClubBudget(clubId: EntityId, seasonLabel: string, category: ClubBudgetCategory, amount: number): Promise<AppResult<ClubBudget>>;
-  createExecutiveInfrastructureProject(clubId: EntityId, projectType: InfrastructureProjectType): Promise<AppResult<InfrastructureProject>>;
-  applyExecutiveClubLoan(clubId: EntityId, lenderId: EntityId, principal: number, termMonths: number, purpose: string): Promise<AppResult<ClubLoanApplication>>;
-  repayExecutiveClubLoan(clubId: EntityId, debtId: EntityId, amount?: number): Promise<AppResult<ClubDebt>>;
+  acceptExecutiveSponsorOffer(
+    clubId: EntityId,
+    sponsorshipId: EntityId,
+  ): Promise<AppResult<SponsorshipContract>>;
+  setExecutiveClubBudget(
+    clubId: EntityId,
+    seasonLabel: string,
+    category: ClubBudgetCategory,
+    amount: number,
+  ): Promise<AppResult<ClubBudget>>;
+  createExecutiveInfrastructureProject(
+    clubId: EntityId,
+    projectType: InfrastructureProjectType,
+  ): Promise<AppResult<InfrastructureProject>>;
+  applyExecutiveClubLoan(
+    clubId: EntityId,
+    lenderId: EntityId,
+    principal: number,
+    termMonths: number,
+    purpose: string,
+  ): Promise<AppResult<ClubLoanApplication>>;
+  repayExecutiveClubLoan(
+    clubId: EntityId,
+    debtId: EntityId,
+    amount?: number,
+  ): Promise<AppResult<ClubDebt>>;
   closeExecutiveLicence(caseId: EntityId): Promise<AppResult<unknown>>;
-  registerExecutiveCompetitionPlayers(teamId: EntityId, competitionSeasonId: EntityId): Promise<AppResult<unknown>>;
-  hireStaffAsExecutive(clubId: EntityId, personId: EntityId, role: StaffAppointment["role"], salaryAmountMinor: number, teamId?: EntityId, contractMonths?: number): Promise<AppResult<unknown>>;
+  registerExecutiveCompetitionPlayers(
+    teamId: EntityId,
+    competitionSeasonId: EntityId,
+  ): Promise<AppResult<unknown>>;
+  hireStaffAsExecutive(
+    clubId: EntityId,
+    personId: EntityId,
+    role: StaffAppointment["role"],
+    salaryAmountMinor: number,
+    teamId?: EntityId,
+    contractMonths?: number,
+  ): Promise<AppResult<unknown>>;
   dismissStaffAsExecutive(clubId: EntityId, appointmentId: EntityId): Promise<AppResult<unknown>>;
-  requestManagerBudget(seasonLabel: string, category: ClubBudgetCategory, requestedAmount: number): Promise<AppResult<ManagerBudgetRequest>>;
-  decideManagerBudgetRequest(requestId: EntityId, approve: boolean): Promise<AppResult<ManagerBudgetRequest>>;
-  purchaseEquipment(category: ProcurementCategory, quantity: number): Promise<AppResult<ProcurementOrder>>;
+  requestManagerBudget(
+    seasonLabel: string,
+    category: ClubBudgetCategory,
+    requestedAmount: number,
+  ): Promise<AppResult<ManagerBudgetRequest>>;
+  decideManagerBudgetRequest(
+    requestId: EntityId,
+    approve: boolean,
+  ): Promise<AppResult<ManagerBudgetRequest>>;
+  purchaseEquipment(
+    category: ProcurementCategory,
+    quantity: number,
+  ): Promise<AppResult<ProcurementOrder>>;
   getHomeDashboard(): Promise<AppResult<DesktopApplicationState>>;
   continueCareer(): Promise<AppResult<DesktopApplicationState>>;
   quickSimMatch(fixtureId?: EntityId): Promise<AppResult<DesktopApplicationState>>;
