@@ -2137,7 +2137,11 @@ export type SponsorshipContract = {
   annualValue: number;
   bonuses: Record<string, number>;
   currency: string;
-  status: "OFFERED" | "ACTIVE" | "EXPIRED" | "REJECTED";
+  status: "OFFERED" | "COUNTERED" | "ACTIVE" | "EXPIRED" | "REJECTED" | "WITHDRAWN";
+  negotiationRound?: number;
+  maxNegotiationRounds?: number;
+  counterpartyResponse?: "ACCEPTED" | "REJECTED" | "COUNTERED" | "WITHDRAWN";
+  negotiationNote?: string;
   exclusivityGroup?: string;
   expectations?: Record<string, number>;
   provenanceStatus: "SIMULATION_ONLY" | "VERIFIED" | "REPORTED" | "ESTIMATED" | "UNKNOWN";

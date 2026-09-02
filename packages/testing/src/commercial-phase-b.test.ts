@@ -41,6 +41,24 @@ describe("commercial football world phase B", () => {
     db.close();
   });
 
+  it("keeps sponsor counters in negotiation until the sponsor accepts", () => {
+    const db = openGameDatabase(savePath("bounded-sponsor-counter"));
+    initializeClubEconomyForSave({ db, worldDate: "2026-08-01", seed: "bounded-sponsor-counter" });
+    const club = db.prepare("SELECT id FROM clubs WHERE name = ?").get("Machhindra FC") as { id: EntityId };
+    const offer = generateSponsorOffers(db, { clubId: club.id, date: "2026-08-01", seed: "bounded-sponsor-counter", count: 1 })[0]!;
+    const ledgerBefore = new ClubEconomyRepository(db).ledgerEntries().filter((entry) => entry.relatedEntityId === offer.id).length;
+    const countered = counterSponsorOffer(db, { sponsorshipId: offer.id, annualValue: Math.round(offer.annualValue * 1.06), date: "2026-08-02", seed: "bounded-sponsor-counter" });
+    expect(countered.status).toBe("COUNTERED");
+    expect(countered.counterpartyResponse).toBe("COUNTERED");
+    expect(countered.negotiationRound).toBe(1);
+    expect(new ClubEconomyRepository(db).ledgerEntries().filter((entry) => entry.relatedEntityId === offer.id)).toHaveLength(ledgerBefore);
+    const accepted = counterSponsorOffer(db, { sponsorshipId: offer.id, annualValue: Math.round(countered.annualValue * 1.01), date: "2026-08-03", seed: "bounded-sponsor-counter" });
+    expect(accepted.status).toBe("ACTIVE");
+    expect(accepted.counterpartyResponse).toBe("ACCEPTED");
+    expect(new ClubEconomyRepository(db).ledgerEntries().filter((entry) => entry.relatedEntityId === offer.id)).toHaveLength(ledgerBefore + 1);
+    db.close();
+  });
+
   it("persists sponsor renewal and media-rights distribution across reload", () => {
     const path = savePath("rights-negotiation");
     const db = openGameDatabase(path);

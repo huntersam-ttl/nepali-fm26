@@ -745,7 +745,7 @@ export const acceptSponsorOffer = (
   const economy = new ClubEconomyRepository(db);
   const contract = economy.sponsorships().find((item) => item.id === sponsorshipId);
   if (!contract) throw new Error(`Sponsorship offer ${sponsorshipId} not found`);
-  if (contract.status !== "OFFERED")
+  if (contract.status !== "OFFERED" && contract.status !== "COUNTERED")
     throw new Error(`Sponsorship ${sponsorshipId} is not available`);
   const exclusiveConflict = economy
     .sponsorships(contract.clubId)
@@ -835,6 +835,8 @@ export const rejectSponsorOffer = (
   const economy = new ClubEconomyRepository(db);
   const contract = economy.sponsorships().find((item) => item.id === sponsorshipId);
   if (!contract) throw new Error(`Sponsorship offer ${sponsorshipId} not found`);
+  if (contract.status !== "OFFERED" && contract.status !== "COUNTERED")
+    throw new Error(`Sponsorship ${sponsorshipId} is not negotiable`);
   economy.updateSponsorshipStatus(sponsorshipId, "REJECTED");
   return { ...contract, status: "REJECTED" };
 };
@@ -892,25 +894,32 @@ export const counterSponsorOffer = (
 ): SponsorshipContract => {
   const economy = new ClubEconomyRepository(db);
   const offer = economy.sponsorships().find((item) => item.id === input.sponsorshipId);
-  if (!offer || offer.status !== "OFFERED")
+  if (!offer || (offer.status !== "OFFERED" && offer.status !== "COUNTERED"))
     throw new Error("That sponsorship offer is no longer available");
   const sponsor = economy.sponsors().find((item) => item.id === offer.sponsorId);
   const ceiling =
     offer.annualValue *
     { LOCAL: 1.08, REGIONAL: 1.14, NATIONAL: 1.2, PREMIUM: 1.26 }[sponsor?.budgetTier ?? "LOCAL"];
-  const rng = new SeededRandom(
-    `${input.seed}:sponsor-counter:${offer.id}:${input.annualValue}:${input.date}`,
-  );
-  if (input.annualValue > ceiling || rng.next() > 0.78) {
+  if (!Number.isFinite(input.annualValue) || input.annualValue <= 0)
+    return rejectSponsorOffer(db, offer.id);
+  const round = offer.negotiationRound ?? 0;
+  const maxRounds = offer.maxNegotiationRounds ?? 3;
+  const requested = Math.max(1, Math.round(input.annualValue));
+  if (requested > ceiling) {
     return rejectSponsorOffer(db, offer.id);
   }
-  const revised = {
-    ...offer,
-    annualValue: Math.max(1, Math.round(input.annualValue)),
-    endDate: input.endDate ?? offer.endDate,
-  };
+  // A modest counter is accepted; stronger asks receive a deterministic sponsor
+  // counter until the bounded negotiation window is exhausted.
+  const sponsorAccepts = requested <= offer.annualValue * 1.03 || round >= maxRounds - 1;
+  if (sponsorAccepts) {
+    const revised = { ...offer, annualValue: requested, endDate: input.endDate ?? offer.endDate, negotiationRound: round + 1, maxNegotiationRounds: maxRounds, counterpartyResponse: "ACCEPTED" as const, negotiationNote: "Sponsor accepted the revised commercial terms" };
+    economy.upsertSponsorship(revised);
+    return acceptSponsorOffer(db, offer.id, input.date);
+  }
+  const sponsorCounter = Math.max(offer.annualValue, Math.round(requested * 0.96));
+  const revised = { ...offer, annualValue: sponsorCounter, endDate: input.endDate ?? offer.endDate, status: "COUNTERED" as const, negotiationRound: round + 1, maxNegotiationRounds: maxRounds, counterpartyResponse: "COUNTERED" as const, negotiationNote: "Sponsor returned a bounded counter-offer" };
   economy.upsertSponsorship(revised);
-  return acceptSponsorOffer(db, offer.id, input.date);
+  return revised;
 };
 
 export const renewSponsorship = (

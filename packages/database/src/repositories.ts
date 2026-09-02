@@ -5684,6 +5684,10 @@ const mapSponsorshipContract = (row: any): SponsorshipContract => ({
   status: row.status,
   exclusivityGroup: row.exclusivity_group ?? undefined,
   expectations: json.parse(row.expectations_json, {}),
+  negotiationRound: row.negotiation_round ?? 0,
+  maxNegotiationRounds: row.max_negotiation_rounds ?? 3,
+  counterpartyResponse: row.counterparty_response ?? undefined,
+  negotiationNote: row.negotiation_note ?? undefined,
   provenanceStatus: row.provenance_status,
 });
 
@@ -6624,8 +6628,9 @@ export class ClubEconomyRepository {
       .prepare(
         `INSERT INTO sponsorship_contracts
         (id, club_id, sponsor_id, sponsorship_type, start_date, end_date, annual_value,
-          bonuses_json, currency, status, exclusivity_group, expectations_json, provenance_status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          bonuses_json, currency, status, exclusivity_group, expectations_json, provenance_status,
+          negotiation_round, max_negotiation_rounds, counterparty_response, negotiation_note)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           status = excluded.status,
           annual_value = excluded.annual_value,
@@ -6633,7 +6638,11 @@ export class ClubEconomyRepository {
           end_date = excluded.end_date,
           bonuses_json = excluded.bonuses_json,
           exclusivity_group = excluded.exclusivity_group,
-          expectations_json = excluded.expectations_json`,
+          expectations_json = excluded.expectations_json,
+          negotiation_round = excluded.negotiation_round,
+          max_negotiation_rounds = excluded.max_negotiation_rounds,
+          counterparty_response = excluded.counterparty_response,
+          negotiation_note = excluded.negotiation_note`,
       )
       .run(
         contract.id,
@@ -6649,6 +6658,10 @@ export class ClubEconomyRepository {
         contract.exclusivityGroup ?? null,
         json.stringify(contract.expectations ?? {}),
         contract.provenanceStatus,
+        contract.negotiationRound ?? 0,
+        contract.maxNegotiationRounds ?? 3,
+        contract.counterpartyResponse ?? null,
+        contract.negotiationNote ?? null,
       );
   }
 

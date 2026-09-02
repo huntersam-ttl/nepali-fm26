@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 86;
+export const CURRENT_DATABASE_VERSION = 87;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -3625,6 +3625,15 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
         ELSE 'INSTITUTIONAL'
       END
       WHERE investor_type IS NULL;
+    `,
+  },
+  {
+    version: 87,
+    sql: `
+      ALTER TABLE sponsorship_contracts ADD COLUMN negotiation_round INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE sponsorship_contracts ADD COLUMN max_negotiation_rounds INTEGER NOT NULL DEFAULT 3;
+      ALTER TABLE sponsorship_contracts ADD COLUMN counterparty_response TEXT;
+      ALTER TABLE sponsorship_contracts ADD COLUMN negotiation_note TEXT;
     `,
   },
 ];
