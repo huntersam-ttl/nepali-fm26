@@ -168,6 +168,10 @@ const dispatch = (
       return service.getChairmanDashboard();
     case "getOwnerMatchday":
       return service.getOwnerMatchday();
+    case "getOwnerFixtures":
+      return service.getOwnerFixtures();
+    case "attendOwnerFixture":
+      return service.attendOwnerFixture(body.fixtureId as EntityId | undefined);
     case "getFacilityPlanning":
       return service.getFacilityPlanning(body.clubId as EntityId | undefined);
     case "getFacilitySiteOptions":
@@ -291,6 +295,12 @@ const dispatch = (
       return service.getPlayerProfile(body.playerId as EntityId);
     case "getPlayerActions":
       return service.getPlayerActions(body.playerId as EntityId);
+    case "getPlayerActionAvailability":
+      return service.getPlayerActionAvailability(body.playerId as EntityId);
+    case "getPlayerContractContext":
+      return service.getPlayerContractContext(body.playerId as EntityId);
+    case "getPlayerTransferContext":
+      return service.getPlayerTransferContext(body.playerId as EntityId);
     case "getEntityReference":
       return service.getEntityReference(body.entityType as any, body.entityId as EntityId);
     case "getTactics":

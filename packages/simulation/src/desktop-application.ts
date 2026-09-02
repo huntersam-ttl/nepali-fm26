@@ -319,6 +319,7 @@ import { buildChairmanDashboard, buildFederationPresidentDashboard } from "./rol
 import { buildOwnerMatchday, type OwnerMatchdayView } from "./owner-matchday.js";
 import { buildActorPlayerActions, type ActorPlayerActions } from "./player-actions.js";
 import { buildEntityReference } from "./entity-reference.js";
+import { buildPlayerContractContext, buildPlayerTransferContext } from "./player-context.js";
 import { createFacilityProjectPlan, generateFacilitySiteOptions, type FacilityPlanningInput } from "./facility-planning.js";
 import { initializeFederationGovernanceForSave, federationCommercialOverview } from "./federation-governance.js";
 import { federationDevelopmentSummary } from "./federation-policy.js";
@@ -2670,6 +2671,26 @@ export class DesktopApplicationService {
       const personId = careerPersonId(db, save);
       return buildActorPlayerActions(db, save, activeCareerRole(db, personId), personId, playerId);
     });
+  }
+
+  getPlayerActionAvailability(playerId: EntityId): AppResult<ActorPlayerActions> {
+    return this.getPlayerActions(playerId);
+  }
+
+  getPlayerContractContext(playerId: EntityId): AppResult<ReturnType<typeof buildPlayerContractContext>> {
+    return this.withSession((db, save) => buildPlayerContractContext(db, save, playerId));
+  }
+
+  getPlayerTransferContext(playerId: EntityId): AppResult<ReturnType<typeof buildPlayerTransferContext>> {
+    return this.withSession((db, save) => buildPlayerTransferContext(db, save, playerId));
+  }
+
+  getOwnerFixtures(): AppResult<OwnerMatchdayView> {
+    return this.getOwnerMatchday();
+  }
+
+  attendOwnerFixture(fixtureId?: EntityId): AppResult<LiveMatchView> {
+    return this.watchOwnerFixture(fixtureId);
   }
 
   getEntityReference(entityType: EntityReferenceType, entityId: EntityId): AppResult<EntityReference> {
