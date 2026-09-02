@@ -37,9 +37,9 @@ Audit basis: current checkout HEAD `fe33bac` and the production source/tests in 
 
 ### Count
 
-- COMPLETE: **24**
-- PARTIAL: **3**
-- FOUNDATION_ONLY: **1**
+- COMPLETE: **26**
+- PARTIAL: **2**
+- FOUNDATION_ONLY: **0**
 - MISSING: **0**
 - BLOCKED: **0**
 
