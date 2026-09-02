@@ -5,6 +5,7 @@ import type {
   CareerRoleState,
   ClubDebt,
   ClubFinanceMeetingOverview,
+  ClubInfrastructureGovernmentContext,
   ClubLoanApplication,
   FederationDevelopmentBand,
   FederationDevelopmentSummary,
@@ -3814,6 +3815,260 @@ const facilityNarrative = (input: {
   return sentences.join(" ");
 };
 
+const GOVERNMENT_NEXT_ACTION_LABEL: Record<ClubInfrastructureGovernmentContext["nextAction"], string> = {
+  OPEN_REQUEST: "Open a government support request to proceed.",
+  WAIT_FOR_REVIEW: "Awaiting the institution's review — no further action is needed yet.",
+  START_PROJECT: "Approved — this site is ready to plan.",
+  NONE: "",
+};
+
+/**
+ * Facility Planner's government-support integration
+ * (getClubInfrastructureGovernmentContext / openClubInfrastructureGovernmentRequest,
+ * f70fe5d/6c6cbdb) — replaces the former dead-end message for a
+ * GOVERNMENT_REVIEW site.
+ *
+ * Real, confirmed backend gap this works within rather than around: no
+ * command lets an Owner/CEO discover a real GovernmentInstitution id —
+ * getGovernmentOverview (the only institution listing) is
+ * FEDERATION_PRESIDENT-gated, and no institution is ever seeded anywhere
+ * except once a year (August) via the federation's own
+ * proposeAnnualGovernmentFunding cadence. So a club with no prior
+ * government application has no real institution to submit against —
+ * submission below only enables once at least one real application already
+ * exists for this club, whose real institution id is then known and reused.
+ * See CODEX_UI_BRIDGE_NEEDED in the commit message.
+ */
+const GovernmentSupportPanel = ({
+  bridge,
+  clubId,
+  projectType,
+  planning,
+  refresh,
+}: {
+  bridge: DesktopRuntimeApi;
+  clubId: EntityId;
+  projectType: InfrastructureProjectType;
+  planning: FacilityPlanningView;
+  refresh: () => void;
+}): React.ReactElement => {
+  const applications = [...planning.governmentApplications].sort((a, b) =>
+    `${b.proposedOn}:${b.id}`.localeCompare(`${a.proposedOn}:${a.id}`),
+  );
+  const current =
+    applications.find((application) => LAND_FUNDING_TYPES.includes(application.fundingType)) ??
+    applications[0];
+  const knownInstitutionId = current?.institutionId;
+
+  const [context, setContext] = useState<ClubInfrastructureGovernmentContext | null>(null);
+  const [contextError, setContextError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!current?.projectId || !bridge.getClubInfrastructureGovernmentContext) {
+      setContext(null);
+      return;
+    }
+    let cancelled = false;
+    void bridge.getClubInfrastructureGovernmentContext(current.projectId).then((result) => {
+      if (cancelled) return;
+      if (result.ok) {
+        setContext(result.data);
+        setContextError(null);
+      } else setContextError(result.error.message);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [current?.projectId]);
+
+  const [institutionName, setInstitutionName] = useState<string | undefined>();
+  useEffect(() => {
+    if (!knownInstitutionId) {
+      setInstitutionName(undefined);
+      return;
+    }
+    let cancelled = false;
+    void bridge.getEntityReference("GOVERNMENT_INSTITUTION", knownInstitutionId).then((result) => {
+      if (!cancelled && result.ok && result.data.visible) setInstitutionName(result.data.label);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [knownInstitutionId]);
+
+  const [fundingType, setFundingType] = useState<
+    "INFRASTRUCTURE" | "REGIONAL_GROUND" | "MUNICIPAL_LAND_OR_VENUE"
+  >("MUNICIPAL_LAND_OR_VENUE");
+  const [amount, setAmount] = useState("2000000");
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const openNonTerminal = applications.find(
+    (application) => !["REJECTED", "COMPLETED"].includes(application.status),
+  );
+  const canOpenNew = Boolean(knownInstitutionId) && !openNonTerminal;
+
+  const submit = async (): Promise<void> => {
+    if (!knownInstitutionId) return;
+    const requestedAmount = Number(amount);
+    if (!Number.isFinite(requestedAmount) || requestedAmount <= 0) return;
+    setBusy(true);
+    setMessage(null);
+    // No existing project anchors this brand-new request yet — a plain
+    // project (the same real createInfrastructureProject command the
+    // Owner dashboard's own "Order..." actions already use) is created
+    // first so the request has a real projectId to attach to, exactly as
+    // requestClubInfrastructureGovernmentSupport requires.
+    if (!bridge.openClubInfrastructureGovernmentRequest) {
+      setBusy(false);
+      setMessage("Government support requests are unavailable right now.");
+      return;
+    }
+    const projectResult = await bridge.createInfrastructureProject(clubId, projectType);
+    if (!projectResult.ok) {
+      setBusy(false);
+      setMessage(projectResult.error.message);
+      return;
+    }
+    const result = await bridge.openClubInfrastructureGovernmentRequest({
+      projectId: projectResult.data.id,
+      institutionId: knownInstitutionId,
+      fundingType,
+      requestedAmount,
+    });
+    setBusy(false);
+    setConfirming(false);
+    setMessage(
+      result.ok
+        ? `Government support request submitted for ${money(requestedAmount)}.`
+        : result.error.message,
+    );
+    if (result.ok) refresh();
+  };
+
+  return (
+    <Panel title="Government support">
+      {!current ? (
+        <>
+          <p className="empty-state">
+            No government support request has been opened for this club yet.
+          </p>
+          {!knownInstitutionId && (
+            <p className="subtle">
+              No government institution has engaged with this club yet — support requests become
+              available once one has.
+            </p>
+          )}
+        </>
+      ) : (
+        <>
+          <Metrics
+            items={[
+              { label: "Institution", value: institutionName ?? "Unknown institution" },
+              { label: "Request type", value: FUNDING_TYPE_LABELS[current.fundingType] },
+              {
+                label: "Status",
+                value: (
+                  <Badge tone={applicationStatusTone(current.status)}>
+                    {applicationStatusLabel(current.status)}
+                  </Badge>
+                ),
+              },
+              { label: "Requested support", value: money(current.requestedAmount) },
+              ...(current.approvedAmount !== undefined
+                ? [{ label: "Approved support", value: money(current.approvedAmount) }]
+                : []),
+              { label: "Submitted", value: current.proposedOn },
+              ...(current.decidedOn ? [{ label: "Decided", value: current.decidedOn }] : []),
+            ]}
+          />
+          {current.conditions.length > 0 && (
+            <p className="subtle">Conditions: {current.conditions.join(", ")}</p>
+          )}
+          {context && (
+            <Metrics
+              items={[
+                {
+                  label: "Site readiness",
+                  value: context.siteReadiness ? band(context.siteReadiness) : "—",
+                },
+                {
+                  label: "Settlement",
+                  value: (
+                    <Badge tone={context.fundingSettled ? "ok" : "info"}>
+                      {context.fundingSettled ? "Settled to club ledger" : "Not yet settled"}
+                    </Badge>
+                  ),
+                },
+              ]}
+            />
+          )}
+          {context?.nextAction && GOVERNMENT_NEXT_ACTION_LABEL[context.nextAction] && (
+            <p className="subtle">{GOVERNMENT_NEXT_ACTION_LABEL[context.nextAction]}</p>
+          )}
+          {context?.blockedReason && <p className="empty-state">{context.blockedReason}</p>}
+          {contextError && <p className="subtle">{contextError}</p>}
+        </>
+      )}
+      {canOpenNew && !confirming && (
+        <button className="ghost small" onClick={() => setConfirming(true)}>
+          Open government request
+        </button>
+      )}
+      {canOpenNew && confirming && (
+        <div className="inline-form">
+          <label>
+            Purpose
+            <select
+              value={fundingType}
+              onChange={(event) => setFundingType(event.target.value as typeof fundingType)}
+            >
+              {LAND_FUNDING_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {FUNDING_TYPE_LABELS[type]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Requested amount
+            <input
+              type="number"
+              min="1"
+              value={amount}
+              onChange={(event) => setAmount(event.target.value)}
+            />
+          </label>
+          <div className="button-row">
+            <button
+              className="primary small"
+              disabled={busy || !Number.isFinite(Number(amount)) || Number(amount) <= 0}
+              onClick={() => void submit()}
+            >
+              {busy ? "Submitting…" : "Confirm request"}
+            </button>
+            <button className="ghost small" disabled={busy} onClick={() => setConfirming(false)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+      {openNonTerminal && (
+        <p className="subtle">
+          A government support request is already{" "}
+          {applicationStatusLabel(openNonTerminal.status).toLowerCase()} for this club — a new one
+          cannot be opened until it is resolved.
+        </p>
+      )}
+      {message && (
+        <p className="notice" role="status">
+          {message}
+        </p>
+      )}
+    </Panel>
+  );
+};
+
 export const FacilityPlanner = ({
   bridge,
   clubId,
@@ -4107,14 +4362,20 @@ const FacilityPlannerView = ({
                 </div>
               )}
               {selectedSite?.readiness === "GOVERNMENT_REVIEW" && (
-                <p
-                  className={blockedByGovernment ? "warning" : "notice"}
-                  role={blockedByGovernment ? "alert" : "status"}
-                >
-                  {blockedByGovernment
-                    ? "This site requires government approval before planning can proceed. No approved application exists for this club, and there is currently no way to request one from the Owner office."
-                    : "This site's government application has been approved and can be used for this plan."}
-                </p>
+                <>
+                  <p className={blockedByGovernment ? "warning" : "notice"} role={blockedByGovernment ? "alert" : "status"}>
+                    {blockedByGovernment
+                      ? "This site requires government approval before planning can proceed."
+                      : "This site's government application has been approved and can be used for this plan."}
+                  </p>
+                  <GovernmentSupportPanel
+                    bridge={bridge}
+                    clubId={clubId}
+                    projectType={projectType}
+                    planning={planning}
+                    refresh={refresh}
+                  />
+                </>
               )}
             </div>
           )}

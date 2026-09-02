@@ -231,8 +231,6 @@ const bindCommands = (call: CommandCaller): DesktopRuntimeApi => ({
     call<FacilitySiteOption[]>("getFacilitySiteOptions", { clubId, districtId, municipalityName }),
   createFacilityProjectPlan: (input: FacilityProjectPlanInput) =>
     call<FacilityProjectPlanResult>("createFacilityProjectPlan", { input }),
-  // Wired only to satisfy DesktopRuntimeApi (landed concurrently in government.ts) —
-  // no UI consumes this yet; out of scope for this task.
   getClubInfrastructureGovernmentContext: (projectId: EntityId) =>
     call<ClubInfrastructureGovernmentContext>("getClubInfrastructureGovernmentContext", {
       projectId,
