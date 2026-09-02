@@ -10,6 +10,8 @@ import { reviewGovernmentFunding, submitGovernmentFunding } from "./government.j
 import { createFederationProject } from "./federation-governance.js";
 import { awardCommercialRights } from "./commercial-rights.js";
 import { openUniversalInteraction, submitUniversalInteractionAction } from "./universal-interactions.js";
+import { createStructuredCommitment } from "./commitments.js";
+import { upsertPersonRelationship } from "./people-foundation.js";
 
 /** A deliberately small boundary: authoritative domain services remain the writers. */
 export type UniversalInteractionAdapterContext = {
@@ -84,7 +86,7 @@ const adapterFor = (type: string): UniversalInteractionAdapter => ({ ...genericA
 
 export const universalInteractionAdapters: Readonly<Record<string, UniversalInteractionAdapter>> = Object.freeze(Object.fromEntries([
   "CONTRACT_NEGOTIATION", "CONTRACT", "TRANSFER_NEGOTIATION", "TRANSFER_OFFER", "TRANSFER_DEAL", "PLAYER_CONCERN",
-  "PLAYER_PROMISE", "BOARD_REQUEST", "INFRASTRUCTURE_PROJECT", "FEDERATION_GRANT", "FEDERATION_PROJECT",
+  "PLAYER_PROMISE", "BOARD_REQUEST", "OWNER_MANAGER_MEETING", "INFRASTRUCTURE_PROJECT", "FEDERATION_GRANT", "FEDERATION_PROJECT",
   "FEDERATION_CORRECTIVE_ACTION", "COMMERCIAL_DEAL", "STAFF_CONTRACT", "JOB_SECURITY", "MANAGER_INTERVIEW", "FACILITY_REQUEST",
   "FEDERATION_FUNDING", "GOVERNMENT_SUPPORT",
 ].map((type) => [type, adapterFor(type)])));
@@ -105,6 +107,7 @@ export const openInteraction = (db: GameDatabase, context: UniversalInteractionA
   const authority: Record<string, (value: UniversalInteractionAdapterContext) => boolean> = {
     PLAYER_CONCERN: (value) => value.initiator.type === "MANAGER" && value.counterpart.type === "PLAYER" && Boolean(value.organisationId),
     BOARD_REQUEST: (value) => value.initiator.type === "MANAGER" && value.counterpart.type === "BOARD" && Boolean(value.organisationId),
+    OWNER_MANAGER_MEETING: (value) => value.initiator.type === "CHAIRMAN" && value.counterpart.type === "MANAGER" && Boolean(value.organisationId),
     FACILITY_REQUEST: (value) => ["MANAGER", "CHAIRMAN"].includes(value.initiator.type) && value.counterpart.type === "BOARD" && Boolean(value.organisationId),
     STAFF_CONTRACT: (value) => ["MANAGER", "CHAIRMAN"].includes(value.initiator.type) && ["STAFF", "MANAGER"].includes(value.counterpart.type) && Boolean(value.organisationId),
     FEDERATION_FUNDING: (value) => ["FEDERATION_OFFICIAL", "GOVERNMENT"].includes(value.initiator.type),
@@ -262,6 +265,48 @@ const executeAcceptedInteraction = (db: GameDatabase, session: UniversalInteract
     if (target === undefined || target < current.usedAmount) throw new Error("INVALID_BUDGET_REQUEST");
     const budget = setClubBudget(db, { clubId, seasonLabel: current.seasonLabel, category, amount: target });
     return { id: budget.id };
+  }
+  if (reference.type === "OWNER_MANAGER_MEETING") {
+    const clubId = session.organisationId;
+    if (!clubId || session.initiator.type !== "CHAIRMAN" || session.counterpart.type !== "MANAGER") throw new Error("OWNER_MANAGER_MEETING_AUTHORITY");
+    const policy = new ClubEconomyRepository(db).boardPolicy(clubId);
+    if (!policy?.chairmanPersonId || policy.chairmanPersonId !== session.initiator.entityId) throw new Error("OWNER_MANAGER_MEETING_CHAIRMAN_MISMATCH");
+    const contract = new ManagerRepository(db).allActiveContracts().find((item) => item.clubId === clubId && item.managerProfileId);
+    const profile = contract ? new ManagerRepository(db).getProfile(contract.managerProfileId) : undefined;
+    if (!contract || !profile || profile.personId !== session.counterpart.entityId) throw new Error("OWNER_MANAGER_MEETING_MANAGER_MISMATCH");
+    const stance = offerText(session, "stance") ?? "SUPPORT";
+    const confidence = new CareerWorldRepository(db).boardConfidence(clubId);
+    if (!confidence) throw new Error("BOARD_CONFIDENCE_NOT_FOUND");
+    const confidenceDelta = stance === "CONCERN" ? -2 : stance === "REQUEST" ? 1 : 3;
+    new CareerWorldRepository(db).upsertBoardConfidence({ ...confidence, confidence: Math.max(0, Math.min(100, confidence.confidence + confidenceDelta)), lastEvaluatedOn: date });
+    upsertPersonRelationship({
+      db,
+      fromPersonId: profile.personId,
+      toPersonId: policy.chairmanPersonId,
+      kind: "MANAGER_BOARD",
+      affinity: Math.max(0, Math.min(100, session.relationshipState + (stance === "CONCERN" ? -2 : 2))),
+      trust: Math.max(0, Math.min(100, session.trust + (stance === "CONCERN" ? -2 : 2))),
+      respect: Math.max(0, Math.min(100, session.leverage)),
+      tension: Math.max(0, Math.min(100, session.pressure + (stance === "CONCERN" ? 5 : 0))),
+      date,
+    });
+    const commitmentType = offerText(session, "commitmentType");
+    const promise = commitmentType && contract.teamId
+      ? createStructuredCommitment(db, date, {
+          source: "BOARD_INTERVIEW",
+          managerProfileId: profile.id,
+          managerPersonId: profile.personId,
+          teamId: contract.teamId,
+          type: commitmentType as Parameters<typeof createStructuredCommitment>[2]["type"],
+          targetCriteria: offerText(session, "targetCriteria") ?? "",
+          dueOn: offerText(session, "commitmentDueOn") ?? session.deadline ?? date,
+          description: offerText(session, "commitmentDescription") ?? `Board commitment: ${commitmentType}`,
+          originEventId: session.id,
+          importance: offerNumber(session, "importance"),
+          recipientType: "BOARD",
+        })
+      : undefined;
+    return { id: clubId, promiseId: promise?.id, note: "Owner-manager meeting applied through board confidence and relationship systems" };
   }
   if (reference.type === "FEDERATION_GRANT" || reference.type === "FEDERATION_FUNDING") {
     const grant = new FederationComplianceRepository(db).grant(reference.canonicalId);
