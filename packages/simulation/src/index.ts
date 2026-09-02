@@ -84,6 +84,7 @@ export * from "./owner-matchday.js";
 export * from "./player-actions.js";
 export * from "./entity-reference.js";
 export * from "./player-context.js";
+export * from "./owner-meeting-suggestion.js";
 export * from "./strength.js";
 export * from "./team-selection.js";
 export * from "./tactics.js";

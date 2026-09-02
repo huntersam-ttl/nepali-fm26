@@ -172,6 +172,8 @@ const dispatch = (
       return service.getOwnerFixtures();
     case "attendOwnerFixture":
       return service.attendOwnerFixture(body.fixtureId as EntityId | undefined);
+    case "getOwnerPostMatchSuggestion":
+      return service.getOwnerPostMatchSuggestion();
     case "getFacilityPlanning":
       return service.getFacilityPlanning(body.clubId as EntityId | undefined);
     case "getFacilitySiteOptions":

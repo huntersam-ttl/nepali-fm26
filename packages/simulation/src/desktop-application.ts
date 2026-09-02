@@ -320,6 +320,7 @@ import { buildOwnerMatchday, type OwnerMatchdayView } from "./owner-matchday.js"
 import { buildActorPlayerActions, type ActorPlayerActions } from "./player-actions.js";
 import { buildEntityReference } from "./entity-reference.js";
 import { buildPlayerContractContext, buildPlayerTransferContext } from "./player-context.js";
+import { buildOwnerPostMatchSuggestion } from "./owner-meeting-suggestion.js";
 import { createFacilityProjectPlan, generateFacilitySiteOptions, type FacilityPlanningInput } from "./facility-planning.js";
 import { initializeFederationGovernanceForSave, federationCommercialOverview } from "./federation-governance.js";
 import { federationDevelopmentSummary } from "./federation-policy.js";
@@ -2691,6 +2692,13 @@ export class DesktopApplicationService {
 
   attendOwnerFixture(fixtureId?: EntityId): AppResult<LiveMatchView> {
     return this.watchOwnerFixture(fixtureId);
+  }
+
+  getOwnerPostMatchSuggestion(): AppResult<ReturnType<typeof buildOwnerPostMatchSuggestion>> {
+    return this.withSession((db, save) => {
+      const { clubId } = ownerMatchdayContext(db, save);
+      return buildOwnerPostMatchSuggestion(db, save, clubId);
+    });
   }
 
   getEntityReference(entityType: EntityReferenceType, entityId: EntityId): AppResult<EntityReference> {
