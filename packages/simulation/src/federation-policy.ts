@@ -12,6 +12,7 @@ import {
   type EntityId,
 } from "@nepal-football-sim/shared-types";
 import {
+  ContinentalCareerRepository,
   FederationGovernancePhaseBRepository,
   FederationGovernanceRepository,
   FederationPolicyRepository,
@@ -19,6 +20,7 @@ import {
   EventRepository,
   type GameDatabase,
 } from "@nepal-football-sim/database";
+import { refereeGovernanceSummary } from "./federation-strategy.js";
 
 const status = "SIMULATION_ONLY" as const;
 const clamp = (value: number, min = 0, max = 100): number => Math.max(min, Math.min(max, value));
@@ -527,10 +529,14 @@ export const federationDevelopmentSummary = (
     refereeing: clamp(governanceProfile?.refereeDevelopment ?? averageProgress / 10) * 10,
     infrastructure: clamp(governanceProfile?.infrastructureLevel ?? averageProgress / 10) * 10,
     womenGirls: clamp(governanceProfile?.grassrootsDevelopment ?? averageProgress / 10) * 10,
+    participation: clamp(governanceProfile?.grassrootsDevelopment ?? averageProgress / 10) * 10,
     nationalTeams: clamp(governanceProfile?.internationalRelations ?? averageProgress / 10) * 10,
     competitionQuality:
       clamp(governanceProfile?.competitionOrganisation ?? averageProgress / 10) * 10,
     commercialStrength: clamp(governanceProfile?.commercialStrength ?? averageProgress / 10) * 10,
+    governancePolicy: clamp(governanceProfile?.governanceStability ?? averageProgress / 10) * 10,
+    internationalPathway:
+      clamp(governanceProfile?.internationalRelations ?? averageProgress / 10) * 10,
   };
   const impactSummaries: string[] = [];
 
@@ -564,6 +570,136 @@ export const federationDevelopmentSummary = (
       (resultSignal(outcomes.women) - 50) * 0.12,
       "Women national-team results",
     );
+
+  // These signals are derived from existing persisted outcome tables. They do
+  // not mutate the profile or create a second development ledger, so repeated
+  // reads and save reloads remain naturally idempotent.
+  const coachProgrammes = governance.coachEducationProgrammes(federationId);
+  const completedCoachProgrammes = coachProgrammes.filter(
+    (programme) => programme.status === "COMPLETED" && programme.graduates > 0,
+  );
+  addOutcomeSignal(
+    "coaching",
+    Math.min(
+      4,
+      completedCoachProgrammes.reduce((sum, programme) => sum + programme.graduates, 0) * 0.08,
+    ),
+    "Completed coach education",
+  );
+
+  const refereeProgrammes = governance.refereeDevelopmentProgrammes(federationId);
+  const completedRefereeProgrammes = refereeProgrammes.filter(
+    (programme) => programme.status === "COMPLETED" && programme.refereesAdvanced > 0,
+  );
+  const refereeSummary = refereeGovernanceSummary(db, federationId, date);
+  const refereeOutcome =
+    completedRefereeProgrammes.reduce((sum, programme) => sum + programme.refereesAdvanced, 0) *
+      0.08 +
+    (refereeSummary.appointmentConfidence === "STRONG"
+      ? 1.5
+      : refereeSummary.appointmentConfidence === "WORKING"
+        ? 0.5
+        : 0);
+  addOutcomeSignal("refereeing", Math.min(4, refereeOutcome), "Referee development outcomes");
+
+  const districts = db
+    .prepare(
+      `SELECT school_participation, girls_participation, youth_participation,
+              development_reputation, scouting_visibility
+       FROM territorial_districts ORDER BY id`,
+    )
+    .all() as Array<{
+    school_participation: number;
+    girls_participation: number;
+    youth_participation: number;
+    development_reputation: number;
+    scouting_visibility: number;
+  }>;
+  if (districts.length > 0) {
+    const average = (field: keyof (typeof districts)[number]): number =>
+      districts.reduce((sum, district) => sum + Number(district[field]), 0) / districts.length;
+    addOutcomeSignal(
+      "schoolFootball",
+      (average("school_participation") - 50) * 0.04,
+      "School participation",
+    );
+    addOutcomeSignal("youth", (average("youth_participation") - 50) * 0.04, "Youth participation");
+    addOutcomeSignal(
+      "participation",
+      ((average("school_participation") +
+        average("youth_participation") +
+        average("girls_participation")) /
+        3 -
+        50) *
+        0.04,
+      "Grassroots participation",
+    );
+    addOutcomeSignal(
+      "talentHotspots",
+      ((average("development_reputation") + average("scouting_visibility")) / 2 - 50) * 0.04,
+      "Territorial talent visibility",
+    );
+    addOutcomeSignal(
+      "womenGirls",
+      (average("girls_participation") - 50) * 0.04,
+      "Girls participation",
+    );
+  }
+
+  const domesticCompletion = db
+    .prepare(
+      `SELECT COUNT(DISTINCT cs.id) AS seasons, COUNT(DISTINCT m.id) AS played_matches
+     FROM competition_seasons cs
+     JOIN competitions c ON c.id = cs.competition_id
+     LEFT JOIN fixtures f ON f.competition_season_id = cs.id
+     LEFT JOIN matches m ON m.fixture_id = f.id AND m.played_date IS NOT NULL
+     WHERE c.federation_id = ? AND c.scope = 'domestic' AND cs.end_date < ?
+       AND EXISTS (SELECT 1 FROM matches played WHERE played.fixture_id IN
+         (SELECT fixture.id FROM fixtures fixture WHERE fixture.competition_season_id = cs.id)
+         AND played.played_date IS NOT NULL)`,
+    )
+    .get(federationId, date) as { seasons?: number; played_matches?: number };
+  addOutcomeSignal(
+    "competitionQuality",
+    Math.min(
+      3,
+      Number(domesticCompletion.seasons ?? 0) * 0.35 +
+        Number(domesticCompletion.played_matches ?? 0) * 0.01,
+    ),
+    "Completed domestic competitions",
+  );
+
+  const commercialEntries = new FederationGovernanceRepository(db)
+    .ledgerEntries(federationId)
+    .filter(
+      (entry) =>
+        entry.direction === "CREDIT" &&
+        ["SPONSORSHIP", "BROADCASTING", "STREAMING"].includes(entry.category),
+    );
+  addOutcomeSignal(
+    "commercialStrength",
+    Math.min(3, commercialEntries.length * 0.5),
+    "Federation commercial delivery",
+  );
+
+  const completedPolicies = outcomePolicies.filter(
+    (policy) =>
+      policy.status === "COMPLETED" && policy.implementationProgress >= policy.targetValue,
+  ).length;
+  addOutcomeSignal(
+    "governancePolicy",
+    Math.min(4, completedPolicies * 0.75),
+    "Completed federation policies",
+  );
+
+  const continentalSnapshot = new ContinentalCareerRepository(db).snapshots(federationId).at(-1);
+  if (continentalSnapshot) {
+    addOutcomeSignal(
+      "internationalPathway",
+      clamp((continentalSnapshot.coefficient - 4) * 0.25, -3, 3),
+      "Continental results context",
+    );
+  }
 
   const pathwaySignal = Math.min(
     6,

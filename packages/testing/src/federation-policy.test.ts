@@ -126,6 +126,23 @@ describe("federation campaigning and policy foundation", () => {
     const first = federationDevelopmentSummary(db, federationId, "2027-07-31");
     const second = federationDevelopmentSummary(db, federationId, "2027-07-31");
     expect(first).toEqual(second);
+    expect(Object.keys(first.dimensions).sort()).toEqual(
+      [
+        "coaching",
+        "commercialStrength",
+        "competitionQuality",
+        "governancePolicy",
+        "infrastructure",
+        "internationalPathway",
+        "nationalTeams",
+        "participation",
+        "refereeing",
+        "schoolFootball",
+        "talentHotspots",
+        "womenGirls",
+        "youth",
+      ].sort(),
+    );
     expect(first.dimensions.refereeing).toBeDefined();
     expect(first.impactSummaries).toContain("REFEREE_DEVELOPMENT: 50% implemented");
     expect(first.trend).toBe("IMPROVING");
