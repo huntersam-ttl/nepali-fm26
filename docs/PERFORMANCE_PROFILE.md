@@ -2,6 +2,39 @@
 
 ## Season-1 long-save revalidation after migration 85
 
+## Final Season-1 revalidation after structural-shortage correction
+
+On 2026-09-02, the canonical full-production Season-1 harness was rerun once from the current
+build using seed `long-save-post-freeze-2026`. It completed all **851 / 851 matches** in
+**184.30s elapsed** (the harness reported 196.21s including Vitest overhead), with an 82.24 MB
+database and 575.1 MB observed RSS. The structural squad gate passed: **0 position shortages**
+and **0 emergency lineups**. Duplicate IDs were zero and financial values were finite.
+
+The harness initially failed only because its assertion required a `COMPLETED` season state after
+the canonical rollover had already moved all five completed competitions to `ROLLED_OVER`. The
+assertion is now lifecycle-correct and accepts either terminal state; this does not weaken the
+completion check. Migration errors, crashes, duplicate finalizations, broken contracts, and
+non-finite finances were not observed. The temporary benchmark database was removed by the test
+harness after capture, so direct post-run SQL inspection was limited to its persisted snapshot.
+
+| Measure | Result |
+| --- | ---: |
+| Matches / fixtures | 851 / 872 (851 played) |
+| Wall time | 184.30s elapsed |
+| Previous 239.54s result | 23.1% faster |
+| Original 465.3s result | 60.4% faster |
+| Save size | 82.24 MB |
+| Peak RSS | 575.1 MB |
+| Structural shortages | 0 |
+| Emergency lineups | 0 |
+| Duplicate IDs | 0 |
+| Financial values | finite |
+| Season terminal state | 5 rolled over, 0 suspended |
+
+The Season-1 performance result is materially improved and passes the single-season runtime gate.
+The multi-season long-save release gate remains **FAIL / UNPROVEN** because no new multi-season
+run was started in this pass.
+
 On 2026-09-02, one fresh canonical full-production Season-1 run was executed with
 `LONG_SAVE_SEED=long-save-post-freeze-2026`, checkpoint/reload enabled, and migration 85 applied.
 The run completed all 851 matches without a crash or stall in **239.54s elapsed** (the Vitest

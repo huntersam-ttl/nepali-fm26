@@ -129,7 +129,9 @@ longSaveDescribe("post-freeze long-save structural validation", () => {
     expect(result.final.finiteFinancialValues).toBe(true);
     expect(result.final.squadHealth.emergencyLineupCases).toBe(0);
     expect(result.final.squadHealth.positionShortages).toBe(0);
-    expect(result.final.competitionState.completed).toBeGreaterThan(0);
+    // A completed season is immediately rolled over by the canonical
+    // progression path, so both terminal states prove completion here.
+    expect(result.final.competitionState.completed + result.final.competitionState.rolledOver).toBeGreaterThan(0);
     expect(result.snapshots.length).toBeGreaterThanOrEqual(Math.floor(targetSeasons / checkpointInterval));
     if (outputPath) expect(existsSync(outputPath)).toBe(true);
   }, 1_800_000);
