@@ -30,6 +30,7 @@ import type {
   TransferLoanCommand,
   ClubBudgetCategory,
   InfrastructureProjectType,
+  GovernmentFundingType,
 } from "@nepal-football-sim/shared-types";
 import { DesktopApplicationService, type DesktopRuntimeOptions } from "./desktop-application.js";
 
@@ -169,6 +170,14 @@ const dispatch = (
       return service.getFederationPresidentDashboard();
     case "getNationalDevelopment":
       return service.getNationalDevelopment();
+    case "getGovernmentOverview":
+      return service.getGovernmentOverview();
+    case "requestGovernmentFunding":
+      return service.requestGovernmentFunding(
+        body.institutionId as EntityId,
+        body.fundingType as GovernmentFundingType,
+        body.requestedAmount as number,
+      );
     case "getFederationCandidacy":
       return service.getFederationCandidacy();
     case "declareFederationElectionCandidacy":

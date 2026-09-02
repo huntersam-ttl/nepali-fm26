@@ -1238,3 +1238,48 @@ tbody tr:last-child td { border-bottom: 0; }
   .dashboard, .role-detail { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .dashboard > .panel:first-child, .dashboard > .panel:nth-child(2), .role-detail > .panel:first-child, .role-detail > .panel:nth-child(2) { min-width: 0; }
 }
+
+/*
+ * Reusable meeting-room presentation (apps/desktop/src/manager/meetings.tsx).
+ * Government, bank, investor, sponsor, board, agent, and staff meetings all
+ * render through the same shell — this is the only place their look lives.
+ */
+.meeting-shell { display: flex; flex-direction: column; gap: 14px; }
+.meeting-shell-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.meeting-shell-head h2 { margin: 2px 0 0; font-size: 1.35rem; color: var(--text); }
+.meeting-deadline { font-size: .82rem; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; white-space: nowrap; }
+.meeting-shell-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 280px); gap: 16px; align-items: start; }
+.meeting-shell-main { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.meeting-context { min-width: 0; }
+
+.meeting-participants { display: flex; flex-wrap: wrap; gap: 18px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); }
+.meeting-participant { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.meeting-participant div { display: flex; flex-direction: column; min-width: 0; }
+.meeting-participant strong { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.meeting-avatar { flex: 0 0 auto; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: .85rem; color: #0b1020; background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+
+.meeting-brief { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 14px 16px; }
+.meeting-brief h3 { margin: 0 0 8px; color: var(--text); font-size: 1.02rem; }
+.meeting-brief-body { color: var(--muted); line-height: 1.55; }
+.meeting-brief-body p { margin: 0 0 8px; }
+.meeting-brief-body p:last-child { margin-bottom: 0; }
+
+.meeting-options { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+.meeting-option { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; text-align: left; padding: 11px 13px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); min-height: 62px; }
+.meeting-option:not(:disabled):hover { border-color: rgba(155,124,255,.65); background: rgba(155,124,255,.16); }
+.meeting-option-primary { border-color: rgba(155,124,255,.55); box-shadow: inset 0 0 0 1px rgba(155,124,255,.25); }
+.meeting-option-risk { border-color: rgba(251,113,133,.45); }
+.meeting-option-label { font-weight: 600; }
+.meeting-option-desc, .meeting-option-reason { font-size: .78rem; color: var(--muted); }
+.meeting-option-reason { font-style: italic; }
+.meeting-option:disabled { cursor: not-allowed; opacity: .55; }
+
+.meeting-outcome { display: flex; flex-direction: column; gap: 10px; }
+.meeting-status { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--muted); }
+.meeting-history { margin: 0; }
+.meeting-history li { padding: 6px 0; border-bottom: 1px solid var(--line); }
+.meeting-history li:last-child { border-bottom: 0; }
+
+@media (max-width: 900px) {
+  .meeting-shell-body { grid-template-columns: minmax(0, 1fr); }
+}

@@ -62,6 +62,9 @@ import {
   type CareerRoleState,
   type ChairmanDashboard,
   type FederationDevelopmentSummary,
+  type GovernmentOverview,
+  type GovernmentFundingApplication,
+  type GovernmentFundingType,
   type FederationPresidentDashboard,
   type E2ERoleFixtureResult,
   type FederationGovernanceProposal,
@@ -302,6 +305,7 @@ import { createInvestorStakeOffer, decideInvestorBid } from "./ownership.js";
 import { buildChairmanDashboard, buildFederationPresidentDashboard } from "./role-desktop.js";
 import { initializeFederationGovernanceForSave } from "./federation-governance.js";
 import { federationDevelopmentSummary } from "./federation-policy.js";
+import { governmentOverview, requestGovernmentFunding } from "./government.js";
 import {
   assessFederationCandidacy,
   declareFederationElectionCandidacy,
@@ -1020,6 +1024,38 @@ export class DesktopApplicationService {
       )?.targetId;
       if (!federationId) throw appError("ROLE_NOT_AUTHORIZED", "No federation is available.");
       return federationDevelopmentSummary(db, federationId, save.worldDate);
+    });
+  }
+
+  getGovernmentOverview(): AppResult<GovernmentOverview> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "FEDERATION_PRESIDENT") {
+        throw appError("ROLE_NOT_AUTHORIZED", "You are not the active Federation President.");
+      }
+      const federationId = heldCareerRoles(db, personId).find(
+        (entry) => entry.role === "FEDERATION_PRESIDENT",
+      )?.targetId;
+      if (!federationId) throw appError("ROLE_NOT_AUTHORIZED", "No federation is available.");
+      return governmentOverview(db, federationId);
+    });
+  }
+
+  requestGovernmentFunding(
+    institutionId: EntityId,
+    fundingType: GovernmentFundingType,
+    requestedAmount: number,
+  ): AppResult<GovernmentFundingApplication> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "FEDERATION_PRESIDENT") {
+        throw appError("ROLE_NOT_AUTHORIZED", "You are not the active Federation President.");
+      }
+      const federationId = heldCareerRoles(db, personId).find(
+        (entry) => entry.role === "FEDERATION_PRESIDENT",
+      )?.targetId;
+      if (!federationId) throw appError("ROLE_NOT_AUTHORIZED", "No federation is available.");
+      return requestGovernmentFunding(db, { federationId, institutionId, fundingType, requestedAmount, date: save.worldDate });
     });
   }
 

@@ -68,3 +68,36 @@ export type GovernmentRelationship = {
   lastInteractionOn?: string;
   provenanceStatus: "SIMULATION_ONLY";
 };
+
+/**
+ * UI-safe bands over the institution's internal disposition scores — the raw
+ * 0-100 numbers are simulation-only AI weighting, not something a federation
+ * president would ever see quoted as a figure.
+ */
+export type GovernmentPriorityBand = "LOW" | "MODERATE" | "HIGH" | "VERY_HIGH";
+
+/** "NOT_ESTABLISHED" is honest, not a fabricated neutral default: no relationship row exists until an interaction records one. */
+export type GovernmentRelationshipBand =
+  | "NOT_ESTABLISHED"
+  | "STRAINED"
+  | "CAUTIOUS"
+  | "COOPERATIVE"
+  | "STRONG";
+
+export type GovernmentOverviewInstitution = {
+  id: EntityId;
+  name: string;
+  institutionType: GovernmentInstitutionType;
+  locationId?: EntityId;
+  relationshipBand: GovernmentRelationshipBand;
+  infrastructurePriorityBand: GovernmentPriorityBand;
+  youthWomenPriorityBand: GovernmentPriorityBand;
+  /** budgetCapacity - committedBudget: a real currency estimate, not a hidden score. */
+  estimatedAvailableFunding: number;
+};
+
+/** Read model behind the federation's government-relations / funding-request UI. */
+export type GovernmentOverview = {
+  institutions: GovernmentOverviewInstitution[];
+  applications: GovernmentFundingApplication[];
+};

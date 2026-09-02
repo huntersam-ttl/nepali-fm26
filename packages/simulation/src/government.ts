@@ -1,4 +1,4 @@
-import { createStableEntityId, type EntityId, type GovernmentFundingApplication, type GovernmentInstitution, type GovernmentFundingType } from "@nepal-football-sim/shared-types";
+import { createStableEntityId, type EntityId, type GovernmentFundingApplication, type GovernmentInstitution, type GovernmentFundingType, type GovernmentOverview, type GovernmentPriorityBand, type GovernmentRelationshipBand } from "@nepal-football-sim/shared-types";
 import { GovernmentRepository, type GameDatabase } from "@nepal-football-sim/database";
 import { postFederationTransaction } from "./federation-governance.js";
 
@@ -94,6 +94,67 @@ export const proposeAnnualGovernmentFunding = (
     federationId: federation.id,
     fundingType: "YOUTH_GRASSROOTS",
     requestedAmount: 5_000_000,
+    proposedOn: input.date,
+  });
+};
+
+const priorityBand = (value: number): GovernmentPriorityBand =>
+  value >= 75 ? "VERY_HIGH" : value >= 50 ? "HIGH" : value >= 25 ? "MODERATE" : "LOW";
+
+const relationshipBand = (trust: number): GovernmentRelationshipBand =>
+  trust >= 75 ? "STRONG" : trust >= 50 ? "COOPERATIVE" : trust >= 25 ? "CAUTIOUS" : "STRAINED";
+
+/**
+ * Read model behind the federation's government-relations panel. Institutions
+ * and relationships are both genuinely sparse today — most saves will show no
+ * institution until the annual youth-grassroots cadence first proposes one,
+ * and no relationship row exists until something actually records trust — so
+ * this deliberately returns an honest empty/NOT_ESTABLISHED state rather than
+ * inventing a placeholder relationship or institution.
+ */
+export const governmentOverview = (db: GameDatabase, federationId: EntityId): GovernmentOverview => {
+  const repo = new GovernmentRepository(db);
+  const relationshipByInstitution = new Map(
+    repo.relationships().filter((relationship) => relationship.entityId === federationId).map((relationship) => [relationship.institutionId, relationship]),
+  );
+  return {
+    institutions: repo.institutions().map((institution) => {
+      const relationship = relationshipByInstitution.get(institution.id);
+      return {
+        id: institution.id,
+        name: institution.name,
+        institutionType: institution.institutionType,
+        locationId: institution.locationId,
+        relationshipBand: relationship ? relationshipBand(relationship.trust) : "NOT_ESTABLISHED",
+        infrastructurePriorityBand: priorityBand(institution.profile.infrastructurePriority),
+        youthWomenPriorityBand: priorityBand(institution.profile.youthWomenPriority),
+        estimatedAvailableFunding: Math.max(0, institution.profile.budgetCapacity - institution.profile.committedBudget),
+      };
+    }),
+    applications: repo.applications().filter((application) => application.federationId === federationId),
+  };
+};
+
+/**
+ * Lets the Federation President formally raise a funding request against an
+ * existing institution — a thin, authority-checked wrapper around the same
+ * proposeGovernmentFunding the annual cadence already uses. It is honest
+ * about where it stops: nothing today automatically submits or reviews a
+ * request raised this way (see CODEX_UI_BRIDGE_NEEDED in the UI layer), so
+ * the application sits at PROPOSED until a future review path picks it up.
+ */
+export const requestGovernmentFunding = (
+  db: GameDatabase,
+  input: { federationId: EntityId; institutionId: EntityId; fundingType: GovernmentFundingType; requestedAmount: number; date: string },
+): GovernmentFundingApplication => {
+  const repo = new GovernmentRepository(db);
+  if (!repo.institution(input.institutionId)) throw new Error(`Government institution missing: ${input.institutionId}`);
+  if (!Number.isFinite(input.requestedAmount) || input.requestedAmount <= 0) throw new Error("Requested amount must be a positive number");
+  return proposeGovernmentFunding(db, {
+    institutionId: input.institutionId,
+    federationId: input.federationId,
+    fundingType: input.fundingType,
+    requestedAmount: Math.round(input.requestedAmount),
     proposedOn: input.date,
   });
 };

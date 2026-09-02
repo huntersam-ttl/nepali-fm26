@@ -41,6 +41,7 @@ import type {
 } from "./domain.js";
 import type { ExecutiveAuthorityDesktopView } from "./executive-roles.js";
 import type { FederationDevelopmentSummary } from "./federation-policy.js";
+import type { GovernmentOverview, GovernmentFundingApplication, GovernmentFundingType } from "./government.js";
 
 /**
  * Canonical desktop application contract.
@@ -349,6 +350,12 @@ export type DesktopRuntimeApi = {
   getChairmanDashboard(): Promise<AppResult<ChairmanDashboard>>;
   getFederationPresidentDashboard(): Promise<AppResult<FederationPresidentDashboard>>;
   getNationalDevelopment(): Promise<AppResult<FederationDevelopmentSummary>>;
+  getGovernmentOverview(): Promise<AppResult<GovernmentOverview>>;
+  requestGovernmentFunding(
+    institutionId: EntityId,
+    fundingType: GovernmentFundingType,
+    requestedAmount: number,
+  ): Promise<AppResult<GovernmentFundingApplication>>;
   getFederationCandidacy(): Promise<AppResult<FederationCandidacyAssessment>>;
   declareFederationElectionCandidacy(): Promise<AppResult<FederationCandidacyAssessment>>;
   foundClub(name: string, locationName: string): Promise<AppResult<SimulationClubRecord>>;

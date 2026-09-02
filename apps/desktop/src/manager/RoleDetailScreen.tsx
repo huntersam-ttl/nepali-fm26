@@ -6,14 +6,20 @@ import type {
   FederationDevelopmentBand,
   FederationDevelopmentSummary,
   FederationPresidentDashboard,
+  GovernmentFundingApplication,
+  GovernmentFundingType,
+  GovernmentOverview,
+  GovernmentPriorityBand,
+  GovernmentRelationshipBand,
   OwnerManagerCandidate,
 } from "@nepal-football-sim/shared-types";
 import type { EntityId } from "@nepal-football-sim/shared-types";
 import type { AppError, DesktopRuntimeApi } from "../appBridge.js";
 import { AsyncPanel, Badge, ErrorBanner, Metrics, Panel, money, useRuntimeData } from "./ui.js";
+import { MeetingBrief, MeetingOptions, MeetingOutcome, MeetingParticipants, MeetingShell, type MeetingOption, type MeetingTone } from "./meetings.js";
 
 export type ChairmanScreen = "dashboard" | "finance" | "manager" | "facilities" | "sponsorship" | "supporters" | "investors";
-export type PresidentScreen = "dashboard" | "governance" | "finance" | "national-teams" | "national-development" | "tenure";
+export type PresidentScreen = "dashboard" | "governance" | "finance" | "national-teams" | "national-development" | "government-relations" | "tenure";
 
 type Props = {
   screen: ChairmanScreen | PresidentScreen;
@@ -40,6 +46,10 @@ const SECTION_TITLES: Record<string, { title: string; subtitle: string }> = {
   "national-development": {
     title: "National development",
     subtitle: "Grassroots, pathway, and federation-wide development outcomes.",
+  },
+  "government-relations": {
+    title: "Government relations",
+    subtitle: "Institution relationships and land, ground, and infrastructure funding requests.",
   },
   tenure: { title: "Tenure", subtitle: "Term, mandate, and election standing." },
 };
@@ -164,6 +174,7 @@ const PresidentDetail = ({ screen, bridge, onNavigate }: { screen: PresidentScre
     if (screen === "finance") return <FederationFinance dashboard={dashboard} />;
     if (screen === "national-teams") return <NationalTeams dashboard={dashboard} />;
     if (screen === "national-development") return <NationalDevelopment bridge={bridge} />;
+    if (screen === "government-relations") return <GovernmentRelations bridge={bridge} />;
     return <Tenure dashboard={dashboard} />;
   }}</AsyncPanel>;
 };
@@ -409,4 +420,159 @@ const NationalDevelopmentView = ({
 };
 
 const ProjectList = ({ projects }: { projects: FederationPresidentDashboard["projects"] }): React.ReactElement => <ul className="compact-list">{projects.length ? projects.map((project) => <li key={project.id}>{project.name} · {project.status} · {project.expectedCompletion}</li>) : <li>No federation projects recorded.</li>}</ul>;
+
+// Land, ground, and infrastructure requests all route through these three
+// real funding types — there is no separate "stadium vs training ground vs
+// academy" field on the backend application yet, so the purpose picker below
+// only ever offers labels the domain model actually understands.
+const FUNDING_TYPE_LABELS: Record<GovernmentFundingType, string> = {
+  FEDERATION_OPERATIONS: "Federation operations",
+  NATIONAL_TEAM_PREPARATION: "National team preparation",
+  INFRASTRUCTURE: "Infrastructure programme",
+  REGIONAL_GROUND: "Regional ground",
+  WOMENS_FOOTBALL: "Women's football",
+  YOUTH_GRASSROOTS: "Youth grassroots",
+  MUNICIPAL_LAND_OR_VENUE: "Municipal land or venue",
+};
+const LAND_FUNDING_TYPES: GovernmentFundingType[] = ["MUNICIPAL_LAND_OR_VENUE", "REGIONAL_GROUND", "INFRASTRUCTURE"];
+
+const relationshipLabel = (band: GovernmentRelationshipBand): string =>
+  band === "NOT_ESTABLISHED" ? "Not yet established" : band[0] + band.slice(1).toLowerCase();
+const relationshipTone = (band: GovernmentRelationshipBand): MeetingTone =>
+  band === "STRONG" ? "ok" : band === "COOPERATIVE" ? "info" : band === "CAUTIOUS" ? "warn" : band === "STRAINED" ? "bad" : "info";
+const priorityLabel = (band: GovernmentPriorityBand): string => band.replaceAll("_", " ")[0] + band.replaceAll("_", " ").slice(1).toLowerCase();
+const priorityTone = (band: GovernmentPriorityBand): MeetingTone =>
+  band === "VERY_HIGH" ? "ok" : band === "HIGH" ? "info" : band === "MODERATE" ? "warn" : "bad";
+const applicationStatusLabel = (status: GovernmentFundingApplication["status"]): string =>
+  status[0] + status.slice(1).toLowerCase().replaceAll("_", " ");
+const applicationStatusTone = (status: GovernmentFundingApplication["status"]): MeetingTone =>
+  status === "APPROVED" || status === "COMPLETED" ? "ok" : status === "REJECTED" ? "bad" : status === "CONDITIONAL" ? "warn" : "info";
+
+const GovernmentRelations = ({ bridge }: { bridge: DesktopRuntimeApi }): React.ReactElement => {
+  const [state, refresh] = useRuntimeData(() => bridge.getGovernmentOverview());
+  return (
+    <AsyncPanel
+      state={state}
+      isEmpty={(overview) => overview.institutions.length === 0}
+      empty="No government institution has engaged with the federation yet. Institutions and relationships appear here once one first proposes or reviews funding — typically through the federation's annual grassroots funding cycle."
+    >
+      {(overview) => <GovernmentRelationsView overview={overview} bridge={bridge} refresh={refresh} />}
+    </AsyncPanel>
+  );
+};
+
+const GovernmentRelationsView = ({
+  overview,
+  bridge,
+  refresh,
+}: {
+  overview: GovernmentOverview;
+  bridge: DesktopRuntimeApi;
+  refresh: () => void;
+}): React.ReactElement => {
+  const [selectedId, setSelectedId] = useState<EntityId>(overview.institutions[0]!.id);
+  const institution = overview.institutions.find((item) => item.id === selectedId) ?? overview.institutions[0]!;
+  const [fundingType, setFundingType] = useState<GovernmentFundingType>("MUNICIPAL_LAND_OR_VENUE");
+  const [amount, setAmount] = useState("2000000");
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const applications = overview.applications.filter((application) => application.institutionId === institution.id);
+  const requestedAmount = Number(amount);
+  const canRequest = Number.isFinite(requestedAmount) && requestedAmount > 0;
+
+  const requestFunding = async (): Promise<void> => {
+    setBusyId("request");
+    setMessage(null);
+    const result = await bridge.requestGovernmentFunding(institution.id, fundingType, requestedAmount);
+    setBusyId(null);
+    setMessage(
+      result.ok
+        ? `Recorded a ${FUNDING_TYPE_LABELS[fundingType]} request for ${money(requestedAmount)}.`
+        : result.error.message,
+    );
+    if (result.ok) refresh();
+  };
+
+  const options: MeetingOption[] = [
+    {
+      id: "request",
+      label: "Request land / ground funding",
+      description: `${FUNDING_TYPE_LABELS[fundingType]} · ${money(canRequest ? requestedAmount : undefined)}`,
+      tone: "primary",
+      disabled: !canRequest,
+      disabledReason: canRequest ? undefined : "Enter a requested amount above zero.",
+    },
+  ];
+
+  return (
+    <section className="role-detail">
+      <MeetingShell
+        title={institution.name}
+        meetingType="Government relations"
+        context={[
+          { label: "Institution type", value: institution.institutionType.replaceAll("_", " ") },
+          { label: "Relationship", value: relationshipLabel(institution.relationshipBand), tone: relationshipTone(institution.relationshipBand) },
+          { label: "Infrastructure priority", value: priorityLabel(institution.infrastructurePriorityBand), tone: priorityTone(institution.infrastructurePriorityBand) },
+          { label: "Youth & women priority", value: priorityLabel(institution.youthWomenPriorityBand), tone: priorityTone(institution.youthWomenPriorityBand) },
+          { label: "Estimated available funding", value: money(institution.estimatedAvailableFunding) },
+        ]}
+      >
+        {overview.institutions.length > 1 && (
+          <div className="inline-form">
+            <label>
+              Institution
+              <select value={institution.id} onChange={(event) => setSelectedId(event.target.value as EntityId)}>
+                {overview.institutions.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        )}
+        <MeetingParticipants
+          initiator={{ name: "You", role: "Federation President" }}
+          counterpart={{ name: institution.name, role: institution.institutionType.replaceAll("_", " ") }}
+        />
+        <MeetingBrief heading="Land and ground funding">
+          <p>
+            Municipal land, regional grounds, and infrastructure grants are the government&rsquo;s route to
+            helping fund a stadium, training ground, or academy site. There is no separate purchase-versus-lease
+            structure modelled yet, so a request is a single funding amount tied to one of these purposes.
+          </p>
+        </MeetingBrief>
+        <div className="inline-form">
+          <label>
+            Purpose
+            <select value={fundingType} onChange={(event) => setFundingType(event.target.value as GovernmentFundingType)}>
+              {LAND_FUNDING_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {FUNDING_TYPE_LABELS[type]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Requested amount
+            <input type="number" min="1" value={amount} onChange={(event) => setAmount(event.target.value)} />
+          </label>
+        </div>
+        <MeetingOptions options={options} busyId={busyId} onChoose={() => void requestFunding()} />
+        {message && <p className="notice" role="status">{message}</p>}
+        <MeetingOutcome
+          history={applications.map((application) => ({
+            date: application.decidedOn ?? application.proposedOn,
+            label: applicationStatusLabel(application.status),
+            tone: applicationStatusTone(application.status),
+            detail: `${FUNDING_TYPE_LABELS[application.fundingType]} · requested ${money(application.requestedAmount)}${
+              application.approvedAmount !== undefined ? ` · approved ${money(application.approvedAmount)}` : ""
+            }${application.decisionReason ? ` · ${application.decisionReason}` : ""}`,
+          }))}
+        />
+      </MeetingShell>
+    </section>
+  );
+};
 const Ledger = ({ entries }: { entries: Array<{ id: string; date: string; description: string; direction: string; amount: number; currency: string }> }): React.ReactElement => <Panel title="Recent transactions"><ul className="compact-list">{entries.length ? entries.slice(0, 12).map((entry) => <li key={entry.id}>{entry.date} · {entry.description} · {entry.direction === "DEBIT" ? "−" : "+"}{money(entry.amount, entry.currency)}</li>) : <li>No transactions recorded.</li>}</ul></Panel>;
