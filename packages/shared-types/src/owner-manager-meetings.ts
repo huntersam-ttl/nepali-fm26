@@ -17,6 +17,7 @@ export type OwnerPlayerRequestContext = {
   clubId: EntityId;
   requestIntent: OwnerPlayerRequestIntent;
   requestedBy: EntityId;
+  requestedByReference?: EntityReference;
   managerPersonId: EntityId;
   requestedOn: ISODate;
   deadline?: ISODate;
@@ -32,6 +33,7 @@ export type ManagerOwnerPlayerRequest = {
   clubId: EntityId;
   requestIntent: OwnerPlayerRequestIntent;
   requestedBy: EntityId;
+  requestedByReference: EntityReference;
   requestedOn: ISODate;
   deadline?: ISODate;
   stage: UniversalInteraction["stage"];
@@ -39,6 +41,7 @@ export type ManagerOwnerPlayerRequest = {
   linkedPromiseId?: EntityId;
   fulfillmentState: "OPEN" | "FULFILLED" | "DECLINED" | "DEFERRED" | "STALE" | "EXPIRED";
   staleReason?: string;
+  fulfillmentSource?: EntityId;
   sourceMeetingId: EntityId;
 };
 

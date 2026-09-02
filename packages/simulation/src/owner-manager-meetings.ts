@@ -244,6 +244,7 @@ export const managerOwnerPlayerRequests = (
         clubId: input.clubId,
         requestIntent: item.demands.requestIntent as OwnerPlayerRequestIntent,
         requestedBy: item.initiator.entityId,
+        requestedByReference: buildEntityReference(db, "INVESTOR", item.initiator.entityId, "MANAGER"),
         requestedOn: item.worldDate as ISODate,
         deadline: item.deadline as ISODate | undefined,
         stage: item.stage,
@@ -251,6 +252,7 @@ export const managerOwnerPlayerRequests = (
         linkedPromiseId: item.promiseIds[0],
         fulfillmentState,
         staleReason,
+        fulfillmentSource: item.execution?.resultId ?? item.linkedReference?.canonicalId,
         sourceMeetingId: item.id,
       };
     });
