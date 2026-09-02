@@ -111,6 +111,8 @@ import {
   type EntityId,
   type EntityReference,
   type EntityReferenceType,
+  type OrganizationProfile,
+  type OrganizationProfileEntityType,
   type AdvanceMatchCommand,
   type FixtureDetail,
   type FixtureList,
@@ -340,6 +342,7 @@ import { buildChairmanDashboard, buildFederationPresidentDashboard } from "./rol
 import { buildOwnerMatchday, type OwnerMatchdayView } from "./owner-matchday.js";
 import { buildActorPlayerActions, type ActorPlayerActions } from "./player-actions.js";
 import { buildEntityReference } from "./entity-reference.js";
+import { buildOrganizationProfile } from "./organization-profile.js";
 import { buildPlayerContractContext, buildPlayerTransferContext } from "./player-context.js";
 import { buildOwnerPostMatchSuggestion } from "./owner-meeting-suggestion.js";
 import {
@@ -3007,6 +3010,23 @@ export class DesktopApplicationService {
     return this.withSession((db, save) => {
       const personId = careerPersonId(db, save);
       return buildEntityReference(db, entityType, entityId, activeCareerRole(db, personId));
+    });
+  }
+
+  getOrganizationProfile(
+    entityType: OrganizationProfileEntityType,
+    entityId: EntityId,
+  ): AppResult<OrganizationProfile> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      try {
+        return buildOrganizationProfile(db, entityType, entityId, activeCareerRole(db, personId));
+      } catch (error) {
+        throw appError(
+          "INVALID_SELECTION",
+          error instanceof Error ? error.message : "Organization profile is unavailable.",
+        );
+      }
     });
   }
 

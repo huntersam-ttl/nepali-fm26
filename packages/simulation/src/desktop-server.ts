@@ -9,6 +9,7 @@ import type {
   ContractRenewalCommand,
   SquadMeetingCommand,
   EntityId,
+  OrganizationProfileEntityType,
   LiveTacticsCommand,
   MediaResponseStance,
   RecruitmentSearchCommand,
@@ -411,6 +412,11 @@ const dispatch = (
       return service.getPlayerTransferContext(body.playerId as EntityId);
     case "getEntityReference":
       return service.getEntityReference(body.entityType as any, body.entityId as EntityId);
+    case "getOrganizationProfile":
+      return service.getOrganizationProfile(
+        body.entityType as OrganizationProfileEntityType,
+        body.entityId as EntityId,
+      );
     case "getTactics":
       return service.getTactics();
     case "updateTactics":

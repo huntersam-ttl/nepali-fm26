@@ -106,3 +106,4 @@ export * from "./workforce-supply.js";
 export * from "./referee-assignment.js";
 export * from "./global-football-import.js";
 export * from "./global-football-seed.js";
+export * from "./organization-profile.js";

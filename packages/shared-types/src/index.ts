@@ -32,3 +32,4 @@ export * from "./executive-roles.js";
 export * from "./agent-career.js";
 export * from "./owner-manager-meetings.js";
 export * from "./entity-reference.js";
+export * from "./organization-profile.js";
