@@ -54,7 +54,7 @@ describe("commercial rights federation pilot", () => {
           version: number;
         }
       ).version,
-    ).toBe(89);
+    ).toBe(90);
     expect(
       db
         .prepare(

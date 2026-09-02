@@ -24,6 +24,7 @@ export * from "./grassroots-repository.js";
 export * from "./media-rights-repository.js";
 export * from "./commercial-rights-repository.js";
 export * from "./competition-commercial-repository.js";
+export * from "./national-team-commercial-repository.js";
 export * from "./competition-distribution-repository.js";
 export * from "./referee-development-repository.js";
 export * from "./insurance-repository.js";

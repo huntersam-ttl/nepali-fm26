@@ -81,3 +81,17 @@ export type CompetitionCommercialSponsorship = {
   revenueDestination: "FEDERATION_LEDGER";
   provenanceStatus: "SIMULATION_ONLY";
 };
+
+export type NationalTeamCommercialSettlement = {
+  id: EntityId;
+  federationId: EntityId;
+  programme: "SENIOR_MENS" | "YOUTH" | "WOMENS_GIRLS";
+  commercialProperty: "MAIN_PARTNER";
+  sourceOrganizationId: EntityId;
+  rightsOfferId: EntityId;
+  amount: number;
+  settledOn: string;
+  federationLedgerEntryId: EntityId;
+  restrictionTag: string;
+  provenanceStatus: "SIMULATION_ONLY";
+};

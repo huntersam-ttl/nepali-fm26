@@ -8,10 +8,14 @@ import {
 import {
   CompetitionCommercialRepository,
   CommercialRightsRepository,
+  NationalTeamCommercialRepository,
   EventRepository,
   type GameDatabase,
 } from "@nepal-football-sim/database";
-import type { CompetitionCommercialSponsorship } from "@nepal-football-sim/shared-types";
+import type {
+  CompetitionCommercialSponsorship,
+  NationalTeamCommercialSettlement,
+} from "@nepal-football-sim/shared-types";
 import { postFederationTransaction } from "./federation-governance.js";
 
 export type CommercialRightsEvidence = {
@@ -136,6 +140,33 @@ export const ensureFederationMainPartnerPackage = (
   return existing ?? value;
 };
 
+export const ensureSeniorNationalTeamMainPartnerPackage = (
+  db: GameDatabase,
+  federationId: EntityId,
+  date: string,
+): FederationCommercialRightsPackage => {
+  const packageId = createStableEntityId(
+    "commercial-rights-package",
+    `${federationId}:SENIOR_MENS_MAIN_PARTNER`,
+  );
+  const value: FederationCommercialRightsPackage = {
+    id: packageId,
+    federationId,
+    name: "Senior National Team Main Partner",
+    category: "NATIONAL_TEAM_SPONSOR",
+    exclusivityGroup: "SENIOR_MENS_MAIN_PARTNER",
+    scope: "NATIONAL_TEAM",
+    availableFrom: date,
+    availableTo: addYears(date, 5),
+    status: "AVAILABLE",
+    provenanceStatus: "SIMULATION_ONLY",
+  };
+  const repo = new CommercialRightsRepository(db);
+  const existing = repo.packages(federationId).find((item) => item.id === packageId);
+  if (!existing) repo.upsertPackage(value);
+  return existing ?? value;
+};
+
 export const ensureADivisionTitleSponsorPackage = (
   db: GameDatabase,
   federationId: EntityId,
@@ -232,6 +263,93 @@ export const awardCommercialRightsForPresident = (
   if (!activePresidentForFederation(db, input.federationId, input.presidentPersonId))
     throw new Error("Only the active federation president may award federation commercial rights");
   return awardCommercialRights(db, input);
+};
+
+export const activateSeniorNationalTeamMainPartner = (
+  db: GameDatabase,
+  input: {
+    offerId: EntityId;
+    federationId: EntityId;
+    presidentPersonId: EntityId;
+    date: string;
+    startDate: string;
+  },
+): NationalTeamCommercialSettlement => {
+  if (!activePresidentForFederation(db, input.federationId, input.presidentPersonId))
+    throw new Error(
+      "Only the active federation president may activate national-team commercial rights",
+    );
+  const settlements = new NationalTeamCommercialRepository(db);
+  const existing = settlements.byOffer(input.offerId);
+  if (existing) return existing;
+  const rightsRepo = new CommercialRightsRepository(db);
+  const offer = rightsRepo.offers().find((item) => item.id === input.offerId);
+  if (!offer || offer.federationId !== input.federationId || offer.scope !== "NATIONAL_TEAM")
+    throw new Error("Offer is not a senior national-team commercial package");
+  const rightsPackage = rightsRepo
+    .packages(input.federationId)
+    .find((item) => item.id === offer.packageId);
+  if (!rightsPackage || rightsPackage.category !== "NATIONAL_TEAM_SPONSOR")
+    throw new Error("Offer is not a national-team main-partner package");
+  const activeSenior = settlements
+    .byProgramme(input.federationId, "SENIOR_MENS")
+    .some((settlement) =>
+      rightsRepo
+        .offers()
+        .some(
+          (candidate) => candidate.id === settlement.rightsOfferId && candidate.status === "ACTIVE",
+        ),
+    );
+  if (activeSenior) throw new Error("A senior national-team main partner is already active");
+  const active = offer.status === "ACTIVE" ? offer : awardCommercialRightsForPresident(db, input);
+  if (!active.federationLedgerEntryId)
+    throw new Error("National-team commercial settlement has no federation ledger entry");
+  const settlement: NationalTeamCommercialSettlement = {
+    id: createStableEntityId("national-team-commercial-settlement", input.offerId),
+    federationId: input.federationId,
+    programme: "SENIOR_MENS",
+    commercialProperty: "MAIN_PARTNER",
+    sourceOrganizationId: active.sponsorId,
+    rightsOfferId: active.id,
+    amount: active.annualValue,
+    settledOn: input.date,
+    federationLedgerEntryId: active.federationLedgerEntryId,
+    restrictionTag: "NATIONAL_TEAM:SENIOR_MENS:MAIN_PARTNER",
+    provenanceStatus: "SIMULATION_ONLY",
+  };
+  settlements.insert(settlement);
+  return settlement;
+};
+
+export const nationalTeamCommercialReadModel = (db: GameDatabase, federationId: EntityId) => {
+  const repo = new CommercialRightsRepository(db);
+  const sponsors = new NationalTeamCommercialRepository(db).all(federationId);
+  return sponsors.map((settlement) => ({
+    ...settlement,
+    sponsorName: repo.sponsor(settlement.sourceOrganizationId)?.name,
+    settlementState: "SETTLED" as const,
+  }));
+};
+
+export const expireNationalTeamCommercialSettlements = (
+  db: GameDatabase,
+  date: string,
+): NationalTeamCommercialSettlement[] => {
+  const rightsRepo = new CommercialRightsRepository(db);
+  const settlements = new NationalTeamCommercialRepository(db);
+  const expired = settlements.all().filter((settlement) => {
+    const offer = rightsRepo
+      .offers()
+      .find((candidate) => candidate.id === settlement.rightsOfferId);
+    return offer?.status === "ACTIVE" && offer.endDate !== undefined && offer.endDate < date;
+  });
+  for (const settlement of expired) {
+    const offer = rightsRepo
+      .offers()
+      .find((candidate) => candidate.id === settlement.rightsOfferId);
+    if (offer) rightsRepo.upsertOffer({ ...offer, status: "EXPIRED" });
+  }
+  return expired;
 };
 
 const aDivisionSeason = (

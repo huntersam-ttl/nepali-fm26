@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 89;
+export const CURRENT_DATABASE_VERSION = 90;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -3687,6 +3687,26 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       );
       CREATE INDEX IF NOT EXISTS idx_competition_commercial_sponsorship_status
         ON competition_commercial_sponsorships(status, end_date);
+    `,
+  },
+  {
+    version: 90,
+    sql: `
+      CREATE TABLE IF NOT EXISTS national_team_commercial_settlements (
+        id TEXT PRIMARY KEY,
+        federation_id TEXT NOT NULL REFERENCES federations(id),
+        programme TEXT NOT NULL,
+        commercial_property TEXT NOT NULL,
+        source_organization_id TEXT NOT NULL,
+        rights_offer_id TEXT NOT NULL UNIQUE,
+        amount INTEGER NOT NULL,
+        settled_on TEXT NOT NULL,
+        federation_ledger_entry_id TEXT NOT NULL UNIQUE REFERENCES federation_ledger_entries(id),
+        restriction_tag TEXT NOT NULL,
+        provenance_status TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_national_team_commercial_programme
+        ON national_team_commercial_settlements(federation_id, programme, settled_on);
     `,
   },
 ];
