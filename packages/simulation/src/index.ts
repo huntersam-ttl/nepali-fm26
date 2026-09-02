@@ -85,6 +85,7 @@ export * from "./player-actions.js";
 export * from "./entity-reference.js";
 export * from "./organization-profile.js";
 export * from "./entity-profiles.js";
+export * from "./national-team-squad.js";
 export * from "./player-context.js";
 export * from "./owner-meeting-suggestion.js";
 export * from "./strength.js";

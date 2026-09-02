@@ -518,6 +518,29 @@ export type CompetitionProfile = {
   participants: EntityReference[];
 };
 
+export type NationalTeamSquadPlayer = {
+  player: EntityReference;
+  personId: EntityId;
+  displayName: string;
+  position?: string;
+  currentClub?: EntityReference;
+  age?: number;
+  availability: "AVAILABLE" | "INJURED" | "SUSPENDED" | "UNAVAILABLE";
+  selectionStatus: string;
+  squadType: string;
+  callupDate: string;
+  internationalAppearances: number;
+};
+
+export type NationalTeamSquadReadModel = {
+  nationalTeam: { id: EntityId; label: string };
+  programme: string;
+  players: NationalTeamSquadPlayer[];
+  asOf: string;
+  supported: boolean;
+  unsupportedReason?: string;
+};
+
 export type FederationNationalTeamSummary = {
   id: EntityId;
   name: string;
@@ -643,6 +666,7 @@ export type DesktopRuntimeApi = {
   getClubProfile?(clubId: EntityId): Promise<AppResult<ClubProfile>>;
   getStaffProfile?(personId: EntityId): Promise<AppResult<StaffProfileReadModel>>;
   getCompetitionProfile?(competitionId: EntityId): Promise<AppResult<CompetitionProfile>>;
+  getNationalTeamSquad?(nationalTeamId: EntityId, programme?: string): Promise<AppResult<NationalTeamSquadReadModel>>;
   /** Real actor-aware action availability for one player — the same authority check the mutating commands themselves use, so a profile can grey out a button honestly instead of the command rejecting it after the click. Works for any active role (Manager/Owner/President all get an honest answer). */
   getPlayerActions(playerId: EntityId): Promise<AppResult<ActorPlayerActions>>;
   /** Real active contract + club name for any player, safe for any active role to view. */

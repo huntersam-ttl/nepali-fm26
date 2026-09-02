@@ -104,6 +104,7 @@ import {
   type ClubProfile,
   type StaffProfileReadModel,
   type CompetitionProfile,
+  type NationalTeamSquadReadModel,
   type CompetitionRuleSet,
   type CompetitionSeason,
   type CalendarEntry,
@@ -357,6 +358,7 @@ import { buildActorPlayerActions, type ActorPlayerActions } from "./player-actio
 import { buildEntityReference } from "./entity-reference.js";
 import { buildOrganizationProfile } from "./organization-profile.js";
 import { buildClubProfile, buildCompetitionProfile, buildStaffProfile } from "./entity-profiles.js";
+import { buildNationalTeamSquad } from "./national-team-squad.js";
 import { buildPlayerContractContext, buildPlayerTransferContext } from "./player-context.js";
 import { buildOwnerPostMatchSuggestion } from "./owner-meeting-suggestion.js";
 import {
@@ -3162,6 +3164,15 @@ export class DesktopApplicationService {
 
   getCompetitionProfile(competitionId: EntityId): AppResult<CompetitionProfile> {
     return this.withSession((db, save) => buildCompetitionProfile(db, competitionId, activeCareerRole(db, careerPersonId(db, save))));
+  }
+
+  getNationalTeamSquad(nationalTeamId: EntityId, programme?: string): AppResult<NationalTeamSquadReadModel> {
+    return this.withSession((db, save) => {
+      const role = activeCareerRole(db, careerPersonId(db, save));
+      if (role !== "FEDERATION_PRESIDENT" && role !== "MANAGER")
+        throw appError("ROLE_NOT_AUTHORIZED", "Only a Federation President or Manager may view national-team squads.");
+      return buildNationalTeamSquad(db, nationalTeamId, save.worldDate, role, programme);
+    });
   }
 
   getPlayerActions(playerId: EntityId): AppResult<ActorPlayerActions> {
