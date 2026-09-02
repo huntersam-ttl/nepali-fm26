@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   ClubEconomyRepository,
   ExecutiveRoleRepository,
+  StaffMarketRepository,
   TransferMarketRepository,
   WorldRepository,
   migrateDatabase,
@@ -17,6 +18,7 @@ import {
   applyClubLoanForExecutive,
   applyForClubLoanCommand,
   assignExecutiveRole,
+  dismissStaff,
   ExecutiveRoleError,
   hireStaff,
   hireStaffForExecutive,
@@ -290,6 +292,51 @@ describe("executive authority: club finance commands", () => {
         termMonths: 12,
         purpose: "Impersonation attempt",
         date: "2026-08-01",
+      }),
+    ).toThrow(ClubFinanceAuthorityError);
+    db.close();
+  });
+
+  it("reconciles role loss: a CEO whose staff appointment was dismissed loses executive authority even though the assignment row still reads FILLED", () => {
+    // Live-discovered gap: dismissStaff ends the appointment but does not
+    // itself touch club_executive_roles, so the persisted row can go stale
+    // (still status='FILLED') for a person who is no longer actually
+    // employed there. Authority must be derived from the live appointment,
+    // never the persisted FILLED flag alone.
+    const { db, club, team, ownerId } = buildFixture(join(dir, "career.sqlite"));
+    const ceoId = hireCeo(db, club, team, ownerId);
+    const lender = new ClubEconomyRepository(db).lenders()[0]!;
+    expect(
+      applyForClubLoanCommand(db, {
+        clubId: club.id,
+        personId: ceoId,
+        callerRole: "CEO",
+        lenderId: lender.id,
+        principal: 60_000,
+        termMonths: 12,
+        purpose: "Before dismissal",
+        date: "2026-08-01",
+      }).status,
+    ).toBe("APPROVED");
+
+    const appointment = new StaffMarketRepository(db).activeAppointment(ceoId)!;
+    dismissStaff(
+      db,
+      { ...saveAt("2026-08-10"), id: createStableEntityId("save", "eaf-dismiss") },
+      appointment.id,
+    );
+
+    expect(new ExecutiveRoleRepository(db).role(club.id, "CEO")?.status).toBe("FILLED");
+    expect(() =>
+      applyForClubLoanCommand(db, {
+        clubId: club.id,
+        personId: ceoId,
+        callerRole: "CEO",
+        lenderId: lender.id,
+        principal: 60_000,
+        termMonths: 12,
+        purpose: "After dismissal — must be rejected",
+        date: "2026-08-11",
       }),
     ).toThrow(ClubFinanceAuthorityError);
     db.close();

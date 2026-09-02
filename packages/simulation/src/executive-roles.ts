@@ -75,6 +75,25 @@ export const canExecutiveAct = (request: {
   );
 };
 
+/**
+ * A FILLED row is only genuinely held while its underlying staff
+ * appointment is still active. Dismissal, retirement and contract expiry
+ * all end the appointment without themselves reconciling the executive
+ * assignment row, so every authority check and read model routes through
+ * this single point rather than trusting the persisted `status` alone —
+ * the same discipline `heldCareerRoles` applies for the desktop role list.
+ */
+const assignmentIsGenuinelyFilled = (
+  db: GameDatabase,
+  assignment: { status: "FILLED" | "VACANT"; personId?: EntityId; appointmentId?: EntityId },
+): boolean => {
+  if (assignment.status !== "FILLED" || !assignment.appointmentId || !assignment.personId) {
+    return false;
+  }
+  const appointment = new StaffMarketRepository(db).appointmentById(assignment.appointmentId);
+  return appointment?.employmentStatus === "ACTIVE" && appointment.personId === assignment.personId;
+};
+
 /** Resolves authority from the persisted filled executive assignment. */
 export const executiveHasAuthority = (
   db: GameDatabase,
@@ -84,7 +103,7 @@ export const executiveHasAuthority = (
 ): boolean => {
   const assignment = new ExecutiveRoleRepository(db)
     .rolesForClub(clubId)
-    .find((role) => role.personId === personId && role.status === "FILLED");
+    .find((role) => role.personId === personId && assignmentIsGenuinelyFilled(db, role));
   return Boolean(assignment && executiveAuthorities[assignment.role].includes(authority));
 };
 
@@ -97,7 +116,9 @@ export const assertExecutiveAuthority = (input: {
 }): void => {
   const assignment = new ExecutiveRoleRepository(input.db)
     .rolesForClub(input.clubId)
-    .find((item) => item.personId === input.personId && item.status === "FILLED");
+    .find(
+      (item) => item.personId === input.personId && assignmentIsGenuinelyFilled(input.db, item),
+    );
   if (
     !assignment ||
     assignment.role !== input.role ||
@@ -182,7 +203,7 @@ export const executiveRoleReadModel = (
   clubId: EntityId,
   role: ExecutiveRole,
 ): ExecutiveRoleReadModel => {
-  const assignment = new ExecutiveRoleRepository(db).role(clubId, role) ?? {
+  const persisted = new ExecutiveRoleRepository(db).role(clubId, role) ?? {
     id: createStableEntityId("executive-role", `${clubId}:${role}`),
     clubId,
     role,
@@ -190,9 +211,12 @@ export const executiveRoleReadModel = (
     assignedOn: "1970-01-01",
     provenanceStatus: "SIMULATION_ONLY" as const,
   };
-  const appointment = assignment.appointmentId
-    ? new StaffMarketRepository(db).appointmentById(assignment.appointmentId)
-    : undefined;
+  const genuinelyFilled = assignmentIsGenuinelyFilled(db, persisted);
+  const assignment = genuinelyFilled ? persisted : { ...persisted, status: "VACANT" as const };
+  const appointment =
+    genuinelyFilled && assignment.appointmentId
+      ? new StaffMarketRepository(db).appointmentById(assignment.appointmentId)
+      : undefined;
   const person = appointment
     ? (db.prepare("SELECT full_name FROM persons WHERE id=?").get(appointment.personId) as
         { full_name?: string } | undefined)
@@ -201,9 +225,8 @@ export const executiveRoleReadModel = (
     ...assignment,
     authorities: executiveAuthorities[role],
     personName: person?.full_name,
-    rationale:
-      assignment.status === "FILLED"
-        ? "A current staff appointment holds this executive role."
-        : "This role is vacant; the club can operate with existing manager authority.",
+    rationale: genuinelyFilled
+      ? "A current staff appointment holds this executive role."
+      : "This role is vacant; the club can operate with existing manager authority.",
   };
 };

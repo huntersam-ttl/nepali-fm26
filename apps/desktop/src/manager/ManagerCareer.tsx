@@ -20,6 +20,21 @@ import { MatchdayScreen } from "./matchday/MatchdayScreen.js";
 import { RoleLandingScreen } from "./RoleLandingScreen.js";
 import type { ChairmanScreen, PresidentScreen } from "./RoleDetailScreen.js";
 
+const careerRoleLabel = (role: CareerRole): string =>
+  role === "CHAIRMAN_OWNER"
+    ? "Chairman / Owner"
+    : role === "FEDERATION_PRESIDENT"
+      ? "Federation President"
+      : role === "CEO"
+        ? "CEO"
+        : role === "GENERAL_SECRETARY"
+          ? "General Secretary"
+          : role === "SPORTING_DIRECTOR"
+            ? "Sporting Director"
+            : role === "DIRECTOR_OF_FOOTBALL"
+              ? "Director of Football"
+              : "Manager";
+
 const SCREENS = [
   "home",
   "squad",
@@ -206,7 +221,7 @@ export const ManagerCareer = ({
     setRefreshKey((key) => key + 1);
   };
 
-  const roleLabel = header.activeRole === "CHAIRMAN_OWNER" ? "Chairman / Owner" : header.activeRole === "FEDERATION_PRESIDENT" ? "Federation President" : "Manager";
+  const roleLabel = careerRoleLabel(header.activeRole);
 
   return (
     <main className="manager-shell">
@@ -315,7 +330,7 @@ export const ManagerCareer = ({
             >
               {roles.heldRoles.map((role) => (
                 <option key={role} value={role}>
-                  {role === "CHAIRMAN_OWNER" ? "Chairman / Owner" : role === "FEDERATION_PRESIDENT" ? "Federation President" : "Manager"}
+                  {careerRoleLabel(role)}
                 </option>
               ))}
             </select>

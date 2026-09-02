@@ -1,6 +1,5 @@
 import {
   ClubEconomyRepository,
-  ExecutiveRoleRepository,
   type GameDatabase,
 } from "@nepal-football-sim/database";
 import {
@@ -13,7 +12,7 @@ import {
   type ManagerBudgetRequest,
 } from "@nepal-football-sim/shared-types";
 import { calculateClubValuation, postClubTransaction, setClubBudget } from "./club-economy.js";
-import { canExecutiveAct } from "./executive-roles.js";
+import { executiveHasAuthority } from "./executive-roles.js";
 
 export class ClubFinanceAuthorityError extends Error {
   constructor(
@@ -53,16 +52,8 @@ const assertClubFinanceAuthority = (
     }
     return;
   }
-  if (callerRole === "CEO") {
-    const assignment = new ExecutiveRoleRepository(db)
-      .rolesForClub(clubId)
-      .find((role) => role.personId === personId);
-    if (
-      assignment &&
-      canExecutiveAct({ role: "CEO", authority: "BUDGET_ADMINISTRATION", assignment })
-    ) {
-      return;
-    }
+  if (callerRole === "CEO" && executiveHasAuthority(db, clubId, personId, "BUDGET_ADMINISTRATION")) {
+    return;
   }
   throw new ClubFinanceAuthorityError(
     "NOT_AUTHORIZED",

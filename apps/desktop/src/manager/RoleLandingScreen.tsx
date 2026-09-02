@@ -4,19 +4,34 @@ import type {
   CareerHeader,
   CareerRoleState,
   ClubBudgetCategory,
+  ExecutiveAuthorityDesktopView,
   FederationPresidentDashboard,
   InboxItem,
   OwnerManagerCandidate,
 } from "@nepal-football-sim/shared-types";
 import type { AppError, DesktopRuntimeApi } from "../appBridge.js";
-import { AsyncPanel, ErrorBanner, Metrics, Panel, useRuntimeData } from "./ui.js";
+import { AsyncPanel, Badge, ErrorBanner, Metrics, Panel, useRuntimeData } from "./ui.js";
 import { CandidacyPanel } from "./screens/HomeScreen.js";
 import { RoleDetailScreen, type ChairmanScreen, type PresidentScreen } from "./RoleDetailScreen.js";
+
+const EXECUTIVE_ROLES = ["SPORTING_DIRECTOR", "DIRECTOR_OF_FOOTBALL", "CEO", "GENERAL_SECRETARY"];
 
 const money = (amount: number, currency = "NPR"): string =>
   `${currency} ${Math.round(amount).toLocaleString()}`;
 const roleName = (role: string): string =>
-  role === "CHAIRMAN_OWNER" ? "Chairman / Owner" : "Federation President";
+  role === "CHAIRMAN_OWNER"
+    ? "Chairman / Owner"
+    : role === "FEDERATION_PRESIDENT"
+      ? "Federation President"
+      : role === "CEO"
+        ? "CEO"
+        : role === "GENERAL_SECRETARY"
+          ? "General Secretary"
+          : role === "SPORTING_DIRECTOR"
+            ? "Sporting Director"
+            : role === "DIRECTOR_OF_FOOTBALL"
+              ? "Director of Football"
+              : role;
 
 export const RoleLandingScreen = ({
   header,
@@ -31,7 +46,9 @@ export const RoleLandingScreen = ({
   screen: ChairmanScreen | PresidentScreen;
   onNavigate: (screen: ChairmanScreen | PresidentScreen) => void;
 }): React.ReactElement =>
-  screen !== "dashboard" ? (
+  EXECUTIVE_ROLES.includes(header.activeRole) ? (
+    <ExecutiveDashboardScreen header={header} roles={roles} bridge={bridge} />
+  ) : screen !== "dashboard" ? (
     <RoleDetailScreen
       screen={screen}
       header={header}
@@ -44,6 +61,152 @@ export const RoleLandingScreen = ({
   ) : (
     <FederationDashboardScreen header={header} roles={roles} bridge={bridge} />
   );
+
+/**
+ * Executive roles (CEO, General Secretary, Sporting Director, Director of
+ * Football) are held career roles once a persisted, FILLED executive
+ * assignment exists — but they are not full alternate workspaces the way
+ * Manager/Owner/President are. This surfaces the same UI-safe
+ * getExecutiveAuthority read model the backend already computes: banded
+ * permitted actions, a truthful vacant/blocked reason, and — for the
+ * mutations that have a real, simple trigger (CEO budget administration) —
+ * one canonical action, so the role is genuinely usable rather than a bare
+ * label with nothing behind it.
+ */
+const ExecutiveDashboardScreen = ({
+  header,
+  roles,
+  bridge,
+}: {
+  header: CareerHeader;
+  roles: CareerRoleState;
+  bridge: DesktopRuntimeApi;
+}): React.ReactElement => {
+  const [state, refresh] = useRuntimeData(() => bridge.getExecutiveAuthority());
+  return (
+    <AsyncPanel state={state}>
+      {(authority) =>
+        !authority ? (
+          <section className="role-dashboard">
+            <RoleHeader
+              header={header}
+              roles={roles}
+              organisation="Executive office"
+              context="This executive role has no assigned club."
+            />
+            <Panel title="Executive authority">
+              <p className="empty-state">No executive assignment could be resolved.</p>
+            </Panel>
+          </section>
+        ) : (
+          <ExecutiveDashboardView
+            header={header}
+            roles={roles}
+            bridge={bridge}
+            refresh={refresh}
+            authority={authority}
+          />
+        )
+      }
+    </AsyncPanel>
+  );
+};
+
+const ExecutiveDashboardView = ({
+  header,
+  roles,
+  bridge,
+  refresh,
+  authority,
+}: {
+  header: CareerHeader;
+  roles: CareerRoleState;
+  bridge: DesktopRuntimeApi;
+  refresh: () => void;
+  authority: ExecutiveAuthorityDesktopView;
+}): React.ReactElement => {
+  const [amount, setAmount] = useState("1000000");
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<AppError | null>(null);
+  const [busy, setBusy] = useState(false);
+  const canSetBudget = authority.permittedActions.includes("BUDGET_ADMINISTRATION");
+  const setBudget = async (): Promise<void> => {
+    if (busy) return;
+    setBusy(true);
+    const result = await bridge.setExecutiveClubBudget(
+      authority.clubId,
+      String(new Date(header.worldDate).getUTCFullYear()),
+      "WAGE_BUDGET",
+      Number(amount),
+    );
+    setBusy(false);
+    if (result.ok) {
+      setMessage(`Wage budget set to ${money(result.data.amount)}.`);
+      setError(null);
+      refresh();
+    } else setError(result.error);
+  };
+  return (
+    <section className="role-dashboard">
+      <RoleHeader
+        header={header}
+        roles={roles}
+        organisation={authority.assignment.personName ?? roleName(authority.actorRole)}
+        context={
+          authority.assignment.status === "FILLED"
+            ? authority.assignment.rationale
+            : (authority.blockedReason ?? "This executive role is vacant.")
+        }
+      />
+      {error && <ErrorBanner error={error} />}
+      {message && (
+        <p className="notice" role="status">
+          {message}
+        </p>
+      )}
+      <Panel title="Executive authority">
+        {authority.assignment.status !== "FILLED" ? (
+          <p className="empty-state">
+            {authority.blockedReason ?? "This executive role is vacant."}
+          </p>
+        ) : authority.permittedActions.length === 0 ? (
+          <p className="empty-state">No mutation authority is currently assigned to this role.</p>
+        ) : (
+          <ul className="compact-list">
+            {authority.permittedActions.map((action) => (
+              <li key={action}>
+                <Badge tone="info">{action.replace(/_/g, " ").toLowerCase()}</Badge>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Panel>
+      {canSetBudget && (
+        <Panel title="Club budget administration">
+          <p className="subtle">
+            Delegated CEO budget authority acts through the same canonical budget command the
+            controlling owner uses — the club's own ownership gate remains authoritative.
+          </p>
+          <div className="inline-form">
+            <label>
+              Wage budget (NPR)
+              <input
+                aria-label="Executive wage budget amount"
+                type="number"
+                min="0"
+                value={amount}
+                onChange={(event) => setAmount(event.target.value)}
+              />
+            </label>
+            <button className="primary small" disabled={busy} onClick={() => void setBudget()}>
+              {busy ? "Saving…" : "Set wage budget"}
+            </button>
+          </div>
+        </Panel>
+      )}
+    </section>
+  );
+};
 
 const RoleHeader = ({
   header,

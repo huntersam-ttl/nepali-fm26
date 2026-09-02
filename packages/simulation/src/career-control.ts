@@ -25,12 +25,22 @@ export const heldCareerRoles = (db: GameDatabase, personId: EntityId): HeldCaree
   if (owner?.club_id) roles.push({ role: "CHAIRMAN_OWNER", targetId: owner.club_id });
   const president = db.prepare(`SELECT lt.federation_id FROM federation_leadership_tenures lt JOIN federations f ON f.id=lt.federation_id JOIN countries co ON co.id=f.country_id WHERE lt.person_id=? AND lt.role='FEDERATION_PRESIDENT' AND lt.status IN ('ACTIVE','INTERIM') AND co.iso_code IN ('NP','NPL') ORDER BY CASE lt.status WHEN 'ACTIVE' THEN 0 ELSE 1 END,lt.term_start DESC,lt.id LIMIT 1`).get(personId) as { federation_id?: EntityId } | undefined;
   if (president?.federation_id) roles.push({ role: "FEDERATION_PRESIDENT", targetId: president.federation_id });
+  // A FILLED row is only genuinely held while its underlying appointment is
+  // still active: dismissal, retirement and contract expiry all end the
+  // appointment without themselves reconciling the executive assignment, so
+  // this join is the single point that stops a stale FILLED row from still
+  // granting the role once the person is no longer actually employed there.
   const executiveRoles = (
     db
       .prepare(
-        "SELECT club_id, role, person_id, status FROM club_executive_roles WHERE person_id=? AND status='FILLED' ORDER BY club_id, role",
+        `SELECT cer.club_id, cer.role, cer.person_id
+         FROM club_executive_roles cer
+         JOIN staff_appointments sa ON sa.id = cer.appointment_id
+         WHERE cer.person_id=? AND cer.status='FILLED'
+           AND sa.person_id=? AND sa.employment_status='ACTIVE'
+         ORDER BY cer.club_id, cer.role`,
       )
-      .all(personId) as Array<{ club_id?: EntityId; role?: CareerRole; status?: string }>
+      .all(personId, personId) as Array<{ club_id?: EntityId; role?: CareerRole }>
   ).filter((assignment) => assignment.club_id && assignment.role);
   for (const assignment of executiveRoles)
     roles.push({ role: assignment.role!, targetId: assignment.club_id! });
