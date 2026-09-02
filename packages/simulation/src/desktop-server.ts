@@ -166,6 +166,12 @@ const dispatch = (
       return service.switchActiveCareerRole(body.targetRole as CareerRole);
     case "getChairmanDashboard":
       return service.getChairmanDashboard();
+    case "getOwnerMatchday":
+      return service.getOwnerMatchday();
+    case "watchOwnerFixture":
+      return service.watchOwnerFixture(body.fixtureId as EntityId | undefined);
+    case "quickSimOwnerFixture":
+      return service.quickSimOwnerFixture(body.fixtureId as EntityId | undefined);
     case "getFederationPresidentDashboard":
       return service.getFederationPresidentDashboard();
     case "getNationalDevelopment":
@@ -277,6 +283,8 @@ const dispatch = (
       return service.holdSquadMeeting(body.command as SquadMeetingCommand);
     case "getPlayerProfile":
       return service.getPlayerProfile(body.playerId as EntityId);
+    case "getPlayerActions":
+      return service.getPlayerActions(body.playerId as EntityId);
     case "getTactics":
       return service.getTactics();
     case "updateTactics":

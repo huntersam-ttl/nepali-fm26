@@ -80,6 +80,8 @@ export * from "./scouting-phase-b.js";
 export * from "./squad-dynamics.js";
 export * from "./staff-market.js";
 export * from "./standings.js";
+export * from "./owner-matchday.js";
+export * from "./player-actions.js";
 export * from "./strength.js";
 export * from "./team-selection.js";
 export * from "./tactics.js";

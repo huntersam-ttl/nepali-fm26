@@ -313,6 +313,8 @@ import { backroomSummary } from "./career-market-deepening.js";
 import { createInvestorStakeOffer, decideInvestorBid, investorMeetingOverview } from "./ownership.js";
 import { capitalInjectionFromInvestor } from "./investor.js";
 import { buildChairmanDashboard, buildFederationPresidentDashboard } from "./role-desktop.js";
+import { buildOwnerMatchday, type OwnerMatchdayView } from "./owner-matchday.js";
+import { buildActorPlayerActions, type ActorPlayerActions } from "./player-actions.js";
 import { initializeFederationGovernanceForSave, federationCommercialOverview } from "./federation-governance.js";
 import { federationDevelopmentSummary } from "./federation-policy.js";
 import { governmentOverview, requestGovernmentFunding } from "./government.js";
@@ -1027,6 +1029,50 @@ export class DesktopApplicationService {
         throw appError("ROLE_NOT_AUTHORIZED", "You do not currently hold the Chairman role.");
       }
       return buildChairmanDashboard(db, save);
+    });
+  }
+
+  getOwnerMatchday(): AppResult<OwnerMatchdayView> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER")
+        throw appError("ROLE_NOT_AUTHORIZED", "Only the active chairman/owner may view matchday operations.");
+      const clubId = heldCareerRoles(db, personId).find((role) => role.role === "CHAIRMAN_OWNER")?.targetId;
+      if (!clubId) throw appError("ROLE_NOT_AUTHORIZED", "No controlled club is available.");
+      return buildOwnerMatchday(db, save, clubId);
+    });
+  }
+
+  watchOwnerFixture(fixtureId?: EntityId): AppResult<LiveMatchView> {
+    return this.withSession((db, save) => {
+      const { clubId, teamId } = ownerMatchdayContext(db, save);
+      const fixture = ownerFixture(db, teamId, fixtureId);
+      const input = ownerMatchInput(db, save, fixture, teamId);
+      const state = loadMatchSession(db, fixture.id)?.state ?? startMatchSession(db, input, "TEXT_LIVE");
+      return buildLiveMatchView(db, state, {
+        competitionName: ownerCompetitionName(db, fixture),
+        managedTeamId: teamId,
+        viewMode: "TEXT_LIVE",
+        finalized: fixture.status === "played",
+      });
+    });
+  }
+
+  quickSimOwnerFixture(fixtureId?: EntityId): AppResult<LiveMatchView> {
+    return this.withSession((db, save) => {
+      const { teamId } = ownerMatchdayContext(db, save);
+      const fixture = ownerFixture(db, teamId, fixtureId);
+      const input = ownerMatchInput(db, save, fixture, teamId);
+      const session = loadMatchSession(db, fixture.id);
+      const state = session?.state ?? startMatchSession(db, input, "QUICK_SIM");
+      if (state.period !== "FULL_TIME") quickSimFromCurrentState(db, state, ownerFinalizationContext(db, save, fixture));
+      const completed = loadMatchSession(db, fixture.id)?.state ?? state;
+      return buildLiveMatchView(db, completed, {
+        competitionName: ownerCompetitionName(db, fixture),
+        managedTeamId: teamId,
+        viewMode: "QUICK_SIM",
+        finalized: completed.period === "FULL_TIME",
+      });
     });
   }
 
@@ -2560,6 +2606,13 @@ export class DesktopApplicationService {
     return this.managerCommand((db, save, context) =>
       buildPlayerProfile(db, save, context, playerId),
     );
+  }
+
+  getPlayerActions(playerId: EntityId): AppResult<ActorPlayerActions> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      return buildActorPlayerActions(db, save, activeCareerRole(db, personId), personId, playerId);
+    });
   }
 
   getTactics(): AppResult<TacticsView> {
@@ -4298,6 +4351,78 @@ const concernTitle = (type: string): string => {
 // ---------------------------------------------------------------------------
 // Matchday helpers
 // ---------------------------------------------------------------------------
+
+const ownerMatchdayContext = (db: GameDatabase, save: SaveMetadata): { clubId: EntityId; teamId: EntityId } => {
+  const personId = careerPersonId(db, save);
+  if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER")
+    throw appError("ROLE_NOT_AUTHORIZED", "Only the active chairman/owner may participate in matchday.");
+  const clubId = heldCareerRoles(db, personId).find((role) => role.role === "CHAIRMAN_OWNER")?.targetId;
+  if (!clubId) throw appError("ROLE_NOT_AUTHORIZED", "No controlled club is available.");
+  const team = db.prepare("SELECT id FROM teams WHERE club_id=? ORDER BY id LIMIT 1").get(clubId) as { id?: EntityId } | undefined;
+  if (!team?.id) throw appError("FIXTURE_MISSING", "The controlled club has no senior team.");
+  return { clubId, teamId: team.id };
+};
+
+const ownerFixture = (db: GameDatabase, teamId: EntityId, fixtureId?: EntityId): FixtureRecord => {
+  const row = fixtureId
+    ? db.prepare("SELECT * FROM fixtures WHERE id=? AND (home_team_id=? OR away_team_id=?)").get(fixtureId, teamId, teamId)
+    : db.prepare("SELECT * FROM fixtures WHERE status='scheduled' AND (home_team_id=? OR away_team_id=?) ORDER BY scheduled_date, id LIMIT 1").get(teamId, teamId);
+  if (!row) throw appError("FIXTURE_MISSING", "No fixture is available for the controlled club.");
+  if (row.status === "played") throw appError("MATCH_ALREADY_PLAYED", "That fixture has already been played.");
+  return {
+    id: row.id,
+    competitionSeasonId: row.competition_season_id,
+    homeTeamId: row.home_team_id,
+    awayTeamId: row.away_team_id,
+    scheduledDate: row.scheduled_date,
+    status: row.status,
+    round: row.round,
+    venueId: row.venue_id,
+    tieId: row.tie_id,
+    leg: row.leg,
+  } as FixtureRecord;
+};
+
+const ownerCompetitionName = (db: GameDatabase, fixture: FixtureRecord): string => {
+  if (!fixture.competitionSeasonId) return "Competition";
+  const row = db.prepare("SELECT c.name FROM competition_seasons cs JOIN competitions c ON c.id=cs.competition_id WHERE cs.id=?").get(fixture.competitionSeasonId) as { name?: string } | undefined;
+  return row?.name ?? "Competition";
+};
+
+const ownerMatchInput = (db: GameDatabase, save: SaveMetadata, fixture: FixtureRecord, controlledTeamId: EntityId): SimulateMatchInput => {
+  if (!fixture.competitionSeasonId) throw appError("FIXTURE_MISSING", "Fixture has no competition season.");
+  const competition = new CompetitionRepository(db);
+  const ruleSet = competition.getRuleSet(fixture.competitionSeasonId);
+  if (!ruleSet) throw appError("SAVE_CORRUPT", "Competition rules are missing for this fixture.");
+  const homePlayers = new PlayerRepository(db).attributesForTeam(fixture.homeTeamId);
+  const awayPlayers = new PlayerRepository(db).attributesForTeam(fixture.awayTeamId);
+  const managers = new ManagerRepository(db);
+  const homeTactic = managers.tacticalSetups(fixture.homeTeamId)[0] ?? defaultSetup(fixture.homeTeamId, homePlayers);
+  const awayTactic = managers.tacticalSetups(fixture.awayTeamId)[0] ?? defaultSetup(fixture.awayTeamId, awayPlayers);
+  return {
+    fixture,
+    refereeAssignment: requireFixtureOfficials(db, fixture, { seed: `${save.randomSeed}:officials:${fixture.id}`, competitionLevel: ruleSet.competitionType, usesVar: Boolean((ruleSet.specialRules as Record<string, unknown> | undefined)?.usesVAR) }),
+    homePlayers,
+    awayPlayers,
+    homeTacticalSetup: homeTactic,
+    awayTacticalSetup: awayTactic,
+    seed: `${save.randomSeed}:${fixture.id}`,
+    substitutionLimit: substitutionLimitFor(ruleSet),
+    requiresWinner: Boolean(ruleSet.matchesRequireWinner && (!fixture.tieId || fixture.leg === 2)),
+    winnerResolution: ruleSet.winnerResolution,
+    allowExtraTime: ruleSet.allowExtraTime,
+    allowPenalties: ruleSet.allowPenalties,
+    aggregateFirstLeg: firstLegScoreFor(db, fixture),
+  };
+};
+
+const ownerFinalizationContext = (db: GameDatabase, save: SaveMetadata, fixture: FixtureRecord): MatchFinalizationContext => {
+  if (!fixture.competitionSeasonId) throw appError("FIXTURE_MISSING", "Fixture has no competition season.");
+  const competition = new CompetitionRepository(db);
+  const ruleSet = competition.getRuleSet(fixture.competitionSeasonId);
+  if (!ruleSet) throw appError("SAVE_CORRUPT", "Competition rules are missing for this fixture.");
+  return { fixture, competitionTeamIds: new WorldRepository(db).teamsForCompetitionSeason(fixture.competitionSeasonId).map((team) => team.id), ruleSet, seed: `${save.randomSeed}:${fixture.id}`, save };
+};
 
 type MatchCommandHelpers = {
   resolveFixture(fixtureId?: EntityId): FixtureRecord;
