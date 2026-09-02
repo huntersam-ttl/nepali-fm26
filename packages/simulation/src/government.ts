@@ -1,5 +1,6 @@
 import { createStableEntityId, type EntityId, type GovernmentFundingApplication, type GovernmentInstitution, type GovernmentFundingType, type GovernmentOverview, type GovernmentPriorityBand, type GovernmentRelationshipBand } from "@nepal-football-sim/shared-types";
-import { GovernmentRepository, type GameDatabase } from "@nepal-football-sim/database";
+import { FacilityPlanningRepository, GovernmentRepository, type GameDatabase } from "@nepal-football-sim/database";
+import { postClubTransaction } from "./club-economy.js";
 import { postFederationTransaction } from "./federation-governance.js";
 
 export type GovernmentFundingEvidence = {
@@ -188,6 +189,31 @@ export const requestGovernmentFunding = (
   });
 };
 
+/** Club-scoped infrastructure request. This deliberately uses the existing
+ * government application lifecycle; it is not the federation funding command. */
+export const requestClubInfrastructureGovernmentSupport = (
+  db: GameDatabase,
+  input: {
+    clubId: EntityId;
+    projectId: EntityId;
+    institutionId: EntityId;
+    fundingType: Extract<GovernmentFundingType, "INFRASTRUCTURE" | "REGIONAL_GROUND" | "MUNICIPAL_LAND_OR_VENUE">;
+    requestedAmount: number;
+    date: string;
+  },
+): GovernmentFundingApplication => {
+  if (!db.prepare("SELECT 1 FROM clubs WHERE id=?").get(input.clubId)) throw new Error("Club missing");
+  if (!db.prepare("SELECT 1 FROM infrastructure_projects WHERE id=? AND club_id=?").get(input.projectId, input.clubId)) throw new Error("Infrastructure project missing");
+  return proposeGovernmentFunding(db, {
+    institutionId: input.institutionId,
+    clubId: input.clubId,
+    projectId: input.projectId,
+    fundingType: input.fundingType,
+    requestedAmount: Math.round(input.requestedAmount),
+    proposedOn: input.date,
+  });
+};
+
 export const submitGovernmentFunding = (db: GameDatabase, applicationId: string): GovernmentFundingApplication => {
   const repo = new GovernmentRepository(db); const application = repo.applications().find((item) => item.id === applicationId);
   if (!application) throw new Error(`Government funding application missing: ${applicationId}`);
@@ -228,6 +254,28 @@ const settleApprovedFunding = (
   approvedAmount: number,
   date: string,
 ): void => {
+  const description = `government funding received for ${application.fundingType.replaceAll("_", " ").toLowerCase()}`;
+  if (application.clubId) {
+    postClubTransaction(db, {
+      clubId: application.clubId,
+      date,
+      category: "GRANT",
+      direction: "CREDIT",
+      amount: approvedAmount,
+      description,
+      relatedEntityId: application.id,
+      idempotencyKey: `government-funding:${application.id}`,
+    });
+    const plan = application.projectId
+      ? new FacilityPlanningRepository(db).planByProject(application.projectId)
+      : undefined;
+    if (plan?.siteOptionId) {
+      const sites = new FacilityPlanningRepository(db);
+      const site = sites.siteOptions(application.clubId).find((option) => option.id === plan.siteOptionId);
+      if (site && site.readiness === "GOVERNMENT_REVIEW") sites.upsertSiteOption({ ...site, readiness: "AVAILABLE" });
+    }
+    return;
+  }
   if (!application.federationId) return;
   postFederationTransaction(db, {
     federationId: application.federationId,
@@ -235,10 +283,9 @@ const settleApprovedFunding = (
     category: "GOVERNMENT_GRANT",
     direction: "CREDIT",
     amount: approvedAmount,
-    description: `government funding received for ${application.fundingType.replaceAll("_", " ").toLowerCase()}`,
+    description,
     relatedEntityId: application.id,
     restrictionTag: restrictionTagFor(application.fundingType),
-    // One settlement per application, so re-reviewing cannot credit the money twice.
     idempotencyKey: `government-funding:${application.id}`,
   });
 };
