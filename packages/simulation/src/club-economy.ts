@@ -2330,7 +2330,7 @@ const generatedFacilityProfile = (
   };
 };
 
-const generatedBoardPolicy = (club: Club, worldDate: string): ClubBoardPolicy => {
+export const generatedBoardPolicy = (club: Club, worldDate: string): ClubBoardPolicy => {
   const model = ownershipModelForClub(club);
   return {
     clubId: club.id,

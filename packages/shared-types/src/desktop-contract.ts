@@ -1,4 +1,5 @@
 import type { EntityId } from "./ids.js";
+import type { FixtureRow, LiveMatchView } from "./manager-contract.js";
 import type {
   FixtureRecord,
   InboxItem,
@@ -44,6 +45,14 @@ import type {
 } from "./domain.js";
 import type { ExecutiveAuthorityDesktopView } from "./executive-roles.js";
 import type { FederationDevelopmentSummary } from "./federation-policy.js";
+import type { UniversalInteraction } from "./universal-interactions.js";
+import type { EntityReference, EntityReferenceType } from "./entity-reference.js";
+import type {
+  OwnerManagerCommitmentInput,
+  OwnerManagerMeetingOverview,
+  OwnerManagerMeetingStance,
+  OwnerManagerMeetingTopic,
+} from "./owner-manager-meetings.js";
 import type { GovernmentOverview, GovernmentFundingApplication, GovernmentFundingType } from "./government.js";
 
 /**
@@ -260,6 +269,22 @@ export type ChairmanDashboard = {
 };
 
 /**
+ * Owner-facing matchday view: real fixtures/results for the owner's club,
+ * read-only. The owner can watch a match through the same live/quick-sim
+ * paths a manager uses, but never gets tactical authority — this view
+ * carries no lineup/tactics fields at all, by construction.
+ */
+export type OwnerMatchdayView = {
+  clubId: EntityId;
+  clubName: string;
+  teamId: EntityId;
+  upcoming: FixtureRow[];
+  results: FixtureRow[];
+  currentFixtureId?: EntityId;
+  positionContext?: { position: number; played: number; points: number };
+};
+
+/**
  * Bank-meeting read model, shared by the controlling owner and a CEO with
  * delegated BUDGET_ADMINISTRATION. headroom/maxNewPrincipal/maxTotalDebt are
  * the club's real, current affordability ceiling — the same numbers
@@ -430,6 +455,10 @@ export type DesktopRuntimeApi = {
   getExecutiveAuthority(clubId?: EntityId): Promise<AppResult<ExecutiveAuthorityDesktopView | undefined>>;
   switchActiveCareerRole(targetRole: CareerRole): Promise<AppResult<CareerHeader>>;
   getChairmanDashboard(): Promise<AppResult<ChairmanDashboard>>;
+  getOwnerMatchday(): Promise<AppResult<OwnerMatchdayView>>;
+  watchOwnerFixture(fixtureId?: EntityId): Promise<AppResult<LiveMatchView>>;
+  quickSimOwnerFixture(fixtureId?: EntityId): Promise<AppResult<LiveMatchView>>;
+  getEntityReference(entityType: EntityReferenceType, entityId: EntityId): Promise<AppResult<EntityReference>>;
   getFederationPresidentDashboard(): Promise<AppResult<FederationPresidentDashboard>>;
   getNationalDevelopment(): Promise<AppResult<FederationDevelopmentSummary>>;
   getGovernmentOverview(): Promise<AppResult<GovernmentOverview>>;
@@ -456,6 +485,13 @@ export type DesktopRuntimeApi = {
   decideInvestorBid(offerId: EntityId, accept: boolean): Promise<AppResult<OwnershipAcquisitionOffer>>;
   getInvestorMeeting(): Promise<AppResult<InvestorMeetingOverview>>;
   injectOwnerCapital(amount: number): Promise<AppResult<OwnerInvestmentTransaction>>;
+  getOwnerManagerMeeting(clubId?: EntityId): Promise<AppResult<OwnerManagerMeetingOverview>>;
+  openOwnerManagerMeeting(clubId: EntityId, topic: OwnerManagerMeetingTopic): Promise<AppResult<UniversalInteraction>>;
+  resolveOwnerManagerMeeting(
+    interactionId: EntityId,
+    stance: OwnerManagerMeetingStance,
+    commitment?: OwnerManagerCommitmentInput,
+  ): Promise<AppResult<UniversalInteraction>>;
   applyClubLoan(lenderId: EntityId, principal: number, termMonths: number, purpose: string): Promise<AppResult<ClubLoanApplication>>;
   repayClubLoan(debtId: EntityId, amount?: number): Promise<AppResult<ClubDebt>>;
   acceptExecutiveSponsorOffer(clubId: EntityId, sponsorshipId: EntityId): Promise<AppResult<SponsorshipContract>>;

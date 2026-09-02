@@ -31,6 +31,9 @@ import type {
   ClubBudgetCategory,
   InfrastructureProjectType,
   GovernmentFundingType,
+  OwnerManagerCommitmentInput,
+  OwnerManagerMeetingStance,
+  OwnerManagerMeetingTopic,
 } from "@nepal-football-sim/shared-types";
 import { DesktopApplicationService, type DesktopRuntimeOptions } from "./desktop-application.js";
 
@@ -236,6 +239,16 @@ const dispatch = (
       return service.getInvestorMeeting();
     case "injectOwnerCapital":
       return service.injectOwnerCapital(body.amount as number);
+    case "getOwnerManagerMeeting":
+      return service.getOwnerManagerMeeting(body.clubId as EntityId | undefined);
+    case "openOwnerManagerMeeting":
+      return service.openOwnerManagerMeeting(body.clubId as EntityId, body.topic as OwnerManagerMeetingTopic);
+    case "resolveOwnerManagerMeeting":
+      return service.resolveOwnerManagerMeeting(
+        body.interactionId as EntityId,
+        body.stance as OwnerManagerMeetingStance,
+        body.commitment as OwnerManagerCommitmentInput | undefined,
+      );
     case "applyClubLoan":
       return service.applyClubLoan(body.lenderId as EntityId, body.principal as number, body.termMonths as number, body.purpose as string);
     case "repayClubLoan":

@@ -65,6 +65,11 @@ import {
   type ChairmanDashboard,
   type ClubFinanceMeetingOverview,
   type InvestorMeetingOverview,
+  type OwnerManagerCommitmentInput,
+  type OwnerManagerMeetingOverview,
+  type OwnerManagerMeetingStance,
+  type OwnerManagerMeetingTopic,
+  type UniversalInteraction,
   type SponsorMeetingOverview,
   type FederationCommercialOverview,
   type OwnerInvestmentTransaction,
@@ -314,6 +319,11 @@ import {
 } from "./executive-authority.js";
 import { backroomSummary } from "./career-market-deepening.js";
 import { createInvestorStakeOffer, decideInvestorBid, investorMeetingOverview } from "./ownership.js";
+import {
+  createOwnerManagerMeeting,
+  ownerManagerMeetingOverview,
+  resolveOwnerManagerMeeting as resolveOwnerManagerMeetingCommand,
+} from "./owner-manager-meetings.js";
 import { capitalInjectionFromInvestor } from "./investor.js";
 import { buildChairmanDashboard, buildFederationPresidentDashboard } from "./role-desktop.js";
 import { buildOwnerMatchday, type OwnerMatchdayView } from "./owner-matchday.js";
@@ -1781,6 +1791,81 @@ export class DesktopApplicationService {
         throw appError(
           "INVALID_SELECTION",
           error instanceof Error ? error.message : "Capital injection could not be completed.",
+        );
+      }
+    });
+  }
+
+  /**
+   * Read model behind the owner-manager meeting UI. Owner-only: the
+   * underlying interaction's own authority map requires initiator.type
+   * === "CHAIRMAN" — there is no CEO or manager-initiated path today.
+   */
+  getOwnerManagerMeeting(clubId?: EntityId): AppResult<OwnerManagerMeetingOverview> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER")
+        throw appError(
+          "ROLE_NOT_AUTHORIZED",
+          "Only the active chairman/owner may hold an owner-manager meeting.",
+        );
+      const targetClubId =
+        clubId ?? heldCareerRoles(db, personId).find((role) => role.role === "CHAIRMAN_OWNER")?.targetId;
+      if (!targetClubId) throw appError("ROLE_NOT_AUTHORIZED", "No controlled club is available.");
+      try {
+        return ownerManagerMeetingOverview(db, targetClubId, save.worldDate);
+      } catch (error) {
+        throw appError(
+          "INVALID_SELECTION",
+          error instanceof Error ? error.message : "Owner-manager meeting overview is unavailable.",
+        );
+      }
+    });
+  }
+
+  openOwnerManagerMeeting(clubId: EntityId, topic: OwnerManagerMeetingTopic): AppResult<UniversalInteraction> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER")
+        throw appError(
+          "ROLE_NOT_AUTHORIZED",
+          "Only the active chairman/owner may open an owner-manager meeting.",
+        );
+      try {
+        return createOwnerManagerMeeting(db, { clubId, date: save.worldDate, topic });
+      } catch (error) {
+        throw appError(
+          "INVALID_SELECTION",
+          error instanceof Error ? error.message : "Owner-manager meeting could not be opened.",
+        );
+      }
+    });
+  }
+
+  resolveOwnerManagerMeeting(
+    interactionId: EntityId,
+    stance: OwnerManagerMeetingStance,
+    commitment?: OwnerManagerCommitmentInput,
+  ): AppResult<UniversalInteraction> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER")
+        throw appError(
+          "ROLE_NOT_AUTHORIZED",
+          "Only the active chairman/owner may resolve an owner-manager meeting.",
+        );
+      try {
+        return resolveOwnerManagerMeetingCommand(db, {
+          interactionId,
+          date: save.worldDate,
+          seed: save.randomSeed,
+          stance,
+          commitment,
+        });
+      } catch (error) {
+        throw appError(
+          "INVALID_SELECTION",
+          error instanceof Error ? error.message : "Owner-manager meeting could not be resolved.",
         );
       }
     });

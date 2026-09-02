@@ -20,13 +20,20 @@ import type {
   SponsorMeetingOverview,
   SponsorMeetingContract,
   FederationCommercialOverview,
+  OwnerManagerMeetingOverview,
+  OwnerManagerMeetingTopic,
+  OwnerManagerMeetingStance,
+  OwnerManagerCommitmentType,
+  UniversalInteraction,
+  OwnerMatchdayView,
+  LiveMatchView,
 } from "@nepal-football-sim/shared-types";
 import type { EntityId } from "@nepal-football-sim/shared-types";
 import type { AppError, DesktopRuntimeApi } from "../appBridge.js";
 import { AsyncPanel, Badge, ErrorBanner, Metrics, Panel, money, useRuntimeData } from "./ui.js";
 import { MeetingBrief, MeetingOptions, MeetingOutcome, MeetingParticipants, MeetingShell, type MeetingOption, type MeetingTone } from "./meetings.js";
 
-export type ChairmanScreen = "dashboard" | "finance" | "manager" | "facilities" | "sponsorship" | "supporters" | "investors" | "bank";
+export type ChairmanScreen = "dashboard" | "finance" | "manager" | "facilities" | "sponsorship" | "supporters" | "investors" | "bank" | "meeting" | "matchday";
 export type PresidentScreen = "dashboard" | "governance" | "finance" | "national-teams" | "national-development" | "government-relations" | "tenure";
 
 type Props = {
@@ -49,6 +56,8 @@ const SECTION_TITLES: Record<string, { title: string; subtitle: string }> = {
   sponsorship: { title: "Sponsorship", subtitle: "Commercial agreements and offers." },
   supporters: { title: "Supporters", subtitle: "Attendance and supporter sentiment." },
   bank: { title: "Bank", subtitle: "Loan requests, approvals, and the club's repayment schedule." },
+  meeting: { title: "Talk to Manager", subtitle: "Board confidence, form, budgets, and commitments." },
+  matchday: { title: "Matchday", subtitle: "Fixtures, results, and league position — no tactical control." },
   investors: { title: "Investors", subtitle: "Ownership stakes and equity interest." },
   governance: { title: "Governance", subtitle: "Proposals, policy, and federation decisions." },
   "national-teams": { title: "National teams", subtitle: "Squads, staff, and international programme." },
@@ -97,6 +106,8 @@ const ChairmanDetail = ({ screen, bridge, onNavigate }: { screen: ChairmanScreen
     if (screen === "sponsorship") return <SponsorMeeting bridge={bridge} role="CHAIRMAN_OWNER" clubId={dashboard.club.id} />;
     if (screen === "investors") return <InvestorMeeting bridge={bridge} />;
     if (screen === "bank") return <BankMeeting bridge={bridge} role="CHAIRMAN_OWNER" clubId={dashboard.club.id} />;
+    if (screen === "meeting") return <OwnerManagerMeeting bridge={bridge} clubId={dashboard.club.id} />;
+    if (screen === "matchday") return <OwnerMatchday bridge={bridge} />;
     return <ChairmanSupporters dashboard={dashboard} />;
   }}</AsyncPanel>;
 };
@@ -1305,5 +1316,478 @@ const BankMeetingView = ({
         )}
       </MeetingShell>
     </section>
+  );
+};
+
+// Every topic below is one createOwnerManagerMeeting already accepts, and
+// every stance/commitment type is exactly what resolveOwnerManagerMeeting
+// accepts — nothing here invents a category the backend cannot settle.
+const OWNER_MANAGER_TOPIC_LABELS: Record<OwnerManagerMeetingTopic, string> = {
+  FORM: "Recent form & results",
+  TRANSFER_BUDGET: "Transfer budget",
+  SQUAD_STRENGTHENING: "Squad strengthening",
+  YOUTH_USAGE: "Youth development",
+  PLAYING_PHILOSOPHY: "Playing philosophy",
+  STAFF_BUDGET: "Staff & coaching budget",
+  FACILITIES: "Facilities",
+  OBJECTIVES: "Season objectives",
+  CONTRACT_SECURITY: "Contract & job security",
+};
+const OWNER_MANAGER_TOPICS = Object.keys(OWNER_MANAGER_TOPIC_LABELS) as OwnerManagerMeetingTopic[];
+
+const OWNER_MANAGER_COMMITMENT_LABELS: Record<OwnerManagerCommitmentType, string> = {
+  PROMOTION_CHALLENGE: "Promotion challenge",
+  YOUTH_USAGE: "Youth usage",
+  FINANCIAL_DISCIPLINE: "Financial discipline",
+  SQUAD_STRENGTHENING: "Squad strengthening",
+  FACILITY_PROJECT: "Facility project",
+  TACTICAL_STYLE: "Tactical style",
+};
+const OWNER_MANAGER_COMMITMENT_TYPES = Object.keys(OWNER_MANAGER_COMMITMENT_LABELS) as OwnerManagerCommitmentType[];
+
+const ordinal = (value: number): string => {
+  const mod100 = value % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${value}th`;
+  switch (value % 10) {
+    case 1:
+      return `${value}st`;
+    case 2:
+      return `${value}nd`;
+    case 3:
+      return `${value}rd`;
+    default:
+      return `${value}th`;
+  }
+};
+
+const pressureTone = (pressure?: string): MeetingTone =>
+  pressure === "HIGH" ? "bad" : pressure === "MEDIUM" ? "warn" : pressure === "LOW" ? "ok" : "info";
+
+/**
+ * Every sentence below is built only from fields OwnerManagerMeetingOverview
+ * actually carries (recent form, board confidence, real budgets, club
+ * vision, infrastructure) — a topic whose backing data is missing gets an
+ * honest fallback line, never a fabricated number or claim.
+ */
+const ownerManagerNarrative = (overview: OwnerManagerMeetingOverview, topic: OwnerManagerMeetingTopic): string => {
+  const confidenceLine = `Board confidence currently sits at ${overview.boardConfidence}${overview.boardExpectation ? `, with the board expecting ${overview.boardExpectation.replaceAll("_", " ").toLowerCase()}` : ""}.`;
+  switch (topic) {
+    case "FORM": {
+      const form = overview.recentForm.length ? overview.recentForm.join("") : "no results recorded yet";
+      const standing = overview.leaguePosition
+        ? `${ordinal(overview.leaguePosition)} in the table after ${overview.played ?? 0} games`
+        : "an unclear league position";
+      return `Recent form reads ${form}, leaving the club ${standing}. ${confidenceLine}`;
+    }
+    case "TRANSFER_BUDGET": {
+      const budget = overview.budgets.find((item) => item.category === "TRANSFER_BUDGET");
+      const philosophy = overview.vision?.transferPhilosophy;
+      return `The current transfer budget is ${budget ? money(budget.amount) : "not yet set for this season"}${philosophy ? `, guided by a ${philosophy.toLowerCase()} transfer philosophy` : ""}. The manager wants to know whether that will move before the window closes.`;
+    }
+    case "SQUAD_STRENGTHENING": {
+      const wage = overview.budgets.find((item) => item.category === "WAGE_BUDGET");
+      return `The manager believes the squad needs strengthening to meet the club's objective${overview.vision ? ` of ${overview.vision.objective.toLowerCase()}` : ""}. Current wage budget: ${wage ? money(wage.amount) : "not yet set"}.`;
+    }
+    case "YOUTH_USAGE": {
+      const priority = overview.vision?.youthPriority;
+      return priority !== undefined
+        ? `The board's youth priority is set at ${Math.round(priority * 100)}%. The manager wants to discuss how many academy graduates should feature this season.`
+        : "The club has not established a formal youth-development priority yet, but the manager wants to discuss giving young players a pathway.";
+    }
+    case "PLAYING_PHILOSOPHY": {
+      if (!overview.vision) return "The club has no recorded playing identity yet — this meeting is a chance to set one.";
+      return `The club's current identity is described as "${overview.vision.identity ?? overview.vision.objective}". The manager wants to confirm this still matches what the board expects on the pitch.`;
+    }
+    case "STAFF_BUDGET": {
+      const staff = overview.budgets.find((item) => item.category === "STAFF_BUDGET");
+      return `The current staff budget is ${staff ? money(staff.amount) : "not yet set"}. The manager wants to discuss coaching, medical, and scouting needs.`;
+    }
+    case "FACILITIES": {
+      const count = overview.infrastructure.length;
+      return count > 0
+        ? `${count} infrastructure project${count === 1 ? " is" : "s are"} currently on record for the club. The manager wants to raise a further facility need.`
+        : "No infrastructure projects are currently on record. The manager wants to raise a facility need directly.";
+    }
+    case "OBJECTIVES":
+      return `The board's stated objective is ${overview.vision?.objective.toLowerCase() ?? "not yet formally recorded"}. ${confidenceLine}`;
+    case "CONTRACT_SECURITY": {
+      const pressureText = overview.pressure ? overview.pressure.toLowerCase() : "unclear";
+      const promiseText =
+        overview.brokenPromises && overview.brokenPromises > 0
+          ? ` ${overview.brokenPromises} promise${overview.brokenPromises === 1 ? " has" : "s have"} been broken.`
+          : "";
+      return `Board pressure on the manager is currently ${pressureText}.${promiseText} ${confidenceLine}`;
+    }
+    default:
+      return confidenceLine;
+  }
+};
+
+const OWNER_MANAGER_STANCE_CONSEQUENCE: Record<OwnerManagerMeetingStance, string> = {
+  SUPPORT: "Board confidence likely rises; relationship trust may improve.",
+  REQUEST: "Board confidence may rise slightly; a commitment can be attached below.",
+  CONCERN: "Board confidence may fall; relationship tension may rise.",
+};
+
+export const OwnerManagerMeeting = ({
+  bridge,
+  clubId,
+}: {
+  bridge: DesktopRuntimeApi;
+  clubId?: EntityId;
+}): React.ReactElement => {
+  const [state, refresh] = useRuntimeData(() => bridge.getOwnerManagerMeeting(clubId), [clubId]);
+  return (
+    <AsyncPanel state={state}>
+      {(overview) => <OwnerManagerMeetingView overview={overview} bridge={bridge} refresh={refresh} />}
+    </AsyncPanel>
+  );
+};
+
+const OWNER_MANAGER_TERMINAL_STAGES = new Set(["ACCEPTED", "REJECTED", "WALKED_AWAY", "COMPLETED", "CANCELLED"]);
+
+const OwnerManagerMeetingView = ({
+  overview,
+  bridge,
+  refresh,
+}: {
+  overview: OwnerManagerMeetingOverview;
+  bridge: DesktopRuntimeApi;
+  refresh: () => void;
+}): React.ReactElement => {
+  const [topic, setTopic] = useState<OwnerManagerMeetingTopic>("FORM");
+  const [session, setSession] = useState<UniversalInteraction | undefined>(overview.openMeeting);
+  const [stance, setStance] = useState<OwnerManagerMeetingStance>("REQUEST");
+  const [addCommitment, setAddCommitment] = useState(false);
+  const [commitmentType, setCommitmentType] = useState<OwnerManagerCommitmentType>("SQUAD_STRENGTHENING");
+  const [targetCriteria, setTargetCriteria] = useState("");
+  const [description, setDescription] = useState("");
+  const [dueOn, setDueOn] = useState("");
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const openMeeting = async (): Promise<void> => {
+    setBusyId("open");
+    setMessage(null);
+    const result = await bridge.openOwnerManagerMeeting(overview.clubId, topic);
+    setBusyId(null);
+    if (result.ok) setSession(result.data);
+    else setMessage(result.error.message);
+  };
+
+  const resolve = async (chosenStance: OwnerManagerMeetingStance): Promise<void> => {
+    if (!session) return;
+    setBusyId(chosenStance);
+    setMessage(null);
+    const commitment =
+      addCommitment && targetCriteria && description && dueOn
+        ? { type: commitmentType, targetCriteria, description, dueOn }
+        : undefined;
+    const result = await bridge.resolveOwnerManagerMeeting(session.id, chosenStance, commitment);
+    setBusyId(null);
+    setMessage(
+      result.ok
+        ? commitment
+          ? "Meeting concluded — a commitment has been recorded."
+          : "Meeting concluded."
+        : result.error.message,
+    );
+    if (result.ok) {
+      setSession(undefined);
+      setAddCommitment(false);
+      setTargetCriteria("");
+      setDescription("");
+      setDueOn("");
+      refresh();
+    }
+  };
+
+  const options: MeetingOption[] = session
+    ? (["SUPPORT", "REQUEST", "CONCERN"] as OwnerManagerMeetingStance[]).map((value) => ({
+        id: value,
+        label: value === "SUPPORT" ? "Extend support" : value === "REQUEST" ? "Ask for improvement" : "Raise a concern",
+        description: OWNER_MANAGER_STANCE_CONSEQUENCE[value],
+        tone: value === "CONCERN" ? "risk" : value === "SUPPORT" ? "primary" : "neutral",
+      }))
+    : [];
+
+  return (
+    <section className="role-detail">
+      <MeetingShell
+        title={overview.managerName}
+        meetingType="Owner-manager meeting"
+        context={[
+          { label: "Board confidence", value: overview.boardConfidence },
+          ...(overview.boardExpectation
+            ? [{ label: "Board expects", value: overview.boardExpectation.replaceAll("_", " ") }]
+            : []),
+          ...(overview.pressure
+            ? [{ label: "Board pressure on manager", value: overview.pressure, tone: pressureTone(overview.pressure) }]
+            : []),
+          ...(overview.leaguePosition
+            ? [{ label: "League position", value: `${ordinal(overview.leaguePosition)} · ${overview.points ?? 0} pts` }]
+            : []),
+          { label: "Recent form", value: overview.recentForm.length ? overview.recentForm.join(" ") : "No results yet" },
+          ...(overview.activePromises !== undefined
+            ? [{ label: "Active promises", value: overview.activePromises }]
+            : []),
+        ]}
+      >
+        <MeetingParticipants
+          initiator={{ name: "You", role: "Chairman / Owner" }}
+          counterpart={{ name: overview.managerName, role: "Manager", organisation: overview.clubName }}
+        />
+        {!session ? (
+          <>
+            <MeetingBrief heading="Choose a topic">
+              <p>Open a meeting with {overview.managerName} to discuss one real, current aspect of the club.</p>
+            </MeetingBrief>
+            <div className="inline-form">
+              <label>
+                Topic
+                <select value={topic} onChange={(event) => setTopic(event.target.value as OwnerManagerMeetingTopic)}>
+                  {OWNER_MANAGER_TOPICS.map((value) => (
+                    <option key={value} value={value}>
+                      {OWNER_MANAGER_TOPIC_LABELS[value]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button className="primary small" disabled={busyId !== null} onClick={() => void openMeeting()}>
+                {busyId === "open" ? "Opening…" : "Start meeting"}
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <MeetingBrief heading={OWNER_MANAGER_TOPIC_LABELS[(session.demands.topic as OwnerManagerMeetingTopic) ?? topic]}>
+              <p>{ownerManagerNarrative(overview, (session.demands.topic as OwnerManagerMeetingTopic) ?? topic)}</p>
+            </MeetingBrief>
+            <div className="inline-form">
+              <label>
+                <input type="checkbox" checked={addCommitment} onChange={(event) => setAddCommitment(event.target.checked)} />
+                {" "}Attach a measurable commitment
+              </label>
+            </div>
+            {addCommitment && (
+              <div className="inline-form">
+                <label>
+                  Commitment type
+                  <select value={commitmentType} onChange={(event) => setCommitmentType(event.target.value as OwnerManagerCommitmentType)}>
+                    {OWNER_MANAGER_COMMITMENT_TYPES.map((value) => (
+                      <option key={value} value={value}>
+                        {OWNER_MANAGER_COMMITMENT_LABELS[value]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Target criteria
+                  <input type="text" value={targetCriteria} onChange={(event) => setTargetCriteria(event.target.value)} placeholder="e.g. IMPROVE_SQUAD_DEPTH" />
+                </label>
+                <label>
+                  Description
+                  <input type="text" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="What is being promised" />
+                </label>
+                <label>
+                  Due on
+                  <input type="date" value={dueOn} onChange={(event) => setDueOn(event.target.value)} />
+                </label>
+              </div>
+            )}
+            <MeetingOptions options={options} busyId={busyId} onChoose={(id) => void resolve(id as OwnerManagerMeetingStance)} />
+          </>
+        )}
+        {message && (
+          <p className="notice" role="status">
+            {message}
+          </p>
+        )}
+        <MeetingOutcome
+          history={overview.history.map((item) => ({
+            date: item.worldDate,
+            label: item.outcome ?? item.stage,
+            tone: item.stage === "ACCEPTED" ? "ok" : item.stage === "REJECTED" || item.stage === "WALKED_AWAY" ? "bad" : "info",
+            detail: `${OWNER_MANAGER_TOPIC_LABELS[(item.demands.topic as OwnerManagerMeetingTopic) ?? "OBJECTIVES"] ?? "Meeting"}${item.offers.stance ? ` · ${String(item.offers.stance).toLowerCase()}` : ""}`,
+          }))}
+        />
+        {overview.budgets.length > 0 && (
+          <Panel title="Relevant budgets">
+            <div className="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Category</th>
+                    <th>Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {overview.budgets.map((budget) => (
+                    <tr key={budget.id}>
+                      <td>{budget.category.replaceAll("_", " ")}</td>
+                      <td>{money(budget.amount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Panel>
+        )}
+      </MeetingShell>
+    </section>
+  );
+};
+
+/**
+ * Owner-facing matchday, read-only by construction: watchOwnerFixture and
+ * quickSimOwnerFixture are dedicated owner commands with no substitution or
+ * tactics path at all (those live only in the manager's own match commands,
+ * gated to the MANAGER role) — there is no tactical control to accidentally
+ * expose here, because none exists to call.
+ */
+export const OwnerMatchday = ({ bridge }: { bridge: DesktopRuntimeApi }): React.ReactElement => {
+  const [state, refresh] = useRuntimeData(() => bridge.getOwnerMatchday());
+  const [live, setLive] = useState<LiveMatchView | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const watch = async (fixtureId: EntityId): Promise<void> => {
+    setBusyId(`watch:${fixtureId}`);
+    setMessage(null);
+    const result = await bridge.watchOwnerFixture(fixtureId);
+    setBusyId(null);
+    if (result.ok) setLive(result.data);
+    else setMessage(result.error.message);
+  };
+
+  const quickSim = async (fixtureId: EntityId): Promise<void> => {
+    setBusyId(`sim:${fixtureId}`);
+    setMessage(null);
+    const result = await bridge.quickSimOwnerFixture(fixtureId);
+    setBusyId(null);
+    if (result.ok) {
+      setLive(result.data);
+      setMessage("Match simulated.");
+      refresh();
+    } else setMessage(result.error.message);
+  };
+
+  return (
+    <AsyncPanel state={state}>
+      {(matchday) => (
+        <section className="role-detail">
+          <Panel title={matchday.clubName}>
+            <Metrics
+              items={
+                matchday.positionContext
+                  ? [
+                      { label: "League position", value: matchday.positionContext.position },
+                      { label: "Played", value: matchday.positionContext.played },
+                      { label: "Points", value: matchday.positionContext.points },
+                    ]
+                  : []
+              }
+            />
+          </Panel>
+          {message && (
+            <p className="notice" role="status">
+              {message}
+            </p>
+          )}
+          <Panel title="Next fixture">
+            {matchday.upcoming.length === 0 ? (
+              <p className="empty-state">No upcoming fixtures scheduled.</p>
+            ) : (
+              <div className="table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Competition</th>
+                      <th>Opponent</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {matchday.upcoming.slice(0, 1).map((fixture) => (
+                      <tr key={fixture.id}>
+                        <td>{fixture.date}</td>
+                        <td>{fixture.competition}</td>
+                        <td>
+                          {fixture.homeAway === "home" ? "vs" : "at"} {fixture.opponent}
+                        </td>
+                        <td>
+                          <span className="button-row">
+                            <button className="primary small" disabled={busyId !== null} onClick={() => void watch(fixture.id)}>
+                              {busyId === `watch:${fixture.id}` ? "Opening…" : "Watch"}
+                            </button>
+                            <button className="ghost small" disabled={busyId !== null} onClick={() => void quickSim(fixture.id)}>
+                              {busyId === `sim:${fixture.id}` ? "Simulating…" : "Quick sim"}
+                            </button>
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Panel>
+          {live && (
+            <Panel title="Match">
+              <Metrics
+                items={[
+                  { label: live.home.teamName, value: live.home.goals },
+                  { label: live.away.teamName, value: live.away.goals },
+                  { label: "Period", value: live.period.replaceAll("_", " ") },
+                ]}
+              />
+              {live.commentary.length === 0 ? (
+                <p className="empty-state">No commentary recorded yet.</p>
+              ) : (
+                <ul className="compact-list">
+                  {live.commentary.slice(-10).map((line) => (
+                    <li key={line.eventId}>
+                      {line.minute !== undefined ? `${line.minute}' ` : ""}
+                      {line.text}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Panel>
+          )}
+          <Panel title="Recent results">
+            {matchday.results.length === 0 ? (
+              <p className="empty-state">No results recorded yet.</p>
+            ) : (
+              <div className="table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Competition</th>
+                      <th>Opponent</th>
+                      <th>Score</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {matchday.results.map((fixture) => (
+                      <tr key={fixture.id}>
+                        <td>{fixture.date}</td>
+                        <td>{fixture.competition}</td>
+                        <td>
+                          {fixture.homeAway === "home" ? "vs" : "at"} {fixture.opponent}
+                        </td>
+                        <td>{fixture.score ?? "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Panel>
+        </section>
+      )}
+    </AsyncPanel>
   );
 };

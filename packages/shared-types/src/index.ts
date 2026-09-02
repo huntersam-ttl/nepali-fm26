@@ -30,4 +30,5 @@ export * from "./football-economy.js";
 export * from "./continental-careers.js";
 export * from "./executive-roles.js";
 export * from "./agent-career.js";
+export * from "./owner-manager-meetings.js";
 export * from "./entity-reference.js";
