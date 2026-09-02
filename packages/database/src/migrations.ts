@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 87;
+export const CURRENT_DATABASE_VERSION = 88;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -3634,6 +3634,39 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       ALTER TABLE sponsorship_contracts ADD COLUMN max_negotiation_rounds INTEGER NOT NULL DEFAULT 3;
       ALTER TABLE sponsorship_contracts ADD COLUMN counterparty_response TEXT;
       ALTER TABLE sponsorship_contracts ADD COLUMN negotiation_note TEXT;
+    `,
+  },
+  {
+    version: 88,
+    sql: `
+      -- Commercial-rights tables were historically created by the repository
+      -- constructor. Keep the schema migration-managed for fresh and legacy
+      -- saves without altering existing rows.
+      CREATE TABLE IF NOT EXISTS commercial_sponsor_profiles (
+        id TEXT PRIMARY KEY, name TEXT NOT NULL, sector TEXT NOT NULL,
+        financial_strength INTEGER NOT NULL, strategic_value INTEGER NOT NULL,
+        reputation INTEGER NOT NULL, domestic_reach INTEGER NOT NULL,
+        international_reach INTEGER NOT NULL, reliability INTEGER NOT NULL,
+        provenance_status TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS federation_commercial_rights_packages (
+        id TEXT PRIMARY KEY, federation_id TEXT NOT NULL, name TEXT NOT NULL,
+        category TEXT NOT NULL, exclusivity_group TEXT, scope TEXT NOT NULL,
+        available_from TEXT NOT NULL, available_to TEXT NOT NULL,
+        status TEXT NOT NULL, bundled_with_json TEXT, provenance_status TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS federation_commercial_rights_offers (
+        id TEXT PRIMARY KEY, package_id TEXT NOT NULL, federation_id TEXT NOT NULL,
+        sponsor_id TEXT NOT NULL, term_years INTEGER NOT NULL, annual_value INTEGER NOT NULL,
+        bonuses_json TEXT NOT NULL, reach_score INTEGER NOT NULL, strategic_fit INTEGER NOT NULL,
+        relationship_value INTEGER NOT NULL, exclusivity INTEGER NOT NULL, scope TEXT NOT NULL,
+        status TEXT NOT NULL, offered_on TEXT NOT NULL, start_date TEXT, end_date TEXT,
+        federation_ledger_entry_id TEXT, provenance_status TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_federation_rights_package_federation
+        ON federation_commercial_rights_packages(federation_id, status, available_from);
+      CREATE INDEX IF NOT EXISTS idx_federation_rights_offer_package
+        ON federation_commercial_rights_offers(package_id, status, offered_on);
     `,
   },
 ];

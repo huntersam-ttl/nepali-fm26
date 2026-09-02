@@ -1,28 +1,297 @@
-import { createStableEntityId, type CommercialSponsorProfile, type EntityId, type FederationCommercialRightsOffer, type FederationCommercialRightsPackage } from "@nepal-football-sim/shared-types";
-import { CommercialRightsRepository, EventRepository, type GameDatabase } from "@nepal-football-sim/database";
+import {
+  createStableEntityId,
+  type CommercialSponsorProfile,
+  type EntityId,
+  type FederationCommercialRightsOffer,
+  type FederationCommercialRightsPackage,
+} from "@nepal-football-sim/shared-types";
+import {
+  CommercialRightsRepository,
+  EventRepository,
+  type GameDatabase,
+} from "@nepal-football-sim/database";
 import { postFederationTransaction } from "./federation-governance.js";
 
-export type CommercialRightsEvidence = { federationReputation: number; competitionReputation: number; nationalTeamPerformance: number; audienceScale: number; mediaExposure: number; womenYouthGrowth: number };
-const clamp=(value:number):number=>Math.max(0,Math.min(100,Math.round(value)));
-const addYears=(date:string,years:number):string=>{const d=new Date(`${date}T00:00:00.000Z`);d.setUTCFullYear(d.getUTCFullYear()+years);return d.toISOString().slice(0,10);};
-
-export const calculateCommercialRightsOffer=(input:{rightsPackage:FederationCommercialRightsPackage;sponsor:CommercialSponsorProfile;evidence:CommercialRightsEvidence;offeredOn:string;termYears?:number}):FederationCommercialRightsOffer=>{
-  const relevantAudience=input.rightsPackage.scope === "NATIONAL_TEAM" ? input.sponsor.internationalReach : input.sponsor.domesticReach;
-  const relevance=input.rightsPackage.scope === "WOMENS" || input.rightsPackage.scope === "YOUTH" ? input.evidence.womenYouthGrowth : input.evidence.competitionReputation;
-  const strategicFit=clamp(input.sponsor.strategicValue*0.25+input.sponsor.reputation*0.15+relevantAudience*0.2+input.evidence.federationReputation*0.15+relevance*0.15+input.evidence.mediaExposure*0.1);
-  const annualValue=Math.min(3500000,Math.max(20000,Math.round(45000+input.sponsor.financialStrength*900+strategicFit*2600+input.evidence.audienceScale*12)));
-  const termYears=Math.max(1,Math.min(4,input.termYears??2));
-  return {id:createStableEntityId("commercial-rights-offer",`${input.rightsPackage.id}:${input.sponsor.id}:${input.offeredOn}:${termYears}`),packageId:input.rightsPackage.id,federationId:input.rightsPackage.federationId,sponsorId:input.sponsor.id,termYears,annualValue,bonuses:{performance:Math.round(annualValue*0.05),reach:Math.round(annualValue*0.03)},reachScore:clamp(relevantAudience),strategicFit,relationshipValue:clamp(input.sponsor.reliability*0.6+input.sponsor.reputation*0.4),exclusivity:Boolean(input.rightsPackage.exclusivityGroup),scope:input.rightsPackage.scope,status:"OFFERED",offeredOn:input.offeredOn,provenanceStatus:"SIMULATION_ONLY"};
+export type CommercialRightsEvidence = {
+  federationReputation: number;
+  competitionReputation: number;
+  nationalTeamPerformance: number;
+  audienceScale: number;
+  mediaExposure: number;
+  womenYouthGrowth: number;
+};
+const clamp = (value: number): number => Math.max(0, Math.min(100, Math.round(value)));
+const addYears = (date: string, years: number): string => {
+  const d = new Date(`${date}T00:00:00.000Z`);
+  d.setUTCFullYear(d.getUTCFullYear() + years);
+  return d.toISOString().slice(0, 10);
 };
 
-export const createCommercialRightsPackage=(db:GameDatabase,input:Omit<FederationCommercialRightsPackage,"id"|"status"|"provenanceStatus">):FederationCommercialRightsPackage=>{const value={...input,id:createStableEntityId("commercial-rights-package",`${input.federationId}:${input.category}:${input.name}`),status:"AVAILABLE" as const,provenanceStatus:"SIMULATION_ONLY" as const};new CommercialRightsRepository(db).upsertPackage(value);return value;};
+export const calculateCommercialRightsOffer = (input: {
+  rightsPackage: FederationCommercialRightsPackage;
+  sponsor: CommercialSponsorProfile;
+  evidence: CommercialRightsEvidence;
+  offeredOn: string;
+  termYears?: number;
+}): FederationCommercialRightsOffer => {
+  const relevantAudience =
+    input.rightsPackage.scope === "NATIONAL_TEAM"
+      ? input.sponsor.internationalReach
+      : input.sponsor.domesticReach;
+  const relevance =
+    input.rightsPackage.scope === "WOMENS" || input.rightsPackage.scope === "YOUTH"
+      ? input.evidence.womenYouthGrowth
+      : input.evidence.competitionReputation;
+  const strategicFit = clamp(
+    input.sponsor.strategicValue * 0.25 +
+      input.sponsor.reputation * 0.15 +
+      relevantAudience * 0.2 +
+      input.evidence.federationReputation * 0.15 +
+      relevance * 0.15 +
+      input.evidence.mediaExposure * 0.1,
+  );
+  const annualValue = Math.min(
+    3500000,
+    Math.max(
+      20000,
+      Math.round(
+        45000 +
+          input.sponsor.financialStrength * 900 +
+          strategicFit * 2600 +
+          input.evidence.audienceScale * 12,
+      ),
+    ),
+  );
+  const termYears = Math.max(1, Math.min(4, input.termYears ?? 2));
+  return {
+    id: createStableEntityId(
+      "commercial-rights-offer",
+      `${input.rightsPackage.id}:${input.sponsor.id}:${input.offeredOn}:${termYears}`,
+    ),
+    packageId: input.rightsPackage.id,
+    federationId: input.rightsPackage.federationId,
+    sponsorId: input.sponsor.id,
+    termYears,
+    annualValue,
+    bonuses: { performance: Math.round(annualValue * 0.05), reach: Math.round(annualValue * 0.03) },
+    reachScore: clamp(relevantAudience),
+    strategicFit,
+    relationshipValue: clamp(input.sponsor.reliability * 0.6 + input.sponsor.reputation * 0.4),
+    exclusivity: Boolean(input.rightsPackage.exclusivityGroup),
+    scope: input.rightsPackage.scope,
+    status: "OFFERED",
+    offeredOn: input.offeredOn,
+    provenanceStatus: "SIMULATION_ONLY",
+  };
+};
 
-export const offerCommercialRights=(db:GameDatabase,input:{rightsPackage:FederationCommercialRightsPackage;sponsor:CommercialSponsorProfile;evidence:CommercialRightsEvidence;offeredOn:string;termYears?:number}):FederationCommercialRightsOffer=>{if(!["AVAILABLE","OFFERED"].includes(input.rightsPackage.status))throw new Error("Commercial-rights package is not available");const offer=calculateCommercialRightsOffer(input);const repo=new CommercialRightsRepository(db);repo.upsertOffer(offer);repo.upsertPackage({...input.rightsPackage,status:"OFFERED"});return offer;};
+export const createCommercialRightsPackage = (
+  db: GameDatabase,
+  input: Omit<FederationCommercialRightsPackage, "id" | "status" | "provenanceStatus">,
+): FederationCommercialRightsPackage => {
+  const value = {
+    ...input,
+    id: createStableEntityId(
+      "commercial-rights-package",
+      `${input.federationId}:${input.category}:${input.name}`,
+    ),
+    status: "AVAILABLE" as const,
+    provenanceStatus: "SIMULATION_ONLY" as const,
+  };
+  new CommercialRightsRepository(db).upsertPackage(value);
+  return value;
+};
 
-export const negotiateCommercialRights=(db:GameDatabase,offerId:EntityId):FederationCommercialRightsOffer=>{const repo=new CommercialRightsRepository(db);const offer=repo.offers().find((item)=>item.id===offerId);if(!offer||offer.status!=="OFFERED")throw new Error("Commercial-rights offer is not negotiable");const negotiated={...offer,status:"NEGOTIATED" as const};repo.upsertOffer(negotiated);return negotiated;};
+/** The first supported pilot: federation main partnership, settled to the
+ * existing federation ledger. Other scopes remain unprovisioned until they
+ * have a matching competition/team accounting consumer. */
+export const ensureFederationMainPartnerPackage = (
+  db: GameDatabase,
+  federationId: EntityId,
+  date: string,
+): FederationCommercialRightsPackage => {
+  const packageId = createStableEntityId(
+    "commercial-rights-package",
+    `${federationId}:FEDERATION_MAIN_PARTNER`,
+  );
+  const value: FederationCommercialRightsPackage = {
+    id: packageId,
+    federationId,
+    name: "Federation Main Partner",
+    category: "FEDERATION_MAIN_PARTNER",
+    exclusivityGroup: "FEDERATION_MAIN_PARTNER",
+    scope: "NATIONAL",
+    availableFrom: date,
+    availableTo: addYears(date, 5),
+    status: "AVAILABLE",
+    provenanceStatus: "SIMULATION_ONLY",
+  };
+  const repo = new CommercialRightsRepository(db);
+  const existing = repo.packages(federationId).find((item) => item.id === packageId);
+  if (!existing) repo.upsertPackage(value);
+  return existing ?? value;
+};
+
+const activePresidentForFederation = (
+  db: GameDatabase,
+  federationId: EntityId,
+  personId: EntityId,
+): boolean => {
+  const row = db
+    .prepare(
+      "SELECT 1 AS active FROM federation_leadership_tenures WHERE federation_id=? AND person_id=? AND role='FEDERATION_PRESIDENT' AND status IN ('ACTIVE','INTERIM') LIMIT 1",
+    )
+    .get(federationId, personId) as { active?: number } | undefined;
+  return Boolean(row?.active);
+};
+
+export const awardCommercialRightsForPresident = (
+  db: GameDatabase,
+  input: {
+    offerId: EntityId;
+    federationId: EntityId;
+    presidentPersonId: EntityId;
+    date: string;
+    startDate: string;
+  },
+): FederationCommercialRightsOffer => {
+  if (!activePresidentForFederation(db, input.federationId, input.presidentPersonId))
+    throw new Error("Only the active federation president may award federation commercial rights");
+  return awardCommercialRights(db, input);
+};
+
+export const offerCommercialRights = (
+  db: GameDatabase,
+  input: {
+    rightsPackage: FederationCommercialRightsPackage;
+    sponsor: CommercialSponsorProfile;
+    evidence: CommercialRightsEvidence;
+    offeredOn: string;
+    termYears?: number;
+  },
+): FederationCommercialRightsOffer => {
+  if (!["AVAILABLE", "OFFERED"].includes(input.rightsPackage.status))
+    throw new Error("Commercial-rights package is not available");
+  const offer = calculateCommercialRightsOffer(input);
+  const repo = new CommercialRightsRepository(db);
+  repo.upsertOffer(offer);
+  repo.upsertPackage({ ...input.rightsPackage, status: "OFFERED" });
+  return offer;
+};
+
+export const negotiateCommercialRights = (
+  db: GameDatabase,
+  offerId: EntityId,
+): FederationCommercialRightsOffer => {
+  const repo = new CommercialRightsRepository(db);
+  const offer = repo.offers().find((item) => item.id === offerId);
+  if (!offer || offer.status !== "OFFERED")
+    throw new Error("Commercial-rights offer is not negotiable");
+  const negotiated = { ...offer, status: "NEGOTIATED" as const };
+  repo.upsertOffer(negotiated);
+  return negotiated;
+};
 
 /** The caller explicitly selects an offer; cash alone never awards a package. */
-export const awardCommercialRights=(db:GameDatabase,input:{offerId:EntityId;date:string;startDate:string}):FederationCommercialRightsOffer=>{const repo=new CommercialRightsRepository(db);const offer=repo.offers().find((item)=>item.id===input.offerId);if(!offer||!["OFFERED","NEGOTIATED"].includes(offer.status))throw new Error("Commercial-rights offer is not awardable");const rightsPackage=repo.packages(offer.federationId).find((item)=>item.id===offer.packageId);const sponsor=repo.sponsor(offer.sponsorId);if(!rightsPackage||!sponsor)throw new Error("Commercial-rights package or sponsor is missing");if(offer.exclusivity&&rightsPackage.exclusivityGroup){const conflict=repo.packages(offer.federationId).filter((item)=>item.exclusivityGroup===rightsPackage.exclusivityGroup&&item.id!==rightsPackage.id).some((item)=>repo.offers(item.id).some((candidate)=>candidate.status==="ACTIVE"&&candidate.sponsorId!==offer.sponsorId));if(conflict)throw new Error("A sector exclusivity conflict is already active");}const endDate=addYears(input.startDate,offer.termYears);const ledger=postFederationTransaction(db,{federationId:offer.federationId,date:input.date,category:"SPONSORSHIP",direction:"CREDIT",amount:offer.annualValue,description:`Commercial rights awarded: ${rightsPackage.name}`,relatedEntityId:offer.id,idempotencyKey:`commercial-rights-award:${offer.id}`});const active={...offer,status:"ACTIVE" as const,startDate:input.startDate,endDate,federationLedgerEntryId:ledger.id};repo.upsertOffer(active);repo.upsertPackage({...rightsPackage,status:"ACTIVE"});new EventRepository(db).insertHistoricalEvent({id:createStableEntityId("history",`COMMERCIAL_RIGHTS_AWARDED:${offer.id}`),occurredOn:input.date,eventType:"FEDERATION_COMMERCIAL_RIGHTS_AWARDED",involvedEntities:[{id:offer.federationId,type:"federation"},{id:offer.id,type:"contract"}],title:"Federation commercial rights awarded",data:{category:rightsPackage.category,sponsorId:sponsor.id,annualValue:offer.annualValue,termYears:offer.termYears},importance:"high",scope:"federation"});return active;};
+export const awardCommercialRights = (
+  db: GameDatabase,
+  input: { offerId: EntityId; date: string; startDate: string },
+): FederationCommercialRightsOffer => {
+  const repo = new CommercialRightsRepository(db);
+  const offer = repo.offers().find((item) => item.id === input.offerId);
+  if (!offer || !["OFFERED", "NEGOTIATED"].includes(offer.status))
+    throw new Error("Commercial-rights offer is not awardable");
+  const rightsPackage = repo
+    .packages(offer.federationId)
+    .find((item) => item.id === offer.packageId);
+  const sponsor = repo.sponsor(offer.sponsorId);
+  if (!rightsPackage || !sponsor)
+    throw new Error("Commercial-rights package or sponsor is missing");
+  if (offer.exclusivity && rightsPackage.exclusivityGroup) {
+    const conflict = repo
+      .packages(offer.federationId)
+      .filter(
+        (item) =>
+          item.exclusivityGroup === rightsPackage.exclusivityGroup && item.id !== rightsPackage.id,
+      )
+      .some((item) =>
+        repo
+          .offers(item.id)
+          .some(
+            (candidate) => candidate.status === "ACTIVE" && candidate.sponsorId !== offer.sponsorId,
+          ),
+      );
+    if (conflict) throw new Error("A sector exclusivity conflict is already active");
+  }
+  const endDate = addYears(input.startDate, offer.termYears);
+  const ledger = postFederationTransaction(db, {
+    federationId: offer.federationId,
+    date: input.date,
+    category: "SPONSORSHIP",
+    direction: "CREDIT",
+    amount: offer.annualValue,
+    description: `Commercial rights awarded: ${rightsPackage.name}`,
+    relatedEntityId: offer.id,
+    idempotencyKey: `commercial-rights-award:${offer.id}`,
+  });
+  const active = {
+    ...offer,
+    status: "ACTIVE" as const,
+    startDate: input.startDate,
+    endDate,
+    federationLedgerEntryId: ledger.id,
+  };
+  repo.upsertOffer(active);
+  repo.upsertPackage({ ...rightsPackage, status: "ACTIVE" });
+  new EventRepository(db).insertHistoricalEvent({
+    id: createStableEntityId("history", `COMMERCIAL_RIGHTS_AWARDED:${offer.id}`),
+    occurredOn: input.date,
+    eventType: "FEDERATION_COMMERCIAL_RIGHTS_AWARDED",
+    involvedEntities: [
+      { id: offer.federationId, type: "federation" },
+      { id: offer.id, type: "contract" },
+    ],
+    title: "Federation commercial rights awarded",
+    data: {
+      category: rightsPackage.category,
+      sponsorId: sponsor.id,
+      annualValue: offer.annualValue,
+      termYears: offer.termYears,
+    },
+    importance: "high",
+    scope: "federation",
+  });
+  return active;
+};
 
-export const rankCommercialRightsOffers=(offers:readonly FederationCommercialRightsOffer[]):FederationCommercialRightsOffer[]=>[...offers].sort((a,b)=>(b.strategicFit*0.45+b.reachScore*0.3+b.relationshipValue*0.25)-(a.strategicFit*0.45+a.reachScore*0.3+a.relationshipValue*0.25)||a.id.localeCompare(b.id));
-export const renewCommercialRights=(db:GameDatabase,offerId:EntityId,offeredOn:string):FederationCommercialRightsOffer=>{const repo=new CommercialRightsRepository(db);const offer=repo.offers().find((item)=>item.id===offerId);if(!offer||offer.status!=="ACTIVE")throw new Error("Only active rights can be renewed");const renewed={...offer,id:createStableEntityId("commercial-rights-renewal",`${offer.id}:${offeredOn}`),status:"RENEWED" as const,offeredOn,startDate:undefined,endDate:undefined,federationLedgerEntryId:undefined};repo.upsertOffer(renewed);return renewed;};
+export const rankCommercialRightsOffers = (
+  offers: readonly FederationCommercialRightsOffer[],
+): FederationCommercialRightsOffer[] =>
+  [...offers].sort(
+    (a, b) =>
+      b.strategicFit * 0.45 +
+        b.reachScore * 0.3 +
+        b.relationshipValue * 0.25 -
+        (a.strategicFit * 0.45 + a.reachScore * 0.3 + a.relationshipValue * 0.25) ||
+      a.id.localeCompare(b.id),
+  );
+export const renewCommercialRights = (
+  db: GameDatabase,
+  offerId: EntityId,
+  offeredOn: string,
+): FederationCommercialRightsOffer => {
+  const repo = new CommercialRightsRepository(db);
+  const offer = repo.offers().find((item) => item.id === offerId);
+  if (!offer || offer.status !== "ACTIVE") throw new Error("Only active rights can be renewed");
+  const renewed = {
+    ...offer,
+    id: createStableEntityId("commercial-rights-renewal", `${offer.id}:${offeredOn}`),
+    status: "RENEWED" as const,
+    offeredOn,
+    startDate: undefined,
+    endDate: undefined,
+    federationLedgerEntryId: undefined,
+  };
+  repo.upsertOffer(renewed);
+  return renewed;
+};
