@@ -37,6 +37,7 @@ import type {
   ProcurementOrder,
   OwnershipInvestorMarketView,
   OwnershipAcquisitionOffer,
+  OwnerInvestmentTransaction,
   StaffAppointment,
 } from "./domain.js";
 import type { ExecutiveAuthorityDesktopView } from "./executive-roles.js";
@@ -275,6 +276,22 @@ export type ClubFinanceMeetingOverview = {
   headroom: number;
 };
 
+/**
+ * Investor-meeting read model, owner-only (ownership decisions carry no
+ * delegable executive authority in the current authority model — see
+ * ExecutiveAuthority). market is the same OwnershipInvestorMarketView the
+ * owner dashboard already renders; this adds only the owner's own personal
+ * cash and the majority-control threshold so the UI never hardcodes either.
+ */
+export type InvestorMeetingOverview = {
+  clubId: EntityId;
+  clubName: string;
+  ownerPersonId: EntityId;
+  ownerPersonalCash: number;
+  majorityThreshold: number;
+  market: OwnershipInvestorMarketView;
+};
+
 export type FederationNationalTeamSummary = {
   id: EntityId;
   name: string;
@@ -387,6 +404,8 @@ export type DesktopRuntimeApi = {
   counterSponsorOffer(clubId: EntityId, sponsorshipId: EntityId, annualValue: number, endDate?: string): Promise<AppResult<SponsorshipContract>>;
   createInvestorStakeOffer(percentage: number, minimumAmount?: number): Promise<AppResult<OwnershipInvestorMarketView>>;
   decideInvestorBid(offerId: EntityId, accept: boolean): Promise<AppResult<OwnershipAcquisitionOffer>>;
+  getInvestorMeeting(): Promise<AppResult<InvestorMeetingOverview>>;
+  injectOwnerCapital(amount: number): Promise<AppResult<OwnerInvestmentTransaction>>;
   applyClubLoan(lenderId: EntityId, principal: number, termMonths: number, purpose: string): Promise<AppResult<ClubLoanApplication>>;
   repayClubLoan(debtId: EntityId, amount?: number): Promise<AppResult<ClubDebt>>;
   acceptExecutiveSponsorOffer(clubId: EntityId, sponsorshipId: EntityId): Promise<AppResult<SponsorshipContract>>;

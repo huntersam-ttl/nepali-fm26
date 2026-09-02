@@ -206,6 +206,10 @@ const dispatch = (
       return service.createInvestorStakeOffer(body.percentage as number, body.minimumAmount as number | undefined);
     case "decideInvestorBid":
       return service.decideInvestorBid(body.offerId as EntityId, body.accept as boolean);
+    case "getInvestorMeeting":
+      return service.getInvestorMeeting();
+    case "injectOwnerCapital":
+      return service.injectOwnerCapital(body.amount as number);
     case "applyClubLoan":
       return service.applyClubLoan(body.lenderId as EntityId, body.principal as number, body.termMonths as number, body.purpose as string);
     case "repayClubLoan":

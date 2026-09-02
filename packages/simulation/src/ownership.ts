@@ -16,6 +16,7 @@ import {
   type OwnershipInvestorBidView,
   type OwnershipInvestorMarketView,
   type OwnershipInvestorType,
+  type InvestorMeetingOverview,
   type Person,
 } from "@nepal-football-sim/shared-types";
 import { calculateClubValuation } from "./club-economy.js";
@@ -80,6 +81,32 @@ export const buildOwnershipInvestorMarket = (db: GameDatabase, clubId: EntityId,
   }));
   const controller = active.filter((stake) => (stake.percentage ?? 0) >= 51).sort((a, b) => (b.percentage ?? 0) - (a.percentage ?? 0))[0];
   return { valuation: calculateAcquisitionValuation(db, clubId, date ?? new Date().toISOString().slice(0, 10)), ownership, controllingOwnerId: controller?.holderId, openOffer: open[0], bids, provenanceStatus: "SIMULATION_ONLY" };
+};
+
+/**
+ * Read model behind the investor-meeting UI. Ownership decisions carry no
+ * delegable executive authority (see ExecutiveAuthority) so this is owner-
+ * only by construction — market is the exact OwnershipInvestorMarketView the
+ * owner dashboard already renders, plus the owner's own personal cash and
+ * the majority threshold, so neither number is ever hardcoded client-side.
+ */
+export const investorMeetingOverview = (
+  db: GameDatabase,
+  clubId: EntityId,
+  ownerPersonId: EntityId,
+  date: string,
+): InvestorMeetingOverview => {
+  const club = db.prepare("SELECT name FROM clubs WHERE id=?").get(clubId) as { name?: string } | undefined;
+  if (!club?.name) throw new Error(`Club not found: ${clubId}`);
+  const personal = new ClubEconomyRepository(db).personalFinancialProfile(ownerPersonId);
+  return {
+    clubId,
+    clubName: club.name,
+    ownerPersonId,
+    ownerPersonalCash: personal?.cash ?? 0,
+    majorityThreshold: 51,
+    market: buildOwnershipInvestorMarket(db, clubId, date),
+  };
 };
 
 export const createInvestorStakeOffer = (db: GameDatabase, input: { clubId: EntityId; sellerHolderId: EntityId; percentage: number; minimumAmount?: number; date: string }): OwnershipInvestorMarketView => {

@@ -63,6 +63,8 @@ import {
   type CareerRoleState,
   type ChairmanDashboard,
   type ClubFinanceMeetingOverview,
+  type InvestorMeetingOverview,
+  type OwnerInvestmentTransaction,
   type FederationDevelopmentSummary,
   type GovernmentOverview,
   type GovernmentFundingApplication,
@@ -304,7 +306,8 @@ import {
   setBudgetForExecutive,
 } from "./executive-authority.js";
 import { backroomSummary } from "./career-market-deepening.js";
-import { createInvestorStakeOffer, decideInvestorBid } from "./ownership.js";
+import { createInvestorStakeOffer, decideInvestorBid, investorMeetingOverview } from "./ownership.js";
+import { capitalInjectionFromInvestor } from "./investor.js";
 import { buildChairmanDashboard, buildFederationPresidentDashboard } from "./role-desktop.js";
 import { initializeFederationGovernanceForSave } from "./federation-governance.js";
 import { federationDevelopmentSummary } from "./federation-policy.js";
@@ -1536,6 +1539,58 @@ export class DesktopApplicationService {
         throw appError(
           "INVALID_SELECTION",
           error instanceof Error ? error.message : "Investor bid could not be decided.",
+        );
+      }
+    });
+  }
+
+  getInvestorMeeting(): AppResult<InvestorMeetingOverview> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER")
+        throw appError(
+          "ROLE_NOT_AUTHORIZED",
+          "Only the active chairman/owner may view the investor meeting.",
+        );
+      const clubId = heldCareerRoles(db, personId).find(
+        (role) => role.role === "CHAIRMAN_OWNER",
+      )?.targetId;
+      if (!clubId) throw appError("ROLE_NOT_AUTHORIZED", "No controlled club is available.");
+      return investorMeetingOverview(db, clubId, personId, save.worldDate);
+    });
+  }
+
+  /**
+   * The owner injecting more of their own money into the club, diluting
+   * every stake (their own included) by the same real formula
+   * capitalInjectionFromInvestor already uses for any stakeholder. This is
+   * genuinely distinct from decideInvestorBid: money moves into club cash,
+   * not between two people's personal wealth.
+   */
+  injectOwnerCapital(amount: number): AppResult<OwnerInvestmentTransaction> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER")
+        throw appError(
+          "ROLE_NOT_AUTHORIZED",
+          "Only the active chairman/owner may inject personal capital.",
+        );
+      const clubId = heldCareerRoles(db, personId).find(
+        (role) => role.role === "CHAIRMAN_OWNER",
+      )?.targetId;
+      if (!clubId) throw appError("ROLE_NOT_AUTHORIZED", "No controlled club is available.");
+      try {
+        return capitalInjectionFromInvestor(db, {
+          clubId,
+          personId,
+          date: save.worldDate,
+          amount,
+          form: "EQUITY",
+        });
+      } catch (error) {
+        throw appError(
+          "INVALID_SELECTION",
+          error instanceof Error ? error.message : "Capital injection could not be completed.",
         );
       }
     });

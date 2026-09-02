@@ -1283,3 +1283,8 @@ tbody tr:last-child td { border-bottom: 0; }
 @media (max-width: 900px) {
   .meeting-shell-body { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Primary capital injection is a different kind of money movement from a
+   share sale above it (club cash, not personal-to-personal) — a visible
+   accent keeps that distinction obvious, not just stated in copy. */
+.investor-capital-panel { border-left: 3px solid var(--accent-2); }
