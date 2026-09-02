@@ -1,6 +1,6 @@
 # Nepal Football Universe — Remaining Feature Inventory
 
-## Current roadmap-closure reconciliation (`ff8ab37`)
+## Current roadmap-closure reconciliation (`a8186ef`)
 
 The 60-feature roadmap is functionally closed at the supported gameplay boundary: the current
 roadmap audit records **28 COMPLETE / 1 intentionally deferred PARTIAL / 0 FOUNDATION_ONLY / 0
@@ -18,26 +18,26 @@ pre-expansion classifications are not the current roadmap status.
 
 ### Remaining implementation inventory
 
-| Area                                                          | Classification          | Current item / boundary                                                                                                                                                                                                                                                     |
-| ------------------------------------------------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Typecheck baseline                                            | MUST_FIX_BEFORE_RELEASE | The current workspace typecheck still fails in preserved peer files: `agent-career.test.ts` has a stale `expectedPlayingTime` shape, and `match-momentum-set-pieces.test.ts` has unbranded `EntityId` fixture values. No peer file was modified during this reconciliation. |
-| Long-save/performance proof                                   | MUST_FIX_BEFORE_RELEASE | The documented 20/50-season durability and performance gates remain unrun; the existing structural continuity evidence is not a release performance sign-off.                                                                                                               |
-| Signed/notarized artifact                                     | MUST_FIX_BEFORE_RELEASE | Current Apple release status remains `SIGNING_BLOCKED` until the matching Developer ID private key and `notarytool` credentials are installed. This is release operations, not gameplay implementation.                                                                     |
-| Packaging/release QA                                          | MUST_FIX_BEFORE_RELEASE | The unsigned diagnostic path exists, but final signed packaging, notarization, Gatekeeper validation, and bounded artifact runtime/save smoke remain outstanding.                                                                                                           |
-| Dataset attribution/licensing                                 | MUST_FIX_BEFORE_RELEASE | The shipped data has provenance metadata, but the published attribution/licensing document is still absent from `docs/`.                                                                                                                                                    |
-| Default match-view wiring                                     | SHOULD_FIX              | The canonical match/runtime path exists, but the default desktop presentation bridge remains a separate UI-release work item owned outside the backend lane.                                                                                                                |
-| Factual coverage                                              | SHOULD_FIX              | Women’s factual player coverage and broader real referee/staff/player data remain limited; generated `SIMULATION_ONLY` supply preserves gameplay continuity.                                                                                                                |
-| Broader owner/president breadth                               | SHOULD_FIX              | Supported authority and core commands exist; additional optional command breadth is not required to close the roadmap gameplay spine.                                                                                                                                       |
-| Continental club competition consumer                         | DEFERRED                | Requires a real supported club entrant/qualification/draw/fixture architecture before coefficient consumption can be implemented.                                                                                                                                           |
-| Global club tournaments, loan-development attribution, mobile | DEFERRED                | Explicitly outside the supported release slice; no upstream production contract exists for these systems.                                                                                                                                                                   |
-| Completed roadmap rows                                        | N/A                     | Do not reopen the 28 complete rows without a concrete regression.                                                                                                                                                                                                           |
+| Area                                                          | Classification          | Current item / boundary                                                                                                                                                                                 |
+| ------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Typecheck baseline                                            | N/A                     | Resolved by the narrow committed test-typing fix in `a8186ef`; the full workspace typecheck now passes. No peer/UI file was modified.                                                                   |
+| Long-save/performance proof                                   | MUST_FIX_BEFORE_RELEASE | The documented 20/50-season durability and performance gates remain unrun; the existing structural continuity evidence is not a release performance sign-off.                                           |
+| Signed/notarized artifact                                     | MUST_FIX_BEFORE_RELEASE | Current Apple release status remains `SIGNING_BLOCKED` until the matching Developer ID private key and `notarytool` credentials are installed. This is release operations, not gameplay implementation. |
+| Packaging/release QA                                          | MUST_FIX_BEFORE_RELEASE | The unsigned diagnostic path exists, but final signed packaging, notarization, Gatekeeper validation, and bounded artifact runtime/save smoke remain outstanding.                                       |
+| Dataset attribution/licensing                                 | MUST_FIX_BEFORE_RELEASE | The shipped data has provenance metadata, but the published attribution/licensing document is still absent from `docs/`.                                                                                |
+| Default match-view wiring                                     | SHOULD_FIX              | The canonical match/runtime path exists, but the default desktop presentation bridge remains a separate UI-release work item owned outside the backend lane.                                            |
+| Factual coverage                                              | SHOULD_FIX              | Women’s factual player coverage and broader real referee/staff/player data remain limited; generated `SIMULATION_ONLY` supply preserves gameplay continuity.                                            |
+| Broader owner/president breadth                               | SHOULD_FIX              | Supported authority and core commands exist; additional optional command breadth is not required to close the roadmap gameplay spine.                                                                   |
+| Continental club competition consumer                         | DEFERRED                | Requires a real supported club entrant/qualification/draw/fixture architecture before coefficient consumption can be implemented.                                                                       |
+| Global club tournaments, loan-development attribution, mobile | DEFERRED                | Explicitly outside the supported release slice; no upstream production contract exists for these systems.                                                                                               |
+| Completed roadmap rows                                        | N/A                     | Do not reopen the 28 complete rows without a concrete regression.                                                                                                                                       |
 
 ### Closure verification
 
 - Focused continental producer suite: 7/7 passed.
 - Database and simulation builds: passed.
 - Formatting and diff checks: passed.
-- Full typecheck: failed only on the preserved peer errors listed above.
+- Full typecheck: passed after the narrow stale-test-typing fix in `a8186ef`.
 - Peer modifications, Claude-owned UI work, untracked artifacts, and Apple signing state were not
   changed.
 
