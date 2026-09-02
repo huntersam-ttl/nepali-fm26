@@ -1,5 +1,46 @@
 # Nepal Football Universe — Remaining Feature Inventory
 
+## Current roadmap-closure reconciliation (`ff8ab37`)
+
+The 60-feature roadmap is functionally closed at the supported gameplay boundary: the current
+roadmap audit records **28 COMPLETE / 1 intentionally deferred PARTIAL / 0 FOUNDATION_ONLY / 0
+BLOCKED**. The sole partial is continental coefficients' downstream consumer. The coefficient
+producer itself is production-backed (real Nepal continental fixture ingestion, W/D/L points,
+five-season rolling persistence, domestic exclusion, and reload/idempotent replay). It remains
+`DEFERRED_UNTIL_COMPETITION_PATH` because the available draw engine is for national-team
+`InternationalTeamProfile` participants; the club-side model has no supported entrant selection,
+draw/pot, and fixture-generation path for coefficients to consume. No fake club competition is
+being added.
+
+This section supersedes the historical snapshot below for release triage. The older normalized
+inventory remains useful evidence for optional depth and data coverage, but its counts and
+pre-expansion classifications are not the current roadmap status.
+
+### Remaining implementation inventory
+
+| Area                                                          | Classification          | Current item / boundary                                                                                                                                                                                                                                                     |
+| ------------------------------------------------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Typecheck baseline                                            | MUST_FIX_BEFORE_RELEASE | The current workspace typecheck still fails in preserved peer files: `agent-career.test.ts` has a stale `expectedPlayingTime` shape, and `match-momentum-set-pieces.test.ts` has unbranded `EntityId` fixture values. No peer file was modified during this reconciliation. |
+| Long-save/performance proof                                   | MUST_FIX_BEFORE_RELEASE | The documented 20/50-season durability and performance gates remain unrun; the existing structural continuity evidence is not a release performance sign-off.                                                                                                               |
+| Signed/notarized artifact                                     | MUST_FIX_BEFORE_RELEASE | Current Apple release status remains `SIGNING_BLOCKED` until the matching Developer ID private key and `notarytool` credentials are installed. This is release operations, not gameplay implementation.                                                                     |
+| Packaging/release QA                                          | MUST_FIX_BEFORE_RELEASE | The unsigned diagnostic path exists, but final signed packaging, notarization, Gatekeeper validation, and bounded artifact runtime/save smoke remain outstanding.                                                                                                           |
+| Dataset attribution/licensing                                 | MUST_FIX_BEFORE_RELEASE | The shipped data has provenance metadata, but the published attribution/licensing document is still absent from `docs/`.                                                                                                                                                    |
+| Default match-view wiring                                     | SHOULD_FIX              | The canonical match/runtime path exists, but the default desktop presentation bridge remains a separate UI-release work item owned outside the backend lane.                                                                                                                |
+| Factual coverage                                              | SHOULD_FIX              | Women’s factual player coverage and broader real referee/staff/player data remain limited; generated `SIMULATION_ONLY` supply preserves gameplay continuity.                                                                                                                |
+| Broader owner/president breadth                               | SHOULD_FIX              | Supported authority and core commands exist; additional optional command breadth is not required to close the roadmap gameplay spine.                                                                                                                                       |
+| Continental club competition consumer                         | DEFERRED                | Requires a real supported club entrant/qualification/draw/fixture architecture before coefficient consumption can be implemented.                                                                                                                                           |
+| Global club tournaments, loan-development attribution, mobile | DEFERRED                | Explicitly outside the supported release slice; no upstream production contract exists for these systems.                                                                                                                                                                   |
+| Completed roadmap rows                                        | N/A                     | Do not reopen the 28 complete rows without a concrete regression.                                                                                                                                                                                                           |
+
+### Closure verification
+
+- Focused continental producer suite: 7/7 passed.
+- Database and simulation builds: passed.
+- Formatting and diff checks: passed.
+- Full typecheck: failed only on the preserved peer errors listed above.
+- Peer modifications, Claude-owned UI work, untracked artifacts, and Apple signing state were not
+  changed.
+
 ## Snapshot
 
 Audit date: 2026-08-30. Repository: `/Users/cc/nepali-fm26`. Final reconciliation based on
@@ -9,14 +50,14 @@ remains untouched.
 The inventory has 92 normalized entries: the 84 row-level entries in the previous feature
 audit, plus the eight explicit high-risk overlays requested for this pass. Statuses are:
 
-| Status | Count |
-| --- | ---: |
-| COMPLETE | 73 |
-| BUILT_NOT_PROVEN | 0 |
-| PARTIAL | 12 |
-| MISSING | 3 |
-| LATER | 4 |
-| **Total** | **92** |
+| Status           |  Count |
+| ---------------- | -----: |
+| COMPLETE         |     73 |
+| BUILT_NOT_PROVEN |      0 |
+| PARTIAL          |     12 |
+| MISSING          |      3 |
+| LATER            |      4 |
+| **Total**        | **92** |
 
 The previous executive table reported `BUILT 50 / PARTIAL 24 / MISSING 7 / LATER 3`,
 but its 84 detailed headings actually counted `54 / 21 / 6 / 3`. This report uses the
@@ -106,7 +147,7 @@ High-risk overlays:
    they remain non-playable and do not receive a full foreign payroll simulation.
 2. **Global club tournaments — LATER.** Continental context is lightweight and seasonal;
    no detailed intercontinental club tournament is currently planned.
-4. **International partnerships — COMPLETE for bounded P1 type wiring and lifecycle.** The type vocabulary exists for
+3. **International partnerships — COMPLETE for bounded P1 type wiring and lifecycle.** The type vocabulary exists for
    `SCOUTING`, `TECHNICAL`, `YOUTH_DEVELOPMENT`, `ACADEMY`, `STAFF_EXCHANGE`, `TRAINING`,
    `LOAN_PLAYER_PATHWAY`, `LOAN`, `PREFERRED_TRANSFER`, `COMMERCIAL`, and `FRIENDLY_TOUR`.
    Proposal/activation, bounded benefit calculation, and expiry/lifecycle enforcement are tested.
@@ -120,30 +161,30 @@ High-risk overlays:
    engine plus bounded partnership and related-club preference. TRAINING remains a separate
    explicitly deferred partnership type, distinct from the already-complete core player-training
    system.
-5. **Multi-club ownership/network effects — COMPLETE for the bounded P1 player-pathway scope.**
+4. **Multi-club ownership/network effects — COMPLETE for the bounded P1 player-pathway scope.**
    Ownership records resolve active related clubs into existing scouting, transfer, and loan
    candidate flows; related-party valuation and same-competition safeguards are enforced at
    offer evaluation; finance remains per-club and foreign clubs remain `CONTEXT_ONLY`.
    Technical placements satisfy staff exchange; ownership-specific academy collaboration remains
    a separate partial nuance while partnership-driven academy behavior is complete.
-6. **Sell-on clauses — COMPLETE.** Negotiated percentages become durable total-resale-fee
+5. **Sell-on clauses — COMPLETE.** Negotiated percentages become durable total-resale-fee
    entitlements at permanent-transfer completion. Later qualifying resales settle the entitlement
    exactly once through separate seller-payment and former-club-income ledger entries, with
    reload-safe history and no payout for failed or non-permanent movement.
 
 ### Remaining-candidate coverage matrix
 
-| Candidate | Unit | Integration | Production flow | Reload |
-| --- | --- | --- | --- | --- |
-| Trials | invitation, response, knowledge, expiry, offer handoff | 4 focused lifecycle tests | scouting cadence, seasonal AI, and external-interest paths | active and completed reload |
-| Women / youth internationals | category-aware selection, age/availability/eligibility filters, shared fixture/result records | women and U17 end-to-end, sanctions, age-out, senior pathway | bounded seasonal SAFF/AFC calendar | squads, results, caps, history, and repeated progression |
-| Foreign staff movement | vacancy, decision, contract, retirement helpers | two-way CONTEXT_ONLY moves and replacement | desktop and seasonal context cadence | contracts/history/replacements reload |
-| Global generated lifecycle | canonical attributes, potential, development, retirement, and context records | focused lifecycle/reload/determinism coverage | seasonal context lifecycle plus bounded replenishment | identity, retirement, development, and replenishment reload-safe |
-| External competition context | external profile helpers | global-context season persistence | career seasonal cadence seam (`career-external-context.test.ts`) | context rows reload |
-| Partnerships | pathway/evaluation helpers and lifecycle | all eight bounded production types, expiry, and reload | bounded production consumers | partnership-specific reload and expiry coverage |
-| Multi-club | ownership lookup, pathway, valuation, governance helpers | imported external club, scouting, offer review, reload | scouting/transfer/loan candidate paths and offer governance | ownership lookup reload |
-| Sell-on | offer persistence and entitlement | resale, exact-once ledger/history settlement | canonical permanent-transfer completion | clause and settlement reload |
-| Loan development attribution | none | none | none | none |
+| Candidate                    | Unit                                                                                          | Integration                                                  | Production flow                                                  | Reload                                                           |
+| ---------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | ---------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Trials                       | invitation, response, knowledge, expiry, offer handoff                                        | 4 focused lifecycle tests                                    | scouting cadence, seasonal AI, and external-interest paths       | active and completed reload                                      |
+| Women / youth internationals | category-aware selection, age/availability/eligibility filters, shared fixture/result records | women and U17 end-to-end, sanctions, age-out, senior pathway | bounded seasonal SAFF/AFC calendar                               | squads, results, caps, history, and repeated progression         |
+| Foreign staff movement       | vacancy, decision, contract, retirement helpers                                               | two-way CONTEXT_ONLY moves and replacement                   | desktop and seasonal context cadence                             | contracts/history/replacements reload                            |
+| Global generated lifecycle   | canonical attributes, potential, development, retirement, and context records                 | focused lifecycle/reload/determinism coverage                | seasonal context lifecycle plus bounded replenishment            | identity, retirement, development, and replenishment reload-safe |
+| External competition context | external profile helpers                                                                      | global-context season persistence                            | career seasonal cadence seam (`career-external-context.test.ts`) | context rows reload                                              |
+| Partnerships                 | pathway/evaluation helpers and lifecycle                                                      | all eight bounded production types, expiry, and reload       | bounded production consumers                                     | partnership-specific reload and expiry coverage                  |
+| Multi-club                   | ownership lookup, pathway, valuation, governance helpers                                      | imported external club, scouting, offer review, reload       | scouting/transfer/loan candidate paths and offer governance      | ownership lookup reload                                          |
+| Sell-on                      | offer persistence and entitlement                                                             | resale, exact-once ledger/history settlement                 | canonical permanent-transfer completion                          | clause and settlement reload                                     |
+| Loan development attribution | none                                                                                          | none                                                         | none                                                             | none                                                             |
 
 ## Missing Systems
 
@@ -204,15 +245,15 @@ gates are completed.
 
 ### Freeze-blocker register
 
-| Classification | Count | Rows / scope |
-| --- | ---: | --- |
-| MUST_BUILD_GAMEPLAY | 0 | None. Chairman/federation breadth and richer narrative/AI behavior are optional depth. |
-| OPTIONAL_DEPTH | 8 | Broader chairman and federation-president commands; broader role authority; takeover depth; prize/revenue narrative; girls schools/grassroots/academies; media/journalism; rivalry evolution; AI chairman. |
-| RESEARCH_REQUIRED | 5 | Real Nepal player breadth; factual women players; real staff breadth; real referee data; legends/cult heroes. |
-| UI_RELEASE_POLISH | 2 | Default match-view wiring; Tauri/native packaging. |
-| PERFORMANCE_GATE | 1 | Seeded-season benchmark and profiling; latest bounded result is 202.8s. |
-| VALIDATION_GATE | 2 | 20-season and 50-season durability/balance validation. |
-| LATER | 4 | Global club tournaments; loan-development/minutes attribution; mobile; final release workflow. |
+| Classification      | Count | Rows / scope                                                                                                                                                                                               |
+| ------------------- | ----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| MUST_BUILD_GAMEPLAY |     0 | None. Chairman/federation breadth and richer narrative/AI behavior are optional depth.                                                                                                                     |
+| OPTIONAL_DEPTH      |     8 | Broader chairman and federation-president commands; broader role authority; takeover depth; prize/revenue narrative; girls schools/grassroots/academies; media/journalism; rivalry evolution; AI chairman. |
+| RESEARCH_REQUIRED   |     5 | Real Nepal player breadth; factual women players; real staff breadth; real referee data; legends/cult heroes.                                                                                              |
+| UI_RELEASE_POLISH   |     2 | Default match-view wiring; Tauri/native packaging.                                                                                                                                                         |
+| PERFORMANCE_GATE    |     1 | Seeded-season benchmark and profiling; latest bounded result is 202.8s.                                                                                                                                    |
+| VALIDATION_GATE     |     2 | 20-season and 50-season durability/balance validation.                                                                                                                                                     |
+| LATER               |     4 | Global club tournaments; loan-development/minutes attribution; mobile; final release workflow.                                                                                                             |
 
 Rows already complete for bounded production scope remain COMPLETE even where deeper variants are
 mentioned: grants/government settlement, diaspora generation, girls generation, media notable-event
