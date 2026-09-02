@@ -446,6 +446,12 @@ const dispatch = (
         body.entityType as OrganizationProfileEntityType,
         body.entityId as EntityId,
       );
+    case "getClubProfile":
+      return service.getClubProfile(body.clubId as EntityId);
+    case "getStaffProfile":
+      return service.getStaffProfile(body.personId as EntityId);
+    case "getCompetitionProfile":
+      return service.getCompetitionProfile(body.competitionId as EntityId);
     case "getTactics":
       return service.getTactics();
     case "updateTactics":

@@ -101,6 +101,9 @@ import {
   type SponsorshipContract,
   type SimulationClubRecord,
   type Club,
+  type ClubProfile,
+  type StaffProfileReadModel,
+  type CompetitionProfile,
   type CompetitionRuleSet,
   type CompetitionSeason,
   type CalendarEntry,
@@ -353,6 +356,7 @@ import { buildOwnerMatchday, type OwnerMatchdayView } from "./owner-matchday.js"
 import { buildActorPlayerActions, type ActorPlayerActions } from "./player-actions.js";
 import { buildEntityReference } from "./entity-reference.js";
 import { buildOrganizationProfile } from "./organization-profile.js";
+import { buildClubProfile, buildCompetitionProfile, buildStaffProfile } from "./entity-profiles.js";
 import { buildPlayerContractContext, buildPlayerTransferContext } from "./player-context.js";
 import { buildOwnerPostMatchSuggestion } from "./owner-meeting-suggestion.js";
 import {
@@ -3146,6 +3150,18 @@ export class DesktopApplicationService {
     return this.managerCommand((db, save, context) =>
       buildPlayerProfile(db, save, context, playerId),
     );
+  }
+
+  getClubProfile(clubId: EntityId): AppResult<ClubProfile> {
+    return this.withSession((db, save) => buildClubProfile(db, clubId, activeCareerRole(db, careerPersonId(db, save))));
+  }
+
+  getStaffProfile(personId: EntityId): AppResult<StaffProfileReadModel> {
+    return this.withSession((db, save) => buildStaffProfile(db, personId, activeCareerRole(db, careerPersonId(db, save))));
+  }
+
+  getCompetitionProfile(competitionId: EntityId): AppResult<CompetitionProfile> {
+    return this.withSession((db, save) => buildCompetitionProfile(db, competitionId, activeCareerRole(db, careerPersonId(db, save))));
   }
 
   getPlayerActions(playerId: EntityId): AppResult<ActorPlayerActions> {
