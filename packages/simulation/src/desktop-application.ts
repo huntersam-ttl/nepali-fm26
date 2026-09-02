@@ -3199,10 +3199,10 @@ export class DesktopApplicationService {
   }
 
   setTransferStatus(command: TransferListCommand): AppResult<TransferCentre> {
-    return this.managerCommand(
-      (db, save, context) => setManagerTransferStatus(db, save, context, command),
-      true,
-    );
+    return this.managerCommand((db, save, context) => {
+      requireDomainPermission(db, save, context, "TRANSFERS", "setTransferStatus");
+      return setManagerTransferStatus(db, save, context, command);
+    }, true);
   }
 
   getContracts(): AppResult<ContractList> {
