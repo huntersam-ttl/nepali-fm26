@@ -101,6 +101,8 @@ import {
   type DesktopApplicationState,
   type DesktopErrorCode,
   type EntityId,
+  type EntityReference,
+  type EntityReferenceType,
   type AdvanceMatchCommand,
   type FixtureDetail,
   type FixtureList,
@@ -316,6 +318,7 @@ import { capitalInjectionFromInvestor } from "./investor.js";
 import { buildChairmanDashboard, buildFederationPresidentDashboard } from "./role-desktop.js";
 import { buildOwnerMatchday, type OwnerMatchdayView } from "./owner-matchday.js";
 import { buildActorPlayerActions, type ActorPlayerActions } from "./player-actions.js";
+import { buildEntityReference } from "./entity-reference.js";
 import { createFacilityProjectPlan, generateFacilitySiteOptions, type FacilityPlanningInput } from "./facility-planning.js";
 import { initializeFederationGovernanceForSave, federationCommercialOverview } from "./federation-governance.js";
 import { federationDevelopmentSummary } from "./federation-policy.js";
@@ -2666,6 +2669,13 @@ export class DesktopApplicationService {
     return this.withSession((db, save) => {
       const personId = careerPersonId(db, save);
       return buildActorPlayerActions(db, save, activeCareerRole(db, personId), personId, playerId);
+    });
+  }
+
+  getEntityReference(entityType: EntityReferenceType, entityId: EntityId): AppResult<EntityReference> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      return buildEntityReference(db, entityType, entityId, activeCareerRole(db, personId));
     });
   }
 

@@ -291,6 +291,8 @@ const dispatch = (
       return service.getPlayerProfile(body.playerId as EntityId);
     case "getPlayerActions":
       return service.getPlayerActions(body.playerId as EntityId);
+    case "getEntityReference":
+      return service.getEntityReference(body.entityType as any, body.entityId as EntityId);
     case "getTactics":
       return service.getTactics();
     case "updateTactics":
