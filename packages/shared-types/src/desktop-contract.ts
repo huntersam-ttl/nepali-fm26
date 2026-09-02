@@ -445,6 +445,44 @@ export type FederationCommercialOverview = {
     startDate?: string;
     endDate?: string;
   }>;
+  /** Unified President decision surface for all currently supported properties. */
+  properties: PresidentCommercialPropertyView[];
+  history: PresidentCommercialHistoryEntry[];
+};
+
+export type PresidentCommercialPropertyView = {
+  id: EntityId;
+  scope: "FEDERATION" | "COMPETITION" | "SENIOR_MENS" | "YOUTH" | "WOMENS_GIRLS";
+  programme?: "SENIOR_MENS" | "YOUTH" | "WOMENS_GIRLS";
+  competitionSeasonId?: EntityId;
+  canonicalName: string;
+  commercialDisplayTitle?: string;
+  sponsor?: EntityReference;
+  packageId?: EntityId;
+  offerId?: EntityId;
+  termYears?: number;
+  annualValue?: number;
+  status: string;
+  startDate?: string;
+  endDate?: string;
+  negotiationRound: number;
+  settlementState: "SETTLED" | "NOT_SETTLED" | "NOT_APPLICABLE";
+  revenueDestination?: string;
+  competingOfferCount: number;
+  availableActions: Array<"VIEW_OFFERS" | "COUNTER" | "ACCEPT" | "REJECT" | "RENEW">;
+  blockedReason?: string;
+};
+
+export type PresidentCommercialHistoryEntry = {
+  id: EntityId;
+  scope: PresidentCommercialPropertyView["scope"];
+  canonicalName: string;
+  sponsor?: EntityReference;
+  status: string;
+  date?: string;
+  endDate?: string;
+  annualValue?: number;
+  settlementState: "SETTLED" | "NOT_SETTLED" | "NOT_APPLICABLE";
 };
 
 export type FederationNationalTeamSummary = {
@@ -649,6 +687,20 @@ export type DesktopRuntimeApi = {
     endDate?: string,
   ): Promise<AppResult<SponsorshipContract>>;
   getFederationCommercialOverview(): Promise<AppResult<FederationCommercialOverview>>;
+  negotiateFederationCommercialOffer?(
+    offerId: EntityId,
+  ): Promise<AppResult<FederationCommercialRightsOffer>>;
+  counterFederationCommercialOffer?(
+    offerId: EntityId,
+    annualValue: number,
+    termYears?: number,
+  ): Promise<AppResult<FederationCommercialRightsOffer>>;
+  acceptFederationCommercialOffer?(
+    offerId: EntityId,
+  ): Promise<AppResult<FederationCommercialRightsOffer>>;
+  rejectFederationCommercialOffer?(
+    offerId: EntityId,
+  ): Promise<AppResult<FederationCommercialRightsOffer>>;
   createInvestorStakeOffer(
     percentage: number,
     minimumAmount?: number,

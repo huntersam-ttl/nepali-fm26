@@ -3,6 +3,7 @@ import { basename, dirname, join } from "node:path";
 import {
   CareerWorldRepository,
   ClubEconomyRepository,
+  CommercialRightsRepository,
   FacilityPlanningRepository,
   ClubLicensingRepository,
   CompetitionRepository,
@@ -365,6 +366,11 @@ import {
   initializeFederationGovernanceForSave,
   federationCommercialOverview,
 } from "./federation-governance.js";
+import {
+  awardCommercialRightsForPresident,
+  counterCommercialRights,
+  negotiateCommercialRights,
+} from "./commercial-rights.js";
 import { federationDevelopmentSummary } from "./federation-policy.js";
 import { governmentOverview, requestGovernmentFunding, requestClubInfrastructureGovernmentSupport, clubInfrastructureGovernmentContext } from "./government.js";
 import {
@@ -1939,6 +1945,49 @@ export class DesktopApplicationService {
       )?.targetId;
       if (!federationId) throw appError("ROLE_NOT_AUTHORIZED", "No federation is available.");
       return federationCommercialOverview(db, federationId);
+    });
+  }
+
+  negotiateFederationCommercialOffer(offerId: EntityId): AppResult<ReturnType<typeof negotiateCommercialRights>> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "FEDERATION_PRESIDENT")
+        throw appError("ROLE_NOT_AUTHORIZED", "Only the active Federation President may negotiate commercial rights.");
+      return negotiateCommercialRights(db, offerId);
+    });
+  }
+
+  counterFederationCommercialOffer(offerId: EntityId, annualValue: number, termYears?: number): AppResult<ReturnType<typeof counterCommercialRights>> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "FEDERATION_PRESIDENT")
+        throw appError("ROLE_NOT_AUTHORIZED", "Only the active Federation President may counter commercial rights.");
+      return counterCommercialRights(db, { offerId, annualValue, termYears });
+    });
+  }
+
+  acceptFederationCommercialOffer(offerId: EntityId): AppResult<ReturnType<typeof awardCommercialRightsForPresident>> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "FEDERATION_PRESIDENT")
+        throw appError("ROLE_NOT_AUTHORIZED", "Only the active Federation President may accept commercial rights.");
+      const federationId = heldCareerRoles(db, personId).find((entry) => entry.role === "FEDERATION_PRESIDENT")?.targetId;
+      if (!federationId) throw appError("ROLE_NOT_AUTHORIZED", "No federation is available.");
+      return awardCommercialRightsForPresident(db, { offerId, presidentPersonId: personId, federationId, date: save.worldDate, startDate: save.worldDate });
+    });
+  }
+
+  rejectFederationCommercialOffer(offerId: EntityId): AppResult<ReturnType<typeof negotiateCommercialRights>> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "FEDERATION_PRESIDENT")
+        throw appError("ROLE_NOT_AUTHORIZED", "Only the active Federation President may reject commercial rights.");
+      const repo = new CommercialRightsRepository(db);
+      const offer = repo.offers().find((item) => item.id === offerId);
+      if (!offer || !["OFFERED", "NEGOTIATED"].includes(offer.status)) throw appError("INVALID_SELECTION", "Commercial-rights offer is not rejectable.");
+      const rejected = { ...offer, status: "EXPIRED" as const };
+      repo.upsertOffer(rejected);
+      return rejected;
     });
   }
 

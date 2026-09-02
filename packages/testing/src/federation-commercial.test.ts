@@ -61,6 +61,11 @@ describe("federation commercial overview", () => {
     expect(overview.sponsorship?.annualValue).toBe(2_500_000);
     expect(overview.mediaRights).toHaveLength(1);
     expect(overview.mediaRights[0]).toMatchObject({ packageName: "A-Division broadcast rights", broadcasterName: "Himal Broadcast Network", value: 1_200_000, status: "ACTIVE" });
+    expect(overview.properties.find((property) => property.scope === "FEDERATION")).toMatchObject({
+      canonicalName: "Federation main partner",
+      status: "ACTIVE",
+    });
+    expect(overview.history.some((entry) => entry.id === "fc-test-sponsorship")).toBe(true);
 
     db.close();
     rmSync(directory, { recursive: true, force: true });

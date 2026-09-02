@@ -31,6 +31,9 @@ import {
   type PlayerAttributeSet,
   type RefereeDevelopmentProgramme,
   type FederationCommercialOverview,
+  type PresidentCommercialPropertyView,
+  type PresidentCommercialHistoryEntry,
+  type EntityReference,
   type SponsorOrganisation,
   type Team,
 } from "@nepal-football-sim/shared-types";
@@ -42,6 +45,9 @@ import {
   MediaRightsRepository,
   WorkforceSupplyRepository,
   WorldRepository,
+  CommercialRightsRepository,
+  CompetitionCommercialRepository,
+  NationalTeamCommercialRepository,
   YouthRepository,
   type GameDatabase,
 } from "@nepal-football-sim/database";
@@ -49,6 +55,7 @@ import { postClubTransaction } from "./club-economy.js";
 import { simulateMatch } from "./match-engine.js";
 import { PLAYABLE_CLUB_PREDICATE } from "./playable-world.js";
 import { SeededRandom } from "./rng.js";
+import { buildEntityReference } from "./entity-reference.js";
 
 const currency = "NPR";
 const simulationStatus = "SIMULATION_ONLY" as const;
@@ -1714,12 +1721,149 @@ export const federationCommercialOverview = (
           endDate: offer.endDate,
         })),
     );
+  const rights = new CommercialRightsRepository(db);
+  const competitionLinks = new CompetitionCommercialRepository(db).all();
+  const nationalSettlements = new NationalTeamCommercialRepository(db).all(federationId);
+  const supportedCategories = new Set([
+    "FEDERATION_MAIN_PARTNER",
+    "LEAGUE_TITLE_SPONSOR",
+    "NATIONAL_TEAM_SPONSOR",
+    "YOUTH_PROGRAMME_PARTNER",
+    "WOMENS_GIRLS_PROGRAMME_PARTNER",
+  ]);
+  const sponsorReference = (sponsorId: EntityId): EntityReference | undefined => {
+    const reference = buildEntityReference(db, "SPONSOR", sponsorId, "FEDERATION_PRESIDENT");
+    return reference.visible ? reference : undefined;
+  };
+  const competitionContext = (offerId: EntityId): {
+    seasonId?: EntityId;
+    name: string;
+    displayTitle?: string;
+    endDate?: string;
+    settlement: "SETTLED" | "NOT_SETTLED" | "NOT_APPLICABLE";
+  } => {
+    const link = competitionLinks.find((item) => item.rightsOfferId === offerId);
+    if (!link) return { name: "Competition property", settlement: "NOT_SETTLED" };
+    const row = db
+      .prepare(
+        `SELECT c.name AS competition_name, cs.name AS season_name
+         FROM competition_seasons cs JOIN competitions c ON c.id = cs.competition_id
+         WHERE cs.id = ?`,
+      )
+      .get(link.competitionSeasonId) as { competition_name?: string; season_name?: string } | undefined;
+    return {
+      seasonId: link.competitionSeasonId,
+      name: row?.competition_name ?? "Competition property",
+      displayTitle: link.displayTitle,
+      endDate: link.endDate,
+      settlement: "SETTLED",
+    };
+  };
+  const offerActions = (status: string): PresidentCommercialPropertyView["availableActions"] => {
+    if (status === "OFFERED" || status === "NEGOTIATED") return ["VIEW_OFFERS", "COUNTER", "ACCEPT", "REJECT"];
+    if (status === "ACTIVE" || status === "RENEWED") return ["RENEW"];
+    return ["VIEW_OFFERS"];
+  };
+  const properties: PresidentCommercialPropertyView[] = rights
+    .packages(federationId)
+    .filter((item) => supportedCategories.has(item.category))
+    .map((rightsPackage) => {
+      const offers = rights.offers(rightsPackage.id);
+      const selected = offers.find((item) => ["ACTIVE", "RENEWED", "AWARDED"].includes(item.status)) ?? offers[offers.length - 1];
+      const competition = selected ? competitionContext(selected.id) : { name: rightsPackage.name, settlement: "NOT_APPLICABLE" as const };
+      const settlement = selected?.federationLedgerEntryId
+        ? "SETTLED"
+        : selected && nationalSettlements.some((item) => item.rightsOfferId === selected.id)
+          ? "SETTLED"
+          : competition.settlement;
+      return {
+        id: rightsPackage.id,
+        scope: rightsPackage.scope === "COMPETITION"
+          ? "COMPETITION"
+          : rightsPackage.scope === "NATIONAL_TEAM"
+            ? (rightsPackage.category === "YOUTH_PROGRAMME_PARTNER" ? "YOUTH" : rightsPackage.category === "WOMENS_GIRLS_PROGRAMME_PARTNER" ? "WOMENS_GIRLS" : "SENIOR_MENS")
+            : rightsPackage.category === "FEDERATION_MAIN_PARTNER" ? "FEDERATION" : "FEDERATION",
+        programme: rightsPackage.scope === "NATIONAL_TEAM"
+          ? (rightsPackage.category === "YOUTH_PROGRAMME_PARTNER" ? "YOUTH" : rightsPackage.category === "WOMENS_GIRLS_PROGRAMME_PARTNER" ? "WOMENS_GIRLS" : "SENIOR_MENS")
+          : undefined,
+        competitionSeasonId: competition.seasonId,
+        canonicalName: competition.name,
+        commercialDisplayTitle: competition.displayTitle,
+        sponsor: selected ? sponsorReference(selected.sponsorId) : undefined,
+        packageId: rightsPackage.id,
+        offerId: selected?.id,
+        termYears: selected?.termYears,
+        annualValue: selected?.annualValue,
+        status: selected?.status ?? rightsPackage.status,
+        startDate: selected?.startDate,
+        endDate: selected?.endDate ?? competition.endDate,
+        negotiationRound: selected?.status === "NEGOTIATED" ? 1 : 0,
+        settlementState: settlement,
+        revenueDestination: selected?.federationLedgerEntryId ? "FEDERATION_LEDGER" : undefined,
+        competingOfferCount: Math.max(0, offers.filter((item) => ["OFFERED", "NEGOTIATED"].includes(item.status) && item.id !== selected?.id).length),
+        availableActions: offerActions(selected?.status ?? rightsPackage.status),
+      };
+    });
+  const activeLegacyFederationSponsor = sponsorship;
+  if (activeLegacyFederationSponsor && !properties.some((property) => property.scope === "FEDERATION")) {
+    properties.unshift({
+      id: activeLegacyFederationSponsor.id,
+      scope: "FEDERATION",
+      canonicalName: "Federation main partner",
+      sponsor: sponsorReference(activeLegacyFederationSponsor.sponsorId),
+      status: activeLegacyFederationSponsor.status,
+      startDate: activeLegacyFederationSponsor.startDate,
+      endDate: activeLegacyFederationSponsor.endDate,
+      annualValue: activeLegacyFederationSponsor.annualValue,
+      negotiationRound: 0,
+      settlementState: "NOT_APPLICABLE",
+      revenueDestination: "FEDERATION_LEDGER",
+      competingOfferCount: 0,
+      availableActions: ["RENEW"],
+    });
+  }
+  const history: PresidentCommercialHistoryEntry[] = rights
+    .offers()
+    .filter((item) => item.federationId === federationId && ["ACTIVE", "EXPIRED", "RENEWED", "AWARDED"].includes(item.status))
+    .sort((a, b) => `${b.offeredOn}:${b.id}`.localeCompare(`${a.offeredOn}:${a.id}`))
+    .slice(0, 50)
+    .map((item) => {
+      const rightsPackage = rights.packages(federationId).find((candidate) => candidate.id === item.packageId);
+      const competition = competitionContext(item.id);
+      return {
+        id: item.id,
+        scope: competition.seasonId ? "COMPETITION" : rightsPackage?.scope === "NATIONAL_TEAM" ? (rightsPackage.category === "YOUTH_PROGRAMME_PARTNER" ? "YOUTH" : rightsPackage.category === "WOMENS_GIRLS_PROGRAMME_PARTNER" ? "WOMENS_GIRLS" : "SENIOR_MENS") : "FEDERATION",
+        canonicalName: competition.name,
+        sponsor: sponsorReference(item.sponsorId),
+        status: item.status,
+        date: item.offeredOn,
+        endDate: item.endDate,
+        annualValue: item.annualValue,
+        settlementState: item.federationLedgerEntryId || nationalSettlements.some((entry) => entry.rightsOfferId === item.id) || competition.seasonId ? "SETTLED" : "NOT_SETTLED",
+      };
+    });
+  const legacyHistory = new FederationGovernanceRepository(db).federationSponsorships(federationId)
+    .filter((item) => item.status !== "OFFERED")
+    .slice(-50)
+    .map((item) => ({
+      id: item.id,
+      scope: "FEDERATION" as const,
+      canonicalName: "Federation main partner",
+      sponsor: sponsorReference(item.sponsorId),
+      status: item.status,
+      date: item.startDate,
+      endDate: item.endDate,
+      annualValue: item.annualValue,
+      settlementState: "NOT_APPLICABLE" as const,
+    }));
   return {
     federationId,
     sponsorship: sponsorship
       ? { ...sponsorship, sponsorName: sponsors.get(sponsorship.sponsorId)?.name ?? "Unknown sponsor" }
       : undefined,
     mediaRights,
+    properties,
+    history: [...history, ...legacyHistory].sort((a, b) => `${b.date ?? ""}:${b.id}`.localeCompare(`${a.date ?? ""}:${a.id}`)).slice(0, 50),
   };
 };
 

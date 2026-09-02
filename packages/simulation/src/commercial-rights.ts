@@ -692,6 +692,27 @@ export const negotiateCommercialRights = (
   return negotiated;
 };
 
+export const counterCommercialRights = (
+  db: GameDatabase,
+  input: { offerId: EntityId; annualValue: number; termYears?: number },
+): FederationCommercialRightsOffer => {
+  const repo = new CommercialRightsRepository(db);
+  const offer = repo.offers().find((item) => item.id === input.offerId);
+  if (!offer || !["OFFERED", "NEGOTIATED"].includes(offer.status))
+    throw new Error("Commercial-rights offer is not negotiable");
+  const annualValue = Math.max(20_000, Math.min(3_500_000, Math.round(input.annualValue)));
+  const termYears = Math.max(1, Math.min(4, Math.round(input.termYears ?? offer.termYears)));
+  const countered = {
+    ...offer,
+    annualValue,
+    termYears,
+    bonuses: { performance: Math.round(annualValue * 0.05), reach: Math.round(annualValue * 0.03) },
+    status: "NEGOTIATED" as const,
+  };
+  repo.upsertOffer(countered);
+  return countered;
+};
+
 /** The caller explicitly selects an offer; cash alone never awards a package. */
 export const awardCommercialRights = (
   db: GameDatabase,

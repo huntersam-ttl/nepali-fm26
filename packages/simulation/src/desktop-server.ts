@@ -276,6 +276,14 @@ const dispatch = (
       );
     case "getFederationCommercialOverview":
       return service.getFederationCommercialOverview();
+    case "negotiateFederationCommercialOffer":
+      return service.negotiateFederationCommercialOffer(body.offerId as EntityId);
+    case "counterFederationCommercialOffer":
+      return service.counterFederationCommercialOffer(body.offerId as EntityId, body.annualValue as number, body.termYears as number | undefined);
+    case "acceptFederationCommercialOffer":
+      return service.acceptFederationCommercialOffer(body.offerId as EntityId);
+    case "rejectFederationCommercialOffer":
+      return service.rejectFederationCommercialOffer(body.offerId as EntityId);
     case "createInvestorStakeOffer":
       return service.createInvestorStakeOffer(
         body.percentage as number,
