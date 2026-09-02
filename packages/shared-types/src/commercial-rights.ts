@@ -3,6 +3,8 @@ import type { EntityId } from "./ids.js";
 export type FederationCommercialRightsCategory =
   | "FEDERATION_MAIN_PARTNER"
   | "NATIONAL_TEAM_SPONSOR"
+  | "YOUTH_PROGRAMME_PARTNER"
+  | "WOMENS_GIRLS_PROGRAMME_PARTNER"
   | "LEAGUE_TITLE_SPONSOR"
   | "WOMENS_LEAGUE_SPONSOR"
   | "YOUTH_COMPETITION_SPONSOR"
@@ -86,7 +88,8 @@ export type NationalTeamCommercialSettlement = {
   id: EntityId;
   federationId: EntityId;
   programme: "SENIOR_MENS" | "YOUTH" | "WOMENS_GIRLS";
-  commercialProperty: "MAIN_PARTNER";
+  commercialProperty:
+    "MAIN_PARTNER" | "YOUTH_DEVELOPMENT_PARTNER" | "WOMENS_GIRLS_DEVELOPMENT_PARTNER";
   sourceOrganizationId: EntityId;
   rightsOfferId: EntityId;
   amount: number;

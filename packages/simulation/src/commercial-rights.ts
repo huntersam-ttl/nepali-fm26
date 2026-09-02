@@ -167,6 +167,47 @@ export const ensureSeniorNationalTeamMainPartnerPackage = (
   return existing ?? value;
 };
 
+const ensureNationalProgrammePartnerPackage = (
+  db: GameDatabase,
+  input: { federationId: EntityId; date: string; programme: "YOUTH" | "WOMENS_GIRLS" },
+): FederationCommercialRightsPackage => {
+  const youth = input.programme === "YOUTH";
+  const packageId = createStableEntityId(
+    "commercial-rights-package",
+    `${input.federationId}:${input.programme}_DEVELOPMENT_PARTNER`,
+  );
+  const value: FederationCommercialRightsPackage = {
+    id: packageId,
+    federationId: input.federationId,
+    name: youth ? "Youth Development Partner" : "Women & Girls Development Partner",
+    category: youth ? "YOUTH_PROGRAMME_PARTNER" : "WOMENS_GIRLS_PROGRAMME_PARTNER",
+    exclusivityGroup: `${input.programme}_DEVELOPMENT_PARTNER`,
+    scope: youth ? "YOUTH" : "WOMENS",
+    availableFrom: input.date,
+    availableTo: addYears(input.date, 5),
+    status: "AVAILABLE",
+    provenanceStatus: "SIMULATION_ONLY",
+  };
+  const repo = new CommercialRightsRepository(db);
+  const existing = repo.packages(input.federationId).find((item) => item.id === packageId);
+  if (!existing) repo.upsertPackage(value);
+  return existing ?? value;
+};
+
+export const ensureYouthDevelopmentPartnerPackage = (
+  db: GameDatabase,
+  federationId: EntityId,
+  date: string,
+): FederationCommercialRightsPackage =>
+  ensureNationalProgrammePartnerPackage(db, { federationId, date, programme: "YOUTH" });
+
+export const ensureWomensGirlsDevelopmentPartnerPackage = (
+  db: GameDatabase,
+  federationId: EntityId,
+  date: string,
+): FederationCommercialRightsPackage =>
+  ensureNationalProgrammePartnerPackage(db, { federationId, date, programme: "WOMENS_GIRLS" });
+
 export const ensureADivisionTitleSponsorPackage = (
   db: GameDatabase,
   federationId: EntityId,
@@ -265,7 +306,7 @@ export const awardCommercialRightsForPresident = (
   return awardCommercialRights(db, input);
 };
 
-export const activateSeniorNationalTeamMainPartner = (
+const activateNationalProgrammePartner = (
   db: GameDatabase,
   input: {
     offerId: EntityId;
@@ -273,6 +314,10 @@ export const activateSeniorNationalTeamMainPartner = (
     presidentPersonId: EntityId;
     date: string;
     startDate: string;
+    programme: NationalTeamCommercialSettlement["programme"];
+    commercialProperty: NationalTeamCommercialSettlement["commercialProperty"];
+    expectedScope: FederationCommercialRightsPackage["scope"];
+    expectedCategory: FederationCommercialRightsPackage["category"];
   },
 ): NationalTeamCommercialSettlement => {
   if (!activePresidentForFederation(db, input.federationId, input.presidentPersonId))
@@ -284,15 +329,15 @@ export const activateSeniorNationalTeamMainPartner = (
   if (existing) return existing;
   const rightsRepo = new CommercialRightsRepository(db);
   const offer = rightsRepo.offers().find((item) => item.id === input.offerId);
-  if (!offer || offer.federationId !== input.federationId || offer.scope !== "NATIONAL_TEAM")
-    throw new Error("Offer is not a senior national-team commercial package");
+  if (!offer || offer.federationId !== input.federationId || offer.scope !== input.expectedScope)
+    throw new Error("Offer is not a supported national programme commercial package");
   const rightsPackage = rightsRepo
     .packages(input.federationId)
     .find((item) => item.id === offer.packageId);
-  if (!rightsPackage || rightsPackage.category !== "NATIONAL_TEAM_SPONSOR")
-    throw new Error("Offer is not a national-team main-partner package");
+  if (!rightsPackage || rightsPackage.category !== input.expectedCategory)
+    throw new Error("Offer is not the requested national programme commercial package");
   const activeSenior = settlements
-    .byProgramme(input.federationId, "SENIOR_MENS")
+    .byProgramme(input.federationId, input.programme)
     .some((settlement) =>
       rightsRepo
         .offers()
@@ -300,26 +345,80 @@ export const activateSeniorNationalTeamMainPartner = (
           (candidate) => candidate.id === settlement.rightsOfferId && candidate.status === "ACTIVE",
         ),
     );
-  if (activeSenior) throw new Error("A senior national-team main partner is already active");
+  if (activeSenior) throw new Error("A national programme partner is already active");
   const active = offer.status === "ACTIVE" ? offer : awardCommercialRightsForPresident(db, input);
   if (!active.federationLedgerEntryId)
     throw new Error("National-team commercial settlement has no federation ledger entry");
   const settlement: NationalTeamCommercialSettlement = {
     id: createStableEntityId("national-team-commercial-settlement", input.offerId),
     federationId: input.federationId,
-    programme: "SENIOR_MENS",
-    commercialProperty: "MAIN_PARTNER",
+    programme: input.programme,
+    commercialProperty: input.commercialProperty,
     sourceOrganizationId: active.sponsorId,
     rightsOfferId: active.id,
     amount: active.annualValue,
     settledOn: input.date,
     federationLedgerEntryId: active.federationLedgerEntryId,
-    restrictionTag: "NATIONAL_TEAM:SENIOR_MENS:MAIN_PARTNER",
+    restrictionTag: `NATIONAL_TEAM:${input.programme}:${input.commercialProperty}`,
     provenanceStatus: "SIMULATION_ONLY",
   };
   settlements.insert(settlement);
   return settlement;
 };
+
+export const activateSeniorNationalTeamMainPartner = (
+  db: GameDatabase,
+  input: {
+    offerId: EntityId;
+    federationId: EntityId;
+    presidentPersonId: EntityId;
+    date: string;
+    startDate: string;
+  },
+): NationalTeamCommercialSettlement =>
+  activateNationalProgrammePartner(db, {
+    ...input,
+    programme: "SENIOR_MENS",
+    commercialProperty: "MAIN_PARTNER",
+    expectedScope: "NATIONAL_TEAM",
+    expectedCategory: "NATIONAL_TEAM_SPONSOR",
+  });
+
+export const activateYouthDevelopmentPartner = (
+  db: GameDatabase,
+  input: {
+    offerId: EntityId;
+    federationId: EntityId;
+    presidentPersonId: EntityId;
+    date: string;
+    startDate: string;
+  },
+): NationalTeamCommercialSettlement =>
+  activateNationalProgrammePartner(db, {
+    ...input,
+    programme: "YOUTH",
+    commercialProperty: "YOUTH_DEVELOPMENT_PARTNER",
+    expectedScope: "YOUTH",
+    expectedCategory: "YOUTH_PROGRAMME_PARTNER",
+  });
+
+export const activateWomensGirlsDevelopmentPartner = (
+  db: GameDatabase,
+  input: {
+    offerId: EntityId;
+    federationId: EntityId;
+    presidentPersonId: EntityId;
+    date: string;
+    startDate: string;
+  },
+): NationalTeamCommercialSettlement =>
+  activateNationalProgrammePartner(db, {
+    ...input,
+    programme: "WOMENS_GIRLS",
+    commercialProperty: "WOMENS_GIRLS_DEVELOPMENT_PARTNER",
+    expectedScope: "WOMENS",
+    expectedCategory: "WOMENS_GIRLS_PROGRAMME_PARTNER",
+  });
 
 export const nationalTeamCommercialReadModel = (db: GameDatabase, federationId: EntityId) => {
   const repo = new CommercialRightsRepository(db);
