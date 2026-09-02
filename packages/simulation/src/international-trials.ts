@@ -15,7 +15,7 @@ import {
 import {
   getPlayerKnowledge,
   recordTrialObservation,
-  searchRegionalCandidatesForClub,
+  searchRegionalCandidatesForClubCached,
 } from "./scouting.js";
 import { createTransferOffer } from "./transfer-market.js";
 
@@ -60,10 +60,15 @@ const clubCountry = (db: GameDatabase, clubId: EntityId): string | undefined =>
       .get(clubId) as { iso_code?: string } | undefined
   )?.iso_code;
 
-const playerContext = (db: GameDatabase, playerId: EntityId): {
-  currentClubId?: EntityId;
-  countryCode?: string;
-} | undefined => {
+const playerContext = (
+  db: GameDatabase,
+  playerId: EntityId,
+):
+  | {
+      currentClubId?: EntityId;
+      countryCode?: string;
+    }
+  | undefined => {
   const row = db
     .prepare(
       `SELECT p.id AS player_id,
@@ -78,9 +83,10 @@ const playerContext = (db: GameDatabase, playerId: EntityId): {
        WHERE p.id = ?`,
     )
     .get(playerId) as
-    | { player_id?: EntityId; current_club_id?: EntityId; country_code?: string }
-    | undefined;
-  return row?.player_id ? { currentClubId: row.current_club_id, countryCode: row.country_code } : undefined;
+    { player_id?: EntityId; current_club_id?: EntityId; country_code?: string } | undefined;
+  return row?.player_id
+    ? { currentClubId: row.current_club_id, countryCode: row.country_code }
+    : undefined;
 };
 
 const isPlayer = (db: GameDatabase, playerId: EntityId): boolean =>
@@ -98,16 +104,25 @@ const isPlayer = (db: GameDatabase, playerId: EntityId): boolean =>
 const isClub = (db: GameDatabase, clubId: EntityId): boolean =>
   Boolean(db.prepare("SELECT 1 FROM clubs WHERE id = ?").get(clubId));
 
-const validateInvitation = (db: GameDatabase, input: TrialInvitationInput): {
+const validateInvitation = (
+  db: GameDatabase,
+  input: TrialInvitationInput,
+): {
   currentClubId?: EntityId;
   currentContract?: ReturnType<TransferMarketRepository["activeContract"]>;
 } => {
-  if (!isPlayer(db, input.playerId)) throw new Error("International trial player is not a valid player");
-  if (!isClub(db, input.hostClubId)) throw new Error("International trial host club does not exist");
+  if (!isPlayer(db, input.playerId))
+    throw new Error("International trial player is not a valid player");
+  if (!isClub(db, input.hostClubId))
+    throw new Error("International trial host club does not exist");
   const invitedAt = isoDate(input.invitedOn);
   const startsAt = isoDate(input.startDate);
   const endsAt = isoDate(input.endDate);
-  if (![invitedAt, startsAt, endsAt].every(Number.isFinite) || invitedAt > startsAt || endsAt <= startsAt) {
+  if (
+    ![invitedAt, startsAt, endsAt].every(Number.isFinite) ||
+    invitedAt > startsAt ||
+    endsAt <= startsAt
+  ) {
     throw new Error("International trial dates are invalid");
   }
   if (daysBetween(input.startDate, input.endDate) > MAX_INTERNATIONAL_TRIAL_DAYS) {
@@ -218,12 +233,21 @@ export const evaluateInternationalTrialInvitation = (
   const rounded = Math.round(score * 100) / 100;
   return rounded >= 25
     ? { accepted: true, score: rounded, reason: "Trial offers a credible cross-border opportunity" }
-    : { accepted: false, score: rounded, reason: "Trial opportunity does not meet the player's current career threshold" };
+    : {
+        accepted: false,
+        score: rounded,
+        reason: "Trial opportunity does not meet the player's current career threshold",
+      };
 };
 
 export const respondToInternationalTrial = (
   db: GameDatabase,
-  input: { trialId: EntityId; response: "ACCEPTED" | "REJECTED"; responseDate: string; seed: string },
+  input: {
+    trialId: EntityId;
+    response: "ACCEPTED" | "REJECTED";
+    responseDate: string;
+    seed: string;
+  },
 ): InternationalTrialRecord => {
   const repository = new InternationalTrialsRepository(db);
   const trial = repository.get(input.trialId);
@@ -311,7 +335,10 @@ export const createTransferOfferAfterInternationalTrial = (
   if (!trial || !["ACTIVE", "COMPLETED"].includes(trial.state)) {
     throw new Error("A normal offer requires an active or completed international trial");
   }
-  const contract = new TransferMarketRepository(db).activeContract(trial.playerId, input.submittedAt);
+  const contract = new TransferMarketRepository(db).activeContract(
+    trial.playerId,
+    input.submittedAt,
+  );
   return createTransferOffer(db, {
     buyingClubId: trial.hostClubId,
     sellingClubId: contract?.clubId,
@@ -340,12 +367,9 @@ export const considerInternationalTrialsForClub = (
     .shortlist(input.clubId)
     .slice(0, 8)
     .map((item) => item.playerId);
-  const regional = searchRegionalCandidatesForClub(db, input.clubId, {}, input.worldDate, 16);
+  const regional = searchRegionalCandidatesForClubCached(db, input.clubId, {}, input.worldDate, 16);
   const byId = new Map(regional.map((candidate) => [candidate.playerId, candidate]));
-  const ordered = [
-    ...shortlistIds.map((id) => byId.get(id)).filter(Boolean),
-    ...regional,
-  ].filter(
+  const ordered = [...shortlistIds.map((id) => byId.get(id)).filter(Boolean), ...regional].filter(
     (candidate, index, all) =>
       candidate && all.findIndex((item) => item?.playerId === candidate.playerId) === index,
   );
@@ -355,7 +379,8 @@ export const considerInternationalTrialsForClub = (
     if (!candidate || created.length >= limit) break;
     if (KNOWLEDGE_RANK[candidate.knowledgeLevel] > KNOWLEDGE_RANK.BASIC) continue;
     if (market.activeContract(candidate.playerId, input.worldDate)) continue;
-    if (new InternationalTrialsRepository(db).activeForPlayer(candidate.playerId).length > 0) continue;
+    if (new InternationalTrialsRepository(db).activeForPlayer(candidate.playerId).length > 0)
+      continue;
     try {
       const invitation = createInternationalTrialFromScouting(db, {
         playerId: candidate.playerId,
@@ -399,7 +424,8 @@ export const considerForeignInternationalTrials = (
     .interests()
     .filter((item) => ["INTERESTED", "ACTIVE_SCOUTING", "TRIAL_INTEREST"].includes(item.level))
     .slice(0, limit * 2)) {
-    if (created.length >= limit || market.activeContract(interest.targetPlayerId, input.worldDate)) continue;
+    if (created.length >= limit || market.activeContract(interest.targetPlayerId, input.worldDate))
+      continue;
     try {
       created.push(
         createInternationalTrialFromForeignScouting(db, {

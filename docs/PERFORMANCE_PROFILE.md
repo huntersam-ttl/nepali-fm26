@@ -2,6 +2,32 @@
 
 ## Season-1 long-save revalidation after migration 85
 
+## Season-3+ scaling pass after bounded AI discovery cache
+
+On 2026-09-02, the canonical three-season workload was profiled with the same seed and
+checkpoint/reload settings. The dominant growth was annual AI planning, specifically repeated
+all-player/statistics reconstruction inside regional trial discovery for each Nepal club. A
+bounded per-database/per-world-date player pool is now reused only by the unfiltered AI trial
+discovery consumer; public filtered recruitment searches retain their uncached canonical snapshot
+semantics. The cache invalidates when the person population changes, so generated players are not
+hidden and no state crosses saves or dates.
+
+| Measure                 |  Before |   After |       Change |
+| ----------------------- | ------: | ------: | -----------: |
+| Season 1                | 221.70s | 161.91s | 27.0% faster |
+| Season 2                | 262.42s | 233.78s | 10.9% faster |
+| Season 3                | 503.34s | 401.54s | 20.2% faster |
+| Cumulative              | 987.46s | 797.22s | 19.3% faster |
+| Economy/ownership/AI S1 |  58.01s |  40.68s | 29.9% faster |
+| Economy/ownership/AI S2 | 119.33s |  93.09s | 22.0% faster |
+| Economy/ownership/AI S3 | 272.82s | 137.03s | 49.8% faster |
+
+All **2,571 / 2,571 matches** completed. Structural shortages and emergency lineups remained
+zero; duplicate IDs/finalizations were zero; finances were finite; and all checkpoint reloads
+passed. Save size remained approximately **82.25 → 116.42 → 151.29 MB** and observed RSS was
+approximately **461.0 → 470.1 → 565.8 MB** in this run. The 20-season gate remains unproven, so
+this is a material scaling improvement but not a release-gate pass.
+
 ## Final Season-1 revalidation after structural-shortage correction
 
 On 2026-09-02, the canonical full-production Season-1 harness was rerun once from the current
@@ -17,19 +43,19 @@ completion check. Migration errors, crashes, duplicate finalizations, broken con
 non-finite finances were not observed. The temporary benchmark database was removed by the test
 harness after capture, so direct post-run SQL inspection was limited to its persisted snapshot.
 
-| Measure | Result |
-| --- | ---: |
-| Matches / fixtures | 851 / 872 (851 played) |
-| Wall time | 184.30s elapsed |
-| Previous 239.54s result | 23.1% faster |
-| Original 465.3s result | 60.4% faster |
-| Save size | 82.24 MB |
-| Peak RSS | 575.1 MB |
-| Structural shortages | 0 |
-| Emergency lineups | 0 |
-| Duplicate IDs | 0 |
-| Financial values | finite |
-| Season terminal state | 5 rolled over, 0 suspended |
+| Measure                 |                     Result |
+| ----------------------- | -------------------------: |
+| Matches / fixtures      |     851 / 872 (851 played) |
+| Wall time               |            184.30s elapsed |
+| Previous 239.54s result |               23.1% faster |
+| Original 465.3s result  |               60.4% faster |
+| Save size               |                   82.24 MB |
+| Peak RSS                |                   575.1 MB |
+| Structural shortages    |                          0 |
+| Emergency lineups       |                          0 |
+| Duplicate IDs           |                          0 |
+| Financial values        |                     finite |
+| Season terminal state   | 5 rolled over, 0 suspended |
 
 The Season-1 performance result is materially improved and passes the single-season runtime gate.
 The multi-season long-save release gate remains **FAIL / UNPROVEN** because no new multi-season
@@ -41,19 +67,19 @@ The run completed all 851 matches without a crash or stall in **239.54s elapsed*
 harness reported 254.04s including setup/transform overhead), compared with the previous **465.3s**
 baseline: **48.5% faster**. The database was 82.15 MB and peak observed RSS was 578.5 MB.
 
-| Measure | Result |
-| --- | ---: |
+| Measure            |                 Result |
+| ------------------ | ---------------------: |
 | Matches / fixtures | 851 / 872 (851 played) |
-| Wall time | 239.54s elapsed |
-| Previous baseline | 465.3s |
-| Improvement | 48.5% |
-| Save size | 82.15 MB |
-| Peak RSS | 578.5 MB |
-| Migration | 85 applied |
-| Duplicate IDs | 0 |
-| Financial values | finite |
-| Emergency lineups | 0 |
-| Position shortages | 2 |
+| Wall time          |        239.54s elapsed |
+| Previous baseline  |                 465.3s |
+| Improvement        |                  48.5% |
+| Save size          |               82.15 MB |
+| Peak RSS           |               578.5 MB |
+| Migration          |             85 applied |
+| Duplicate IDs      |                      0 |
+| Financial values   |                 finite |
+| Emergency lineups  |                      0 |
+| Position shortages |                      2 |
 
 The harness completed its save-close/reopen checkpoint and reported valid match completion, but the
 strict correctness assertion failed on two position-shortage cases (the prior baseline recorded

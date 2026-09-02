@@ -437,11 +437,17 @@ export const recordTrialObservation = (
   return knowledge;
 };
 
-export const searchPlayersForClub = (
+const regionalSearchPlayerCache = new WeakMap<
+  GameDatabase,
+  { worldDate: string; personCount: number; players: TruePlayer[] }
+>();
+
+const searchPlayersForClubWithPlayers = (
   db: GameDatabase,
   clubId: EntityId,
   filters: RecruitmentSearchFilters = {},
   worldDate = "2026-08-01",
+  players: TruePlayer[] = allTruePlayers(db),
 ): RecruitmentSearchResult[] => {
   const recruitment = new RecruitmentRepository(db);
   const knowledge = new Map(
@@ -449,7 +455,7 @@ export const searchPlayersForClub = (
       .playerKnowledgeForClub(clubId)
       .map((item) => [item.playerId, decayKnowledge(item, worldDate)]),
   );
-  return allTruePlayers(db)
+  return players
     .map((player) => searchResult(player, knowledge.get(player.playerId)))
     .filter((result) => passesFilters(result, filters, worldDate, db))
     .sort(
@@ -458,6 +464,13 @@ export const searchPlayersForClub = (
         String(a.playerId).localeCompare(String(b.playerId)),
     );
 };
+
+export const searchPlayersForClub = (
+  db: GameDatabase,
+  clubId: EntityId,
+  filters: RecruitmentSearchFilters = {},
+  worldDate = "2026-08-01",
+): RecruitmentSearchResult[] => searchPlayersForClubWithPlayers(db, clubId, filters, worldDate);
 
 export const marketRegionForPlayer = (
   db: GameDatabase,
@@ -508,12 +521,13 @@ export const accessibleRecruitmentRegions = (
   return regions;
 };
 
-export const searchRegionalCandidatesForClub = (
+const searchRegionalCandidatesForClubWithPlayers = (
   db: GameDatabase,
   clubId: EntityId,
   filters: RecruitmentSearchFilters = {},
   worldDate = "2026-08-01",
   limit = 12,
+  players: TruePlayer[],
 ): RecruitmentSearchResult[] => {
   const partnerships = activeScoutingPartnerships(db, clubId, worldDate);
   const accessible = new Set(accessibleRecruitmentRegions(db, clubId, worldDate));
@@ -521,7 +535,7 @@ export const searchRegionalCandidatesForClub = (
     ...partnerships.map((partnership) => partnership.toClubId),
     ...new ClubNetworkRepository(db).activeRelatedClubIds(clubId, worldDate),
   ]);
-  const visible = searchPlayersForClub(db, clubId, filters, worldDate);
+  const visible = searchPlayersForClubWithPlayers(db, clubId, filters, worldDate, players);
   // A partnership supplies a small discovery signal for players at the actual
   // partner club. It is derived per search, not accumulated in save state, and
   // remains MINIMAL so exact knowledge and ordinary filters still govern.
@@ -554,6 +568,45 @@ export const searchRegionalCandidatesForClub = (
         String(a.playerId).localeCompare(String(b.playerId)),
     )
     .slice(0, Math.max(1, Math.min(limit, 24)));
+};
+
+export const searchRegionalCandidatesForClub = (
+  db: GameDatabase,
+  clubId: EntityId,
+  filters: RecruitmentSearchFilters = {},
+  worldDate = "2026-08-01",
+  limit = 12,
+): RecruitmentSearchResult[] =>
+  searchRegionalCandidatesForClubWithPlayers(
+    db,
+    clubId,
+    filters,
+    worldDate,
+    limit,
+    allTruePlayers(db),
+  );
+
+export const searchRegionalCandidatesForClubCached = (
+  db: GameDatabase,
+  clubId: EntityId,
+  filters: RecruitmentSearchFilters = {},
+  worldDate = "2026-08-01",
+  limit = 12,
+): RecruitmentSearchResult[] => {
+  if (Object.keys(filters).length > 0)
+    return searchRegionalCandidatesForClub(db, clubId, filters, worldDate, limit);
+  const personCount = Number(
+    (db.prepare("SELECT COUNT(*) AS count FROM persons").get() as { count?: number } | undefined)
+      ?.count ?? 0,
+  );
+  const cached = regionalSearchPlayerCache.get(db);
+  const players =
+    cached?.worldDate === worldDate && cached.personCount === personCount
+      ? cached.players
+      : allTruePlayers(db);
+  if (!cached || cached.worldDate !== worldDate || cached.personCount !== personCount)
+    regionalSearchPlayerCache.set(db, { worldDate, personCount, players });
+  return searchRegionalCandidatesForClubWithPlayers(db, clubId, filters, worldDate, limit, players);
 };
 
 /** Derived, minimal candidate access for an active preferred-transfer source. */
