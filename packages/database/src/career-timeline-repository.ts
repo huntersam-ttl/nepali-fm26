@@ -33,6 +33,15 @@ export class CareerTimelineRepository {
         event.provenanceStatus,
       );
   }
+  hasSource(personId: EntityId, sourceEntityId: EntityId): boolean {
+    return Boolean(
+      this.db
+        .prepare(
+          "SELECT 1 FROM career_timeline_events WHERE person_id=? AND source_entity_id=? LIMIT 1",
+        )
+        .get(personId, sourceEntityId),
+    );
+  }
   events(filter: CareerTimelineFilter): CareerTimelineEvent[] {
     const rows = this.db
       .prepare(

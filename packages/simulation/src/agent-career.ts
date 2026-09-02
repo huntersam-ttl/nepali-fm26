@@ -333,11 +333,20 @@ export const recordCareerTimelineEvent = (
 export const careerTimeline = (
   db: GameDatabase,
   filter: CareerTimelineFilter,
-): CareerTimelineEvent[] => new CareerTimelineRepository(db).events(filter);
+): CareerTimelineEvent[] => {
+  syncCareerTimeline(db, filter.personId);
+  return new CareerTimelineRepository(db).events(filter);
+};
 
 /** Projects persisted career evidence into the shared timeline; it never invents prior history. */
 export const syncCareerTimeline = (db: GameDatabase, personId: EntityId): CareerTimelineEvent[] => {
   const events: CareerTimelineEvent[] = [];
+  const timeline = new CareerTimelineRepository(db);
+  const add = (event: CareerTimelineEvent) => {
+    if (event.sourceEntityId && timeline.hasSource(personId, event.sourceEntityId)) return;
+    recordCareerTimelineEvent(db, event);
+    events.push(event);
+  };
   const identity = new CareerIdentityRepository(db).get(personId);
   for (const milestone of identity?.milestones ?? []) {
     const event: CareerTimelineEvent = {
@@ -355,8 +364,7 @@ export const syncCareerTimeline = (db: GameDatabase, personId: EntityId): Career
       sourceEntityId: milestone.sourceEntityId,
       provenanceStatus: "SIMULATION_ONLY",
     };
-    recordCareerTimelineEvent(db, event);
-    events.push(event);
+    add(event);
   }
   for (const history of new StaffMarketRepository(db).staffHistoryForPerson(personId)) {
     const isDeparture =
@@ -376,8 +384,90 @@ export const syncCareerTimeline = (db: GameDatabase, personId: EntityId): Career
       sourceEntityId: history.appointmentId,
       provenanceStatus: "SIMULATION_ONLY",
     };
-    recordCareerTimelineEvent(db, event);
-    events.push(event);
+    add(event);
+  }
+  const transferRows = db
+    .prepare("SELECT * FROM transfer_history_events WHERE player_id=? ORDER BY occurred_on,id")
+    .all(personId) as any[];
+  for (const history of transferRows) {
+    add({
+      id: createStableEntityId("career-timeline-transfer", history.id),
+      personId,
+      occurredOn: history.occurred_on,
+      role: "PLAYER",
+      category: "TRANSFER",
+      title: String(history.event_type).replaceAll("_", " "),
+      importance: "HIGH",
+      clubId: history.club_id ?? undefined,
+      sourceEntityId: history.id,
+      seasonLabel: String(history.occurred_on).slice(0, 4),
+      provenanceStatus: "SIMULATION_ONLY",
+    });
+  }
+  const contractRows = db
+    .prepare(
+      "SELECT id,start_date,end_date,status,club_id FROM player_contracts WHERE player_id=? ORDER BY start_date,id",
+    )
+    .all(personId) as any[];
+  for (const contract of contractRows) {
+    add({
+      id: createStableEntityId("career-timeline-contract", contract.id),
+      personId,
+      occurredOn: contract.start_date,
+      role: "PLAYER",
+      category: "CONTRACT",
+      title: `Contract ${String(contract.status).toLowerCase()}`,
+      importance: "MEDIUM",
+      clubId: contract.club_id,
+      sourceEntityId: contract.id,
+      seasonLabel: String(contract.start_date).slice(0, 4),
+      provenanceStatus: "SIMULATION_ONLY",
+    });
+  }
+  const historicalRows = db
+    .prepare(
+      "SELECT * FROM historical_events WHERE involved_entities_json LIKE ? ORDER BY occurred_on,id",
+    )
+    .all(`%${personId}%`) as any[];
+  for (const history of historicalRows) {
+    let entities: Array<{ id?: string; type?: string }> = [];
+    try {
+      const parsed = JSON.parse(history.involved_entities_json);
+      entities = Array.isArray(parsed) ? parsed : [];
+    } catch {
+      continue;
+    }
+    if (!entities.some((entity) => entity.id === personId)) continue;
+    const type = String(history.event_type).toUpperCase();
+    const category: CareerTimelineEvent["category"] =
+      type.includes("TRANSFER") || type.includes("SIGNING")
+        ? "TRANSFER"
+        : type.includes("CONTRACT")
+          ? "CONTRACT"
+          : type.includes("PROJECT") || type.includes("FACILITY") || type.includes("HOSTING")
+            ? "PROJECT"
+            : type.includes("APPOINT") || type.includes("ELECT") || type.includes("OWNERSHIP")
+              ? "GOVERNANCE"
+              : type.includes("RETIR") || type.includes("MILESTONE")
+                ? "MILESTONE"
+                : "OTHER";
+    const club = entities.find((entity) => entity.type === "club")?.id;
+    const federation = entities.find((entity) => entity.type === "federation")?.id;
+    add({
+      id: createStableEntityId("career-timeline-history", `${history.id}:${personId}`),
+      personId,
+      occurredOn: history.occurred_on,
+      role: type.includes("AGENT") ? "AGENT" : type.includes("PRESIDENT") ? "PRESIDENT" : "PLAYER",
+      category,
+      title: history.title,
+      importance:
+        history.importance === "high" ? "HIGH" : history.importance === "low" ? "LOW" : "MEDIUM",
+      clubId: club as EntityId | undefined,
+      federationId: federation as EntityId | undefined,
+      sourceEntityId: history.id,
+      seasonLabel: String(history.occurred_on).slice(0, 4),
+      provenanceStatus: "SIMULATION_ONLY",
+    });
   }
   return events.sort(
     (a, b) => a.occurredOn.localeCompare(b.occurredOn) || a.id.localeCompare(b.id),
