@@ -180,11 +180,26 @@ const dispatch = (
     case "getFacilityPlanning":
       return service.getFacilityPlanning(body.clubId as EntityId | undefined);
     case "getFacilitySiteOptions":
-      return service.getFacilitySiteOptions(body.clubId as EntityId, body.districtId as EntityId, body.municipalityName as string);
+      return service.getFacilitySiteOptions(
+        body.clubId as EntityId,
+        body.districtId as EntityId | undefined,
+        body.municipalityName as string | undefined,
+      );
     case "createFacilityProjectPlan":
       return service.createFacilityProjectPlan(body.input as any);
     case "watchOwnerFixture":
       return service.watchOwnerFixture(body.fixtureId as EntityId | undefined);
+    case "advanceOwnerFixture":
+      return service.advanceOwnerFixture(
+        body.command as AdvanceMatchCommand,
+        body.fixtureId as EntityId | undefined,
+        body.viewMode as "TEXT_LIVE" | "KEY_EVENTS" | "QUICK_SIM" | undefined,
+      );
+    case "continueOwnerFixture":
+      return service.continueOwnerFixture(
+        body.fixtureId as EntityId | undefined,
+        body.viewMode as "TEXT_LIVE" | "KEY_EVENTS" | "QUICK_SIM" | undefined,
+      );
     case "quickSimOwnerFixture":
       return service.quickSimOwnerFixture(body.fixtureId as EntityId | undefined);
     case "getFederationPresidentDashboard":
@@ -208,31 +223,58 @@ const dispatch = (
     case "seedE2ERoleFixture":
       return process.env.NEPAL_E2E_ROLE_FIXTURE === "1"
         ? service.seedE2ERoleFixture()
-        : { ok: false, error: { code: "ROLE_NOT_AUTHORIZED", message: "The E2E role fixture is disabled." } };
+        : {
+            ok: false,
+            error: { code: "ROLE_NOT_AUTHORIZED", message: "The E2E role fixture is disabled." },
+          };
     case "foundClub":
       return service.foundClub(body.name as string, body.locationName as string);
     case "implementFederationGovernanceProposal":
       return service.implementFederationGovernanceProposal(body.proposalId as EntityId);
     case "setClubBudget":
-      return service.setClubBudget(body.clubId as EntityId, body.seasonLabel as string, body.category as ClubBudgetCategory, body.amount as number);
+      return service.setClubBudget(
+        body.clubId as EntityId,
+        body.seasonLabel as string,
+        body.category as ClubBudgetCategory,
+        body.amount as number,
+      );
     case "createInfrastructureProject":
-      return service.createInfrastructureProject(body.clubId as EntityId, body.projectType as InfrastructureProjectType);
+      return service.createInfrastructureProject(
+        body.clubId as EntityId,
+        body.projectType as InfrastructureProjectType,
+      );
     case "acceptSponsorOffer":
       return service.acceptSponsorOffer(body.clubId as EntityId, body.sponsorshipId as EntityId);
     case "rejectSponsorOffer":
       return service.rejectSponsorOffer(body.clubId as EntityId, body.sponsorshipId as EntityId);
     case "counterSponsorOffer":
-      return service.counterSponsorOffer(body.clubId as EntityId, body.sponsorshipId as EntityId, body.annualValue as number, body.endDate as string | undefined);
+      return service.counterSponsorOffer(
+        body.clubId as EntityId,
+        body.sponsorshipId as EntityId,
+        body.annualValue as number,
+        body.endDate as string | undefined,
+      );
     case "getSponsorMeeting":
       return service.getSponsorMeeting(body.clubId as EntityId | undefined);
     case "rejectExecutiveSponsorOffer":
-      return service.rejectExecutiveSponsorOffer(body.clubId as EntityId, body.sponsorshipId as EntityId);
+      return service.rejectExecutiveSponsorOffer(
+        body.clubId as EntityId,
+        body.sponsorshipId as EntityId,
+      );
     case "counterExecutiveSponsorOffer":
-      return service.counterExecutiveSponsorOffer(body.clubId as EntityId, body.sponsorshipId as EntityId, body.annualValue as number, body.endDate as string | undefined);
+      return service.counterExecutiveSponsorOffer(
+        body.clubId as EntityId,
+        body.sponsorshipId as EntityId,
+        body.annualValue as number,
+        body.endDate as string | undefined,
+      );
     case "getFederationCommercialOverview":
       return service.getFederationCommercialOverview();
     case "createInvestorStakeOffer":
-      return service.createInvestorStakeOffer(body.percentage as number, body.minimumAmount as number | undefined);
+      return service.createInvestorStakeOffer(
+        body.percentage as number,
+        body.minimumAmount as number | undefined,
+      );
     case "decideInvestorBid":
       return service.decideInvestorBid(body.offerId as EntityId, body.accept as boolean);
     case "getInvestorMeeting":
@@ -242,7 +284,10 @@ const dispatch = (
     case "getOwnerManagerMeeting":
       return service.getOwnerManagerMeeting(body.clubId as EntityId | undefined);
     case "openOwnerManagerMeeting":
-      return service.openOwnerManagerMeeting(body.clubId as EntityId, body.topic as OwnerManagerMeetingTopic);
+      return service.openOwnerManagerMeeting(
+        body.clubId as EntityId,
+        body.topic as OwnerManagerMeetingTopic,
+      );
     case "resolveOwnerManagerMeeting":
       return service.resolveOwnerManagerMeeting(
         body.interactionId as EntityId,
@@ -250,31 +295,77 @@ const dispatch = (
         body.commitment as OwnerManagerCommitmentInput | undefined,
       );
     case "applyClubLoan":
-      return service.applyClubLoan(body.lenderId as EntityId, body.principal as number, body.termMonths as number, body.purpose as string);
+      return service.applyClubLoan(
+        body.lenderId as EntityId,
+        body.principal as number,
+        body.termMonths as number,
+        body.purpose as string,
+      );
     case "repayClubLoan":
       return service.repayClubLoan(body.debtId as EntityId, body.amount as number | undefined);
     case "acceptExecutiveSponsorOffer":
-      return service.acceptExecutiveSponsorOffer(body.clubId as EntityId, body.sponsorshipId as EntityId);
+      return service.acceptExecutiveSponsorOffer(
+        body.clubId as EntityId,
+        body.sponsorshipId as EntityId,
+      );
     case "setExecutiveClubBudget":
-      return service.setExecutiveClubBudget(body.clubId as EntityId, body.seasonLabel as string, body.category as ClubBudgetCategory, body.amount as number);
+      return service.setExecutiveClubBudget(
+        body.clubId as EntityId,
+        body.seasonLabel as string,
+        body.category as ClubBudgetCategory,
+        body.amount as number,
+      );
     case "createExecutiveInfrastructureProject":
-      return service.createExecutiveInfrastructureProject(body.clubId as EntityId, body.projectType as InfrastructureProjectType);
+      return service.createExecutiveInfrastructureProject(
+        body.clubId as EntityId,
+        body.projectType as InfrastructureProjectType,
+      );
     case "applyExecutiveClubLoan":
-      return service.applyExecutiveClubLoan(body.clubId as EntityId, body.lenderId as EntityId, body.principal as number, body.termMonths as number, body.purpose as string);
+      return service.applyExecutiveClubLoan(
+        body.clubId as EntityId,
+        body.lenderId as EntityId,
+        body.principal as number,
+        body.termMonths as number,
+        body.purpose as string,
+      );
     case "repayExecutiveClubLoan":
-      return service.repayExecutiveClubLoan(body.clubId as EntityId, body.debtId as EntityId, body.amount as number | undefined);
+      return service.repayExecutiveClubLoan(
+        body.clubId as EntityId,
+        body.debtId as EntityId,
+        body.amount as number | undefined,
+      );
     case "closeExecutiveLicence":
       return service.closeExecutiveLicence(body.caseId as EntityId);
     case "registerExecutiveCompetitionPlayers":
-      return service.registerExecutiveCompetitionPlayers(body.teamId as EntityId, body.competitionSeasonId as EntityId);
+      return service.registerExecutiveCompetitionPlayers(
+        body.teamId as EntityId,
+        body.competitionSeasonId as EntityId,
+      );
     case "hireStaffAsExecutive":
-      return service.hireStaffAsExecutive(body.clubId as EntityId, body.personId as EntityId, body.role as any, body.salaryAmountMinor as number, body.teamId as EntityId | undefined, body.contractMonths as number | undefined);
+      return service.hireStaffAsExecutive(
+        body.clubId as EntityId,
+        body.personId as EntityId,
+        body.role as any,
+        body.salaryAmountMinor as number,
+        body.teamId as EntityId | undefined,
+        body.contractMonths as number | undefined,
+      );
     case "dismissStaffAsExecutive":
-      return service.dismissStaffAsExecutive(body.clubId as EntityId, body.appointmentId as EntityId);
+      return service.dismissStaffAsExecutive(
+        body.clubId as EntityId,
+        body.appointmentId as EntityId,
+      );
     case "requestManagerBudget":
-      return service.requestManagerBudget(body.seasonLabel as string, body.category as ClubBudgetCategory, body.requestedAmount as number);
+      return service.requestManagerBudget(
+        body.seasonLabel as string,
+        body.category as ClubBudgetCategory,
+        body.requestedAmount as number,
+      );
     case "decideManagerBudgetRequest":
-      return service.decideManagerBudgetRequest(body.requestId as EntityId, body.approve as boolean);
+      return service.decideManagerBudgetRequest(
+        body.requestId as EntityId,
+        body.approve as boolean,
+      );
     case "purchaseEquipment":
       return service.purchaseEquipment(body.category as any, body.quantity as number);
     case "getHomeDashboard":
@@ -303,7 +394,9 @@ const dispatch = (
     case "getSquadConcerns":
       return service.getSquadConcerns();
     case "respondToConcern":
-      return service.respondToConcern(body as { concernId: EntityId; action: ConcernResponseAction });
+      return service.respondToConcern(
+        body as { concernId: EntityId; action: ConcernResponseAction },
+      );
     case "holdSquadMeeting":
       return service.holdSquadMeeting(body.command as SquadMeetingCommand);
     case "getPlayerProfile":
@@ -417,7 +510,10 @@ const dispatch = (
         body.contractMonths as number,
       );
     case "respondToStaffApplication":
-      return service.respondToStaffApplication(body.applicationId as EntityId, body.accept as boolean);
+      return service.respondToStaffApplication(
+        body.applicationId as EntityId,
+        body.accept as boolean,
+      );
     case "offerStaffContractRenewal":
       return service.offerStaffContractRenewal(
         body.appointmentId as EntityId,

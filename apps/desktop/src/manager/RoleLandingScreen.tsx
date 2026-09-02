@@ -12,7 +12,7 @@ import type {
 import type { AppError, DesktopRuntimeApi } from "../appBridge.js";
 import { AsyncPanel, Badge, ErrorBanner, Metrics, Panel, useRuntimeData } from "./ui.js";
 import { CandidacyPanel } from "./screens/HomeScreen.js";
-import { BankMeeting, RoleDetailScreen, SponsorMeeting, type ChairmanScreen, type PresidentScreen } from "./RoleDetailScreen.js";
+import { BankMeeting, FacilityPlanner, RoleDetailScreen, SponsorMeeting, type ChairmanScreen, type PresidentScreen } from "./RoleDetailScreen.js";
 
 export const EXECUTIVE_ROLES = ["SPORTING_DIRECTOR", "DIRECTOR_OF_FOOTBALL", "CEO", "GENERAL_SECRETARY"];
 
@@ -131,6 +131,7 @@ const ExecutiveDashboardView = ({
   const [busy, setBusy] = useState(false);
   const canSetBudget = authority.permittedActions.includes("BUDGET_ADMINISTRATION");
   const canManageCommercial = authority.permittedActions.includes("COMMERCIAL_OVERSIGHT");
+  const canManageFacilities = authority.permittedActions.includes("FACILITY_OVERSIGHT");
   const setBudget = async (): Promise<void> => {
     if (busy) return;
     setBusy(true);
@@ -207,6 +208,7 @@ const ExecutiveDashboardView = ({
       )}
       {canSetBudget && <BankMeeting bridge={bridge} role="CEO" clubId={authority.clubId} />}
       {canManageCommercial && <SponsorMeeting bridge={bridge} role="CEO" clubId={authority.clubId} />}
+      {canManageFacilities && <FacilityPlanner bridge={bridge} clubId={authority.clubId} />}
     </section>
   );
 };
@@ -314,16 +316,6 @@ const ChairmanDashboardView = ({
     setBusyEquipment(false);
     if (result.ok) {
       setMessage("Equipment order placed.");
-      setError(null);
-      refresh();
-    } else setError(result.error);
-  };
-  const approveProject = async (
-    projectType: "PITCH" | "TRAINING_GROUND" | "ACADEMY",
-  ): Promise<void> => {
-    const result = await bridge.createInfrastructureProject(dashboard.club.id, projectType);
-    if (result.ok) {
-      setMessage(`${projectType.replaceAll("_", " ")} project approved for planning.`);
       setError(null);
       refresh();
     } else setError(result.error);
@@ -452,19 +444,9 @@ const ChairmanDashboardView = ({
           </form>
           <p className="subtle">
             Infrastructure: {dashboard.infrastructure.length} total · Sponsorships:{" "}
-            {dashboard.sponsorships.length} total
+            {dashboard.sponsorships.length} total. Plan a new facility project from Facilities in
+            the sidebar.
           </p>
-          <div className="button-row">
-            <button className="small" onClick={() => void approveProject("PITCH")}>
-              Improve pitch
-            </button>
-            <button className="small" onClick={() => void approveProject("TRAINING_GROUND")}>
-              Training ground
-            </button>
-            <button className="small" onClick={() => void approveProject("ACADEMY")}>
-              Build academy
-            </button>
-          </div>
         </Panel>
         <Panel title="Manager appointment">
           <p>

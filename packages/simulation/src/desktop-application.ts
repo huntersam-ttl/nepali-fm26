@@ -6,6 +6,7 @@ import {
   FacilityPlanningRepository,
   ClubLicensingRepository,
   CompetitionRepository,
+  GovernmentRepository,
   ManagerRepository,
   MatchSessionRepository,
   MedicalRepository,
@@ -90,6 +91,8 @@ import {
   type ProcurementOrder,
   type InfrastructureProject,
   type InfrastructureProjectType,
+  type FacilityProjectPlan,
+  type FacilitySiteOption,
   type SponsorshipContract,
   type SimulationClubRecord,
   type Club,
@@ -304,7 +307,11 @@ import {
 } from "./tactics.js";
 import { suitability } from "./team-selection.js";
 import { activeCareerRole, heldCareerRoles, switchActiveCareerRole } from "./career-control.js";
-import { ExecutiveRoleError, executiveHasAuthority, executiveRoleReadModel } from "./executive-roles.js";
+import {
+  ExecutiveRoleError,
+  executiveHasAuthority,
+  executiveRoleReadModel,
+} from "./executive-roles.js";
 import {
   acceptSponsorshipForExecutive,
   applyClubLoanForExecutive,
@@ -318,7 +325,11 @@ import {
   setBudgetForExecutive,
 } from "./executive-authority.js";
 import { backroomSummary } from "./career-market-deepening.js";
-import { createInvestorStakeOffer, decideInvestorBid, investorMeetingOverview } from "./ownership.js";
+import {
+  createInvestorStakeOffer,
+  decideInvestorBid,
+  investorMeetingOverview,
+} from "./ownership.js";
 import {
   createOwnerManagerMeeting,
   ownerManagerMeetingOverview,
@@ -331,8 +342,17 @@ import { buildActorPlayerActions, type ActorPlayerActions } from "./player-actio
 import { buildEntityReference } from "./entity-reference.js";
 import { buildPlayerContractContext, buildPlayerTransferContext } from "./player-context.js";
 import { buildOwnerPostMatchSuggestion } from "./owner-meeting-suggestion.js";
-import { createFacilityProjectPlan, generateFacilitySiteOptions, type FacilityPlanningInput } from "./facility-planning.js";
-import { initializeFederationGovernanceForSave, federationCommercialOverview } from "./federation-governance.js";
+import {
+  createFacilityProjectPlan,
+  facilityComponentCatalog,
+  generateFacilitySiteOptions,
+  resolveClubDistrict,
+  type FacilityPlanningInput,
+} from "./facility-planning.js";
+import {
+  initializeFederationGovernanceForSave,
+  federationCommercialOverview,
+} from "./federation-governance.js";
 import { federationDevelopmentSummary } from "./federation-policy.js";
 import { governmentOverview, requestGovernmentFunding } from "./government.js";
 import {
@@ -868,7 +888,9 @@ export class DesktopApplicationService {
         "GENERAL_SECRETARY",
       ];
       if (!executiveRoles.includes(actorRole as ExecutiveRole)) return undefined;
-      const targetClubId = clubId ?? heldCareerRoles(db, actorPersonId).find((item) => item.role === actorRole)?.targetId;
+      const targetClubId =
+        clubId ??
+        heldCareerRoles(db, actorPersonId).find((item) => item.role === actorRole)?.targetId;
       if (!targetClubId) return undefined;
       const assignment = executiveRoleReadModel(db, targetClubId, actorRole as ExecutiveRole);
       return {
@@ -877,7 +899,8 @@ export class DesktopApplicationService {
         clubId: targetClubId,
         assignment,
         permittedActions: assignment.status === "FILLED" ? assignment.authorities : [],
-        blockedReason: assignment.status === "FILLED" ? undefined : "This executive role is vacant.",
+        blockedReason:
+          assignment.status === "FILLED" ? undefined : "This executive role is vacant.",
       };
     });
   }
@@ -977,7 +1000,10 @@ export class DesktopApplicationService {
     competitionSeasonId: EntityId,
   ): AppResult<ReturnType<typeof registerCompetitionPlayersForSecretary>> {
     return this.withSession((db, save) => {
-      const clubId = (db.prepare("SELECT club_id AS clubId FROM teams WHERE id=?").get(teamId) as { clubId?: EntityId } | undefined)?.clubId;
+      const clubId = (
+        db.prepare("SELECT club_id AS clubId FROM teams WHERE id=?").get(teamId) as
+          { clubId?: EntityId } | undefined
+      )?.clubId;
       if (!clubId) throw appError("INVALID_SELECTION", "Competition registration team not found.");
       return registerCompetitionPlayersForSecretary(db, {
         teamId,
@@ -1053,76 +1079,245 @@ export class DesktopApplicationService {
     return this.withSession((db, save) => {
       const personId = careerPersonId(db, save);
       if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER")
-        throw appError("ROLE_NOT_AUTHORIZED", "Only the active chairman/owner may view matchday operations.");
-      const clubId = heldCareerRoles(db, personId).find((role) => role.role === "CHAIRMAN_OWNER")?.targetId;
+        throw appError(
+          "ROLE_NOT_AUTHORIZED",
+          "Only the active chairman/owner may view matchday operations.",
+        );
+      const clubId = heldCareerRoles(db, personId).find(
+        (role) => role.role === "CHAIRMAN_OWNER",
+      )?.targetId;
       if (!clubId) throw appError("ROLE_NOT_AUTHORIZED", "No controlled club is available.");
       return buildOwnerMatchday(db, save, clubId);
     });
   }
 
-  getFacilityPlanning(clubId?: EntityId): AppResult<{ clubId: EntityId; projects: InfrastructureProject[]; plans: unknown[]; sites: unknown[] }> {
+  getFacilityPlanning(clubId?: EntityId): AppResult<{
+    clubId: EntityId;
+    projects: InfrastructureProject[];
+    plans: FacilityProjectPlan[];
+    sites: FacilitySiteOption[];
+    componentCatalog: Record<string, readonly string[]>;
+    homeDistrict?: { districtId: EntityId; districtName: string; municipalityName: string };
+    governmentApplications: GovernmentFundingApplication[];
+    managerFacilityRequests: ManagerPromise[];
+  }> {
     return this.withSession((db, save) => {
       const personId = careerPersonId(db, save);
       const role = activeCareerRole(db, personId);
-      const target = clubId ?? heldCareerRoles(db, personId).find((entry) => ["CHAIRMAN_OWNER", "CEO", "GENERAL_SECRETARY"].includes(entry.role))?.targetId;
-      if (!target) throw appError("ROLE_NOT_AUTHORIZED", "No club facility responsibility is available.");
+      const target =
+        clubId ??
+        heldCareerRoles(db, personId).find((entry) =>
+          ["CHAIRMAN_OWNER", "CEO", "GENERAL_SECRETARY"].includes(entry.role),
+        )?.targetId;
+      if (!target)
+        throw appError("ROLE_NOT_AUTHORIZED", "No club facility responsibility is available.");
       if (role === "CHAIRMAN_OWNER") {
-        if (!heldCareerRoles(db, personId).some((entry) => entry.role === role && entry.targetId === target)) throw appError("ROLE_NOT_AUTHORIZED", "The owner does not control this club.");
+        if (
+          !heldCareerRoles(db, personId).some(
+            (entry) => entry.role === role && entry.targetId === target,
+          )
+        )
+          throw appError("ROLE_NOT_AUTHORIZED", "The owner does not control this club.");
       } else if (role === "CEO" || role === "GENERAL_SECRETARY") {
         this.executiveActor(db, save, target);
       } else if (role !== "MANAGER") {
-        throw appError("ROLE_NOT_AUTHORIZED", "The active role cannot view club facility planning.");
+        throw appError(
+          "ROLE_NOT_AUTHORIZED",
+          "The active role cannot view club facility planning.",
+        );
       }
       const planning = new FacilityPlanningRepository(db);
-      return { clubId: target, projects: new ClubEconomyRepository(db).infrastructureProjects(target), plans: planning.plans(target), sites: planning.siteOptions(target) };
+      const team = db
+        .prepare("SELECT id FROM teams WHERE club_id=? AND level='senior' ORDER BY id LIMIT 1")
+        .get(target) as { id?: EntityId } | undefined;
+      const managerFacilityRequests = team?.id
+        ? new SquadDynamicsRepository(db)
+            .activePromisesForTeam(team.id)
+            .filter((promise) => promise.type === "FACILITY_PROJECT")
+        : [];
+      return {
+        clubId: target,
+        projects: new ClubEconomyRepository(db).infrastructureProjects(target),
+        plans: planning.plans(target),
+        sites: planning.siteOptions(target),
+        componentCatalog: facilityComponentCatalog,
+        homeDistrict: resolveClubDistrict(db, target),
+        // Federation-wide applications are the only source of a real
+        // governmentApplicationId — none are ever created against this club
+        // today (requestGovernmentFunding is federation-president-only and
+        // takes no clubId), so this is filtered honestly rather than faked.
+        governmentApplications: new GovernmentRepository(db)
+          .applications()
+          .filter((application) => application.clubId === target),
+        managerFacilityRequests,
+      };
     });
   }
 
-  getFacilitySiteOptions(clubId: EntityId, districtId: EntityId, municipalityName: string): AppResult<unknown[]> {
+  getFacilitySiteOptions(
+    clubId: EntityId,
+    districtId?: EntityId,
+    municipalityName?: string,
+  ): AppResult<FacilitySiteOption[]> {
     return this.withSession((db, save) => {
       const personId = careerPersonId(db, save);
       const role = activeCareerRole(db, personId);
       if (role === "CHAIRMAN_OWNER") {
-        if (!heldCareerRoles(db, personId).some((entry) => entry.role === role && entry.targetId === clubId)) throw appError("ROLE_NOT_AUTHORIZED", "The owner does not control this club.");
-      } else if (role === "CEO" || role === "GENERAL_SECRETARY") this.executiveActor(db, save, clubId);
-      else throw appError("ROLE_NOT_AUTHORIZED", "Only the owner or authorized executive may plan a new site.");
-      return generateFacilitySiteOptions(db, { clubId, districtId, municipalityName, date: save.worldDate, seed: `${save.randomSeed}:facility-sites` });
+        if (
+          !heldCareerRoles(db, personId).some(
+            (entry) => entry.role === role && entry.targetId === clubId,
+          )
+        )
+          throw appError("ROLE_NOT_AUTHORIZED", "The owner does not control this club.");
+      } else if (role === "CEO" || role === "GENERAL_SECRETARY")
+        this.executiveActor(db, save, clubId);
+      else
+        throw appError(
+          "ROLE_NOT_AUTHORIZED",
+          "Only the owner or authorized executive may plan a new site.",
+        );
+      const resolvedDistrict =
+        districtId && municipalityName
+          ? { districtId, municipalityName }
+          : resolveClubDistrict(db, clubId);
+      if (!resolvedDistrict)
+        throw appError(
+          "INVALID_SELECTION",
+          "This club has no district on record to site a new project in.",
+        );
+      return generateFacilitySiteOptions(db, {
+        clubId,
+        districtId: resolvedDistrict.districtId,
+        municipalityName: resolvedDistrict.municipalityName,
+        date: save.worldDate,
+        seed: `${save.randomSeed}:facility-sites`,
+      });
     });
   }
 
-  createFacilityProjectPlan(input: Omit<FacilityPlanningInput, "personId" | "callerRole">): AppResult<ReturnType<typeof createFacilityProjectPlan>> {
+  createFacilityProjectPlan(
+    input: Omit<FacilityPlanningInput, "personId" | "callerRole">,
+  ): AppResult<ReturnType<typeof createFacilityProjectPlan>> {
     return this.withSession((db, save) => {
       const personId = careerPersonId(db, save);
       const role = activeCareerRole(db, personId);
       let callerRole: FacilityPlanningInput["callerRole"];
       if (role === "CHAIRMAN_OWNER") {
-        if (!heldCareerRoles(db, personId).some((entry) => entry.role === role && entry.targetId === input.clubId)) throw appError("ROLE_NOT_AUTHORIZED", "The owner does not control this club.");
+        if (
+          !heldCareerRoles(db, personId).some(
+            (entry) => entry.role === role && entry.targetId === input.clubId,
+          )
+        )
+          throw appError("ROLE_NOT_AUTHORIZED", "The owner does not control this club.");
         callerRole = "CHAIRMAN_OWNER";
       } else if (role === "CEO") {
         this.executiveActor(db, save, input.clubId);
         callerRole = "CEO";
       } else {
-        throw appError("ROLE_NOT_AUTHORIZED", "Only the owner or authorized CEO may create a facility project plan.");
+        throw appError(
+          "ROLE_NOT_AUTHORIZED",
+          "Only the owner or authorized CEO may create a facility project plan.",
+        );
       }
       try {
-        return createFacilityProjectPlan(db, { ...input, personId, callerRole, date: save.worldDate, seed: `${save.randomSeed}:facility-plan` });
+        return createFacilityProjectPlan(db, {
+          ...input,
+          personId,
+          callerRole,
+          date: save.worldDate,
+          seed: `${save.randomSeed}:facility-plan`,
+        });
       } catch (error) {
-        throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "Facility project plan could not be created.");
+        throw appError(
+          "INVALID_SELECTION",
+          error instanceof Error ? error.message : "Facility project plan could not be created.",
+        );
       }
     });
   }
 
   watchOwnerFixture(fixtureId?: EntityId): AppResult<LiveMatchView> {
     return this.withSession((db, save) => {
-      const { clubId, teamId } = ownerMatchdayContext(db, save);
+      const { teamId } = ownerMatchdayContext(db, save);
+      const existing = fixtureId ? loadMatchSession(db, fixtureId) : undefined;
+      if (existing?.record.status === "COMPLETED") {
+        const fixture = ownerFixtureForSpectator(db, teamId, existing.state.fixtureId);
+        return buildLiveMatchView(db, existing.state, {
+          competitionName: ownerCompetitionName(db, fixture),
+          managedTeamId: teamId,
+          viewMode: existing.record.viewMode ?? "TEXT_LIVE",
+          finalized: true,
+        });
+      }
       const fixture = ownerFixture(db, teamId, fixtureId);
       const input = ownerMatchInput(db, save, fixture, teamId);
-      const state = loadMatchSession(db, fixture.id)?.state ?? startMatchSession(db, input, "TEXT_LIVE");
+      const state =
+        loadMatchSession(db, fixture.id)?.state ?? startMatchSession(db, input, "TEXT_LIVE");
       return buildLiveMatchView(db, state, {
         competitionName: ownerCompetitionName(db, fixture),
         managedTeamId: teamId,
         viewMode: "TEXT_LIVE",
         finalized: fixture.status === "played",
+      });
+    });
+  }
+
+  /** Owner-only spectator progression through the canonical match session. */
+  advanceOwnerFixture(
+    command: AdvanceMatchCommand = {},
+    fixtureId?: EntityId,
+    viewMode: MatchViewMode = "TEXT_LIVE",
+  ): AppResult<LiveMatchView> {
+    return this.withSession((db, save) => {
+      const { teamId } = ownerMatchdayContext(db, save);
+      const session = fixtureId ? loadMatchSession(db, fixtureId) : undefined;
+      const fixture = session
+        ? ownerFixtureForSpectator(db, teamId, session.state.fixtureId)
+        : ownerFixture(db, teamId, fixtureId);
+      const state =
+        session?.state ??
+        startMatchSession(db, ownerMatchInput(db, save, fixture, teamId), viewMode);
+      const period = (): LiveMatchState["period"] => state.period;
+      if (period() !== "FULL_TIME") {
+        advanceMatch(db, state, advanceTargetFor(command));
+        if (period() === "FULL_TIME") {
+          finalizeMatch(db, state, ownerFinalizationContext(db, save, fixture));
+        }
+      }
+      return buildLiveMatchView(db, state, {
+        competitionName: ownerCompetitionName(db, fixture),
+        managedTeamId: teamId,
+        viewMode,
+        since: command.since,
+        finalized: state.period === "FULL_TIME",
+      });
+    });
+  }
+
+  /** Owner may acknowledge the half-time break, but cannot alter either team. */
+  continueOwnerFixture(
+    fixtureId?: EntityId,
+    viewMode: MatchViewMode = "TEXT_LIVE",
+  ): AppResult<LiveMatchView> {
+    return this.withSession((db, save) => {
+      const { teamId } = ownerMatchdayContext(db, save);
+      const session = fixtureId ? loadMatchSession(db, fixtureId) : undefined;
+      const fixture = session
+        ? ownerFixtureForSpectator(db, teamId, session.state.fixtureId)
+        : ownerFixture(db, teamId, fixtureId);
+      if (!session) throw appError("FIXTURE_MISSING", "That match has not been started.");
+      const period = (): LiveMatchState["period"] => session.state.period;
+      if (period() !== "FULL_TIME") {
+        continueFromHalfTime(db, session.state);
+        if (period() === "FULL_TIME") {
+          finalizeMatch(db, session.state, ownerFinalizationContext(db, save, fixture));
+        }
+      }
+      return buildLiveMatchView(db, session.state, {
+        competitionName: ownerCompetitionName(db, fixture),
+        managedTeamId: teamId,
+        viewMode,
+        finalized: session.state.period === "FULL_TIME",
       });
     });
   }
@@ -1134,7 +1329,8 @@ export class DesktopApplicationService {
       const input = ownerMatchInput(db, save, fixture, teamId);
       const session = loadMatchSession(db, fixture.id);
       const state = session?.state ?? startMatchSession(db, input, "QUICK_SIM");
-      if (state.period !== "FULL_TIME") quickSimFromCurrentState(db, state, ownerFinalizationContext(db, save, fixture));
+      if (state.period !== "FULL_TIME")
+        quickSimFromCurrentState(db, state, ownerFinalizationContext(db, save, fixture));
       const completed = loadMatchSession(db, fixture.id)?.state ?? state;
       return buildLiveMatchView(db, completed, {
         competitionName: ownerCompetitionName(db, fixture),
@@ -1197,7 +1393,13 @@ export class DesktopApplicationService {
         (entry) => entry.role === "FEDERATION_PRESIDENT",
       )?.targetId;
       if (!federationId) throw appError("ROLE_NOT_AUTHORIZED", "No federation is available.");
-      return requestGovernmentFunding(db, { federationId, institutionId, fundingType, requestedAmount, date: save.worldDate });
+      return requestGovernmentFunding(db, {
+        federationId,
+        institutionId,
+        fundingType,
+        requestedAmount,
+        date: save.worldDate,
+      });
     });
   }
 
@@ -1215,10 +1417,12 @@ export class DesktopApplicationService {
       let targetClubId: EntityId | undefined;
       if (role === "CHAIRMAN_OWNER") {
         targetClubId =
-          clubId ?? heldCareerRoles(db, personId).find((entry) => entry.role === "CHAIRMAN_OWNER")?.targetId;
+          clubId ??
+          heldCareerRoles(db, personId).find((entry) => entry.role === "CHAIRMAN_OWNER")?.targetId;
         if (!targetClubId) throw appError("ROLE_NOT_AUTHORIZED", "No club is available.");
       } else if (role === "CEO") {
-        targetClubId = clubId ?? heldCareerRoles(db, personId).find((entry) => entry.role === "CEO")?.targetId;
+        targetClubId =
+          clubId ?? heldCareerRoles(db, personId).find((entry) => entry.role === "CEO")?.targetId;
         if (!targetClubId) throw appError("ROLE_NOT_AUTHORIZED", "No club is available.");
         if (!executiveHasAuthority(db, targetClubId, personId, "BUDGET_ADMINISTRATION")) {
           throw appError(
@@ -1626,10 +1830,12 @@ export class DesktopApplicationService {
       let targetClubId: EntityId | undefined;
       if (role === "CHAIRMAN_OWNER") {
         targetClubId =
-          clubId ?? heldCareerRoles(db, personId).find((entry) => entry.role === "CHAIRMAN_OWNER")?.targetId;
+          clubId ??
+          heldCareerRoles(db, personId).find((entry) => entry.role === "CHAIRMAN_OWNER")?.targetId;
         if (!targetClubId) throw appError("ROLE_NOT_AUTHORIZED", "No club is available.");
       } else if (role === "CEO") {
-        targetClubId = clubId ?? heldCareerRoles(db, personId).find((entry) => entry.role === "CEO")?.targetId;
+        targetClubId =
+          clubId ?? heldCareerRoles(db, personId).find((entry) => entry.role === "CEO")?.targetId;
         if (!targetClubId) throw appError("ROLE_NOT_AUTHORIZED", "No club is available.");
         if (!executiveHasAuthority(db, targetClubId, personId, "COMMERCIAL_OVERSIGHT")) {
           throw appError(
@@ -1810,7 +2016,8 @@ export class DesktopApplicationService {
           "Only the active chairman/owner may hold an owner-manager meeting.",
         );
       const targetClubId =
-        clubId ?? heldCareerRoles(db, personId).find((role) => role.role === "CHAIRMAN_OWNER")?.targetId;
+        clubId ??
+        heldCareerRoles(db, personId).find((role) => role.role === "CHAIRMAN_OWNER")?.targetId;
       if (!targetClubId) throw appError("ROLE_NOT_AUTHORIZED", "No controlled club is available.");
       try {
         return ownerManagerMeetingOverview(db, targetClubId, save.worldDate);
@@ -1823,7 +2030,10 @@ export class DesktopApplicationService {
     });
   }
 
-  openOwnerManagerMeeting(clubId: EntityId, topic: OwnerManagerMeetingTopic): AppResult<UniversalInteraction> {
+  openOwnerManagerMeeting(
+    clubId: EntityId,
+    topic: OwnerManagerMeetingTopic,
+  ): AppResult<UniversalInteraction> {
     return this.withSession((db, save) => {
       const personId = careerPersonId(db, save);
       if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER")
@@ -2763,11 +2973,15 @@ export class DesktopApplicationService {
     return this.getPlayerActions(playerId);
   }
 
-  getPlayerContractContext(playerId: EntityId): AppResult<ReturnType<typeof buildPlayerContractContext>> {
+  getPlayerContractContext(
+    playerId: EntityId,
+  ): AppResult<ReturnType<typeof buildPlayerContractContext>> {
     return this.withSession((db, save) => buildPlayerContractContext(db, save, playerId));
   }
 
-  getPlayerTransferContext(playerId: EntityId): AppResult<ReturnType<typeof buildPlayerTransferContext>> {
+  getPlayerTransferContext(
+    playerId: EntityId,
+  ): AppResult<ReturnType<typeof buildPlayerTransferContext>> {
     return this.withSession((db, save) => buildPlayerTransferContext(db, save, playerId));
   }
 
@@ -2786,7 +3000,10 @@ export class DesktopApplicationService {
     });
   }
 
-  getEntityReference(entityType: EntityReferenceType, entityId: EntityId): AppResult<EntityReference> {
+  getEntityReference(
+    entityType: EntityReferenceType,
+    entityId: EntityId,
+  ): AppResult<EntityReference> {
     return this.withSession((db, save) => {
       const personId = careerPersonId(db, save);
       return buildEntityReference(db, entityType, entityId, activeCareerRole(db, personId));
@@ -3292,7 +3509,10 @@ export class DesktopApplicationService {
       (entry) => entry.role === role && entry.targetId === clubId,
     );
     if (!held)
-      throw appError("ROLE_NOT_AUTHORIZED", "The active executive role is not assigned to this club.");
+      throw appError(
+        "ROLE_NOT_AUTHORIZED",
+        "The active executive role is not assigned to this club.",
+      );
     return { role, personId };
   }
 
@@ -3301,7 +3521,7 @@ export class DesktopApplicationService {
     save: SaveMetadata,
     caseId: EntityId,
   ): { role: "CEO" | "GENERAL_SECRETARY"; personId: EntityId } {
-    const clubId = (new ClubLicensingRepository(db).get(caseId)?.clubId);
+    const clubId = new ClubLicensingRepository(db).get(caseId)?.clubId;
     if (!clubId) throw appError("INVALID_SELECTION", "Licence case not found.");
     return this.executiveActor(db, save, clubId);
   }
@@ -3318,8 +3538,7 @@ export class DesktopApplicationService {
       if (error instanceof MatchAlreadyPlayedError) return fail(error.code, error.message);
       if (error instanceof MatchCommandError) return fail(error.code, error.message);
       if (error instanceof ManagerCommandError) return fail(error.code, error.message);
-      if (error instanceof ExecutiveRoleError)
-        return fail("ROLE_NOT_AUTHORIZED", error.message);
+      if (error instanceof ExecutiveRoleError) return fail("ROLE_NOT_AUTHORIZED", error.message);
       if (isAppError(error)) return fail(error.code, error.message, error.detail);
       return fail("SIMULATION_ERROR", "The career command failed.", error);
     }
@@ -4530,23 +4749,64 @@ const concernTitle = (type: string): string => {
 // Matchday helpers
 // ---------------------------------------------------------------------------
 
-const ownerMatchdayContext = (db: GameDatabase, save: SaveMetadata): { clubId: EntityId; teamId: EntityId } => {
+const ownerMatchdayContext = (
+  db: GameDatabase,
+  save: SaveMetadata,
+): { clubId: EntityId; teamId: EntityId } => {
   const personId = careerPersonId(db, save);
   if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER")
-    throw appError("ROLE_NOT_AUTHORIZED", "Only the active chairman/owner may participate in matchday.");
-  const clubId = heldCareerRoles(db, personId).find((role) => role.role === "CHAIRMAN_OWNER")?.targetId;
+    throw appError(
+      "ROLE_NOT_AUTHORIZED",
+      "Only the active chairman/owner may participate in matchday.",
+    );
+  const clubId = heldCareerRoles(db, personId).find(
+    (role) => role.role === "CHAIRMAN_OWNER",
+  )?.targetId;
   if (!clubId) throw appError("ROLE_NOT_AUTHORIZED", "No controlled club is available.");
-  const team = db.prepare("SELECT id FROM teams WHERE club_id=? ORDER BY id LIMIT 1").get(clubId) as { id?: EntityId } | undefined;
+  const team = db
+    .prepare("SELECT id FROM teams WHERE club_id=? ORDER BY id LIMIT 1")
+    .get(clubId) as { id?: EntityId } | undefined;
   if (!team?.id) throw appError("FIXTURE_MISSING", "The controlled club has no senior team.");
   return { clubId, teamId: team.id };
 };
 
 const ownerFixture = (db: GameDatabase, teamId: EntityId, fixtureId?: EntityId): FixtureRecord => {
   const row = fixtureId
-    ? db.prepare("SELECT * FROM fixtures WHERE id=? AND (home_team_id=? OR away_team_id=?)").get(fixtureId, teamId, teamId)
-    : db.prepare("SELECT * FROM fixtures WHERE status='scheduled' AND (home_team_id=? OR away_team_id=?) ORDER BY scheduled_date, id LIMIT 1").get(teamId, teamId);
+    ? db
+        .prepare("SELECT * FROM fixtures WHERE id=? AND (home_team_id=? OR away_team_id=?)")
+        .get(fixtureId, teamId, teamId)
+    : db
+        .prepare(
+          "SELECT * FROM fixtures WHERE status='scheduled' AND (home_team_id=? OR away_team_id=?) ORDER BY scheduled_date, id LIMIT 1",
+        )
+        .get(teamId, teamId);
   if (!row) throw appError("FIXTURE_MISSING", "No fixture is available for the controlled club.");
-  if (row.status === "played") throw appError("MATCH_ALREADY_PLAYED", "That fixture has already been played.");
+  if (row.status === "played")
+    throw appError("MATCH_ALREADY_PLAYED", "That fixture has already been played.");
+  return {
+    id: row.id,
+    competitionSeasonId: row.competition_season_id,
+    homeTeamId: row.home_team_id,
+    awayTeamId: row.away_team_id,
+    scheduledDate: row.scheduled_date,
+    status: row.status,
+    round: row.round,
+    venueId: row.venue_id,
+    tieId: row.tie_id,
+    leg: row.leg,
+  } as FixtureRecord;
+};
+
+const ownerFixtureForSpectator = (
+  db: GameDatabase,
+  teamId: EntityId,
+  fixtureId: EntityId,
+): FixtureRecord => {
+  const row = db
+    .prepare("SELECT * FROM fixtures WHERE id=? AND (home_team_id=? OR away_team_id=?)")
+    .get(fixtureId, teamId, teamId) as Record<string, any> | undefined;
+  if (!row)
+    throw appError("FIXTURE_MISSING", "That fixture is not available for the controlled club.");
   return {
     id: row.id,
     competitionSeasonId: row.competition_season_id,
@@ -4563,23 +4823,39 @@ const ownerFixture = (db: GameDatabase, teamId: EntityId, fixtureId?: EntityId):
 
 const ownerCompetitionName = (db: GameDatabase, fixture: FixtureRecord): string => {
   if (!fixture.competitionSeasonId) return "Competition";
-  const row = db.prepare("SELECT c.name FROM competition_seasons cs JOIN competitions c ON c.id=cs.competition_id WHERE cs.id=?").get(fixture.competitionSeasonId) as { name?: string } | undefined;
+  const row = db
+    .prepare(
+      "SELECT c.name FROM competition_seasons cs JOIN competitions c ON c.id=cs.competition_id WHERE cs.id=?",
+    )
+    .get(fixture.competitionSeasonId) as { name?: string } | undefined;
   return row?.name ?? "Competition";
 };
 
-const ownerMatchInput = (db: GameDatabase, save: SaveMetadata, fixture: FixtureRecord, controlledTeamId: EntityId): SimulateMatchInput => {
-  if (!fixture.competitionSeasonId) throw appError("FIXTURE_MISSING", "Fixture has no competition season.");
+const ownerMatchInput = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  fixture: FixtureRecord,
+  controlledTeamId: EntityId,
+): SimulateMatchInput => {
+  if (!fixture.competitionSeasonId)
+    throw appError("FIXTURE_MISSING", "Fixture has no competition season.");
   const competition = new CompetitionRepository(db);
   const ruleSet = competition.getRuleSet(fixture.competitionSeasonId);
   if (!ruleSet) throw appError("SAVE_CORRUPT", "Competition rules are missing for this fixture.");
   const homePlayers = new PlayerRepository(db).attributesForTeam(fixture.homeTeamId);
   const awayPlayers = new PlayerRepository(db).attributesForTeam(fixture.awayTeamId);
   const managers = new ManagerRepository(db);
-  const homeTactic = managers.tacticalSetups(fixture.homeTeamId)[0] ?? defaultSetup(fixture.homeTeamId, homePlayers);
-  const awayTactic = managers.tacticalSetups(fixture.awayTeamId)[0] ?? defaultSetup(fixture.awayTeamId, awayPlayers);
+  const homeTactic =
+    managers.tacticalSetups(fixture.homeTeamId)[0] ?? defaultSetup(fixture.homeTeamId, homePlayers);
+  const awayTactic =
+    managers.tacticalSetups(fixture.awayTeamId)[0] ?? defaultSetup(fixture.awayTeamId, awayPlayers);
   return {
     fixture,
-    refereeAssignment: requireFixtureOfficials(db, fixture, { seed: `${save.randomSeed}:officials:${fixture.id}`, competitionLevel: ruleSet.competitionType, usesVar: Boolean((ruleSet.specialRules as Record<string, unknown> | undefined)?.usesVAR) }),
+    refereeAssignment: requireFixtureOfficials(db, fixture, {
+      seed: `${save.randomSeed}:officials:${fixture.id}`,
+      competitionLevel: ruleSet.competitionType,
+      usesVar: Boolean((ruleSet.specialRules as Record<string, unknown> | undefined)?.usesVAR),
+    }),
     homePlayers,
     awayPlayers,
     homeTacticalSetup: homeTactic,
@@ -4594,12 +4870,25 @@ const ownerMatchInput = (db: GameDatabase, save: SaveMetadata, fixture: FixtureR
   };
 };
 
-const ownerFinalizationContext = (db: GameDatabase, save: SaveMetadata, fixture: FixtureRecord): MatchFinalizationContext => {
-  if (!fixture.competitionSeasonId) throw appError("FIXTURE_MISSING", "Fixture has no competition season.");
+const ownerFinalizationContext = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  fixture: FixtureRecord,
+): MatchFinalizationContext => {
+  if (!fixture.competitionSeasonId)
+    throw appError("FIXTURE_MISSING", "Fixture has no competition season.");
   const competition = new CompetitionRepository(db);
   const ruleSet = competition.getRuleSet(fixture.competitionSeasonId);
   if (!ruleSet) throw appError("SAVE_CORRUPT", "Competition rules are missing for this fixture.");
-  return { fixture, competitionTeamIds: new WorldRepository(db).teamsForCompetitionSeason(fixture.competitionSeasonId).map((team) => team.id), ruleSet, seed: `${save.randomSeed}:${fixture.id}`, save };
+  return {
+    fixture,
+    competitionTeamIds: new WorldRepository(db)
+      .teamsForCompetitionSeason(fixture.competitionSeasonId)
+      .map((team) => team.id),
+    ruleSet,
+    seed: `${save.randomSeed}:${fixture.id}`,
+    save,
+  };
 };
 
 type MatchCommandHelpers = {

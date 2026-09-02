@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import type {
   ChairmanDashboard,
   CareerHeader,
@@ -27,6 +27,17 @@ import type {
   UniversalInteraction,
   OwnerMatchdayView,
   LiveMatchView,
+  FacilityPlanningView,
+  FacilityProjectPlanInput,
+  FacilityProjectPlanResult,
+  FacilitySiteOption,
+  FacilityProjectPlan,
+  FacilityProjectMode,
+  FacilityProjectScope,
+  FacilityFundingSource,
+  InfrastructureProject,
+  InfrastructureProjectType,
+  ManagerPromise,
 } from "@nepal-football-sim/shared-types";
 import type { EntityId } from "@nepal-football-sim/shared-types";
 import type { AppError, DesktopRuntimeApi } from "../appBridge.js";
@@ -102,7 +113,7 @@ const ChairmanDetail = ({ screen, bridge, onNavigate }: { screen: ChairmanScreen
     if (screen === "dashboard") return <p className="subtle">Select an owner-office section from the sidebar.</p>;
     if (screen === "finance") return <ChairmanFinance dashboard={dashboard} bridge={bridge} refresh={refresh} />;
     if (screen === "manager") return <ChairmanManager dashboard={dashboard} bridge={bridge} refresh={refresh} />;
-    if (screen === "facilities") return <ChairmanFacilities dashboard={dashboard} bridge={bridge} refresh={refresh} />;
+    if (screen === "facilities") return <FacilityPlanner bridge={bridge} clubId={dashboard.club.id} />;
     if (screen === "sponsorship") return <SponsorMeeting bridge={bridge} role="CHAIRMAN_OWNER" clubId={dashboard.club.id} />;
     if (screen === "investors") return <InvestorMeeting bridge={bridge} />;
     if (screen === "bank") return <BankMeeting bridge={bridge} role="CHAIRMAN_OWNER" clubId={dashboard.club.id} />;
@@ -141,12 +152,14 @@ const ChairmanManager = ({ dashboard, bridge, refresh }: { dashboard: ChairmanDa
   return <section className="role-detail">{error && <ErrorBanner error={error} />}{message && <p className="notice" role="status">{message}</p>}<Panel title="Manager oversight" className="panel-wide"><Metrics items={[{ label: "Current manager", value: dashboard.manager?.name ?? "Vacant" }, { label: "Contract", value: dashboard.manager?.contract.contractEnd ?? "No active contract" }]} />{dashboard.manager ? <p className="subtle">The club has an active manager contract. Search becomes available when the vacancy is open.</p> : <><label>Search candidates<input aria-label="Manager candidate search" placeholder="Name, nationality, qualification" value={query} onChange={(event) => setQuery(event.target.value)} /></label><AsyncPanel state={candidates} isEmpty={() => active.length === 0} empty="No matching available candidates.">{() => <div className="table-scroll"><table><thead><tr><th>Name</th><th>Nationality</th><th>Qualification</th><th>Reputation</th><th>Wage/year</th><th /></tr></thead><tbody>{active.map((candidate) => <tr key={candidate.managerProfileId}><td>{candidate.name}</td><td>{candidate.nationality}</td><td>{candidate.qualification}</td><td>{candidate.reputation}</td><td>{money(candidate.wageExpectation)}</td><td><button className="primary small" disabled={busy !== null} onClick={() => void appoint(candidate)}>{busy === candidate.managerProfileId ? "Appointing…" : "Appoint manager"}</button></td></tr>)}</tbody></table></div>}</AsyncPanel></>}</Panel><Panel title="Pending budget requests"><div className="table-scroll"><table><thead><tr><th>Category</th><th>Requested total</th><th>Status</th><th /></tr></thead><tbody>{dashboard.finances.budgetRequests.filter((request) => request.status === "PENDING").length === 0 ? <tr><td colSpan={4}>No pending manager requests.</td></tr> : dashboard.finances.budgetRequests.filter((request) => request.status === "PENDING").map((request) => <tr key={request.id}><td>{request.category.replaceAll("_", " ")}</td><td>{money(request.requestedAmount)}</td><td>{request.status}</td><td><span className="button-row"><button className="primary small" disabled={busyBudget !== null} onClick={() => void decideBudget(request.id, true)}>{busyBudget === request.id ? "Approving…" : "Approve"}</button><button className="ghost small" disabled={busyBudget !== null} onClick={() => void decideBudget(request.id, false)}>{busyBudget === request.id ? "Deciding…" : "Reject"}</button></span></td></tr>)}</tbody></table></div></Panel></section>;
 };
 
-const ChairmanFacilities = ({ dashboard, bridge, refresh }: { dashboard: ChairmanDashboard; bridge: DesktopRuntimeApi; refresh: () => void }): React.ReactElement => {
-  const [busy, setBusy] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
-  const approve = async (projectType: "PITCH" | "TRAINING_GROUND" | "ACADEMY"): Promise<void> => { setBusy(projectType); const result = await bridge.createInfrastructureProject(dashboard.club.id, projectType); setBusy(null); if (result.ok) { setMessage(`${projectType.replaceAll("_", " ")} project approved.`); refresh(); } else setMessage(result.error.message); };
-  return <section className="role-detail"><Panel title="Ground and facilities"><div className="metrics">{dashboard.infrastructure.map((project) => <div key={project.id}><dt>{project.projectType.replaceAll("_", " ")}</dt><dd>{project.status}</dd><span className="subtle">{money(project.capitalCost)} · completes {project.expectedCompletion}</span></div>)}</div>{dashboard.infrastructure.length === 0 && <p className="empty-state">No infrastructure projects recorded.</p>}<div className="button-row">{(["PITCH", "TRAINING_GROUND", "ACADEMY"] as const).map((type) => <button key={type} className="ghost" disabled={busy !== null} onClick={() => void approve(type)}>{busy === type ? "Submitting…" : `Approve ${type.replaceAll("_", " ").toLowerCase()}`}</button>)}</div>{message && <p className="notice" role="status">{message}</p>}</Panel></section>;
-};
+/*
+ * Deep facility planner replaces the old one-click "Approve training
+ * ground/academy" buttons (which just called createInfrastructureProject
+ * with no scope, components, site, or funding choice) with a believable
+ * project-planning workflow on the SAME canonical engine
+ * (createFacilityProjectPlan / getFacilitySiteOptions /
+ * getFacilityPlanning) — see below, exported as FacilityPlanner.
+ */
 
 // Every sponsorship type this can honestly show maps onto the real
 // SponsorshipType enum — there is no separate airline/bank/telecom/beverage/
@@ -1789,5 +1802,493 @@ export const OwnerMatchday = ({ bridge }: { bridge: DesktopRuntimeApi }): React.
         </section>
       )}
     </AsyncPanel>
+  );
+};
+
+/*
+ * DEEP FACILITY / INFRASTRUCTURE PLANNER
+ *
+ * Everything here reads and writes through the canonical project engine
+ * (getFacilityPlanning / getFacilitySiteOptions / createFacilityProjectPlan)
+ * — no parallel facility state, no invented component/scope vocabulary.
+ * The pre-commit "Review project" step calls createFacilityProjectPlan with
+ * dryRun so its cost/duration bands come from the real formula without
+ * writing anything; "Confirm & create project" repeats the same call
+ * without dryRun to actually persist it.
+ */
+
+const FACILITY_PROJECT_TYPES: Array<{ type: InfrastructureProjectType; label: string }> = [
+  { type: "TRAINING_GROUND", label: "Training ground" },
+  { type: "ACADEMY", label: "Academy" },
+  { type: "STADIUM", label: "Stadium / ground" },
+];
+const FACILITY_MODE_LABELS: Record<FacilityProjectMode, string> = {
+  UPGRADE_EXISTING: "Upgrade existing",
+  NEW_SITE: "New site",
+};
+const FACILITY_SCOPE_LABELS: Record<FacilityProjectScope, string> = {
+  BASIC: "Modest",
+  STANDARD: "Standard",
+  EXPANDED: "Advanced",
+  ELITE: "Elite",
+};
+const FACILITY_SCOPE_HINT: Record<FacilityProjectScope, string> = {
+  BASIC: "A lean, low-cost approach — the fastest and cheapest option.",
+  STANDARD: "The club's normal standard.",
+  EXPANDED: "A larger, more ambitious build than standard.",
+  ELITE: "Top-tier investment — the highest cost and the longest build.",
+};
+const FACILITY_FUNDING_LABELS: Record<FacilityFundingSource, string> = {
+  CLUB_CASH: "Club cash",
+  DEBT: "Loan (adds club debt)",
+  GOVERNMENT_GRANT: "Government grant / co-funding",
+  MIXED: "Mixed (club cash + loan)",
+};
+const FACILITY_STATUS_LABEL: Record<InfrastructureProject["status"], string> = {
+  IDEA: "Idea",
+  PLANNING: "Planning",
+  APPROVED: "Approved",
+  FINANCING: "Awaiting financing",
+  CONSTRUCTION: "Under construction",
+  COMPLETED: "Completed",
+  CANCELLED: "Cancelled",
+};
+const FACILITY_STATUS_TONE: Record<InfrastructureProject["status"], MeetingTone> = {
+  IDEA: "info",
+  PLANNING: "info",
+  APPROVED: "info",
+  FINANCING: "warn",
+  CONSTRUCTION: "warn",
+  COMPLETED: "ok",
+  CANCELLED: "bad",
+};
+const band = (value: string): string => value.replaceAll("_", " ").toLowerCase();
+
+/**
+ * Generated from real, already-fetched state only: which project types this
+ * club already has (and their status), the chosen site's real bands, scope,
+ * funding source, and any real outstanding manager facility request. Never
+ * asserts a specific engineering fact that isn't backed by one of these
+ * fields.
+ */
+const facilityNarrative = (input: {
+  projectType: InfrastructureProjectType;
+  mode: FacilityProjectMode;
+  scope: FacilityProjectScope;
+  existing: InfrastructureProject[];
+  site?: FacilitySiteOption;
+  fundingSource: FacilityFundingSource;
+  managerRequests: ManagerPromise[];
+}): string => {
+  const typeLabel = (
+    FACILITY_PROJECT_TYPES.find((item) => item.type === input.projectType)?.label ?? band(input.projectType)
+  ).toLowerCase();
+  const sameType = input.existing.filter((project) => project.projectType === input.projectType);
+  const active = sameType.find((project) => !["COMPLETED", "CANCELLED"].includes(project.status));
+  const completed = sameType.find((project) => project.status === "COMPLETED");
+  const sentences: string[] = [];
+  if (active) sentences.push(`A ${typeLabel} project is already ${FACILITY_STATUS_LABEL[active.status].toLowerCase()} for this club.`);
+  else if (completed) sentences.push(`The club already has a completed ${typeLabel}; this would be a further upgrade.`);
+  else sentences.push(`The club has no dedicated ${typeLabel} on record yet.`);
+  if (input.mode === "NEW_SITE") {
+    sentences.push(
+      input.site
+        ? `A new-site project at ${input.site.municipalityName} (${band(input.site.siteType)}, ${input.site.arrangement.toLowerCase()}) provides room to build from scratch, at a larger upfront commitment than upgrading what already exists.`
+        : "A new-site project provides room to build from scratch, at a larger upfront commitment than upgrading what already exists.",
+    );
+    if (input.site?.readiness === "GOVERNMENT_REVIEW") sentences.push("This site requires municipal/government approval before work can begin.");
+  } else {
+    sentences.push("Upgrading the existing site keeps costs and disruption lower than starting fresh.");
+  }
+  if (input.scope === "ELITE") sentences.push("An elite scope is a significant investment with the longest build time.");
+  else if (input.scope === "BASIC") sentences.push("A modest scope keeps this affordable but limits how much it improves things.");
+  if (input.fundingSource === "DEBT" || input.fundingSource === "MIXED") sentences.push("Financing with a loan adds to the club's debt rather than drawing down cash reserves.");
+  if (input.fundingSource === "GOVERNMENT_GRANT") sentences.push("Government co-funding is contingent on approval and is not guaranteed.");
+  // Only claim this plan responds to a manager request when the request's
+  // own text actually mentions this project type — never attach an
+  // unrelated request just because one happens to exist.
+  const typeKeywords: Record<InfrastructureProjectType, string[]> = {
+    TRAINING_GROUND: ["training"],
+    ACADEMY: ["academy", "youth"],
+    STADIUM: ["stadium", "ground", "stand"],
+    GYM: ["gym"],
+    MEDICAL_ROOM: ["medical"],
+    RECOVERY_CENTRE: ["recovery", "medical"],
+    OFFICE: ["office"],
+    SCOUTING_DEPARTMENT: ["scouting"],
+    ANALYSIS_ROOM: ["analysis"],
+    STAND: ["stand", "stadium"],
+    FLOODLIGHTS: ["floodlight"],
+    PITCH: ["pitch"],
+    DRAINAGE: ["drainage"],
+    REFURBISHMENT: ["refurbish"],
+  };
+  const keywords = typeKeywords[input.projectType] ?? [];
+  const request = input.managerRequests.find((item) => keywords.some((keyword) => `${item.description} ${item.targetCriteria}`.toLowerCase().includes(keyword)));
+  if (request) sentences.push(`This would respond to an outstanding request from the manager: "${request.description}"${request.dueOn ? ` (due ${request.dueOn})` : ""}.`);
+  return sentences.join(" ");
+};
+
+export const FacilityPlanner = ({ bridge, clubId }: { bridge: DesktopRuntimeApi; clubId: EntityId }): React.ReactElement => {
+  const [state, refresh] = useRuntimeData(() => bridge.getFacilityPlanning(clubId), [clubId]);
+  return (
+    <AsyncPanel state={state}>
+      {(planning) => <FacilityPlannerView planning={planning} bridge={bridge} clubId={clubId} refresh={refresh} />}
+    </AsyncPanel>
+  );
+};
+
+const FacilityPlannerView = ({
+  planning,
+  bridge,
+  clubId,
+  refresh,
+}: {
+  planning: FacilityPlanningView;
+  bridge: DesktopRuntimeApi;
+  clubId: EntityId;
+  refresh: () => void;
+}): React.ReactElement => {
+  const [projectType, setProjectType] = useState<InfrastructureProjectType>("TRAINING_GROUND");
+  const [mode, setMode] = useState<FacilityProjectMode>("UPGRADE_EXISTING");
+  const [scope, setScope] = useState<FacilityProjectScope>("STANDARD");
+  const catalog = planning.componentCatalog[projectType] ?? [];
+  const [components, setComponents] = useState<string[]>([...catalog]);
+  useEffect(() => setComponents([...(planning.componentCatalog[projectType] ?? [])]), [projectType, planning.componentCatalog]);
+  const [siteOptions, setSiteOptions] = useState<FacilitySiteOption[] | null>(null);
+  const [siteOptionId, setSiteOptionId] = useState<EntityId | undefined>(undefined);
+  const [fundingSource, setFundingSource] = useState<FacilityFundingSource>("CLUB_CASH");
+  const [debtAmount, setDebtAmount] = useState("1000000");
+  const [grantAmount, setGrantAmount] = useState("1000000");
+  const [cashAmount, setCashAmount] = useState("1000000");
+  const [preview, setPreview] = useState<FacilityProjectPlanResult | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<AppError | null>(null);
+
+  const selectedSite = siteOptions?.find((site) => site.id === siteOptionId);
+  const approvedApplication = planning.governmentApplications.find((application) => ["APPROVED", "CONDITIONAL"].includes(application.status));
+  const blockedByGovernment = mode === "NEW_SITE" && selectedSite?.readiness === "GOVERNMENT_REVIEW" && !approvedApplication;
+  const financing: Record<string, number> | undefined =
+    fundingSource === "CLUB_CASH"
+      ? undefined
+      : fundingSource === "DEBT"
+        ? { debt: Number(debtAmount) || 0 }
+        : fundingSource === "GOVERNMENT_GRANT"
+          ? { governmentGrant: Number(grantAmount) || 0 }
+          : { clubCash: Number(cashAmount) || 0, debt: Number(debtAmount) || 0 };
+
+  const loadSites = async (): Promise<void> => {
+    setBusy(true);
+    setError(null);
+    const result = await bridge.getFacilitySiteOptions(clubId);
+    setBusy(false);
+    if (result.ok) setSiteOptions(result.data);
+    else setError(result.error);
+  };
+
+  const rationale = facilityNarrative({
+    projectType,
+    mode,
+    scope,
+    existing: planning.projects,
+    site: selectedSite,
+    fundingSource,
+    managerRequests: planning.managerFacilityRequests,
+  });
+
+  const buildInput = (dryRun: boolean): FacilityProjectPlanInput => ({
+    clubId,
+    projectType,
+    mode,
+    scope,
+    components,
+    siteOptionId: mode === "NEW_SITE" ? siteOptionId : undefined,
+    fundingSource,
+    financing,
+    governmentApplicationId: selectedSite?.readiness === "GOVERNMENT_REVIEW" ? approvedApplication?.id : undefined,
+    rationale,
+    dryRun,
+  });
+
+  const review = async (): Promise<void> => {
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    const result = await bridge.createFacilityProjectPlan(buildInput(true));
+    setBusy(false);
+    if (result.ok) setPreview(result.data);
+    else setError(result.error);
+  };
+
+  const confirm = async (): Promise<void> => {
+    if (!preview) return;
+    setBusy(true);
+    setError(null);
+    const result = await bridge.createFacilityProjectPlan(buildInput(false));
+    setBusy(false);
+    if (result.ok) {
+      const typeLabel = FACILITY_PROJECT_TYPES.find((item) => item.type === projectType)?.label ?? projectType;
+      setMessage(`${typeLabel} project created — ${band(result.data.plan.costBand)} cost, ${band(result.data.plan.durationBand)} duration.`);
+      setPreview(null);
+      setSiteOptions(null);
+      setSiteOptionId(undefined);
+      refresh();
+    } else setError(result.error);
+  };
+
+  return (
+    <section className="role-detail facility-planner">
+      {error && <ErrorBanner error={error} />}
+      {message && <p className="notice" role="status">{message}</p>}
+
+      <FacilityLifecycle planning={planning} />
+
+      {planning.managerFacilityRequests.length > 0 && (
+        <Panel title="Manager facility requests">
+          <p className="subtle">The manager has raised these through a board meeting — the plan below can respond to one.</p>
+          <ul className="compact-list">
+            {planning.managerFacilityRequests.map((promise) => (
+              <li key={promise.id}>
+                {promise.description} · due {promise.dueOn}
+                {promise.status === "AT_RISK" && <Badge tone="warn">At risk</Badge>}
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      )}
+
+      {!preview ? (
+        <Panel title="Plan a new facility project" className="panel-wide">
+          <div className="facility-form-grid">
+            <label>
+              Project type
+              <select
+                value={projectType}
+                onChange={(event) => {
+                  setProjectType(event.target.value as InfrastructureProjectType);
+                  setSiteOptions(null);
+                  setSiteOptionId(undefined);
+                }}
+              >
+                {FACILITY_PROJECT_TYPES.map((item) => (
+                  <option key={item.type} value={item.type}>{item.label}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Strategy
+              <select value={mode} onChange={(event) => { setMode(event.target.value as FacilityProjectMode); setSiteOptionId(undefined); }}>
+                {(Object.keys(FACILITY_MODE_LABELS) as FacilityProjectMode[]).map((item) => (
+                  <option key={item} value={item}>{FACILITY_MODE_LABELS[item]}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Scope
+              <select value={scope} onChange={(event) => setScope(event.target.value as FacilityProjectScope)}>
+                {(Object.keys(FACILITY_SCOPE_LABELS) as FacilityProjectScope[]).map((item) => (
+                  <option key={item} value={item}>{FACILITY_SCOPE_LABELS[item]}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <p className="subtle">{FACILITY_SCOPE_HINT[scope]}</p>
+
+          {catalog.length > 0 && (
+            <fieldset className="facility-components">
+              <legend>Components</legend>
+              <div className="component-tiles">
+                {catalog.map((component) => (
+                  <label key={component} className={components.includes(component) ? "component-tile selected" : "component-tile"}>
+                    <input
+                      type="checkbox"
+                      checked={components.includes(component)}
+                      onChange={(event) => setComponents(event.target.checked ? [...components, component] : components.filter((item) => item !== component))}
+                    />
+                    {band(component)}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          )}
+
+          {mode === "NEW_SITE" && (
+            <div className="facility-site-step">
+              <h3>Site</h3>
+              {!planning.homeDistrict ? (
+                <p className="empty-state">This club has no district on record to site a new project in.</p>
+              ) : !siteOptions ? (
+                <button className="small" disabled={busy} onClick={() => void loadSites()}>
+                  {busy ? "Generating…" : `Generate site options near ${planning.homeDistrict.districtName}`}
+                </button>
+              ) : (
+                <div className="site-cards">
+                  {siteOptions.map((site) => (
+                    <label key={site.id} className={siteOptionId === site.id ? "site-card selected" : "site-card"}>
+                      <input type="radio" name="facility-site" checked={siteOptionId === site.id} onChange={() => setSiteOptionId(site.id)} />
+                      <strong>{site.municipalityName} · {band(site.siteType)}</strong>
+                      <span className="subtle">Simulation-only project option, not a verified land listing.</span>
+                      <Metrics items={[
+                        { label: "Arrangement", value: site.arrangement.toLowerCase() },
+                        { label: "Cost", value: site.costBand.toLowerCase() },
+                        { label: "Accessibility", value: site.accessibilityBand.toLowerCase() },
+                        { label: "Catchment", value: site.catchmentBand.toLowerCase() },
+                        { label: "Community value", value: site.communityValueBand.toLowerCase() },
+                        { label: "Readiness", value: band(site.readiness) },
+                      ]} />
+                      {site.governmentConditions.length > 0 && <p className="subtle">Conditions: {site.governmentConditions.join(", ")}</p>}
+                    </label>
+                  ))}
+                </div>
+              )}
+              {selectedSite?.readiness === "GOVERNMENT_REVIEW" && (
+                <p className={blockedByGovernment ? "warning" : "notice"} role={blockedByGovernment ? "alert" : "status"}>
+                  {blockedByGovernment
+                    ? "This site requires government approval before planning can proceed. No approved application exists for this club, and there is currently no way to request one from the Owner office."
+                    : "This site's government application has been approved and can be used for this plan."}
+                </p>
+              )}
+            </div>
+          )}
+
+          <div className="facility-funding-step">
+            <h3>Funding</h3>
+            <label>
+              Source
+              <select value={fundingSource} onChange={(event) => setFundingSource(event.target.value as FacilityFundingSource)}>
+                {(Object.keys(FACILITY_FUNDING_LABELS) as FacilityFundingSource[]).map((item) => (
+                  <option key={item} value={item}>{FACILITY_FUNDING_LABELS[item]}</option>
+                ))}
+              </select>
+            </label>
+            {fundingSource === "CLUB_CASH" && <p className="subtle">Funded in full from club cash, if the club can afford it.</p>}
+            {fundingSource === "DEBT" && (
+              <label>Loan amount (NPR)<input type="number" min="0" value={debtAmount} onChange={(event) => setDebtAmount(event.target.value)} /></label>
+            )}
+            {fundingSource === "GOVERNMENT_GRANT" && (
+              <label>Expected grant amount (NPR)<input type="number" min="0" value={grantAmount} onChange={(event) => setGrantAmount(event.target.value)} /></label>
+            )}
+            {fundingSource === "MIXED" && (
+              <>
+                <label>Club cash (NPR)<input type="number" min="0" value={cashAmount} onChange={(event) => setCashAmount(event.target.value)} /></label>
+                <label>Loan amount (NPR)<input type="number" min="0" value={debtAmount} onChange={(event) => setDebtAmount(event.target.value)} /></label>
+              </>
+            )}
+            <p className="subtle">Club cash and loans are both club money — a loan adds to the club's debt. Personal funds are separate: inject owner capital from Investors first if you want to fund this from your own money.</p>
+          </div>
+
+          <button
+            className="primary"
+            disabled={busy || (mode === "NEW_SITE" && (!siteOptionId || blockedByGovernment))}
+            onClick={() => void review()}
+          >
+            {busy ? "Reviewing…" : "Review project"}
+          </button>
+        </Panel>
+      ) : (
+        <FacilitySummary
+          preview={preview}
+          rationale={rationale}
+          fundingSource={fundingSource}
+          financing={financing}
+          site={selectedSite}
+          busy={busy}
+          onBack={() => setPreview(null)}
+          onConfirm={() => void confirm()}
+        />
+      )}
+    </section>
+  );
+};
+
+const FacilitySummary = ({
+  preview,
+  rationale,
+  fundingSource,
+  financing,
+  site,
+  busy,
+  onBack,
+  onConfirm,
+}: {
+  preview: FacilityProjectPlanResult;
+  rationale: string;
+  fundingSource: FacilityFundingSource;
+  financing?: Record<string, number>;
+  site?: FacilitySiteOption;
+  busy: boolean;
+  onBack: () => void;
+  onConfirm: () => void;
+}): React.ReactElement => {
+  const { project, plan } = preview;
+  return (
+    <Panel title="Project summary — review before committing" className="panel-wide facility-summary">
+      <p>{rationale}</p>
+      <Metrics items={[
+        { label: "Project type", value: FACILITY_PROJECT_TYPES.find((item) => item.type === plan.projectType)?.label ?? plan.projectType },
+        { label: "Strategy", value: FACILITY_MODE_LABELS[plan.mode] },
+        { label: "Scope", value: FACILITY_SCOPE_LABELS[plan.scope] },
+        { label: "Estimated cost", value: band(plan.costBand) },
+        { label: "Estimated duration", value: band(plan.durationBand) },
+        { label: "Funding source", value: FACILITY_FUNDING_LABELS[fundingSource] },
+        { label: "Ongoing maintenance (once completed)", value: `${money(project.ongoingCost)} / month` },
+      ]} />
+      <p className="subtle">Target improvement: {plan.expectedImprovement.map(band).join(", ") || "General facility renewal"}.</p>
+      {site && (
+        <p className="subtle">
+          Site: {site.municipalityName} · {band(site.siteType)} · {site.arrangement.toLowerCase()}
+          {site.governmentConditions.length > 0 && ` · conditions: ${site.governmentConditions.join(", ")}`}
+        </p>
+      )}
+      <p className="subtle">
+        Funding split: {Object.entries(financing ?? {}).map(([key, value]) => `${band(key.replace(/([A-Z])/g, "_$1"))}: ${money(value)}`).join(", ") || "automatically drawn from club cash"} — {project.fundingStatus === "FUNDED" ? "fully funded" : project.fundingStatus === "PARTIALLY_FUNDED" ? "partially funded" : "not yet funded"}.
+      </p>
+      <p className="subtle">Once construction begins, a real 0–45 day delay and up to a 12% cost overrun can occur. Cancelling a project later forfeits any funds already committed as a sunk cost.</p>
+      <div className="button-row">
+        <button className="ghost" disabled={busy} onClick={onBack}>Back to edit</button>
+        <button className="primary" disabled={busy} onClick={onConfirm}>{busy ? "Creating…" : "Confirm & create project"}</button>
+      </div>
+    </Panel>
+  );
+};
+
+const FacilityLifecycle = ({ planning }: { planning: FacilityPlanningView }): React.ReactElement => {
+  if (planning.projects.length === 0) {
+    return <Panel title="Facility projects"><p className="empty-state">No infrastructure projects recorded for this club yet.</p></Panel>;
+  }
+  const planFor = (projectId: EntityId): FacilityProjectPlan | undefined => planning.plans.find((item) => item.projectId === projectId);
+  return (
+    <Panel title="Facility projects" className="panel-wide">
+      <div className="facility-lifecycle-grid">
+        {planning.projects.map((project) => {
+          const plan = planFor(project.id);
+          return (
+            <article key={project.id} className="facility-project-card">
+              <header>
+                <strong>{band(project.projectType)}</strong>
+                <Badge tone={FACILITY_STATUS_TONE[project.status]}>{FACILITY_STATUS_LABEL[project.status]}</Badge>
+              </header>
+              {plan && <p className="subtle">{FACILITY_MODE_LABELS[plan.mode]} · {FACILITY_SCOPE_LABELS[plan.scope]} scope</p>}
+              <Metrics items={[
+                { label: "Capital cost", value: money(project.capitalCost) },
+                { label: "Funding", value: project.fundingStatus ? band(project.fundingStatus) : "—" },
+                {
+                  label: project.status === "COMPLETED" ? "Completed" : project.status === "CANCELLED" ? "Cancelled" : "Expected completion",
+                  value: project.completedAt ?? project.cancelledOn ?? project.expectedCompletion,
+                },
+              ]} />
+              {project.status === "CONSTRUCTION" && (project.delayDays ?? 0) > 0 && (
+                <p className="subtle">Running {project.delayDays} days behind schedule.</p>
+              )}
+              {project.status === "CANCELLED" && (
+                <p className="subtle">Sunk cost: {money(project.sunkCost ?? 0)}{project.recoveryPlan ? ` — ${project.recoveryPlan}` : ""}</p>
+              )}
+              {plan?.rationale && <p className="subtle">"{plan.rationale}"</p>}
+            </article>
+          );
+        })}
+      </div>
+    </Panel>
   );
 };

@@ -976,6 +976,16 @@ export const createInfrastructureProject = (
     venueId?: EntityId;
     financing?: Record<string, number>;
     siteRights?: InfrastructureProject["siteRights"];
+    /**
+     * Runs the exact same cost/duration/prerequisite calculation without
+     * writing the project, any linked debt, or any ledger transaction — used
+     * by the facility planner's pre-commit summary so the "estimated cost
+     * band"/"duration band" it shows come from this same canonical engine
+     * instead of a duplicated frontend formula. Same seed + same date as the
+     * later real create call reproduces identical figures, not just the
+     * same band.
+     */
+    dryRun?: boolean;
   },
 ): InfrastructureProject => {
   const rng = new SeededRandom(
@@ -1040,7 +1050,7 @@ export const createInfrastructureProject = (
     provenanceStatus: simulationStatus,
   };
   const debtAmount = Math.max(0, financingJson.debt ?? 0);
-  if (debtAmount > 0) {
+  if (debtAmount > 0 && !input.dryRun) {
     economy.upsertDebt({
       id: createStableEntityId("infrastructure-debt", project.id),
       clubId: input.clubId,
@@ -1066,7 +1076,7 @@ export const createInfrastructureProject = (
       idempotencyKey: `infrastructure-debt:${project.id}`,
     });
   }
-  economy.upsertInfrastructureProject(project);
+  if (!input.dryRun) economy.upsertInfrastructureProject(project);
   return project;
 };
 
@@ -1080,6 +1090,7 @@ export const createInfrastructureProjectCommand = (
     projectType: InfrastructureProjectType;
     date: string;
     seed: string;
+    dryRun?: boolean;
   },
 ): InfrastructureProject => {
   if (input.callerRole !== "CHAIRMAN_OWNER" &&

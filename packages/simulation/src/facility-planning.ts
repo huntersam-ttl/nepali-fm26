@@ -14,6 +14,48 @@ const defaultComponents: Record<string, string[]> = {
   STAND: ["hospitality", "community_facilities"],
 };
 
+/**
+ * The facility planner's component checklist must only ever show what this
+ * engine actually recognises per project type — never a richer, invented
+ * list. Exported as-is (not duplicated) so the UI reads the same source of
+ * truth createFacilityProjectPlan defaults components from.
+ */
+export const facilityComponentCatalog: Readonly<Record<string, readonly string[]>> = defaultComponents;
+
+/**
+ * Resolves the club's own real location to a district (walking up the
+ * location hierarchy when the club sits on a city/municipality/neighbourhood
+ * node) plus a human municipality label, for the "new site" planner step.
+ * Returns undefined only if the club has no location on record at all.
+ */
+export const resolveClubDistrict = (
+  db: GameDatabase,
+  clubId: EntityId,
+): { districtId: EntityId; districtName: string; municipalityName: string } | undefined => {
+  const club = db.prepare("SELECT location_id FROM clubs WHERE id=?").get(clubId) as { location_id?: EntityId } | undefined;
+  if (!club?.location_id) return undefined;
+  const chain = db
+    .prepare(
+      `WITH RECURSIVE up(id, name, kind, parent_location_id, depth) AS (
+         SELECT id, name, kind, parent_location_id, 0 FROM locations WHERE id = ?
+         UNION ALL
+         SELECT l.id, l.name, l.kind, l.parent_location_id, up.depth + 1
+         FROM locations l JOIN up ON l.id = up.parent_location_id
+       )
+       SELECT id, name, kind FROM up ORDER BY depth`,
+    )
+    .all(club.location_id) as Array<{ id: EntityId; name: string; kind: string }>;
+  const self = chain[0];
+  const district = chain.find((entry) => entry.kind === "district");
+  if (!district) return undefined;
+  const municipality = chain.find((entry) => entry.kind === "municipality" || entry.kind === "city");
+  return {
+    districtId: district.id,
+    districtName: district.name,
+    municipalityName: municipality?.name ?? self?.name ?? district.name,
+  };
+};
+
 const bands = (cost: number, durationDays: number): Pick<FacilityProjectPlan, "costBand" | "durationBand"> => ({
   costBand: cost < 2_000_000 ? "LOW" : cost < 7_500_000 ? "MODERATE" : cost < 20_000_000 ? "HIGH" : "VERY_HIGH",
   durationBand: durationDays <= 120 ? "SHORT" : durationDays <= 240 ? "MEDIUM" : durationDays <= 420 ? "LONG" : "VERY_LONG",
@@ -50,6 +92,16 @@ export type FacilityPlanningInput = {
   financing?: Record<string, number>;
   governmentApplicationId?: EntityId;
   rationale: string;
+  /**
+   * Runs every real precondition (prerequisites, site/government checks) and
+   * the exact same cost/duration formula without writing anything — the
+   * facility planner's pre-commit summary calls this so its "estimated cost
+   * band"/"duration band" come from the canonical engine, not a duplicated
+   * frontend estimate. Calling again with dryRun false and the same date
+   * reproduces identical figures (same seed, same world date -> same RNG
+   * draw), not just the same band.
+   */
+  dryRun?: boolean;
 };
 
 export const createFacilityProjectPlan = (db: GameDatabase, input: FacilityPlanningInput): { project: InfrastructureProject; plan: FacilityProjectPlan; siteOption?: FacilitySiteOption } => {
@@ -60,7 +112,7 @@ export const createFacilityProjectPlan = (db: GameDatabase, input: FacilityPlann
   if (siteOption?.readiness === "GOVERNMENT_REVIEW" && !input.governmentApplicationId) throw new Error("This site requires a government application before planning can proceed");
   if (input.governmentApplicationId && !new GovernmentRepository(db).applications().some((application) => application.id === input.governmentApplicationId)) throw new Error("Government application missing for facility project");
   const components = [...new Set(input.components?.length ? input.components : defaultComponents[input.projectType] ?? ["renewed_core_components"])];
-  const project = createInfrastructureProjectCommand(db, { clubId: input.clubId, personId: input.personId, callerRole: input.callerRole, projectType: input.projectType, date: input.date, seed: input.seed });
+  const project = createInfrastructureProjectCommand(db, { clubId: input.clubId, personId: input.personId, callerRole: input.callerRole, projectType: input.projectType, date: input.date, seed: input.seed, dryRun: input.dryRun });
   const siteCostMultiplier = input.mode === "NEW_SITE" ? (siteOption?.arrangement === "PURCHASE" ? 1.35 : siteOption?.arrangement === "CO_FUNDED" ? 1.12 : 1.05) : 1;
   const componentMultiplier = 0.78 + components.length * 0.08;
   const adjustedCost = Math.round(project.capitalCost * scopeMultiplier[input.scope] * componentMultiplier * siteCostMultiplier);
@@ -69,8 +121,10 @@ export const createFacilityProjectPlan = (db: GameDatabase, input: FacilityPlann
   const financingJson = input.financing ?? (input.fundingSource === "CLUB_CASH" ? { clubCash: adjustedCost } : {});
   const committed = Object.values(financingJson).reduce((sum, value) => sum + Math.max(0, value), 0);
   const updated: InfrastructureProject = { ...project, expectedCompletion: addDays(project.planningStart, durationDays), capitalCost: adjustedCost, ongoingCost: Math.round(project.ongoingCost * scopeMultiplier[input.scope] * componentMultiplier), financingJson, siteRights: input.mode === "NEW_SITE" ? siteOption?.arrangement === "LEASE" ? "LEASED" : siteOption?.arrangement === "CO_FUNDED" ? "SHARED" : "PERMISSION_REQUIRED" : project.siteRights, fundingCommitted: committed, fundingStatus: committed >= adjustedCost ? "FUNDED" : committed > 0 ? "PARTIALLY_FUNDED" : "UNFUNDED", components, utilisationCapacity: Math.round((project.utilisationCapacity ?? 0) * scopeMultiplier[input.scope]), maintenanceStatus: "FUNDED" };
-  new ClubEconomyRepository(db).upsertInfrastructureProject(updated);
   const plan: FacilityProjectPlan = { id: createStableEntityId("facility-plan", updated.id), projectId: updated.id, clubId: input.clubId, projectType: input.projectType, mode: input.mode, scope: input.scope, components, siteOptionId: siteOption?.id, fundingSource: input.fundingSource, governmentApplicationId: input.governmentApplicationId, rationale: input.rationale, ...bands(adjustedCost, durationDays), expectedImprovement: components.map((component) => component.replaceAll("_", " ")), createdOn: input.date, provenanceStatus: "SIMULATION_ONLY" };
-  sites.upsertPlan(plan);
+  if (!input.dryRun) {
+    new ClubEconomyRepository(db).upsertInfrastructureProject(updated);
+    sites.upsertPlan(plan);
+  }
   return { project: updated, plan, siteOption };
 };

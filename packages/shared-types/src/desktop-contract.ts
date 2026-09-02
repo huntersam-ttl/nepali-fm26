@@ -42,6 +42,7 @@ import type {
   OwnershipAcquisitionOffer,
   OwnerInvestmentTransaction,
   StaffAppointment,
+  ManagerPromise,
 } from "./domain.js";
 import type { ExecutiveAuthorityDesktopView } from "./executive-roles.js";
 import type { FederationDevelopmentSummary } from "./federation-policy.js";
@@ -54,6 +55,13 @@ import type {
   OwnerManagerMeetingTopic,
 } from "./owner-manager-meetings.js";
 import type { GovernmentOverview, GovernmentFundingApplication, GovernmentFundingType } from "./government.js";
+import type {
+  FacilityFundingSource,
+  FacilityProjectMode,
+  FacilityProjectPlan,
+  FacilityProjectScope,
+  FacilitySiteOption,
+} from "./facility-planning.js";
 
 /**
  * Canonical desktop application contract.
@@ -285,6 +293,50 @@ export type OwnerMatchdayView = {
 };
 
 /**
+ * Facility planner read model. componentCatalog and homeDistrict are the
+ * canonical engine's own defaults/geography — the UI must render only what
+ * this lists, never a richer invented set. governmentApplications is
+ * filtered to this club and will typically be empty today: no command lets
+ * an Owner create one (requestGovernmentFunding is federation-president-only
+ * and takes no clubId), so a government-review site stays honestly blocked
+ * rather than bypassed. managerFacilityRequests surfaces any active
+ * FACILITY_PROJECT commitment the manager raised through the owner-manager
+ * meeting system, so the planner can show it is responding to a real
+ * request instead of appearing unprompted.
+ */
+export type FacilityPlanningView = {
+  clubId: EntityId;
+  projects: InfrastructureProject[];
+  plans: FacilityProjectPlan[];
+  sites: FacilitySiteOption[];
+  componentCatalog: Record<string, readonly string[]>;
+  homeDistrict?: { districtId: EntityId; districtName: string; municipalityName: string };
+  governmentApplications: GovernmentFundingApplication[];
+  managerFacilityRequests: ManagerPromise[];
+};
+
+export type FacilityProjectPlanInput = {
+  clubId: EntityId;
+  projectType: InfrastructureProjectType;
+  mode: FacilityProjectMode;
+  scope: FacilityProjectScope;
+  components?: string[];
+  siteOptionId?: EntityId;
+  fundingSource: FacilityFundingSource;
+  financing?: Record<string, number>;
+  governmentApplicationId?: EntityId;
+  rationale: string;
+  /** Computes and returns the real cost/duration bands without persisting anything — the planner's pre-commit summary step. */
+  dryRun?: boolean;
+};
+
+export type FacilityProjectPlanResult = {
+  project: InfrastructureProject;
+  plan: FacilityProjectPlan;
+  siteOption?: FacilitySiteOption;
+};
+
+/**
  * Bank-meeting read model, shared by the controlling owner and a CEO with
  * delegated BUDGET_ADMINISTRATION. headroom/maxNewPrincipal/maxTotalDebt are
  * the club's real, current affordability ceiling — the same numbers
@@ -459,6 +511,9 @@ export type DesktopRuntimeApi = {
   watchOwnerFixture(fixtureId?: EntityId): Promise<AppResult<LiveMatchView>>;
   quickSimOwnerFixture(fixtureId?: EntityId): Promise<AppResult<LiveMatchView>>;
   getEntityReference(entityType: EntityReferenceType, entityId: EntityId): Promise<AppResult<EntityReference>>;
+  getFacilityPlanning(clubId?: EntityId): Promise<AppResult<FacilityPlanningView>>;
+  getFacilitySiteOptions(clubId: EntityId, districtId?: EntityId, municipalityName?: string): Promise<AppResult<FacilitySiteOption[]>>;
+  createFacilityProjectPlan(input: FacilityProjectPlanInput): Promise<AppResult<FacilityProjectPlanResult>>;
   getFederationPresidentDashboard(): Promise<AppResult<FederationPresidentDashboard>>;
   getNationalDevelopment(): Promise<AppResult<FederationDevelopmentSummary>>;
   getGovernmentOverview(): Promise<AppResult<GovernmentOverview>>;
