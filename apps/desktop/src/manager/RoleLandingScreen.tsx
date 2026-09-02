@@ -14,7 +14,7 @@ import { AsyncPanel, Badge, ErrorBanner, Metrics, Panel, useRuntimeData } from "
 import { CandidacyPanel } from "./screens/HomeScreen.js";
 import { RoleDetailScreen, type ChairmanScreen, type PresidentScreen } from "./RoleDetailScreen.js";
 
-const EXECUTIVE_ROLES = ["SPORTING_DIRECTOR", "DIRECTOR_OF_FOOTBALL", "CEO", "GENERAL_SECRETARY"];
+export const EXECUTIVE_ROLES = ["SPORTING_DIRECTOR", "DIRECTOR_OF_FOOTBALL", "CEO", "GENERAL_SECRETARY"];
 
 const money = (amount: number, currency = "NPR"): string =>
   `${currency} ${Math.round(amount).toLocaleString()}`;

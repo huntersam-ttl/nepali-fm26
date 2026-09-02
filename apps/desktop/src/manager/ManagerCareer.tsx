@@ -17,7 +17,7 @@ import { StaffScreen } from "./screens/StaffScreen.js";
 import { MedicalScreen } from "./screens/MedicalScreen.js";
 import { MediaScreen } from "./screens/MediaScreen.js";
 import { MatchdayScreen } from "./matchday/MatchdayScreen.js";
-import { RoleLandingScreen } from "./RoleLandingScreen.js";
+import { RoleLandingScreen, EXECUTIVE_ROLES } from "./RoleLandingScreen.js";
 import type { ChairmanScreen, PresidentScreen } from "./RoleDetailScreen.js";
 
 const careerRoleLabel = (role: CareerRole): string =>
@@ -70,6 +70,13 @@ const PRESIDENT_NAV: Array<{ group: string; items: Array<{ id: PresidentScreen; 
   { group: "Federation", items: [{ id: "dashboard", label: "Dashboard" }, { id: "governance", label: "Governance" }, { id: "finance", label: "Finance" }] },
   { group: "Football", items: [{ id: "national-teams", label: "National Teams" }, { id: "national-development", label: "National Development" }] },
   { group: "Career", items: [{ id: "tenure", label: "Election / Tenure" }] },
+];
+// Executive roles (CEO, General Secretary, Sporting Director, Director of
+// Football) currently have exactly one screen — showing the Chairman/
+// President sub-navigation next to it would suggest sections that do
+// nothing for this role and never actually render for it.
+const EXECUTIVE_NAV: Array<{ group: string; items: Array<{ id: PresidentScreen; label: string }> }> = [
+  { group: "Executive office", items: [{ id: "dashboard", label: "Dashboard" }] },
 ];
 
 const LABELS: Record<Screen, string> = {
@@ -251,7 +258,7 @@ export const ManagerCareer = ({
             </button>
               ))}
             </div>
-          )) : (header.activeRole === "CHAIRMAN_OWNER" ? CHAIRMAN_NAV : PRESIDENT_NAV).map((group) => (
+          )) : (header.activeRole === "CHAIRMAN_OWNER" ? CHAIRMAN_NAV : EXECUTIVE_ROLES.includes(header.activeRole) ? EXECUTIVE_NAV : PRESIDENT_NAV).map((group) => (
             <div className="nav-group" key={group.group}>
               <span className="nav-label">{group.group}</span>
               {group.items.map((item) => <button key={item.id} className={roleScreen === item.id ? "active" : ""} onClick={() => setRoleScreen(item.id)}>{item.label}</button>)}
