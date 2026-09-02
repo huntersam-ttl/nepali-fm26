@@ -3,6 +3,9 @@ import type {
   ChairmanDashboard,
   CareerHeader,
   CareerRoleState,
+  ClubDebt,
+  ClubFinanceMeetingOverview,
+  ClubLoanApplication,
   FederationDevelopmentBand,
   FederationDevelopmentSummary,
   FederationPresidentDashboard,
@@ -18,7 +21,7 @@ import type { AppError, DesktopRuntimeApi } from "../appBridge.js";
 import { AsyncPanel, Badge, ErrorBanner, Metrics, Panel, money, useRuntimeData } from "./ui.js";
 import { MeetingBrief, MeetingOptions, MeetingOutcome, MeetingParticipants, MeetingShell, type MeetingOption, type MeetingTone } from "./meetings.js";
 
-export type ChairmanScreen = "dashboard" | "finance" | "manager" | "facilities" | "sponsorship" | "supporters" | "investors";
+export type ChairmanScreen = "dashboard" | "finance" | "manager" | "facilities" | "sponsorship" | "supporters" | "investors" | "bank";
 export type PresidentScreen = "dashboard" | "governance" | "finance" | "national-teams" | "national-development" | "government-relations" | "tenure";
 
 type Props = {
@@ -40,6 +43,7 @@ const SECTION_TITLES: Record<string, { title: string; subtitle: string }> = {
   facilities: { title: "Facilities", subtitle: "Ground and infrastructure projects." },
   sponsorship: { title: "Sponsorship", subtitle: "Commercial agreements and offers." },
   supporters: { title: "Supporters", subtitle: "Attendance and supporter sentiment." },
+  bank: { title: "Bank", subtitle: "Loan requests, approvals, and the club's repayment schedule." },
   investors: { title: "Investors", subtitle: "Ownership stakes and equity interest." },
   governance: { title: "Governance", subtitle: "Proposals, policy, and federation decisions." },
   "national-teams": { title: "National teams", subtitle: "Squads, staff, and international programme." },
@@ -87,6 +91,7 @@ const ChairmanDetail = ({ screen, bridge, onNavigate }: { screen: ChairmanScreen
     if (screen === "facilities") return <ChairmanFacilities dashboard={dashboard} bridge={bridge} refresh={refresh} />;
     if (screen === "sponsorship") return <ChairmanSponsorship dashboard={dashboard} bridge={bridge} refresh={refresh} />;
     if (screen === "investors") return <ChairmanInvestors dashboard={dashboard} bridge={bridge} refresh={refresh} />;
+    if (screen === "bank") return <BankMeeting bridge={bridge} role="CHAIRMAN_OWNER" clubId={dashboard.club.id} />;
     return <ChairmanSupporters dashboard={dashboard} />;
   }}</AsyncPanel>;
 };
@@ -576,3 +581,223 @@ const GovernmentRelationsView = ({
   );
 };
 const Ledger = ({ entries }: { entries: Array<{ id: string; date: string; description: string; direction: string; amount: number; currency: string }> }): React.ReactElement => <Panel title="Recent transactions"><ul className="compact-list">{entries.length ? entries.slice(0, 12).map((entry) => <li key={entry.id}>{entry.date} · {entry.description} · {entry.direction === "DEBIT" ? "−" : "+"}{money(entry.amount, entry.currency)}</li>) : <li>No transactions recorded.</li>}</ul></Panel>;
+
+// Loan approval is instant and deterministic from real affordability math —
+// there is no lender "offer" to accept/reject/counter, and no drawdown step
+// separate from approval. The meeting below is honest about that: one
+// request action whose outcome is decided the moment it is sent, not a
+// back-and-forth negotiation the backend does not support.
+const loanStatusTone = (statusValue: ClubLoanApplication["status"]): MeetingTone =>
+  statusValue === "APPROVED" ? "ok" : statusValue === "REJECTED" ? "bad" : "info";
+const debtStatusTone = (statusValue: ClubDebt["status"]): MeetingTone =>
+  statusValue === "ACTIVE" ? "info" : statusValue === "REPAID" ? "ok" : "bad";
+
+export const BankMeeting = ({
+  bridge,
+  role,
+  clubId,
+}: {
+  bridge: DesktopRuntimeApi;
+  role: "CHAIRMAN_OWNER" | "CEO";
+  clubId?: EntityId;
+}): React.ReactElement => {
+  const [state, refresh] = useRuntimeData(() => bridge.getClubFinanceMeeting(clubId), [clubId]);
+  return (
+    <AsyncPanel state={state}>
+      {(overview) => <BankMeetingView overview={overview} bridge={bridge} role={role} refresh={refresh} />}
+    </AsyncPanel>
+  );
+};
+
+const BankMeetingView = ({
+  overview,
+  bridge,
+  role,
+  refresh,
+}: {
+  overview: ClubFinanceMeetingOverview;
+  bridge: DesktopRuntimeApi;
+  role: "CHAIRMAN_OWNER" | "CEO";
+  refresh: () => void;
+}): React.ReactElement => {
+  const [lenderId, setLenderId] = useState<EntityId | undefined>(overview.lenders[0]?.id);
+  const [principal, setPrincipal] = useState("500000");
+  const [term, setTerm] = useState("12");
+  const [purpose, setPurpose] = useState("Club operations");
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const lender = overview.lenders.find((item) => item.id === lenderId);
+  const principalAmount = Number(principal);
+  const termMonths = Number(term);
+  const canRequest =
+    Boolean(lender) &&
+    Number.isFinite(principalAmount) &&
+    principalAmount > 0 &&
+    Number.isFinite(termMonths) &&
+    termMonths >= 3;
+
+  const requestLoan = async (): Promise<void> => {
+    if (!lender) return;
+    setBusyId("request");
+    setMessage(null);
+    const result =
+      role === "CEO"
+        ? await bridge.applyExecutiveClubLoan(overview.clubId, lender.id, principalAmount, termMonths, purpose)
+        : await bridge.applyClubLoan(lender.id, principalAmount, termMonths, purpose);
+    setBusyId(null);
+    setMessage(
+      result.ok ? `${lender.name} ${result.data.status.toLowerCase()} the loan request.` : result.error.message,
+    );
+    if (result.ok) refresh();
+  };
+
+  const repay = async (debtId: EntityId, amount: number): Promise<void> => {
+    setBusyId(debtId);
+    setMessage(null);
+    const result =
+      role === "CEO"
+        ? await bridge.repayExecutiveClubLoan(overview.clubId, debtId, amount)
+        : await bridge.repayClubLoan(debtId, amount);
+    setBusyId(null);
+    setMessage(result.ok ? "Loan repayment recorded." : result.error.message);
+    if (result.ok) refresh();
+  };
+
+  const options: MeetingOption[] = [
+    {
+      id: "request",
+      label: "Request loan",
+      description: lender
+        ? `${lender.name} · ${money(canRequest ? principalAmount : undefined)} over ${termMonths || "—"} months`
+        : "Select a lender first.",
+      tone: "primary",
+      disabled: !canRequest || busyId !== null,
+      disabledReason: !lender
+        ? "No lender available."
+        : !canRequest
+          ? "Enter a valid principal above zero and a term of at least 3 months."
+          : undefined,
+    },
+  ];
+
+  return (
+    <section className="role-detail">
+      <MeetingShell
+        title={lender?.name ?? "Club finance"}
+        meetingType="Bank meeting"
+        context={[
+          { label: "Club cash balance", value: money(overview.account.cashBalance) },
+          { label: "Financial health", value: overview.account.financialHealth },
+          { label: "Outstanding debt", value: money(overview.existingDebt) },
+          {
+            label: "Borrowing headroom",
+            value: money(overview.headroom),
+            tone: overview.headroom > 0 ? "ok" : "warn",
+          },
+        ]}
+      >
+        {overview.lenders.length === 0 ? (
+          <p className="empty-state">No lenders are available to this club yet.</p>
+        ) : (
+          <>
+            <MeetingParticipants
+              initiator={{ name: "You", role: role === "CEO" ? "Chief Executive Officer" : "Chairman / Owner" }}
+              counterpart={{
+                name: lender?.name ?? "Lender",
+                role: lender ? lender.institutionType.replaceAll("_", " ") : "Bank",
+              }}
+            />
+            <MeetingBrief heading="Loan terms">
+              <p>
+                Interest rates and approval are decided from the club&rsquo;s own affordability, not
+                negotiated in advance. A rejected request costs nothing; an approved one draws down
+                immediately at the rate and schedule shown once decided.
+              </p>
+            </MeetingBrief>
+            <div className="inline-form">
+              <label>
+                Lender
+                <select value={lenderId} onChange={(event) => setLenderId(event.target.value as EntityId)}>
+                  {overview.lenders.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Principal
+                <input type="number" min="1" value={principal} onChange={(event) => setPrincipal(event.target.value)} />
+              </label>
+              <label>
+                Term (months)
+                <input type="number" min="3" max="60" value={term} onChange={(event) => setTerm(event.target.value)} />
+              </label>
+              <label>
+                Purpose
+                <input type="text" value={purpose} onChange={(event) => setPurpose(event.target.value)} />
+              </label>
+            </div>
+            <MeetingOptions options={options} busyId={busyId} onChoose={() => void requestLoan()} />
+          </>
+        )}
+        {message && (
+          <p className="notice" role="status">
+            {message}
+          </p>
+        )}
+        <MeetingOutcome
+          history={overview.loans.map((loan) => ({
+            date: loan.decidedOn ?? loan.createdOn,
+            label: loan.status,
+            tone: loanStatusTone(loan.status),
+            detail: `${overview.lenders.find((item) => item.id === loan.lenderId)?.name ?? "Lender"} · ${money(loan.principal)} over ${loan.termMonths} months${loan.reason ? ` · ${loan.reason}` : ""}`,
+          }))}
+        />
+        {overview.debts.length > 0 && (
+          <Panel title="Repayment schedule">
+            <div className="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Lender</th>
+                    <th>Outstanding</th>
+                    <th>Rate</th>
+                    <th>Next payment</th>
+                    <th>Status</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {overview.debts.map((debt) => (
+                    <tr key={debt.id}>
+                      <td>{overview.lenders.find((item) => item.id === debt.lenderId)?.name ?? debt.lenderType}</td>
+                      <td>{money(debt.outstandingPrincipal)}</td>
+                      <td>{(debt.interestRate * 100).toFixed(2)}%</td>
+                      <td>{debt.nextPaymentDate ?? "—"}</td>
+                      <td>
+                        <Badge tone={debtStatusTone(debt.status)}>{debt.status}</Badge>
+                      </td>
+                      <td>
+                        {debt.status === "ACTIVE" && (
+                          <button
+                            className="small"
+                            disabled={busyId !== null}
+                            onClick={() => void repay(debt.id, debt.scheduledPayment ?? debt.outstandingPrincipal)}
+                          >
+                            {busyId === debt.id ? "Repaying…" : "Repay"}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Panel>
+        )}
+      </MeetingShell>
+    </section>
+  );
+};

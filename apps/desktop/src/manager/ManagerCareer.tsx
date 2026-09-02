@@ -65,6 +65,7 @@ const CHAIRMAN_NAV: Array<{ group: string; items: Array<{ id: ChairmanScreen; la
   { group: "Ownership", items: [{ id: "investors", label: "Investors" }] },
   { group: "Development", items: [{ id: "facilities", label: "Facilities" }] },
   { group: "Commercial", items: [{ id: "sponsorship", label: "Sponsorship" }, { id: "supporters", label: "Supporters" }] },
+  { group: "External relations", items: [{ id: "bank", label: "Bank" }] },
 ];
 const PRESIDENT_NAV: Array<{ group: string; items: Array<{ id: PresidentScreen; label: string }> }> = [
   { group: "Federation", items: [{ id: "dashboard", label: "Dashboard" }, { id: "governance", label: "Governance" }, { id: "finance", label: "Finance" }] },

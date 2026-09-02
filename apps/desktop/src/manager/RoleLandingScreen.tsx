@@ -12,7 +12,7 @@ import type {
 import type { AppError, DesktopRuntimeApi } from "../appBridge.js";
 import { AsyncPanel, Badge, ErrorBanner, Metrics, Panel, useRuntimeData } from "./ui.js";
 import { CandidacyPanel } from "./screens/HomeScreen.js";
-import { RoleDetailScreen, type ChairmanScreen, type PresidentScreen } from "./RoleDetailScreen.js";
+import { BankMeeting, RoleDetailScreen, type ChairmanScreen, type PresidentScreen } from "./RoleDetailScreen.js";
 
 export const EXECUTIVE_ROLES = ["SPORTING_DIRECTOR", "DIRECTOR_OF_FOOTBALL", "CEO", "GENERAL_SECRETARY"];
 
@@ -204,6 +204,7 @@ const ExecutiveDashboardView = ({
           </div>
         </Panel>
       )}
+      {canSetBudget && <BankMeeting bridge={bridge} role="CEO" clubId={authority.clubId} />}
     </section>
   );
 };

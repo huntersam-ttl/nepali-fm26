@@ -6,6 +6,7 @@ import {
   createStableEntityId,
   type ClubBudgetCategory,
   type ClubDebt,
+  type ClubFinanceMeetingOverview,
   type ClubLender,
   type ClubLoanApplication,
   type EntityId,
@@ -89,6 +90,18 @@ export const initializeClubFinanceMarkets = (db: GameDatabase): ClubLender[] => 
   return economy.lenders();
 };
 
+/**
+ * The exact affordability ceilings applyForClubLoan decides approval with —
+ * factored out so a read-only "what could this club plausibly borrow" view
+ * (the bank-meeting UI's affordability context) can never drift from the
+ * real approval math instead of duplicating it.
+ */
+export const clubLoanCeilings = (valuation: number, existingDebt: number): { maxNewPrincipal: number; maxTotalDebt: number; headroom: number } => {
+  const maxNewPrincipal = Math.max(500_000, valuation * 0.35);
+  const maxTotalDebt = Math.max(750_000, valuation * 0.55);
+  return { maxNewPrincipal, maxTotalDebt, headroom: Math.max(0, Math.min(maxNewPrincipal, maxTotalDebt - existingDebt)) };
+};
+
 export const applyForClubLoan = (db: GameDatabase, input: { clubId: EntityId; lenderId: EntityId; principal: number; termMonths: number; purpose: string; date: string }): ClubLoanApplication => {
   const economy = new ClubEconomyRepository(db);
   if (!economy.financialAccount(input.clubId)) throw new Error("Club finance account is unavailable");
@@ -98,7 +111,8 @@ export const applyForClubLoan = (db: GameDatabase, input: { clubId: EntityId; le
   if (principal <= 0) throw new Error("Loan principal must be positive");
   const valuation = calculateClubValuation(db, input.clubId, input.date).valuation;
   const existingDebt = economy.debts(input.clubId).filter((debt) => debt.status === "ACTIVE").reduce((sum, debt) => sum + debt.outstandingPrincipal, 0);
-  const approved = principal <= Math.max(500_000, valuation * 0.35) && existingDebt + principal <= Math.max(750_000, valuation * 0.55);
+  const ceilings = clubLoanCeilings(valuation, existingDebt);
+  const approved = principal <= ceilings.maxNewPrincipal && existingDebt + principal <= ceilings.maxTotalDebt;
   const application: ClubLoanApplication = {
     id: createStableEntityId("club-loan-application", `${input.clubId}:${input.lenderId}:${input.date}:${principal}`),
     clubId: input.clubId, lenderId: input.lenderId, principal, termMonths, purpose: input.purpose,
@@ -182,6 +196,39 @@ export const advanceClubLoanRepayments = (db: GameDatabase, date: string): ClubD
     catch { changed.push({ ...debt, status: "DEFAULTED" }); new ClubEconomyRepository(db).upsertDebt({ ...debt, status: "DEFAULTED" }); }
   }
   return changed;
+};
+
+/**
+ * Read model behind the bank-meeting UI, shared by both the controlling
+ * owner and a CEO with delegated BUDGET_ADMINISTRATION — the same two
+ * actors applyForClubLoanCommand/repayClubLoanCommand already authorize.
+ * The headroom figures are the club's real, current affordability ceiling
+ * (see clubLoanCeilings) — never a fabricated "risk score".
+ */
+export const clubFinanceMeetingOverview = (
+  db: GameDatabase,
+  clubId: EntityId,
+  date: string,
+): ClubFinanceMeetingOverview => {
+  const economy = new ClubEconomyRepository(db);
+  const club = db.prepare("SELECT name FROM clubs WHERE id=?").get(clubId) as { name?: string } | undefined;
+  const account = economy.financialAccount(clubId);
+  if (!account || !club?.name) throw new Error(`Club finance is unavailable for club ${clubId}`);
+  const existingDebt = economy.debts(clubId).filter((debt) => debt.status === "ACTIVE").reduce((sum, debt) => sum + debt.outstandingPrincipal, 0);
+  const valuation = calculateClubValuation(db, clubId, date).valuation;
+  const ceilings = clubLoanCeilings(valuation, existingDebt);
+  return {
+    clubId,
+    clubName: club.name,
+    account,
+    debts: economy.debts(clubId),
+    loans: economy.loanApplications(clubId),
+    lenders: economy.lenders(),
+    existingDebt,
+    maxNewPrincipal: ceilings.maxNewPrincipal,
+    maxTotalDebt: ceilings.maxTotalDebt,
+    headroom: ceilings.headroom,
+  };
 };
 
 export const submitManagerBudgetRequest = (db: GameDatabase, input: { clubId: EntityId; managerPersonId: EntityId; seasonLabel: string; category: ClubBudgetCategory; requestedAmount: number; date: string }): ManagerBudgetRequest => {

@@ -256,6 +256,25 @@ export type ChairmanDashboard = {
   inbox: InboxItem[];
 };
 
+/**
+ * Bank-meeting read model, shared by the controlling owner and a CEO with
+ * delegated BUDGET_ADMINISTRATION. headroom/maxNewPrincipal/maxTotalDebt are
+ * the club's real, current affordability ceiling — the same numbers
+ * applyForClubLoan itself decides approval with, never a fabricated score.
+ */
+export type ClubFinanceMeetingOverview = {
+  clubId: EntityId;
+  clubName: string;
+  account: ClubFinancialAccount;
+  debts: ClubDebt[];
+  loans: ClubLoanApplication[];
+  lenders: ClubLender[];
+  existingDebt: number;
+  maxNewPrincipal: number;
+  maxTotalDebt: number;
+  headroom: number;
+};
+
 export type FederationNationalTeamSummary = {
   id: EntityId;
   name: string;
@@ -356,6 +375,7 @@ export type DesktopRuntimeApi = {
     fundingType: GovernmentFundingType,
     requestedAmount: number,
   ): Promise<AppResult<GovernmentFundingApplication>>;
+  getClubFinanceMeeting(clubId?: EntityId): Promise<AppResult<ClubFinanceMeetingOverview>>;
   getFederationCandidacy(): Promise<AppResult<FederationCandidacyAssessment>>;
   declareFederationElectionCandidacy(): Promise<AppResult<FederationCandidacyAssessment>>;
   foundClub(name: string, locationName: string): Promise<AppResult<SimulationClubRecord>>;
@@ -373,6 +393,7 @@ export type DesktopRuntimeApi = {
   setExecutiveClubBudget(clubId: EntityId, seasonLabel: string, category: ClubBudgetCategory, amount: number): Promise<AppResult<ClubBudget>>;
   createExecutiveInfrastructureProject(clubId: EntityId, projectType: InfrastructureProjectType): Promise<AppResult<InfrastructureProject>>;
   applyExecutiveClubLoan(clubId: EntityId, lenderId: EntityId, principal: number, termMonths: number, purpose: string): Promise<AppResult<ClubLoanApplication>>;
+  repayExecutiveClubLoan(clubId: EntityId, debtId: EntityId, amount?: number): Promise<AppResult<ClubDebt>>;
   closeExecutiveLicence(caseId: EntityId): Promise<AppResult<unknown>>;
   registerExecutiveCompetitionPlayers(teamId: EntityId, competitionSeasonId: EntityId): Promise<AppResult<unknown>>;
   hireStaffAsExecutive(clubId: EntityId, personId: EntityId, role: StaffAppointment["role"], salaryAmountMinor: number, teamId?: EntityId, contractMonths?: number): Promise<AppResult<unknown>>;

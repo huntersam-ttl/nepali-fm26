@@ -2,7 +2,7 @@ import { ClubLicensingRepository, type GameDatabase } from "@nepal-football-sim/
 import type { EntityId, SaveMetadata } from "@nepal-football-sim/shared-types";
 import { assertExecutiveAuthority } from "./executive-roles.js";
 import { acceptSponsorOfferCommand, setClubBudgetCommand } from "./club-economy.js";
-import { applyForClubLoanCommand } from "./club-finance-markets.js";
+import { applyForClubLoanCommand, repayClubLoanCommand } from "./club-finance-markets.js";
 import { closeClubLicenceCycle } from "./licensing.js";
 import { registerWomenYouthTeam } from "./womens-youth.js";
 import { dismissStaff, hireStaff } from "./staff-market.js";
@@ -60,6 +60,25 @@ export const applyClubLoanForExecutive = (
   requireAuthority(db, input.clubId, input.actor, "BUDGET_ADMINISTRATION");
   return applyForClubLoanCommand(db, {
     ...input,
+    personId: input.actor.personId,
+    callerRole: "CEO",
+  });
+};
+
+/**
+ * assertClubFinanceAuthority (club-finance-markets.ts) already accepts a CEO
+ * with BUDGET_ADMINISTRATION for loan repayment — this was simply never
+ * wired to a desktop command, unlike the apply-side executive adapter above.
+ */
+export const repayClubLoanForExecutive = (
+  db: GameDatabase,
+  input: { clubId: EntityId; debtId: EntityId; amount?: number; date: string; actor: Executive },
+) => {
+  requireAuthority(db, input.clubId, input.actor, "BUDGET_ADMINISTRATION");
+  return repayClubLoanCommand(db, {
+    debtId: input.debtId,
+    amount: input.amount,
+    date: input.date,
     personId: input.actor.personId,
     callerRole: "CEO",
   });

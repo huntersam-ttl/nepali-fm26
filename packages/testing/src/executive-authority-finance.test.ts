@@ -18,12 +18,14 @@ import {
   applyClubLoanForExecutive,
   applyForClubLoanCommand,
   assignExecutiveRole,
+  clubFinanceMeetingOverview,
   dismissStaff,
   ExecutiveRoleError,
   hireStaff,
   hireStaffForExecutive,
   initializeClubFinanceMarkets,
   repayClubLoanCommand,
+  repayClubLoanForExecutive,
   setBudgetForExecutive,
 } from "@nepal-football-sim/simulation";
 import {
@@ -397,6 +399,79 @@ describe("executive authority: club finance commands", () => {
         actor: { role: "GENERAL_SECRETARY", personId: secretaryId },
       }),
     ).toThrow(ExecutiveRoleError);
+    db.close();
+  });
+
+  it("lets a delegated CEO with budget authority repay a club loan through the canonical executive adapter", () => {
+    const { db, club, team, ownerId } = buildFixture(join(dir, "career.sqlite"));
+    const ceoId = hireCeo(db, club, team, ownerId);
+    const lender = new ClubEconomyRepository(db).lenders()[0]!;
+    const application = applyClubLoanForExecutive(db, {
+      clubId: club.id,
+      lenderId: lender.id,
+      principal: 100_000,
+      termMonths: 12,
+      purpose: "working capital",
+      date: "2026-08-01",
+      actor: { role: "CEO", personId: ceoId },
+    });
+    expect(application.status).toBe("APPROVED");
+    const debt = new ClubEconomyRepository(db).debts(club.id).find((item) => item.lenderId === lender.id)!;
+    const repaid = repayClubLoanForExecutive(db, {
+      clubId: club.id,
+      debtId: debt.id,
+      amount: debt.scheduledPayment,
+      date: "2026-08-02",
+      actor: { role: "CEO", personId: ceoId },
+    });
+    expect(repaid.outstandingPrincipal).toBeLessThan(debt.outstandingPrincipal);
+    db.close();
+  });
+
+  it("rejects a GENERAL_SECRETARY attempting the CEO-only loan repayment authority", () => {
+    const { db, club, team, ownerId } = buildFixture(join(dir, "career.sqlite"));
+    const secretaryId = createStableEntityId("person", "eaf-repay-secretary");
+    new WorldRepository(db).insertPerson({
+      id: secretaryId,
+      fullName: "General Secretary",
+      nationalityCountryId: country.id,
+      languages: ["ne"],
+    });
+    const appointment = hireStaff(db, saveAt("2026-08-01"), club.id, team.id, secretaryId, "GENERAL_SECRETARY", 450_000, 24);
+    assignExecutiveRole(db, { clubId: club.id, ownerPersonId: ownerId, role: "GENERAL_SECRETARY", appointment, date: "2026-08-01" });
+    const lender = new ClubEconomyRepository(db).lenders()[0]!;
+    const application = applyForClubLoanCommand(db, { clubId: club.id, personId: ownerId, callerRole: "CHAIRMAN_OWNER", lenderId: lender.id, principal: 100_000, termMonths: 12, purpose: "working capital", date: "2026-08-01" });
+    const debt = new ClubEconomyRepository(db).debts(club.id).find((item) => item.lenderId === application.lenderId)!;
+    expect(() =>
+      repayClubLoanForExecutive(db, {
+        clubId: club.id,
+        debtId: debt.id,
+        date: "2026-08-05",
+        actor: { role: "GENERAL_SECRETARY", personId: secretaryId },
+      }),
+    ).toThrow(ExecutiveRoleError);
+    db.close();
+  });
+
+  it("builds an honest bank-meeting overview: real lenders, headroom, and applications scoped to one club", () => {
+    const { db, club, ownerId } = buildFixture(join(dir, "career.sqlite"));
+    const before = clubFinanceMeetingOverview(db, club.id, "2026-08-01");
+    expect(before.lenders.length).toBeGreaterThan(0);
+    expect(before.debts).toEqual([]);
+    expect(before.loans).toEqual([]);
+    expect(before.existingDebt).toBe(0);
+    expect(before.headroom).toBeGreaterThan(0);
+
+    const lender = before.lenders[0]!;
+    applyForClubLoanCommand(db, { clubId: club.id, personId: ownerId, callerRole: "CHAIRMAN_OWNER", lenderId: lender.id, principal: 100_000, termMonths: 12, purpose: "working capital", date: "2026-08-01" });
+    const after = clubFinanceMeetingOverview(db, club.id, "2026-08-01");
+    expect(after.loans).toHaveLength(1);
+    expect(after.debts).toHaveLength(1);
+    expect(after.existingDebt).toBe(100_000);
+    // Headroom is derived from live valuation, and the loan drawdown itself
+    // raises cash (and so valuation) — it is not guaranteed to fall just
+    // because debt rose. What must hold is the ceiling arithmetic itself.
+    expect(after.headroom).toBe(Math.max(0, Math.min(after.maxNewPrincipal, after.maxTotalDebt - after.existingDebt)));
     db.close();
   });
 });

@@ -178,6 +178,8 @@ const dispatch = (
         body.fundingType as GovernmentFundingType,
         body.requestedAmount as number,
       );
+    case "getClubFinanceMeeting":
+      return service.getClubFinanceMeeting(body.clubId as EntityId | undefined);
     case "getFederationCandidacy":
       return service.getFederationCandidacy();
     case "declareFederationElectionCandidacy":
@@ -216,6 +218,8 @@ const dispatch = (
       return service.createExecutiveInfrastructureProject(body.clubId as EntityId, body.projectType as InfrastructureProjectType);
     case "applyExecutiveClubLoan":
       return service.applyExecutiveClubLoan(body.clubId as EntityId, body.lenderId as EntityId, body.principal as number, body.termMonths as number, body.purpose as string);
+    case "repayExecutiveClubLoan":
+      return service.repayExecutiveClubLoan(body.clubId as EntityId, body.debtId as EntityId, body.amount as number | undefined);
     case "closeExecutiveLicence":
       return service.closeExecutiveLicence(body.caseId as EntityId);
     case "registerExecutiveCompetitionPlayers":

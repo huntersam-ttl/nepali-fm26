@@ -45,6 +45,7 @@ import {
 import {
   advanceClubLoanRepayments,
   applyForClubLoanCommand,
+  clubFinanceMeetingOverview,
   decideManagerBudgetRequest,
   initializeClubFinanceMarkets,
   repayClubLoanCommand,
@@ -61,6 +62,7 @@ import {
   type CareerRole,
   type CareerRoleState,
   type ChairmanDashboard,
+  type ClubFinanceMeetingOverview,
   type FederationDevelopmentSummary,
   type GovernmentOverview,
   type GovernmentFundingApplication,
@@ -290,10 +292,11 @@ import {
 } from "./tactics.js";
 import { suitability } from "./team-selection.js";
 import { activeCareerRole, heldCareerRoles, switchActiveCareerRole } from "./career-control.js";
-import { ExecutiveRoleError, executiveRoleReadModel } from "./executive-roles.js";
+import { ExecutiveRoleError, executiveHasAuthority, executiveRoleReadModel } from "./executive-roles.js";
 import {
   acceptSponsorshipForExecutive,
   applyClubLoanForExecutive,
+  repayClubLoanForExecutive,
   closeLicenceForSecretary,
   dismissStaffForExecutive,
   hireStaffForExecutive,
@@ -919,6 +922,22 @@ export class DesktopApplicationService {
     );
   }
 
+  repayExecutiveClubLoan(
+    clubId: EntityId,
+    debtId: EntityId,
+    amount?: number,
+  ): AppResult<ReturnType<typeof repayClubLoanForExecutive>> {
+    return this.withSession((db, save) =>
+      repayClubLoanForExecutive(db, {
+        clubId,
+        debtId,
+        amount,
+        date: save.worldDate,
+        actor: this.executiveActor(db, save, clubId),
+      }),
+    );
+  }
+
   closeExecutiveLicence(caseId: EntityId): AppResult<ReturnType<typeof closeLicenceForSecretary>> {
     return this.withSession((db, save) => {
       const actor = this.executiveActorForCase(db, save, caseId);
@@ -1056,6 +1075,41 @@ export class DesktopApplicationService {
       )?.targetId;
       if (!federationId) throw appError("ROLE_NOT_AUTHORIZED", "No federation is available.");
       return requestGovernmentFunding(db, { federationId, institutionId, fundingType, requestedAmount, date: save.worldDate });
+    });
+  }
+
+  /**
+   * Read model behind the bank-meeting UI. Reachable by the same two actors
+   * applyForClubLoanCommand/repayClubLoanCommand already authorize: the
+   * controlling owner, or a CEO the owner has delegated BUDGET_ADMINISTRATION
+   * to — everyone else gets a clean, explained rejection rather than a
+   * silent fallback to someone else's club finances.
+   */
+  getClubFinanceMeeting(clubId?: EntityId): AppResult<ClubFinanceMeetingOverview> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      const role = activeCareerRole(db, personId);
+      let targetClubId: EntityId | undefined;
+      if (role === "CHAIRMAN_OWNER") {
+        targetClubId =
+          clubId ?? heldCareerRoles(db, personId).find((entry) => entry.role === "CHAIRMAN_OWNER")?.targetId;
+        if (!targetClubId) throw appError("ROLE_NOT_AUTHORIZED", "No club is available.");
+      } else if (role === "CEO") {
+        targetClubId = clubId ?? heldCareerRoles(db, personId).find((entry) => entry.role === "CEO")?.targetId;
+        if (!targetClubId) throw appError("ROLE_NOT_AUTHORIZED", "No club is available.");
+        if (!executiveHasAuthority(db, targetClubId, personId, "BUDGET_ADMINISTRATION")) {
+          throw appError(
+            "ROLE_NOT_AUTHORIZED",
+            "You do not have budget administration authority for this club.",
+          );
+        }
+      } else {
+        throw appError(
+          "ROLE_NOT_AUTHORIZED",
+          "Only the controlling owner or a CEO with budget authority may view club finance.",
+        );
+      }
+      return clubFinanceMeetingOverview(db, targetClubId, save.worldDate);
     });
   }
 
