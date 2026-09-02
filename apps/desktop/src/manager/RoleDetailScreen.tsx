@@ -20,6 +20,8 @@ import type {
   SponsorMeetingOverview,
   SponsorMeetingContract,
   FederationCommercialOverview,
+  PresidentCommercialPropertyView,
+  PresidentCommercialHistoryEntry,
   OwnerManagerMeetingOverview,
   OwnerManagerMeetingTopic,
   OwnerManagerMeetingStance,
@@ -77,6 +79,7 @@ export type PresidentScreen =
   | "dashboard"
   | "governance"
   | "finance"
+  | "commercial"
   | "national-teams"
   | "national-development"
   | "government-relations"
@@ -1269,8 +1272,8 @@ const PresidentDetail = ({
           return <p className="subtle">Select a federation-office section from the sidebar.</p>;
         if (screen === "governance")
           return <Governance dashboard={dashboard} bridge={bridge} refresh={refresh} />;
-        if (screen === "finance")
-          return <FederationFinance dashboard={dashboard} bridge={bridge} />;
+        if (screen === "finance") return <FederationFinance dashboard={dashboard} />;
+        if (screen === "commercial") return <PresidentCommercial bridge={bridge} />;
         if (screen === "national-teams") return <NationalTeams dashboard={dashboard} />;
         if (screen === "national-development") return <NationalDevelopment bridge={bridge} />;
         if (screen === "government-relations") return <GovernmentRelations bridge={bridge} />;
@@ -1364,10 +1367,8 @@ const Governance = ({
 
 const FederationFinance = ({
   dashboard,
-  bridge,
 }: {
   dashboard: FederationPresidentDashboard;
-  bridge: DesktopRuntimeApi;
 }): React.ReactElement => (
   <section className="role-detail">
     <Panel title="Federation finance">
@@ -1413,110 +1414,462 @@ const FederationFinance = ({
         ]}
       />
     </Panel>
-    <FederationCommercial bridge={bridge} />
     <Ledger entries={dashboard.finances.ledgerEntries} />
   </section>
 );
 
+const PROPERTY_STATUS_TONE: Record<string, MeetingTone> = {
+  ACTIVE: "ok",
+  RENEWED: "ok",
+  AWARDED: "ok",
+  OFFERED: "info",
+  NEGOTIATED: "info",
+  AVAILABLE: "info",
+  EXPIRED: "bad",
+};
+
+/** Distinguishes Senior Men / Youth / Women & Girls programme cards from one another — never implied as generic senior-team money. */
+const PROGRAMME_LABEL: Record<string, string> = {
+  SENIOR_MENS: "Senior Men programme",
+  YOUTH: "Youth programme",
+  WOMENS_GIRLS: "Women & Girls programme",
+};
+
 /**
- * Read-only by design: ensureFederationSponsorship and
- * settleFederationMediaRightsForCompetition both create and settle their
- * deal in the same step, so there is no OFFERED state for a president to
- * decide — showing an accept/reject/counter meeting here would be fake.
+ * One commercial property (A/B/C Division title, federation main partner, or
+ * a national programme partner), driven entirely by its own
+ * PresidentCommercialPropertyView.availableActions — the same authority the
+ * backend commands themselves check, so a button never appears only to be
+ * rejected after the click.
+ *
+ * "RENEW" is one of the backend's own availableActions for an
+ * ACTIVE/RENEWED property, but no renewFederationCommercialOffer command is
+ * wired to the desktop app (renewCommercialRights exists only in the
+ * simulation layer) — rendered as an honest note, never a dead button.
  */
-const FederationCommercial = ({ bridge }: { bridge: DesktopRuntimeApi }): React.ReactElement => {
-  const [state] = useRuntimeData(() => bridge.getFederationCommercialOverview());
+const PropertyCard = ({
+  property,
+  bridge,
+  refresh,
+  onOpenOrg,
+  groupLabel,
+}: {
+  property: PresidentCommercialPropertyView;
+  bridge: DesktopRuntimeApi;
+  refresh: () => void;
+  onOpenOrg: (id: EntityId) => void;
+  groupLabel?: string;
+}): React.ReactElement => {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [showCounter, setShowCounter] = useState(false);
+  const [counterValue, setCounterValue] = useState(
+    property.annualValue !== undefined ? String(property.annualValue) : "",
+  );
+  const [counterTerm, setCounterTerm] = useState(
+    property.termYears !== undefined ? String(property.termYears) : "",
+  );
+
+  const negotiate = async (): Promise<void> => {
+    if (!property.offerId || !bridge.negotiateFederationCommercialOffer) return;
+    setBusy("negotiate");
+    setMessage(null);
+    const result = await bridge.negotiateFederationCommercialOffer(property.offerId);
+    setBusy(null);
+    setMessage(result.ok ? "Offer marked as under negotiation." : result.error.message);
+    if (result.ok) refresh();
+  };
+
+  const accept = async (): Promise<void> => {
+    if (!property.offerId || !bridge.acceptFederationCommercialOffer) return;
+    setBusy("accept");
+    setMessage(null);
+    const result = await bridge.acceptFederationCommercialOffer(property.offerId);
+    setBusy(null);
+    setMessage(result.ok ? `Accepted at ${money(result.data.annualValue)} / year.` : result.error.message);
+    if (result.ok) refresh();
+  };
+
+  const reject = async (): Promise<void> => {
+    if (!property.offerId || !bridge.rejectFederationCommercialOffer) return;
+    setBusy("reject");
+    setMessage(null);
+    const result = await bridge.rejectFederationCommercialOffer(property.offerId);
+    setBusy(null);
+    setMessage(result.ok ? "Offer rejected." : result.error.message);
+    if (result.ok) refresh();
+  };
+
+  const counter = async (): Promise<void> => {
+    if (!property.offerId || !bridge.counterFederationCommercialOffer) return;
+    const amount = Number(counterValue);
+    if (!Number.isFinite(amount) || amount <= 0) return;
+    const term = counterTerm ? Number(counterTerm) : undefined;
+    setBusy("counter");
+    setMessage(null);
+    const result = await bridge.counterFederationCommercialOffer(property.offerId, amount, term);
+    setBusy(null);
+    setMessage(result.ok ? `Countered at ${money(result.data.annualValue)} / year.` : result.error.message);
+    if (result.ok) {
+      setShowCounter(false);
+      refresh();
+    }
+  };
+
+  const items: Array<{ label: string; value: React.ReactNode }> = [
+    {
+      label: "Sponsor",
+      value: property.sponsor ? (
+        <EntityRefLink reference={property.sponsor} onOpen={(reference) => onOpenOrg(reference.id)} />
+      ) : (
+        "No sponsor yet"
+      ),
+    },
+    ...(property.termYears !== undefined ? [{ label: "Term", value: `${property.termYears}y` }] : []),
+    ...(property.annualValue !== undefined
+      ? [{ label: "Annual value", value: money(property.annualValue) }]
+      : []),
+    { label: "Settlement", value: band(property.settlementState) },
+    ...(property.startDate ? [{ label: "Start", value: property.startDate }] : []),
+    ...(property.endDate ? [{ label: "Expiry", value: property.endDate }] : []),
+    ...(property.revenueDestination
+      ? [{ label: "Revenue destination", value: band(property.revenueDestination) }]
+      : []),
+    ...(property.competingOfferCount > 0
+      ? [{ label: "Competing offers", value: property.competingOfferCount }]
+      : []),
+  ];
+
+  return (
+    <div className="commercial-property-card">
+      <header>
+        <h4>{property.commercialDisplayTitle ?? property.canonicalName}</h4>
+        <Badge tone={PROPERTY_STATUS_TONE[property.status] ?? "info"}>{band(property.status)}</Badge>
+      </header>
+      {groupLabel && <p className="subtle">{groupLabel}</p>}
+      {property.commercialDisplayTitle && property.commercialDisplayTitle !== property.canonicalName && (
+        <p className="subtle">{property.canonicalName}</p>
+      )}
+      <Metrics items={items} />
+      {property.blockedReason && <p className="empty-state">{property.blockedReason}</p>}
+      <div className="button-row">
+        {property.status === "OFFERED" && bridge.negotiateFederationCommercialOffer && (
+          <button className="ghost small" disabled={busy !== null} onClick={() => void negotiate()}>
+            {busy === "negotiate" ? "Marking…" : "Mark in negotiation"}
+          </button>
+        )}
+        {property.availableActions.includes("ACCEPT") && bridge.acceptFederationCommercialOffer && (
+          <button className="primary small" disabled={busy !== null} onClick={() => void accept()}>
+            {busy === "accept" ? "Accepting…" : "Accept"}
+          </button>
+        )}
+        {property.availableActions.includes("COUNTER") && bridge.counterFederationCommercialOffer && (
+          <button
+            className="ghost small"
+            disabled={busy !== null}
+            onClick={() => setShowCounter((value) => !value)}
+          >
+            Counter
+          </button>
+        )}
+        {property.availableActions.includes("REJECT") && bridge.rejectFederationCommercialOffer && (
+          <button className="ghost small" disabled={busy !== null} onClick={() => void reject()}>
+            {busy === "reject" ? "Rejecting…" : "Reject"}
+          </button>
+        )}
+      </div>
+      {showCounter && (
+        <div className="inline-form">
+          <label>
+            Counter annual value
+            <input
+              type="number"
+              min="1"
+              value={counterValue}
+              onChange={(event) => setCounterValue(event.target.value)}
+            />
+          </label>
+          <label>
+            Term (years)
+            <input
+              type="number"
+              min="1"
+              max="4"
+              value={counterTerm}
+              onChange={(event) => setCounterTerm(event.target.value)}
+            />
+          </label>
+          <button
+            className="primary small"
+            disabled={busy !== null || !Number.isFinite(Number(counterValue)) || Number(counterValue) <= 0}
+            onClick={() => void counter()}
+          >
+            {busy === "counter" ? "Countering…" : "Submit counter"}
+          </button>
+        </div>
+      )}
+      {property.availableActions.includes("RENEW") && (
+        <p className="subtle">Active — renewal isn&rsquo;t available from this app yet.</p>
+      )}
+      {property.availableActions.length === 1 &&
+        property.availableActions[0] === "VIEW_OFFERS" &&
+        !property.sponsor && <p className="empty-state">No sponsor or open offer for this property yet.</p>}
+      {message && (
+        <p className="notice" role="status">
+          {message}
+        </p>
+      )}
+    </div>
+  );
+};
+
+const COMMERCIAL_HISTORY_STATUS_TONE: Record<string, MeetingTone> = {
+  ACTIVE: "ok",
+  AWARDED: "ok",
+  RENEWED: "ok",
+  EXPIRED: "bad",
+};
+
+const CommercialHistoryPanel = ({
+  history,
+  onOpenOrg,
+}: {
+  history: PresidentCommercialHistoryEntry[];
+  onOpenOrg: (id: EntityId) => void;
+}): React.ReactElement => (
+  <Panel title="Commercial history" className="panel-wide">
+    {history.length === 0 ? (
+      <p className="empty-state">No commercial history recorded yet.</p>
+    ) : (
+      <div className="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Property</th>
+              <th>Sponsor</th>
+              <th>Value</th>
+              <th>Status</th>
+              <th>Settlement</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {history.map((item) => (
+              <tr key={item.id}>
+                <td>{item.canonicalName}</td>
+                <td>
+                  {item.sponsor ? (
+                    <EntityRefLink
+                      reference={item.sponsor}
+                      onOpen={(reference) => onOpenOrg(reference.id)}
+                    />
+                  ) : (
+                    "—"
+                  )}
+                </td>
+                <td>{item.annualValue !== undefined ? `${money(item.annualValue)} / year` : "—"}</td>
+                <td>
+                  <Badge tone={COMMERCIAL_HISTORY_STATUS_TONE[item.status] ?? "info"}>
+                    {band(item.status)}
+                  </Badge>
+                </td>
+                <td>{band(item.settlementState)}</td>
+                <td>
+                  {item.date ?? "—"}
+                  {item.endDate ? ` – ${item.endDate}` : ""}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )}
+  </Panel>
+);
+
+/**
+ * PRESIDENT COMMERCIAL — the unified negotiate/counter/accept/reject
+ * workflow over federationCommercialOverview's `properties`/`history`
+ * (5c81086). Every property card acts through the real President-only
+ * command; nothing here computes a probability, score, or fabricated offer.
+ * Broadcast/media rights stay read-only by design: settleFederationMedia-
+ * RightsForCompetition creates and settles its deal in one step, with no
+ * OFFERED state for a president to decide.
+ */
+const PresidentCommercial = ({ bridge }: { bridge: DesktopRuntimeApi }): React.ReactElement => {
+  const [state, refresh] = useRuntimeData(() => bridge.getFederationCommercialOverview());
   const [openOrgId, setOpenOrgId] = useState<EntityId | undefined>(undefined);
   return (
     <AsyncPanel state={state}>
-      {(overview) => (
-        <Panel title="Commercial partnerships">
-          <p className="subtle">
-            These deals are generated and settled automatically by the federation&rsquo;s commercial
-            cadence — there is no negotiation step to act on here.
-          </p>
-          {overview.sponsorship ? (
-            <>
-              <Metrics
-                items={[
-                  {
-                    label: "Federation sponsor",
-                    value: (
-                      <button
-                        className="link"
-                        onClick={() => setOpenOrgId(overview.sponsorship!.sponsorId)}
-                      >
-                        {overview.sponsorship.sponsorName}
-                      </button>
-                    ),
-                  },
-                  { label: "Category", value: overview.sponsorship.type.replaceAll("_", " ") },
-                  {
-                    label: "Annual value",
-                    value: money(overview.sponsorship.annualValue, overview.sponsorship.currency),
-                  },
-                  {
-                    label: "Term",
-                    value: `${overview.sponsorship.startDate} – ${overview.sponsorship.endDate}`,
-                  },
-                ]}
-              />
-              {openOrgId && (
-                <OrganizationProfilePanel
-                  bridge={bridge}
-                  entityType="SPONSOR"
-                  entityId={openOrgId}
-                  onClose={() => setOpenOrgId(undefined)}
-                />
-              )}
-            </>
-          ) : (
-            <p className="empty-state">No federation sponsorship has been established yet.</p>
-          )}
-          {overview.mediaRights.length === 0 ? (
-            <p className="empty-state">No competition media-rights deal has been settled yet.</p>
-          ) : (
-            <div className="table-scroll">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Package</th>
-                    <th>Broadcaster</th>
-                    <th>Value</th>
-                    <th>Status</th>
-                    <th>Term</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {overview.mediaRights.map((item, index) => (
-                    <tr key={index}>
-                      <td>{item.packageName}</td>
-                      <td>{item.broadcasterName}</td>
-                      <td>{money(item.value)}</td>
-                      <td>
-                        <Badge
-                          tone={
-                            item.status === "ACTIVE"
-                              ? "ok"
-                              : item.status === "EXPIRED"
-                                ? "bad"
-                                : "info"
-                          }
-                        >
-                          {item.status}
-                        </Badge>
-                      </td>
-                      <td>
-                        {item.startDate ?? "—"} – {item.endDate ?? "—"}
-                      </td>
-                    </tr>
+      {(overview) => {
+        const competitions = overview.properties.filter((item) => item.scope === "COMPETITION");
+        const federation = overview.properties.filter((item) => item.scope === "FEDERATION");
+        const programmes = overview.properties.filter((item) =>
+          (["SENIOR_MENS", "YOUTH", "WOMENS_GIRLS"] as const).includes(
+            item.scope as "SENIOR_MENS" | "YOUTH" | "WOMENS_GIRLS",
+          ),
+        );
+        // Defensive fallback only: federationCommercialOverview already folds the
+        // legacy auto-generated sponsorship into `properties` whenever no
+        // FEDERATION-scope commercial-rights property exists yet — this covers the
+        // rare case where both records exist independently, without duplicating.
+        const legacySponsorshipUnrepresented =
+          overview.sponsorship &&
+          !federation.some((item) => item.sponsor?.id === overview.sponsorship!.sponsorId);
+        return (
+          <section className="role-detail">
+            <Panel title="Competitions">
+              {competitions.length === 0 ? (
+                <p className="empty-state">No competition title-sponsorship properties recorded yet.</p>
+              ) : (
+                <div className="commercial-property-grid">
+                  {competitions.map((property) => (
+                    <PropertyCard
+                      key={property.id}
+                      property={property}
+                      bridge={bridge}
+                      refresh={refresh}
+                      onOpenOrg={setOpenOrgId}
+                    />
                   ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Panel>
-      )}
+                </div>
+              )}
+            </Panel>
+            <Panel title="Federation">
+              {federation.length === 0 && !legacySponsorshipUnrepresented ? (
+                <p className="empty-state">No federation main-partner property recorded yet.</p>
+              ) : (
+                <div className="commercial-property-grid">
+                  {federation.map((property) => (
+                    <PropertyCard
+                      key={property.id}
+                      property={property}
+                      bridge={bridge}
+                      refresh={refresh}
+                      onOpenOrg={setOpenOrgId}
+                    />
+                  ))}
+                  {legacySponsorshipUnrepresented && (
+                    <div className="commercial-property-card">
+                      <header>
+                        <h4>Federation main partner</h4>
+                        <Badge tone="ok">{band(overview.sponsorship!.status)}</Badge>
+                      </header>
+                      <Metrics
+                        items={[
+                          {
+                            label: "Sponsor",
+                            value: (
+                              <button
+                                className="link"
+                                onClick={() => setOpenOrgId(overview.sponsorship!.sponsorId)}
+                              >
+                                {overview.sponsorship!.sponsorName}
+                              </button>
+                            ),
+                          },
+                          {
+                            label: "Annual value",
+                            value: money(
+                              overview.sponsorship!.annualValue,
+                              overview.sponsorship!.currency,
+                            ),
+                          },
+                          {
+                            label: "Term",
+                            value: `${overview.sponsorship!.startDate} – ${overview.sponsorship!.endDate}`,
+                          },
+                        ]}
+                      />
+                      <p className="subtle">
+                        Generated and settled automatically by the federation&rsquo;s commercial
+                        cadence — no negotiation step to act on here.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </Panel>
+            <Panel title="National programmes">
+              {programmes.length === 0 ? (
+                <p className="empty-state">
+                  No national-programme sponsorship properties recorded yet.
+                </p>
+              ) : (
+                <div className="commercial-property-grid">
+                  {programmes.map((property) => (
+                    <PropertyCard
+                      key={property.id}
+                      property={property}
+                      bridge={bridge}
+                      refresh={refresh}
+                      onOpenOrg={setOpenOrgId}
+                      groupLabel={property.programme ? PROGRAMME_LABEL[property.programme] : undefined}
+                    />
+                  ))}
+                </div>
+              )}
+            </Panel>
+            <Panel title="Broadcast & other rights">
+              <p className="subtle">
+                Generated and settled automatically by the federation&rsquo;s media-rights cadence —
+                no negotiation step to act on here.
+              </p>
+              {overview.mediaRights.length === 0 ? (
+                <p className="empty-state">No competition media-rights deal has been settled yet.</p>
+              ) : (
+                <div className="table-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Package</th>
+                        <th>Broadcaster</th>
+                        <th>Value</th>
+                        <th>Status</th>
+                        <th>Term</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {overview.mediaRights.map((item, index) => (
+                        <tr key={index}>
+                          <td>{item.packageName}</td>
+                          <td>{item.broadcasterName}</td>
+                          <td>{money(item.value)}</td>
+                          <td>
+                            <Badge
+                              tone={
+                                item.status === "ACTIVE"
+                                  ? "ok"
+                                  : item.status === "EXPIRED"
+                                    ? "bad"
+                                    : "info"
+                              }
+                            >
+                              {item.status}
+                            </Badge>
+                          </td>
+                          <td>
+                            {item.startDate ?? "—"} – {item.endDate ?? "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Panel>
+            <CommercialHistoryPanel history={overview.history} onOpenOrg={setOpenOrgId} />
+            {openOrgId && (
+              <OrganizationProfilePanel
+                bridge={bridge}
+                entityType="SPONSOR"
+                entityId={openOrgId}
+                onClose={() => setOpenOrgId(undefined)}
+              />
+            )}
+          </section>
+        );
+      }}
     </AsyncPanel>
   );
 };

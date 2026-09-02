@@ -63,6 +63,7 @@ import type {
   OrganizationProfileEntityType,
   ManagerOwnerPlayerRequest,
   ClubInfrastructureGovernmentContext,
+  FederationCommercialRightsOffer,
 } from "@nepal-football-sim/shared-types";
 
 export type {
@@ -307,6 +308,18 @@ const bindCommands = (call: CommandCaller): DesktopRuntimeApi => ({
     }),
   getFederationCommercialOverview: () =>
     call<FederationCommercialOverview>("getFederationCommercialOverview"),
+  negotiateFederationCommercialOffer: (offerId: EntityId) =>
+    call<FederationCommercialRightsOffer>("negotiateFederationCommercialOffer", { offerId }),
+  counterFederationCommercialOffer: (offerId: EntityId, annualValue: number, termYears?: number) =>
+    call<FederationCommercialRightsOffer>("counterFederationCommercialOffer", {
+      offerId,
+      annualValue,
+      termYears,
+    }),
+  acceptFederationCommercialOffer: (offerId: EntityId) =>
+    call<FederationCommercialRightsOffer>("acceptFederationCommercialOffer", { offerId }),
+  rejectFederationCommercialOffer: (offerId: EntityId) =>
+    call<FederationCommercialRightsOffer>("rejectFederationCommercialOffer", { offerId }),
   createInvestorStakeOffer: (percentage: number, minimumAmount?: number) =>
     call("createInvestorStakeOffer", { percentage, minimumAmount }),
   decideInvestorBid: (offerId: EntityId, accept: boolean) =>

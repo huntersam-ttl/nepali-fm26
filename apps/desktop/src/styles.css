@@ -2167,6 +2167,33 @@ tbody tr:last-child td {
   font-size: 0.85rem;
 }
 
+/* President Commercial: property cards grouped into Competitions /
+   Federation / National programmes — same dark surface language as every
+   other panel, no new color system. */
+.commercial-property-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+.commercial-property-card {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+.commercial-property-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.commercial-property-card header h4 {
+  margin: 0;
+}
+
 /* Player profile action rail: grouped actions (Transfer / Scouting / Squad
    status / Discussion), never a flat button dump. */
 .action-group {
