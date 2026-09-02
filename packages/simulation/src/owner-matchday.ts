@@ -1,5 +1,6 @@
 import type { GameDatabase } from "@nepal-football-sim/database";
 import type { EntityId, FixtureRow, OwnerMatchdayView, SaveMetadata } from "@nepal-football-sim/shared-types";
+import { venueForFixture } from "./manager-desktop.js";
 
 export type { OwnerMatchdayView } from "@nepal-football-sim/shared-types";
 
@@ -18,6 +19,7 @@ const row = (db: GameDatabase, fixture: any, clubId: EntityId): FixtureRow => {
     opponent: opponent?.name ?? "Unknown team",
     opponentId,
     homeAway: fixture.home_team_id === clubId ? "home" : "away",
+    venue: venueForFixture(db, { home_team_id: fixture.home_team_id }),
     status: fixture.status,
     score: match ? `${match.home_goals}-${match.away_goals}` : undefined,
   };

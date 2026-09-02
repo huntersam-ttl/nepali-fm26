@@ -937,7 +937,7 @@ export const applyTrainingUpdate = (
 // Fixtures and competition
 // ---------------------------------------------------------------------------
 
-const venueForFixture = (db: GameDatabase, fixture: SqlRow): string | undefined => {
+export const venueForFixture = (db: GameDatabase, fixture: SqlRow): string | undefined => {
   const row = db
     .prepare(
       `SELECT v.name FROM venue_relationships vr

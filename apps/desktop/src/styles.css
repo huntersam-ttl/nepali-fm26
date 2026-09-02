@@ -1327,6 +1327,14 @@ tbody tr:last-child td { border-bottom: 0; }
 
 .facility-summary { border-left: 3px solid var(--accent); }
 
+/* Owner matchday spectator: a premium score header + boardroom follow-up
+   card, without any 2D/3D match rendering. */
+.match-clock-header { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+.match-clock-score { display: flex; align-items: center; justify-content: center; gap: 18px; font-size: 1.15rem; }
+.match-clock-score strong { color: var(--text); }
+.match-clock-goals { font-size: 1.6rem; font-weight: 700; color: var(--text); letter-spacing: .02em; }
+.boardroom-followup { border-left: 3px solid var(--accent-2); padding-left: 12px; }
+
 /* Player profile action rail: grouped actions (Transfer / Scouting / Squad
    status / Discussion), never a flat button dump. */
 .action-group { margin-bottom: 14px; }

@@ -43,6 +43,9 @@ import type {
   PlayerContractContext,
   PlayerTransferContext,
   OwnerPlayerRequestIntent,
+  OwnerPostMatchSuggestion,
+  StructuredMatchEvent,
+  MatchEventParticipant,
 } from "@nepal-football-sim/shared-types";
 import type { EntityId } from "@nepal-football-sim/shared-types";
 import type { AppError, DesktopRuntimeApi } from "../appBridge.js";
@@ -1673,32 +1676,243 @@ const OwnerManagerMeetingView = ({
  * gated to the MANAGER role) — there is no tactical control to accidentally
  * expose here, because none exists to call.
  */
+const MATCH_PERIOD_LABEL: Record<string, string> = {
+  NOT_STARTED: "Not started",
+  FIRST_HALF: "First half",
+  HALF_TIME: "Half time",
+  SECOND_HALF: "Second half",
+  EXTRA_TIME_FIRST_HALF: "Extra time — first half",
+  EXTRA_TIME_HALF_TIME: "Extra time — half time",
+  EXTRA_TIME_SECOND_HALF: "Extra time — second half",
+  PENALTY_SHOOTOUT: "Penalty shootout",
+  FULL_TIME: "Full time",
+};
+const matchClock = (live: LiveMatchView): string =>
+  live.period === "FULL_TIME" || live.period === "NOT_STARTED"
+    ? MATCH_PERIOD_LABEL[live.period] ?? band(live.period)
+    : `${live.minute}'${live.stoppageTime > 0 ? `+${live.stoppageTime}` : ""}`;
+
+/** Real goal/card tallies read off the lineup's own player states — never parsed from commentary text. */
+const LiveMatchLineup = ({
+  team,
+  onSelectPlayer,
+}: {
+  team: LiveMatchView["home"];
+  onSelectPlayer: (playerId: EntityId) => void;
+}): React.ReactElement => (
+  <div>
+    <h3>{team.teamName}</h3>
+    <ul className="compact-list">
+      {team.onPitch.map((player) => (
+        <li key={player.personId}>
+          <button className="link" onClick={() => onSelectPlayer(player.personId)}>
+            {player.name}
+          </button>{" "}
+          <span className="subtle">
+            {player.position} · {player.rating > 0 ? player.rating.toFixed(1) : "—"}
+            {player.goals > 0 && ` · ${player.goals} goal${player.goals > 1 ? "s" : ""}`}
+            {player.yellowCards > 0 && " · Y"}
+            {player.redCard && " · R"}
+          </span>
+        </li>
+      ))}
+    </ul>
+  </div>
+);
+
+const MATCH_EVENT_GROUPS: Record<string, { title: string; types: string[] }> = {
+  goals: { title: "Goals", types: ["GOAL", "OWN_GOAL"] },
+  cards: { title: "Cards", types: ["YELLOW_CARD", "SECOND_YELLOW", "RED_CARD"] },
+  subs: { title: "Substitutions", types: ["SUBSTITUTION"] },
+};
+
+const eventParticipantLabel = (event: StructuredMatchEvent, role: MatchEventParticipant["role"]): MatchEventParticipant | undefined =>
+  event.participants.find((participant) => participant.role === role);
+
+/**
+ * One event, rendered from its real typed participants (never parsed from
+ * commentary text) — a scorer/assist pair for a goal, on/off pair for a
+ * substitution, or the carded/injured player otherwise. Each name opens the
+ * real Player Context Panel.
+ */
+const MatchEventRow = ({
+  event,
+  onSelectPlayer,
+}: {
+  event: StructuredMatchEvent;
+  onSelectPlayer: (playerId: EntityId) => void;
+}): React.ReactElement => {
+  const nameButton = (participant: MatchEventParticipant, key: string): React.ReactElement => (
+    <button key={key} className="link" onClick={() => onSelectPlayer(participant.personId)}>
+      {participant.reference.label}
+    </button>
+  );
+  const scorer = eventParticipantLabel(event, "SCORER");
+  const assist = eventParticipantLabel(event, "ASSIST");
+  const on = eventParticipantLabel(event, "PLAYER_ON");
+  const off = eventParticipantLabel(event, "PLAYER_OFF");
+  const plain = eventParticipantLabel(event, "PLAYER");
+  return (
+    <li>
+      {event.minute !== undefined ? `${event.minute}' ` : ""}
+      {event.type === "SUBSTITUTION" && on && off ? (
+        <>
+          {nameButton(on, "on")} on for {nameButton(off, "off")}
+        </>
+      ) : scorer ? (
+        <>
+          {nameButton(scorer, "scorer")}
+          {assist && <> (assist: {nameButton(assist, "assist")})</>}
+          {event.type === "OWN_GOAL" && " — own goal"}
+        </>
+      ) : plain ? (
+        nameButton(plain, "plain")
+      ) : (
+        <span className="subtle">{band(event.type)}</span>
+      )}
+    </li>
+  );
+};
+
+const MatchEventsPanel = ({
+  live,
+  onSelectPlayer,
+}: {
+  live: LiveMatchView;
+  onSelectPlayer: (playerId: EntityId) => void;
+}): React.ReactElement => (
+  <>
+    {Object.values(MATCH_EVENT_GROUPS).map((group) => {
+      const events = live.structuredEvents.filter((event) => group.types.includes(event.type));
+      if (events.length === 0) return null;
+      return (
+        <div className="action-group" key={group.title}>
+          <h3>{group.title}</h3>
+          <ul className="compact-list">
+            {events.map((event) => (
+              <MatchEventRow key={event.eventId} event={event} onSelectPlayer={onSelectPlayer} />
+            ))}
+          </ul>
+        </div>
+      );
+    })}
+    {live.injuryDecisions.length > 0 && (
+      <div className="action-group">
+        <h3>Injuries</h3>
+        <ul className="compact-list">
+          {live.injuryDecisions.map((player) => (
+            <li key={player.personId}>
+              <button className="link" onClick={() => onSelectPlayer(player.personId)}>
+                {player.name}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+    )}
+    <div className="action-group">
+      <h3>Commentary</h3>
+      {live.commentary.length === 0 ? (
+        <p className="empty-state">No commentary recorded yet.</p>
+      ) : (
+        <ul className="compact-list">
+          {live.commentary.slice(-12).map((line) => (
+            <li key={line.eventId}>
+              {line.minute !== undefined ? `${line.minute}' ` : ""}
+              {line.text}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  </>
+);
+
+const BoardroomContext = ({ overview }: { overview: OwnerManagerMeetingOverview }): React.ReactElement => (
+  <Panel title="Boardroom context">
+    <Metrics
+      items={[
+        { label: "Manager", value: overview.managerName },
+        { label: "Board confidence", value: overview.boardConfidence },
+        ...(overview.boardExpectation ? [{ label: "Board expects", value: band(overview.boardExpectation) }] : []),
+        ...(overview.pressure ? [{ label: "Pressure on manager", value: <Badge tone={pressureTone(overview.pressure)}>{band(overview.pressure)}</Badge> }] : []),
+      ]}
+    />
+    {overview.recentForm.length > 0 && (
+      <p className="subtle">Recent form: {overview.recentForm.slice(-5).join(" ")}</p>
+    )}
+  </Panel>
+);
+
 export const OwnerMatchday = ({ bridge, onTalkToManager }: { bridge: DesktopRuntimeApi; onTalkToManager?: () => void }): React.ReactElement => {
   const [state, refresh] = useRuntimeData(() => bridge.getOwnerMatchday());
+  const [overviewState] = useRuntimeData(() => bridge.getOwnerManagerMeeting());
   const [live, setLive] = useState<LiveMatchView | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const [mode, setMode] = useState<"TEXT_LIVE" | "KEY_EVENTS">("TEXT_LIVE");
+  const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [selectedPlayerId, setSelectedPlayerId] = useState<EntityId | null>(null);
+  const [suggestion, setSuggestion] = useState<{ loaded: boolean; data?: OwnerPostMatchSuggestion }>({ loaded: false });
+
+  const loadSuggestion = async (): Promise<void> => {
+    const result = await bridge.getOwnerPostMatchSuggestion();
+    setSuggestion({ loaded: true, data: result.ok ? result.data : undefined });
+  };
+
+  const applyProgress = (result: Awaited<ReturnType<typeof bridge.watchOwnerFixture>>, refreshList: boolean): void => {
+    if (result.ok) {
+      setLive(result.data);
+      if (result.data.finalized) {
+        void loadSuggestion();
+        refresh();
+      } else if (refreshList) refresh();
+    } else setMessage(result.error.message);
+  };
 
   const watch = async (fixtureId: EntityId): Promise<void> => {
-    setBusyId(`watch:${fixtureId}`);
+    setBusy(`watch:${fixtureId}`);
     setMessage(null);
+    setSuggestion({ loaded: false });
     const result = await bridge.watchOwnerFixture(fixtureId);
-    setBusyId(null);
-    if (result.ok) setLive(result.data);
-    else setMessage(result.error.message);
+    setBusy(null);
+    applyProgress(result, false);
   };
 
   const quickSim = async (fixtureId: EntityId): Promise<void> => {
-    setBusyId(`sim:${fixtureId}`);
+    setBusy(`sim:${fixtureId}`);
     setMessage(null);
+    setSuggestion({ loaded: false });
     const result = await bridge.quickSimOwnerFixture(fixtureId);
-    setBusyId(null);
-    if (result.ok) {
-      setLive(result.data);
-      setMessage("Match simulated.");
-      refresh();
-    } else setMessage(result.error.message);
+    setBusy(null);
+    applyProgress(result, true);
+    if (result.ok) setMessage("Match simulated.");
+  };
+
+  const advance = async (): Promise<void> => {
+    if (!live || live.finalized) return;
+    setBusy("advance");
+    const command =
+      mode === "KEY_EVENTS" ? { toNextEvent: true, minImportance: "NOTABLE" as const } : { minutes: 5 };
+    const result = await bridge.advanceOwnerFixture(command, live.fixtureId, mode);
+    setBusy(null);
+    applyProgress(result, false);
+  };
+
+  const fastForward = async (): Promise<void> => {
+    if (!live || live.finalized) return;
+    setBusy("fast");
+    const command = ["FIRST_HALF", "EXTRA_TIME_FIRST_HALF"].includes(live.period) ? { toHalfTime: true } : { minutes: 45 };
+    const result = await bridge.advanceOwnerFixture(command, live.fixtureId, mode);
+    setBusy(null);
+    applyProgress(result, false);
+  };
+
+  const continueSecondHalf = async (): Promise<void> => {
+    if (!live) return;
+    setBusy("continue");
+    const result = await bridge.continueOwnerFixture(live.fixtureId, mode);
+    setBusy(null);
+    applyProgress(result, false);
   };
 
   return (
@@ -1710,7 +1924,7 @@ export const OwnerMatchday = ({ bridge, onTalkToManager }: { bridge: DesktopRunt
               items={
                 matchday.positionContext
                   ? [
-                      { label: "League position", value: matchday.positionContext.position },
+                      { label: "League position", value: ordinal(matchday.positionContext.position) },
                       { label: "Played", value: matchday.positionContext.played },
                       { label: "Points", value: matchday.positionContext.points },
                     ]
@@ -1718,6 +1932,7 @@ export const OwnerMatchday = ({ bridge, onTalkToManager }: { bridge: DesktopRunt
               }
             />
           </Panel>
+          {overviewState.status === "ready" && <BoardroomContext overview={overviewState.data} />}
           {message && (
             <p className="notice" role="status">
               {message}
@@ -1731,87 +1946,129 @@ export const OwnerMatchday = ({ bridge, onTalkToManager }: { bridge: DesktopRunt
               onTalkToManager={onTalkToManager}
             />
           )}
-          <Panel title="Next fixture">
-            {matchday.upcoming.length === 0 ? (
-              <p className="empty-state">No upcoming fixtures scheduled.</p>
-            ) : (
-              <div className="table-scroll">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Competition</th>
-                      <th>Opponent</th>
-                      <th />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {matchday.upcoming.slice(0, 1).map((fixture) => (
-                      <tr key={fixture.id}>
-                        <td>{fixture.date}</td>
-                        <td>{fixture.competition}</td>
-                        <td>
-                          {fixture.homeAway === "home" ? "vs" : "at"} {fixture.opponent}
-                        </td>
-                        <td>
-                          <span className="button-row">
-                            <button className="primary small" disabled={busyId !== null} onClick={() => void watch(fixture.id)}>
-                              {busyId === `watch:${fixture.id}` ? "Opening…" : "Watch"}
-                            </button>
-                            <button className="ghost small" disabled={busyId !== null} onClick={() => void quickSim(fixture.id)}>
-                              {busyId === `sim:${fixture.id}` ? "Simulating…" : "Quick sim"}
-                            </button>
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </Panel>
-          {live && (
-            <Panel title="Match">
-              <Metrics
-                items={[
-                  { label: live.home.teamName, value: live.home.goals },
-                  { label: live.away.teamName, value: live.away.goals },
-                  { label: "Period", value: live.period.replaceAll("_", " ") },
-                ]}
-              />
-              {live.commentary.length === 0 ? (
-                <p className="empty-state">No commentary recorded yet.</p>
+
+          {!live?.finalized && (
+            <Panel title="Next fixture">
+              {matchday.upcoming.length === 0 ? (
+                <p className="empty-state">No upcoming fixtures scheduled.</p>
               ) : (
-                <ul className="compact-list">
-                  {live.commentary.slice(-10).map((line) => (
-                    <li key={line.eventId}>
-                      {line.minute !== undefined ? `${line.minute}' ` : ""}
-                      {line.text}
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <div className="summary-grid">
-                {[live.home, live.away].map((team) => (
-                  <div key={team.teamId}>
-                    <h3>{team.teamName}</h3>
-                    <ul className="compact-list">
-                      {team.onPitch.map((player) => (
-                        <li key={player.personId}>
-                          <button className="link" onClick={() => setSelectedPlayerId(player.personId)}>
-                            {player.name}
-                          </button>{" "}
-                          <span className="subtle">
-                            {player.position} · {player.rating > 0 ? player.rating.toFixed(1) : "—"}
-                          </span>
-                        </li>
+                <div className="table-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Competition</th>
+                        <th>Opponent</th>
+                        <th>Venue</th>
+                        <th />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {matchday.upcoming.slice(0, 1).map((fixture) => (
+                        <tr key={fixture.id}>
+                          <td>{fixture.date}</td>
+                          <td>{fixture.competition}</td>
+                          <td>
+                            {fixture.homeAway === "home" ? "vs" : "at"} {fixture.opponent}
+                          </td>
+                          <td>{fixture.venue ?? "—"}</td>
+                          <td>
+                            <span className="button-row">
+                              <button className="primary small" disabled={busy !== null} onClick={() => void watch(fixture.id)}>
+                                {busy === `watch:${fixture.id}` ? "Opening…" : "Watch"}
+                              </button>
+                              <button className="ghost small" disabled={busy !== null} onClick={() => void quickSim(fixture.id)}>
+                                {busy === `sim:${fixture.id}` ? "Simulating…" : "Quick sim"}
+                              </button>
+                            </span>
+                          </td>
+                        </tr>
                       ))}
-                    </ul>
-                  </div>
-                ))}
-              </div>
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </Panel>
           )}
+
+          {live && (
+            <Panel title="Match" className="panel-wide">
+              <div className="match-clock-header">
+                <div className="match-clock-score">
+                  <strong>{live.home.teamName}</strong>
+                  <span className="match-clock-goals">
+                    {live.home.goals} – {live.away.goals}
+                  </span>
+                  <strong>{live.away.teamName}</strong>
+                </div>
+                <Metrics
+                  items={[
+                    { label: "Status", value: matchClock(live) },
+                    { label: "Competition", value: live.competitionName },
+                    ...(live.venue ? [{ label: "Venue", value: live.venue }] : []),
+                    ...(live.attendance !== undefined ? [{ label: "Attendance", value: live.attendance.toLocaleString() }] : []),
+                  ]}
+                />
+              </div>
+
+              {live.period === "HALF_TIME" || live.period === "EXTRA_TIME_HALF_TIME" ? (
+                <>
+                  <p className="subtle">Half time — no tactical options for the Owner.</p>
+                  <MatchEventsPanel live={live} onSelectPlayer={setSelectedPlayerId} />
+                  <button className="primary small" disabled={busy !== null} onClick={() => void continueSecondHalf()}>
+                    {busy === "continue" ? "Continuing…" : "Continue second half"}
+                  </button>
+                </>
+              ) : live.finalized ? (
+                <>
+                  <p>
+                    <Badge tone={live.home.goals === live.away.goals ? "info" : "ok"}>Full time</Badge>
+                  </p>
+                  <MatchEventsPanel live={live} onSelectPlayer={setSelectedPlayerId} />
+                  <div className="summary-grid">
+                    <LiveMatchLineup team={live.home} onSelectPlayer={setSelectedPlayerId} />
+                    <LiveMatchLineup team={live.away} onSelectPlayer={setSelectedPlayerId} />
+                  </div>
+                  {suggestion.loaded && suggestion.data && (
+                    <div className="action-group boardroom-followup">
+                      <h3>Boardroom follow-up</h3>
+                      <p className="subtle">{suggestion.data.reason}</p>
+                      {onTalkToManager && (
+                        <button className="ghost small" onClick={onTalkToManager}>
+                          Talk to Manager
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className="button-row">
+                    <button className={mode === "TEXT_LIVE" ? "primary small" : "ghost small"} onClick={() => setMode("TEXT_LIVE")}>
+                      Text Live
+                    </button>
+                    <button className={mode === "KEY_EVENTS" ? "primary small" : "ghost small"} onClick={() => setMode("KEY_EVENTS")}>
+                      Key Events
+                    </button>
+                  </div>
+                  <MatchEventsPanel live={live} onSelectPlayer={setSelectedPlayerId} />
+                  <div className="button-row">
+                    <button className="primary small" disabled={busy !== null} onClick={() => void advance()}>
+                      {busy === "advance" ? "Advancing…" : mode === "KEY_EVENTS" ? "Next key event" : "Advance 5 minutes"}
+                    </button>
+                    <button className="ghost small" disabled={busy !== null} onClick={() => void fastForward()}>
+                      {busy === "fast" ? "Fast forwarding…" : ["FIRST_HALF", "EXTRA_TIME_FIRST_HALF"].includes(live.period) ? "Skip to half time" : "Fast forward"}
+                    </button>
+                  </div>
+                  <div className="summary-grid">
+                    <LiveMatchLineup team={live.home} onSelectPlayer={setSelectedPlayerId} />
+                    <LiveMatchLineup team={live.away} onSelectPlayer={setSelectedPlayerId} />
+                  </div>
+                </>
+              )}
+            </Panel>
+          )}
+
           <Panel title="Recent results">
             {matchday.results.length === 0 ? (
               <p className="empty-state">No results recorded yet.</p>

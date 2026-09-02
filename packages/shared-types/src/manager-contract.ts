@@ -1407,6 +1407,10 @@ export type LiveMatchView = {
   /** Players who picked up an injury and may need replacing. */
   injuryDecisions: LivePlayerState[];
   finalized: boolean;
+  /** Real home-ground name, resolved the same way the manager's fixture list does. */
+  venue?: string;
+  /** Real supporter-demand attendance for this match, known from kick-off. */
+  attendance?: number;
   /** Set for knockout ties: whether the tie currently requires a winner. */
   requiresWinner?: boolean;
   /** First-leg score of a two-leg tie, if this is the second leg. */

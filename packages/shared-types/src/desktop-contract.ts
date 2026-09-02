@@ -1,5 +1,6 @@
 import type { EntityId } from "./ids.js";
-import type { FixtureRow, LiveMatchView } from "./manager-contract.js";
+import type { AdvanceMatchCommand, FixtureRow, LiveMatchView } from "./manager-contract.js";
+import type { OwnerPostMatchSuggestion } from "./owner-meeting-suggestion.js";
 import type {
   FixtureRecord,
   InboxItem,
@@ -43,6 +44,7 @@ import type {
   OwnerInvestmentTransaction,
   StaffAppointment,
   ManagerPromise,
+  MatchViewMode,
 } from "./domain.js";
 import type { ExecutiveAuthorityDesktopView } from "./executive-roles.js";
 import type { FederationDevelopmentSummary } from "./federation-policy.js";
@@ -542,7 +544,13 @@ export type DesktopRuntimeApi = {
   getChairmanDashboard(): Promise<AppResult<ChairmanDashboard>>;
   getOwnerMatchday(): Promise<AppResult<OwnerMatchdayView>>;
   watchOwnerFixture(fixtureId?: EntityId): Promise<AppResult<LiveMatchView>>;
+  /** Owner-only spectator progression through the canonical match session — same engine as the manager's own advance, no tactical authority. */
+  advanceOwnerFixture(command?: AdvanceMatchCommand, fixtureId?: EntityId, viewMode?: MatchViewMode): Promise<AppResult<LiveMatchView>>;
+  /** Owner may acknowledge the half-time break, but cannot alter either team. */
+  continueOwnerFixture(fixtureId?: EntityId, viewMode?: MatchViewMode): Promise<AppResult<LiveMatchView>>;
   quickSimOwnerFixture(fixtureId?: EntityId): Promise<AppResult<LiveMatchView>>;
+  /** Real, honest post-match follow-up suggestion for the most recently played fixture, or undefined when none is due. */
+  getOwnerPostMatchSuggestion(): Promise<AppResult<OwnerPostMatchSuggestion | undefined>>;
   getEntityReference(
     entityType: EntityReferenceType,
     entityId: EntityId,

@@ -1,8 +1,10 @@
 import type { GameDatabase } from "@nepal-football-sim/database";
-import type { EntityId, SaveMetadata } from "@nepal-football-sim/shared-types";
+import type { EntityId, OwnerPostMatchSuggestion, SaveMetadata } from "@nepal-football-sim/shared-types";
 import { buildEntityReference } from "./entity-reference.js";
 
-export const buildOwnerPostMatchSuggestion = (db: GameDatabase, save: SaveMetadata, clubId: EntityId) => {
+export type { OwnerPostMatchSuggestion } from "@nepal-football-sim/shared-types";
+
+export const buildOwnerPostMatchSuggestion = (db: GameDatabase, save: SaveMetadata, clubId: EntityId): OwnerPostMatchSuggestion | undefined => {
   const team = db.prepare("SELECT id FROM teams WHERE club_id=? ORDER BY id LIMIT 1").get(clubId) as { id?: EntityId } | undefined;
   if (!team?.id) return undefined;
   const match = db.prepare("SELECT f.id, f.home_team_id, f.away_team_id, f.scheduled_date, m.home_goals, m.away_goals FROM fixtures f JOIN matches m ON m.fixture_id=f.id WHERE (f.home_team_id=? OR f.away_team_id=?) AND f.status='played' ORDER BY m.played_date DESC, m.id DESC LIMIT 1").get(team.id, team.id) as { id: EntityId; home_team_id: EntityId; away_team_id: EntityId; scheduled_date: string; home_goals: number; away_goals: number } | undefined;

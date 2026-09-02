@@ -253,6 +253,8 @@ export const buildLiveMatchView = (
     cursor: state.eventSequence - 1,
     injuryDecisions,
     finalized: Boolean(options.finalized),
+    venue: venueForFixture(db, { home_team_id: state.homeTeamId }),
+    attendance: state.attendance,
     requiresWinner: state.requiresWinner,
     aggregateFirstLeg: state.aggregateFirstLeg,
     aggregateScore: state.aggregateFirstLeg

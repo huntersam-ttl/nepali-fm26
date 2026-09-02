@@ -56,6 +56,9 @@ import type {
   PlayerTransferContext,
   OwnerPlayerRequestContext,
   OwnerPlayerRequestIntent,
+  OwnerPostMatchSuggestion,
+  AdvanceMatchCommand,
+  MatchViewMode,
 } from "@nepal-football-sim/shared-types";
 
 export type {
@@ -171,7 +174,10 @@ const bindCommands = (call: CommandCaller): DesktopRuntimeApi => ({
   getChairmanDashboard: () => call<ChairmanDashboard>("getChairmanDashboard"),
   getOwnerMatchday: () => call<OwnerMatchdayView>("getOwnerMatchday"),
   watchOwnerFixture: (fixtureId?: EntityId) => call<LiveMatchView>("watchOwnerFixture", { fixtureId }),
+  advanceOwnerFixture: (command?: AdvanceMatchCommand, fixtureId?: EntityId, viewMode?: MatchViewMode) => call<LiveMatchView>("advanceOwnerFixture", { command, fixtureId, viewMode }),
+  continueOwnerFixture: (fixtureId?: EntityId, viewMode?: MatchViewMode) => call<LiveMatchView>("continueOwnerFixture", { fixtureId, viewMode }),
   quickSimOwnerFixture: (fixtureId?: EntityId) => call<LiveMatchView>("quickSimOwnerFixture", { fixtureId }),
+  getOwnerPostMatchSuggestion: () => call<OwnerPostMatchSuggestion | undefined>("getOwnerPostMatchSuggestion"),
   getEntityReference: (entityType: EntityReferenceType, entityId: EntityId) => call<EntityReference>("getEntityReference", { entityType, entityId }),
   getPlayerActions: (playerId: EntityId) => call<ActorPlayerActions>("getPlayerActions", { playerId }),
   getPlayerContractContext: (playerId: EntityId) => call<PlayerContractContext>("getPlayerContractContext", { playerId }),
