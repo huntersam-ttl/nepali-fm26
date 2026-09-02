@@ -17,6 +17,7 @@ import {
   FederationGovernancePhaseBRepository,
   FederationGovernanceRepository,
   FederationPoliticsRepository,
+  EventRepository,
   WorldRepository,
   type GameDatabase,
 } from "@nepal-football-sim/database";
@@ -391,6 +392,25 @@ export const runFederationElection = (
   };
   politics.upsertResult(result);
   politics.upsertCycle({ ...cycle, status: "COMPLETED" });
+  const electionEventId = createStableEntityId(
+    "historical-event",
+    `federation-election:${cycle.id}`,
+  );
+  if (!db.prepare("SELECT 1 FROM historical_events WHERE id=?").get(electionEventId)) {
+    new EventRepository(db).insertHistoricalEvent({
+      id: electionEventId,
+      occurredOn: input.date,
+      eventType: "FEDERATION_ELECTION_COMPLETED",
+      involvedEntities: [
+        { id: cycle.federationId, type: "federation" },
+        { id: winner.personId, type: "person" },
+      ],
+      title: "Federation election completed",
+      data: { cycleId: cycle.id, winnerCandidateId: winner.id, electedPersonId: winner.personId },
+      importance: "high",
+      scope: "federation",
+    });
+  }
   const activePriorities = governance
     .strategyPriorities(cycle.federationId)
     .filter((item) => item.status === "ACTIVE");

@@ -16,6 +16,7 @@ import {
   FederationGovernanceRepository,
   FederationPolicyRepository,
   GovernmentRepository,
+  EventRepository,
   type GameDatabase,
 } from "@nepal-football-sim/database";
 
@@ -462,6 +463,24 @@ export const advanceFederationPolicies = (
     };
     repository.upsertPolicy(next);
     progressed.push(next);
+    if (next.status === "COMPLETED") {
+      const eventId = createStableEntityId(
+        "historical-event",
+        `federation-policy:${next.id}:completed`,
+      );
+      if (!db.prepare("SELECT 1 FROM historical_events WHERE id=?").get(eventId)) {
+        new EventRepository(db).insertHistoricalEvent({
+          id: eventId,
+          occurredOn: input.date,
+          eventType: "FEDERATION_POLICY_COMPLETED",
+          involvedEntities: [{ id: next.federationId, type: "federation" }],
+          title: `${next.title} completed`,
+          data: { policyId: next.id, category: next.category },
+          importance: "medium",
+          scope: "federation",
+        });
+      }
+    }
   }
   return progressed;
 };
@@ -484,8 +503,12 @@ export const federationDevelopmentSummary = (
     .filter((policy) => policy.status !== "COMPLETED")
     .slice(0, 4)
     .map((policy) => policy.category);
-  const averageProgress = policies.length
-    ? policies.reduce((sum, policy) => sum + policy.implementationProgress, 0) / policies.length
+  const outcomePolicies = policies.filter((policy) =>
+    ["FUNDED", "IMPLEMENTING", "COMPLETED"].includes(policy.status),
+  );
+  const averageProgress = outcomePolicies.length
+    ? outcomePolicies.reduce((sum, policy) => sum + policy.implementationProgress, 0) /
+      outcomePolicies.length
     : 0;
   const governmentTrust =
     new GovernmentRepository(db)
@@ -512,9 +535,7 @@ export const federationDevelopmentSummary = (
   const impactSummaries: string[] = [];
 
   const resultSignal = (record: typeof outcomes.senior): number =>
-    record.fixtures > 0
-      ? clamp(((record.wins + record.draws * 0.5) / record.fixtures) * 100)
-      : 0;
+    record.fixtures > 0 ? clamp(((record.wins + record.draws * 0.5) / record.fixtures) * 100) : 0;
   const addOutcomeSignal = (dimension: string, value: number, label: string): void => {
     const bounded = clamp(value, -6, 6);
     if (bounded === 0) return;
@@ -570,7 +591,7 @@ export const federationDevelopmentSummary = (
     "Completed federation projects",
   );
 
-  for (const policy of policies.filter((item) => item.implementationProgress > 0)) {
+  for (const policy of outcomePolicies.filter((item) => item.implementationProgress > 0)) {
     const dimension = policyDimension(policy.category);
     if (!dimension) continue;
     // Policy progress is an outcome signal, not a second project/profile
@@ -589,13 +610,15 @@ export const federationDevelopmentSummary = (
     Object.keys(dimensionScores).length;
   const positiveOutcome = impactSummaries.some((summary) => summary.includes("positive outcome"));
   const negativeOutcome = impactSummaries.some((summary) => summary.includes("negative outcome"));
-  const trend = policies.some(
-    (policy) => policy.status === "IMPLEMENTING" && policy.implementationProgress > 0,
-  ) || (positiveOutcome && !negativeOutcome)
-    ? "IMPROVING"
-    : negativeOutcome && !positiveOutcome
-      ? "DECLINING"
-      : "STABLE";
+  const trend =
+    policies.some(
+      (policy) => policy.status === "IMPLEMENTING" && policy.implementationProgress > 0,
+    ) ||
+    (positiveOutcome && !negativeOutcome)
+      ? "IMPROVING"
+      : negativeOutcome && !positiveOutcome
+        ? "DECLINING"
+        : "STABLE";
   return {
     federationId,
     band: developmentBand(overallScore),
