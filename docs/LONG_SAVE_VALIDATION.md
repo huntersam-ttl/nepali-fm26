@@ -1,5 +1,19 @@
 # Long-save validation
 
+## Controlled three-season revalidation (HEAD `272309a`, 2026-09-02)
+
+- Command: `LONG_SAVE_RUN=1 LONG_SAVE_DIAGNOSTIC=1 LONG_SAVE_SEASONS=3 LONG_SAVE_CHECKPOINT=1 LONG_SAVE_SEED=long-save-post-freeze-2026 pnpm exec vitest run packages/testing/src/long-save-validation.test.ts --maxWorkers=1 --minWorkers=1`
+- Result: **PASS**. All three seasons completed through the canonical production loop and checkpointed via save/reload.
+- Per-season elapsed runtime: **S1 221.70s, S2 262.42s, S3 503.34s**; cumulative **987.46s**.
+- Fixtures/matches: **S1 872/851, S2 1,744/1,702, S3 2,634/2,571**.
+- Save size: **82.24 MB → 116.41 MB → 151.27 MB**; RSS: **602.2 MB → 607.5 MB → 611.5 MB**.
+- Structural shortages: **0** across all checkpoints. Emergency lineups: **0**.
+- Duplicate IDs: **0** for persons, clubs, fixtures, matches, and training-history events at every checkpoint. Financial values remained finite; no migration, runtime, or database constraint errors occurred.
+- Season states: **5, 10, and 15 rolled-over; 0 suspended** at S1–S3 checkpoints. Promotion/relegation movement totals were 12, 24, and 36 cumulatively.
+- Population grew from 3,555 to 3,936 persons and player attributes from 1,442 to 1,499; no orphaned identity or generated-player duplication was observed in the harness snapshot.
+- Performance trend: later seasons are materially slower, primarily in `economy_ownership_ai` (60.65s, 152.07s, 381.24s). This is recorded as a scaling risk, not a new optimization in this validation pass.
+- Gate: **multi-season correctness PASS**; **performance/memory release gate remains FAIL/UNPROVEN** for the longer 20-season requirement.
+
 ## Latest bounded release-gate attempt (HEAD `74d86fb`)
 
 - Command: `LONG_SAVE_RUN=1 LONG_SAVE_DIAGNOSTIC=1 LONG_SAVE_SEASONS=3 LONG_SAVE_CHECKPOINT=1 LONG_SAVE_SEED=release-gate-2026 pnpm vitest run packages/testing/src/long-save-validation.test.ts --maxWorkers=1 --minWorkers=1`
