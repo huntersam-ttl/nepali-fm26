@@ -239,6 +239,65 @@ export const respondToOwnerPlayerRequest = (
   return resolveOwnerManagerMeeting(db, input);
 };
 
+/** Completes a player request only after the canonical football command has
+ * made the requested state observable. It is deliberately a no-op for an
+ * unresolved/stale request and never performs the football mutation itself. */
+export const resolveOwnerPlayerRequestAfterAction = (
+  db: GameDatabase,
+  input: {
+    clubId: EntityId;
+    playerId: EntityId;
+    intent: OwnerPlayerRequestIntent;
+    date: string;
+    sourceId: EntityId;
+  },
+): UniversalInteraction | undefined => {
+  const repo = new UniversalInteractionRepository(db);
+  const session = repo
+    .all()
+    .find(
+      (item) =>
+        item.interactionType === "OWNER_MANAGER_MEETING" &&
+        item.organisationId === input.clubId &&
+        item.demands.playerId === input.playerId &&
+        item.demands.requestIntent === input.intent &&
+        !["COMPLETED", "REJECTED", "WALKED_AWAY", "CANCELLED"].includes(item.stage),
+    );
+  if (!session) return undefined;
+  if (session.stage !== "ACCEPTED") return session;
+  const market = new TransferMarketRepository(db);
+  const contract = market.activeContract(input.playerId, input.date);
+  const transferStatus = market.transferStatus(input.playerId)?.status;
+  const fulfilled =
+    (input.intent === "CONSIDER_TRANSFER_LIST" && transferStatus === "TRANSFER_LISTED") ||
+    (input.intent === "CONSIDER_LOAN_LIST" && transferStatus === "LOAN_LISTED") ||
+    (input.intent === "CONSIDER_RENEWAL" &&
+      Boolean(contract && contract.startDate > session.worldDate)) ||
+    (input.intent === "CONSIDER_RELEASE" && !contract);
+  if (!fulfilled) return session;
+  const completed: UniversalInteraction = {
+    ...session,
+    stage: "COMPLETED",
+    availableActions: [],
+    outcome: `Owner player request fulfilled by ${input.sourceId}`,
+    linkedReference: { ...session.linkedReference!, resultId: input.sourceId },
+    execution: session.execution
+      ? { ...session.execution, status: "APPLIED", resultId: input.sourceId }
+      : undefined,
+    history: [
+      ...session.history,
+      {
+        date: input.date,
+        stage: "COMPLETED",
+        action: "ACCEPT",
+        note: "Canonical player action fulfilled the request",
+      },
+    ],
+  };
+  repo.upsert(completed);
+  return completed;
+};
+
 export const resolveOwnerManagerMeeting = (
   db: GameDatabase,
   input: {

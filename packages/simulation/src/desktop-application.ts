@@ -341,6 +341,7 @@ import {
   createOwnerPlayerRequest,
   ownerPlayerRequestContext,
   respondToOwnerPlayerRequest,
+  resolveOwnerPlayerRequestAfterAction,
 } from "./owner-manager-meetings.js";
 import { capitalInjectionFromInvestor } from "./investor.js";
 import { buildChairmanDashboard, buildFederationPresidentDashboard } from "./role-desktop.js";
@@ -3289,7 +3290,15 @@ export class DesktopApplicationService {
   setTransferStatus(command: TransferListCommand): AppResult<TransferCentre> {
     return this.managerCommand((db, save, context) => {
       requireDomainPermission(db, save, context, "TRANSFERS", "setTransferStatus");
-      return setManagerTransferStatus(db, save, context, command);
+      const result = setManagerTransferStatus(db, save, context, command);
+      resolveOwnerPlayerRequestAfterAction(db, {
+        clubId: context.club!.id,
+        playerId: command.playerId,
+        intent: command.status === "LOAN_LISTED" ? "CONSIDER_LOAN_LIST" : "CONSIDER_TRANSFER_LIST",
+        date: save.worldDate,
+        sourceId: command.playerId,
+      });
+      return result;
     }, true);
   }
 
@@ -3300,7 +3309,15 @@ export class DesktopApplicationService {
   renewContract(command: ContractRenewalCommand): AppResult<ContractList> {
     return this.managerCommand((db, save, context) => {
       requireDomainPermission(db, save, context, "CONTRACTS", "renewContract");
-      return renewManagerContract(db, save, context, command);
+      const result = renewManagerContract(db, save, context, command);
+      resolveOwnerPlayerRequestAfterAction(db, {
+        clubId: context.club!.id,
+        playerId: command.playerId,
+        intent: "CONSIDER_RENEWAL",
+        date: save.worldDate,
+        sourceId: command.playerId,
+      });
+      return result;
     }, true);
   }
 
