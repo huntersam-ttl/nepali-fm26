@@ -5,6 +5,7 @@ export * from "./ids.js";
 export * from "./federation-compliance.js";
 export * from "./territorial-football.js";
 export * from "./government.js";
+export * from "./facility-planning.js";
 export * from "./grassroots.js";
 export * from "./media-rights.js";
 export * from "./commercial-rights.js";
