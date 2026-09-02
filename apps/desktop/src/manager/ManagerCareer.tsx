@@ -418,6 +418,8 @@ export const ManagerCareer = ({
               setPlayerId(null);
               setMatchFixtureId(null);
             }}
+            bridge={bridge}
+            onSelectPlayer={openPlayer}
           />
         )}
         {header.activeRole === "MANAGER" && screen === "squad" &&

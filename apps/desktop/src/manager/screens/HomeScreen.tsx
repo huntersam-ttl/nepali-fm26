@@ -1,7 +1,9 @@
 import React, { useState } from "react";
 import type { ConcernResponseAction, EntityId, FederationCandidacyAssessment } from "@nepal-football-sim/shared-types";
+import type { DesktopRuntimeApi } from "../../appBridge.js";
 import { managerBridge } from "../managerBridge.js";
 import { AsyncPanel, Badge, FormRun, Metrics, Panel, useRuntimeData } from "../ui.js";
+import { OwnerPlayerRequestInbox } from "./OwnerPlayerRequestInbox.js";
 
 const concernLabel = (type: string): string => {
   switch (type) {
@@ -86,11 +88,15 @@ export const HomeScreen = ({
   refreshKey,
   onAction,
   onNavigate,
+  bridge,
+  onSelectPlayer,
 }: {
   busy: boolean;
   refreshKey: number;
   onAction: () => Promise<void>;
   onNavigate: (screen: "squad" | "tactics" | "fixtures" | "staff" | "contracts" | "competition") => void;
+  bridge: DesktopRuntimeApi;
+  onSelectPlayer: (playerId: EntityId) => void;
 }): React.ReactElement => {
   const [state, refreshDashboard] = useRuntimeData(() => managerBridge.getManagerDashboard(), [
     refreshKey,
@@ -548,6 +554,14 @@ export const HomeScreen = ({
               ))
             )}
           </Panel>
+
+          {dashboard.employmentStatus === "EMPLOYED" && (
+            <OwnerPlayerRequestInbox
+              bridge={bridge}
+              refreshKey={refreshKey}
+              onSelectPlayer={onSelectPlayer}
+            />
+          )}
 
           <Panel title="Career history">
             <AsyncPanel state={history}>

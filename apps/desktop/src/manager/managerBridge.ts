@@ -60,6 +60,10 @@ import type {
   ClubBudgetCategory,
   ManagerBudgetRequest,
   ActorPlayerActions,
+  ManagerOwnerPlayerRequest,
+  OwnerManagerMeetingStance,
+  OwnerManagerCommitmentInput,
+  UniversalInteraction,
 } from "@nepal-football-sim/shared-types";
 import { runtimeCall } from "../appBridge.js";
 
@@ -81,6 +85,18 @@ export const managerBridge = {
     runtimeCall<PlayerProfile>("getPlayerProfile", { playerId }),
   getPlayerActions: (playerId: EntityId) =>
     runtimeCall<ActorPlayerActions>("getPlayerActions", { playerId }),
+  getManagerOwnerPlayerRequests: () =>
+    runtimeCall<ManagerOwnerPlayerRequest[]>("getManagerOwnerPlayerRequests"),
+  respondToOwnerPlayerRequest: (
+    interactionId: EntityId,
+    stance: OwnerManagerMeetingStance,
+    commitment?: OwnerManagerCommitmentInput,
+  ) =>
+    runtimeCall<UniversalInteraction>("respondToOwnerPlayerRequest", {
+      interactionId,
+      stance,
+      commitment,
+    }),
   getMediaCentre: () => runtimeCall<MediaCentreView>("getMediaCentre"),
   requestPressConference: (storyId: EntityId) =>
     runtimeCall<PressConferenceView>("requestPressConference", { storyId }),
