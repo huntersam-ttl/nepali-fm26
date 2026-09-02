@@ -6,10 +6,12 @@ import { CommercialRightsRepository, openGameDatabase } from "@nepal-football-si
 import {
   aDivisionCommercialReadModel,
   activateADivisionTitleSponsorship,
+  activateDivisionTitleSponsorship,
   awardCommercialRightsForPresident,
   calculateCommercialRightsOffer,
   createNepalSave,
   ensureADivisionTitleSponsorPackage,
+  ensureDivisionTitleSponsorPackage,
   ensureFederationMainPartnerPackage,
   expireADivisionTitleSponsorships,
 } from "@nepal-football-sim/simulation";
@@ -229,6 +231,133 @@ describe("commercial rights federation pilot", () => {
     expect(expireADivisionTitleSponsorships(db, "2028-08-01")).toHaveLength(0);
     expect(expireADivisionTitleSponsorships(db, "2028-08-02")).toHaveLength(1);
     expect(expireADivisionTitleSponsorships(db, "2028-08-02")).toHaveLength(0);
+    db.close();
+    rmSync(directory, { recursive: true, force: true });
+  });
+
+  it("activates B and C title sponsors through the same ledger-backed architecture with tiered values", () => {
+    const { directory, db, federationId, personId } = setup();
+    const seasons = db
+      .prepare(
+        "SELECT cs.id, lower(c.name) AS name FROM competition_seasons cs JOIN competitions c ON c.id=cs.competition_id WHERE c.federation_id=? AND (lower(c.name) LIKE '%b-division%' OR lower(c.name) LIKE '%c-division%') ORDER BY c.name",
+      )
+      .all(federationId) as Array<{ id: EntityId; name: string }>;
+    const bSeason = seasons.find((season) => season.name.includes("b-division"));
+    const cSeason = seasons.find((season) => season.name.includes("c-division"));
+    expect(bSeason).toBeTruthy();
+    expect(cSeason).toBeTruthy();
+    const repo = new CommercialRightsRepository(db);
+    const sponsors = [
+      {
+        id: "b-division-sponsor" as EntityId,
+        name: "Regional B Partner",
+        sector: "Banking",
+        financialStrength: 55,
+        strategicValue: 50,
+        reputation: 55,
+        domesticReach: 60,
+        internationalReach: 10,
+        reliability: 65,
+      },
+      {
+        id: "c-division-sponsor" as EntityId,
+        name: "District C Partner",
+        sector: "Construction",
+        financialStrength: 35,
+        strategicValue: 35,
+        reputation: 40,
+        domesticReach: 35,
+        internationalReach: 5,
+        reliability: 55,
+      },
+    ];
+    for (const sponsor of sponsors)
+      repo.upsertSponsor({ ...sponsor, provenanceStatus: "SIMULATION_ONLY" });
+    db.prepare(
+      "INSERT INTO federation_leadership_tenures (id,person_id,federation_id,role,term_start,status,provenance_status) VALUES (?,?,?,?,?,?,?)",
+    ).run(
+      "bc-pilot-tenure",
+      personId,
+      federationId,
+      "FEDERATION_PRESIDENT",
+      "2026-08-01",
+      "ACTIVE",
+      "SIMULATION_ONLY",
+    );
+    const bPackage = ensureDivisionTitleSponsorPackage(db, {
+      federationId,
+      division: "B",
+      date: "2026-08-01",
+    });
+    const cPackage = ensureDivisionTitleSponsorPackage(db, {
+      federationId,
+      division: "C",
+      date: "2026-08-01",
+    });
+    const evidence = (competitionTier: "B" | "C") => ({
+      federationReputation: 50,
+      competitionReputation: 45,
+      nationalTeamPerformance: 35,
+      audienceScale: competitionTier === "B" ? 35_000 : 12_000,
+      mediaExposure: 35,
+      womenYouthGrowth: 25,
+      competitionTier,
+    });
+    const bOffer = calculateCommercialRightsOffer({
+      rightsPackage: bPackage,
+      sponsor: repo.sponsor(sponsors[0]!.id)!,
+      evidence: evidence("B"),
+      offeredOn: "2026-08-01",
+    });
+    const cOffer = calculateCommercialRightsOffer({
+      rightsPackage: cPackage,
+      sponsor: repo.sponsor(sponsors[1]!.id)!,
+      evidence: evidence("C"),
+      offeredOn: "2026-08-01",
+    });
+    repo.upsertOffer(bOffer);
+    repo.upsertOffer(cOffer);
+    const bLinked = activateDivisionTitleSponsorship(db, {
+      division: "B",
+      competitionSeasonId: bSeason!.id,
+      offerId: bOffer.id,
+      presidentPersonId: personId,
+      federationId,
+      date: "2026-08-01",
+      startDate: "2026-08-01",
+    });
+    const cLinked = activateDivisionTitleSponsorship(db, {
+      division: "C",
+      competitionSeasonId: cSeason!.id,
+      offerId: cOffer.id,
+      presidentPersonId: personId,
+      federationId,
+      date: "2026-08-01",
+      startDate: "2026-08-01",
+    });
+    expect(bLinked.displayTitle).toContain("Regional B Partner");
+    expect(cLinked.displayTitle).toContain("District C Partner");
+    expect(bOffer.annualValue).toBeGreaterThan(cOffer.annualValue);
+    expect(
+      (
+        db
+          .prepare(
+            "SELECT COUNT(*) AS count FROM federation_ledger_entries WHERE related_entity_id IN (?,?)",
+          )
+          .get(bOffer.id, cOffer.id) as { count: number }
+      ).count,
+    ).toBe(2);
+    expect(
+      activateDivisionTitleSponsorship(db, {
+        division: "B",
+        competitionSeasonId: bSeason!.id,
+        offerId: bOffer.id,
+        presidentPersonId: personId,
+        federationId,
+        date: "2026-08-01",
+        startDate: "2026-08-01",
+      }),
+    ).toEqual(bLinked);
     db.close();
     rmSync(directory, { recursive: true, force: true });
   });

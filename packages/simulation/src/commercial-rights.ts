@@ -21,6 +21,7 @@ export type CommercialRightsEvidence = {
   audienceScale: number;
   mediaExposure: number;
   womenYouthGrowth: number;
+  competitionTier?: "A" | "B" | "C";
 };
 const clamp = (value: number): number => Math.max(0, Math.min(100, Math.round(value)));
 const addYears = (date: string, years: number): string => {
@@ -57,10 +58,11 @@ export const calculateCommercialRightsOffer = (input: {
     Math.max(
       20000,
       Math.round(
-        45000 +
+        (45000 +
           input.sponsor.financialStrength * 900 +
           strategicFit * 2600 +
-          input.evidence.audienceScale * 12,
+          input.evidence.audienceScale * 12) *
+          ({ A: 1, B: 0.72, C: 0.45 }[input.evidence.competitionTier ?? "A"] ?? 1),
       ),
     ),
   );
@@ -168,6 +170,42 @@ export const ensureADivisionTitleSponsorPackage = (
   return existing ?? value;
 };
 
+export const ensureDivisionTitleSponsorPackage = (
+  db: GameDatabase,
+  input: { federationId: EntityId; division: "A" | "B" | "C"; date: string },
+): FederationCommercialRightsPackage => {
+  const competition = db
+    .prepare(
+      "SELECT id, name FROM competitions WHERE federation_id=? AND scope='domestic' AND lower(name) LIKE ? ORDER BY id LIMIT 1",
+    )
+    .get(input.federationId, `%${input.division.toLowerCase()}-division%`) as
+    { id?: EntityId; name?: string } | undefined;
+  if (!competition?.id || !competition.name)
+    throw new Error(
+      `${input.division} Division title sponsorship requires a supported competition`,
+    );
+  const packageId = createStableEntityId(
+    "commercial-rights-package",
+    `${input.federationId}:${input.division}_DIVISION_TITLE_SPONSOR`,
+  );
+  const value: FederationCommercialRightsPackage = {
+    id: packageId,
+    federationId: input.federationId,
+    name: `${competition.name} Title Sponsor`,
+    category: "LEAGUE_TITLE_SPONSOR",
+    exclusivityGroup: `${input.division}_DIVISION_TITLE_SPONSOR`,
+    scope: "COMPETITION",
+    availableFrom: input.date,
+    availableTo: addYears(input.date, 1),
+    status: "AVAILABLE",
+    provenanceStatus: "SIMULATION_ONLY",
+  };
+  const repo = new CommercialRightsRepository(db);
+  const existing = repo.packages(input.federationId).find((item) => item.id === packageId);
+  if (!existing) repo.upsertPackage(value);
+  return existing ?? value;
+};
+
 const activePresidentForFederation = (
   db: GameDatabase,
   federationId: EntityId,
@@ -211,6 +249,91 @@ const aDivisionSeason = (
   if (!row?.id || !row.name)
     throw new Error("A Division commercial sponsorship requires an A Division season");
   return row;
+};
+
+const divisionSeason = (
+  db: GameDatabase,
+  competitionSeasonId: EntityId,
+  federationId: EntityId,
+  division: "A" | "B" | "C",
+) => {
+  const row = db
+    .prepare(
+      "SELECT cs.id, c.name FROM competition_seasons cs JOIN competitions c ON c.id=cs.competition_id WHERE cs.id=? AND c.federation_id=? AND c.scope='domestic' AND lower(c.name) LIKE ?",
+    )
+    .get(competitionSeasonId, federationId, `%${division.toLowerCase()}-division%`) as
+    { id?: EntityId; name?: string } | undefined;
+  if (!row?.id || !row.name)
+    throw new Error(`${division} Division commercial sponsorship requires a supported season`);
+  return row;
+};
+
+export const linkDivisionTitleSponsor = (
+  db: GameDatabase,
+  input: { division: "A" | "B" | "C"; competitionSeasonId: EntityId; offerId: EntityId },
+): CompetitionCommercialSponsorship => {
+  const rightsRepo = new CommercialRightsRepository(db);
+  const offer = rightsRepo.offers().find((item) => item.id === input.offerId);
+  if (!offer || offer.status !== "ACTIVE")
+    throw new Error("Only an active commercial-rights offer can title a division season");
+  const season = divisionSeason(db, input.competitionSeasonId, offer.federationId, input.division);
+  const rightsPackage = rightsRepo
+    .packages(offer.federationId)
+    .find((item) => item.id === offer.packageId);
+  if (
+    !rightsPackage ||
+    rightsPackage.category !== "LEAGUE_TITLE_SPONSOR" ||
+    rightsPackage.scope !== "COMPETITION"
+  )
+    throw new Error("Offer is not a division title-sponsor package");
+  const commercialRepo = new CompetitionCommercialRepository(db);
+  const existing = commercialRepo.bySeason(input.competitionSeasonId);
+  if (existing) {
+    if (existing.rightsOfferId !== offer.id)
+      throw new Error("Division season already has a title sponsor");
+    return existing;
+  }
+  const sponsorship: CompetitionCommercialSponsorship = {
+    id: createStableEntityId(
+      "competition-commercial-sponsorship",
+      `${input.competitionSeasonId}:${offer.id}`,
+    ),
+    competitionSeasonId: input.competitionSeasonId,
+    rightsOfferId: offer.id,
+    sponsorId: offer.sponsorId,
+    displayTitle: `${season.name} presented by ${rightsRepo.sponsor(offer.sponsorId)?.name ?? "Commercial Partner"}`,
+    startDate: offer.startDate ?? "",
+    endDate: offer.endDate ?? "",
+    status: "ACTIVE",
+    revenueDestination: "FEDERATION_LEDGER",
+    provenanceStatus: "SIMULATION_ONLY",
+  };
+  if (!sponsorship.startDate || !sponsorship.endDate)
+    throw new Error("Active commercial-rights offer has no contract dates");
+  commercialRepo.upsert(sponsorship);
+  return sponsorship;
+};
+
+export const activateDivisionTitleSponsorship = (
+  db: GameDatabase,
+  input: {
+    division: "A" | "B" | "C";
+    competitionSeasonId: EntityId;
+    offerId: EntityId;
+    presidentPersonId: EntityId;
+    federationId: EntityId;
+    date: string;
+    startDate: string;
+  },
+): CompetitionCommercialSponsorship => {
+  const existing = new CompetitionCommercialRepository(db).bySeason(input.competitionSeasonId);
+  if (existing) return existing;
+  const offer = new CommercialRightsRepository(db)
+    .offers()
+    .find((item) => item.id === input.offerId);
+  if (!offer) throw new Error("Commercial-rights offer not found");
+  if (offer.status !== "ACTIVE") awardCommercialRightsForPresident(db, input);
+  return linkDivisionTitleSponsor(db, input);
 };
 
 export const linkADivisionTitleSponsor = (
