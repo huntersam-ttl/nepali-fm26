@@ -70,6 +70,8 @@ import {
   type OwnerManagerMeetingOverview,
   type OwnerManagerMeetingStance,
   type OwnerManagerMeetingTopic,
+  type OwnerPlayerRequestContext,
+  type OwnerPlayerRequestIntent,
   type UniversalInteraction,
   type SponsorMeetingOverview,
   type FederationCommercialOverview,
@@ -336,6 +338,9 @@ import {
   createOwnerManagerMeeting,
   ownerManagerMeetingOverview,
   resolveOwnerManagerMeeting as resolveOwnerManagerMeetingCommand,
+  createOwnerPlayerRequest,
+  ownerPlayerRequestContext,
+  respondToOwnerPlayerRequest,
 } from "./owner-manager-meetings.js";
 import { capitalInjectionFromInvestor } from "./investor.js";
 import { buildChairmanDashboard, buildFederationPresidentDashboard } from "./role-desktop.js";
@@ -2082,6 +2087,89 @@ export class DesktopApplicationService {
         );
       }
     });
+  }
+
+  getOwnerPlayerRequestContext(
+    playerId: EntityId,
+  ): AppResult<OwnerPlayerRequestContext | undefined> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER")
+        throw appError(
+          "ROLE_NOT_AUTHORIZED",
+          "Only the active chairman/owner may raise player requests.",
+        );
+      const clubId = heldCareerRoles(db, personId).find(
+        (role) => role.role === "CHAIRMAN_OWNER",
+      )?.targetId;
+      if (!clubId) throw appError("ROLE_NOT_AUTHORIZED", "No controlled club is available.");
+      return ownerPlayerRequestContext(db, {
+        clubId,
+        playerId,
+        requestedBy: personId,
+        date: save.worldDate,
+      });
+    });
+  }
+
+  openOwnerPlayerRequest(
+    playerId: EntityId,
+    intent: OwnerPlayerRequestIntent,
+    deadline?: string,
+  ): AppResult<UniversalInteraction> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER")
+        throw appError(
+          "ROLE_NOT_AUTHORIZED",
+          "Only the active chairman/owner may raise player requests.",
+        );
+      const clubId = heldCareerRoles(db, personId).find(
+        (role) => role.role === "CHAIRMAN_OWNER",
+      )?.targetId;
+      if (!clubId) throw appError("ROLE_NOT_AUTHORIZED", "No controlled club is available.");
+      try {
+        return createOwnerPlayerRequest(db, {
+          clubId,
+          playerId,
+          date: save.worldDate,
+          requestedBy: personId,
+          intent,
+          deadline,
+        });
+      } catch (error) {
+        throw appError(
+          "INVALID_SELECTION",
+          error instanceof Error ? error.message : "Player request could not be opened.",
+        );
+      }
+    });
+  }
+
+  respondToOwnerPlayerRequest(
+    interactionId: EntityId,
+    stance: OwnerManagerMeetingStance,
+    commitment?: OwnerManagerCommitmentInput,
+  ): AppResult<UniversalInteraction> {
+    return this.managerCommand((db, save, context) => {
+      if (!context.club?.id) throw appError("ROLE_NOT_AUTHORIZED", "Manager has no club.");
+      try {
+        return respondToOwnerPlayerRequest(db, {
+          interactionId,
+          managerPersonId: context.manager.personId,
+          clubId: context.club.id,
+          date: save.worldDate,
+          seed: save.randomSeed,
+          stance,
+          commitment,
+        });
+      } catch (error) {
+        throw appError(
+          "INVALID_SELECTION",
+          error instanceof Error ? error.message : "Player request could not be answered.",
+        );
+      }
+    }, true);
   }
 
   applyClubLoan(

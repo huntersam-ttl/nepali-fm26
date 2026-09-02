@@ -1,22 +1,41 @@
-import { CareerWorldRepository, ClubEconomyRepository, CompetitionRepository, ManagerRepository, UniversalInteractionRepository, type GameDatabase } from "@nepal-football-sim/database";
+import {
+  CareerWorldRepository,
+  ClubEconomyRepository,
+  CompetitionRepository,
+  ManagerRepository,
+  UniversalInteractionRepository,
+  type GameDatabase,
+} from "@nepal-football-sim/database";
 import {
   createStableEntityId,
   type Club,
   type ClubBudgetCategory,
   type EntityId,
+  type ISODate,
   type OwnerManagerCommitmentType,
   type OwnerManagerMeetingOverview,
   type OwnerManagerMeetingStance,
   type OwnerManagerMeetingTopic,
+  type OwnerPlayerRequestContext,
+  type OwnerPlayerRequestIntent,
   type UniversalInteraction,
 } from "@nepal-football-sim/shared-types";
 import { openInteraction, submitInteractionAction } from "./universal-interaction-adapters.js";
 import { boardPolitics, buildClubVision } from "./club-vision-politics.js";
 import { generatedBoardPolicy } from "./club-economy.js";
+import { buildEntityReference } from "./entity-reference.js";
+import { TransferMarketRepository } from "@nepal-football-sim/database";
 
-export type { OwnerManagerMeetingTopic, OwnerManagerMeetingStance, OwnerManagerCommitmentType } from "@nepal-football-sim/shared-types";
+export type {
+  OwnerManagerMeetingTopic,
+  OwnerManagerMeetingStance,
+  OwnerManagerCommitmentType,
+  OwnerPlayerRequestContext,
+  OwnerPlayerRequestIntent,
+} from "@nepal-football-sim/shared-types";
 
-const managerForClub = (db: GameDatabase, clubId: EntityId) => new ManagerRepository(db).allActiveContracts().find((contract) => contract.clubId === clubId);
+const managerForClub = (db: GameDatabase, clubId: EntityId) =>
+  new ManagerRepository(db).allActiveContracts().find((contract) => contract.clubId === clubId);
 
 /**
  * club_board_policies.chairman_person_id is only ever written by the
@@ -40,7 +59,11 @@ const managerForClub = (db: GameDatabase, clubId: EntityId) => new ManagerReposi
  * dropped and every later authoritative read (including the meeting's own
  * execution step) still sees no chairman and fails.
  */
-const resolveChairmanPersonId = (db: GameDatabase, clubId: EntityId, date: string): EntityId | undefined => {
+const resolveChairmanPersonId = (
+  db: GameDatabase,
+  clubId: EntityId,
+  date: string,
+): EntityId | undefined => {
   const economy = new ClubEconomyRepository(db);
   const policy = economy.boardPolicy(clubId);
   if (policy?.chairmanPersonId) return policy.chairmanPersonId;
@@ -59,21 +82,40 @@ const resolveChairmanPersonId = (db: GameDatabase, clubId: EntityId, date: strin
       )
       .get(clubId) as Club | undefined;
     if (!clubRow) return undefined;
-    const club = { ...clubRow, organisationType: clubRow.organisationType ?? undefined, canonicalExternalId: clubRow.canonicalExternalId ?? undefined };
-    economy.upsertBoardPolicy({ ...generatedBoardPolicy(club, date), chairmanPersonId: controllingOwner.holder_id });
+    const club = {
+      ...clubRow,
+      organisationType: clubRow.organisationType ?? undefined,
+      canonicalExternalId: clubRow.canonicalExternalId ?? undefined,
+    };
+    economy.upsertBoardPolicy({
+      ...generatedBoardPolicy(club, date),
+      chairmanPersonId: controllingOwner.holder_id,
+    });
   }
   return controllingOwner.holder_id;
 };
 
-export const createOwnerManagerMeeting = (db: GameDatabase, input: { clubId: EntityId; date: string; topic: OwnerManagerMeetingTopic; deadline?: string }): UniversalInteraction => {
+export const createOwnerManagerMeeting = (
+  db: GameDatabase,
+  input: {
+    clubId: EntityId;
+    date: string;
+    topic: OwnerManagerMeetingTopic;
+    deadline?: string;
+    playerRequest?: { playerId: EntityId; intent: OwnerPlayerRequestIntent };
+  },
+): UniversalInteraction => {
   const chairmanPersonId = resolveChairmanPersonId(db, input.clubId, input.date);
   const contract = managerForClub(db, input.clubId);
-  if (!chairmanPersonId || !contract) throw new Error("OWNER_MANAGER_MEETING_REQUIRES_ACTIVE_MANAGER_AND_CHAIRMAN");
+  if (!chairmanPersonId || !contract)
+    throw new Error("OWNER_MANAGER_MEETING_REQUIRES_ACTIVE_MANAGER_AND_CHAIRMAN");
   const manager = new ManagerRepository(db).getProfile(contract.managerProfileId);
   if (!manager) throw new Error("OWNER_MANAGER_MEETING_MANAGER_PROFILE_MISSING");
   const confidence = new CareerWorldRepository(db).boardConfidence(input.clubId)?.confidence ?? 60;
-  const idempotencySubject = `Owner-manager meeting:${input.clubId}:${input.topic}:${input.date}`;
-  const existing = new UniversalInteractionRepository(db).all().find((item) => item.subject === idempotencySubject);
+  const idempotencySubject = `Owner-manager meeting:${input.clubId}:${input.topic}:${input.playerRequest?.playerId ?? "club"}:${input.playerRequest?.intent ?? "general"}:${input.date}`;
+  const existing = new UniversalInteractionRepository(db)
+    .all()
+    .find((item) => item.subject === idempotencySubject);
   if (existing) return existing;
   return openInteraction(db, {
     interactionType: "OWNER_MANAGER_MEETING",
@@ -84,25 +126,175 @@ export const createOwnerManagerMeeting = (db: GameDatabase, input: { clubId: Ent
     subject: idempotencySubject,
     linkedReference: { type: "OWNER_MANAGER_MEETING", canonicalId: input.clubId },
     deadline: input.deadline,
-    demands: { topic: input.topic, boardConfidence: confidence, expectation: new ClubEconomyRepository(db).boardPolicy(input.clubId)?.strategicObjective ?? "STABILITY" },
+    demands: {
+      topic: input.topic,
+      boardConfidence: confidence,
+      expectation:
+        new ClubEconomyRepository(db).boardPolicy(input.clubId)?.strategicObjective ?? "STABILITY",
+      ...(input.playerRequest
+        ? { playerId: input.playerRequest.playerId, requestIntent: input.playerRequest.intent }
+        : {}),
+    },
     relationshipState: 60,
     trust: Math.max(70, confidence),
     leverage: 70,
   });
 };
 
-export const resolveOwnerManagerMeeting = (db: GameDatabase, input: { interactionId: EntityId; date: string; seed: string; stance: OwnerManagerMeetingStance; commitment?: { type: OwnerManagerCommitmentType; targetCriteria: string; description: string; dueOn: string; importance?: number } }): UniversalInteraction => {
+const playerRequestTopic = (intent: OwnerPlayerRequestIntent): OwnerManagerMeetingTopic =>
+  intent === "CONSIDER_RENEWAL"
+    ? "CONTRACT_SECURITY"
+    : ["STRENGTHEN_POSITION", "REVIEW_SQUAD_ROLE"].includes(intent)
+      ? "SQUAD_STRENGTHENING"
+      : "TRANSFER_BUDGET";
+
+export const createOwnerPlayerRequest = (
+  db: GameDatabase,
+  input: {
+    clubId: EntityId;
+    playerId: EntityId;
+    date: string;
+    requestedBy: EntityId;
+    intent: OwnerPlayerRequestIntent;
+    deadline?: string;
+  },
+): UniversalInteraction => {
+  const contract = new TransferMarketRepository(db).activeContract(input.playerId, input.date);
+  if (!contract || contract.clubId !== input.clubId)
+    throw new Error("OWNER_PLAYER_REQUEST_PLAYER_NOT_AT_CLUB");
+  return createOwnerManagerMeeting(db, {
+    clubId: input.clubId,
+    date: input.date,
+    topic: playerRequestTopic(input.intent),
+    deadline: input.deadline,
+    playerRequest: { playerId: input.playerId, intent: input.intent },
+  });
+};
+
+export const ownerPlayerRequestContext = (
+  db: GameDatabase,
+  input: { clubId: EntityId; playerId: EntityId; requestedBy: EntityId; date: string },
+): OwnerPlayerRequestContext | undefined => {
+  const interaction = new UniversalInteractionRepository(db)
+    .all()
+    .find(
+      (item) =>
+        item.interactionType === "OWNER_MANAGER_MEETING" &&
+        item.organisationId === input.clubId &&
+        item.demands.playerId === input.playerId &&
+        item.initiator.entityId === input.requestedBy &&
+        !["ACCEPTED", "REJECTED", "WALKED_AWAY", "COMPLETED", "CANCELLED"].includes(item.stage),
+    );
+  if (!interaction) return undefined;
+  const contract = new TransferMarketRepository(db).activeContract(input.playerId, input.date);
+  return {
+    playerId: input.playerId,
+    player: buildEntityReference(db, "PLAYER", input.playerId, "CHAIRMAN_OWNER"),
+    clubId: input.clubId,
+    requestIntent: interaction.demands.requestIntent as OwnerPlayerRequestIntent,
+    requestedBy: input.requestedBy,
+    managerPersonId: interaction.counterpart.entityId,
+    requestedOn: interaction.worldDate as ISODate,
+    deadline: interaction.deadline as ISODate | undefined,
+    contractEndDate: contract?.endDate,
+    transferStatus: new TransferMarketRepository(db).transferStatus(input.playerId)?.status,
+    meeting: interaction,
+    linkedPromiseId: interaction.promiseIds[0],
+  };
+};
+
+export const respondToOwnerPlayerRequest = (
+  db: GameDatabase,
+  input: {
+    interactionId: EntityId;
+    managerPersonId: EntityId;
+    clubId: EntityId;
+    date: string;
+    seed: string;
+    stance: OwnerManagerMeetingStance;
+    commitment?: {
+      type: OwnerManagerCommitmentType;
+      targetCriteria: string;
+      description: string;
+      dueOn: string;
+      importance?: number;
+    };
+  },
+): UniversalInteraction => {
+  const session = new UniversalInteractionRepository(db).session(input.interactionId);
+  if (
+    !session ||
+    session.interactionType !== "OWNER_MANAGER_MEETING" ||
+    session.organisationId !== input.clubId ||
+    session.counterpart.entityId !== input.managerPersonId ||
+    !session.demands.playerId
+  )
+    throw new Error("OWNER_PLAYER_REQUEST_MANAGER_MISMATCH");
+  const currentContract = new TransferMarketRepository(db).activeContract(
+    session.demands.playerId as EntityId,
+    input.date,
+  );
+  if (!currentContract || currentContract.clubId !== input.clubId)
+    throw new Error("OWNER_PLAYER_REQUEST_STALE_PLAYER");
+  return resolveOwnerManagerMeeting(db, input);
+};
+
+export const resolveOwnerManagerMeeting = (
+  db: GameDatabase,
+  input: {
+    interactionId: EntityId;
+    date: string;
+    seed: string;
+    stance: OwnerManagerMeetingStance;
+    commitment?: {
+      type: OwnerManagerCommitmentType;
+      targetCriteria: string;
+      description: string;
+      dueOn: string;
+      importance?: number;
+    };
+  },
+): UniversalInteraction => {
   const repo = new UniversalInteractionRepository(db);
   const current = repo.session(input.interactionId);
   if (!current) throw new Error("OWNER_MANAGER_MEETING_NOT_FOUND");
   if (current.stage === "ACCEPTED" && current.execution?.status === "APPLIED") return current;
-  if (current.stage === "OPENED") submitInteractionAction(db, { interactionId: input.interactionId, action: "STATE_POSITION", tone: "PROFESSIONAL", date: input.date, seed: input.seed });
+  if (current.stage === "OPENED")
+    submitInteractionAction(db, {
+      interactionId: input.interactionId,
+      action: "STATE_POSITION",
+      tone: "PROFESSIONAL",
+      date: input.date,
+      seed: input.seed,
+    });
   const updated = repo.session(input.interactionId)!;
-  const offers = { ...updated.offers, stance: input.stance, ...(input.commitment ? { commitmentType: input.commitment.type, targetCriteria: input.commitment.targetCriteria, commitmentDescription: input.commitment.description, commitmentDueOn: input.commitment.dueOn, importance: input.commitment.importance ?? 6 } : {}) };
-  return submitInteractionAction(db, { interactionId: input.interactionId, action: "ACCEPT", tone: input.stance === "CONCERN" ? "ASSERTIVE" : "SUPPORTIVE", date: input.date, seed: input.seed, offer: offers });
+  const offers = {
+    ...updated.offers,
+    stance: input.stance,
+    ...(input.commitment
+      ? {
+          commitmentType: input.commitment.type,
+          targetCriteria: input.commitment.targetCriteria,
+          commitmentDescription: input.commitment.description,
+          commitmentDueOn: input.commitment.dueOn,
+          importance: input.commitment.importance ?? 6,
+        }
+      : {}),
+  };
+  return submitInteractionAction(db, {
+    interactionId: input.interactionId,
+    action: "ACCEPT",
+    tone: input.stance === "CONCERN" ? "ASSERTIVE" : "SUPPORTIVE",
+    date: input.date,
+    seed: input.seed,
+    offer: offers,
+  });
 };
 
-export const defaultOwnerManagerStance = (db: GameDatabase, clubId: EntityId): OwnerManagerMeetingStance => {
+export const defaultOwnerManagerStance = (
+  db: GameDatabase,
+  clubId: EntityId,
+): OwnerManagerMeetingStance => {
   const confidence = new CareerWorldRepository(db).boardConfidence(clubId)?.confidence ?? 60;
   return confidence < 40 ? "CONCERN" : confidence >= 70 ? "SUPPORT" : "REQUEST";
 };
@@ -127,15 +319,17 @@ export const ownerManagerMeetingOverview = (
   clubId: EntityId,
   date: string,
 ): OwnerManagerMeetingOverview => {
-  const club = db.prepare("SELECT name FROM clubs WHERE id=?").get(clubId) as { name?: string } | undefined;
+  const club = db.prepare("SELECT name FROM clubs WHERE id=?").get(clubId) as
+    { name?: string } | undefined;
   const contract = managerForClub(db, clubId);
-  if (!club?.name || !contract) throw new Error(`Club or active manager missing for owner-manager meeting: ${clubId}`);
+  if (!club?.name || !contract)
+    throw new Error(`Club or active manager missing for owner-manager meeting: ${clubId}`);
   const managerRepo = new ManagerRepository(db);
   const profile = managerRepo.getProfile(contract.managerProfileId);
   if (!profile) throw new Error(`Manager profile missing: ${contract.managerProfileId}`);
-  const person = db.prepare("SELECT display_name, full_name FROM persons WHERE id=?").get(profile.personId) as
-    | { display_name?: string; full_name?: string }
-    | undefined;
+  const person = db
+    .prepare("SELECT display_name, full_name FROM persons WHERE id=?")
+    .get(profile.personId) as { display_name?: string; full_name?: string } | undefined;
 
   const boardConfidence = new CareerWorldRepository(db).boardConfidence(clubId);
   const politics = boardPolitics(db, clubId, profile);
@@ -151,7 +345,9 @@ export const ownerManagerMeetingOverview = (
   const standings = membership?.competition_season_id
     ? new CompetitionRepository(db).standings(membership.competition_season_id)
     : [];
-  const standingIndex = contract.teamId ? standings.findIndex((row) => row.teamId === contract.teamId) : -1;
+  const standingIndex = contract.teamId
+    ? standings.findIndex((row) => row.teamId === contract.teamId)
+    : -1;
   const standing = standingIndex >= 0 ? standings[standingIndex] : undefined;
 
   const recentForm = contract.teamId
@@ -163,10 +359,15 @@ export const ownerManagerMeetingOverview = (
              WHERE (f.home_team_id = ? OR f.away_team_id = ?) AND m.played_date IS NOT NULL
              ORDER BY m.played_date DESC LIMIT 5`,
           )
-          .all(contract.teamId, contract.teamId) as Array<{ home_goals: number; away_goals: number; home_team_id: EntityId }>
+          .all(contract.teamId, contract.teamId) as Array<{
+          home_goals: number;
+          away_goals: number;
+          home_team_id: EntityId;
+        }>
       ).map((row): "W" | "D" | "L" => {
         const teamGoals = row.home_team_id === contract.teamId ? row.home_goals : row.away_goals;
-        const opponentGoals = row.home_team_id === contract.teamId ? row.away_goals : row.home_goals;
+        const opponentGoals =
+          row.home_team_id === contract.teamId ? row.away_goals : row.home_goals;
         return teamGoals === opponentGoals ? "D" : teamGoals > opponentGoals ? "W" : "L";
       })
     : [];
@@ -174,7 +375,9 @@ export const ownerManagerMeetingOverview = (
   const economy = new ClubEconomyRepository(db);
   const interactions = new UniversalInteractionRepository(db)
     .all()
-    .filter((item) => item.interactionType === "OWNER_MANAGER_MEETING" && item.organisationId === clubId)
+    .filter(
+      (item) => item.interactionType === "OWNER_MANAGER_MEETING" && item.organisationId === clubId,
+    )
     .sort((a, b) => (a.worldDate < b.worldDate ? 1 : -1));
   const terminal = new Set(["ACCEPTED", "REJECTED", "WALKED_AWAY", "COMPLETED", "CANCELLED"]);
 
@@ -206,7 +409,10 @@ export const ownerManagerMeetingOverview = (
     recentForm,
     budgets: economy
       .budgets(clubId)
-      .filter((budget) => budget.status === "ACTIVE" && RELEVANT_BUDGET_CATEGORIES.includes(budget.category)),
+      .filter(
+        (budget) =>
+          budget.status === "ACTIVE" && RELEVANT_BUDGET_CATEGORIES.includes(budget.category),
+      ),
     infrastructure: economy.infrastructureProjects(clubId),
     openMeeting: interactions.find((item) => !terminal.has(item.stage)),
     history: interactions.filter((item) => terminal.has(item.stage)),

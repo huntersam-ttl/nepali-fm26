@@ -1,6 +1,30 @@
 import type { EntityId } from "./ids.js";
 import type { ClubBudget, InfrastructureProject, ISODate } from "./domain.js";
 import type { UniversalInteraction } from "./universal-interactions.js";
+import type { EntityReference } from "./entity-reference.js";
+
+export type OwnerPlayerRequestIntent =
+  | "CONSIDER_TRANSFER_LIST"
+  | "CONSIDER_LOAN_LIST"
+  | "CONSIDER_RENEWAL"
+  | "REVIEW_SQUAD_ROLE"
+  | "STRENGTHEN_POSITION"
+  | "CONSIDER_RELEASE";
+
+export type OwnerPlayerRequestContext = {
+  playerId: EntityId;
+  player: EntityReference;
+  clubId: EntityId;
+  requestIntent: OwnerPlayerRequestIntent;
+  requestedBy: EntityId;
+  managerPersonId: EntityId;
+  requestedOn: ISODate;
+  deadline?: ISODate;
+  contractEndDate?: ISODate;
+  transferStatus?: string;
+  meeting: UniversalInteraction;
+  linkedPromiseId?: EntityId;
+};
 
 /**
  * The exact topic/stance/commitment vocabulary owner-manager-meetings.ts and
