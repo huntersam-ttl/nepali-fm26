@@ -1,5 +1,30 @@
 # Simulation Performance Profile
 
+## Current bounded profiling pass
+
+At the release-readiness pass beginning from HEAD `21efb3c`, a disposable canonical save was
+profiled through one A-Division competition (182 fixtures) with optional economy, youth,
+federation, international, and transfer phases disabled. This isolates the competition/match
+loop and is not a long-save gate.
+
+The V8 CPU profile identified repeated `upsertPlayerKnowledge` preparation and lookup work in
+match observations as the leading application hotspot. The narrow fix lazily caches those two
+SQLite statements per match-loop repository, preserving existing knowledge values and observation
+ordering while avoiding repeated statement compilation. Cold scouting helpers do not pay the cache
+cost until used.
+
+| Measurement        |        Before |         After |
+| ------------------ | ------------: | ------------: |
+| Wall time          |       102.95s |       100.83s |
+| Competition phase  |        33.46s |        27.45s |
+| Fixtures / matches |     182 / 182 |     182 / 182 |
+| Save size / RSS    | Not collected | Not collected |
+
+The initial eager-cache experiment regressed to 119.37s and was discarded; only the lazy version
+was retained. Focused season/scouting regressions passed 19/19. This is a modest targeted
+improvement, not evidence to change the long-save status: the release gate remains
+**FAIL_PERFORMANCE** until the documented multi-season validation completes.
+
 ## Baseline
 
 Measured on an idle machine (no competing test runs), Nepal-only world
@@ -231,14 +256,14 @@ though this particular run's wall clock does not. That run measured 282.1s (crea
 time is not a baseline** — 179.04s from the idle run stands. Ranking below is self time inside the
 simulating process, 283.5s sampled.
 
-| Source | Self time | Share |
-| --- | ---: | ---: |
-| `repositories.js` (all writers) | 101.8s | 35.9% |
-| `referee-assignment.js` | 65.8s | 23.2% |
-| `scouting.js` | 44.1s | 15.6% |
-| `workforce-supply.js` | 9.5s | 3.3% |
-| `preseason-continuity.js` | 7.9s | 2.8% |
-| `transfer-market.js` | 6.8s | 2.4% |
+| Source                          | Self time | Share |
+| ------------------------------- | --------: | ----: |
+| `repositories.js` (all writers) |    101.8s | 35.9% |
+| `referee-assignment.js`         |     65.8s | 23.2% |
+| `scouting.js`                   |     44.1s | 15.6% |
+| `workforce-supply.js`           |      9.5s |  3.3% |
+| `preseason-continuity.js`       |      7.9s |  2.8% |
+| `transfer-market.js`            |      6.8s |  2.4% |
 
 The repository total is downstream of those callers rather than a phase of its own: `postLedgerEntry`
 16.5s, `upsertPlayerKnowledge` 13.7s (scouting's writer), `insertMatchEvent` 13.4s, `attributesForTeam`
@@ -277,6 +302,7 @@ No trustworthy after-timing was obtainable: every attempt ran against another ag
 8-17. The contended figures were 277.8s before and 258.9s after, at worse contention for the second,
 which is suggestive and is not evidence. The architectural reduction is counted rather than timed,
 and an idle re-run is still owed against the 118.33s reference.
+
 ### Long-save scaling diagnosis (2026-08-30)
 
 The first checkpointed five-season run measured 175.8s, 266.7s, 496.6s, 575.3s, and 823.6s for seasons 1–5. Matches remained 851 per season, while database size grew 73.1MB to 192.4MB. Economy/ownership/AI grew from 35.4s to 528.5s and overtook competitions by S4.

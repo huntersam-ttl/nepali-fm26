@@ -781,8 +781,8 @@ export const recordMatchObservation = (
   opponentPlayerIds: readonly EntityId[],
   observedAt: string,
   seed: string,
+  recruitmentRepository = new RecruitmentRepository(db),
 ): void => {
-  const recruitment = new RecruitmentRepository(db);
   const playerIds = [...new Set(opponentPlayerIds)];
   const playersById = new Map(
     truePlayers(db, playerIds).map((player) => [player.playerId, player]),
@@ -792,9 +792,9 @@ export const recordMatchObservation = (
     if (!player) {
       continue;
     }
-    const existing = recruitment.playerKnowledge(observerClubId, playerId);
+    const existing = recruitmentRepository.playerKnowledge(observerClubId, playerId);
     const nextLevel = improveLevel(existing?.knowledgeLevel ?? "NONE", "LOW");
-    recruitment.upsertPlayerKnowledge(
+    recruitmentRepository.upsertPlayerKnowledge(
       knowledgeFor(player, observerClubId, {
         level: nextLevel,
         discoveryStatus: levelRank[nextLevel] >= levelRank.BASIC ? "KNOWN" : "DISCOVERED",

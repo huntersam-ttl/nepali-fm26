@@ -17,6 +17,7 @@ import {
   ManagerRepository,
   SupporterCultureRepository,
   FootballHistoryRepository,
+  RecruitmentRepository,
   WorldRepository,
   loadSave,
   updateSaveWorldDate,
@@ -631,6 +632,7 @@ const simulateCompetitionSeason = (
   const allResults: MatchResult[] = [];
   const squadHealth = blankSquadHealth();
   const managers = new ManagerRepository(db);
+  const recruitment = new RecruitmentRepository(db);
   const humanPersonId = input.save.playerCharacterId
     ? new WorldRepository(db).getCareerCharacter(input.save.playerCharacterId)?.personId
     : undefined;
@@ -697,7 +699,7 @@ const simulateCompetitionSeason = (
     if (input.economyEnabled) {
       postMatchdayEconomy(db, fixture, fixture.scheduledDate, input.seed);
     }
-    recordMatchKnowledge(db, fixture, result, fixture.scheduledDate, input.seed);
+    recordMatchKnowledge(db, fixture, result, fixture.scheduledDate, input.seed, recruitment);
     simulateScoutingDay({ db, worldDate: fixture.scheduledDate, seed: input.seed });
     processInternationalTrials(db, { worldDate: fixture.scheduledDate });
     for (const teamId of [fixture.homeTeamId, fixture.awayTeamId]) {
@@ -888,6 +890,7 @@ function recordMatchKnowledge(
   result: MatchResult,
   playedDate: string,
   seed: string,
+  recruitment?: RecruitmentRepository,
 ): void {
   const homeClubId = clubIdForTeam(db, fixture.homeTeamId);
   const awayClubId = clubIdForTeam(db, fixture.awayTeamId);
@@ -900,6 +903,7 @@ function recordMatchKnowledge(
         .map((state) => state.personId),
       playedDate,
       seed,
+      recruitment,
     );
     recordMatchObservation(
       db,
@@ -909,6 +913,7 @@ function recordMatchKnowledge(
         .map((state) => state.personId),
       playedDate,
       seed,
+      recruitment,
     );
   }
 }

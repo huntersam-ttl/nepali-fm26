@@ -3445,36 +3445,37 @@ const mapPlayerMatchRating = (row: any): PlayerMatchRatingRecord => ({
 });
 
 export class RecruitmentRepository {
+  private upsertPlayerKnowledgeStatement?: ReturnType<GameDatabase["prepare"]>;
+  private playerKnowledgeStatement?: ReturnType<GameDatabase["prepare"]>;
+
   constructor(private readonly db: GameDatabase) {}
 
   upsertPlayerKnowledge(knowledge: PlayerKnowledge): void {
-    this.db
-      .prepare(
-        `INSERT INTO player_knowledge
-        (id, observer_type, observer_organisation_id, player_id, discovery_status,
-          knowledge_level, confidence, source_type, identity_json, position_json, ability_json,
-          potential_json, contract_json, personality_json, medical_json, career_json,
-          observations, last_observed_at, last_scouted_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(observer_type, observer_organisation_id, player_id) DO UPDATE SET
-          discovery_status = excluded.discovery_status,
-          knowledge_level = excluded.knowledge_level,
-          confidence = excluded.confidence,
-          source_type = excluded.source_type,
-          identity_json = excluded.identity_json,
-          position_json = excluded.position_json,
-          ability_json = excluded.ability_json,
-          potential_json = excluded.potential_json,
-          contract_json = excluded.contract_json,
-          personality_json = excluded.personality_json,
-          medical_json = excluded.medical_json,
-          career_json = excluded.career_json,
-          observations = excluded.observations,
-          last_observed_at = excluded.last_observed_at,
-          last_scouted_at = excluded.last_scouted_at,
-          updated_at = excluded.updated_at`,
-      )
-      .run(
+    (this.upsertPlayerKnowledgeStatement ??= this.db.prepare(
+      `INSERT INTO player_knowledge
+      (id, observer_type, observer_organisation_id, player_id, discovery_status,
+        knowledge_level, confidence, source_type, identity_json, position_json, ability_json,
+        potential_json, contract_json, personality_json, medical_json, career_json,
+        observations, last_observed_at, last_scouted_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(observer_type, observer_organisation_id, player_id) DO UPDATE SET
+        discovery_status = excluded.discovery_status,
+        knowledge_level = excluded.knowledge_level,
+        confidence = excluded.confidence,
+        source_type = excluded.source_type,
+        identity_json = excluded.identity_json,
+        position_json = excluded.position_json,
+        ability_json = excluded.ability_json,
+        potential_json = excluded.potential_json,
+        contract_json = excluded.contract_json,
+        personality_json = excluded.personality_json,
+        medical_json = excluded.medical_json,
+        career_json = excluded.career_json,
+        observations = excluded.observations,
+        last_observed_at = excluded.last_observed_at,
+        last_scouted_at = excluded.last_scouted_at,
+        updated_at = excluded.updated_at`,
+    )).run(
         knowledge.id,
         knowledge.observerType,
         knowledge.observerOrganisationId,
@@ -3499,12 +3500,10 @@ export class RecruitmentRepository {
   }
 
   playerKnowledge(clubId: EntityId, playerId: EntityId): PlayerKnowledge | undefined {
-    const row = this.db
-      .prepare(
-        `SELECT * FROM player_knowledge
-        WHERE observer_type = 'CLUB' AND observer_organisation_id = ? AND player_id = ?`,
-      )
-      .get(clubId, playerId) as any;
+    const row = (this.playerKnowledgeStatement ??= this.db.prepare(
+      `SELECT * FROM player_knowledge
+       WHERE observer_type = 'CLUB' AND observer_organisation_id = ? AND player_id = ?`,
+    )).get(clubId, playerId) as any;
     return row ? mapPlayerKnowledge(row) : undefined;
   }
 
