@@ -50,6 +50,8 @@ import type { ExecutiveAuthorityDesktopView } from "./executive-roles.js";
 import type { FederationDevelopmentSummary } from "./federation-policy.js";
 import type { UniversalInteraction } from "./universal-interactions.js";
 import type { EntityReference, EntityReferenceType } from "./entity-reference.js";
+import type { FederationCommercialRightsOffer } from "./commercial-rights.js";
+import type { OrganizationProfile, OrganizationProfileEntityType } from "./organization-profile.js";
 import type {
   OwnerManagerCommitmentInput,
   OwnerManagerMeetingOverview,
@@ -485,6 +487,37 @@ export type PresidentCommercialHistoryEntry = {
   settlementState: "SETTLED" | "NOT_SETTLED" | "NOT_APPLICABLE";
 };
 
+export type ClubProfile = {
+  entityReference: EntityReference;
+  locationLabel?: string;
+  division?: string;
+  manager?: EntityReference;
+  owner?: EntityReference;
+  recentFixtures: EntityReference[];
+  activeSponsors: EntityReference[];
+  infrastructureProjects: EntityReference[];
+};
+
+export type StaffProfileReadModel = {
+  entityReference: EntityReference;
+  role?: string;
+  club?: EntityReference;
+  federation?: EntityReference;
+  contractEnd?: string;
+  careerHistory: EntityReference[];
+};
+
+export type CompetitionProfile = {
+  entityReference: EntityReference;
+  canonicalName: string;
+  commercialDisplayTitle?: string;
+  currentSeason?: { id: EntityId; name: string; startDate: string; endDate: string };
+  standings: Array<{ team: EntityReference; played: number; points: number; goalDifference: number }>;
+  fixtures: EntityReference[];
+  titleSponsor?: EntityReference;
+  participants: EntityReference[];
+};
+
 export type FederationNationalTeamSummary = {
   id: EntityId;
   name: string;
@@ -585,9 +618,16 @@ export type DesktopRuntimeApi = {
   getOwnerMatchday(): Promise<AppResult<OwnerMatchdayView>>;
   watchOwnerFixture(fixtureId?: EntityId): Promise<AppResult<LiveMatchView>>;
   /** Owner-only spectator progression through the canonical match session — same engine as the manager's own advance, no tactical authority. */
-  advanceOwnerFixture(command?: AdvanceMatchCommand, fixtureId?: EntityId, viewMode?: MatchViewMode): Promise<AppResult<LiveMatchView>>;
+  advanceOwnerFixture(
+    command?: AdvanceMatchCommand,
+    fixtureId?: EntityId,
+    viewMode?: MatchViewMode,
+  ): Promise<AppResult<LiveMatchView>>;
   /** Owner may acknowledge the half-time break, but cannot alter either team. */
-  continueOwnerFixture(fixtureId?: EntityId, viewMode?: MatchViewMode): Promise<AppResult<LiveMatchView>>;
+  continueOwnerFixture(
+    fixtureId?: EntityId,
+    viewMode?: MatchViewMode,
+  ): Promise<AppResult<LiveMatchView>>;
   quickSimOwnerFixture(fixtureId?: EntityId): Promise<AppResult<LiveMatchView>>;
   /** Real, honest post-match follow-up suggestion for the most recently played fixture, or undefined when none is due. */
   getOwnerPostMatchSuggestion(): Promise<AppResult<OwnerPostMatchSuggestion | undefined>>;
@@ -595,6 +635,14 @@ export type DesktopRuntimeApi = {
     entityType: EntityReferenceType,
     entityId: EntityId,
   ): Promise<AppResult<EntityReference>>;
+  /** Canonical organization dossier (sponsor/lender/investor) — identity, active/historical/negotiating deals, and deduplicated involved entities. Works for any active role. */
+  getOrganizationProfile(
+    entityType: OrganizationProfileEntityType,
+    entityId: EntityId,
+  ): Promise<AppResult<OrganizationProfile>>;
+  getClubProfile?(clubId: EntityId): Promise<AppResult<ClubProfile>>;
+  getStaffProfile?(personId: EntityId): Promise<AppResult<StaffProfileReadModel>>;
+  getCompetitionProfile?(competitionId: EntityId): Promise<AppResult<CompetitionProfile>>;
   /** Real actor-aware action availability for one player — the same authority check the mutating commands themselves use, so a profile can grey out a button honestly instead of the command rejecting it after the click. Works for any active role (Manager/Owner/President all get an honest answer). */
   getPlayerActions(playerId: EntityId): Promise<AppResult<ActorPlayerActions>>;
   /** Real active contract + club name for any player, safe for any active role to view. */

@@ -46,14 +46,41 @@ import type {
   OwnerPostMatchSuggestion,
   StructuredMatchEvent,
   MatchEventParticipant,
+  OrganizationCommercialDeal,
+  OrganizationProfileEntityType,
 } from "@nepal-football-sim/shared-types";
 import type { EntityId } from "@nepal-football-sim/shared-types";
 import type { AppError, DesktopRuntimeApi } from "../appBridge.js";
 import { AsyncPanel, Badge, ErrorBanner, Metrics, Panel, money, useRuntimeData } from "./ui.js";
-import { MeetingBrief, MeetingOptions, MeetingOutcome, MeetingParticipants, MeetingShell, type MeetingOption, type MeetingTone } from "./meetings.js";
+import {
+  MeetingBrief,
+  MeetingOptions,
+  MeetingOutcome,
+  MeetingParticipants,
+  MeetingShell,
+  type MeetingOption,
+  type MeetingTone,
+} from "./meetings.js";
 
-export type ChairmanScreen = "dashboard" | "finance" | "manager" | "facilities" | "sponsorship" | "supporters" | "investors" | "bank" | "meeting" | "matchday";
-export type PresidentScreen = "dashboard" | "governance" | "finance" | "national-teams" | "national-development" | "government-relations" | "tenure";
+export type ChairmanScreen =
+  | "dashboard"
+  | "finance"
+  | "manager"
+  | "facilities"
+  | "sponsorship"
+  | "supporters"
+  | "investors"
+  | "bank"
+  | "meeting"
+  | "matchday";
+export type PresidentScreen =
+  | "dashboard"
+  | "governance"
+  | "finance"
+  | "national-teams"
+  | "national-development"
+  | "government-relations"
+  | "tenure";
 
 type Props = {
   screen: ChairmanScreen | PresidentScreen;
@@ -75,11 +102,20 @@ const SECTION_TITLES: Record<string, { title: string; subtitle: string }> = {
   sponsorship: { title: "Sponsorship", subtitle: "Commercial agreements and offers." },
   supporters: { title: "Supporters", subtitle: "Attendance and supporter sentiment." },
   bank: { title: "Bank", subtitle: "Loan requests, approvals, and the club's repayment schedule." },
-  meeting: { title: "Talk to Manager", subtitle: "Board confidence, form, budgets, and commitments." },
-  matchday: { title: "Matchday", subtitle: "Fixtures, results, and league position — no tactical control." },
+  meeting: {
+    title: "Talk to Manager",
+    subtitle: "Board confidence, form, budgets, and commitments.",
+  },
+  matchday: {
+    title: "Matchday",
+    subtitle: "Fixtures, results, and league position — no tactical control.",
+  },
   investors: { title: "Investors", subtitle: "Ownership stakes and equity interest." },
   governance: { title: "Governance", subtitle: "Proposals, policy, and federation decisions." },
-  "national-teams": { title: "National teams", subtitle: "Squads, staff, and international programme." },
+  "national-teams": {
+    title: "National teams",
+    subtitle: "Squads, staff, and international programme.",
+  },
   "national-development": {
     title: "National development",
     subtitle: "Grassroots, pathway, and federation-wide development outcomes.",
@@ -104,7 +140,13 @@ const SectionHeader = ({ screen }: { screen: string }): React.ReactElement | nul
   );
 };
 
-export const RoleDetailScreen = ({ screen, header, roles, bridge, onNavigate }: Props): React.ReactElement => (
+export const RoleDetailScreen = ({
+  screen,
+  header,
+  roles,
+  bridge,
+  onNavigate,
+}: Props): React.ReactElement => (
   <>
     <SectionHeader screen={screen} />
     {header.activeRole === "CHAIRMAN_OWNER" ? (
@@ -115,49 +157,397 @@ export const RoleDetailScreen = ({ screen, header, roles, bridge, onNavigate }: 
   </>
 );
 
-const ChairmanDetail = ({ screen, bridge, onNavigate }: { screen: ChairmanScreen; bridge: DesktopRuntimeApi; onNavigate: Props["onNavigate"] }): React.ReactElement => {
+const ChairmanDetail = ({
+  screen,
+  bridge,
+  onNavigate,
+}: {
+  screen: ChairmanScreen;
+  bridge: DesktopRuntimeApi;
+  onNavigate: Props["onNavigate"];
+}): React.ReactElement => {
   const [state, refresh] = useRuntimeData(() => bridge.getChairmanDashboard());
-  return <AsyncPanel state={state}>{(dashboard) => {
-    if (screen === "dashboard") return <p className="subtle">Select an owner-office section from the sidebar.</p>;
-    if (screen === "finance") return <ChairmanFinance dashboard={dashboard} bridge={bridge} refresh={refresh} />;
-    if (screen === "manager") return <ChairmanManager dashboard={dashboard} bridge={bridge} refresh={refresh} />;
-    if (screen === "facilities") return <FacilityPlanner bridge={bridge} clubId={dashboard.club.id} />;
-    if (screen === "sponsorship") return <SponsorMeeting bridge={bridge} role="CHAIRMAN_OWNER" clubId={dashboard.club.id} />;
-    if (screen === "investors") return <InvestorMeeting bridge={bridge} />;
-    if (screen === "bank") return <BankMeeting bridge={bridge} role="CHAIRMAN_OWNER" clubId={dashboard.club.id} />;
-    if (screen === "meeting") return <OwnerManagerMeeting bridge={bridge} clubId={dashboard.club.id} />;
-    if (screen === "matchday") return <OwnerMatchday bridge={bridge} onTalkToManager={() => onNavigate("meeting")} />;
-    return <ChairmanSupporters dashboard={dashboard} />;
-  }}</AsyncPanel>;
+  return (
+    <AsyncPanel state={state}>
+      {(dashboard) => {
+        if (screen === "dashboard")
+          return <p className="subtle">Select an owner-office section from the sidebar.</p>;
+        if (screen === "finance")
+          return <ChairmanFinance dashboard={dashboard} bridge={bridge} refresh={refresh} />;
+        if (screen === "manager")
+          return <ChairmanManager dashboard={dashboard} bridge={bridge} refresh={refresh} />;
+        if (screen === "facilities")
+          return <FacilityPlanner bridge={bridge} clubId={dashboard.club.id} />;
+        if (screen === "sponsorship")
+          return (
+            <SponsorMeeting bridge={bridge} role="CHAIRMAN_OWNER" clubId={dashboard.club.id} />
+          );
+        if (screen === "investors") return <InvestorMeeting bridge={bridge} />;
+        if (screen === "bank")
+          return <BankMeeting bridge={bridge} role="CHAIRMAN_OWNER" clubId={dashboard.club.id} />;
+        if (screen === "meeting")
+          return <OwnerManagerMeeting bridge={bridge} clubId={dashboard.club.id} />;
+        if (screen === "matchday")
+          return <OwnerMatchday bridge={bridge} onTalkToManager={() => onNavigate("meeting")} />;
+        return <ChairmanSupporters dashboard={dashboard} />;
+      }}
+    </AsyncPanel>
+  );
 };
 
-const ChairmanFinance = ({ dashboard, bridge, refresh }: { dashboard: ChairmanDashboard; bridge: DesktopRuntimeApi; refresh: () => void }): React.ReactElement => {
-  const income = dashboard.finances.ledgerEntries.filter((entry) => entry.direction === "CREDIT").reduce((sum, entry) => sum + entry.amount, 0);
-  const expenses = dashboard.finances.ledgerEntries.filter((entry) => entry.direction === "DEBIT").reduce((sum, entry) => sum + entry.amount, 0);
-  const wages = dashboard.finances.ledgerEntries.filter((entry) => entry.category === "PLAYER_WAGES" || entry.category === "STAFF_WAGES").reduce((sum, entry) => sum + entry.amount, 0);
-  const sponsorship = dashboard.finances.ledgerEntries.filter((entry) => entry.category === "SPONSORSHIP").reduce((sum, entry) => sum + entry.amount, 0);
-  const projects = dashboard.finances.ledgerEntries.filter((entry) => entry.category === "FACILITY_COST").reduce((sum, entry) => sum + entry.amount, 0);
+const ChairmanFinance = ({
+  dashboard,
+  bridge,
+  refresh,
+}: {
+  dashboard: ChairmanDashboard;
+  bridge: DesktopRuntimeApi;
+  refresh: () => void;
+}): React.ReactElement => {
+  const income = dashboard.finances.ledgerEntries
+    .filter((entry) => entry.direction === "CREDIT")
+    .reduce((sum, entry) => sum + entry.amount, 0);
+  const expenses = dashboard.finances.ledgerEntries
+    .filter((entry) => entry.direction === "DEBIT")
+    .reduce((sum, entry) => sum + entry.amount, 0);
+  const wages = dashboard.finances.ledgerEntries
+    .filter((entry) => entry.category === "PLAYER_WAGES" || entry.category === "STAFF_WAGES")
+    .reduce((sum, entry) => sum + entry.amount, 0);
+  const sponsorship = dashboard.finances.ledgerEntries
+    .filter((entry) => entry.category === "SPONSORSHIP")
+    .reduce((sum, entry) => sum + entry.amount, 0);
+  const projects = dashboard.finances.ledgerEntries
+    .filter((entry) => entry.category === "FACILITY_COST")
+    .reduce((sum, entry) => sum + entry.amount, 0);
   const [principal, setPrincipal] = useState("100000");
   const [term, setTerm] = useState("12");
   const [message, setMessage] = useState<string | null>(null);
   const [busyDebt, setBusyDebt] = useState<string | null>(null);
   const [busyLoan, setBusyLoan] = useState(false);
-  const applyLoan = async (): Promise<void> => { const lender = dashboard.finances.lenders[0]; if (!lender || busyLoan) return; setBusyLoan(true); const result = await bridge.applyClubLoan(lender.id, Number(principal), Number(term), "club operations"); setBusyLoan(false); setMessage(result.ok ? `Loan application ${result.data.status.toLowerCase()}.` : result.error.message); if (result.ok) refresh(); };
-  const repay = async (debtId: EntityId, amount: number): Promise<void> => { setBusyDebt(debtId); const result = await bridge.repayClubLoan(debtId, amount); setBusyDebt(null); setMessage(result.ok ? "Loan repayment recorded." : result.error.message); if (result.ok) refresh(); };
-  return <section className="role-detail"><Panel title="Club finance"><Metrics items={[{ label: "Balance", value: money(dashboard.finances.account.cashBalance) }, { label: "Income recorded", value: money(income) }, { label: "Expenses recorded", value: money(expenses) }, { label: "Wages", value: money(wages) }, { label: "Sponsorship", value: money(sponsorship) }, { label: "Project spending", value: money(projects) }, { label: "Debt", value: money(dashboard.finances.debts.reduce((sum, debt) => sum + debt.outstandingPrincipal, 0)) }, { label: "Financial health", value: dashboard.finances.account.financialHealth }]} /></Panel><Panel title="Club loan application"><p className="subtle">Lender identity is verified; rates and approval are simulated from club affordability.</p><div className="inline-form"><label>Principal<input type="number" min="1" value={principal} onChange={(event) => setPrincipal(event.target.value)} /></label><label>Term (months)<input type="number" min="3" value={term} onChange={(event) => setTerm(event.target.value)} /></label><button className="small" disabled={busyLoan} onClick={() => void applyLoan()}>{busyLoan ? "Applying…" : "Apply"}</button></div>{message && <p className="notice" role="status">{message}</p>}</Panel><Panel title="Debt schedule"><div className="table-scroll"><table><thead><tr><th>Lender</th><th>Outstanding</th><th>Rate</th><th>Next payment</th><th /></tr></thead><tbody>{dashboard.finances.debts.length === 0 ? <tr><td colSpan={5}>No club loans.</td></tr> : dashboard.finances.debts.map((debt) => <tr key={debt.id}><td>{dashboard.finances.lenders.find((lender) => lender.id === debt.lenderId)?.name ?? debt.lenderType}</td><td>{money(debt.outstandingPrincipal)}</td><td>{(debt.interestRate * 100).toFixed(2)}%</td><td>{debt.nextPaymentDate ?? "—"}</td><td><button className="small" disabled={busyDebt !== null} onClick={() => void repay(debt.id, debt.scheduledPayment || debt.outstandingPrincipal)}>{busyDebt === debt.id ? "Repaying…" : "Repay"}</button></td></tr>)}</tbody></table></div></Panel><Panel title="Equipment effects"><ul className="compact-list">{dashboard.equipment.length === 0 ? <li>No completed equipment assets.</li> : dashboard.equipment.map((asset) => <li key={asset.id}>{asset.id} · {Object.entries(asset.effect ?? {}).map(([key, value]) => `${key}: +${(value * 100).toFixed(1)}%`).join(", ") || "operational asset"}</li>)}</ul></Panel><Ledger entries={dashboard.finances.ledgerEntries} /></section>;
+  const applyLoan = async (): Promise<void> => {
+    const lender = dashboard.finances.lenders[0];
+    if (!lender || busyLoan) return;
+    setBusyLoan(true);
+    const result = await bridge.applyClubLoan(
+      lender.id,
+      Number(principal),
+      Number(term),
+      "club operations",
+    );
+    setBusyLoan(false);
+    setMessage(
+      result.ok ? `Loan application ${result.data.status.toLowerCase()}.` : result.error.message,
+    );
+    if (result.ok) refresh();
+  };
+  const repay = async (debtId: EntityId, amount: number): Promise<void> => {
+    setBusyDebt(debtId);
+    const result = await bridge.repayClubLoan(debtId, amount);
+    setBusyDebt(null);
+    setMessage(result.ok ? "Loan repayment recorded." : result.error.message);
+    if (result.ok) refresh();
+  };
+  return (
+    <section className="role-detail">
+      <Panel title="Club finance">
+        <Metrics
+          items={[
+            { label: "Balance", value: money(dashboard.finances.account.cashBalance) },
+            { label: "Income recorded", value: money(income) },
+            { label: "Expenses recorded", value: money(expenses) },
+            { label: "Wages", value: money(wages) },
+            { label: "Sponsorship", value: money(sponsorship) },
+            { label: "Project spending", value: money(projects) },
+            {
+              label: "Debt",
+              value: money(
+                dashboard.finances.debts.reduce((sum, debt) => sum + debt.outstandingPrincipal, 0),
+              ),
+            },
+            { label: "Financial health", value: dashboard.finances.account.financialHealth },
+          ]}
+        />
+      </Panel>
+      <Panel title="Club loan application">
+        <p className="subtle">
+          Lender identity is verified; rates and approval are simulated from club affordability.
+        </p>
+        <div className="inline-form">
+          <label>
+            Principal
+            <input
+              type="number"
+              min="1"
+              value={principal}
+              onChange={(event) => setPrincipal(event.target.value)}
+            />
+          </label>
+          <label>
+            Term (months)
+            <input
+              type="number"
+              min="3"
+              value={term}
+              onChange={(event) => setTerm(event.target.value)}
+            />
+          </label>
+          <button className="small" disabled={busyLoan} onClick={() => void applyLoan()}>
+            {busyLoan ? "Applying…" : "Apply"}
+          </button>
+        </div>
+        {message && (
+          <p className="notice" role="status">
+            {message}
+          </p>
+        )}
+      </Panel>
+      <Panel title="Debt schedule">
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Lender</th>
+                <th>Outstanding</th>
+                <th>Rate</th>
+                <th>Next payment</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {dashboard.finances.debts.length === 0 ? (
+                <tr>
+                  <td colSpan={5}>No club loans.</td>
+                </tr>
+              ) : (
+                dashboard.finances.debts.map((debt) => (
+                  <tr key={debt.id}>
+                    <td>
+                      {dashboard.finances.lenders.find((lender) => lender.id === debt.lenderId)
+                        ?.name ?? debt.lenderType}
+                    </td>
+                    <td>{money(debt.outstandingPrincipal)}</td>
+                    <td>{(debt.interestRate * 100).toFixed(2)}%</td>
+                    <td>{debt.nextPaymentDate ?? "—"}</td>
+                    <td>
+                      <button
+                        className="small"
+                        disabled={busyDebt !== null}
+                        onClick={() =>
+                          void repay(debt.id, debt.scheduledPayment || debt.outstandingPrincipal)
+                        }
+                      >
+                        {busyDebt === debt.id ? "Repaying…" : "Repay"}
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Panel>
+      <Panel title="Equipment effects">
+        <ul className="compact-list">
+          {dashboard.equipment.length === 0 ? (
+            <li>No completed equipment assets.</li>
+          ) : (
+            dashboard.equipment.map((asset) => (
+              <li key={asset.id}>
+                {asset.id} ·{" "}
+                {Object.entries(asset.effect ?? {})
+                  .map(([key, value]) => `${key}: +${(value * 100).toFixed(1)}%`)
+                  .join(", ") || "operational asset"}
+              </li>
+            ))
+          )}
+        </ul>
+      </Panel>
+      <Ledger entries={dashboard.finances.ledgerEntries} />
+    </section>
+  );
 };
 
-const ChairmanManager = ({ dashboard, bridge, refresh }: { dashboard: ChairmanDashboard; bridge: DesktopRuntimeApi; refresh: () => void }): React.ReactElement => {
+const ChairmanManager = ({
+  dashboard,
+  bridge,
+  refresh,
+}: {
+  dashboard: ChairmanDashboard;
+  bridge: DesktopRuntimeApi;
+  refresh: () => void;
+}): React.ReactElement => {
   const [candidates, refreshCandidates] = useRuntimeData(() => bridge.listOwnerManagerCandidates());
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<AppError | null>(null);
-  const active = candidates.status === "ready" ? candidates.data.filter((candidate) => `${candidate.name} ${candidate.nationality} ${candidate.qualification}`.toLowerCase().includes(query.toLowerCase())) : [];
-  const appoint = async (candidate: OwnerManagerCandidate): Promise<void> => { setBusy(candidate.managerProfileId); const result = await bridge.appointManager(candidate.vacancyId, candidate.managerProfileId); setBusy(null); if (result.ok) { setMessage(`${candidate.name} appointed.`); setError(null); refresh(); refreshCandidates(); } else setError(result.error); };
+  const active =
+    candidates.status === "ready"
+      ? candidates.data.filter((candidate) =>
+          `${candidate.name} ${candidate.nationality} ${candidate.qualification}`
+            .toLowerCase()
+            .includes(query.toLowerCase()),
+        )
+      : [];
+  const appoint = async (candidate: OwnerManagerCandidate): Promise<void> => {
+    setBusy(candidate.managerProfileId);
+    const result = await bridge.appointManager(candidate.vacancyId, candidate.managerProfileId);
+    setBusy(null);
+    if (result.ok) {
+      setMessage(`${candidate.name} appointed.`);
+      setError(null);
+      refresh();
+      refreshCandidates();
+    } else setError(result.error);
+  };
   const [busyBudget, setBusyBudget] = useState<string | null>(null);
-  const decideBudget = async (requestId: EntityId, approve: boolean): Promise<void> => { if (busyBudget) return; setBusyBudget(requestId); const result = await bridge.decideManagerBudgetRequest(requestId, approve); setBusyBudget(null); setMessage(result.ok ? (approve ? "Budget request approved." : "Budget request rejected.") : result.error.message); if (result.ok) refresh(); };
-  return <section className="role-detail">{error && <ErrorBanner error={error} />}{message && <p className="notice" role="status">{message}</p>}<Panel title="Manager oversight" className="panel-wide"><Metrics items={[{ label: "Current manager", value: dashboard.manager?.name ?? "Vacant" }, { label: "Contract", value: dashboard.manager?.contract.contractEnd ?? "No active contract" }]} />{dashboard.manager ? <p className="subtle">The club has an active manager contract. Search becomes available when the vacancy is open.</p> : <><label>Search candidates<input aria-label="Manager candidate search" placeholder="Name, nationality, qualification" value={query} onChange={(event) => setQuery(event.target.value)} /></label><AsyncPanel state={candidates} isEmpty={() => active.length === 0} empty="No matching available candidates.">{() => <div className="table-scroll"><table><thead><tr><th>Name</th><th>Nationality</th><th>Qualification</th><th>Reputation</th><th>Wage/year</th><th /></tr></thead><tbody>{active.map((candidate) => <tr key={candidate.managerProfileId}><td>{candidate.name}</td><td>{candidate.nationality}</td><td>{candidate.qualification}</td><td>{candidate.reputation}</td><td>{money(candidate.wageExpectation)}</td><td><button className="primary small" disabled={busy !== null} onClick={() => void appoint(candidate)}>{busy === candidate.managerProfileId ? "Appointing…" : "Appoint manager"}</button></td></tr>)}</tbody></table></div>}</AsyncPanel></>}</Panel><Panel title="Pending budget requests"><div className="table-scroll"><table><thead><tr><th>Category</th><th>Requested total</th><th>Status</th><th /></tr></thead><tbody>{dashboard.finances.budgetRequests.filter((request) => request.status === "PENDING").length === 0 ? <tr><td colSpan={4}>No pending manager requests.</td></tr> : dashboard.finances.budgetRequests.filter((request) => request.status === "PENDING").map((request) => <tr key={request.id}><td>{request.category.replaceAll("_", " ")}</td><td>{money(request.requestedAmount)}</td><td>{request.status}</td><td><span className="button-row"><button className="primary small" disabled={busyBudget !== null} onClick={() => void decideBudget(request.id, true)}>{busyBudget === request.id ? "Approving…" : "Approve"}</button><button className="ghost small" disabled={busyBudget !== null} onClick={() => void decideBudget(request.id, false)}>{busyBudget === request.id ? "Deciding…" : "Reject"}</button></span></td></tr>)}</tbody></table></div></Panel></section>;
+  const decideBudget = async (requestId: EntityId, approve: boolean): Promise<void> => {
+    if (busyBudget) return;
+    setBusyBudget(requestId);
+    const result = await bridge.decideManagerBudgetRequest(requestId, approve);
+    setBusyBudget(null);
+    setMessage(
+      result.ok
+        ? approve
+          ? "Budget request approved."
+          : "Budget request rejected."
+        : result.error.message,
+    );
+    if (result.ok) refresh();
+  };
+  return (
+    <section className="role-detail">
+      {error && <ErrorBanner error={error} />}
+      {message && (
+        <p className="notice" role="status">
+          {message}
+        </p>
+      )}
+      <Panel title="Manager oversight" className="panel-wide">
+        <Metrics
+          items={[
+            { label: "Current manager", value: dashboard.manager?.name ?? "Vacant" },
+            {
+              label: "Contract",
+              value: dashboard.manager?.contract.contractEnd ?? "No active contract",
+            },
+          ]}
+        />
+        {dashboard.manager ? (
+          <p className="subtle">
+            The club has an active manager contract. Search becomes available when the vacancy is
+            open.
+          </p>
+        ) : (
+          <>
+            <label>
+              Search candidates
+              <input
+                aria-label="Manager candidate search"
+                placeholder="Name, nationality, qualification"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+              />
+            </label>
+            <AsyncPanel
+              state={candidates}
+              isEmpty={() => active.length === 0}
+              empty="No matching available candidates."
+            >
+              {() => (
+                <div className="table-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Nationality</th>
+                        <th>Qualification</th>
+                        <th>Reputation</th>
+                        <th>Wage/year</th>
+                        <th />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {active.map((candidate) => (
+                        <tr key={candidate.managerProfileId}>
+                          <td>{candidate.name}</td>
+                          <td>{candidate.nationality}</td>
+                          <td>{candidate.qualification}</td>
+                          <td>{candidate.reputation}</td>
+                          <td>{money(candidate.wageExpectation)}</td>
+                          <td>
+                            <button
+                              className="primary small"
+                              disabled={busy !== null}
+                              onClick={() => void appoint(candidate)}
+                            >
+                              {busy === candidate.managerProfileId
+                                ? "Appointing…"
+                                : "Appoint manager"}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </AsyncPanel>
+          </>
+        )}
+      </Panel>
+      <Panel title="Pending budget requests">
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Category</th>
+                <th>Requested total</th>
+                <th>Status</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {dashboard.finances.budgetRequests.filter((request) => request.status === "PENDING")
+                .length === 0 ? (
+                <tr>
+                  <td colSpan={4}>No pending manager requests.</td>
+                </tr>
+              ) : (
+                dashboard.finances.budgetRequests
+                  .filter((request) => request.status === "PENDING")
+                  .map((request) => (
+                    <tr key={request.id}>
+                      <td>{request.category.replaceAll("_", " ")}</td>
+                      <td>{money(request.requestedAmount)}</td>
+                      <td>{request.status}</td>
+                      <td>
+                        <span className="button-row">
+                          <button
+                            className="primary small"
+                            disabled={busyBudget !== null}
+                            onClick={() => void decideBudget(request.id, true)}
+                          >
+                            {busyBudget === request.id ? "Approving…" : "Approve"}
+                          </button>
+                          <button
+                            className="ghost small"
+                            disabled={busyBudget !== null}
+                            onClick={() => void decideBudget(request.id, false)}
+                          >
+                            {busyBudget === request.id ? "Deciding…" : "Reject"}
+                          </button>
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Panel>
+    </section>
+  );
 };
 
 /*
@@ -186,10 +576,20 @@ const SPONSORSHIP_TYPE_LABELS: Record<string, string> = {
 };
 
 const budgetTierPhrase = (tier: SponsorMeetingContract["sponsorBudgetTier"]): string =>
-  tier === "PREMIUM" ? "a premium national" : tier === "NATIONAL" ? "a national" : tier === "REGIONAL" ? "a regional" : "a local";
+  tier === "PREMIUM"
+    ? "a premium national"
+    : tier === "NATIONAL"
+      ? "a national"
+      : tier === "REGIONAL"
+        ? "a regional"
+        : "a local";
 
 const sponsorStatusTone = (statusValue: SponsorMeetingContract["status"]): MeetingTone =>
-  statusValue === "ACTIVE" ? "ok" : statusValue === "REJECTED" || statusValue === "EXPIRED" ? "bad" : "info";
+  statusValue === "ACTIVE"
+    ? "ok"
+    : statusValue === "REJECTED" || statusValue === "EXPIRED"
+      ? "bad"
+      : "info";
 
 /**
  * Contextual briefing built only from fields the offer/sponsor record
@@ -198,15 +598,21 @@ const sponsorStatusTone = (statusValue: SponsorMeetingContract["status"]): Meeti
  * behind a VERIFIED identity like Nepal Telecom or Chaudhary Group.
  */
 const sponsorNarrative = (contract: SponsorMeetingContract): string => {
-  const property = SPONSORSHIP_TYPE_LABELS[contract.type] ?? contract.type.replaceAll("_", " ").toLowerCase();
+  const property =
+    SPONSORSHIP_TYPE_LABELS[contract.type] ?? contract.type.replaceAll("_", " ").toLowerCase();
   const tier = budgetTierPhrase(contract.sponsorBudgetTier);
   const exclusivity = contract.exclusivityGroup
     ? ` They are seeking sector exclusivity in ${contract.exclusivityGroup.replaceAll("_", " ").toLowerCase()}.`
     : "";
   const bonusKeys = Object.keys(contract.bonuses ?? {});
-  const bonusText = bonusKeys.length > 0 ? ` They have offered performance bonuses tied to ${bonusKeys.join(" and ")}.` : "";
+  const bonusText =
+    bonusKeys.length > 0
+      ? ` They have offered performance bonuses tied to ${bonusKeys.join(" and ")}.`
+      : "";
   const appearances = contract.expectations?.appearances;
-  const expectationText = appearances ? ` They expect at least ${appearances} matchday appearances for the branding.` : "";
+  const expectationText = appearances
+    ? ` They expect at least ${appearances} matchday appearances for the branding.`
+    : "";
   return `${contract.sponsorName}, ${tier} ${contract.sponsorIndustry.toLowerCase()} organisation, has proposed a ${property} partnership.${exclusivity}${bonusText}${expectationText}`;
 };
 
@@ -222,7 +628,9 @@ export const SponsorMeeting = ({
   const [state, refresh] = useRuntimeData(() => bridge.getSponsorMeeting(clubId), [clubId]);
   return (
     <AsyncPanel state={state}>
-      {(overview) => <SponsorMeetingView overview={overview} bridge={bridge} role={role} refresh={refresh} />}
+      {(overview) => (
+        <SponsorMeetingView overview={overview} bridge={bridge} role={role} refresh={refresh} />
+      )}
     </AsyncPanel>
   );
 };
@@ -243,6 +651,7 @@ const SponsorMeetingView = ({
   const [counterValue, setCounterValue] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [openOrgId, setOpenOrgId] = useState<EntityId | undefined>(undefined);
 
   const decide = async (accept: boolean): Promise<void> => {
     if (!selected) return;
@@ -290,12 +699,18 @@ const SponsorMeetingView = ({
 
   const options: MeetingOption[] = selected
     ? [
-        { id: "accept", label: "Accept", description: money(selected.annualValue, selected.currency), tone: "primary" },
+        {
+          id: "accept",
+          label: "Accept",
+          description: money(selected.annualValue, selected.currency),
+          tone: "primary",
+        },
         { id: "reject", label: "Reject", tone: "neutral" },
         {
           id: "counter",
           label: "Counter",
-          description: "Request a higher annual value — the sponsor may walk away instead of paying more.",
+          description:
+            "Request a higher annual value — the sponsor may walk away instead of paying more.",
           tone: "risk",
           disabled: !Number.isFinite(Number(counterValue)) || Number(counterValue) <= 0,
           disabledReason: "Enter a counter amount above zero first.",
@@ -310,29 +725,43 @@ const SponsorMeetingView = ({
         meetingType="Sponsor meeting"
         context={[
           { label: "Active sponsors", value: overview.active.length },
-          { label: "Active annual value", value: money(overview.active.reduce((sum, item) => sum + item.annualValue, 0)) },
+          {
+            label: "Active annual value",
+            value: money(overview.active.reduce((sum, item) => sum + item.annualValue, 0)),
+          },
           ...(selected
             ? [
                 { label: "Industry", value: selected.sponsorIndustry },
                 { label: "Budget tier", value: selected.sponsorBudgetTier },
                 {
                   label: "Identity",
-                  value: selected.sponsorIdentityProvenance === "VERIFIED" ? "Verified company" : "Simulation-only",
-                  tone: (selected.sponsorIdentityProvenance === "VERIFIED" ? "ok" : "info") as MeetingTone,
+                  value:
+                    selected.sponsorIdentityProvenance === "VERIFIED"
+                      ? "Verified company"
+                      : "Simulation-only",
+                  tone: (selected.sponsorIdentityProvenance === "VERIFIED"
+                    ? "ok"
+                    : "info") as MeetingTone,
                 },
               ]
             : []),
         ]}
       >
         {overview.offers.length === 0 ? (
-          <p className="empty-state">No open sponsorship offers. Offers appear here once the club's commercial pipeline surfaces one.</p>
+          <p className="empty-state">
+            No open sponsorship offers. Offers appear here once the club's commercial pipeline
+            surfaces one.
+          </p>
         ) : (
           <>
             {overview.offers.length > 1 && (
               <div className="inline-form">
                 <label>
                   Offer
-                  <select value={selected?.id} onChange={(event) => setSelectedId(event.target.value as EntityId)}>
+                  <select
+                    value={selected?.id}
+                    onChange={(event) => setSelectedId(event.target.value as EntityId)}
+                  >
                     {overview.offers.map((item) => (
                       <option key={item.id} value={item.id}>
                         {item.sponsorName} · {SPONSORSHIP_TYPE_LABELS[item.type] ?? item.type}
@@ -345,13 +774,17 @@ const SponsorMeetingView = ({
             {selected && (
               <>
                 <MeetingParticipants
-                  initiator={{ name: "You", role: role === "CEO" ? "Chief Executive Officer" : "Chairman / Owner" }}
+                  initiator={{
+                    name: "You",
+                    role: role === "CEO" ? "Chief Executive Officer" : "Chairman / Owner",
+                  }}
                   counterpart={{ name: selected.sponsorName, role: selected.sponsorIndustry }}
                 />
                 <MeetingBrief heading={SPONSORSHIP_TYPE_LABELS[selected.type] ?? selected.type}>
                   <p>{sponsorNarrative(selected)}</p>
                   <p className="subtle">
-                    {money(selected.annualValue, selected.currency)} per year · {selected.startDate} – {selected.endDate}
+                    {money(selected.annualValue, selected.currency)} per year · {selected.startDate}{" "}
+                    – {selected.endDate}
                   </p>
                 </MeetingBrief>
                 <div className="inline-form">
@@ -388,6 +821,50 @@ const SponsorMeetingView = ({
             detail: `${item.sponsorName} · ${SPONSORSHIP_TYPE_LABELS[item.type] ?? item.type} · ${money(item.annualValue, item.currency)} · ${item.startDate} – ${item.endDate}`,
           }))}
         />
+        {[...overview.active, ...overview.history].length > 0 && (
+          <Panel title="Sponsors">
+            <div className="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Sponsor</th>
+                    <th>Property</th>
+                    <th>Value</th>
+                    <th>Term</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...overview.active, ...overview.history].map((item) => (
+                    <tr key={item.id}>
+                      <td>
+                        <button className="link" onClick={() => setOpenOrgId(item.sponsorId)}>
+                          {item.sponsorName}
+                        </button>
+                      </td>
+                      <td>{SPONSORSHIP_TYPE_LABELS[item.type] ?? item.type}</td>
+                      <td>{money(item.annualValue, item.currency)} / year</td>
+                      <td>
+                        {item.startDate} – {item.endDate}
+                      </td>
+                      <td>
+                        <Badge tone={sponsorStatusTone(item.status)}>{item.status}</Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Panel>
+        )}
+        {openOrgId && (
+          <OrganizationProfilePanel
+            bridge={bridge}
+            entityType="SPONSOR"
+            entityId={openOrgId}
+            onClose={() => setOpenOrgId(undefined)}
+          />
+        )}
       </MeetingShell>
     </section>
   );
@@ -400,12 +877,18 @@ const SponsorMeetingView = ({
 // have it accepted, which is not a negotiation; it is not built for that
 // reason (see CODEX_UI_BRIDGE_NEEDED in the task report).
 const bidStatusTone = (statusValue: OwnershipInvestorBidView["offer"]["status"]): MeetingTone =>
-  statusValue === "ACCEPTED" ? "ok" : statusValue === "REJECTED" || statusValue === "WITHDRAWN" ? "bad" : "info";
+  statusValue === "ACCEPTED"
+    ? "ok"
+    : statusValue === "REJECTED" || statusValue === "WITHDRAWN"
+      ? "bad"
+      : "info";
 
 const InvestorMeeting = ({ bridge }: { bridge: DesktopRuntimeApi }): React.ReactElement => {
   const [state, refresh] = useRuntimeData(() => bridge.getInvestorMeeting());
   return (
-    <AsyncPanel state={state}>{(overview) => <InvestorMeetingView overview={overview} bridge={bridge} refresh={refresh} />}</AsyncPanel>
+    <AsyncPanel state={state}>
+      {(overview) => <InvestorMeetingView overview={overview} bridge={bridge} refresh={refresh} />}
+    </AsyncPanel>
   );
 };
 
@@ -430,9 +913,12 @@ const InvestorMeetingView = ({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  const [offerPercentage, setOfferPercentage] = useState(String(Math.min(10, Math.max(1, Math.round(currentPercentage)))));
+  const [offerPercentage, setOfferPercentage] = useState(
+    String(Math.min(10, Math.max(1, Math.round(currentPercentage)))),
+  );
   const [injectAmount, setInjectAmount] = useState("500000");
   const [injectBusy, setInjectBusy] = useState(false);
+  const [openOrgId, setOpenOrgId] = useState<EntityId | undefined>(undefined);
 
   const offerStake = async (): Promise<void> => {
     setBusyId("offer");
@@ -464,12 +950,21 @@ const InvestorMeetingView = ({
     setMessage(null);
     const result = await bridge.injectOwnerCapital(Number(injectAmount));
     setInjectBusy(false);
-    setMessage(result.ok ? `Invested ${money(result.data.amount)} of personal capital into the club.` : result.error.message);
+    setMessage(
+      result.ok
+        ? `Invested ${money(result.data.amount)} of personal capital into the club.`
+        : result.error.message,
+    );
     if (result.ok) refresh();
   };
 
-  const resultingPercentage = selectedBid ? Math.max(0, currentPercentage - selectedBid.offer.percentage) : currentPercentage;
-  const wouldLoseControl = Boolean(selectedBid) && currentPercentage >= overview.majorityThreshold && resultingPercentage < overview.majorityThreshold;
+  const resultingPercentage = selectedBid
+    ? Math.max(0, currentPercentage - selectedBid.offer.percentage)
+    : currentPercentage;
+  const wouldLoseControl =
+    Boolean(selectedBid) &&
+    currentPercentage >= overview.majorityThreshold &&
+    resultingPercentage < overview.majorityThreshold;
 
   const options: MeetingOption[] = selectedBid
     ? confirmingControlLoss
@@ -516,7 +1011,10 @@ const InvestorMeetingView = ({
           { label: "Your stake", value: `${currentPercentage}%` },
           {
             label: "Control status",
-            value: currentPercentage >= overview.majorityThreshold ? "Majority control" : "Minority stake",
+            value:
+              currentPercentage >= overview.majorityThreshold
+                ? "Majority control"
+                : "Minority stake",
             tone: currentPercentage >= overview.majorityThreshold ? "ok" : "warn",
           },
           { label: "Your personal cash", value: money(overview.ownerPersonalCash) },
@@ -525,7 +1023,11 @@ const InvestorMeetingView = ({
                 { label: "Resulting stake if accepted", value: `${resultingPercentage}%` },
                 {
                   label: "Resulting control",
-                  value: wouldLoseControl ? "Majority control lost" : resultingPercentage >= overview.majorityThreshold ? "Majority retained" : "Minority stake",
+                  value: wouldLoseControl
+                    ? "Majority control lost"
+                    : resultingPercentage >= overview.majorityThreshold
+                      ? "Majority retained"
+                      : "Minority stake",
                   tone: (wouldLoseControl ? "bad" : "ok") as MeetingTone,
                 },
               ]
@@ -533,14 +1035,22 @@ const InvestorMeetingView = ({
         ]}
       >
         {openBids.length === 0 ? (
-          <p className="empty-state">No open investor bids. Offer a stake below to invite simulation bids.</p>
+          <p className="empty-state">
+            No open investor bids. Offer a stake below to invite simulation bids.
+          </p>
         ) : (
           <>
             {openBids.length > 1 && (
               <div className="inline-form">
                 <label>
                   Investor
-                  <select value={selectedBid?.offer.id} onChange={(event) => { setSelectedBidId(event.target.value as EntityId); setConfirmingControlLoss(false); }}>
+                  <select
+                    value={selectedBid?.offer.id}
+                    onChange={(event) => {
+                      setSelectedBidId(event.target.value as EntityId);
+                      setConfirmingControlLoss(false);
+                    }}
+                  >
                     {openBids.map((bid) => (
                       <option key={bid.offer.id} value={bid.offer.id}>
                         {bid.investorName} · {bid.offer.percentage}%
@@ -554,13 +1064,30 @@ const InvestorMeetingView = ({
               <>
                 <MeetingParticipants
                   initiator={{ name: "You", role: "Chairman / Owner" }}
-                  counterpart={{ name: selectedBid.investorName, role: selectedBid.investorType.replaceAll("_", " ") }}
+                  counterpart={{
+                    name: selectedBid.investorName,
+                    role: selectedBid.investorType.replaceAll("_", " "),
+                  }}
                 />
+                <button
+                  className="ghost small"
+                  onClick={() => setOpenOrgId(selectedBid.offer.buyerPersonId)}
+                >
+                  View organization profile
+                </button>
+                {openOrgId && (
+                  <OrganizationProfilePanel
+                    bridge={bridge}
+                    entityType="INVESTOR"
+                    entityId={openOrgId}
+                    onClose={() => setOpenOrgId(undefined)}
+                  />
+                )}
                 <MeetingBrief heading="Terms offered">
                   <p>
-                    {selectedBid.offer.rationale ?? "Simulation investor bid."} Implied club valuation at this price:{" "}
-                    {money(selectedBid.impliedValuation)}. A personal share sale pays you directly — club cash is
-                    unaffected.
+                    {selectedBid.offer.rationale ?? "Simulation investor bid."} Implied club
+                    valuation at this price: {money(selectedBid.impliedValuation)}. A personal share
+                    sale pays you directly — club cash is unaffected.
                   </p>
                 </MeetingBrief>
               </>
@@ -581,6 +1108,47 @@ const InvestorMeetingView = ({
             detail: `${bid.investorName} · ${bid.offer.percentage}% · ${money(bid.offer.counterAmount ?? bid.offer.offerAmount)}${bid.offer.rationale ? ` · ${bid.offer.rationale}` : ""}`,
           }))}
         />
+        {market.bids.length > 0 && (
+          <Panel title="Investors">
+            <div className="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Investor</th>
+                    <th>Stake</th>
+                    <th>Value</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...openBids, ...decidedBids].map((bid) => (
+                    <tr key={bid.offer.id}>
+                      <td>
+                        <button
+                          className="link"
+                          onClick={() => setOpenOrgId(bid.offer.buyerPersonId)}
+                        >
+                          {bid.investorName}
+                        </button>
+                      </td>
+                      <td>{bid.offer.percentage}%</td>
+                      <td>{money(bid.offer.counterAmount ?? bid.offer.offerAmount)}</td>
+                      <td>{band(bid.offer.status)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Panel>
+        )}
+        {openOrgId && !selectedBid && (
+          <OrganizationProfilePanel
+            bridge={bridge}
+            entityType="INVESTOR"
+            entityId={openOrgId}
+            onClose={() => setOpenOrgId(undefined)}
+          />
+        )}
         <Panel title="Ownership breakdown">
           <div className="table-scroll">
             <table>
@@ -607,29 +1175,45 @@ const InvestorMeetingView = ({
         </Panel>
         <Panel title="Offer a stake for sale">
           <p className="subtle">
-            Invites simulation investor bids for a percentage of your own stake. A sale pays you personally; club
-            cash does not change.
+            Invites simulation investor bids for a percentage of your own stake. A sale pays you
+            personally; club cash does not change.
           </p>
           <div className="inline-form">
             <label>
               Stake to offer (%)
-              <input type="number" min="1" max={Math.max(1, currentPercentage)} value={offerPercentage} onChange={(event) => setOfferPercentage(event.target.value)} />
+              <input
+                type="number"
+                min="1"
+                max={Math.max(1, currentPercentage)}
+                value={offerPercentage}
+                onChange={(event) => setOfferPercentage(event.target.value)}
+              />
             </label>
-            <button className="primary small" disabled={busyId !== null} onClick={() => void offerStake()}>
+            <button
+              className="primary small"
+              disabled={busyId !== null}
+              onClick={() => void offerStake()}
+            >
               {busyId === "offer" ? "Inviting…" : "Offer stake"}
             </button>
           </div>
         </Panel>
         <Panel title="Invest your own capital" className="investor-capital-panel">
           <p className="subtle">
-            Distinct from a share sale above: this is your own money going into the club&rsquo;s cash, in exchange for
-            more equity — every existing stake (including your own) is diluted by the same amount the new equity
-            represents. This is not a third-party investor; it is you funding the club further.
+            Distinct from a share sale above: this is your own money going into the club&rsquo;s
+            cash, in exchange for more equity — every existing stake (including your own) is diluted
+            by the same amount the new equity represents. This is not a third-party investor; it is
+            you funding the club further.
           </p>
           <div className="inline-form">
             <label>
               Amount (NPR)
-              <input type="number" min="1" value={injectAmount} onChange={(event) => setInjectAmount(event.target.value)} />
+              <input
+                type="number"
+                min="1"
+                value={injectAmount}
+                onChange={(event) => setInjectAmount(event.target.value)}
+              />
             </label>
             <button className="small" disabled={injectBusy} onClick={() => void injectCapital()}>
               {injectBusy ? "Investing…" : "Invest capital"}
@@ -641,29 +1225,198 @@ const InvestorMeetingView = ({
   );
 };
 
-const ChairmanSupporters = ({ dashboard }: { dashboard: ChairmanDashboard }): React.ReactElement => <section className="role-detail"><Panel title="Supporters"><p className="subtle">Supporter data is provided by the club economy read model and marked simulation-only by the runtime.</p><Metrics items={[{ label: "Supporter profile", value: dashboard.club.name }, { label: "Active sponsors", value: dashboard.sponsorships.filter((item) => item.status === "ACTIVE").length }]} /><p className="empty-state">Detailed attendance history is not exposed by the current owner contract.</p></Panel></section>;
+const ChairmanSupporters = ({
+  dashboard,
+}: {
+  dashboard: ChairmanDashboard;
+}): React.ReactElement => (
+  <section className="role-detail">
+    <Panel title="Supporters">
+      <p className="subtle">
+        Supporter data is provided by the club economy read model and marked simulation-only by the
+        runtime.
+      </p>
+      <Metrics
+        items={[
+          { label: "Supporter profile", value: dashboard.club.name },
+          {
+            label: "Active sponsors",
+            value: dashboard.sponsorships.filter((item) => item.status === "ACTIVE").length,
+          },
+        ]}
+      />
+      <p className="empty-state">
+        Detailed attendance history is not exposed by the current owner contract.
+      </p>
+    </Panel>
+  </section>
+);
 
-const PresidentDetail = ({ screen, bridge, onNavigate }: { screen: PresidentScreen; bridge: DesktopRuntimeApi; onNavigate: Props["onNavigate"] }): React.ReactElement => {
+const PresidentDetail = ({
+  screen,
+  bridge,
+  onNavigate,
+}: {
+  screen: PresidentScreen;
+  bridge: DesktopRuntimeApi;
+  onNavigate: Props["onNavigate"];
+}): React.ReactElement => {
   const [state, refresh] = useRuntimeData(() => bridge.getFederationPresidentDashboard());
-  return <AsyncPanel state={state}>{(dashboard) => {
-    if (screen === "dashboard") return <p className="subtle">Select a federation-office section from the sidebar.</p>;
-    if (screen === "governance") return <Governance dashboard={dashboard} bridge={bridge} refresh={refresh} />;
-    if (screen === "finance") return <FederationFinance dashboard={dashboard} bridge={bridge} />;
-    if (screen === "national-teams") return <NationalTeams dashboard={dashboard} />;
-    if (screen === "national-development") return <NationalDevelopment bridge={bridge} />;
-    if (screen === "government-relations") return <GovernmentRelations bridge={bridge} />;
-    return <Tenure dashboard={dashboard} />;
-  }}</AsyncPanel>;
+  return (
+    <AsyncPanel state={state}>
+      {(dashboard) => {
+        if (screen === "dashboard")
+          return <p className="subtle">Select a federation-office section from the sidebar.</p>;
+        if (screen === "governance")
+          return <Governance dashboard={dashboard} bridge={bridge} refresh={refresh} />;
+        if (screen === "finance")
+          return <FederationFinance dashboard={dashboard} bridge={bridge} />;
+        if (screen === "national-teams") return <NationalTeams dashboard={dashboard} />;
+        if (screen === "national-development") return <NationalDevelopment bridge={bridge} />;
+        if (screen === "government-relations") return <GovernmentRelations bridge={bridge} />;
+        return <Tenure dashboard={dashboard} />;
+      }}
+    </AsyncPanel>
+  );
 };
 
-const Governance = ({ dashboard, bridge, refresh }: { dashboard: FederationPresidentDashboard; bridge: DesktopRuntimeApi; refresh: () => void }): React.ReactElement => {
-  const [busy, setBusy] = useState(false); const [message, setMessage] = useState<string | null>(null);
+const Governance = ({
+  dashboard,
+  bridge,
+  refresh,
+}: {
+  dashboard: FederationPresidentDashboard;
+  bridge: DesktopRuntimeApi;
+  refresh: () => void;
+}): React.ReactElement => {
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
   const approved = dashboard.proposals.find((item) => item.status === "APPROVED");
-  const implement = async (): Promise<void> => { if (!approved) return; setBusy(true); const result = await bridge.implementFederationGovernanceProposal(approved.id); setBusy(false); setMessage(result.ok ? "Proposal implemented." : result.error.message); if (result.ok) refresh(); };
-  return <section className="role-detail"><Panel title="Governance" actions={approved && <button className="primary small" disabled={busy} onClick={() => void implement()}>{busy ? "Implementing…" : "Implement approved"}</button>}><div className="table-scroll"><table><thead><tr><th>Proposal</th><th>Policy area</th><th>Status</th><th>Proposed</th></tr></thead><tbody>{dashboard.proposals.map((item) => <tr key={item.id}><td>{item.title}</td><td>{item.policyArea}</td><td><Badge tone={item.status === "APPROVED" ? "ok" : item.status === "REJECTED" ? "bad" : "info"}>{item.status}</Badge></td><td>{item.proposedAt}</td></tr>)}</tbody></table></div>{dashboard.proposals.length === 0 && <p className="empty-state">No governance proposals recorded.</p>}{message && <p className="notice" role="status">{message}</p>}</Panel><Panel title="Federation programmes"><ProjectList projects={dashboard.projects} /></Panel></section>;
+  const implement = async (): Promise<void> => {
+    if (!approved) return;
+    setBusy(true);
+    const result = await bridge.implementFederationGovernanceProposal(approved.id);
+    setBusy(false);
+    setMessage(result.ok ? "Proposal implemented." : result.error.message);
+    if (result.ok) refresh();
+  };
+  return (
+    <section className="role-detail">
+      <Panel
+        title="Governance"
+        actions={
+          approved && (
+            <button className="primary small" disabled={busy} onClick={() => void implement()}>
+              {busy ? "Implementing…" : "Implement approved"}
+            </button>
+          )
+        }
+      >
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Proposal</th>
+                <th>Policy area</th>
+                <th>Status</th>
+                <th>Proposed</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dashboard.proposals.map((item) => (
+                <tr key={item.id}>
+                  <td>{item.title}</td>
+                  <td>{item.policyArea}</td>
+                  <td>
+                    <Badge
+                      tone={
+                        item.status === "APPROVED"
+                          ? "ok"
+                          : item.status === "REJECTED"
+                            ? "bad"
+                            : "info"
+                      }
+                    >
+                      {item.status}
+                    </Badge>
+                  </td>
+                  <td>{item.proposedAt}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {dashboard.proposals.length === 0 && (
+          <p className="empty-state">No governance proposals recorded.</p>
+        )}
+        {message && (
+          <p className="notice" role="status">
+            {message}
+          </p>
+        )}
+      </Panel>
+      <Panel title="Federation programmes">
+        <ProjectList projects={dashboard.projects} />
+      </Panel>
+    </section>
+  );
 };
 
-const FederationFinance = ({ dashboard, bridge }: { dashboard: FederationPresidentDashboard; bridge: DesktopRuntimeApi }): React.ReactElement => <section className="role-detail"><Panel title="Federation finance"><Metrics items={[{ label: "Balance", value: money(dashboard.finances.account.cashBalance, dashboard.finances.account.currency) }, { label: "Revenue", value: money(dashboard.finances.account.seasonRevenue, dashboard.finances.account.currency) }, { label: "Expenses", value: money(dashboard.finances.account.seasonExpenses, dashboard.finances.account.currency) }, { label: "Profit / loss", value: money(dashboard.finances.account.seasonProfitLoss, dashboard.finances.account.currency) }, { label: "Government / grants", value: money(dashboard.finances.ledgerEntries.filter((entry) => entry.category.includes("GRANT")).reduce((sum, entry) => sum + entry.amount, 0), dashboard.finances.account.currency) }]} /></Panel><FederationCommercial bridge={bridge} /><Ledger entries={dashboard.finances.ledgerEntries} /></section>;
+const FederationFinance = ({
+  dashboard,
+  bridge,
+}: {
+  dashboard: FederationPresidentDashboard;
+  bridge: DesktopRuntimeApi;
+}): React.ReactElement => (
+  <section className="role-detail">
+    <Panel title="Federation finance">
+      <Metrics
+        items={[
+          {
+            label: "Balance",
+            value: money(
+              dashboard.finances.account.cashBalance,
+              dashboard.finances.account.currency,
+            ),
+          },
+          {
+            label: "Revenue",
+            value: money(
+              dashboard.finances.account.seasonRevenue,
+              dashboard.finances.account.currency,
+            ),
+          },
+          {
+            label: "Expenses",
+            value: money(
+              dashboard.finances.account.seasonExpenses,
+              dashboard.finances.account.currency,
+            ),
+          },
+          {
+            label: "Profit / loss",
+            value: money(
+              dashboard.finances.account.seasonProfitLoss,
+              dashboard.finances.account.currency,
+            ),
+          },
+          {
+            label: "Government / grants",
+            value: money(
+              dashboard.finances.ledgerEntries
+                .filter((entry) => entry.category.includes("GRANT"))
+                .reduce((sum, entry) => sum + entry.amount, 0),
+              dashboard.finances.account.currency,
+            ),
+          },
+        ]}
+      />
+    </Panel>
+    <FederationCommercial bridge={bridge} />
+    <Ledger entries={dashboard.finances.ledgerEntries} />
+  </section>
+);
 
 /**
  * Read-only by design: ensureFederationSponsorship and
@@ -673,23 +1426,50 @@ const FederationFinance = ({ dashboard, bridge }: { dashboard: FederationPreside
  */
 const FederationCommercial = ({ bridge }: { bridge: DesktopRuntimeApi }): React.ReactElement => {
   const [state] = useRuntimeData(() => bridge.getFederationCommercialOverview());
+  const [openOrgId, setOpenOrgId] = useState<EntityId | undefined>(undefined);
   return (
     <AsyncPanel state={state}>
       {(overview) => (
         <Panel title="Commercial partnerships">
           <p className="subtle">
-            These deals are generated and settled automatically by the federation&rsquo;s commercial cadence —
-            there is no negotiation step to act on here.
+            These deals are generated and settled automatically by the federation&rsquo;s commercial
+            cadence — there is no negotiation step to act on here.
           </p>
           {overview.sponsorship ? (
-            <Metrics
-              items={[
-                { label: "Federation sponsor", value: overview.sponsorship.sponsorName },
-                { label: "Category", value: overview.sponsorship.type.replaceAll("_", " ") },
-                { label: "Annual value", value: money(overview.sponsorship.annualValue, overview.sponsorship.currency) },
-                { label: "Term", value: `${overview.sponsorship.startDate} – ${overview.sponsorship.endDate}` },
-              ]}
-            />
+            <>
+              <Metrics
+                items={[
+                  {
+                    label: "Federation sponsor",
+                    value: (
+                      <button
+                        className="link"
+                        onClick={() => setOpenOrgId(overview.sponsorship!.sponsorId)}
+                      >
+                        {overview.sponsorship.sponsorName}
+                      </button>
+                    ),
+                  },
+                  { label: "Category", value: overview.sponsorship.type.replaceAll("_", " ") },
+                  {
+                    label: "Annual value",
+                    value: money(overview.sponsorship.annualValue, overview.sponsorship.currency),
+                  },
+                  {
+                    label: "Term",
+                    value: `${overview.sponsorship.startDate} – ${overview.sponsorship.endDate}`,
+                  },
+                ]}
+              />
+              {openOrgId && (
+                <OrganizationProfilePanel
+                  bridge={bridge}
+                  entityType="SPONSOR"
+                  entityId={openOrgId}
+                  onClose={() => setOpenOrgId(undefined)}
+                />
+              )}
+            </>
           ) : (
             <p className="empty-state">No federation sponsorship has been established yet.</p>
           )}
@@ -714,7 +1494,17 @@ const FederationCommercial = ({ bridge }: { bridge: DesktopRuntimeApi }): React.
                       <td>{item.broadcasterName}</td>
                       <td>{money(item.value)}</td>
                       <td>
-                        <Badge tone={item.status === "ACTIVE" ? "ok" : item.status === "EXPIRED" ? "bad" : "info"}>{item.status}</Badge>
+                        <Badge
+                          tone={
+                            item.status === "ACTIVE"
+                              ? "ok"
+                              : item.status === "EXPIRED"
+                                ? "bad"
+                                : "info"
+                          }
+                        >
+                          {item.status}
+                        </Badge>
                       </td>
                       <td>
                         {item.startDate ?? "—"} – {item.endDate ?? "—"}
@@ -730,8 +1520,57 @@ const FederationCommercial = ({ bridge }: { bridge: DesktopRuntimeApi }): React.
     </AsyncPanel>
   );
 };
-const NationalTeams = ({ dashboard }: { dashboard: FederationPresidentDashboard }): React.ReactElement => <section className="role-detail"><Panel title="National teams"><div className="table-scroll"><table><thead><tr><th>Team</th><th>Level</th><th>Gender</th><th>Head coach</th></tr></thead><tbody>{dashboard.nationalTeams.map((team) => <tr key={team.id}><td>{team.name}</td><td>{team.level}</td><td>{team.gender}</td><td>{team.headCoach ?? "Not recorded"}</td></tr>)}</tbody></table></div></Panel></section>;
-const Tenure = ({ dashboard }: { dashboard: FederationPresidentDashboard }): React.ReactElement => <section className="role-detail"><Panel title="Presidency and tenure"><Metrics items={[{ label: "Federation", value: dashboard.federation.name }, { label: "Current term", value: dashboard.tenure ? `${dashboard.tenure.termStart} – ${dashboard.tenure.termEnd ?? "current"}` : "Not recorded" }, { label: "Status", value: dashboard.tenure?.status ?? "Unknown" }, { label: "Candidacy", value: "See ANFA Presidency Path on Home" }]} /></Panel></section>;
+const NationalTeams = ({
+  dashboard,
+}: {
+  dashboard: FederationPresidentDashboard;
+}): React.ReactElement => (
+  <section className="role-detail">
+    <Panel title="National teams">
+      <div className="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Team</th>
+              <th>Level</th>
+              <th>Gender</th>
+              <th>Head coach</th>
+            </tr>
+          </thead>
+          <tbody>
+            {dashboard.nationalTeams.map((team) => (
+              <tr key={team.id}>
+                <td>{team.name}</td>
+                <td>{team.level}</td>
+                <td>{team.gender}</td>
+                <td>{team.headCoach ?? "Not recorded"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Panel>
+  </section>
+);
+const Tenure = ({ dashboard }: { dashboard: FederationPresidentDashboard }): React.ReactElement => (
+  <section className="role-detail">
+    <Panel title="Presidency and tenure">
+      <Metrics
+        items={[
+          { label: "Federation", value: dashboard.federation.name },
+          {
+            label: "Current term",
+            value: dashboard.tenure
+              ? `${dashboard.tenure.termStart} – ${dashboard.tenure.termEnd ?? "current"}`
+              : "Not recorded",
+          },
+          { label: "Status", value: dashboard.tenure?.status ?? "Unknown" },
+          { label: "Candidacy", value: "See ANFA Presidency Path on Home" },
+        ]}
+      />
+    </Panel>
+  </section>
+);
 
 const DEVELOPMENT_DIMENSION_LABELS: Record<string, string> = {
   youth: "Youth development",
@@ -750,7 +1589,13 @@ const DEVELOPMENT_DIMENSION_LABELS: Record<string, string> = {
 };
 
 const bandTone = (band: FederationDevelopmentBand): "ok" | "info" | "warn" | "bad" =>
-  band === "ESTABLISHED" ? "ok" : band === "PROGRESSING" ? "info" : band === "BUILDING" ? "warn" : "bad";
+  band === "ESTABLISHED"
+    ? "ok"
+    : band === "PROGRESSING"
+      ? "info"
+      : band === "BUILDING"
+        ? "warn"
+        : "bad";
 const bandLabel = (band: FederationDevelopmentBand): string =>
   band === "ESTABLISHED"
     ? "Established"
@@ -767,7 +1612,9 @@ const trendTone = (trend: FederationDevelopmentSummary["trend"]): "ok" | "info" 
 // Pathway/participation bands reuse the same four-step scale as the overall
 // development band, but their lowest step is spelled "LIMITED" rather than
 // "FOUNDATION" — a separate, real read-model type, not a duplicate scale.
-const participationBandLabel = (band: "LIMITED" | "BUILDING" | "PROGRESSING" | "ESTABLISHED"): string =>
+const participationBandLabel = (
+  band: "LIMITED" | "BUILDING" | "PROGRESSING" | "ESTABLISHED",
+): string =>
   band === "ESTABLISHED"
     ? "Established"
     : band === "PROGRESSING"
@@ -791,8 +1638,15 @@ const NationalDevelopmentView = ({
   summary: FederationDevelopmentSummary;
 }): React.ReactElement => {
   const { outcomes } = summary;
-  const fixtureRecord = (record: { fixtures: number; wins: number; draws: number; losses: number }): string =>
-    record.fixtures === 0 ? "No fixtures recorded" : `${record.wins}W ${record.draws}D ${record.losses}L (${record.fixtures} played)`;
+  const fixtureRecord = (record: {
+    fixtures: number;
+    wins: number;
+    draws: number;
+    losses: number;
+  }): string =>
+    record.fixtures === 0
+      ? "No fixtures recorded"
+      : `${record.wins}W ${record.draws}D ${record.losses}L (${record.fixtures} played)`;
   return (
     <section className="role-detail">
       <Panel
@@ -834,7 +1688,9 @@ const NationalDevelopmentView = ({
         <Panel title="Strengths">
           <ul className="compact-list">
             {summary.strengths.length ? (
-              summary.strengths.map((item) => <li key={item}>{item.replaceAll("_", " ").toLowerCase()}</li>)
+              summary.strengths.map((item) => (
+                <li key={item}>{item.replaceAll("_", " ").toLowerCase()}</li>
+              ))
             ) : (
               <li className="empty-state">No standout strengths identified yet.</li>
             )}
@@ -843,7 +1699,9 @@ const NationalDevelopmentView = ({
         <Panel title="Priorities">
           <ul className="compact-list">
             {summary.priorities.length ? (
-              summary.priorities.map((item) => <li key={item}>{item.replaceAll("_", " ").toLowerCase()}</li>)
+              summary.priorities.map((item) => (
+                <li key={item}>{item.replaceAll("_", " ").toLowerCase()}</li>
+              ))
             ) : (
               <li className="empty-state">No open development priorities recorded.</li>
             )}
@@ -878,14 +1736,17 @@ const NationalDevelopmentView = ({
           items={[
             { label: "Academy players", value: outcomes.pathway.academyPlayers },
             { label: "First-team debuts", value: outcomes.pathway.firstTeamDebuts },
-            { label: "Regular first-team players", value: outcomes.pathway.regularFirstTeamPlayers },
+            {
+              label: "Regular first-team players",
+              value: outcomes.pathway.regularFirstTeamPlayers,
+            },
             { label: "Youth national call-ups", value: outcomes.pathway.youthNationalPlayers },
             { label: "Senior national call-ups", value: outcomes.pathway.seniorNationalPlayers },
           ]}
         />
         <p className="subtle">
-          Strongest stage: {outcomes.strongestPathwayStage.replaceAll("_", " ").toLowerCase()} · Weakest
-          stage: {outcomes.weakestPathwayStage.replaceAll("_", " ").toLowerCase()}
+          Strongest stage: {outcomes.strongestPathwayStage.replaceAll("_", " ").toLowerCase()} ·
+          Weakest stage: {outcomes.weakestPathwayStage.replaceAll("_", " ").toLowerCase()}
         </p>
       </Panel>
 
@@ -922,7 +1783,11 @@ const NationalDevelopmentView = ({
                     <td>
                       <Badge
                         tone={
-                          season.confidence === "HIGH" ? "ok" : season.confidence === "MEDIUM" ? "info" : "warn"
+                          season.confidence === "HIGH"
+                            ? "ok"
+                            : season.confidence === "MEDIUM"
+                              ? "info"
+                              : "warn"
                         }
                       >
                         {season.confidence.toLowerCase()} ({season.sampleSize})
@@ -940,11 +1805,20 @@ const NationalDevelopmentView = ({
         <Panel title="Women & girls programme">
           <Metrics
             items={[
-              { label: "Participation", value: participationBandLabel(outcomes.womenProgramme.participationBand) },
-              { label: "Girls development", value: participationBandLabel(outcomes.girlsDevelopment) },
+              {
+                label: "Participation",
+                value: participationBandLabel(outcomes.womenProgramme.participationBand),
+              },
+              {
+                label: "Girls development",
+                value: participationBandLabel(outcomes.girlsDevelopment),
+              },
               {
                 label: "Coaching infrastructure",
-                value: outcomes.womenProgramme.coachingInfrastructureSupport === "PRESENT" ? "Present" : "Limited",
+                value:
+                  outcomes.womenProgramme.coachingInfrastructureSupport === "PRESENT"
+                    ? "Present"
+                    : "Limited",
               },
             ]}
           />
@@ -952,8 +1826,14 @@ const NationalDevelopmentView = ({
             items={[
               { label: "Intake", value: outcomes.womenProgramme.intakeCount },
               { label: "Academy progression", value: outcomes.womenProgramme.academyProgression },
-              { label: "Youth national progression", value: outcomes.womenProgramme.youthNationalProgression },
-              { label: "Senior national progression", value: outcomes.womenProgramme.seniorNationalProgression },
+              {
+                label: "Youth national progression",
+                value: outcomes.womenProgramme.youthNationalProgression,
+              },
+              {
+                label: "Senior national progression",
+                value: outcomes.womenProgramme.seniorNationalProgression,
+              },
             ]}
           />
         </Panel>
@@ -962,7 +1842,23 @@ const NationalDevelopmentView = ({
   );
 };
 
-const ProjectList = ({ projects }: { projects: FederationPresidentDashboard["projects"] }): React.ReactElement => <ul className="compact-list">{projects.length ? projects.map((project) => <li key={project.id}>{project.name} · {project.status} · {project.expectedCompletion}</li>) : <li>No federation projects recorded.</li>}</ul>;
+const ProjectList = ({
+  projects,
+}: {
+  projects: FederationPresidentDashboard["projects"];
+}): React.ReactElement => (
+  <ul className="compact-list">
+    {projects.length ? (
+      projects.map((project) => (
+        <li key={project.id}>
+          {project.name} · {project.status} · {project.expectedCompletion}
+        </li>
+      ))
+    ) : (
+      <li>No federation projects recorded.</li>
+    )}
+  </ul>
+);
 
 // Land, ground, and infrastructure requests all route through these three
 // real funding types — there is no separate "stadium vs training ground vs
@@ -977,19 +1873,38 @@ const FUNDING_TYPE_LABELS: Record<GovernmentFundingType, string> = {
   YOUTH_GRASSROOTS: "Youth grassroots",
   MUNICIPAL_LAND_OR_VENUE: "Municipal land or venue",
 };
-const LAND_FUNDING_TYPES: GovernmentFundingType[] = ["MUNICIPAL_LAND_OR_VENUE", "REGIONAL_GROUND", "INFRASTRUCTURE"];
+const LAND_FUNDING_TYPES: GovernmentFundingType[] = [
+  "MUNICIPAL_LAND_OR_VENUE",
+  "REGIONAL_GROUND",
+  "INFRASTRUCTURE",
+];
 
 const relationshipLabel = (band: GovernmentRelationshipBand): string =>
   band === "NOT_ESTABLISHED" ? "Not yet established" : band[0] + band.slice(1).toLowerCase();
 const relationshipTone = (band: GovernmentRelationshipBand): MeetingTone =>
-  band === "STRONG" ? "ok" : band === "COOPERATIVE" ? "info" : band === "CAUTIOUS" ? "warn" : band === "STRAINED" ? "bad" : "info";
-const priorityLabel = (band: GovernmentPriorityBand): string => band.replaceAll("_", " ")[0] + band.replaceAll("_", " ").slice(1).toLowerCase();
+  band === "STRONG"
+    ? "ok"
+    : band === "COOPERATIVE"
+      ? "info"
+      : band === "CAUTIOUS"
+        ? "warn"
+        : band === "STRAINED"
+          ? "bad"
+          : "info";
+const priorityLabel = (band: GovernmentPriorityBand): string =>
+  band.replaceAll("_", " ")[0] + band.replaceAll("_", " ").slice(1).toLowerCase();
 const priorityTone = (band: GovernmentPriorityBand): MeetingTone =>
   band === "VERY_HIGH" ? "ok" : band === "HIGH" ? "info" : band === "MODERATE" ? "warn" : "bad";
 const applicationStatusLabel = (status: GovernmentFundingApplication["status"]): string =>
   status[0] + status.slice(1).toLowerCase().replaceAll("_", " ");
 const applicationStatusTone = (status: GovernmentFundingApplication["status"]): MeetingTone =>
-  status === "APPROVED" || status === "COMPLETED" ? "ok" : status === "REJECTED" ? "bad" : status === "CONDITIONAL" ? "warn" : "info";
+  status === "APPROVED" || status === "COMPLETED"
+    ? "ok"
+    : status === "REJECTED"
+      ? "bad"
+      : status === "CONDITIONAL"
+        ? "warn"
+        : "info";
 
 const GovernmentRelations = ({ bridge }: { bridge: DesktopRuntimeApi }): React.ReactElement => {
   const [state, refresh] = useRuntimeData(() => bridge.getGovernmentOverview());
@@ -999,7 +1914,9 @@ const GovernmentRelations = ({ bridge }: { bridge: DesktopRuntimeApi }): React.R
       isEmpty={(overview) => overview.institutions.length === 0}
       empty="No government institution has engaged with the federation yet. Institutions and relationships appear here once one first proposes or reviews funding — typically through the federation's annual grassroots funding cycle."
     >
-      {(overview) => <GovernmentRelationsView overview={overview} bridge={bridge} refresh={refresh} />}
+      {(overview) => (
+        <GovernmentRelationsView overview={overview} bridge={bridge} refresh={refresh} />
+      )}
     </AsyncPanel>
   );
 };
@@ -1014,20 +1931,27 @@ const GovernmentRelationsView = ({
   refresh: () => void;
 }): React.ReactElement => {
   const [selectedId, setSelectedId] = useState<EntityId>(overview.institutions[0]!.id);
-  const institution = overview.institutions.find((item) => item.id === selectedId) ?? overview.institutions[0]!;
+  const institution =
+    overview.institutions.find((item) => item.id === selectedId) ?? overview.institutions[0]!;
   const [fundingType, setFundingType] = useState<GovernmentFundingType>("MUNICIPAL_LAND_OR_VENUE");
   const [amount, setAmount] = useState("2000000");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  const applications = overview.applications.filter((application) => application.institutionId === institution.id);
+  const applications = overview.applications.filter(
+    (application) => application.institutionId === institution.id,
+  );
   const requestedAmount = Number(amount);
   const canRequest = Number.isFinite(requestedAmount) && requestedAmount > 0;
 
   const requestFunding = async (): Promise<void> => {
     setBusyId("request");
     setMessage(null);
-    const result = await bridge.requestGovernmentFunding(institution.id, fundingType, requestedAmount);
+    const result = await bridge.requestGovernmentFunding(
+      institution.id,
+      fundingType,
+      requestedAmount,
+    );
     setBusyId(null);
     setMessage(
       result.ok
@@ -1055,17 +1979,35 @@ const GovernmentRelationsView = ({
         meetingType="Government relations"
         context={[
           { label: "Institution type", value: institution.institutionType.replaceAll("_", " ") },
-          { label: "Relationship", value: relationshipLabel(institution.relationshipBand), tone: relationshipTone(institution.relationshipBand) },
-          { label: "Infrastructure priority", value: priorityLabel(institution.infrastructurePriorityBand), tone: priorityTone(institution.infrastructurePriorityBand) },
-          { label: "Youth & women priority", value: priorityLabel(institution.youthWomenPriorityBand), tone: priorityTone(institution.youthWomenPriorityBand) },
-          { label: "Estimated available funding", value: money(institution.estimatedAvailableFunding) },
+          {
+            label: "Relationship",
+            value: relationshipLabel(institution.relationshipBand),
+            tone: relationshipTone(institution.relationshipBand),
+          },
+          {
+            label: "Infrastructure priority",
+            value: priorityLabel(institution.infrastructurePriorityBand),
+            tone: priorityTone(institution.infrastructurePriorityBand),
+          },
+          {
+            label: "Youth & women priority",
+            value: priorityLabel(institution.youthWomenPriorityBand),
+            tone: priorityTone(institution.youthWomenPriorityBand),
+          },
+          {
+            label: "Estimated available funding",
+            value: money(institution.estimatedAvailableFunding),
+          },
         ]}
       >
         {overview.institutions.length > 1 && (
           <div className="inline-form">
             <label>
               Institution
-              <select value={institution.id} onChange={(event) => setSelectedId(event.target.value as EntityId)}>
+              <select
+                value={institution.id}
+                onChange={(event) => setSelectedId(event.target.value as EntityId)}
+              >
                 {overview.institutions.map((item) => (
                   <option key={item.id} value={item.id}>
                     {item.name}
@@ -1077,19 +2019,26 @@ const GovernmentRelationsView = ({
         )}
         <MeetingParticipants
           initiator={{ name: "You", role: "Federation President" }}
-          counterpart={{ name: institution.name, role: institution.institutionType.replaceAll("_", " ") }}
+          counterpart={{
+            name: institution.name,
+            role: institution.institutionType.replaceAll("_", " "),
+          }}
         />
         <MeetingBrief heading="Land and ground funding">
           <p>
-            Municipal land, regional grounds, and infrastructure grants are the government&rsquo;s route to
-            helping fund a stadium, training ground, or academy site. There is no separate purchase-versus-lease
-            structure modelled yet, so a request is a single funding amount tied to one of these purposes.
+            Municipal land, regional grounds, and infrastructure grants are the government&rsquo;s
+            route to helping fund a stadium, training ground, or academy site. There is no separate
+            purchase-versus-lease structure modelled yet, so a request is a single funding amount
+            tied to one of these purposes.
           </p>
         </MeetingBrief>
         <div className="inline-form">
           <label>
             Purpose
-            <select value={fundingType} onChange={(event) => setFundingType(event.target.value as GovernmentFundingType)}>
+            <select
+              value={fundingType}
+              onChange={(event) => setFundingType(event.target.value as GovernmentFundingType)}
+            >
               {LAND_FUNDING_TYPES.map((type) => (
                 <option key={type} value={type}>
                   {FUNDING_TYPE_LABELS[type]}
@@ -1099,18 +2048,29 @@ const GovernmentRelationsView = ({
           </label>
           <label>
             Requested amount
-            <input type="number" min="1" value={amount} onChange={(event) => setAmount(event.target.value)} />
+            <input
+              type="number"
+              min="1"
+              value={amount}
+              onChange={(event) => setAmount(event.target.value)}
+            />
           </label>
         </div>
         <MeetingOptions options={options} busyId={busyId} onChoose={() => void requestFunding()} />
-        {message && <p className="notice" role="status">{message}</p>}
+        {message && (
+          <p className="notice" role="status">
+            {message}
+          </p>
+        )}
         <MeetingOutcome
           history={applications.map((application) => ({
             date: application.decidedOn ?? application.proposedOn,
             label: applicationStatusLabel(application.status),
             tone: applicationStatusTone(application.status),
             detail: `${FUNDING_TYPE_LABELS[application.fundingType]} · requested ${money(application.requestedAmount)}${
-              application.approvedAmount !== undefined ? ` · approved ${money(application.approvedAmount)}` : ""
+              application.approvedAmount !== undefined
+                ? ` · approved ${money(application.approvedAmount)}`
+                : ""
             }${application.decisionReason ? ` · ${application.decisionReason}` : ""}`,
           }))}
         />
@@ -1118,7 +2078,33 @@ const GovernmentRelationsView = ({
     </section>
   );
 };
-const Ledger = ({ entries }: { entries: Array<{ id: string; date: string; description: string; direction: string; amount: number; currency: string }> }): React.ReactElement => <Panel title="Recent transactions"><ul className="compact-list">{entries.length ? entries.slice(0, 12).map((entry) => <li key={entry.id}>{entry.date} · {entry.description} · {entry.direction === "DEBIT" ? "−" : "+"}{money(entry.amount, entry.currency)}</li>) : <li>No transactions recorded.</li>}</ul></Panel>;
+const Ledger = ({
+  entries,
+}: {
+  entries: Array<{
+    id: string;
+    date: string;
+    description: string;
+    direction: string;
+    amount: number;
+    currency: string;
+  }>;
+}): React.ReactElement => (
+  <Panel title="Recent transactions">
+    <ul className="compact-list">
+      {entries.length ? (
+        entries.slice(0, 12).map((entry) => (
+          <li key={entry.id}>
+            {entry.date} · {entry.description} · {entry.direction === "DEBIT" ? "−" : "+"}
+            {money(entry.amount, entry.currency)}
+          </li>
+        ))
+      ) : (
+        <li>No transactions recorded.</li>
+      )}
+    </ul>
+  </Panel>
+);
 
 // Loan approval is instant and deterministic from real affordability math —
 // there is no lender "offer" to accept/reject/counter, and no drawdown step
@@ -1142,7 +2128,9 @@ export const BankMeeting = ({
   const [state, refresh] = useRuntimeData(() => bridge.getClubFinanceMeeting(clubId), [clubId]);
   return (
     <AsyncPanel state={state}>
-      {(overview) => <BankMeetingView overview={overview} bridge={bridge} role={role} refresh={refresh} />}
+      {(overview) => (
+        <BankMeetingView overview={overview} bridge={bridge} role={role} refresh={refresh} />
+      )}
     </AsyncPanel>
   );
 };
@@ -1164,6 +2152,7 @@ const BankMeetingView = ({
   const [purpose, setPurpose] = useState("Club operations");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [openOrgId, setOpenOrgId] = useState<EntityId | undefined>(undefined);
 
   const lender = overview.lenders.find((item) => item.id === lenderId);
   const principalAmount = Number(principal);
@@ -1181,11 +2170,19 @@ const BankMeetingView = ({
     setMessage(null);
     const result =
       role === "CEO"
-        ? await bridge.applyExecutiveClubLoan(overview.clubId, lender.id, principalAmount, termMonths, purpose)
+        ? await bridge.applyExecutiveClubLoan(
+            overview.clubId,
+            lender.id,
+            principalAmount,
+            termMonths,
+            purpose,
+          )
         : await bridge.applyClubLoan(lender.id, principalAmount, termMonths, purpose);
     setBusyId(null);
     setMessage(
-      result.ok ? `${lender.name} ${result.data.status.toLowerCase()} the loan request.` : result.error.message,
+      result.ok
+        ? `${lender.name} ${result.data.status.toLowerCase()} the loan request.`
+        : result.error.message,
     );
     if (result.ok) refresh();
   };
@@ -1240,12 +2237,28 @@ const BankMeetingView = ({
         ) : (
           <>
             <MeetingParticipants
-              initiator={{ name: "You", role: role === "CEO" ? "Chief Executive Officer" : "Chairman / Owner" }}
+              initiator={{
+                name: "You",
+                role: role === "CEO" ? "Chief Executive Officer" : "Chairman / Owner",
+              }}
               counterpart={{
                 name: lender?.name ?? "Lender",
                 role: lender ? lender.institutionType.replaceAll("_", " ") : "Bank",
               }}
             />
+            {lender && (
+              <button className="ghost small" onClick={() => setOpenOrgId(lender.id)}>
+                View organization profile
+              </button>
+            )}
+            {openOrgId && (
+              <OrganizationProfilePanel
+                bridge={bridge}
+                entityType="LENDER"
+                entityId={openOrgId}
+                onClose={() => setOpenOrgId(undefined)}
+              />
+            )}
             <MeetingBrief heading="Loan terms">
               <p>
                 Interest rates and approval are decided from the club&rsquo;s own affordability, not
@@ -1256,7 +2269,10 @@ const BankMeetingView = ({
             <div className="inline-form">
               <label>
                 Lender
-                <select value={lenderId} onChange={(event) => setLenderId(event.target.value as EntityId)}>
+                <select
+                  value={lenderId}
+                  onChange={(event) => setLenderId(event.target.value as EntityId)}
+                >
                   {overview.lenders.map((item) => (
                     <option key={item.id} value={item.id}>
                       {item.name}
@@ -1266,15 +2282,30 @@ const BankMeetingView = ({
               </label>
               <label>
                 Principal
-                <input type="number" min="1" value={principal} onChange={(event) => setPrincipal(event.target.value)} />
+                <input
+                  type="number"
+                  min="1"
+                  value={principal}
+                  onChange={(event) => setPrincipal(event.target.value)}
+                />
               </label>
               <label>
                 Term (months)
-                <input type="number" min="3" max="60" value={term} onChange={(event) => setTerm(event.target.value)} />
+                <input
+                  type="number"
+                  min="3"
+                  max="60"
+                  value={term}
+                  onChange={(event) => setTerm(event.target.value)}
+                />
               </label>
               <label>
                 Purpose
-                <input type="text" value={purpose} onChange={(event) => setPurpose(event.target.value)} />
+                <input
+                  type="text"
+                  value={purpose}
+                  onChange={(event) => setPurpose(event.target.value)}
+                />
               </label>
             </div>
             <MeetingOptions options={options} busyId={busyId} onChoose={() => void requestLoan()} />
@@ -1310,7 +2341,10 @@ const BankMeetingView = ({
                 <tbody>
                   {overview.debts.map((debt) => (
                     <tr key={debt.id}>
-                      <td>{overview.lenders.find((item) => item.id === debt.lenderId)?.name ?? debt.lenderType}</td>
+                      <td>
+                        {overview.lenders.find((item) => item.id === debt.lenderId)?.name ??
+                          debt.lenderType}
+                      </td>
                       <td>{money(debt.outstandingPrincipal)}</td>
                       <td>{(debt.interestRate * 100).toFixed(2)}%</td>
                       <td>{debt.nextPaymentDate ?? "—"}</td>
@@ -1322,7 +2356,12 @@ const BankMeetingView = ({
                           <button
                             className="small"
                             disabled={busyId !== null}
-                            onClick={() => void repay(debt.id, debt.scheduledPayment ?? debt.outstandingPrincipal)}
+                            onClick={() =>
+                              void repay(
+                                debt.id,
+                                debt.scheduledPayment ?? debt.outstandingPrincipal,
+                              )
+                            }
                           >
                             {busyId === debt.id ? "Repaying…" : "Repay"}
                           </button>
@@ -1364,7 +2403,9 @@ const OWNER_PLAYER_REQUEST_LABELS: Record<OwnerPlayerRequestIntent, string> = {
   STRENGTHEN_POSITION: "Ask Manager to strengthen this position",
   CONSIDER_RELEASE: "Ask Manager to consider release",
 };
-const OWNER_PLAYER_REQUEST_INTENTS = Object.keys(OWNER_PLAYER_REQUEST_LABELS) as OwnerPlayerRequestIntent[];
+const OWNER_PLAYER_REQUEST_INTENTS = Object.keys(
+  OWNER_PLAYER_REQUEST_LABELS,
+) as OwnerPlayerRequestIntent[];
 
 const OWNER_MANAGER_COMMITMENT_LABELS: Record<OwnerManagerCommitmentType, string> = {
   PROMOTION_CHALLENGE: "Promotion challenge",
@@ -1374,7 +2415,9 @@ const OWNER_MANAGER_COMMITMENT_LABELS: Record<OwnerManagerCommitmentType, string
   FACILITY_PROJECT: "Facility project",
   TACTICAL_STYLE: "Tactical style",
 };
-const OWNER_MANAGER_COMMITMENT_TYPES = Object.keys(OWNER_MANAGER_COMMITMENT_LABELS) as OwnerManagerCommitmentType[];
+const OWNER_MANAGER_COMMITMENT_TYPES = Object.keys(
+  OWNER_MANAGER_COMMITMENT_LABELS,
+) as OwnerManagerCommitmentType[];
 
 const ordinal = (value: number): string => {
   const mod100 = value % 100;
@@ -1400,11 +2443,16 @@ const pressureTone = (pressure?: string): MeetingTone =>
  * vision, infrastructure) — a topic whose backing data is missing gets an
  * honest fallback line, never a fabricated number or claim.
  */
-const ownerManagerNarrative = (overview: OwnerManagerMeetingOverview, topic: OwnerManagerMeetingTopic): string => {
+const ownerManagerNarrative = (
+  overview: OwnerManagerMeetingOverview,
+  topic: OwnerManagerMeetingTopic,
+): string => {
   const confidenceLine = `Board confidence currently sits at ${overview.boardConfidence}${overview.boardExpectation ? `, with the board expecting ${overview.boardExpectation.replaceAll("_", " ").toLowerCase()}` : ""}.`;
   switch (topic) {
     case "FORM": {
-      const form = overview.recentForm.length ? overview.recentForm.join("") : "no results recorded yet";
+      const form = overview.recentForm.length
+        ? overview.recentForm.join("")
+        : "no results recorded yet";
       const standing = overview.leaguePosition
         ? `${ordinal(overview.leaguePosition)} in the table after ${overview.played ?? 0} games`
         : "an unclear league position";
@@ -1426,7 +2474,8 @@ const ownerManagerNarrative = (overview: OwnerManagerMeetingOverview, topic: Own
         : "The club has not established a formal youth-development priority yet, but the manager wants to discuss giving young players a pathway.";
     }
     case "PLAYING_PHILOSOPHY": {
-      if (!overview.vision) return "The club has no recorded playing identity yet — this meeting is a chance to set one.";
+      if (!overview.vision)
+        return "The club has no recorded playing identity yet — this meeting is a chance to set one.";
       return `The club's current identity is described as "${overview.vision.identity ?? overview.vision.objective}". The manager wants to confirm this still matches what the board expects on the pitch.`;
     }
     case "STAFF_BUDGET": {
@@ -1470,12 +2519,20 @@ export const OwnerManagerMeeting = ({
   const [state, refresh] = useRuntimeData(() => bridge.getOwnerManagerMeeting(clubId), [clubId]);
   return (
     <AsyncPanel state={state}>
-      {(overview) => <OwnerManagerMeetingView overview={overview} bridge={bridge} refresh={refresh} />}
+      {(overview) => (
+        <OwnerManagerMeetingView overview={overview} bridge={bridge} refresh={refresh} />
+      )}
     </AsyncPanel>
   );
 };
 
-const OWNER_MANAGER_TERMINAL_STAGES = new Set(["ACCEPTED", "REJECTED", "WALKED_AWAY", "COMPLETED", "CANCELLED"]);
+const OWNER_MANAGER_TERMINAL_STAGES = new Set([
+  "ACCEPTED",
+  "REJECTED",
+  "WALKED_AWAY",
+  "COMPLETED",
+  "CANCELLED",
+]);
 
 const OwnerManagerMeetingView = ({
   overview,
@@ -1490,7 +2547,8 @@ const OwnerManagerMeetingView = ({
   const [session, setSession] = useState<UniversalInteraction | undefined>(overview.openMeeting);
   const [stance, setStance] = useState<OwnerManagerMeetingStance>("REQUEST");
   const [addCommitment, setAddCommitment] = useState(false);
-  const [commitmentType, setCommitmentType] = useState<OwnerManagerCommitmentType>("SQUAD_STRENGTHENING");
+  const [commitmentType, setCommitmentType] =
+    useState<OwnerManagerCommitmentType>("SQUAD_STRENGTHENING");
   const [targetCriteria, setTargetCriteria] = useState("");
   const [description, setDescription] = useState("");
   const [dueOn, setDueOn] = useState("");
@@ -1536,7 +2594,12 @@ const OwnerManagerMeetingView = ({
   const options: MeetingOption[] = session
     ? (["SUPPORT", "REQUEST", "CONCERN"] as OwnerManagerMeetingStance[]).map((value) => ({
         id: value,
-        label: value === "SUPPORT" ? "Extend support" : value === "REQUEST" ? "Ask for improvement" : "Raise a concern",
+        label:
+          value === "SUPPORT"
+            ? "Extend support"
+            : value === "REQUEST"
+              ? "Ask for improvement"
+              : "Raise a concern",
         description: OWNER_MANAGER_STANCE_CONSEQUENCE[value],
         tone: value === "CONCERN" ? "risk" : value === "SUPPORT" ? "primary" : "neutral",
       }))
@@ -1553,12 +2616,26 @@ const OwnerManagerMeetingView = ({
             ? [{ label: "Board expects", value: overview.boardExpectation.replaceAll("_", " ") }]
             : []),
           ...(overview.pressure
-            ? [{ label: "Board pressure on manager", value: overview.pressure, tone: pressureTone(overview.pressure) }]
+            ? [
+                {
+                  label: "Board pressure on manager",
+                  value: overview.pressure,
+                  tone: pressureTone(overview.pressure),
+                },
+              ]
             : []),
           ...(overview.leaguePosition
-            ? [{ label: "League position", value: `${ordinal(overview.leaguePosition)} · ${overview.points ?? 0} pts` }]
+            ? [
+                {
+                  label: "League position",
+                  value: `${ordinal(overview.leaguePosition)} · ${overview.points ?? 0} pts`,
+                },
+              ]
             : []),
-          { label: "Recent form", value: overview.recentForm.length ? overview.recentForm.join(" ") : "No results yet" },
+          {
+            label: "Recent form",
+            value: overview.recentForm.length ? overview.recentForm.join(" ") : "No results yet",
+          },
           ...(overview.activePromises !== undefined
             ? [{ label: "Active promises", value: overview.activePromises }]
             : []),
@@ -1566,17 +2643,27 @@ const OwnerManagerMeetingView = ({
       >
         <MeetingParticipants
           initiator={{ name: "You", role: "Chairman / Owner" }}
-          counterpart={{ name: overview.managerName, role: "Manager", organisation: overview.clubName }}
+          counterpart={{
+            name: overview.managerName,
+            role: "Manager",
+            organisation: overview.clubName,
+          }}
         />
         {!session ? (
           <>
             <MeetingBrief heading="Choose a topic">
-              <p>Open a meeting with {overview.managerName} to discuss one real, current aspect of the club.</p>
+              <p>
+                Open a meeting with {overview.managerName} to discuss one real, current aspect of
+                the club.
+              </p>
             </MeetingBrief>
             <div className="inline-form">
               <label>
                 Topic
-                <select value={topic} onChange={(event) => setTopic(event.target.value as OwnerManagerMeetingTopic)}>
+                <select
+                  value={topic}
+                  onChange={(event) => setTopic(event.target.value as OwnerManagerMeetingTopic)}
+                >
                   {OWNER_MANAGER_TOPICS.map((value) => (
                     <option key={value} value={value}>
                       {OWNER_MANAGER_TOPIC_LABELS[value]}
@@ -1584,27 +2671,51 @@ const OwnerManagerMeetingView = ({
                   ))}
                 </select>
               </label>
-              <button className="primary small" disabled={busyId !== null} onClick={() => void openMeeting()}>
+              <button
+                className="primary small"
+                disabled={busyId !== null}
+                onClick={() => void openMeeting()}
+              >
                 {busyId === "open" ? "Opening…" : "Start meeting"}
               </button>
             </div>
           </>
         ) : (
           <>
-            <MeetingBrief heading={OWNER_MANAGER_TOPIC_LABELS[(session.demands.topic as OwnerManagerMeetingTopic) ?? topic]}>
-              <p>{ownerManagerNarrative(overview, (session.demands.topic as OwnerManagerMeetingTopic) ?? topic)}</p>
+            <MeetingBrief
+              heading={
+                OWNER_MANAGER_TOPIC_LABELS[
+                  (session.demands.topic as OwnerManagerMeetingTopic) ?? topic
+                ]
+              }
+            >
+              <p>
+                {ownerManagerNarrative(
+                  overview,
+                  (session.demands.topic as OwnerManagerMeetingTopic) ?? topic,
+                )}
+              </p>
             </MeetingBrief>
             <div className="inline-form">
               <label>
-                <input type="checkbox" checked={addCommitment} onChange={(event) => setAddCommitment(event.target.checked)} />
-                {" "}Attach a measurable commitment
+                <input
+                  type="checkbox"
+                  checked={addCommitment}
+                  onChange={(event) => setAddCommitment(event.target.checked)}
+                />{" "}
+                Attach a measurable commitment
               </label>
             </div>
             {addCommitment && (
               <div className="inline-form">
                 <label>
                   Commitment type
-                  <select value={commitmentType} onChange={(event) => setCommitmentType(event.target.value as OwnerManagerCommitmentType)}>
+                  <select
+                    value={commitmentType}
+                    onChange={(event) =>
+                      setCommitmentType(event.target.value as OwnerManagerCommitmentType)
+                    }
+                  >
                     {OWNER_MANAGER_COMMITMENT_TYPES.map((value) => (
                       <option key={value} value={value}>
                         {OWNER_MANAGER_COMMITMENT_LABELS[value]}
@@ -1614,19 +2725,37 @@ const OwnerManagerMeetingView = ({
                 </label>
                 <label>
                   Target criteria
-                  <input type="text" value={targetCriteria} onChange={(event) => setTargetCriteria(event.target.value)} placeholder="e.g. IMPROVE_SQUAD_DEPTH" />
+                  <input
+                    type="text"
+                    value={targetCriteria}
+                    onChange={(event) => setTargetCriteria(event.target.value)}
+                    placeholder="e.g. IMPROVE_SQUAD_DEPTH"
+                  />
                 </label>
                 <label>
                   Description
-                  <input type="text" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="What is being promised" />
+                  <input
+                    type="text"
+                    value={description}
+                    onChange={(event) => setDescription(event.target.value)}
+                    placeholder="What is being promised"
+                  />
                 </label>
                 <label>
                   Due on
-                  <input type="date" value={dueOn} onChange={(event) => setDueOn(event.target.value)} />
+                  <input
+                    type="date"
+                    value={dueOn}
+                    onChange={(event) => setDueOn(event.target.value)}
+                  />
                 </label>
               </div>
             )}
-            <MeetingOptions options={options} busyId={busyId} onChoose={(id) => void resolve(id as OwnerManagerMeetingStance)} />
+            <MeetingOptions
+              options={options}
+              busyId={busyId}
+              onChoose={(id) => void resolve(id as OwnerManagerMeetingStance)}
+            />
           </>
         )}
         {message && (
@@ -1638,7 +2767,12 @@ const OwnerManagerMeetingView = ({
           history={overview.history.map((item) => ({
             date: item.worldDate,
             label: item.outcome ?? item.stage,
-            tone: item.stage === "ACCEPTED" ? "ok" : item.stage === "REJECTED" || item.stage === "WALKED_AWAY" ? "bad" : "info",
+            tone:
+              item.stage === "ACCEPTED"
+                ? "ok"
+                : item.stage === "REJECTED" || item.stage === "WALKED_AWAY"
+                  ? "bad"
+                  : "info",
             detail: `${OWNER_MANAGER_TOPIC_LABELS[(item.demands.topic as OwnerManagerMeetingTopic) ?? "OBJECTIVES"] ?? "Meeting"}${item.offers.stance ? ` · ${String(item.offers.stance).toLowerCase()}` : ""}`,
           }))}
         />
@@ -1689,7 +2823,7 @@ const MATCH_PERIOD_LABEL: Record<string, string> = {
 };
 const matchClock = (live: LiveMatchView): string =>
   live.period === "FULL_TIME" || live.period === "NOT_STARTED"
-    ? MATCH_PERIOD_LABEL[live.period] ?? band(live.period)
+    ? (MATCH_PERIOD_LABEL[live.period] ?? band(live.period))
     : `${live.minute}'${live.stoppageTime > 0 ? `+${live.stoppageTime}` : ""}`;
 
 /** Real goal/card tallies read off the lineup's own player states — never parsed from commentary text. */
@@ -1726,7 +2860,10 @@ const MATCH_EVENT_GROUPS: Record<string, { title: string; types: string[] }> = {
   subs: { title: "Substitutions", types: ["SUBSTITUTION"] },
 };
 
-const eventParticipantLabel = (event: StructuredMatchEvent, role: MatchEventParticipant["role"]): MatchEventParticipant | undefined =>
+const eventParticipantLabel = (
+  event: StructuredMatchEvent,
+  role: MatchEventParticipant["role"],
+): MatchEventParticipant | undefined =>
   event.participants.find((participant) => participant.role === role);
 
 /**
@@ -1828,14 +2965,29 @@ const MatchEventsPanel = ({
   </>
 );
 
-const BoardroomContext = ({ overview }: { overview: OwnerManagerMeetingOverview }): React.ReactElement => (
+const BoardroomContext = ({
+  overview,
+}: {
+  overview: OwnerManagerMeetingOverview;
+}): React.ReactElement => (
   <Panel title="Boardroom context">
     <Metrics
       items={[
         { label: "Manager", value: overview.managerName },
         { label: "Board confidence", value: overview.boardConfidence },
-        ...(overview.boardExpectation ? [{ label: "Board expects", value: band(overview.boardExpectation) }] : []),
-        ...(overview.pressure ? [{ label: "Pressure on manager", value: <Badge tone={pressureTone(overview.pressure)}>{band(overview.pressure)}</Badge> }] : []),
+        ...(overview.boardExpectation
+          ? [{ label: "Board expects", value: band(overview.boardExpectation) }]
+          : []),
+        ...(overview.pressure
+          ? [
+              {
+                label: "Pressure on manager",
+                value: (
+                  <Badge tone={pressureTone(overview.pressure)}>{band(overview.pressure)}</Badge>
+                ),
+              },
+            ]
+          : []),
       ]}
     />
     {overview.recentForm.length > 0 && (
@@ -1844,7 +2996,13 @@ const BoardroomContext = ({ overview }: { overview: OwnerManagerMeetingOverview 
   </Panel>
 );
 
-export const OwnerMatchday = ({ bridge, onTalkToManager }: { bridge: DesktopRuntimeApi; onTalkToManager?: () => void }): React.ReactElement => {
+export const OwnerMatchday = ({
+  bridge,
+  onTalkToManager,
+}: {
+  bridge: DesktopRuntimeApi;
+  onTalkToManager?: () => void;
+}): React.ReactElement => {
   const [state, refresh] = useRuntimeData(() => bridge.getOwnerMatchday());
   const [overviewState] = useRuntimeData(() => bridge.getOwnerManagerMeeting());
   const [live, setLive] = useState<LiveMatchView | null>(null);
@@ -1852,14 +3010,20 @@ export const OwnerMatchday = ({ bridge, onTalkToManager }: { bridge: DesktopRunt
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [selectedPlayerId, setSelectedPlayerId] = useState<EntityId | null>(null);
-  const [suggestion, setSuggestion] = useState<{ loaded: boolean; data?: OwnerPostMatchSuggestion }>({ loaded: false });
+  const [suggestion, setSuggestion] = useState<{
+    loaded: boolean;
+    data?: OwnerPostMatchSuggestion;
+  }>({ loaded: false });
 
   const loadSuggestion = async (): Promise<void> => {
     const result = await bridge.getOwnerPostMatchSuggestion();
     setSuggestion({ loaded: true, data: result.ok ? result.data : undefined });
   };
 
-  const applyProgress = (result: Awaited<ReturnType<typeof bridge.watchOwnerFixture>>, refreshList: boolean): void => {
+  const applyProgress = (
+    result: Awaited<ReturnType<typeof bridge.watchOwnerFixture>>,
+    refreshList: boolean,
+  ): void => {
     if (result.ok) {
       setLive(result.data);
       if (result.data.finalized) {
@@ -1892,7 +3056,9 @@ export const OwnerMatchday = ({ bridge, onTalkToManager }: { bridge: DesktopRunt
     if (!live || live.finalized) return;
     setBusy("advance");
     const command =
-      mode === "KEY_EVENTS" ? { toNextEvent: true, minImportance: "NOTABLE" as const } : { minutes: 5 };
+      mode === "KEY_EVENTS"
+        ? { toNextEvent: true, minImportance: "NOTABLE" as const }
+        : { minutes: 5 };
     const result = await bridge.advanceOwnerFixture(command, live.fixtureId, mode);
     setBusy(null);
     applyProgress(result, false);
@@ -1901,7 +3067,9 @@ export const OwnerMatchday = ({ bridge, onTalkToManager }: { bridge: DesktopRunt
   const fastForward = async (): Promise<void> => {
     if (!live || live.finalized) return;
     setBusy("fast");
-    const command = ["FIRST_HALF", "EXTRA_TIME_FIRST_HALF"].includes(live.period) ? { toHalfTime: true } : { minutes: 45 };
+    const command = ["FIRST_HALF", "EXTRA_TIME_FIRST_HALF"].includes(live.period)
+      ? { toHalfTime: true }
+      : { minutes: 45 };
     const result = await bridge.advanceOwnerFixture(command, live.fixtureId, mode);
     setBusy(null);
     applyProgress(result, false);
@@ -1924,7 +3092,10 @@ export const OwnerMatchday = ({ bridge, onTalkToManager }: { bridge: DesktopRunt
               items={
                 matchday.positionContext
                   ? [
-                      { label: "League position", value: ordinal(matchday.positionContext.position) },
+                      {
+                        label: "League position",
+                        value: ordinal(matchday.positionContext.position),
+                      },
                       { label: "Played", value: matchday.positionContext.played },
                       { label: "Points", value: matchday.positionContext.points },
                     ]
@@ -1974,10 +3145,18 @@ export const OwnerMatchday = ({ bridge, onTalkToManager }: { bridge: DesktopRunt
                           <td>{fixture.venue ?? "—"}</td>
                           <td>
                             <span className="button-row">
-                              <button className="primary small" disabled={busy !== null} onClick={() => void watch(fixture.id)}>
+                              <button
+                                className="primary small"
+                                disabled={busy !== null}
+                                onClick={() => void watch(fixture.id)}
+                              >
                                 {busy === `watch:${fixture.id}` ? "Opening…" : "Watch"}
                               </button>
-                              <button className="ghost small" disabled={busy !== null} onClick={() => void quickSim(fixture.id)}>
+                              <button
+                                className="ghost small"
+                                disabled={busy !== null}
+                                onClick={() => void quickSim(fixture.id)}
+                              >
                                 {busy === `sim:${fixture.id}` ? "Simulating…" : "Quick sim"}
                               </button>
                             </span>
@@ -2006,7 +3185,9 @@ export const OwnerMatchday = ({ bridge, onTalkToManager }: { bridge: DesktopRunt
                     { label: "Status", value: matchClock(live) },
                     { label: "Competition", value: live.competitionName },
                     ...(live.venue ? [{ label: "Venue", value: live.venue }] : []),
-                    ...(live.attendance !== undefined ? [{ label: "Attendance", value: live.attendance.toLocaleString() }] : []),
+                    ...(live.attendance !== undefined
+                      ? [{ label: "Attendance", value: live.attendance.toLocaleString() }]
+                      : []),
                   ]}
                 />
               </div>
@@ -2015,14 +3196,20 @@ export const OwnerMatchday = ({ bridge, onTalkToManager }: { bridge: DesktopRunt
                 <>
                   <p className="subtle">Half time — no tactical options for the Owner.</p>
                   <MatchEventsPanel live={live} onSelectPlayer={setSelectedPlayerId} />
-                  <button className="primary small" disabled={busy !== null} onClick={() => void continueSecondHalf()}>
+                  <button
+                    className="primary small"
+                    disabled={busy !== null}
+                    onClick={() => void continueSecondHalf()}
+                  >
                     {busy === "continue" ? "Continuing…" : "Continue second half"}
                   </button>
                 </>
               ) : live.finalized ? (
                 <>
                   <p>
-                    <Badge tone={live.home.goals === live.away.goals ? "info" : "ok"}>Full time</Badge>
+                    <Badge tone={live.home.goals === live.away.goals ? "info" : "ok"}>
+                      Full time
+                    </Badge>
                   </p>
                   <MatchEventsPanel live={live} onSelectPlayer={setSelectedPlayerId} />
                   <div className="summary-grid">
@@ -2044,20 +3231,42 @@ export const OwnerMatchday = ({ bridge, onTalkToManager }: { bridge: DesktopRunt
               ) : (
                 <>
                   <div className="button-row">
-                    <button className={mode === "TEXT_LIVE" ? "primary small" : "ghost small"} onClick={() => setMode("TEXT_LIVE")}>
+                    <button
+                      className={mode === "TEXT_LIVE" ? "primary small" : "ghost small"}
+                      onClick={() => setMode("TEXT_LIVE")}
+                    >
                       Text Live
                     </button>
-                    <button className={mode === "KEY_EVENTS" ? "primary small" : "ghost small"} onClick={() => setMode("KEY_EVENTS")}>
+                    <button
+                      className={mode === "KEY_EVENTS" ? "primary small" : "ghost small"}
+                      onClick={() => setMode("KEY_EVENTS")}
+                    >
                       Key Events
                     </button>
                   </div>
                   <MatchEventsPanel live={live} onSelectPlayer={setSelectedPlayerId} />
                   <div className="button-row">
-                    <button className="primary small" disabled={busy !== null} onClick={() => void advance()}>
-                      {busy === "advance" ? "Advancing…" : mode === "KEY_EVENTS" ? "Next key event" : "Advance 5 minutes"}
+                    <button
+                      className="primary small"
+                      disabled={busy !== null}
+                      onClick={() => void advance()}
+                    >
+                      {busy === "advance"
+                        ? "Advancing…"
+                        : mode === "KEY_EVENTS"
+                          ? "Next key event"
+                          : "Advance 5 minutes"}
                     </button>
-                    <button className="ghost small" disabled={busy !== null} onClick={() => void fastForward()}>
-                      {busy === "fast" ? "Fast forwarding…" : ["FIRST_HALF", "EXTRA_TIME_FIRST_HALF"].includes(live.period) ? "Skip to half time" : "Fast forward"}
+                    <button
+                      className="ghost small"
+                      disabled={busy !== null}
+                      onClick={() => void fastForward()}
+                    >
+                      {busy === "fast"
+                        ? "Fast forwarding…"
+                        : ["FIRST_HALF", "EXTRA_TIME_FIRST_HALF"].includes(live.period)
+                          ? "Skip to half time"
+                          : "Fast forward"}
                     </button>
                   </div>
                   <div className="summary-grid">
@@ -2181,14 +3390,21 @@ const facilityNarrative = (input: {
   managerRequests: ManagerPromise[];
 }): string => {
   const typeLabel = (
-    FACILITY_PROJECT_TYPES.find((item) => item.type === input.projectType)?.label ?? band(input.projectType)
+    FACILITY_PROJECT_TYPES.find((item) => item.type === input.projectType)?.label ??
+    band(input.projectType)
   ).toLowerCase();
   const sameType = input.existing.filter((project) => project.projectType === input.projectType);
   const active = sameType.find((project) => !["COMPLETED", "CANCELLED"].includes(project.status));
   const completed = sameType.find((project) => project.status === "COMPLETED");
   const sentences: string[] = [];
-  if (active) sentences.push(`A ${typeLabel} project is already ${FACILITY_STATUS_LABEL[active.status].toLowerCase()} for this club.`);
-  else if (completed) sentences.push(`The club already has a completed ${typeLabel}; this would be a further upgrade.`);
+  if (active)
+    sentences.push(
+      `A ${typeLabel} project is already ${FACILITY_STATUS_LABEL[active.status].toLowerCase()} for this club.`,
+    );
+  else if (completed)
+    sentences.push(
+      `The club already has a completed ${typeLabel}; this would be a further upgrade.`,
+    );
   else sentences.push(`The club has no dedicated ${typeLabel} on record yet.`);
   if (input.mode === "NEW_SITE") {
     sentences.push(
@@ -2196,14 +3412,23 @@ const facilityNarrative = (input: {
         ? `A new-site project at ${input.site.municipalityName} (${band(input.site.siteType)}, ${input.site.arrangement.toLowerCase()}) provides room to build from scratch, at a larger upfront commitment than upgrading what already exists.`
         : "A new-site project provides room to build from scratch, at a larger upfront commitment than upgrading what already exists.",
     );
-    if (input.site?.readiness === "GOVERNMENT_REVIEW") sentences.push("This site requires municipal/government approval before work can begin.");
+    if (input.site?.readiness === "GOVERNMENT_REVIEW")
+      sentences.push("This site requires municipal/government approval before work can begin.");
   } else {
-    sentences.push("Upgrading the existing site keeps costs and disruption lower than starting fresh.");
+    sentences.push(
+      "Upgrading the existing site keeps costs and disruption lower than starting fresh.",
+    );
   }
-  if (input.scope === "ELITE") sentences.push("An elite scope is a significant investment with the longest build time.");
-  else if (input.scope === "BASIC") sentences.push("A modest scope keeps this affordable but limits how much it improves things.");
-  if (input.fundingSource === "DEBT" || input.fundingSource === "MIXED") sentences.push("Financing with a loan adds to the club's debt rather than drawing down cash reserves.");
-  if (input.fundingSource === "GOVERNMENT_GRANT") sentences.push("Government co-funding is contingent on approval and is not guaranteed.");
+  if (input.scope === "ELITE")
+    sentences.push("An elite scope is a significant investment with the longest build time.");
+  else if (input.scope === "BASIC")
+    sentences.push("A modest scope keeps this affordable but limits how much it improves things.");
+  if (input.fundingSource === "DEBT" || input.fundingSource === "MIXED")
+    sentences.push(
+      "Financing with a loan adds to the club's debt rather than drawing down cash reserves.",
+    );
+  if (input.fundingSource === "GOVERNMENT_GRANT")
+    sentences.push("Government co-funding is contingent on approval and is not guaranteed.");
   // Only claim this plan responds to a manager request when the request's
   // own text actually mentions this project type — never attach an
   // unrelated request just because one happens to exist.
@@ -2224,16 +3449,36 @@ const facilityNarrative = (input: {
     REFURBISHMENT: ["refurbish"],
   };
   const keywords = typeKeywords[input.projectType] ?? [];
-  const request = input.managerRequests.find((item) => keywords.some((keyword) => `${item.description} ${item.targetCriteria}`.toLowerCase().includes(keyword)));
-  if (request) sentences.push(`This would respond to an outstanding request from the manager: "${request.description}"${request.dueOn ? ` (due ${request.dueOn})` : ""}.`);
+  const request = input.managerRequests.find((item) =>
+    keywords.some((keyword) =>
+      `${item.description} ${item.targetCriteria}`.toLowerCase().includes(keyword),
+    ),
+  );
+  if (request)
+    sentences.push(
+      `This would respond to an outstanding request from the manager: "${request.description}"${request.dueOn ? ` (due ${request.dueOn})` : ""}.`,
+    );
   return sentences.join(" ");
 };
 
-export const FacilityPlanner = ({ bridge, clubId }: { bridge: DesktopRuntimeApi; clubId: EntityId }): React.ReactElement => {
+export const FacilityPlanner = ({
+  bridge,
+  clubId,
+}: {
+  bridge: DesktopRuntimeApi;
+  clubId: EntityId;
+}): React.ReactElement => {
   const [state, refresh] = useRuntimeData(() => bridge.getFacilityPlanning(clubId), [clubId]);
   return (
     <AsyncPanel state={state}>
-      {(planning) => <FacilityPlannerView planning={planning} bridge={bridge} clubId={clubId} refresh={refresh} />}
+      {(planning) => (
+        <FacilityPlannerView
+          planning={planning}
+          bridge={bridge}
+          clubId={clubId}
+          refresh={refresh}
+        />
+      )}
     </AsyncPanel>
   );
 };
@@ -2254,7 +3499,10 @@ const FacilityPlannerView = ({
   const [scope, setScope] = useState<FacilityProjectScope>("STANDARD");
   const catalog = planning.componentCatalog[projectType] ?? [];
   const [components, setComponents] = useState<string[]>([...catalog]);
-  useEffect(() => setComponents([...(planning.componentCatalog[projectType] ?? [])]), [projectType, planning.componentCatalog]);
+  useEffect(
+    () => setComponents([...(planning.componentCatalog[projectType] ?? [])]),
+    [projectType, planning.componentCatalog],
+  );
   const [siteOptions, setSiteOptions] = useState<FacilitySiteOption[] | null>(null);
   const [siteOptionId, setSiteOptionId] = useState<EntityId | undefined>(undefined);
   const [fundingSource, setFundingSource] = useState<FacilityFundingSource>("CLUB_CASH");
@@ -2267,8 +3515,11 @@ const FacilityPlannerView = ({
   const [error, setError] = useState<AppError | null>(null);
 
   const selectedSite = siteOptions?.find((site) => site.id === siteOptionId);
-  const approvedApplication = planning.governmentApplications.find((application) => ["APPROVED", "CONDITIONAL"].includes(application.status));
-  const blockedByGovernment = mode === "NEW_SITE" && selectedSite?.readiness === "GOVERNMENT_REVIEW" && !approvedApplication;
+  const approvedApplication = planning.governmentApplications.find((application) =>
+    ["APPROVED", "CONDITIONAL"].includes(application.status),
+  );
+  const blockedByGovernment =
+    mode === "NEW_SITE" && selectedSite?.readiness === "GOVERNMENT_REVIEW" && !approvedApplication;
   const financing: Record<string, number> | undefined =
     fundingSource === "CLUB_CASH"
       ? undefined
@@ -2306,7 +3557,8 @@ const FacilityPlannerView = ({
     siteOptionId: mode === "NEW_SITE" ? siteOptionId : undefined,
     fundingSource,
     financing,
-    governmentApplicationId: selectedSite?.readiness === "GOVERNMENT_REVIEW" ? approvedApplication?.id : undefined,
+    governmentApplicationId:
+      selectedSite?.readiness === "GOVERNMENT_REVIEW" ? approvedApplication?.id : undefined,
     rationale,
     dryRun,
   });
@@ -2328,8 +3580,11 @@ const FacilityPlannerView = ({
     const result = await bridge.createFacilityProjectPlan(buildInput(false));
     setBusy(false);
     if (result.ok) {
-      const typeLabel = FACILITY_PROJECT_TYPES.find((item) => item.type === projectType)?.label ?? projectType;
-      setMessage(`${typeLabel} project created — ${band(result.data.plan.costBand)} cost, ${band(result.data.plan.durationBand)} duration.`);
+      const typeLabel =
+        FACILITY_PROJECT_TYPES.find((item) => item.type === projectType)?.label ?? projectType;
+      setMessage(
+        `${typeLabel} project created — ${band(result.data.plan.costBand)} cost, ${band(result.data.plan.durationBand)} duration.`,
+      );
       setPreview(null);
       setSiteOptions(null);
       setSiteOptionId(undefined);
@@ -2340,13 +3595,20 @@ const FacilityPlannerView = ({
   return (
     <section className="role-detail facility-planner">
       {error && <ErrorBanner error={error} />}
-      {message && <p className="notice" role="status">{message}</p>}
+      {message && (
+        <p className="notice" role="status">
+          {message}
+        </p>
+      )}
 
       <FacilityLifecycle planning={planning} />
 
       {planning.managerFacilityRequests.length > 0 && (
         <Panel title="Manager facility requests">
-          <p className="subtle">The manager has raised these through a board meeting — the plan below can respond to one.</p>
+          <p className="subtle">
+            The manager has raised these through a board meeting — the plan below can respond to
+            one.
+          </p>
           <ul className="compact-list">
             {planning.managerFacilityRequests.map((promise) => (
               <li key={promise.id}>
@@ -2372,23 +3634,38 @@ const FacilityPlannerView = ({
                 }}
               >
                 {FACILITY_PROJECT_TYPES.map((item) => (
-                  <option key={item.type} value={item.type}>{item.label}</option>
+                  <option key={item.type} value={item.type}>
+                    {item.label}
+                  </option>
                 ))}
               </select>
             </label>
             <label>
               Strategy
-              <select value={mode} onChange={(event) => { setMode(event.target.value as FacilityProjectMode); setSiteOptionId(undefined); }}>
+              <select
+                value={mode}
+                onChange={(event) => {
+                  setMode(event.target.value as FacilityProjectMode);
+                  setSiteOptionId(undefined);
+                }}
+              >
                 {(Object.keys(FACILITY_MODE_LABELS) as FacilityProjectMode[]).map((item) => (
-                  <option key={item} value={item}>{FACILITY_MODE_LABELS[item]}</option>
+                  <option key={item} value={item}>
+                    {FACILITY_MODE_LABELS[item]}
+                  </option>
                 ))}
               </select>
             </label>
             <label>
               Scope
-              <select value={scope} onChange={(event) => setScope(event.target.value as FacilityProjectScope)}>
+              <select
+                value={scope}
+                onChange={(event) => setScope(event.target.value as FacilityProjectScope)}
+              >
                 {(Object.keys(FACILITY_SCOPE_LABELS) as FacilityProjectScope[]).map((item) => (
-                  <option key={item} value={item}>{FACILITY_SCOPE_LABELS[item]}</option>
+                  <option key={item} value={item}>
+                    {FACILITY_SCOPE_LABELS[item]}
+                  </option>
                 ))}
               </select>
             </label>
@@ -2400,11 +3677,22 @@ const FacilityPlannerView = ({
               <legend>Components</legend>
               <div className="component-tiles">
                 {catalog.map((component) => (
-                  <label key={component} className={components.includes(component) ? "component-tile selected" : "component-tile"}>
+                  <label
+                    key={component}
+                    className={
+                      components.includes(component) ? "component-tile selected" : "component-tile"
+                    }
+                  >
                     <input
                       type="checkbox"
                       checked={components.includes(component)}
-                      onChange={(event) => setComponents(event.target.checked ? [...components, component] : components.filter((item) => item !== component))}
+                      onChange={(event) =>
+                        setComponents(
+                          event.target.checked
+                            ? [...components, component]
+                            : components.filter((item) => item !== component),
+                        )
+                      }
                     />
                     {band(component)}
                   </label>
@@ -2417,33 +3705,59 @@ const FacilityPlannerView = ({
             <div className="facility-site-step">
               <h3>Site</h3>
               {!planning.homeDistrict ? (
-                <p className="empty-state">This club has no district on record to site a new project in.</p>
+                <p className="empty-state">
+                  This club has no district on record to site a new project in.
+                </p>
               ) : !siteOptions ? (
                 <button className="small" disabled={busy} onClick={() => void loadSites()}>
-                  {busy ? "Generating…" : `Generate site options near ${planning.homeDistrict.districtName}`}
+                  {busy
+                    ? "Generating…"
+                    : `Generate site options near ${planning.homeDistrict.districtName}`}
                 </button>
               ) : (
                 <div className="site-cards">
                   {siteOptions.map((site) => (
-                    <label key={site.id} className={siteOptionId === site.id ? "site-card selected" : "site-card"}>
-                      <input type="radio" name="facility-site" checked={siteOptionId === site.id} onChange={() => setSiteOptionId(site.id)} />
-                      <strong>{site.municipalityName} · {band(site.siteType)}</strong>
-                      <span className="subtle">Simulation-only project option, not a verified land listing.</span>
-                      <Metrics items={[
-                        { label: "Arrangement", value: site.arrangement.toLowerCase() },
-                        { label: "Cost", value: site.costBand.toLowerCase() },
-                        { label: "Accessibility", value: site.accessibilityBand.toLowerCase() },
-                        { label: "Catchment", value: site.catchmentBand.toLowerCase() },
-                        { label: "Community value", value: site.communityValueBand.toLowerCase() },
-                        { label: "Readiness", value: band(site.readiness) },
-                      ]} />
-                      {site.governmentConditions.length > 0 && <p className="subtle">Conditions: {site.governmentConditions.join(", ")}</p>}
+                    <label
+                      key={site.id}
+                      className={siteOptionId === site.id ? "site-card selected" : "site-card"}
+                    >
+                      <input
+                        type="radio"
+                        name="facility-site"
+                        checked={siteOptionId === site.id}
+                        onChange={() => setSiteOptionId(site.id)}
+                      />
+                      <strong>
+                        {site.municipalityName} · {band(site.siteType)}
+                      </strong>
+                      <span className="subtle">
+                        Simulation-only project option, not a verified land listing.
+                      </span>
+                      <Metrics
+                        items={[
+                          { label: "Arrangement", value: site.arrangement.toLowerCase() },
+                          { label: "Cost", value: site.costBand.toLowerCase() },
+                          { label: "Accessibility", value: site.accessibilityBand.toLowerCase() },
+                          { label: "Catchment", value: site.catchmentBand.toLowerCase() },
+                          {
+                            label: "Community value",
+                            value: site.communityValueBand.toLowerCase(),
+                          },
+                          { label: "Readiness", value: band(site.readiness) },
+                        ]}
+                      />
+                      {site.governmentConditions.length > 0 && (
+                        <p className="subtle">Conditions: {site.governmentConditions.join(", ")}</p>
+                      )}
                     </label>
                   ))}
                 </div>
               )}
               {selectedSite?.readiness === "GOVERNMENT_REVIEW" && (
-                <p className={blockedByGovernment ? "warning" : "notice"} role={blockedByGovernment ? "alert" : "status"}>
+                <p
+                  className={blockedByGovernment ? "warning" : "notice"}
+                  role={blockedByGovernment ? "alert" : "status"}
+                >
                   {blockedByGovernment
                     ? "This site requires government approval before planning can proceed. No approved application exists for this club, and there is currently no way to request one from the Owner office."
                     : "This site's government application has been approved and can be used for this plan."}
@@ -2456,26 +3770,69 @@ const FacilityPlannerView = ({
             <h3>Funding</h3>
             <label>
               Source
-              <select value={fundingSource} onChange={(event) => setFundingSource(event.target.value as FacilityFundingSource)}>
+              <select
+                value={fundingSource}
+                onChange={(event) => setFundingSource(event.target.value as FacilityFundingSource)}
+              >
                 {(Object.keys(FACILITY_FUNDING_LABELS) as FacilityFundingSource[]).map((item) => (
-                  <option key={item} value={item}>{FACILITY_FUNDING_LABELS[item]}</option>
+                  <option key={item} value={item}>
+                    {FACILITY_FUNDING_LABELS[item]}
+                  </option>
                 ))}
               </select>
             </label>
-            {fundingSource === "CLUB_CASH" && <p className="subtle">Funded in full from club cash, if the club can afford it.</p>}
+            {fundingSource === "CLUB_CASH" && (
+              <p className="subtle">Funded in full from club cash, if the club can afford it.</p>
+            )}
             {fundingSource === "DEBT" && (
-              <label>Loan amount (NPR)<input type="number" min="0" value={debtAmount} onChange={(event) => setDebtAmount(event.target.value)} /></label>
+              <label>
+                Loan amount (NPR)
+                <input
+                  type="number"
+                  min="0"
+                  value={debtAmount}
+                  onChange={(event) => setDebtAmount(event.target.value)}
+                />
+              </label>
             )}
             {fundingSource === "GOVERNMENT_GRANT" && (
-              <label>Expected grant amount (NPR)<input type="number" min="0" value={grantAmount} onChange={(event) => setGrantAmount(event.target.value)} /></label>
+              <label>
+                Expected grant amount (NPR)
+                <input
+                  type="number"
+                  min="0"
+                  value={grantAmount}
+                  onChange={(event) => setGrantAmount(event.target.value)}
+                />
+              </label>
             )}
             {fundingSource === "MIXED" && (
               <>
-                <label>Club cash (NPR)<input type="number" min="0" value={cashAmount} onChange={(event) => setCashAmount(event.target.value)} /></label>
-                <label>Loan amount (NPR)<input type="number" min="0" value={debtAmount} onChange={(event) => setDebtAmount(event.target.value)} /></label>
+                <label>
+                  Club cash (NPR)
+                  <input
+                    type="number"
+                    min="0"
+                    value={cashAmount}
+                    onChange={(event) => setCashAmount(event.target.value)}
+                  />
+                </label>
+                <label>
+                  Loan amount (NPR)
+                  <input
+                    type="number"
+                    min="0"
+                    value={debtAmount}
+                    onChange={(event) => setDebtAmount(event.target.value)}
+                  />
+                </label>
               </>
             )}
-            <p className="subtle">Club cash and loans are both club money — a loan adds to the club's debt. Personal funds are separate: inject owner capital from Investors first if you want to fund this from your own money.</p>
+            <p className="subtle">
+              Club cash and loans are both club money — a loan adds to the club's debt. Personal
+              funds are separate: inject owner capital from Investors first if you want to fund this
+              from your own money.
+            </p>
           </div>
 
           <button
@@ -2523,41 +3880,84 @@ const FacilitySummary = ({
 }): React.ReactElement => {
   const { project, plan } = preview;
   return (
-    <Panel title="Project summary — review before committing" className="panel-wide facility-summary">
+    <Panel
+      title="Project summary — review before committing"
+      className="panel-wide facility-summary"
+    >
       <p>{rationale}</p>
-      <Metrics items={[
-        { label: "Project type", value: FACILITY_PROJECT_TYPES.find((item) => item.type === plan.projectType)?.label ?? plan.projectType },
-        { label: "Strategy", value: FACILITY_MODE_LABELS[plan.mode] },
-        { label: "Scope", value: FACILITY_SCOPE_LABELS[plan.scope] },
-        { label: "Estimated cost", value: band(plan.costBand) },
-        { label: "Estimated duration", value: band(plan.durationBand) },
-        { label: "Funding source", value: FACILITY_FUNDING_LABELS[fundingSource] },
-        { label: "Ongoing maintenance (once completed)", value: `${money(project.ongoingCost)} / month` },
-      ]} />
-      <p className="subtle">Target improvement: {plan.expectedImprovement.map(band).join(", ") || "General facility renewal"}.</p>
+      <Metrics
+        items={[
+          {
+            label: "Project type",
+            value:
+              FACILITY_PROJECT_TYPES.find((item) => item.type === plan.projectType)?.label ??
+              plan.projectType,
+          },
+          { label: "Strategy", value: FACILITY_MODE_LABELS[plan.mode] },
+          { label: "Scope", value: FACILITY_SCOPE_LABELS[plan.scope] },
+          { label: "Estimated cost", value: band(plan.costBand) },
+          { label: "Estimated duration", value: band(plan.durationBand) },
+          { label: "Funding source", value: FACILITY_FUNDING_LABELS[fundingSource] },
+          {
+            label: "Ongoing maintenance (once completed)",
+            value: `${money(project.ongoingCost)} / month`,
+          },
+        ]}
+      />
+      <p className="subtle">
+        Target improvement:{" "}
+        {plan.expectedImprovement.map(band).join(", ") || "General facility renewal"}.
+      </p>
       {site && (
         <p className="subtle">
           Site: {site.municipalityName} · {band(site.siteType)} · {site.arrangement.toLowerCase()}
-          {site.governmentConditions.length > 0 && ` · conditions: ${site.governmentConditions.join(", ")}`}
+          {site.governmentConditions.length > 0 &&
+            ` · conditions: ${site.governmentConditions.join(", ")}`}
         </p>
       )}
       <p className="subtle">
-        Funding split: {Object.entries(financing ?? {}).map(([key, value]) => `${band(key.replace(/([A-Z])/g, "_$1"))}: ${money(value)}`).join(", ") || "automatically drawn from club cash"} — {project.fundingStatus === "FUNDED" ? "fully funded" : project.fundingStatus === "PARTIALLY_FUNDED" ? "partially funded" : "not yet funded"}.
+        Funding split:{" "}
+        {Object.entries(financing ?? {})
+          .map(([key, value]) => `${band(key.replace(/([A-Z])/g, "_$1"))}: ${money(value)}`)
+          .join(", ") || "automatically drawn from club cash"}{" "}
+        —{" "}
+        {project.fundingStatus === "FUNDED"
+          ? "fully funded"
+          : project.fundingStatus === "PARTIALLY_FUNDED"
+            ? "partially funded"
+            : "not yet funded"}
+        .
       </p>
-      <p className="subtle">Once construction begins, a real 0–45 day delay and up to a 12% cost overrun can occur. Cancelling a project later forfeits any funds already committed as a sunk cost.</p>
+      <p className="subtle">
+        Once construction begins, a real 0–45 day delay and up to a 12% cost overrun can occur.
+        Cancelling a project later forfeits any funds already committed as a sunk cost.
+      </p>
       <div className="button-row">
-        <button className="ghost" disabled={busy} onClick={onBack}>Back to edit</button>
-        <button className="primary" disabled={busy} onClick={onConfirm}>{busy ? "Creating…" : "Confirm & create project"}</button>
+        <button className="ghost" disabled={busy} onClick={onBack}>
+          Back to edit
+        </button>
+        <button className="primary" disabled={busy} onClick={onConfirm}>
+          {busy ? "Creating…" : "Confirm & create project"}
+        </button>
       </div>
     </Panel>
   );
 };
 
-const FacilityLifecycle = ({ planning }: { planning: FacilityPlanningView }): React.ReactElement => {
+const FacilityLifecycle = ({
+  planning,
+}: {
+  planning: FacilityPlanningView;
+}): React.ReactElement => {
   if (planning.projects.length === 0) {
-    return <Panel title="Facility projects"><p className="empty-state">No infrastructure projects recorded for this club yet.</p></Panel>;
+    return (
+      <Panel title="Facility projects">
+        <p className="empty-state">No infrastructure projects recorded for this club yet.</p>
+      </Panel>
+    );
   }
-  const planFor = (projectId: EntityId): FacilityProjectPlan | undefined => planning.plans.find((item) => item.projectId === projectId);
+  const planFor = (projectId: EntityId): FacilityProjectPlan | undefined =>
+    planning.plans.find((item) => item.projectId === projectId);
   return (
     <Panel title="Facility projects" className="panel-wide">
       <div className="facility-lifecycle-grid">
@@ -2567,22 +3967,41 @@ const FacilityLifecycle = ({ planning }: { planning: FacilityPlanningView }): Re
             <article key={project.id} className="facility-project-card">
               <header>
                 <strong>{band(project.projectType)}</strong>
-                <Badge tone={FACILITY_STATUS_TONE[project.status]}>{FACILITY_STATUS_LABEL[project.status]}</Badge>
+                <Badge tone={FACILITY_STATUS_TONE[project.status]}>
+                  {FACILITY_STATUS_LABEL[project.status]}
+                </Badge>
               </header>
-              {plan && <p className="subtle">{FACILITY_MODE_LABELS[plan.mode]} · {FACILITY_SCOPE_LABELS[plan.scope]} scope</p>}
-              <Metrics items={[
-                { label: "Capital cost", value: money(project.capitalCost) },
-                { label: "Funding", value: project.fundingStatus ? band(project.fundingStatus) : "—" },
-                {
-                  label: project.status === "COMPLETED" ? "Completed" : project.status === "CANCELLED" ? "Cancelled" : "Expected completion",
-                  value: project.completedAt ?? project.cancelledOn ?? project.expectedCompletion,
-                },
-              ]} />
+              {plan && (
+                <p className="subtle">
+                  {FACILITY_MODE_LABELS[plan.mode]} · {FACILITY_SCOPE_LABELS[plan.scope]} scope
+                </p>
+              )}
+              <Metrics
+                items={[
+                  { label: "Capital cost", value: money(project.capitalCost) },
+                  {
+                    label: "Funding",
+                    value: project.fundingStatus ? band(project.fundingStatus) : "—",
+                  },
+                  {
+                    label:
+                      project.status === "COMPLETED"
+                        ? "Completed"
+                        : project.status === "CANCELLED"
+                          ? "Cancelled"
+                          : "Expected completion",
+                    value: project.completedAt ?? project.cancelledOn ?? project.expectedCompletion,
+                  },
+                ]}
+              />
               {project.status === "CONSTRUCTION" && (project.delayDays ?? 0) > 0 && (
                 <p className="subtle">Running {project.delayDays} days behind schedule.</p>
               )}
               {project.status === "CANCELLED" && (
-                <p className="subtle">Sunk cost: {money(project.sunkCost ?? 0)}{project.recoveryPlan ? ` — ${project.recoveryPlan}` : ""}</p>
+                <p className="subtle">
+                  Sunk cost: {money(project.sunkCost ?? 0)}
+                  {project.recoveryPlan ? ` — ${project.recoveryPlan}` : ""}
+                </p>
               )}
               {plan?.rationale && <p className="subtle">"{plan.rationale}"</p>}
             </article>
@@ -2645,14 +4064,18 @@ export const PlayerContextPanel = ({
     <Panel
       title="Player"
       className="panel-wide player-context-panel"
-      actions={<button className="ghost small" onClick={onClose}>Close</button>}
+      actions={
+        <button className="ghost small" onClick={onClose}>
+          Close
+        </button>
+      }
     >
       <AsyncPanel state={state}>
         {(data) =>
           !data.reference.visible ? (
             <p className="empty-state">
-              This player is no longer on record — they may have retired, transferred away and left this
-              database's scope, or the reference is stale.
+              This player is no longer on record — they may have retired, transferred away and left
+              this database's scope, or the reference is stale.
             </p>
           ) : (
             <>
@@ -2661,19 +4084,28 @@ export const PlayerContextPanel = ({
                 items={[
                   { label: "Club", value: data.contract.clubName ?? "Unattached" },
                   { label: "Squad role", value: data.contract.contract?.squadRole ?? "—" },
-                  { label: "Contract status", value: data.contract.contract?.status ?? "No active contract" },
+                  {
+                    label: "Contract status",
+                    value: data.contract.contract?.status ?? "No active contract",
+                  },
                 ]}
               />
               {data.contract.contract && (
                 <Panel title="Contract">
                   <Metrics
                     items={[
-                      { label: "Wages", value: `${money(data.contract.contract.salary, data.contract.contract.currency)} / month` },
+                      {
+                        label: "Wages",
+                        value: `${money(data.contract.contract.salary, data.contract.contract.currency)} / month`,
+                      },
                       { label: "Expires", value: data.contract.contract.endDate },
                       {
                         label: "Release clause",
                         value: data.contract.contract.releaseClause
-                          ? money(data.contract.contract.releaseClause, data.contract.contract.currency)
+                          ? money(
+                              data.contract.contract.releaseClause,
+                              data.contract.contract.currency,
+                            )
                           : "None",
                       },
                     ]}
@@ -2687,7 +4119,9 @@ export const PlayerContextPanel = ({
                     { label: "Active offers", value: data.transfer.activeOfferCount },
                   ]}
                 />
-                {data.transfer.transferReason && <p className="subtle">{data.transfer.transferReason}</p>}
+                {data.transfer.transferReason && (
+                  <p className="subtle">{data.transfer.transferReason}</p>
+                )}
               </Panel>
               <Panel title="Football authority">
                 <p className="subtle">
@@ -2698,10 +4132,14 @@ export const PlayerContextPanel = ({
                   <div className="action-group">
                     <h3>Open request</h3>
                     <p className="subtle">
-                      {OWNER_PLAYER_REQUEST_LABELS[data.request.requestIntent]} · raised {data.request.requestedOn}
+                      {OWNER_PLAYER_REQUEST_LABELS[data.request.requestIntent]} · raised{" "}
+                      {data.request.requestedOn}
                       {data.request.deadline ? ` · due ${data.request.deadline}` : ""}
                     </p>
-                    <p className="subtle">Stage: {band(data.request.meeting.stage)}{data.request.meeting.outcome ? ` — ${data.request.meeting.outcome}` : ""}</p>
+                    <p className="subtle">
+                      Stage: {band(data.request.meeting.stage)}
+                      {data.request.meeting.outcome ? ` — ${data.request.meeting.outcome}` : ""}
+                    </p>
                   </div>
                 ) : (
                   <div className="action-group">
@@ -2719,7 +4157,9 @@ export const PlayerContextPanel = ({
                             if (result.ok) refresh();
                           }}
                         >
-                          {requestBusy === intent ? "Raising…" : OWNER_PLAYER_REQUEST_LABELS[intent]}
+                          {requestBusy === intent
+                            ? "Raising…"
+                            : OWNER_PLAYER_REQUEST_LABELS[intent]}
                         </button>
                       ))}
                     </div>
@@ -2734,6 +4174,247 @@ export const PlayerContextPanel = ({
             </>
           )
         }
+      </AsyncPanel>
+    </Panel>
+  );
+};
+
+/**
+ * ORGANIZATION PROFILE — one canonical dossier for sponsors, lenders, and
+ * investors, opened from anywhere an EntityReference of that type exists.
+ * Everything here reads getOrganizationProfile as-is: no fabricated
+ * revenue/valuation/employee-count/executives/founding-year, and the
+ * involved-entities list is already deduplicated by the backend, not here.
+ */
+
+// profile.sector is real backend text, but its source column varies by organization
+// type: sponsor industry/sector text arrives already human-readable (e.g. "Sports
+// Equipment"), while lender institution_type arrives as a raw enum (e.g.
+// "COMMERCIAL_BANK"). Only reformat the latter shape so we never mangle real text.
+const formatSector = (value: string): string => (/^[A-Z0-9_]+$/.test(value) ? band(value) : value);
+
+const ORGANIZATION_ENTITY_TYPES = new Set(["SPONSOR", "LENDER", "INVESTOR"]);
+const isOpenableReference = (reference: EntityReference): boolean =>
+  reference.visible &&
+  (reference.entityType === "PLAYER" || ORGANIZATION_ENTITY_TYPES.has(reference.entityType));
+
+const DEAL_STATUS_TONE: Record<string, MeetingTone> = {
+  ACTIVE: "ok",
+  COMPLETED: "info",
+  EXPIRED: "warn",
+  REJECTED: "bad",
+  WITHDRAWN: "bad",
+  COUNTERED: "info",
+  OFFERED: "info",
+  NEGOTIATED: "info",
+  PROPOSED: "info",
+};
+
+/** A single reference, rendered clickable only when it actually has somewhere to go. */
+const EntityRefLink = ({
+  reference,
+  onOpen,
+}: {
+  reference: EntityReference;
+  onOpen: (reference: EntityReference) => void;
+}): React.ReactElement =>
+  isOpenableReference(reference) ? (
+    <button className="link" onClick={() => onOpen(reference)}>
+      {reference.label}
+    </button>
+  ) : (
+    <span>{reference.visible ? reference.label : "Unknown entity"}</span>
+  );
+
+const EntityRefChip = ({
+  reference,
+  onOpen,
+}: {
+  reference: EntityReference;
+  onOpen: (reference: EntityReference) => void;
+}): React.ReactElement => (
+  <span className="entity-chip">
+    <Badge tone="info">{band(reference.entityType)}</Badge>{" "}
+    <EntityRefLink reference={reference} onOpen={onOpen} />
+  </span>
+);
+
+const OrganizationDealSection = ({
+  title,
+  deals,
+  onOpenReference,
+  empty,
+}: {
+  title: string;
+  deals: OrganizationCommercialDeal[];
+  onOpenReference: (reference: EntityReference) => void;
+  empty: string;
+}): React.ReactElement => (
+  <Panel title={title}>
+    {deals.length === 0 ? (
+      <p className="empty-state">{empty}</p>
+    ) : (
+      <div className="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Counterpart</th>
+              <th>Property</th>
+              <th>Value</th>
+              <th>Term</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {deals.map((deal) => (
+              <tr key={deal.id}>
+                <td>
+                  {deal.counterpartReference ? (
+                    <EntityRefLink reference={deal.counterpartReference} onOpen={onOpenReference} />
+                  ) : (
+                    (deal.counterpartLabel ?? band(deal.scope))
+                  )}
+                </td>
+                <td>{band(deal.property)}</td>
+                <td>
+                  {deal.annualValue !== undefined ? `${money(deal.annualValue)} / year` : "—"}
+                </td>
+                <td>
+                  {deal.startDate ?? "—"}
+                  {deal.endDate
+                    ? ` – ${deal.endDate}`
+                    : deal.termYears
+                      ? ` (${deal.termYears}y)`
+                      : ""}
+                </td>
+                <td>
+                  <Badge tone={DEAL_STATUS_TONE[deal.status] ?? "info"}>{band(deal.status)}</Badge>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )}
+  </Panel>
+);
+
+export const OrganizationProfilePanel = ({
+  bridge,
+  entityType,
+  entityId,
+  onClose,
+  onOpenPlayer,
+}: {
+  bridge: DesktopRuntimeApi;
+  entityType: OrganizationProfileEntityType;
+  entityId: EntityId;
+  onClose: () => void;
+  /** Present wherever the caller already has a player-profile surface to route PLAYER references into. */
+  onOpenPlayer?: (playerId: EntityId) => void;
+}): React.ReactElement => {
+  const [target, setTarget] = useState<{
+    entityType: OrganizationProfileEntityType;
+    entityId: EntityId;
+  }>({
+    entityType,
+    entityId,
+  });
+  const [history, setHistory] = useState<
+    Array<{ entityType: OrganizationProfileEntityType; entityId: EntityId }>
+  >([]);
+  const [state] = useRuntimeData(
+    () => bridge.getOrganizationProfile(target.entityType, target.entityId),
+    [target.entityType, target.entityId],
+  );
+
+  const openReference = (reference: EntityReference): void => {
+    if (reference.entityType === "PLAYER") {
+      onOpenPlayer?.(reference.id);
+      return;
+    }
+    if (ORGANIZATION_ENTITY_TYPES.has(reference.entityType)) {
+      setHistory((previous) => [...previous, target]);
+      setTarget({
+        entityType: reference.entityType as OrganizationProfileEntityType,
+        entityId: reference.id,
+      });
+    }
+  };
+
+  const goBack = (): void => {
+    const previous = history[history.length - 1];
+    if (!previous) return;
+    setHistory((entries) => entries.slice(0, -1));
+    setTarget(previous);
+  };
+
+  return (
+    <Panel
+      title="Organization"
+      className="panel-wide organization-profile-panel"
+      actions={
+        <span className="button-row">
+          {history.length > 0 && (
+            <button className="ghost small" onClick={goBack}>
+              Back
+            </button>
+          )}
+          <button className="ghost small" onClick={onClose}>
+            Close
+          </button>
+        </span>
+      }
+    >
+      <AsyncPanel state={state}>
+        {(profile) => (
+          <>
+            <h2>{profile.entityReference.label}</h2>
+            <div className="button-row">
+              <Badge tone="info">{band(profile.entityReference.entityType)}</Badge>
+              {profile.sector && <Badge tone="info">{formatSector(profile.sector)}</Badge>}
+              <Badge tone={profile.provenanceStatus === "VERIFIED" ? "ok" : "info"}>
+                {profile.provenanceStatus === "VERIFIED" ? "Verified company" : "Simulation-only"}
+              </Badge>
+            </div>
+            {profile.relationshipClues.length > 0 && (
+              <p className="subtle">{profile.relationshipClues.join(" · ")}</p>
+            )}
+
+            <OrganizationDealSection
+              title="Active relationships"
+              deals={profile.activeDeals}
+              onOpenReference={openReference}
+              empty="No active commercial relationships."
+            />
+            <OrganizationDealSection
+              title="Current negotiations"
+              deals={profile.currentNegotiations}
+              onOpenReference={openReference}
+              empty="No open negotiations."
+            />
+            <OrganizationDealSection
+              title="Partnership history"
+              deals={profile.dealHistory}
+              onOpenReference={openReference}
+              empty="No historical deals recorded."
+            />
+
+            {profile.involvedEntities.length > 0 && (
+              <Panel title="Involved entities">
+                <div className="button-row">
+                  {profile.involvedEntities.map((reference) => (
+                    <EntityRefChip
+                      key={`${reference.entityType}:${reference.id}`}
+                      reference={reference}
+                      onOpen={openReference}
+                    />
+                  ))}
+                </div>
+              </Panel>
+            )}
+          </>
+        )}
       </AsyncPanel>
     </Panel>
   );

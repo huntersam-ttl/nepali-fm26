@@ -59,6 +59,10 @@ import type {
   OwnerPostMatchSuggestion,
   AdvanceMatchCommand,
   MatchViewMode,
+  OrganizationProfile,
+  OrganizationProfileEntityType,
+  ManagerOwnerPlayerRequest,
+  ClubInfrastructureGovernmentContext,
 } from "@nepal-football-sim/shared-types";
 
 export type {
@@ -162,71 +166,218 @@ const bindCommands = (call: CommandCaller): DesktopRuntimeApi => ({
   listStartingClubs: () => call<StartingClubOption[]>("listStartingClubs"),
   listFounderLocations: () => call<FounderLocationOption[]>("listFounderLocations"),
   listOwnerManagerCandidates: () => call<OwnerManagerCandidate[]>("listOwnerManagerCandidates"),
-  appointManager: (vacancyId: EntityId, managerProfileId: EntityId) => call<ManagerContract>("appointManager", { vacancyId, managerProfileId }),
+  appointManager: (vacancyId: EntityId, managerProfileId: EntityId) =>
+    call<ManagerContract>("appointManager", { vacancyId, managerProfileId }),
   createCareer: (command: CareerCreationCommand) =>
     call<DesktopApplicationState>("createCareer", { command }),
   loadCareer: (saveId: EntityId) => call<DesktopApplicationState>("loadCareer", { saveId }),
   closeCareer: () => call<{ closed: boolean }>("closeCareer"),
   getCareerHeader: () => call<CareerHeader>("getCareerHeader"),
   getCareerRoles: () => call<CareerRoleState>("getCareerRoles"),
-  getExecutiveAuthority: (clubId?: EntityId) => call<ExecutiveAuthorityDesktopView | undefined>("getExecutiveAuthority", { clubId }),
-  switchActiveCareerRole: (targetRole: CareerRole) => call<CareerHeader>("switchActiveCareerRole", { targetRole }),
+  getExecutiveAuthority: (clubId?: EntityId) =>
+    call<ExecutiveAuthorityDesktopView | undefined>("getExecutiveAuthority", { clubId }),
+  switchActiveCareerRole: (targetRole: CareerRole) =>
+    call<CareerHeader>("switchActiveCareerRole", { targetRole }),
   getChairmanDashboard: () => call<ChairmanDashboard>("getChairmanDashboard"),
   getOwnerMatchday: () => call<OwnerMatchdayView>("getOwnerMatchday"),
-  watchOwnerFixture: (fixtureId?: EntityId) => call<LiveMatchView>("watchOwnerFixture", { fixtureId }),
-  advanceOwnerFixture: (command?: AdvanceMatchCommand, fixtureId?: EntityId, viewMode?: MatchViewMode) => call<LiveMatchView>("advanceOwnerFixture", { command, fixtureId, viewMode }),
-  continueOwnerFixture: (fixtureId?: EntityId, viewMode?: MatchViewMode) => call<LiveMatchView>("continueOwnerFixture", { fixtureId, viewMode }),
-  quickSimOwnerFixture: (fixtureId?: EntityId) => call<LiveMatchView>("quickSimOwnerFixture", { fixtureId }),
-  getOwnerPostMatchSuggestion: () => call<OwnerPostMatchSuggestion | undefined>("getOwnerPostMatchSuggestion"),
-  getEntityReference: (entityType: EntityReferenceType, entityId: EntityId) => call<EntityReference>("getEntityReference", { entityType, entityId }),
-  getPlayerActions: (playerId: EntityId) => call<ActorPlayerActions>("getPlayerActions", { playerId }),
-  getPlayerContractContext: (playerId: EntityId) => call<PlayerContractContext>("getPlayerContractContext", { playerId }),
-  getPlayerTransferContext: (playerId: EntityId) => call<PlayerTransferContext>("getPlayerTransferContext", { playerId }),
-  getOwnerPlayerRequestContext: (playerId: EntityId) => call<OwnerPlayerRequestContext | undefined>("getOwnerPlayerRequestContext", { playerId }),
-  openOwnerPlayerRequest: (playerId: EntityId, intent: OwnerPlayerRequestIntent, deadline?: string) => call<UniversalInteraction>("openOwnerPlayerRequest", { playerId, intent, deadline }),
-  respondToOwnerPlayerRequest: (interactionId: EntityId, stance: OwnerManagerMeetingStance, commitment?: OwnerManagerCommitmentInput) => call<UniversalInteraction>("respondToOwnerPlayerRequest", { interactionId, stance, commitment }),
-  getFacilityPlanning: (clubId?: EntityId) => call<FacilityPlanningView>("getFacilityPlanning", { clubId }),
-  getFacilitySiteOptions: (clubId: EntityId, districtId?: EntityId, municipalityName?: string) => call<FacilitySiteOption[]>("getFacilitySiteOptions", { clubId, districtId, municipalityName }),
-  createFacilityProjectPlan: (input: FacilityProjectPlanInput) => call<FacilityProjectPlanResult>("createFacilityProjectPlan", { input }),
-  getFederationPresidentDashboard: () => call<FederationPresidentDashboard>("getFederationPresidentDashboard"),
+  watchOwnerFixture: (fixtureId?: EntityId) =>
+    call<LiveMatchView>("watchOwnerFixture", { fixtureId }),
+  advanceOwnerFixture: (
+    command?: AdvanceMatchCommand,
+    fixtureId?: EntityId,
+    viewMode?: MatchViewMode,
+  ) => call<LiveMatchView>("advanceOwnerFixture", { command, fixtureId, viewMode }),
+  continueOwnerFixture: (fixtureId?: EntityId, viewMode?: MatchViewMode) =>
+    call<LiveMatchView>("continueOwnerFixture", { fixtureId, viewMode }),
+  quickSimOwnerFixture: (fixtureId?: EntityId) =>
+    call<LiveMatchView>("quickSimOwnerFixture", { fixtureId }),
+  getOwnerPostMatchSuggestion: () =>
+    call<OwnerPostMatchSuggestion | undefined>("getOwnerPostMatchSuggestion"),
+  getEntityReference: (entityType: EntityReferenceType, entityId: EntityId) =>
+    call<EntityReference>("getEntityReference", { entityType, entityId }),
+  getOrganizationProfile: (entityType: OrganizationProfileEntityType, entityId: EntityId) =>
+    call<OrganizationProfile>("getOrganizationProfile", { entityType, entityId }),
+  // Wired only to satisfy DesktopRuntimeApi (landed concurrently in owner-manager-meetings.ts) —
+  // no UI consumes this yet; see this task's CODEX_HANDOFF note.
+  getManagerOwnerPlayerRequests: () =>
+    call<ManagerOwnerPlayerRequest[]>("getManagerOwnerPlayerRequests"),
+  getPlayerActions: (playerId: EntityId) =>
+    call<ActorPlayerActions>("getPlayerActions", { playerId }),
+  getPlayerContractContext: (playerId: EntityId) =>
+    call<PlayerContractContext>("getPlayerContractContext", { playerId }),
+  getPlayerTransferContext: (playerId: EntityId) =>
+    call<PlayerTransferContext>("getPlayerTransferContext", { playerId }),
+  getOwnerPlayerRequestContext: (playerId: EntityId) =>
+    call<OwnerPlayerRequestContext | undefined>("getOwnerPlayerRequestContext", { playerId }),
+  openOwnerPlayerRequest: (
+    playerId: EntityId,
+    intent: OwnerPlayerRequestIntent,
+    deadline?: string,
+  ) => call<UniversalInteraction>("openOwnerPlayerRequest", { playerId, intent, deadline }),
+  respondToOwnerPlayerRequest: (
+    interactionId: EntityId,
+    stance: OwnerManagerMeetingStance,
+    commitment?: OwnerManagerCommitmentInput,
+  ) =>
+    call<UniversalInteraction>("respondToOwnerPlayerRequest", {
+      interactionId,
+      stance,
+      commitment,
+    }),
+  getFacilityPlanning: (clubId?: EntityId) =>
+    call<FacilityPlanningView>("getFacilityPlanning", { clubId }),
+  getFacilitySiteOptions: (clubId: EntityId, districtId?: EntityId, municipalityName?: string) =>
+    call<FacilitySiteOption[]>("getFacilitySiteOptions", { clubId, districtId, municipalityName }),
+  createFacilityProjectPlan: (input: FacilityProjectPlanInput) =>
+    call<FacilityProjectPlanResult>("createFacilityProjectPlan", { input }),
+  // Wired only to satisfy DesktopRuntimeApi (landed concurrently in government.ts) —
+  // no UI consumes this yet; out of scope for this task.
+  getClubInfrastructureGovernmentContext: (projectId: EntityId) =>
+    call<ClubInfrastructureGovernmentContext>("getClubInfrastructureGovernmentContext", {
+      projectId,
+    }),
+  openClubInfrastructureGovernmentRequest: (input: {
+    projectId: EntityId;
+    institutionId: EntityId;
+    fundingType: "INFRASTRUCTURE" | "REGIONAL_GROUND" | "MUNICIPAL_LAND_OR_VENUE";
+    requestedAmount: number;
+  }) => call<GovernmentFundingApplication>("openClubInfrastructureGovernmentRequest", { input }),
+  getFederationPresidentDashboard: () =>
+    call<FederationPresidentDashboard>("getFederationPresidentDashboard"),
   getNationalDevelopment: () => call<FederationDevelopmentSummary>("getNationalDevelopment"),
   getGovernmentOverview: () => call<GovernmentOverview>("getGovernmentOverview"),
-  requestGovernmentFunding: (institutionId: EntityId, fundingType: GovernmentFundingType, requestedAmount: number) => call<GovernmentFundingApplication>("requestGovernmentFunding", { institutionId, fundingType, requestedAmount }),
-  getClubFinanceMeeting: (clubId?: EntityId) => call<ClubFinanceMeetingOverview>("getClubFinanceMeeting", { clubId }),
+  requestGovernmentFunding: (
+    institutionId: EntityId,
+    fundingType: GovernmentFundingType,
+    requestedAmount: number,
+  ) =>
+    call<GovernmentFundingApplication>("requestGovernmentFunding", {
+      institutionId,
+      fundingType,
+      requestedAmount,
+    }),
+  getClubFinanceMeeting: (clubId?: EntityId) =>
+    call<ClubFinanceMeetingOverview>("getClubFinanceMeeting", { clubId }),
   getFederationCandidacy: () => call<FederationCandidacyAssessment>("getFederationCandidacy"),
-  declareFederationElectionCandidacy: () => call<FederationCandidacyAssessment>("declareFederationElectionCandidacy"),
-  foundClub: (name: string, locationName: string) => call<SimulationClubRecord>("foundClub", { name, locationName }),
-  implementFederationGovernanceProposal: (proposalId: EntityId) => call<FederationGovernanceProposal>("implementFederationGovernanceProposal", { proposalId }),
-  setClubBudget: (clubId: EntityId, seasonLabel: string, category: ClubBudgetCategory, amount: number) => call<ClubBudget>("setClubBudget", { clubId, seasonLabel, category, amount }),
-  createInfrastructureProject: (clubId: EntityId, projectType: InfrastructureProjectType) => call<InfrastructureProject>("createInfrastructureProject", { clubId, projectType }),
-  acceptSponsorOffer: (clubId: EntityId, sponsorshipId: EntityId) => call<SponsorshipContract>("acceptSponsorOffer", { clubId, sponsorshipId }),
-  rejectSponsorOffer: (clubId: EntityId, sponsorshipId: EntityId) => call<SponsorshipContract>("rejectSponsorOffer", { clubId, sponsorshipId }),
-  counterSponsorOffer: (clubId: EntityId, sponsorshipId: EntityId, annualValue: number, endDate?: string) => call<SponsorshipContract>("counterSponsorOffer", { clubId, sponsorshipId, annualValue, endDate }),
-  getSponsorMeeting: (clubId?: EntityId) => call<SponsorMeetingOverview>("getSponsorMeeting", { clubId }),
-  rejectExecutiveSponsorOffer: (clubId: EntityId, sponsorshipId: EntityId) => call<SponsorshipContract>("rejectExecutiveSponsorOffer", { clubId, sponsorshipId }),
-  counterExecutiveSponsorOffer: (clubId: EntityId, sponsorshipId: EntityId, annualValue: number, endDate?: string) => call<SponsorshipContract>("counterExecutiveSponsorOffer", { clubId, sponsorshipId, annualValue, endDate }),
-  getFederationCommercialOverview: () => call<FederationCommercialOverview>("getFederationCommercialOverview"),
-  createInvestorStakeOffer: (percentage: number, minimumAmount?: number) => call("createInvestorStakeOffer", { percentage, minimumAmount }),
-  decideInvestorBid: (offerId: EntityId, accept: boolean) => call("decideInvestorBid", { offerId, accept }),
+  declareFederationElectionCandidacy: () =>
+    call<FederationCandidacyAssessment>("declareFederationElectionCandidacy"),
+  foundClub: (name: string, locationName: string) =>
+    call<SimulationClubRecord>("foundClub", { name, locationName }),
+  implementFederationGovernanceProposal: (proposalId: EntityId) =>
+    call<FederationGovernanceProposal>("implementFederationGovernanceProposal", { proposalId }),
+  setClubBudget: (
+    clubId: EntityId,
+    seasonLabel: string,
+    category: ClubBudgetCategory,
+    amount: number,
+  ) => call<ClubBudget>("setClubBudget", { clubId, seasonLabel, category, amount }),
+  createInfrastructureProject: (clubId: EntityId, projectType: InfrastructureProjectType) =>
+    call<InfrastructureProject>("createInfrastructureProject", { clubId, projectType }),
+  acceptSponsorOffer: (clubId: EntityId, sponsorshipId: EntityId) =>
+    call<SponsorshipContract>("acceptSponsorOffer", { clubId, sponsorshipId }),
+  rejectSponsorOffer: (clubId: EntityId, sponsorshipId: EntityId) =>
+    call<SponsorshipContract>("rejectSponsorOffer", { clubId, sponsorshipId }),
+  counterSponsorOffer: (
+    clubId: EntityId,
+    sponsorshipId: EntityId,
+    annualValue: number,
+    endDate?: string,
+  ) =>
+    call<SponsorshipContract>("counterSponsorOffer", {
+      clubId,
+      sponsorshipId,
+      annualValue,
+      endDate,
+    }),
+  getSponsorMeeting: (clubId?: EntityId) =>
+    call<SponsorMeetingOverview>("getSponsorMeeting", { clubId }),
+  rejectExecutiveSponsorOffer: (clubId: EntityId, sponsorshipId: EntityId) =>
+    call<SponsorshipContract>("rejectExecutiveSponsorOffer", { clubId, sponsorshipId }),
+  counterExecutiveSponsorOffer: (
+    clubId: EntityId,
+    sponsorshipId: EntityId,
+    annualValue: number,
+    endDate?: string,
+  ) =>
+    call<SponsorshipContract>("counterExecutiveSponsorOffer", {
+      clubId,
+      sponsorshipId,
+      annualValue,
+      endDate,
+    }),
+  getFederationCommercialOverview: () =>
+    call<FederationCommercialOverview>("getFederationCommercialOverview"),
+  createInvestorStakeOffer: (percentage: number, minimumAmount?: number) =>
+    call("createInvestorStakeOffer", { percentage, minimumAmount }),
+  decideInvestorBid: (offerId: EntityId, accept: boolean) =>
+    call("decideInvestorBid", { offerId, accept }),
   getInvestorMeeting: () => call<InvestorMeetingOverview>("getInvestorMeeting"),
-  injectOwnerCapital: (amount: number) => call<OwnerInvestmentTransaction>("injectOwnerCapital", { amount }),
-  getOwnerManagerMeeting: (clubId?: EntityId) => call<OwnerManagerMeetingOverview>("getOwnerManagerMeeting", { clubId }),
-  openOwnerManagerMeeting: (clubId: EntityId, topic: OwnerManagerMeetingTopic) => call<UniversalInteraction>("openOwnerManagerMeeting", { clubId, topic }),
-  resolveOwnerManagerMeeting: (interactionId: EntityId, stance: OwnerManagerMeetingStance, commitment?: OwnerManagerCommitmentInput) => call<UniversalInteraction>("resolveOwnerManagerMeeting", { interactionId, stance, commitment }),
-  applyClubLoan: (lenderId: EntityId, principal: number, termMonths: number, purpose: string) => call("applyClubLoan", { lenderId, principal, termMonths, purpose }),
+  injectOwnerCapital: (amount: number) =>
+    call<OwnerInvestmentTransaction>("injectOwnerCapital", { amount }),
+  getOwnerManagerMeeting: (clubId?: EntityId) =>
+    call<OwnerManagerMeetingOverview>("getOwnerManagerMeeting", { clubId }),
+  openOwnerManagerMeeting: (clubId: EntityId, topic: OwnerManagerMeetingTopic) =>
+    call<UniversalInteraction>("openOwnerManagerMeeting", { clubId, topic }),
+  resolveOwnerManagerMeeting: (
+    interactionId: EntityId,
+    stance: OwnerManagerMeetingStance,
+    commitment?: OwnerManagerCommitmentInput,
+  ) =>
+    call<UniversalInteraction>("resolveOwnerManagerMeeting", { interactionId, stance, commitment }),
+  applyClubLoan: (lenderId: EntityId, principal: number, termMonths: number, purpose: string) =>
+    call("applyClubLoan", { lenderId, principal, termMonths, purpose }),
   repayClubLoan: (debtId: EntityId, amount?: number) => call("repayClubLoan", { debtId, amount }),
-  acceptExecutiveSponsorOffer: (clubId: EntityId, sponsorshipId: EntityId) => call<SponsorshipContract>("acceptExecutiveSponsorOffer", { clubId, sponsorshipId }),
-  setExecutiveClubBudget: (clubId: EntityId, seasonLabel: string, category: ClubBudgetCategory, amount: number) => call<ClubBudget>("setExecutiveClubBudget", { clubId, seasonLabel, category, amount }),
-  createExecutiveInfrastructureProject: (clubId: EntityId, projectType: InfrastructureProjectType) => call<InfrastructureProject>("createExecutiveInfrastructureProject", { clubId, projectType }),
-  applyExecutiveClubLoan: (clubId: EntityId, lenderId: EntityId, principal: number, termMonths: number, purpose: string) => call("applyExecutiveClubLoan", { clubId, lenderId, principal, termMonths, purpose }),
-  repayExecutiveClubLoan: (clubId: EntityId, debtId: EntityId, amount?: number) => call<ClubDebt>("repayExecutiveClubLoan", { clubId, debtId, amount }),
+  acceptExecutiveSponsorOffer: (clubId: EntityId, sponsorshipId: EntityId) =>
+    call<SponsorshipContract>("acceptExecutiveSponsorOffer", { clubId, sponsorshipId }),
+  setExecutiveClubBudget: (
+    clubId: EntityId,
+    seasonLabel: string,
+    category: ClubBudgetCategory,
+    amount: number,
+  ) => call<ClubBudget>("setExecutiveClubBudget", { clubId, seasonLabel, category, amount }),
+  createExecutiveInfrastructureProject: (
+    clubId: EntityId,
+    projectType: InfrastructureProjectType,
+  ) => call<InfrastructureProject>("createExecutiveInfrastructureProject", { clubId, projectType }),
+  applyExecutiveClubLoan: (
+    clubId: EntityId,
+    lenderId: EntityId,
+    principal: number,
+    termMonths: number,
+    purpose: string,
+  ) => call("applyExecutiveClubLoan", { clubId, lenderId, principal, termMonths, purpose }),
+  repayExecutiveClubLoan: (clubId: EntityId, debtId: EntityId, amount?: number) =>
+    call<ClubDebt>("repayExecutiveClubLoan", { clubId, debtId, amount }),
   closeExecutiveLicence: (caseId: EntityId) => call("closeExecutiveLicence", { caseId }),
-  registerExecutiveCompetitionPlayers: (teamId: EntityId, competitionSeasonId: EntityId) => call("registerExecutiveCompetitionPlayers", { teamId, competitionSeasonId }),
-  hireStaffAsExecutive: (clubId: EntityId, personId: EntityId, role: StaffAppointment["role"], salaryAmountMinor: number, teamId?: EntityId, contractMonths?: number) => call("hireStaffAsExecutive", { clubId, personId, role, salaryAmountMinor, teamId, contractMonths }),
-  dismissStaffAsExecutive: (clubId: EntityId, appointmentId: EntityId) => call("dismissStaffAsExecutive", { clubId, appointmentId }),
-  requestManagerBudget: (seasonLabel: string, category: ClubBudgetCategory, requestedAmount: number) => call("requestManagerBudget", { seasonLabel, category, requestedAmount }),
-  decideManagerBudgetRequest: (requestId: EntityId, approve: boolean) => call("decideManagerBudgetRequest", { requestId, approve }),
-  purchaseEquipment: (category: string, quantity: number) => call("purchaseEquipment", { category, quantity }),
+  registerExecutiveCompetitionPlayers: (teamId: EntityId, competitionSeasonId: EntityId) =>
+    call("registerExecutiveCompetitionPlayers", { teamId, competitionSeasonId }),
+  hireStaffAsExecutive: (
+    clubId: EntityId,
+    personId: EntityId,
+    role: StaffAppointment["role"],
+    salaryAmountMinor: number,
+    teamId?: EntityId,
+    contractMonths?: number,
+  ) =>
+    call("hireStaffAsExecutive", {
+      clubId,
+      personId,
+      role,
+      salaryAmountMinor,
+      teamId,
+      contractMonths,
+    }),
+  dismissStaffAsExecutive: (clubId: EntityId, appointmentId: EntityId) =>
+    call("dismissStaffAsExecutive", { clubId, appointmentId }),
+  requestManagerBudget: (
+    seasonLabel: string,
+    category: ClubBudgetCategory,
+    requestedAmount: number,
+  ) => call("requestManagerBudget", { seasonLabel, category, requestedAmount }),
+  decideManagerBudgetRequest: (requestId: EntityId, approve: boolean) =>
+    call("decideManagerBudgetRequest", { requestId, approve }),
+  purchaseEquipment: (category: string, quantity: number) =>
+    call("purchaseEquipment", { category, quantity }),
   getHomeDashboard: () => call<DesktopApplicationState>("getHomeDashboard"),
   continueCareer: () => call<DesktopApplicationState>("continueCareer"),
   quickSimMatch: (fixtureId?: EntityId) =>
@@ -236,7 +387,8 @@ const bindCommands = (call: CommandCaller): DesktopRuntimeApi => ({
   saveCareerAs: (saveName: string) => call<SaveCatalogEntry>("saveCareerAs", { saveName }),
   deleteSave: (saveId: EntityId) => call<{ deleted: boolean }>("deleteSave", { saveId }),
   getAutosaveStatus: () => call<AutosaveStatusView>("getAutosaveStatus"),
-  loadAutosaveSlot: (slotIndex: number) => call<DesktopApplicationState>("loadAutosaveSlot", { slotIndex }),
+  loadAutosaveSlot: (slotIndex: number) =>
+    call<DesktopApplicationState>("loadAutosaveSlot", { slotIndex }),
 });
 
 const runtimeUnavailable = <T>(error: unknown): AppResult<T> => ({
