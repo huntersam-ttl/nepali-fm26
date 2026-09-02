@@ -3,6 +3,7 @@ import { basename, dirname, join } from "node:path";
 import {
   CareerWorldRepository,
   ClubEconomyRepository,
+  FacilityPlanningRepository,
   ClubLicensingRepository,
   CompetitionRepository,
   ManagerRepository,
@@ -315,6 +316,7 @@ import { capitalInjectionFromInvestor } from "./investor.js";
 import { buildChairmanDashboard, buildFederationPresidentDashboard } from "./role-desktop.js";
 import { buildOwnerMatchday, type OwnerMatchdayView } from "./owner-matchday.js";
 import { buildActorPlayerActions, type ActorPlayerActions } from "./player-actions.js";
+import { createFacilityProjectPlan, generateFacilitySiteOptions, type FacilityPlanningInput } from "./facility-planning.js";
 import { initializeFederationGovernanceForSave, federationCommercialOverview } from "./federation-governance.js";
 import { federationDevelopmentSummary } from "./federation-policy.js";
 import { governmentOverview, requestGovernmentFunding } from "./government.js";
@@ -1040,6 +1042,58 @@ export class DesktopApplicationService {
       const clubId = heldCareerRoles(db, personId).find((role) => role.role === "CHAIRMAN_OWNER")?.targetId;
       if (!clubId) throw appError("ROLE_NOT_AUTHORIZED", "No controlled club is available.");
       return buildOwnerMatchday(db, save, clubId);
+    });
+  }
+
+  getFacilityPlanning(clubId?: EntityId): AppResult<{ clubId: EntityId; projects: InfrastructureProject[]; plans: unknown[]; sites: unknown[] }> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      const role = activeCareerRole(db, personId);
+      const target = clubId ?? heldCareerRoles(db, personId).find((entry) => ["CHAIRMAN_OWNER", "CEO", "GENERAL_SECRETARY"].includes(entry.role))?.targetId;
+      if (!target) throw appError("ROLE_NOT_AUTHORIZED", "No club facility responsibility is available.");
+      if (role === "CHAIRMAN_OWNER") {
+        if (!heldCareerRoles(db, personId).some((entry) => entry.role === role && entry.targetId === target)) throw appError("ROLE_NOT_AUTHORIZED", "The owner does not control this club.");
+      } else if (role === "CEO" || role === "GENERAL_SECRETARY") {
+        this.executiveActor(db, save, target);
+      } else if (role !== "MANAGER") {
+        throw appError("ROLE_NOT_AUTHORIZED", "The active role cannot view club facility planning.");
+      }
+      const planning = new FacilityPlanningRepository(db);
+      return { clubId: target, projects: new ClubEconomyRepository(db).infrastructureProjects(target), plans: planning.plans(target), sites: planning.siteOptions(target) };
+    });
+  }
+
+  getFacilitySiteOptions(clubId: EntityId, districtId: EntityId, municipalityName: string): AppResult<unknown[]> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      const role = activeCareerRole(db, personId);
+      if (role === "CHAIRMAN_OWNER") {
+        if (!heldCareerRoles(db, personId).some((entry) => entry.role === role && entry.targetId === clubId)) throw appError("ROLE_NOT_AUTHORIZED", "The owner does not control this club.");
+      } else if (role === "CEO" || role === "GENERAL_SECRETARY") this.executiveActor(db, save, clubId);
+      else throw appError("ROLE_NOT_AUTHORIZED", "Only the owner or authorized executive may plan a new site.");
+      return generateFacilitySiteOptions(db, { clubId, districtId, municipalityName, date: save.worldDate, seed: `${save.randomSeed}:facility-sites` });
+    });
+  }
+
+  createFacilityProjectPlan(input: Omit<FacilityPlanningInput, "personId" | "callerRole">): AppResult<ReturnType<typeof createFacilityProjectPlan>> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      const role = activeCareerRole(db, personId);
+      let callerRole: FacilityPlanningInput["callerRole"];
+      if (role === "CHAIRMAN_OWNER") {
+        if (!heldCareerRoles(db, personId).some((entry) => entry.role === role && entry.targetId === input.clubId)) throw appError("ROLE_NOT_AUTHORIZED", "The owner does not control this club.");
+        callerRole = "CHAIRMAN_OWNER";
+      } else if (role === "CEO") {
+        this.executiveActor(db, save, input.clubId);
+        callerRole = "CEO";
+      } else {
+        throw appError("ROLE_NOT_AUTHORIZED", "Only the owner or authorized CEO may create a facility project plan.");
+      }
+      try {
+        return createFacilityProjectPlan(db, { ...input, personId, callerRole, date: save.worldDate, seed: `${save.randomSeed}:facility-plan` });
+      } catch (error) {
+        throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "Facility project plan could not be created.");
+      }
     });
   }
 

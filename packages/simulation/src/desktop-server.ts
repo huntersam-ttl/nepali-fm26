@@ -168,6 +168,12 @@ const dispatch = (
       return service.getChairmanDashboard();
     case "getOwnerMatchday":
       return service.getOwnerMatchday();
+    case "getFacilityPlanning":
+      return service.getFacilityPlanning(body.clubId as EntityId | undefined);
+    case "getFacilitySiteOptions":
+      return service.getFacilitySiteOptions(body.clubId as EntityId, body.districtId as EntityId, body.municipalityName as string);
+    case "createFacilityProjectPlan":
+      return service.createFacilityProjectPlan(body.input as any);
     case "watchOwnerFixture":
       return service.watchOwnerFixture(body.fixtureId as EntityId | undefined);
     case "quickSimOwnerFixture":
