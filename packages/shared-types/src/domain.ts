@@ -1960,6 +1960,7 @@ export type OwnershipAcquisitionOffer = {
   createdOn: ISODate;
   decidedOn?: ISODate;
   rationale?: string;
+  investorType?: OwnershipInvestorType;
   provenanceStatus: "SIMULATION_ONLY";
 };
 export type OwnershipAcquisitionTransaction = {

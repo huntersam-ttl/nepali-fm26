@@ -24,6 +24,22 @@ describe("ownership investor market", () => {
     const beforePersonalCash = economy.personalFinancialProfile(demo.chairmanPersonId)!.cash;
     const market = createInvestorStakeOffer(db, { clubId: row.id, sellerHolderId: demo.chairmanPersonId, percentage: 10, date: "2027-07-02" });
     expect(market.bids).toHaveLength(3);
+    const persistedTypes = new Map(
+      market.bids.map((bid) => [bid.offer.id, bid.investorType]),
+    );
+    // Reordering historical offers must not change the identity/type attached
+    // to an investor or make it disagree with the stored rationale.
+    market.bids.forEach((bid, index) => {
+      db.prepare("UPDATE ownership_acquisition_offers SET created_on = ? WHERE id = ?").run(
+        `2027-07-${String(10 - index).padStart(2, "0")}`,
+        bid.offer.id,
+      );
+    });
+    const reordered = buildOwnershipInvestorMarket(db, row.id, "2027-07-02");
+    expect(reordered.bids.map((bid) => persistedTypes.get(bid.offer.id))).toEqual(
+      reordered.bids.map((bid) => bid.investorType),
+    );
+    expect(reordered.bids.every((bid) => bid.offer.rationale?.includes(bid.investorType.replaceAll("_", " ").toLowerCase()))).toBe(true);
     const accepted = decideInvestorBid(db, { offerId: market.bids[0]!.offer.id, date: "2027-07-03", accept: true });
     expect(accepted.status).toBe("ACCEPTED");
     const after = new ClubEconomyRepository(db);

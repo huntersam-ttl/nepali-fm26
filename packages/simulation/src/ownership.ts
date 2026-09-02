@@ -72,10 +72,10 @@ export const buildOwnershipInvestorMarket = (db: GameDatabase, clubId: EntityId,
   const ownership = new ClubEconomyRepository(db).ownershipStakes(clubId);
   const active = ownership.filter((stake) => stake.status === "ACTIVE");
   const open = repo.offers(clubId).filter((offer) => ["OFFER", "COUNTER"].includes(offer.status));
-  const bids: OwnershipInvestorBidView[] = repo.offers(clubId).filter((offer) => offer.sellerHolderId && ["OFFER", "COUNTER", "ACCEPTED", "REJECTED", "WITHDRAWN"].includes(offer.status)).map((offer, index) => ({
+  const bids: OwnershipInvestorBidView[] = repo.offers(clubId).filter((offer) => offer.sellerHolderId && ["OFFER", "COUNTER", "ACCEPTED", "REJECTED", "WITHDRAWN"].includes(offer.status)).map((offer) => ({
     offer,
     investorName: investorNameFor(db, offer.buyerPersonId),
-    investorType: investorTypeFor(index),
+    investorType: offer.investorType ?? investorTypeFor(0),
     impliedValuation: Math.round((offer.counterAmount ?? offer.offerAmount) * 100 / Math.max(offer.percentage, 0.01)),
     simulationOnly: true,
   }));
@@ -122,7 +122,8 @@ export const createInvestorStakeOffer = (db: GameDatabase, input: { clubId: Enti
       const buyerPersonId = generateOwnershipCandidate(db, input.clubId, input.date, valuation, sequence);
       const multiplier = 0.92 + sequence * 0.05;
       const amount = Math.max(minimum, Math.round(valuation * input.percentage / 100 * multiplier));
-      repo.upsertOffer({ id: createStableEntityId("ownership-investor-bid", `${input.clubId}:${input.sellerHolderId}:${input.percentage}:${sequence}`), clubId: input.clubId, buyerPersonId, sellerHolderId: input.sellerHolderId, percentage: input.percentage, offerAmount: amount, status: "OFFER", createdOn: input.date, rationale: `Simulation bid from ${investorTypeFor(sequence).replaceAll("_", " ").toLowerCase()} investor.`, provenanceStatus: status });
+      const investorType = investorTypeFor(sequence);
+      repo.upsertOffer({ id: createStableEntityId("ownership-investor-bid", `${input.clubId}:${input.sellerHolderId}:${input.percentage}:${sequence}`), clubId: input.clubId, buyerPersonId, sellerHolderId: input.sellerHolderId, percentage: input.percentage, offerAmount: amount, status: "OFFER", createdOn: input.date, investorType, rationale: `Simulation bid from ${investorType.replaceAll("_", " ").toLowerCase()} investor.`, provenanceStatus: status });
     }
   }
   return buildOwnershipInvestorMarket(db, input.clubId);

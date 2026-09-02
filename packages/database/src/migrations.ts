@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 85;
+export const CURRENT_DATABASE_VERSION = 86;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -3601,7 +3601,30 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       CREATE INDEX IF NOT EXISTS idx_team_person_assignments_person_role
         ON team_person_assignments(person_id, role);
       CREATE INDEX IF NOT EXISTS idx_player_season_stats_person
-        ON player_season_stats(person_id);
+      ON player_season_stats(person_id);
+    `,
+  },
+  {
+    version: 86,
+    sql: `
+      ALTER TABLE ownership_acquisition_offers ADD COLUMN investor_type TEXT;
+      UPDATE ownership_acquisition_offers
+      SET investor_type = CASE (
+        (
+          SELECT COUNT(*) FROM ownership_acquisition_offers prior
+          WHERE prior.club_id = ownership_acquisition_offers.club_id
+            AND COALESCE(prior.seller_holder_id, '') = COALESCE(ownership_acquisition_offers.seller_holder_id, '')
+            AND prior.percentage = ownership_acquisition_offers.percentage
+            AND (prior.created_on < ownership_acquisition_offers.created_on
+              OR (prior.created_on = ownership_acquisition_offers.created_on AND prior.id <= ownership_acquisition_offers.id))
+        ) - 1
+      ) % 4
+        WHEN 0 THEN 'LOCAL_BUSINESS'
+        WHEN 1 THEN 'STRATEGIC_COMPANY'
+        WHEN 2 THEN 'WEALTHY_INDIVIDUAL'
+        ELSE 'INSTITUTIONAL'
+      END
+      WHERE investor_type IS NULL;
     `,
   },
 ];
