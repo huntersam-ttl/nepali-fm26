@@ -1,5 +1,33 @@
 # Simulation Performance Profile
 
+## Season-1 long-save revalidation after migration 85
+
+On 2026-09-02, one fresh canonical full-production Season-1 run was executed with
+`LONG_SAVE_SEED=long-save-post-freeze-2026`, checkpoint/reload enabled, and migration 85 applied.
+The run completed all 851 matches without a crash or stall in **239.54s elapsed** (the Vitest
+harness reported 254.04s including setup/transform overhead), compared with the previous **465.3s**
+baseline: **48.5% faster**. The database was 82.15 MB and peak observed RSS was 578.5 MB.
+
+| Measure | Result |
+| --- | ---: |
+| Matches / fixtures | 851 / 872 (851 played) |
+| Wall time | 239.54s elapsed |
+| Previous baseline | 465.3s |
+| Improvement | 48.5% |
+| Save size | 82.15 MB |
+| Peak RSS | 578.5 MB |
+| Migration | 85 applied |
+| Duplicate IDs | 0 |
+| Financial values | finite |
+| Emergency lineups | 0 |
+| Position shortages | 2 |
+
+The harness completed its save-close/reopen checkpoint and reported valid match completion, but the
+strict correctness assertion failed on two position-shortage cases (the prior baseline recorded
+one). No gameplay change was made to the peer-owned squad-health work; therefore the performance
+gate is materially improved but remains **FAIL_PERFORMANCE** pending resolution of that correctness
+gate and a release decision on the remaining long-save criteria. No second benchmark was started.
+
 ## Current bounded profiling pass
 
 At the release-readiness pass beginning from HEAD `21efb3c`, a disposable canonical save was
