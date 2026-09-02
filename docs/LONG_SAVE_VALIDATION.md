@@ -1,5 +1,15 @@
 # Long-save validation
 
+## Latest bounded release-gate attempt (HEAD `74d86fb`)
+
+- Command: `LONG_SAVE_RUN=1 LONG_SAVE_DIAGNOSTIC=1 LONG_SAVE_SEASONS=3 LONG_SAVE_CHECKPOINT=1 LONG_SAVE_SEED=release-gate-2026 pnpm vitest run packages/testing/src/long-save-validation.test.ts --maxWorkers=1 --minWorkers=1`
+- Result: **FAIL — performance/squad-health gate not passed**. One deterministic season checkpoint completed in 465.3s; the run was stopped before season 2 because the reduced three-season attempt was already materially beyond a useful bounded validation window.
+- Season 1 metrics: 851 matches, 5 completed competition states, 82.1 MB SQLite, 599 MB RSS, 0 duplicate IDs, finite financial values, 0 emergency lineups, and 1 position-shortage case.
+- Phase timing: fixtures 0.3s, workforce/youth 32.3s, competitions 214.4s, economy/ownership/AI 78.0s, federation 21.4s, international 6.8s, external world 4.3s, history/media/persistence 13.1s.
+- Coverage: A/B/C division smoke 6/6, founder Owner career 1/1, role switching 1/1, and President governance command 1/1 passed. Executive/agent long-save paths were not included in this expensive run; their focused regressions remain separate.
+- No crash, deadlock, duplicate identity, non-finite finance, or migration error appeared before stopping. The position-shortage result matches the previously documented structural finding and was not changed in this pass.
+- Gate status: **FAIL_PERFORMANCE**; 20-season and 50-season sign-off remain outstanding. Do not claim long-save release readiness from this checkpoint.
+
 ## Canonical run
 
 - Requested baseline: `772ead8`; actual checkout at launch: `772ead8` (later peer commits are present in the shared checkout).
@@ -24,13 +34,13 @@ Next pass: profile the long-save simulation/checkpoint path and establish a term
 
 The checkpointed five-season diagnostic completed S1–S5, although the strict validation test failed on position shortages (S5: 3); duplicate IDs were zero and financial values were finite. Workload stayed flat at 851 matches per season while the database grew from 73.1MB to 192.4MB.
 
-| Season | Total | Competitions | Economy/ownership/AI |
-|---|---:|---:|---:|
-| S1 | 175.8s | 87.2s | 35.4s |
-| S2 | 266.7s | 128.2s | 94.0s |
-| S3 | 496.6s | 212.8s | 242.2s |
-| S4 | 575.3s | 196.3s | 338.6s |
-| S5 | 823.6s | 251.6s | 528.5s |
+| Season |  Total | Competitions | Economy/ownership/AI |
+| ------ | -----: | -----------: | -------------------: |
+| S1     | 175.8s |        87.2s |                35.4s |
+| S2     | 266.7s |       128.2s |                94.0s |
+| S3     | 496.6s |       212.8s |               242.2s |
+| S4     | 575.3s |       196.3s |               338.6s |
+| S5     | 823.6s |       251.6s |               528.5s |
 
 Root cause: `closeClubFinancialSeason` iterated 573 clubs and loaded each club's entire historical `club_ledger_entries`, then filtered the current season in memory. The table grew with every season; the existing `(club_id, entry_date)` index was not used by the unbounded read. The single fix adds a season-prefix predicate to `ClubEconomyRepository.ledgerEntries` and uses it for annual close. Historical ledger rows remain stored.
 

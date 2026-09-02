@@ -38,6 +38,8 @@ pre-expansion classifications are not the current roadmap status.
 - Database and simulation builds: passed.
 - Formatting and diff checks: passed.
 - Full typecheck: passed after the narrow stale-test-typing fix in `a8186ef`.
+- Latest bounded long-save gate: one season checkpoint completed with zero duplicate IDs and finite finances, but took 465.3s and reported one position-shortage case; the three-season attempt was stopped before season 2. The 20/50-season release gate therefore remains failed/unproven.
+- Representative smoke coverage: A/B/C division math 6/6, founder Owner career 1/1, role switching 1/1, and President governance command 1/1 passed.
 - Peer modifications, Claude-owned UI work, untracked artifacts, and Apple signing state were not
   changed.
 
