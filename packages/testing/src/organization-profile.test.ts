@@ -148,6 +148,85 @@ describe("organization profiles", () => {
       const investorId = db.prepare("SELECT id FROM persons ORDER BY id LIMIT 1").get() as {
         id: EntityId;
       };
+      db.prepare(
+        "INSERT INTO ownership_acquisition_offers (id,club_id,buyer_person_id,seller_holder_id,percentage,offer_amount,counter_amount,status,created_on,decided_on,rationale,investor_type,provenance_status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+      ).run(
+        "organization-profile-rejected-offer",
+        club.id,
+        investorId.id,
+        null,
+        12,
+        900_000,
+        null,
+        "REJECTED",
+        "2026-08-02",
+        "2026-08-03",
+        "Test rejection",
+        null,
+        "SIMULATION_ONLY",
+      );
+      db.prepare(
+        "INSERT INTO ownership_acquisition_offers (id,club_id,buyer_person_id,seller_holder_id,percentage,offer_amount,counter_amount,status,created_on,decided_on,rationale,investor_type,provenance_status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+      ).run(
+        "organization-profile-accepted-offer",
+        club.id,
+        investorId.id,
+        null,
+        8,
+        1_200_000,
+        null,
+        "ACCEPTED",
+        "2026-08-04",
+        "2026-08-04",
+        "Test acceptance",
+        null,
+        "SIMULATION_ONLY",
+      );
+      db.prepare(
+        "INSERT INTO ownership_acquisition_transactions (id,offer_id,club_id,buyer_person_id,seller_holder_id,transaction_date,amount,percentage,status,provenance_status) VALUES (?,?,?,?,?,?,?,?,?,?)",
+      ).run(
+        "organization-profile-transaction",
+        "organization-profile-accepted-offer",
+        club.id,
+        investorId.id,
+        null,
+        "2026-08-04",
+        1_200_000,
+        8,
+        "POSTED",
+        "SIMULATION_ONLY",
+      );
+      db.prepare(
+        "INSERT INTO club_ownership_stakes (id,club_id,holder_type,holder_id,holder_name,role,percentage,voting_percentage,start_date,end_date,status,ownership_model,provenance_status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+      ).run(
+        "organization-profile-active-stake",
+        club.id,
+        "PERSON",
+        investorId.id,
+        "Test Investor",
+        "SHAREHOLDER",
+        8,
+        8,
+        "2026-08-04",
+        null,
+        "ACTIVE",
+        "SHAREHOLDING",
+        "SIMULATION_ONLY",
+      );
+      const investor = buildOrganizationProfile(db, "INVESTOR", investorId.id, "CHAIRMAN_OWNER");
+      expect(investor.dealHistory).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: "organization-profile-rejected-offer", status: "REJECTED" }),
+          expect.objectContaining({ id: "organization-profile-transaction", property: "OWNERSHIP_TRANSACTION", status: "ACCEPTED" }),
+        ]),
+      );
+      expect(investor.activeDeals).toEqual(
+        expect.arrayContaining([expect.objectContaining({ id: "organization-profile-active-stake", status: "ACTIVE" })]),
+      );
+      expect(investor.involvedEntities).toEqual(
+        expect.arrayContaining([expect.objectContaining({ entityType: "CLUB", id: club.id })]),
+      );
+      expect(["NEPAL", "MULTINATIONAL", "UNKNOWN"]).toContain(investor.organizationContext);
       expect(
         buildOrganizationProfile(db, "INVESTOR", investorId.id, "CHAIRMAN_OWNER").entityReference,
       ).toMatchObject({

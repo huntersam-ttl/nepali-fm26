@@ -4,7 +4,7 @@ import type { EntityReference, EntityReferenceType } from "./entity-reference.js
 export type OrganizationProfile = {
   entityReference: EntityReference;
   sector?: string;
-  organizationContext: "NEPAL" | "MULTINATIONAL" | "CONTEXT_ONLY";
+  organizationContext: "NEPAL" | "MULTINATIONAL" | "CONTEXT_ONLY" | "UNKNOWN";
   provenanceStatus: EntityReference["provenanceStatus"];
   relationshipClues: string[];
   activeDeals: OrganizationCommercialDeal[];
