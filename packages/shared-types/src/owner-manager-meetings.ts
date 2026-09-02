@@ -26,6 +26,22 @@ export type OwnerPlayerRequestContext = {
   linkedPromiseId?: EntityId;
 };
 
+export type ManagerOwnerPlayerRequest = {
+  requestId: EntityId;
+  player: EntityReference;
+  clubId: EntityId;
+  requestIntent: OwnerPlayerRequestIntent;
+  requestedBy: EntityId;
+  requestedOn: ISODate;
+  deadline?: ISODate;
+  stage: UniversalInteraction["stage"];
+  response?: string;
+  linkedPromiseId?: EntityId;
+  fulfillmentState: "OPEN" | "FULFILLED" | "DECLINED" | "DEFERRED" | "STALE" | "EXPIRED";
+  staleReason?: string;
+  sourceMeetingId: EntityId;
+};
+
 /**
  * The exact topic/stance/commitment vocabulary owner-manager-meetings.ts and
  * universal-interaction-adapters.ts already accept — declared once here so

@@ -18,6 +18,7 @@ import {
   type OwnerManagerMeetingTopic,
   type OwnerPlayerRequestContext,
   type OwnerPlayerRequestIntent,
+  type ManagerOwnerPlayerRequest,
   type UniversalInteraction,
 } from "@nepal-football-sim/shared-types";
 import { openInteraction, submitInteractionAction } from "./universal-interaction-adapters.js";
@@ -201,6 +202,58 @@ export const ownerPlayerRequestContext = (
     meeting: interaction,
     linkedPromiseId: interaction.promiseIds[0],
   };
+};
+
+export const managerOwnerPlayerRequests = (
+  db: GameDatabase,
+  input: { clubId: EntityId; managerPersonId: EntityId; date: string },
+): ManagerOwnerPlayerRequest[] => {
+  const terminal = new Set(["REJECTED", "WALKED_AWAY", "CANCELLED"]);
+  return new UniversalInteractionRepository(db)
+    .all()
+    .filter(
+      (item) =>
+        item.interactionType === "OWNER_MANAGER_MEETING" &&
+        item.organisationId === input.clubId &&
+        item.counterpart.entityId === input.managerPersonId &&
+        Boolean(item.demands.playerId),
+    )
+    .sort((left, right) =>
+      `${right.worldDate}:${right.id}`.localeCompare(`${left.worldDate}:${left.id}`),
+    )
+    .slice(0, 50)
+    .map((item) => {
+      const playerId = item.demands.playerId as EntityId;
+      const contract = new TransferMarketRepository(db).activeContract(playerId, input.date);
+      const staleReason = contract?.clubId !== input.clubId ? "Player is no longer at this club." : undefined;
+      const response = item.outcome;
+      const fulfillmentState = staleReason
+        ? "STALE"
+        : item.stage === "COMPLETED"
+          ? "FULFILLED"
+          : item.stage === "REJECTED" || item.stage === "WALKED_AWAY"
+            ? "DECLINED"
+            : item.stage === "CANCELLED"
+              ? "EXPIRED"
+              : response?.toLowerCase().includes("defer")
+                ? "DEFERRED"
+                : "OPEN";
+      return {
+        requestId: item.id,
+        player: buildEntityReference(db, "PLAYER", playerId, "MANAGER"),
+        clubId: input.clubId,
+        requestIntent: item.demands.requestIntent as OwnerPlayerRequestIntent,
+        requestedBy: item.initiator.entityId,
+        requestedOn: item.worldDate as ISODate,
+        deadline: item.deadline as ISODate | undefined,
+        stage: item.stage,
+        response,
+        linkedPromiseId: item.promiseIds[0],
+        fulfillmentState,
+        staleReason,
+        sourceMeetingId: item.id,
+      };
+    });
 };
 
 export const respondToOwnerPlayerRequest = (

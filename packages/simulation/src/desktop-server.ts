@@ -421,6 +421,8 @@ const dispatch = (
         body.stance as OwnerManagerMeetingStance,
         body.commitment as OwnerManagerCommitmentInput | undefined,
       );
+    case "getManagerOwnerPlayerRequests":
+      return service.getManagerOwnerPlayerRequests();
     case "getPlayerContractContext":
       return service.getPlayerContractContext(body.playerId as EntityId);
     case "getPlayerTransferContext":

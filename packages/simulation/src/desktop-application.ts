@@ -71,6 +71,7 @@ import {
   type OwnerManagerMeetingStance,
   type OwnerManagerMeetingTopic,
   type OwnerPlayerRequestContext,
+  type ManagerOwnerPlayerRequest,
   type OwnerPlayerRequestIntent,
   type UniversalInteraction,
   type SponsorMeetingOverview,
@@ -340,6 +341,7 @@ import {
   resolveOwnerManagerMeeting as resolveOwnerManagerMeetingCommand,
   createOwnerPlayerRequest,
   ownerPlayerRequestContext,
+  managerOwnerPlayerRequests,
   respondToOwnerPlayerRequest,
   resolveOwnerPlayerRequestAfterAction,
 } from "./owner-manager-meetings.js";
@@ -2171,6 +2173,17 @@ export class DesktopApplicationService {
         );
       }
     }, true);
+  }
+
+  getManagerOwnerPlayerRequests(): AppResult<ManagerOwnerPlayerRequest[]> {
+    return this.managerCommand((db, save, context) => {
+      if (!context.club?.id) throw appError("ROLE_NOT_AUTHORIZED", "Manager has no club.");
+      return managerOwnerPlayerRequests(db, {
+        clubId: context.club.id,
+        managerPersonId: context.manager.personId,
+        date: save.worldDate,
+      });
+    });
   }
 
   applyClubLoan(

@@ -55,6 +55,7 @@ import type {
   OwnerManagerMeetingOverview,
   OwnerManagerMeetingStance,
   OwnerManagerMeetingTopic,
+  ManagerOwnerPlayerRequest,
   OwnerPlayerRequestContext,
   OwnerPlayerRequestIntent,
 } from "./owner-manager-meetings.js";
@@ -565,6 +566,7 @@ export type DesktopRuntimeApi = {
   getOwnerPlayerRequestContext(
     playerId: EntityId,
   ): Promise<AppResult<OwnerPlayerRequestContext | undefined>>;
+  getManagerOwnerPlayerRequests(): Promise<AppResult<ManagerOwnerPlayerRequest[]>>;
   /** Opens a real Owner<->Manager meeting scoped to one player and intent — never a direct football mutation. */
   openOwnerPlayerRequest(
     playerId: EntityId,
