@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { GovernmentRepository, openGameDatabase } from "@nepal-football-sim/database";
-import { createNepalSave, governmentOverview, requestGovernmentFunding } from "@nepal-football-sim/simulation";
+import { createNepalSave, governmentOverview, requestGovernmentFunding, reviewGovernmentFunding, submitGovernmentFunding } from "@nepal-football-sim/simulation";
 import type { EntityId } from "@nepal-football-sim/shared-types";
 
 /**
@@ -144,6 +144,112 @@ describe("government relations read model and funding request", () => {
       }),
     ).toThrow(/missing/);
 
+    db.close();
+    rmSync(directory, { recursive: true, force: true });
+  });
+
+  it("progresses relationship trust once across submission and review, including after reload", () => {
+    const { directory, db, federationId } = setup();
+    const repo = new GovernmentRepository(db);
+    const institutionId = "review-institution" as EntityId;
+    repo.upsertInstitution({
+      id: institutionId,
+      name: "National Sports Council",
+      institutionType: "NATIONAL_SPORTS_COUNCIL",
+      profile: {
+        budgetCapacity: 40_000_000,
+        committedBudget: 0,
+        footballPriority: 80,
+        credibilityTowardFederation: 70,
+        infrastructurePriority: 80,
+        youthWomenPriority: 70,
+      },
+      provenanceStatus: "SIMULATION_ONLY",
+    });
+
+    const application = requestGovernmentFunding(db, {
+      federationId,
+      institutionId,
+      fundingType: "INFRASTRUCTURE",
+      requestedAmount: 5_000_000,
+      date: "2026-08-15",
+    });
+    expect(repo.relationships(institutionId)[0]?.trust).toBe(51);
+
+    const submitted = submitGovernmentFunding(db, application.id);
+    expect(submitted.status).toBe("SUBMITTED");
+    expect(repo.relationships(institutionId)[0]?.trust).toBe(53);
+
+    const reviewed = reviewGovernmentFunding(db, {
+      applicationId: application.id,
+      reviewedOn: "2026-08-16",
+      evidence: {
+        federationCredibility: 90,
+        projectQuality: 90,
+        footballPerformance: 80,
+        existingCommitments: 0,
+      },
+    });
+    expect(reviewed.status).toBe("APPROVED");
+    expect(repo.relationships(institutionId)[0]?.trust).toBe(58);
+
+    const reloaded = openGameDatabase(join(directory, "career.sqlite"));
+    const trustAfterReload = new GovernmentRepository(reloaded).relationships(institutionId)[0]?.trust;
+    expect(trustAfterReload).toBe(58);
+    expect(reviewGovernmentFunding(reloaded, {
+      applicationId: application.id,
+      reviewedOn: "2026-08-17",
+      evidence: {
+        federationCredibility: 90,
+        projectQuality: 90,
+        footballPerformance: 80,
+        existingCommitments: 0,
+      },
+    }).status).toBe("APPROVED");
+    expect(new GovernmentRepository(reloaded).relationships(institutionId)[0]?.trust).toBe(58);
+
+    reloaded.close();
+    db.close();
+    rmSync(directory, { recursive: true, force: true });
+  });
+
+  it("records a bounded relationship setback for a rejected request", () => {
+    const { directory, db, federationId } = setup();
+    const repo = new GovernmentRepository(db);
+    const institutionId = "reject-institution" as EntityId;
+    repo.upsertInstitution({
+      id: institutionId,
+      name: "Municipality",
+      institutionType: "MUNICIPALITY",
+      profile: {
+        budgetCapacity: 10,
+        committedBudget: 10,
+        footballPriority: 10,
+        credibilityTowardFederation: 20,
+        infrastructurePriority: 10,
+        youthWomenPriority: 10,
+      },
+      provenanceStatus: "SIMULATION_ONLY",
+    });
+    const application = requestGovernmentFunding(db, {
+      federationId,
+      institutionId,
+      fundingType: "MUNICIPAL_LAND_OR_VENUE",
+      requestedAmount: 5_000,
+      date: "2026-08-15",
+    });
+    submitGovernmentFunding(db, application.id);
+    expect(reviewGovernmentFunding(db, {
+      applicationId: application.id,
+      reviewedOn: "2026-08-16",
+      evidence: {
+        federationCredibility: 0,
+        projectQuality: 0,
+        footballPerformance: 0,
+        existingCommitments: 100,
+      },
+    }).status).toBe("REJECTED");
+    expect(repo.relationships(institutionId)[0]?.trust).toBe(50);
     db.close();
     rmSync(directory, { recursive: true, force: true });
   });

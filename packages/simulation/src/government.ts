@@ -44,9 +44,38 @@ export const evaluateGovernmentFunding = (input: {
 };
 
 export const proposeGovernmentFunding = (db: GameDatabase, input: Omit<GovernmentFundingApplication, "id" | "status" | "approvedAmount" | "conditions" | "decidedOn" | "decisionReason" | "provenanceStatus">): GovernmentFundingApplication => {
-  const application: GovernmentFundingApplication = { ...input, id: createStableEntityId("government-funding", `${input.institutionId}:${input.fundingType}:${input.proposedOn}:${input.projectId ?? input.clubId ?? input.federationId ?? "general"}`), status: "PROPOSED", conditions: [], provenanceStatus: "SIMULATION_ONLY" };
-  new GovernmentRepository(db).upsertApplication(application);
+  const repo = new GovernmentRepository(db);
+  const applicationId = createStableEntityId("government-funding", `${input.institutionId}:${input.fundingType}:${input.proposedOn}:${input.projectId ?? input.clubId ?? input.federationId ?? "general"}`);
+  const existing = repo.applications().find((item) => item.id === applicationId);
+  if (existing) return existing;
+  const application: GovernmentFundingApplication = { ...input, id: applicationId, status: "PROPOSED", conditions: [], provenanceStatus: "SIMULATION_ONLY" };
+  repo.upsertApplication(application);
+  adjustGovernmentRelationship(db, application, 1, input.proposedOn);
   return application;
+};
+
+const adjustGovernmentRelationship = (
+  db: GameDatabase,
+  application: GovernmentFundingApplication,
+  delta: number,
+  date: string,
+): void => {
+  const entityId = application.federationId ?? application.clubId;
+  if (!entityId) return;
+  const entityType = application.federationId ? "FEDERATION" as const : "CLUB" as const;
+  const repo = new GovernmentRepository(db);
+  const existing = repo.relationships(application.institutionId).find(
+    (relationship) => relationship.entityId === entityId && relationship.entityType === entityType,
+  );
+  repo.upsertRelationship({
+    id: existing?.id ?? createStableEntityId("government-relationship", `${application.institutionId}:${entityType}:${entityId}`),
+    institutionId: application.institutionId,
+    entityId,
+    entityType,
+    trust: clamp((existing?.trust ?? 50) + delta),
+    lastInteractionOn: date,
+    provenanceStatus: "SIMULATION_ONLY",
+  });
 };
 
 /**
@@ -164,7 +193,9 @@ export const submitGovernmentFunding = (db: GameDatabase, applicationId: string)
   if (!application) throw new Error(`Government funding application missing: ${applicationId}`);
   if (application.status !== "PROPOSED") return application;
   const submitted = { ...application, status: "SUBMITTED" as const };
-  repo.upsertApplication(submitted); return submitted;
+  repo.upsertApplication(submitted);
+  adjustGovernmentRelationship(db, submitted, 2, application.proposedOn);
+  return submitted;
 };
 
 export const reviewGovernmentFunding = (db: GameDatabase, input: { applicationId: string; reviewedOn: string; evidence: GovernmentFundingEvidence }): GovernmentFundingApplication => {
@@ -179,6 +210,8 @@ export const reviewGovernmentFunding = (db: GameDatabase, input: { applicationId
     repo.upsertInstitution({ ...institution, profile: { ...institution.profile, committedBudget: institution.profile.committedBudget + decision.approvedAmount } });
     settleApprovedFunding(db, reviewed, decision.approvedAmount, input.reviewedOn);
   }
+  const relationshipDelta = decision.status === "REJECTED" ? -3 : decision.status === "APPROVED" ? 5 : 3;
+  adjustGovernmentRelationship(db, reviewed, relationshipDelta, input.reviewedOn);
   return reviewed;
 };
 
