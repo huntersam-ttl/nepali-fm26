@@ -1,4 +1,5 @@
 import type { EntityId } from "./ids.js";
+import type { EntityReference } from "./entity-reference.js";
 import type {
   CaptainInfluence,
   ConcernResponseAction,
@@ -1346,6 +1347,29 @@ export type LiveTeamView = {
   mentality?: string;
 };
 
+export type MatchEventParticipant = {
+  role:
+    | "SCORER"
+    | "ASSIST"
+    | "PLAYER"
+    | "PLAYER_ON"
+    | "PLAYER_OFF"
+    | "TAKER"
+    | "GOALKEEPER";
+  personId: EntityId;
+  reference: EntityReference;
+};
+
+/** Canonical event identity for clickable matchday and post-match views. */
+export type StructuredMatchEvent = {
+  eventId: EntityId;
+  type: string;
+  minute?: number;
+  stoppageTime?: number;
+  teamId?: EntityId;
+  participants: MatchEventParticipant[];
+};
+
 export type LiveMatchView = {
   matchId: EntityId;
   fixtureId: EntityId;
@@ -1377,6 +1401,7 @@ export type LiveMatchView = {
   /** The team this career manages, so the UI knows which side to control. */
   managedTeamId: EntityId;
   commentary: MatchCommentaryLine[];
+  structuredEvents: StructuredMatchEvent[];
   /** Highest sequence included, to pass back as the next cursor. */
   cursor: number;
   /** Players who picked up an injury and may need replacing. */
@@ -1483,6 +1508,7 @@ export type PostMatchReport = {
     redCards: { home: number; away: number };
   };
   timeline: MatchCommentaryLine[];
+  structuredEvents: StructuredMatchEvent[];
   ratings: MatchRatingRow[];
   playerOfTheMatch?: MatchRatingRow;
   substitutions: Array<{

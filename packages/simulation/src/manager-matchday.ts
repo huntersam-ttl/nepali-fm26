@@ -14,6 +14,7 @@ import type {
   MatchViewMode,
   PlayerMatchState,
   PostMatchReport,
+  StructuredMatchEvent,
   TacticalSetup,
 } from "@nepal-football-sim/shared-types";
 import { commentaryTimeline, type CommentaryLine } from "./match-commentary.js";
@@ -24,8 +25,67 @@ import {
   type RuntimeTeam,
 } from "./match-engine.js";
 import { FORMATION_PRESETS, TACTICAL_STYLE_PRESETS } from "./tactics.js";
+import { venueForFixture } from "./manager-desktop.js";
+import { buildEntityReference } from "./entity-reference.js";
 
 type SqlRow = Record<string, any>;
+
+const structuredMatchEvents = (
+  db: GameDatabase,
+  events: readonly Pick<
+    import("@nepal-football-sim/shared-types").MatchEvent,
+    | "id"
+    | "type"
+    | "minute"
+    | "stoppageTime"
+    | "teamId"
+    | "personId"
+    | "primaryPersonId"
+    | "secondaryPersonId"
+    | "data"
+  >[],
+): StructuredMatchEvent[] => {
+  const participantIds = (
+    event: (typeof events)[number],
+  ): Array<{ role: StructuredMatchEvent["participants"][number]["role"]; personId: EntityId }> => {
+    const primary = event.primaryPersonId ?? event.personId;
+    const secondary = event.secondaryPersonId;
+    if (event.type === "SUBSTITUTION") {
+      return [
+        ...(primary ? [{ role: "PLAYER_ON" as const, personId: primary }] : []),
+        ...(secondary ? [{ role: "PLAYER_OFF" as const, personId: secondary }] : []),
+      ];
+    }
+    if (event.type === "GOAL" || event.type === "OWN_GOAL") {
+      return [
+        ...(primary ? [{ role: "SCORER" as const, personId: primary }] : []),
+        ...(secondary ? [{ role: "ASSIST" as const, personId: secondary }] : []),
+      ];
+    }
+    if (event.type === "ASSIST") {
+      return primary ? [{ role: "ASSIST" as const, personId: primary }] : [];
+    }
+    if (["PENALTY", "PENALTY_SHOOTOUT_KICK"].includes(event.type)) {
+      return primary ? [{ role: "TAKER" as const, personId: primary }] : [];
+    }
+    return primary ? [{ role: "PLAYER" as const, personId: primary }] : [];
+  };
+
+  return events
+    .map((event) => ({
+      eventId: event.id,
+      type: event.type,
+      minute: event.minute,
+      stoppageTime: event.stoppageTime,
+      teamId: event.teamId,
+      participants: participantIds(event).map(({ role, personId }) => ({
+        role,
+        personId,
+        reference: buildEntityReference(db, "PLAYER", personId, "CHAIRMAN_OWNER"),
+      })),
+    }))
+    .filter((event) => event.participants.length > 0);
+};
 
 const personName = (db: GameDatabase, id: EntityId): string => {
   const row = db.prepare("SELECT * FROM persons WHERE id = ?").get(id) as SqlRow | undefined;
@@ -189,6 +249,7 @@ export const buildLiveMatchView = (
     away: liveTeam(db, state.away, state.awayGoals, state.substitutionLimit),
     managedTeamId: options.managedTeamId,
     commentary,
+    structuredEvents: structuredMatchEvents(db, events),
     cursor: state.eventSequence - 1,
     injuryDecisions,
     finalized: Boolean(options.finalized),
@@ -444,6 +505,7 @@ export const buildPostMatchReport = (
       },
     },
     timeline: lines,
+    structuredEvents: structuredMatchEvents(db, events),
     ratings,
     playerOfTheMatch: playerOfTheMatch(ratings),
     substitutions: events
