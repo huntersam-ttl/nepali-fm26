@@ -12,7 +12,7 @@ import type {
 import type { AppError, DesktopRuntimeApi } from "../appBridge.js";
 import { AsyncPanel, Badge, ErrorBanner, Metrics, Panel, useRuntimeData } from "./ui.js";
 import { CandidacyPanel } from "./screens/HomeScreen.js";
-import { BankMeeting, RoleDetailScreen, type ChairmanScreen, type PresidentScreen } from "./RoleDetailScreen.js";
+import { BankMeeting, RoleDetailScreen, SponsorMeeting, type ChairmanScreen, type PresidentScreen } from "./RoleDetailScreen.js";
 
 export const EXECUTIVE_ROLES = ["SPORTING_DIRECTOR", "DIRECTOR_OF_FOOTBALL", "CEO", "GENERAL_SECRETARY"];
 
@@ -130,6 +130,7 @@ const ExecutiveDashboardView = ({
   const [error, setError] = useState<AppError | null>(null);
   const [busy, setBusy] = useState(false);
   const canSetBudget = authority.permittedActions.includes("BUDGET_ADMINISTRATION");
+  const canManageCommercial = authority.permittedActions.includes("COMMERCIAL_OVERSIGHT");
   const setBudget = async (): Promise<void> => {
     if (busy) return;
     setBusy(true);
@@ -205,6 +206,7 @@ const ExecutiveDashboardView = ({
         </Panel>
       )}
       {canSetBudget && <BankMeeting bridge={bridge} role="CEO" clubId={authority.clubId} />}
+      {canManageCommercial && <SponsorMeeting bridge={bridge} role="CEO" clubId={authority.clubId} />}
     </section>
   );
 };

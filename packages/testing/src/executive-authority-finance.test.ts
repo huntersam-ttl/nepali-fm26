@@ -19,14 +19,17 @@ import {
   applyForClubLoanCommand,
   assignExecutiveRole,
   clubFinanceMeetingOverview,
+  counterSponsorshipForExecutive,
   dismissStaff,
   ExecutiveRoleError,
   hireStaff,
   hireStaffForExecutive,
   initializeClubFinanceMarkets,
+  rejectSponsorshipForExecutive,
   repayClubLoanCommand,
   repayClubLoanForExecutive,
   setBudgetForExecutive,
+  sponsorMeetingOverview,
 } from "@nepal-football-sim/simulation";
 import {
   createStableEntityId,
@@ -594,6 +597,111 @@ describe("executive authority: commercial and staff-recruitment adapters", () =>
     });
     expect(appointment.role).toBe("SCOUT");
     expect(appointment.employmentStatus).toBe("ACTIVE");
+    db.close();
+  });
+
+  it("builds an honest sponsor-meeting overview: real sponsor identity attached, bucketed by status", () => {
+    const { db, club } = buildFixture(join(dir, "career.sqlite"));
+    const economy = new ClubEconomyRepository(db);
+    const sponsorId = createStableEntityId("sponsor", "eaf-sm-sponsor");
+    economy.upsertSponsor({
+      id: sponsorId,
+      name: "Test Telecom Ltd",
+      industry: "Telecommunications",
+      reputation: 6,
+      budgetTier: "NATIONAL",
+      status: "VERIFIED",
+      identityProvenance: "VERIFIED",
+    });
+    economy.upsertSponsorship({
+      id: createStableEntityId("sponsorship-contract", "eaf-sm-offer"),
+      clubId: club.id,
+      sponsorId,
+      type: "SHIRT_MAIN",
+      startDate: "2026-08-05",
+      endDate: "2027-08-05",
+      annualValue: 500_000,
+      bonuses: { champion: 60_000 },
+      currency: "NPR",
+      status: "OFFERED",
+      exclusivityGroup: "SHIRT_MAIN",
+      expectations: { appearances: 6, socialReach: 30 },
+      provenanceStatus: "SIMULATION_ONLY",
+    });
+    const overview = sponsorMeetingOverview(db, club.id);
+    expect(overview.offers).toHaveLength(1);
+    expect(overview.offers[0]!.sponsorName).toBe("Test Telecom Ltd");
+    expect(overview.offers[0]!.sponsorIndustry).toBe("Telecommunications");
+    expect(overview.offers[0]!.sponsorBudgetTier).toBe("NATIONAL");
+    expect(overview.offers[0]!.sponsorIdentityProvenance).toBe("VERIFIED");
+    expect(overview.active).toEqual([]);
+    expect(overview.history).toEqual([]);
+    db.close();
+  });
+
+  it("lets a delegated CEO with commercial oversight reject a sponsorship through the canonical executive adapter", () => {
+    const { db, club, team, ownerId } = buildFixture(join(dir, "career.sqlite"));
+    const ceoId = hireCeo(db, club, team, ownerId);
+    const economy = new ClubEconomyRepository(db);
+    const sponsorId = createStableEntityId("sponsor", "eaf-reject-sponsor");
+    economy.upsertSponsor({ id: sponsorId, name: "Reject Test Ltd", industry: "Banking", reputation: 5, budgetTier: "LOCAL", status: "SIMULATION_ONLY" });
+    const sponsorshipId = createStableEntityId("sponsorship-contract", "eaf-reject-offer");
+    economy.upsertSponsorship({ id: sponsorshipId, clubId: club.id, sponsorId, type: "SLEEVE", startDate: "2026-08-05", endDate: "2027-08-05", annualValue: 200_000, bonuses: {}, currency: "NPR", status: "OFFERED", provenanceStatus: "SIMULATION_ONLY" });
+    const rejected = rejectSponsorshipForExecutive(db, { clubId: club.id, sponsorshipId, actor: { role: "CEO", personId: ceoId } });
+    expect(rejected.status).toBe("REJECTED");
+    db.close();
+  });
+
+  it("rejects a GENERAL_SECRETARY attempting the CEO-only commercial rejection authority", () => {
+    const { db, club, team, ownerId } = buildFixture(join(dir, "career.sqlite"));
+    const secretaryId = createStableEntityId("person", "eaf-sponsor-secretary");
+    new WorldRepository(db).insertPerson({ id: secretaryId, fullName: "General Secretary", nationalityCountryId: country.id, languages: ["ne"] });
+    const appointment = hireStaff(db, saveAt("2026-08-01"), club.id, team.id, secretaryId, "GENERAL_SECRETARY", 450_000, 24);
+    assignExecutiveRole(db, { clubId: club.id, ownerPersonId: ownerId, role: "GENERAL_SECRETARY", appointment, date: "2026-08-01" });
+    const economy = new ClubEconomyRepository(db);
+    const sponsorId = createStableEntityId("sponsor", "eaf-secretary-sponsor");
+    economy.upsertSponsor({ id: sponsorId, name: "Secretary Test Ltd", industry: "Retail", reputation: 4, budgetTier: "LOCAL", status: "SIMULATION_ONLY" });
+    const sponsorshipId = createStableEntityId("sponsorship-contract", "eaf-secretary-offer");
+    economy.upsertSponsorship({ id: sponsorshipId, clubId: club.id, sponsorId, type: "LOCAL_PARTNER", startDate: "2026-08-05", endDate: "2027-08-05", annualValue: 100_000, bonuses: {}, currency: "NPR", status: "OFFERED", provenanceStatus: "SIMULATION_ONLY" });
+    expect(() =>
+      rejectSponsorshipForExecutive(db, { clubId: club.id, sponsorshipId, actor: { role: "GENERAL_SECRETARY", personId: secretaryId } }),
+    ).toThrow(ExecutiveRoleError);
+    db.close();
+  });
+
+  it("lets a delegated CEO counter a sponsorship, and rejects a counter for a sponsorship belonging to a different club", () => {
+    const { db, club, team, ownerId } = buildFixture(join(dir, "career.sqlite"));
+    const ceoId = hireCeo(db, club, team, ownerId);
+    const economy = new ClubEconomyRepository(db);
+    const sponsorId = createStableEntityId("sponsor", "eaf-counter-sponsor");
+    economy.upsertSponsor({ id: sponsorId, name: "Counter Test Ltd", industry: "Aviation", reputation: 7, budgetTier: "PREMIUM", status: "SIMULATION_ONLY" });
+    const sponsorshipId = createStableEntityId("sponsorship-contract", "eaf-counter-offer");
+    economy.upsertSponsorship({ id: sponsorshipId, clubId: club.id, sponsorId, type: "OFFICIAL_PARTNER", startDate: "2026-08-05", endDate: "2027-08-05", annualValue: 300_000, bonuses: {}, currency: "NPR", status: "OFFERED", provenanceStatus: "SIMULATION_ONLY" });
+    const countered = counterSponsorshipForExecutive(db, {
+      clubId: club.id,
+      sponsorshipId,
+      annualValue: 305_000,
+      date: "2026-08-06",
+      seed: "eaf-counter-test",
+      actor: { role: "CEO", personId: ceoId },
+    });
+    // PREMIUM ceiling is 1.26x the original offer — a modest raise like this stays accepted or the sponsor walks; either way the command executed through the real negotiation math, not a fabricated always-succeed path.
+    expect(["ACTIVE", "REJECTED"]).toContain(countered.status);
+
+    const otherClub: Club = { id: createStableEntityId("club", "eaf-counter-other-club"), name: "Other FC", countryId: country.id, ownershipType: "PRIVATE" };
+    new WorldRepository(db).insertClub(otherClub);
+    const otherOffer = createStableEntityId("sponsorship-contract", "eaf-counter-other-club");
+    economy.upsertSponsorship({ id: otherOffer, clubId: otherClub.id, sponsorId, type: "OFFICIAL_PARTNER", startDate: "2026-08-05", endDate: "2027-08-05", annualValue: 300_000, bonuses: {}, currency: "NPR", status: "OFFERED", provenanceStatus: "SIMULATION_ONLY" });
+    expect(() =>
+      counterSponsorshipForExecutive(db, {
+        clubId: club.id,
+        sponsorshipId: otherOffer,
+        annualValue: 305_000,
+        date: "2026-08-06",
+        seed: "eaf-counter-test",
+        actor: { role: "CEO", personId: ceoId },
+      }),
+    ).toThrow(/does not belong to this club/);
     db.close();
   });
 });

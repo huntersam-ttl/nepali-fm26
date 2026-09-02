@@ -30,6 +30,8 @@ import {
   type OwnerInvestmentTransaction,
   type Person,
   type PlayerLoanRecord,
+  type SponsorMeetingOverview,
+  type SponsorOrganisation,
   type SponsorshipContract,
   type SponsorshipType,
   type TransferOffer,
@@ -614,6 +616,38 @@ export const investPersonalFunds = (
   };
   economy.insertOwnerInvestment(transaction);
   return transaction;
+};
+
+/**
+ * Read model behind the sponsor-meeting UI. SponsorshipContract itself never
+ * carries the sponsor's own name/industry/budget tier — the sponsorship
+ * table couldn't previously say who a deal was even with — so this joins in
+ * the real sponsor record for every contract, without inventing anything
+ * about a company that isn't already in the sponsor registry.
+ */
+export const sponsorMeetingOverview = (db: GameDatabase, clubId: EntityId): SponsorMeetingOverview => {
+  const economy = new ClubEconomyRepository(db);
+  const club = db.prepare("SELECT name FROM clubs WHERE id=?").get(clubId) as { name?: string } | undefined;
+  if (!club?.name) throw new Error(`Club not found: ${clubId}`);
+  const sponsorsById = new Map(economy.sponsors().map((sponsor) => [sponsor.id, sponsor]));
+  const enrich = (contract: SponsorshipContract): SponsorMeetingOverview["offers"][number] => {
+    const sponsor: SponsorOrganisation | undefined = sponsorsById.get(contract.sponsorId);
+    return {
+      ...contract,
+      sponsorName: sponsor?.name ?? "Unknown sponsor",
+      sponsorIndustry: sponsor?.industry ?? "Unknown industry",
+      sponsorBudgetTier: sponsor?.budgetTier ?? "LOCAL",
+      sponsorIdentityProvenance: sponsor?.identityProvenance,
+    };
+  };
+  const contracts = economy.sponsorships(clubId).map(enrich);
+  return {
+    clubId,
+    clubName: club.name,
+    offers: contracts.filter((item) => item.status === "OFFERED"),
+    active: contracts.filter((item) => item.status === "ACTIVE"),
+    history: contracts.filter((item) => item.status === "REJECTED" || item.status === "EXPIRED"),
+  };
 };
 
 export const generateSponsorOffers = (

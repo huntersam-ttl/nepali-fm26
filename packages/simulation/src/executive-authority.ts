@@ -1,7 +1,7 @@
-import { ClubLicensingRepository, type GameDatabase } from "@nepal-football-sim/database";
+import { ClubEconomyRepository, ClubLicensingRepository, type GameDatabase } from "@nepal-football-sim/database";
 import type { EntityId, SaveMetadata } from "@nepal-football-sim/shared-types";
 import { assertExecutiveAuthority } from "./executive-roles.js";
-import { acceptSponsorOfferCommand, setClubBudgetCommand } from "./club-economy.js";
+import { acceptSponsorOfferCommand, counterSponsorOffer, rejectSponsorOfferCommand, setClubBudgetCommand } from "./club-economy.js";
 import { applyForClubLoanCommand, repayClubLoanCommand } from "./club-finance-markets.js";
 import { closeClubLicenceCycle } from "./licensing.js";
 import { registerWomenYouthTeam } from "./womens-youth.js";
@@ -28,6 +28,49 @@ export const acceptSponsorshipForExecutive = (
     personId: input.actor.personId,
     callerRole: "CEO",
     date: input.date,
+  });
+};
+
+export const rejectSponsorshipForExecutive = (
+  db: GameDatabase,
+  input: { clubId: EntityId; sponsorshipId: EntityId; actor: Executive },
+) => {
+  requireAuthority(db, input.clubId, input.actor, "COMMERCIAL_OVERSIGHT");
+  return rejectSponsorOfferCommand(db, {
+    clubId: input.clubId,
+    sponsorshipId: input.sponsorshipId,
+    personId: input.actor.personId,
+    callerRole: "CEO",
+  });
+};
+
+/**
+ * counterSponsorOffer itself takes no clubId/authority — the owner-facing
+ * desktop command relies solely on the active-role gate above it, so this
+ * adds the same clubId ownership check acceptSponsorOfferCommand/
+ * rejectSponsorOfferCommand already make for their own callers.
+ */
+export const counterSponsorshipForExecutive = (
+  db: GameDatabase,
+  input: {
+    clubId: EntityId;
+    sponsorshipId: EntityId;
+    annualValue: number;
+    endDate?: string;
+    date: string;
+    seed: string;
+    actor: Executive;
+  },
+) => {
+  requireAuthority(db, input.clubId, input.actor, "COMMERCIAL_OVERSIGHT");
+  const offer = new ClubEconomyRepository(db).sponsorships().find((item) => item.id === input.sponsorshipId);
+  if (!offer || offer.clubId !== input.clubId) throw new Error("Sponsorship offer does not belong to this club");
+  return counterSponsorOffer(db, {
+    sponsorshipId: input.sponsorshipId,
+    annualValue: input.annualValue,
+    endDate: input.endDate,
+    date: input.date,
+    seed: input.seed,
   });
 };
 

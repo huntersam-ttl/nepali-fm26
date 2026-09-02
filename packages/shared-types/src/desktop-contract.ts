@@ -15,6 +15,8 @@ import type {
   ClubBudgetCategory,
   InfrastructureProjectType,
   SponsorshipContract,
+  SponsorOrganisation,
+  FederationSponsorshipContract,
   SimulationClubRecord,
   ClubFinancialAccount,
   ClubLedgerEntry,
@@ -292,6 +294,50 @@ export type InvestorMeetingOverview = {
   market: OwnershipInvestorMarketView;
 };
 
+/**
+ * A sponsorship contract with its sponsor's real identity attached — the
+ * dashboard's own SponsorshipContract[] never carried the sponsor's name,
+ * industry, or budget tier, so the sponsorship table couldn't say who the
+ * deal was even with. Real company records (VERIFIED) and the simulation's
+ * own local businesses (SIMULATION_ONLY) are both included as-is; nothing
+ * here fabricates a company that doesn't exist in the sponsor registry.
+ */
+export type SponsorMeetingContract = SponsorshipContract & {
+  sponsorName: string;
+  sponsorIndustry: string;
+  sponsorBudgetTier: SponsorOrganisation["budgetTier"];
+  sponsorIdentityProvenance?: SponsorOrganisation["identityProvenance"];
+};
+
+export type SponsorMeetingOverview = {
+  clubId: EntityId;
+  clubName: string;
+  offers: SponsorMeetingContract[];
+  active: SponsorMeetingContract[];
+  history: SponsorMeetingContract[];
+};
+
+/**
+ * Federation-level commercial context is read-only: the one auto-generated
+ * OFFICIAL_PARTNER sponsorship (ensureFederationSponsorship) is created and
+ * activated in a single step with no offer/decision stage, and competition
+ * media rights (settleFederationMediaRightsForCompetition) are likewise
+ * created and awarded atomically. Neither has a negotiation lifecycle to
+ * expose, so this is presented as information, never as a meeting.
+ */
+export type FederationCommercialOverview = {
+  federationId: EntityId;
+  sponsorship?: FederationSponsorshipContract & { sponsorName: string };
+  mediaRights: Array<{
+    packageName: string;
+    broadcasterName: string;
+    value: number;
+    status: string;
+    startDate?: string;
+    endDate?: string;
+  }>;
+};
+
 export type FederationNationalTeamSummary = {
   id: EntityId;
   name: string;
@@ -402,6 +448,10 @@ export type DesktopRuntimeApi = {
   acceptSponsorOffer(clubId: EntityId, sponsorshipId: EntityId): Promise<AppResult<SponsorshipContract>>;
   rejectSponsorOffer(clubId: EntityId, sponsorshipId: EntityId): Promise<AppResult<SponsorshipContract>>;
   counterSponsorOffer(clubId: EntityId, sponsorshipId: EntityId, annualValue: number, endDate?: string): Promise<AppResult<SponsorshipContract>>;
+  getSponsorMeeting(clubId?: EntityId): Promise<AppResult<SponsorMeetingOverview>>;
+  rejectExecutiveSponsorOffer(clubId: EntityId, sponsorshipId: EntityId): Promise<AppResult<SponsorshipContract>>;
+  counterExecutiveSponsorOffer(clubId: EntityId, sponsorshipId: EntityId, annualValue: number, endDate?: string): Promise<AppResult<SponsorshipContract>>;
+  getFederationCommercialOverview(): Promise<AppResult<FederationCommercialOverview>>;
   createInvestorStakeOffer(percentage: number, minimumAmount?: number): Promise<AppResult<OwnershipInvestorMarketView>>;
   decideInvestorBid(offerId: EntityId, accept: boolean): Promise<AppResult<OwnershipAcquisitionOffer>>;
   getInvestorMeeting(): Promise<AppResult<InvestorMeetingOverview>>;

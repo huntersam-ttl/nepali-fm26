@@ -30,6 +30,7 @@ import {
   type Person,
   type PlayerAttributeSet,
   type RefereeDevelopmentProgramme,
+  type FederationCommercialOverview,
   type SponsorOrganisation,
   type Team,
 } from "@nepal-football-sim/shared-types";
@@ -38,6 +39,7 @@ import {
   CompetitionRepository,
   FederationComplianceRepository,
   FederationGovernanceRepository,
+  MediaRightsRepository,
   WorkforceSupplyRepository,
   WorldRepository,
   YouthRepository,
@@ -1678,6 +1680,47 @@ const ensureFederationSponsorship = (
     status: "ACTIVE",
     provenanceStatus: simulationStatus,
   });
+};
+
+/**
+ * Federation-level commercial context, read-only by construction: the one
+ * sponsorship ensureFederationSponsorship creates is activated in the same
+ * call that creates it, and settleFederationMediaRightsForCompetition
+ * likewise creates and awards a media-rights offer atomically — neither
+ * ever leaves an OFFERED state for a player to decide, so there is no
+ * negotiation to expose here, only what already happened.
+ */
+export const federationCommercialOverview = (
+  db: GameDatabase,
+  federationId: EntityId,
+): FederationCommercialOverview => {
+  const sponsors = new Map(new ClubEconomyRepository(db).sponsors().map((sponsor) => [sponsor.id, sponsor]));
+  const sponsorship = new FederationGovernanceRepository(db)
+    .federationSponsorships(federationId)
+    .find((item) => item.status === "ACTIVE");
+  const mediaRepo = new MediaRightsRepository(db);
+  const mediaRights = mediaRepo
+    .packages(federationId)
+    .flatMap((rightsPackage) =>
+      mediaRepo
+        .offers(rightsPackage.id)
+        .filter((offer) => ["AWARDED", "ACTIVE", "EXPIRED", "RENEWED"].includes(offer.status))
+        .map((offer) => ({
+          packageName: rightsPackage.name,
+          broadcasterName: mediaRepo.broadcaster(offer.broadcasterId)?.name ?? "Unknown broadcaster",
+          value: offer.value,
+          status: offer.status,
+          startDate: offer.startDate,
+          endDate: offer.endDate,
+        })),
+    );
+  return {
+    federationId,
+    sponsorship: sponsorship
+      ? { ...sponsorship, sponsorName: sponsors.get(sponsorship.sponsorId)?.name ?? "Unknown sponsor" }
+      : undefined,
+    mediaRights,
+  };
 };
 
 const seedFederationSponsors = (db: GameDatabase, date: string, seed: string): void => {

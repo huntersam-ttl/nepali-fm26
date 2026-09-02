@@ -202,6 +202,14 @@ const dispatch = (
       return service.rejectSponsorOffer(body.clubId as EntityId, body.sponsorshipId as EntityId);
     case "counterSponsorOffer":
       return service.counterSponsorOffer(body.clubId as EntityId, body.sponsorshipId as EntityId, body.annualValue as number, body.endDate as string | undefined);
+    case "getSponsorMeeting":
+      return service.getSponsorMeeting(body.clubId as EntityId | undefined);
+    case "rejectExecutiveSponsorOffer":
+      return service.rejectExecutiveSponsorOffer(body.clubId as EntityId, body.sponsorshipId as EntityId);
+    case "counterExecutiveSponsorOffer":
+      return service.counterExecutiveSponsorOffer(body.clubId as EntityId, body.sponsorshipId as EntityId, body.annualValue as number, body.endDate as string | undefined);
+    case "getFederationCommercialOverview":
+      return service.getFederationCommercialOverview();
     case "createInvestorStakeOffer":
       return service.createInvestorStakeOffer(body.percentage as number, body.minimumAmount as number | undefined);
     case "decideInvestorBid":

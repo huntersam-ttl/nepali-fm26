@@ -64,6 +64,8 @@ import {
   type ChairmanDashboard,
   type ClubFinanceMeetingOverview,
   type InvestorMeetingOverview,
+  type SponsorMeetingOverview,
+  type FederationCommercialOverview,
   type OwnerInvestmentTransaction,
   type FederationDevelopmentSummary,
   type GovernmentOverview,
@@ -299,6 +301,8 @@ import {
   acceptSponsorshipForExecutive,
   applyClubLoanForExecutive,
   repayClubLoanForExecutive,
+  rejectSponsorshipForExecutive,
+  counterSponsorshipForExecutive,
   closeLicenceForSecretary,
   dismissStaffForExecutive,
   hireStaffForExecutive,
@@ -309,7 +313,7 @@ import { backroomSummary } from "./career-market-deepening.js";
 import { createInvestorStakeOffer, decideInvestorBid, investorMeetingOverview } from "./ownership.js";
 import { capitalInjectionFromInvestor } from "./investor.js";
 import { buildChairmanDashboard, buildFederationPresidentDashboard } from "./role-desktop.js";
-import { initializeFederationGovernanceForSave } from "./federation-governance.js";
+import { initializeFederationGovernanceForSave, federationCommercialOverview } from "./federation-governance.js";
 import { federationDevelopmentSummary } from "./federation-policy.js";
 import { governmentOverview, requestGovernmentFunding } from "./government.js";
 import {
@@ -325,6 +329,7 @@ import {
   initializeClubEconomyForSave,
   rejectSponsorOfferCommand,
   setClubBudgetCommand,
+  sponsorMeetingOverview,
 } from "./club-economy.js";
 import { ensurePlayableClubVenues, foundSimulationClub } from "./club-creation.js";
 import {
@@ -1490,6 +1495,86 @@ export class DesktopApplicationService {
           error instanceof Error ? error.message : "Sponsorship counter could not be submitted.",
         );
       }
+    });
+  }
+
+  /**
+   * Read model behind the sponsor-meeting UI, shared by the controlling
+   * owner and a CEO with delegated COMMERCIAL_OVERSIGHT — the same two
+   * actors acceptSponsorOfferCommand/rejectSponsorOfferCommand already
+   * authorize.
+   */
+  getSponsorMeeting(clubId?: EntityId): AppResult<SponsorMeetingOverview> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      const role = activeCareerRole(db, personId);
+      let targetClubId: EntityId | undefined;
+      if (role === "CHAIRMAN_OWNER") {
+        targetClubId =
+          clubId ?? heldCareerRoles(db, personId).find((entry) => entry.role === "CHAIRMAN_OWNER")?.targetId;
+        if (!targetClubId) throw appError("ROLE_NOT_AUTHORIZED", "No club is available.");
+      } else if (role === "CEO") {
+        targetClubId = clubId ?? heldCareerRoles(db, personId).find((entry) => entry.role === "CEO")?.targetId;
+        if (!targetClubId) throw appError("ROLE_NOT_AUTHORIZED", "No club is available.");
+        if (!executiveHasAuthority(db, targetClubId, personId, "COMMERCIAL_OVERSIGHT")) {
+          throw appError(
+            "ROLE_NOT_AUTHORIZED",
+            "You do not have commercial oversight authority for this club.",
+          );
+        }
+      } else {
+        throw appError(
+          "ROLE_NOT_AUTHORIZED",
+          "Only the controlling owner or a CEO with commercial authority may view club sponsorship.",
+        );
+      }
+      return sponsorMeetingOverview(db, targetClubId);
+    });
+  }
+
+  rejectExecutiveSponsorOffer(
+    clubId: EntityId,
+    sponsorshipId: EntityId,
+  ): AppResult<ReturnType<typeof rejectSponsorshipForExecutive>> {
+    return this.withSession((db, save) =>
+      rejectSponsorshipForExecutive(db, {
+        clubId,
+        sponsorshipId,
+        actor: this.executiveActor(db, save, clubId),
+      }),
+    );
+  }
+
+  counterExecutiveSponsorOffer(
+    clubId: EntityId,
+    sponsorshipId: EntityId,
+    annualValue: number,
+    endDate?: string,
+  ): AppResult<ReturnType<typeof counterSponsorshipForExecutive>> {
+    return this.withSession((db, save) =>
+      counterSponsorshipForExecutive(db, {
+        clubId,
+        sponsorshipId,
+        annualValue,
+        endDate,
+        date: save.worldDate,
+        seed: save.randomSeed,
+        actor: this.executiveActor(db, save, clubId),
+      }),
+    );
+  }
+
+  getFederationCommercialOverview(): AppResult<FederationCommercialOverview> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "FEDERATION_PRESIDENT") {
+        throw appError("ROLE_NOT_AUTHORIZED", "You are not the active Federation President.");
+      }
+      const federationId = heldCareerRoles(db, personId).find(
+        (entry) => entry.role === "FEDERATION_PRESIDENT",
+      )?.targetId;
+      if (!federationId) throw appError("ROLE_NOT_AUTHORIZED", "No federation is available.");
+      return federationCommercialOverview(db, federationId);
     });
   }
 

@@ -17,6 +17,9 @@ import type {
   InvestorMeetingOverview,
   OwnershipInvestorBidView,
   OwnerManagerCandidate,
+  SponsorMeetingOverview,
+  SponsorMeetingContract,
+  FederationCommercialOverview,
 } from "@nepal-football-sim/shared-types";
 import type { EntityId } from "@nepal-football-sim/shared-types";
 import type { AppError, DesktopRuntimeApi } from "../appBridge.js";
@@ -91,7 +94,7 @@ const ChairmanDetail = ({ screen, bridge, onNavigate }: { screen: ChairmanScreen
     if (screen === "finance") return <ChairmanFinance dashboard={dashboard} bridge={bridge} refresh={refresh} />;
     if (screen === "manager") return <ChairmanManager dashboard={dashboard} bridge={bridge} refresh={refresh} />;
     if (screen === "facilities") return <ChairmanFacilities dashboard={dashboard} bridge={bridge} refresh={refresh} />;
-    if (screen === "sponsorship") return <ChairmanSponsorship dashboard={dashboard} bridge={bridge} refresh={refresh} />;
+    if (screen === "sponsorship") return <SponsorMeeting bridge={bridge} role="CHAIRMAN_OWNER" clubId={dashboard.club.id} />;
     if (screen === "investors") return <InvestorMeeting bridge={bridge} />;
     if (screen === "bank") return <BankMeeting bridge={bridge} role="CHAIRMAN_OWNER" clubId={dashboard.club.id} />;
     return <ChairmanSupporters dashboard={dashboard} />;
@@ -134,20 +137,228 @@ const ChairmanFacilities = ({ dashboard, bridge, refresh }: { dashboard: Chairma
   return <section className="role-detail"><Panel title="Ground and facilities"><div className="metrics">{dashboard.infrastructure.map((project) => <div key={project.id}><dt>{project.projectType.replaceAll("_", " ")}</dt><dd>{project.status}</dd><span className="subtle">{money(project.capitalCost)} · completes {project.expectedCompletion}</span></div>)}</div>{dashboard.infrastructure.length === 0 && <p className="empty-state">No infrastructure projects recorded.</p>}<div className="button-row">{(["PITCH", "TRAINING_GROUND", "ACADEMY"] as const).map((type) => <button key={type} className="ghost" disabled={busy !== null} onClick={() => void approve(type)}>{busy === type ? "Submitting…" : `Approve ${type.replaceAll("_", " ").toLowerCase()}`}</button>)}</div>{message && <p className="notice" role="status">{message}</p>}</Panel></section>;
 };
 
-const ChairmanSponsorship = ({ dashboard, bridge, refresh }: { dashboard: ChairmanDashboard; bridge: DesktopRuntimeApi; refresh: () => void }): React.ReactElement => {
+// Every sponsorship type this can honestly show maps onto the real
+// SponsorshipType enum — there is no separate airline/bank/telecom/beverage/
+// equipment/community sponsorship category in the club commercial model
+// yet, so those are not offered as selectable properties here (see
+// CODEX_UI_BRIDGE_NEEDED in the task report).
+const SPONSORSHIP_TYPE_LABELS: Record<string, string> = {
+  SHIRT_MAIN: "shirt front",
+  SHIRT_SECONDARY: "shirt secondary panel",
+  SLEEVE: "sleeve",
+  TRAINING_KIT: "training kit",
+  STADIUM: "stadium",
+  ACADEMY: "academy / youth programme",
+  OFFICIAL_PARTNER: "official partner",
+  LOCAL_PARTNER: "local partner",
+};
+
+const budgetTierPhrase = (tier: SponsorMeetingContract["sponsorBudgetTier"]): string =>
+  tier === "PREMIUM" ? "a premium national" : tier === "NATIONAL" ? "a national" : tier === "REGIONAL" ? "a regional" : "a local";
+
+const sponsorStatusTone = (statusValue: SponsorMeetingContract["status"]): MeetingTone =>
+  statusValue === "ACTIVE" ? "ok" : statusValue === "REJECTED" || statusValue === "EXPIRED" ? "bad" : "info";
+
+/**
+ * Contextual briefing built only from fields the offer/sponsor record
+ * genuinely carries (industry, budget tier, property type, exclusivity,
+ * bonuses, expectations) — never a fabricated claim about the real company
+ * behind a VERIFIED identity like Nepal Telecom or Chaudhary Group.
+ */
+const sponsorNarrative = (contract: SponsorMeetingContract): string => {
+  const property = SPONSORSHIP_TYPE_LABELS[contract.type] ?? contract.type.replaceAll("_", " ").toLowerCase();
+  const tier = budgetTierPhrase(contract.sponsorBudgetTier);
+  const exclusivity = contract.exclusivityGroup
+    ? ` They are seeking sector exclusivity in ${contract.exclusivityGroup.replaceAll("_", " ").toLowerCase()}.`
+    : "";
+  const bonusKeys = Object.keys(contract.bonuses ?? {});
+  const bonusText = bonusKeys.length > 0 ? ` They have offered performance bonuses tied to ${bonusKeys.join(" and ")}.` : "";
+  const appearances = contract.expectations?.appearances;
+  const expectationText = appearances ? ` They expect at least ${appearances} matchday appearances for the branding.` : "";
+  return `${contract.sponsorName}, ${tier} ${contract.sponsorIndustry.toLowerCase()} organisation, has proposed a ${property} partnership.${exclusivity}${bonusText}${expectationText}`;
+};
+
+export const SponsorMeeting = ({
+  bridge,
+  role,
+  clubId,
+}: {
+  bridge: DesktopRuntimeApi;
+  role: "CHAIRMAN_OWNER" | "CEO";
+  clubId?: EntityId;
+}): React.ReactElement => {
+  const [state, refresh] = useRuntimeData(() => bridge.getSponsorMeeting(clubId), [clubId]);
+  return (
+    <AsyncPanel state={state}>
+      {(overview) => <SponsorMeetingView overview={overview} bridge={bridge} role={role} refresh={refresh} />}
+    </AsyncPanel>
+  );
+};
+
+const SponsorMeetingView = ({
+  overview,
+  bridge,
+  role,
+  refresh,
+}: {
+  overview: SponsorMeetingOverview;
+  bridge: DesktopRuntimeApi;
+  role: "CHAIRMAN_OWNER" | "CEO";
+  refresh: () => void;
+}): React.ReactElement => {
+  const [selectedId, setSelectedId] = useState<EntityId | undefined>(overview.offers[0]?.id);
+  const selected = overview.offers.find((item) => item.id === selectedId) ?? overview.offers[0];
+  const [counterValue, setCounterValue] = useState("");
+  const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [counterValue, setCounterValue] = useState<Record<string, string>>({});
-  const [busy, setBusy] = useState<string | null>(null);
-  const decide = async (sponsorshipId: EntityId, accept: boolean): Promise<void> => {
-    if (busy) return;
-    setBusy(sponsorshipId);
-    const result = accept ? await bridge.acceptSponsorOffer(dashboard.club.id, sponsorshipId) : await bridge.rejectSponsorOffer(dashboard.club.id, sponsorshipId);
-    setBusy(null);
-    setMessage(result.ok ? (accept ? "Sponsorship offer accepted." : "Sponsorship offer rejected.") : result.error.message);
+
+  const decide = async (accept: boolean): Promise<void> => {
+    if (!selected) return;
+    setBusyId(accept ? "accept" : "reject");
+    setMessage(null);
+    const result =
+      role === "CEO"
+        ? accept
+          ? await bridge.acceptExecutiveSponsorOffer(overview.clubId, selected.id)
+          : await bridge.rejectExecutiveSponsorOffer(overview.clubId, selected.id)
+        : accept
+          ? await bridge.acceptSponsorOffer(overview.clubId, selected.id)
+          : await bridge.rejectSponsorOffer(overview.clubId, selected.id);
+    setBusyId(null);
+    setMessage(
+      result.ok
+        ? accept
+          ? `${selected.sponsorName}'s offer accepted.`
+          : `${selected.sponsorName}'s offer rejected.`
+        : result.error.message,
+    );
     if (result.ok) refresh();
   };
-  const counter = async (sponsorshipId: EntityId, annualValue: number): Promise<void> => { if (busy) return; setBusy(sponsorshipId); const result = await bridge.counterSponsorOffer(dashboard.club.id, sponsorshipId, annualValue); setBusy(null); setMessage(result.ok ? "Counter submitted; sponsor response recorded." : result.error.message); if (result.ok) refresh(); };
-  return <section className="role-detail"><Panel title="Sponsorship"><Metrics items={[{ label: "Active sponsors", value: dashboard.sponsorships.filter((item) => item.status === "ACTIVE").length }, { label: "Annual value", value: money(dashboard.sponsorships.filter((item) => item.status === "ACTIVE").reduce((sum, item) => sum + item.annualValue, 0)) }]} /><div className="table-scroll"><table><thead><tr><th>Type</th><th>Value</th><th>Starts</th><th>Expires</th><th>Status</th><th /></tr></thead><tbody>{dashboard.sponsorships.map((item) => <tr key={item.id}><td>{item.type.replaceAll("_", " ")}</td><td>{money(item.annualValue, item.currency)}</td><td>{item.startDate}</td><td>{item.endDate}</td><td><Badge tone={item.status === "ACTIVE" ? "ok" : "info"}>{item.status}</Badge></td><td>{item.status === "OFFERED" && <span className="button-row"><button className="primary small" disabled={busy !== null} onClick={() => void decide(item.id, true)}>{busy === item.id ? "Accepting…" : "Accept"}</button><button className="ghost small" disabled={busy !== null} onClick={() => void decide(item.id, false)}>{busy === item.id ? "Rejecting…" : "Reject"}</button><input aria-label={`Counter value for ${item.id}`} type="number" min="1" value={counterValue[item.id] ?? item.annualValue} onChange={(event) => setCounterValue({ ...counterValue, [item.id]: event.target.value })} /><button className="ghost small" disabled={busy !== null} onClick={() => void counter(item.id, Number(counterValue[item.id] ?? item.annualValue))}>{busy === item.id ? "Countering…" : "Counter"}</button></span>}</td></tr>)}</tbody></table></div>{message && <p className="notice" role="status">{message}</p>}</Panel></section>;
+
+  const counter = async (): Promise<void> => {
+    if (!selected) return;
+    const amount = Number(counterValue);
+    if (!Number.isFinite(amount) || amount <= 0) return;
+    setBusyId("counter");
+    setMessage(null);
+    const result =
+      role === "CEO"
+        ? await bridge.counterExecutiveSponsorOffer(overview.clubId, selected.id, amount)
+        : await bridge.counterSponsorOffer(overview.clubId, selected.id, amount);
+    setBusyId(null);
+    setMessage(
+      result.ok
+        ? result.data.status === "ACTIVE"
+          ? `${selected.sponsorName} accepted your counter at ${money(result.data.annualValue)}.`
+          : `${selected.sponsorName} walked away from the negotiation.`
+        : result.error.message,
+    );
+    if (result.ok) refresh();
+  };
+
+  const options: MeetingOption[] = selected
+    ? [
+        { id: "accept", label: "Accept", description: money(selected.annualValue, selected.currency), tone: "primary" },
+        { id: "reject", label: "Reject", tone: "neutral" },
+        {
+          id: "counter",
+          label: "Counter",
+          description: "Request a higher annual value — the sponsor may walk away instead of paying more.",
+          tone: "risk",
+          disabled: !Number.isFinite(Number(counterValue)) || Number(counterValue) <= 0,
+          disabledReason: "Enter a counter amount above zero first.",
+        },
+      ]
+    : [];
+
+  return (
+    <section className="role-detail">
+      <MeetingShell
+        title={selected?.sponsorName ?? "Sponsorship"}
+        meetingType="Sponsor meeting"
+        context={[
+          { label: "Active sponsors", value: overview.active.length },
+          { label: "Active annual value", value: money(overview.active.reduce((sum, item) => sum + item.annualValue, 0)) },
+          ...(selected
+            ? [
+                { label: "Industry", value: selected.sponsorIndustry },
+                { label: "Budget tier", value: selected.sponsorBudgetTier },
+                {
+                  label: "Identity",
+                  value: selected.sponsorIdentityProvenance === "VERIFIED" ? "Verified company" : "Simulation-only",
+                  tone: (selected.sponsorIdentityProvenance === "VERIFIED" ? "ok" : "info") as MeetingTone,
+                },
+              ]
+            : []),
+        ]}
+      >
+        {overview.offers.length === 0 ? (
+          <p className="empty-state">No open sponsorship offers. Offers appear here once the club's commercial pipeline surfaces one.</p>
+        ) : (
+          <>
+            {overview.offers.length > 1 && (
+              <div className="inline-form">
+                <label>
+                  Offer
+                  <select value={selected?.id} onChange={(event) => setSelectedId(event.target.value as EntityId)}>
+                    {overview.offers.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.sponsorName} · {SPONSORSHIP_TYPE_LABELS[item.type] ?? item.type}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            )}
+            {selected && (
+              <>
+                <MeetingParticipants
+                  initiator={{ name: "You", role: role === "CEO" ? "Chief Executive Officer" : "Chairman / Owner" }}
+                  counterpart={{ name: selected.sponsorName, role: selected.sponsorIndustry }}
+                />
+                <MeetingBrief heading={SPONSORSHIP_TYPE_LABELS[selected.type] ?? selected.type}>
+                  <p>{sponsorNarrative(selected)}</p>
+                  <p className="subtle">
+                    {money(selected.annualValue, selected.currency)} per year · {selected.startDate} – {selected.endDate}
+                  </p>
+                </MeetingBrief>
+                <div className="inline-form">
+                  <label>
+                    Counter amount
+                    <input
+                      type="number"
+                      min="1"
+                      placeholder={String(selected.annualValue)}
+                      value={counterValue}
+                      onChange={(event) => setCounterValue(event.target.value)}
+                    />
+                  </label>
+                </div>
+              </>
+            )}
+            <MeetingOptions
+              options={options}
+              busyId={busyId}
+              onChoose={(id) => (id === "counter" ? void counter() : void decide(id === "accept"))}
+            />
+          </>
+        )}
+        {message && (
+          <p className="notice" role="status">
+            {message}
+          </p>
+        )}
+        <MeetingOutcome
+          history={[...overview.active, ...overview.history].map((item) => ({
+            date: item.endDate,
+            label: item.status,
+            tone: sponsorStatusTone(item.status),
+            detail: `${item.sponsorName} · ${SPONSORSHIP_TYPE_LABELS[item.type] ?? item.type} · ${money(item.annualValue, item.currency)} · ${item.startDate} – ${item.endDate}`,
+          }))}
+        />
+      </MeetingShell>
+    </section>
+  );
 };
 
 // Every open bid already generated by createInvestorStakeOffer decides
@@ -405,7 +616,7 @@ const PresidentDetail = ({ screen, bridge, onNavigate }: { screen: PresidentScre
   return <AsyncPanel state={state}>{(dashboard) => {
     if (screen === "dashboard") return <p className="subtle">Select a federation-office section from the sidebar.</p>;
     if (screen === "governance") return <Governance dashboard={dashboard} bridge={bridge} refresh={refresh} />;
-    if (screen === "finance") return <FederationFinance dashboard={dashboard} />;
+    if (screen === "finance") return <FederationFinance dashboard={dashboard} bridge={bridge} />;
     if (screen === "national-teams") return <NationalTeams dashboard={dashboard} />;
     if (screen === "national-development") return <NationalDevelopment bridge={bridge} />;
     if (screen === "government-relations") return <GovernmentRelations bridge={bridge} />;
@@ -420,7 +631,73 @@ const Governance = ({ dashboard, bridge, refresh }: { dashboard: FederationPresi
   return <section className="role-detail"><Panel title="Governance" actions={approved && <button className="primary small" disabled={busy} onClick={() => void implement()}>{busy ? "Implementing…" : "Implement approved"}</button>}><div className="table-scroll"><table><thead><tr><th>Proposal</th><th>Policy area</th><th>Status</th><th>Proposed</th></tr></thead><tbody>{dashboard.proposals.map((item) => <tr key={item.id}><td>{item.title}</td><td>{item.policyArea}</td><td><Badge tone={item.status === "APPROVED" ? "ok" : item.status === "REJECTED" ? "bad" : "info"}>{item.status}</Badge></td><td>{item.proposedAt}</td></tr>)}</tbody></table></div>{dashboard.proposals.length === 0 && <p className="empty-state">No governance proposals recorded.</p>}{message && <p className="notice" role="status">{message}</p>}</Panel><Panel title="Federation programmes"><ProjectList projects={dashboard.projects} /></Panel></section>;
 };
 
-const FederationFinance = ({ dashboard }: { dashboard: FederationPresidentDashboard }): React.ReactElement => <section className="role-detail"><Panel title="Federation finance"><Metrics items={[{ label: "Balance", value: money(dashboard.finances.account.cashBalance, dashboard.finances.account.currency) }, { label: "Revenue", value: money(dashboard.finances.account.seasonRevenue, dashboard.finances.account.currency) }, { label: "Expenses", value: money(dashboard.finances.account.seasonExpenses, dashboard.finances.account.currency) }, { label: "Profit / loss", value: money(dashboard.finances.account.seasonProfitLoss, dashboard.finances.account.currency) }, { label: "Government / grants", value: money(dashboard.finances.ledgerEntries.filter((entry) => entry.category.includes("GRANT")).reduce((sum, entry) => sum + entry.amount, 0), dashboard.finances.account.currency) }]} /></Panel><Ledger entries={dashboard.finances.ledgerEntries} /></section>;
+const FederationFinance = ({ dashboard, bridge }: { dashboard: FederationPresidentDashboard; bridge: DesktopRuntimeApi }): React.ReactElement => <section className="role-detail"><Panel title="Federation finance"><Metrics items={[{ label: "Balance", value: money(dashboard.finances.account.cashBalance, dashboard.finances.account.currency) }, { label: "Revenue", value: money(dashboard.finances.account.seasonRevenue, dashboard.finances.account.currency) }, { label: "Expenses", value: money(dashboard.finances.account.seasonExpenses, dashboard.finances.account.currency) }, { label: "Profit / loss", value: money(dashboard.finances.account.seasonProfitLoss, dashboard.finances.account.currency) }, { label: "Government / grants", value: money(dashboard.finances.ledgerEntries.filter((entry) => entry.category.includes("GRANT")).reduce((sum, entry) => sum + entry.amount, 0), dashboard.finances.account.currency) }]} /></Panel><FederationCommercial bridge={bridge} /><Ledger entries={dashboard.finances.ledgerEntries} /></section>;
+
+/**
+ * Read-only by design: ensureFederationSponsorship and
+ * settleFederationMediaRightsForCompetition both create and settle their
+ * deal in the same step, so there is no OFFERED state for a president to
+ * decide — showing an accept/reject/counter meeting here would be fake.
+ */
+const FederationCommercial = ({ bridge }: { bridge: DesktopRuntimeApi }): React.ReactElement => {
+  const [state] = useRuntimeData(() => bridge.getFederationCommercialOverview());
+  return (
+    <AsyncPanel state={state}>
+      {(overview) => (
+        <Panel title="Commercial partnerships">
+          <p className="subtle">
+            These deals are generated and settled automatically by the federation&rsquo;s commercial cadence —
+            there is no negotiation step to act on here.
+          </p>
+          {overview.sponsorship ? (
+            <Metrics
+              items={[
+                { label: "Federation sponsor", value: overview.sponsorship.sponsorName },
+                { label: "Category", value: overview.sponsorship.type.replaceAll("_", " ") },
+                { label: "Annual value", value: money(overview.sponsorship.annualValue, overview.sponsorship.currency) },
+                { label: "Term", value: `${overview.sponsorship.startDate} – ${overview.sponsorship.endDate}` },
+              ]}
+            />
+          ) : (
+            <p className="empty-state">No federation sponsorship has been established yet.</p>
+          )}
+          {overview.mediaRights.length === 0 ? (
+            <p className="empty-state">No competition media-rights deal has been settled yet.</p>
+          ) : (
+            <div className="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Package</th>
+                    <th>Broadcaster</th>
+                    <th>Value</th>
+                    <th>Status</th>
+                    <th>Term</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {overview.mediaRights.map((item, index) => (
+                    <tr key={index}>
+                      <td>{item.packageName}</td>
+                      <td>{item.broadcasterName}</td>
+                      <td>{money(item.value)}</td>
+                      <td>
+                        <Badge tone={item.status === "ACTIVE" ? "ok" : item.status === "EXPIRED" ? "bad" : "info"}>{item.status}</Badge>
+                      </td>
+                      <td>
+                        {item.startDate ?? "—"} – {item.endDate ?? "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Panel>
+      )}
+    </AsyncPanel>
+  );
+};
 const NationalTeams = ({ dashboard }: { dashboard: FederationPresidentDashboard }): React.ReactElement => <section className="role-detail"><Panel title="National teams"><div className="table-scroll"><table><thead><tr><th>Team</th><th>Level</th><th>Gender</th><th>Head coach</th></tr></thead><tbody>{dashboard.nationalTeams.map((team) => <tr key={team.id}><td>{team.name}</td><td>{team.level}</td><td>{team.gender}</td><td>{team.headCoach ?? "Not recorded"}</td></tr>)}</tbody></table></div></Panel></section>;
 const Tenure = ({ dashboard }: { dashboard: FederationPresidentDashboard }): React.ReactElement => <section className="role-detail"><Panel title="Presidency and tenure"><Metrics items={[{ label: "Federation", value: dashboard.federation.name }, { label: "Current term", value: dashboard.tenure ? `${dashboard.tenure.termStart} – ${dashboard.tenure.termEnd ?? "current"}` : "Not recorded" }, { label: "Status", value: dashboard.tenure?.status ?? "Unknown" }, { label: "Candidacy", value: "See ANFA Presidency Path on Home" }]} /></Panel></section>;
 
