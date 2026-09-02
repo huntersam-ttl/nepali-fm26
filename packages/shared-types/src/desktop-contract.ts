@@ -63,6 +63,7 @@ import type {
   GovernmentOverview,
   GovernmentFundingApplication,
   GovernmentFundingType,
+  ClubInfrastructureGovernmentContext,
 } from "./government.js";
 import type {
   FacilityFundingSource,
@@ -588,6 +589,15 @@ export type DesktopRuntimeApi = {
   createFacilityProjectPlan(
     input: FacilityProjectPlanInput,
   ): Promise<AppResult<FacilityProjectPlanResult>>;
+  getClubInfrastructureGovernmentContext?: (
+    projectId: EntityId,
+  ) => Promise<AppResult<ClubInfrastructureGovernmentContext>>;
+  openClubInfrastructureGovernmentRequest?: (input: {
+    projectId: EntityId;
+    institutionId: EntityId;
+    fundingType: "INFRASTRUCTURE" | "REGIONAL_GROUND" | "MUNICIPAL_LAND_OR_VENUE";
+    requestedAmount: number;
+  }) => Promise<AppResult<GovernmentFundingApplication>>;
   getFederationPresidentDashboard(): Promise<AppResult<FederationPresidentDashboard>>;
   getNationalDevelopment(): Promise<AppResult<FederationDevelopmentSummary>>;
   getGovernmentOverview(): Promise<AppResult<GovernmentOverview>>;

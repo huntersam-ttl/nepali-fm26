@@ -189,6 +189,10 @@ const dispatch = (
       );
     case "createFacilityProjectPlan":
       return service.createFacilityProjectPlan(body.input as any);
+    case "getClubInfrastructureGovernmentContext":
+      return service.getClubInfrastructureGovernmentContext(body.projectId as EntityId);
+    case "openClubInfrastructureGovernmentRequest":
+      return service.openClubInfrastructureGovernmentRequest(body.input as any);
     case "watchOwnerFixture":
       return service.watchOwnerFixture(body.fixtureId as EntityId | undefined);
     case "advanceOwnerFixture":

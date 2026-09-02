@@ -1,7 +1,8 @@
-import { createStableEntityId, type EntityId, type GovernmentFundingApplication, type GovernmentInstitution, type GovernmentFundingType, type GovernmentOverview, type GovernmentPriorityBand, type GovernmentRelationshipBand } from "@nepal-football-sim/shared-types";
+import { createStableEntityId, type ClubInfrastructureGovernmentContext, type EntityId, type GovernmentFundingApplication, type GovernmentInstitution, type GovernmentFundingType, type GovernmentOverview, type GovernmentPriorityBand, type GovernmentRelationshipBand } from "@nepal-football-sim/shared-types";
 import { FacilityPlanningRepository, GovernmentRepository, type GameDatabase } from "@nepal-football-sim/database";
 import { postClubTransaction } from "./club-economy.js";
 import { postFederationTransaction } from "./federation-governance.js";
+import { buildEntityReference } from "./entity-reference.js";
 
 export type GovernmentFundingEvidence = {
   federationCredibility: number;
@@ -212,6 +213,60 @@ export const requestClubInfrastructureGovernmentSupport = (
     requestedAmount: Math.round(input.requestedAmount),
     proposedOn: input.date,
   });
+};
+
+export const clubInfrastructureGovernmentContext = (
+  db: GameDatabase,
+  projectId: EntityId,
+): ClubInfrastructureGovernmentContext => {
+  const project = db.prepare("SELECT id, club_id FROM infrastructure_projects WHERE id=?").get(projectId) as
+    | { id: EntityId; club_id: EntityId }
+    | undefined;
+  if (!project) return { projectId, status: "STALE", clubId: "" as EntityId, conditions: [], fundingSettled: false, nextAction: "NONE", blockedReason: "Infrastructure project no longer exists." };
+  const plan = new FacilityPlanningRepository(db).planByProject(projectId);
+  const site = plan?.siteOptionId
+    ? new FacilityPlanningRepository(db).siteOptions(project.club_id).find((item) => item.id === plan.siteOptionId)
+    : undefined;
+  const application = new GovernmentRepository(db).applications().find(
+    (item) => item.projectId === projectId && item.clubId === project.club_id,
+  );
+  const institution = application
+    ? new GovernmentRepository(db).institution(application.institutionId)
+    : undefined;
+  const settlement = application
+    ? (db.prepare("SELECT id FROM club_ledger_entries WHERE related_entity_id=? ORDER BY id LIMIT 1").get(application.id) as { id?: EntityId } | undefined)
+    : undefined;
+  const status = application?.status ?? "NOT_REQUESTED";
+  const approved = application && ["APPROVED", "CONDITIONAL", "COMPLETED"].includes(application.status);
+  const nextAction = !application
+    ? "OPEN_REQUEST"
+    : ["PROPOSED", "SUBMITTED", "REVIEWED"].includes(application.status)
+      ? "WAIT_FOR_REVIEW"
+      : approved && site?.readiness === "AVAILABLE"
+        ? "START_PROJECT"
+        : "NONE";
+  return {
+    projectId,
+    project: buildEntityReference(db, "INFRASTRUCTURE_PROJECT", projectId, "CHAIRMAN_OWNER"),
+    siteId: plan?.siteOptionId,
+    siteReadiness: site?.readiness,
+    clubId: project.club_id,
+    governmentInstitution: institution
+      ? buildEntityReference(db, "GOVERNMENT_INSTITUTION", institution.id, "CHAIRMAN_OWNER")
+      : undefined,
+    requestType: application?.fundingType,
+    applicationId: application?.id,
+    status,
+    submittedOn: application?.proposedOn,
+    reviewedOn: application?.decidedOn,
+    requestedAmount: application?.requestedAmount,
+    approvedAmount: application?.approvedAmount,
+    conditions: application?.conditions ?? site?.governmentConditions ?? [],
+    fundingSettled: Boolean(settlement?.id),
+    settlementReference: settlement?.id,
+    nextAction,
+    blockedReason: !application && site?.readiness === "GOVERNMENT_REVIEW" ? "Government support request is required for this site." : undefined,
+  };
 };
 
 export const submitGovernmentFunding = (db: GameDatabase, applicationId: string): GovernmentFundingApplication => {

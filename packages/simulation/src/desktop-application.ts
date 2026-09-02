@@ -80,6 +80,7 @@ import {
   type FederationDevelopmentSummary,
   type GovernmentOverview,
   type GovernmentFundingApplication,
+  type ClubInfrastructureGovernmentContext,
   type GovernmentFundingType,
   type FederationPresidentDashboard,
   type E2ERoleFixtureResult,
@@ -365,7 +366,7 @@ import {
   federationCommercialOverview,
 } from "./federation-governance.js";
 import { federationDevelopmentSummary } from "./federation-policy.js";
-import { governmentOverview, requestGovernmentFunding } from "./government.js";
+import { governmentOverview, requestGovernmentFunding, requestClubInfrastructureGovernmentSupport, clubInfrastructureGovernmentContext } from "./government.js";
 import {
   assessFederationCandidacy,
   declareFederationElectionCandidacy,
@@ -1243,6 +1244,37 @@ export class DesktopApplicationService {
           "INVALID_SELECTION",
           error instanceof Error ? error.message : "Facility project plan could not be created.",
         );
+      }
+    });
+  }
+
+  getClubInfrastructureGovernmentContext(projectId: EntityId): AppResult<ClubInfrastructureGovernmentContext> {
+    return this.withSession((db) => clubInfrastructureGovernmentContext(db, projectId));
+  }
+
+  openClubInfrastructureGovernmentRequest(input: {
+    projectId: EntityId;
+    institutionId: EntityId;
+    fundingType: "INFRASTRUCTURE" | "REGIONAL_GROUND" | "MUNICIPAL_LAND_OR_VENUE";
+    requestedAmount: number;
+  }): AppResult<GovernmentFundingApplication> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      const role = activeCareerRole(db, personId);
+      const project = db.prepare("SELECT club_id FROM infrastructure_projects WHERE id=?").get(input.projectId) as { club_id?: EntityId } | undefined;
+      if (!project?.club_id) throw appError("INVALID_SELECTION", "Infrastructure project is unavailable.");
+      if (role === "CHAIRMAN_OWNER") {
+        if (!heldCareerRoles(db, personId).some((entry) => entry.role === role && entry.targetId === project.club_id))
+          throw appError("ROLE_NOT_AUTHORIZED", "The owner does not control this club.");
+      } else if (role === "CEO") {
+        this.executiveActor(db, save, project.club_id);
+      } else {
+        throw appError("ROLE_NOT_AUTHORIZED", "Only the owner or authorized CEO may request club government support.");
+      }
+      try {
+        return requestClubInfrastructureGovernmentSupport(db, { ...input, clubId: project.club_id, date: save.worldDate });
+      } catch (error) {
+        throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "Government support request could not be opened.");
       }
     });
   }

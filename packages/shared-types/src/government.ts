@@ -1,4 +1,5 @@
 import type { EntityId } from "./ids.js";
+import type { EntityReference } from "./entity-reference.js";
 
 export type GovernmentInstitutionType =
   | "NATIONAL_SPORTS_COUNCIL"
@@ -100,4 +101,25 @@ export type GovernmentOverviewInstitution = {
 export type GovernmentOverview = {
   institutions: GovernmentOverviewInstitution[];
   applications: GovernmentFundingApplication[];
+};
+
+export type ClubInfrastructureGovernmentContext = {
+  projectId: EntityId;
+  project?: EntityReference;
+  siteId?: EntityId;
+  siteReadiness?: string;
+  clubId: EntityId;
+  governmentInstitution?: EntityReference;
+  requestType?: GovernmentFundingType;
+  applicationId?: EntityId;
+  status: GovernmentFundingApplicationStatus | "NOT_REQUESTED" | "STALE";
+  submittedOn?: string;
+  reviewedOn?: string;
+  requestedAmount?: number;
+  approvedAmount?: number;
+  conditions: string[];
+  fundingSettled: boolean;
+  settlementReference?: EntityId;
+  nextAction: "OPEN_REQUEST" | "WAIT_FOR_REVIEW" | "START_PROJECT" | "NONE";
+  blockedReason?: string;
 };
