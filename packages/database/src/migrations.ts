@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 81;
+export const CURRENT_DATABASE_VERSION = 85;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -3589,6 +3589,20 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
     version: 84,
     sql: `ALTER TABLE player_development_states ADD COLUMN adaptation REAL NOT NULL DEFAULT 50;`,
+  },
+  {
+    version: 85,
+    sql: `
+      -- These joins are used by match-observation scouting and player mapping.
+      -- Keep them explicit so SQLite does not rebuild transient automatic indexes
+      -- for every observed fixture.
+      CREATE INDEX IF NOT EXISTS idx_player_attributes_person
+        ON player_attributes(person_id);
+      CREATE INDEX IF NOT EXISTS idx_team_person_assignments_person_role
+        ON team_person_assignments(person_id, role);
+      CREATE INDEX IF NOT EXISTS idx_player_season_stats_person
+        ON player_season_stats(person_id);
+    `,
   },
 ];
 
