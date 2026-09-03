@@ -1,0 +1,62 @@
+{
+  "manifestVersion": 1,
+  "generatedAt": "2026-09-03",
+  "purpose": "Release-facing dataset lineage, provenance, attribution, and licensing inventory.",
+  "entries": [
+    {
+      "id": "global-runtime-seed-v16",
+      "path": "data/global/football-world-v16.seed.json",
+      "version": "football_world_import_v16_reconciled_final",
+      "source": "Validated football_world_import_v16.xlsx lineage; see docs/GLOBAL_CONTEXT_IMPORT.md",
+      "provenance": "Mixed source-record classifications retained per entity",
+      "licenseStatus": "UNRESOLVED",
+      "attribution": "Embedded source register; summarized in docs/DATASET_ATTRIBUTION_AND_LICENSING.md",
+      "shipped": true,
+      "notes": "Runtime/new-save seed; no workbook read at runtime."
+    },
+    {
+      "id": "global-import-workbook-lineage-v16",
+      "path": "football_world_import_v16.xlsx",
+      "version": "football_world_import_v16",
+      "source": "Approved workbook supplied outside the repository",
+      "provenance": "Validated import input; not shipped by runtime",
+      "licenseStatus": "UNKNOWN",
+      "attribution": "Workbook contributors/source register require release-owner confirmation",
+      "shipped": false,
+      "notes": "Regeneration input only."
+    },
+    {
+      "id": "nepal-club-registry-2026-08",
+      "path": "data/nepal/2026-08/club-registry.json",
+      "version": "nepal-club-registry-2026-08",
+      "source": "Supplied Nepal club master registry",
+      "provenance": "REPORTED; MEDIUM confidence; explicit UNKNOWN fields retained",
+      "licenseStatus": "UNRESOLVED",
+      "attribution": "Supplied registry and documented venue/geography references",
+      "shipped": true,
+      "notes": "Nepal starting registry; no unsourced factual records should be added."
+    },
+    {
+      "id": "testing-only-fixtures",
+      "path": "data/fixtures/",
+      "version": "repository-current",
+      "source": "Synthetic test fixtures",
+      "provenance": "SIMULATION_ONLY / testing-only",
+      "licenseStatus": "N/A",
+      "attribution": "Not production data",
+      "shipped": false,
+      "notes": "Tests and diagnostics only."
+    },
+    {
+      "id": "runtime-generated-simulation-state",
+      "path": "Generated in SQLite saves",
+      "version": "runtime",
+      "source": "Canonical deterministic simulation systems",
+      "provenance": "SIMULATION_ONLY",
+      "licenseStatus": "N/A",
+      "attribution": "Generated gameplay state, not external factual data",
+      "shipped": false,
+      "notes": "Future history, generated players/businesses, offers, terms, and outcomes."
+    }
+  ]
+}
