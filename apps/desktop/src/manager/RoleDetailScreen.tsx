@@ -370,9 +370,9 @@ const ChairmanFinance = ({
           ) : (
             dashboard.equipment.map((asset) => (
               <li key={asset.id}>
-                {asset.id} ·{" "}
+                {band(asset.assetType)} ·{" "}
                 {Object.entries(asset.effect ?? {})
-                  .map(([key, value]) => `${key}: +${(value * 100).toFixed(1)}%`)
+                  .map(([key, value]) => `${effectLabel(key)}: +${(value * 100).toFixed(1)}%`)
                   .join(", ") || "operational asset"}
               </li>
             ))
@@ -3882,6 +3882,14 @@ export const OwnerMatchday = ({
                       )}
                     </div>
                   )}
+                  {/* Results/fixtures already refreshed the instant the match
+                      finalised (applyProgress above) — this only clears the
+                      local match-summary view so the Owner has an explicit
+                      way back to Next fixture / Recent results instead of
+                      having to navigate to another screen and back. */}
+                  <button className="ghost small" onClick={() => setLive(null)}>
+                    Back to fixtures
+                  </button>
                 </>
               ) : (
                 <>
@@ -4027,6 +4035,10 @@ const FACILITY_STATUS_TONE: Record<InfrastructureProject["status"], MeetingTone>
   CANCELLED: "bad",
 };
 const band = (value: string): string => value.replaceAll("_", " ").toLowerCase();
+/** Equipment effect keys are camelCase (e.g. "trainingEffectiveness") — split
+ * them into words the same way band() reads SNAKE_CASE, rather than showing
+ * the raw key. */
+const effectLabel = (key: string): string => key.replace(/([A-Z])/g, " $1").trim().toLowerCase();
 
 /**
  * Generated from real, already-fetched state only: which project types this

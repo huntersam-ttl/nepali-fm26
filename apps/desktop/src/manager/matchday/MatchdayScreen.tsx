@@ -14,6 +14,7 @@ type Stage = "PRE_MATCH" | "LIVE" | "REPORT";
 export const MatchdayScreen = ({
   fixtureId,
   resume,
+  alreadyPlayed,
   onExit,
   onMatchComplete,
   onSelectPlayer,
@@ -21,12 +22,19 @@ export const MatchdayScreen = ({
   fixtureId: EntityId;
   /** True when re-entering a match that is already in progress. */
   resume?: boolean;
+  /**
+   * True when opened from the Results tab for a fixture that has already
+   * been played — go straight to its report instead of offering Kick Off
+   * again (the fixture already has a final score; there is nothing to
+   * prepare or re-simulate).
+   */
+  alreadyPlayed?: boolean;
   onExit: () => void;
   onMatchComplete: () => void;
   onSelectPlayer?: (playerId: EntityId) => void;
 }): React.ReactElement => {
   const controller = useMatchController(fixtureId);
-  const [stage, setStage] = useState<Stage>(resume ? "LIVE" : "PRE_MATCH");
+  const [stage, setStage] = useState<Stage>(resume ? "LIVE" : alreadyPlayed ? "REPORT" : "PRE_MATCH");
 
   // Re-entering a live match restores it from the persisted session.
   useEffect(() => {

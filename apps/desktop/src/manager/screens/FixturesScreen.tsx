@@ -6,7 +6,7 @@ import { AsyncPanel, Badge, Panel, useRuntimeData } from "../ui.js";
 export const FixturesScreen = ({
   onOpenMatch,
 }: {
-  onOpenMatch: (fixtureId: EntityId) => void;
+  onOpenMatch: (fixtureId: EntityId, alreadyPlayed: boolean) => void;
 }): React.ReactElement => {
   const [state] = useRuntimeData(() => managerBridge.getFixtures());
   const [tab, setTab] = useState<"upcoming" | "results">("upcoming");
@@ -76,7 +76,7 @@ export const FixturesScreen = ({
                            first is the one being prepared for. */
                         isNext={tab === "upcoming" && index === 0}
                         actionable={tab === "results" || fixture.date <= list.worldDate}
-                        onSelect={() => onOpenMatch(fixture.id)}
+                        onSelect={() => onOpenMatch(fixture.id, tab === "results")}
                       />
                     ))}
                   </tbody>

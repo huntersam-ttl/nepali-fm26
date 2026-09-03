@@ -140,6 +140,7 @@ export const ManagerCareer = ({
   const [playerId, setPlayerId] = useState<EntityId | null>(null);
   const [matchFixtureId, setMatchFixtureId] = useState<EntityId | null>(null);
   const [resumingMatch, setResumingMatch] = useState(false);
+  const [openMatchAsReport, setOpenMatchAsReport] = useState(false);
   const [error, setError] = useState<AppError | null>(null);
   const [busy, setBusy] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -211,9 +212,10 @@ export const ManagerCareer = ({
     setRefreshKey((key) => key + 1);
   };
 
-  const openMatch = (fixtureId: EntityId, resume = false): void => {
+  const openMatch = (fixtureId: EntityId, resume = false, alreadyPlayed = false): void => {
     setMatchFixtureId(fixtureId);
     setResumingMatch(resume);
+    setOpenMatchAsReport(alreadyPlayed);
     setScreen("fixtures");
   };
 
@@ -435,12 +437,15 @@ export const ManagerCareer = ({
             <MatchdayScreen
               fixtureId={matchFixtureId}
               resume={resumingMatch}
+              alreadyPlayed={openMatchAsReport}
               onExit={() => void leaveMatch()}
               onMatchComplete={() => void onMatchComplete()}
               onSelectPlayer={openPlayer}
             />
           ) : (
-            <FixturesScreen onOpenMatch={(fixtureId) => openMatch(fixtureId)} />
+            <FixturesScreen
+              onOpenMatch={(fixtureId, alreadyPlayed) => openMatch(fixtureId, false, alreadyPlayed)}
+            />
           ))}
         {header.activeRole === "MANAGER" && screen === "competition" && <CompetitionScreen />}
         {header.activeRole === "MANAGER" && screen === "scouting" && <ScoutingScreen onSelectPlayer={openPlayer} />}
