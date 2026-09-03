@@ -10,6 +10,27 @@ export class ProcurementRepository {
   suppliers(): ProcurementSupplier[] {
     return (this.db.prepare("SELECT * FROM procurement_suppliers ORDER BY id").all() as any[]).map((row) => ({ id: row.id, name: row.name, region: row.region, reputation: row.reputation, priceLevel: row.price_level, reliability: row.reliability, foreign: Boolean(row.foreign_supplier), status: row.status }));
   }
+  supplierReliability(supplierId: EntityId): { supplierReliability: number; delivered: number; completed: number } {
+    const supplier = this.db.prepare("SELECT reliability FROM procurement_suppliers WHERE id=?").get(supplierId) as { reliability?: number } | undefined;
+    const result = this.db.prepare(`
+      SELECT COUNT(*) AS completed,
+             COALESCE(SUM(CASE WHEN o.status='DELIVERED' THEN 1 ELSE 0 END), 0) AS delivered
+      FROM procurement_orders o
+      JOIN procurement_offers f ON f.id=o.offer_id
+      WHERE f.supplier_id=? AND o.status IN ('DELIVERED','FAILED')
+    `).get(supplierId) as { completed?: number; delivered?: number };
+    const completed = Number(result.completed ?? 0);
+    const delivered = Number(result.delivered ?? 0);
+    return {
+      supplierReliability: supplier
+        ? completed === 0
+          ? supplier.reliability ?? 0.5
+          : Math.max(0.1, Math.min(0.99, ((supplier.reliability ?? 0.5) + delivered / completed) / 2))
+        : 0.5,
+      delivered,
+      completed,
+    };
+  }
   upsertRequest(request: ProcurementRequest): void {
     this.db.prepare(`INSERT INTO procurement_requests (id,club_id,category,quantity,requested_on,status,budget_category,status_text) VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,status_text=excluded.status_text`).run(request.id, request.clubId, request.category, request.quantity, request.requestedOn, request.status, request.budgetCategory, request.statusText ?? null);
   }

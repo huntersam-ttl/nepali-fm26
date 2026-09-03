@@ -420,3 +420,25 @@ The unrelated imported-recruitment fixture assertion remains failing at
 expected imported forward). The public filtered search path was verified unchanged and the
 region-aware recruitment and AI-scope regressions pass; the assertion is classified as a stale
 fixture/expectation issue, with no weakened assertion.
+
+### Economy/AI scaling isolation and procurement fix (2026-09-03)
+
+Temporary phase instrumentation isolated the late-season growth to the AI procurement branch, not
+trial discovery, contracts, loans, or ownership continuity. Procurement time was 16.05s / 93.52s /
+272.17s in the instrumented S1/S2/S3 profile. The branch called `supplierReliability` once per
+supplier for each club request; each call reconstructed all procurement orders and offers in
+memory and performed a nested JavaScript lookup. The trial player-pool cache recorded 69 hits and
+1 miss in each annual AI run, so `76710af` cache invalidation was not the cause.
+
+The fix adds `ProcurementRepository.supplierReliability`, preserving the same delivered/failed
+order semantics with a targeted aggregate query, plus migration-managed indexes on supplier offers
+and order status. It does not change supplier values, ordering, or decision rules. Procurement
+timings fell to 0.68s / 1.04s / 1.13s, and the complete economy/ownership/AI phase fell to
+37.25s / 36.80s / 48.45s in the matched instrumented validation. The three-season run completed
+492.09s cumulative (181.88s / 146.65s / 163.57s per-season elapsed checkpoints), with 2,571/2,634
+matches/fixtures, zero structural shortages, zero emergency lineups, zero duplicate IDs, finite
+finances, and reload validation passing. The instrumented run is not used as an idle wall-clock
+baseline, but the isolated phase reduction is clear and reproducible.
+
+The next profile target, if needed, is the remaining S3 competition phase; a 20-season run is not
+yet justified until a clean non-instrumented comparison and longer stability gate are recorded.

@@ -1,6 +1,6 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 90;
+export const CURRENT_DATABASE_VERSION = 91;
 
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -3707,6 +3707,15 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       );
       CREATE INDEX IF NOT EXISTS idx_national_team_commercial_programme
         ON national_team_commercial_settlements(federation_id, programme, settled_on);
+    `,
+  },
+  {
+    version: 91,
+    sql: `
+      CREATE INDEX IF NOT EXISTS idx_procurement_offers_supplier
+        ON procurement_offers(supplier_id, id);
+      CREATE INDEX IF NOT EXISTS idx_procurement_orders_offer_status
+        ON procurement_orders(offer_id, status);
     `,
   },
 ];

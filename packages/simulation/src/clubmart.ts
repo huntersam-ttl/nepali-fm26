@@ -22,10 +22,7 @@ export const initializeClubMartForSave = (db: GameDatabase): ProcurementSupplier
 const basePrice = (category: ProcurementCategory): number => ({ KITS_TRAINING_WEAR: 1800, FOOTBALL_EQUIPMENT: 4200, GYM_PERFORMANCE: 48000, MEDICAL_SUPPLIES: 22000, ANALYSIS_SCOUTING: 65000, GROUNDS_STADIUM: 38000 })[category];
 
 const supplierReliability = (repo: ProcurementRepository, supplierId: EntityId): number => {
-  const supplier = repo.suppliers().find((item) => item.id === supplierId);
-  const orders = repo.orders().filter((order) => repo.offers().find((offer) => offer.id === order.offerId)?.supplierId === supplierId && ["DELIVERED", "FAILED"].includes(order.status));
-  if (!supplier || orders.length === 0) return supplier?.reliability ?? 0.5;
-  return Math.max(0.1, Math.min(0.99, (supplier.reliability + orders.filter((order) => order.status === "DELIVERED").length / orders.length) / 2));
+  return repo.supplierReliability(supplierId).supplierReliability;
 };
 export const getSupplierReliability = (db: GameDatabase, supplierId: EntityId): number => supplierReliability(new ProcurementRepository(db), supplierId);
 
