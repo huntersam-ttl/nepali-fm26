@@ -104,7 +104,7 @@ fn spawn_runtime(
 }
 
 fn main() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .setup(|app| {
             let saves = app.path().app_data_dir()?.join("saves");
             std::fs::create_dir_all(&saves)?;
@@ -131,6 +131,22 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![runtime_command])
-        .run(tauri::generate_context!())
-        .expect("error while running Tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building Tauri application");
+
+    // On macOS, quitting via Cmd+Q or the app menu tears the process down
+    // through AppKit's own termination path, which does not reliably run
+    // Rust's `Drop` impls first — the Runtime's Drop (kill the sidecar) was
+    // observed not to fire, leaving the Node sidecar as an orphaned process.
+    // Killing it explicitly on RunEvent::Exit covers every exit path Tauri
+    // itself dispatches through, not just a normal window close.
+    app.run(|app_handle, event| {
+        if let tauri::RunEvent::Exit = event {
+            if let Some(runtime) = app_handle.try_state::<Runtime>() {
+                if let Ok(mut child) = runtime.child.lock() {
+                    let _ = child.kill();
+                }
+            }
+        }
+    });
 }
