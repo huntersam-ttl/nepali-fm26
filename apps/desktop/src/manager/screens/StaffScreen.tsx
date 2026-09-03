@@ -141,6 +141,7 @@ export const StaffScreen = ({ refreshKey }: { refreshKey: number }): React.React
                             <div className="button-row">
                               <input
                                 inputMode="numeric"
+                                aria-label={`New salary for ${member.name}`}
                                 placeholder="New salary"
                                 value={draftFor(`renew-${member.appointmentId}`, "")}
                                 onChange={(e) =>
@@ -503,6 +504,7 @@ export const StaffScreen = ({ refreshKey }: { refreshKey: number }): React.React
               {staffList.length > 0 && (
                 <div className="button-row">
                   <select
+                    aria-label="Staff member for development plan"
                     value={draftFor("plan-person", staffList[0]!.personId)}
                     onChange={(e) => setPlanDrafts({ ...planDrafts, "plan-person": e.target.value })}
                   >
@@ -513,6 +515,7 @@ export const StaffScreen = ({ refreshKey }: { refreshKey: number }): React.React
                     ))}
                   </select>
                   <input
+                    aria-label="Development plan focus"
                     placeholder="Focus"
                     value={planDrafts["plan-focus"] ?? ""}
                     onChange={(e) => setPlanDrafts({ ...planDrafts, "plan-focus": e.target.value })}

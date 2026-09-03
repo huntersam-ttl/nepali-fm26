@@ -1,6 +1,6 @@
 import React from "react";
 import { managerBridge } from "../managerBridge.js";
-import { AsyncPanel, FormRun, Panel, useRuntimeData } from "../ui.js";
+import { AsyncPanel, Badge, FormRun, Panel, useRuntimeData } from "../ui.js";
 
 export const CompetitionScreen = (): React.ReactElement => {
   const [state] = useRuntimeData(() => managerBridge.getCompetition());
@@ -34,7 +34,15 @@ export const CompetitionScreen = (): React.ReactElement => {
                     {view.table.map((row) => (
                       <tr key={row.teamId} className={row.isManagerTeam ? "row-highlight" : ""}>
                         <td>{row.position}</td>
-                        <td>{row.teamName}</td>
+                        <td>
+                          {row.teamName}
+                          {row.isManagerTeam && (
+                            <>
+                              {" "}
+                              <Badge tone="info">You</Badge>
+                            </>
+                          )}
+                        </td>
                         <td>{row.played}</td>
                         <td>{row.won}</td>
                         <td>{row.drawn}</td>

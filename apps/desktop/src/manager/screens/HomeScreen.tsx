@@ -352,7 +352,14 @@ export const HomeScreen = ({
                           return (
                             <li key={groupType}>
                               <strong>{groupLabel(groupType)}</strong> ({members.length}):{" "}
-                              {members.map((member) => member.playerName).join(", ")}
+                              {members.map((member, index) => (
+                                <React.Fragment key={member.personId}>
+                                  {index > 0 && ", "}
+                                  <button className="link" onClick={() => onSelectPlayer(member.personId)}>
+                                    {member.playerName}
+                                  </button>
+                                </React.Fragment>
+                              ))}
                             </li>
                           );
                         })}
