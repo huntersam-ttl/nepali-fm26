@@ -395,3 +395,28 @@ and an idle re-run is still owed against the 118.33s reference.
 The first checkpointed five-season run measured 175.8s, 266.7s, 496.6s, 575.3s, and 823.6s for seasons 1–5. Matches remained 851 per season, while database size grew 73.1MB to 192.4MB. Economy/ownership/AI grew from 35.4s to 528.5s and overtook competitions by S4.
 
 The proven growth mechanism was `closeClubFinancialSeason` loading every historical ledger row for each of 573 clubs before filtering the current season in memory. The bounded `(club_id, entry_date)` query fix materially reduced the comparable three-season slope: economy/ownership/AI S3/S1 fell from 6.84x to 4.20x. These runs were contended and are not absolute idle baselines.
+
+### Late-season scaling follow-up (2026-09-03)
+
+The next candidate hotspot was referee assignment: the candidate filter performed one
+team-conflict SQLite lookup per candidate official. A fixture-scoped replacement was tested,
+but the controlled three-season run did not reproduce a gain and was reverted. No gameplay or
+database semantics were retained from that experiment.
+
+The comparable post-`76710af` run completed with 851/851, 1,702/1,744, and 2,571/2,634
+matches/fixtures at the season checkpoints. Cumulative time was 986.64s (220.14s, 282.26s,
+484.24s per season), versus the accepted 797.22s reference (161.91s, 233.78s, 401.54s).
+The run remained correct: structural shortages 0, emergency lineups 0, duplicate IDs/finalization
+0, finite finances, and save/reload validation passed. Checkpoint database sizes were 82.23MB,
+116.40MB, and 151.26MB; RSS was 428.7MB, 459.0MB, and 552.1MB.
+
+The result is not accepted as a performance regression baseline because the phase variance was
+dominated by economy/ownership/AI (60.88s, 166.03s, 350.52s), not the candidate-filter change.
+The next useful measurement is an isolated economy/AI phase comparison using matched S1-sized and
+S3-sized database histories. The 20-season run remains unready.
+
+The unrelated imported-recruitment fixture assertion remains failing at
+`canonical-imported-global-recruitment.test.ts:108` (`africaForwards` does not contain the
+expected imported forward). The public filtered search path was verified unchanged and the
+region-aware recruitment and AI-scope regressions pass; the assertion is classified as a stale
+fixture/expectation issue, with no weakened assertion.
