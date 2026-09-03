@@ -67,6 +67,7 @@ import type {
   ClubProfile,
   StaffProfileReadModel,
   CompetitionProfile,
+  NationalTeamSquadReadModel,
 } from "@nepal-football-sim/shared-types";
 
 export type {
@@ -206,6 +207,8 @@ const bindCommands = (call: CommandCaller): DesktopRuntimeApi => ({
     call<StaffProfileReadModel>("getStaffProfile", { personId }),
   getCompetitionProfile: (competitionId: EntityId) =>
     call<CompetitionProfile>("getCompetitionProfile", { competitionId }),
+  getNationalTeamSquad: (nationalTeamId: EntityId, programme?: string) =>
+    call<NationalTeamSquadReadModel>("getNationalTeamSquad", { nationalTeamId, programme }),
   // Wired only to satisfy DesktopRuntimeApi (landed concurrently in owner-manager-meetings.ts) —
   // no UI consumes this yet; see this task's CODEX_HANDOFF note.
   getManagerOwnerPlayerRequests: () =>

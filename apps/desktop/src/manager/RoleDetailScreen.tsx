@@ -55,6 +55,9 @@ import type {
   StaffProfileReadModel,
   CompetitionProfile,
   OrganizationProfile,
+  NationalTeamSquadReadModel,
+  NationalTeamSquadPlayer,
+  NationalTeamSelectionHistoryEntry,
 } from "@nepal-football-sim/shared-types";
 import type { EntityId } from "@nepal-football-sim/shared-types";
 import type { AppError, AppResult, DesktopRuntimeApi } from "../appBridge.js";
@@ -1279,7 +1282,8 @@ const PresidentDetail = ({
           return <Governance dashboard={dashboard} bridge={bridge} refresh={refresh} />;
         if (screen === "finance") return <FederationFinance dashboard={dashboard} />;
         if (screen === "commercial") return <PresidentCommercial bridge={bridge} />;
-        if (screen === "national-teams") return <NationalTeams dashboard={dashboard} />;
+        if (screen === "national-teams")
+          return <NationalTeams dashboard={dashboard} bridge={bridge} />;
         if (screen === "national-development") return <NationalDevelopment bridge={bridge} />;
         if (screen === "government-relations") return <GovernmentRelations bridge={bridge} />;
         return <Tenure dashboard={dashboard} />;
@@ -1880,36 +1884,311 @@ const PresidentCommercial = ({ bridge }: { bridge: DesktopRuntimeApi }): React.R
 };
 const NationalTeams = ({
   dashboard,
+  bridge,
 }: {
   dashboard: FederationPresidentDashboard;
-}): React.ReactElement => (
-  <section className="role-detail">
-    <Panel title="National teams">
-      <div className="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>Team</th>
-              <th>Level</th>
-              <th>Gender</th>
-              <th>Head coach</th>
-            </tr>
-          </thead>
-          <tbody>
-            {dashboard.nationalTeams.map((team) => (
-              <tr key={team.id}>
-                <td>{team.name}</td>
-                <td>{team.level}</td>
-                <td>{team.gender}</td>
-                <td>{team.headCoach ?? "Not recorded"}</td>
+  bridge: DesktopRuntimeApi;
+}): React.ReactElement => {
+  const [squadTeamId, setSquadTeamId] = useState<EntityId | undefined>(undefined);
+  return (
+    <section className="role-detail">
+      <Panel title="National teams">
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Team</th>
+                <th>Level</th>
+                <th>Gender</th>
+                <th>Head coach</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {dashboard.nationalTeams.map((team) => (
+                <tr key={team.id}>
+                  <td>
+                    <button className="link" onClick={() => setSquadTeamId(team.id)}>
+                      {team.name}
+                    </button>
+                  </td>
+                  <td>{team.level}</td>
+                  <td>{team.gender}</td>
+                  <td>{team.headCoach ?? "Not recorded"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Panel>
+      {squadTeamId && (
+        <NationalTeamSquadPanel
+          bridge={bridge}
+          teams={dashboard.nationalTeams}
+          initialTeamId={squadTeamId}
+          onClose={() => setSquadTeamId(undefined)}
+        />
+      )}
+    </section>
+  );
+};
+
+const SELECTION_STATUS_TONE: Record<string, MeetingTone> = {
+  CALLED_UP: "ok",
+  CONFIRMED: "ok",
+  STANDBY: "info",
+  DECLINED: "bad",
+  WITHDRAWN: "warn",
+  RELEASED: "info",
+};
+const AVAILABILITY_TONE: Record<NationalTeamSquadPlayer["availability"], MeetingTone> = {
+  AVAILABLE: "ok",
+  INJURED: "bad",
+  SUSPENDED: "warn",
+  UNAVAILABLE: "info",
+};
+const PROGRAMME_DISPLAY_LABEL: Record<string, string> = {
+  SENIOR_MENS: "Senior Men",
+  YOUTH: "Youth",
+  WOMENS_GIRLS: "Women & Girls",
+};
+
+/**
+ * NATIONAL-TEAM SQUAD — the canonical persisted call-up state
+ * (getNationalTeamSquad, 0f714b4/acc9003). "Programme" here always means
+ * whichever real team you are looking at (Senior Men / Senior Women / a
+ * specific youth age group) — the backend derives one programme per team id,
+ * so switching teams IS switching programme; there is no separate
+ * programme override that would make sense against a single team's own
+ * call-ups. Read-only throughout: no selection/call-up mutation exists on
+ * this command surface, so none is exposed here.
+ */
+const NationalTeamSquadPanel = ({
+  bridge,
+  teams,
+  initialTeamId,
+  onClose,
+}: {
+  bridge: DesktopRuntimeApi;
+  teams: FederationPresidentDashboard["nationalTeams"];
+  initialTeamId: EntityId;
+  onClose: () => void;
+}): React.ReactElement => {
+  const [teamId, setTeamId] = useState<EntityId>(initialTeamId);
+  const [state] = useRuntimeData(async () => {
+    if (!bridge.getNationalTeamSquad)
+      return {
+        ok: false as const,
+        error: { code: "RUNTIME_UNAVAILABLE" as const, message: "National-team squads are unavailable right now." },
+      };
+    return bridge.getNationalTeamSquad(teamId);
+  }, [teamId]);
+  const [openPlayerId, setOpenPlayerId] = useState<EntityId | undefined>(undefined);
+  const [openClubId, setOpenClubId] = useState<EntityId | undefined>(undefined);
+  const [openStaffId, setOpenStaffId] = useState<EntityId | undefined>(undefined);
+
+  const openEntity = (reference: EntityReference): void => {
+    if (reference.entityType === "PLAYER") setOpenPlayerId(reference.id);
+    else if (reference.entityType === "CLUB") setOpenClubId(reference.id);
+    else if (reference.entityType === "STAFF") setOpenStaffId(reference.id);
+  };
+
+  return (
+    <Panel
+      title="National team squad"
+      className="panel-wide"
+      actions={
+        <button className="ghost small" onClick={onClose}>
+          Close
+        </button>
+      }
+    >
+      {teams.length > 1 && (
+        <div className="inline-form">
+          <label>
+            National team
+            <select value={teamId} onChange={(event) => setTeamId(event.target.value as EntityId)}>
+              {teams.map((team) => (
+                <option key={team.id} value={team.id}>
+                  {team.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      )}
+      <AsyncPanel state={state}>
+        {(squad) => (
+          <>
+            <h2>{squad.nationalTeam.label}</h2>
+            <div className="button-row">
+              <Badge tone="info">{PROGRAMME_DISPLAY_LABEL[squad.programme] ?? band(squad.programme)}</Badge>
+            </div>
+            {!squad.supported ? (
+              <p className="empty-state">
+                {squad.unsupportedReason ?? "This national team's squad is not available."}
+              </p>
+            ) : (
+              <>
+                <Metrics
+                  items={[
+                    { label: "Squad size", value: squad.squadSize },
+                    { label: "Selected", value: squad.selectedCount },
+                    { label: "Unavailable", value: squad.unavailableCount },
+                    {
+                      label: "Head coach",
+                      value: squad.headCoach ? (
+                        <EntityRefLink reference={squad.headCoach} onOpen={openEntity} />
+                      ) : (
+                        "Not recorded"
+                      ),
+                    },
+                    ...(squad.currentWindow
+                      ? [{ label: "Current window", value: squad.currentWindow.callupDate }]
+                      : []),
+                    { label: "As of", value: squad.asOf },
+                  ]}
+                />
+                <Panel title="Club distribution">
+                  {squad.clubDistribution.length === 0 ? (
+                    <p className="empty-state">No club distribution recorded.</p>
+                  ) : (
+                    <div className="button-row">
+                      {squad.clubDistribution.map((entry, index) => (
+                        <span className="entity-chip" key={entry.club?.id ?? `unattached-${index}`}>
+                          {entry.club ? (
+                            <EntityRefLink reference={entry.club} onOpen={openEntity} />
+                          ) : (
+                            "Unattached"
+                          )}{" "}
+                          · {entry.count}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </Panel>
+                <Panel title="Squad" className="panel-wide">
+                  {squad.players.length === 0 ? (
+                    <p className="empty-state">No players currently called up to this squad.</p>
+                  ) : (
+                    <div className="table-scroll">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Player</th>
+                            <th>Position</th>
+                            <th>Age</th>
+                            <th>Club</th>
+                            <th>Squad type</th>
+                            <th>Status</th>
+                            <th>Availability</th>
+                            <th>Caps</th>
+                            <th>Called up</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {squad.players.map((player) => (
+                            <tr key={player.personId}>
+                              <td>
+                                <EntityRefLink reference={player.player} onOpen={openEntity} />
+                              </td>
+                              <td>{player.position ? band(player.position) : "—"}</td>
+                              <td>{player.age ?? "—"}</td>
+                              <td>
+                                {player.currentClub ? (
+                                  <EntityRefLink reference={player.currentClub} onOpen={openEntity} />
+                                ) : (
+                                  "Unattached"
+                                )}
+                              </td>
+                              <td>{band(player.squadType)}</td>
+                              <td>
+                                <Badge tone={SELECTION_STATUS_TONE[player.selectionStatus] ?? "info"}>
+                                  {band(player.selectionStatus)}
+                                </Badge>
+                              </td>
+                              <td>
+                                <Badge tone={AVAILABILITY_TONE[player.availability]}>
+                                  {band(player.availability)}
+                                </Badge>
+                              </td>
+                              <td>{player.internationalAppearances}</td>
+                              <td>{player.callupDate}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </Panel>
+                <Panel title="Recent call-up history" className="panel-wide">
+                  {squad.selectionHistory.length === 0 ? (
+                    <p className="empty-state">No call-up history recorded.</p>
+                  ) : (
+                    <div className="table-scroll">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Date</th>
+                            <th>Player</th>
+                            <th>Status</th>
+                            <th>Appearance</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {squad.selectionHistory.map((entry) => (
+                            <tr key={entry.id}>
+                              <td>{entry.callupDate}</td>
+                              <td>
+                                <EntityRefLink reference={entry.player} onOpen={openEntity} />
+                              </td>
+                              <td>
+                                <Badge tone={SELECTION_STATUS_TONE[entry.selectionStatus] ?? "info"}>
+                                  {band(entry.selectionStatus)}
+                                </Badge>
+                              </td>
+                              <td>
+                                {entry.appearance
+                                  ? `${entry.appearance.date} vs ${entry.appearance.opponent} · ${entry.appearance.minutes}'${entry.appearance.goals > 0 ? ` · ${entry.appearance.goals}g` : ""}`
+                                  : "—"}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </Panel>
+              </>
+            )}
+          </>
+        )}
+      </AsyncPanel>
+      {openPlayerId && (
+        <PlayerContextPanel
+          bridge={bridge}
+          playerId={openPlayerId}
+          onClose={() => setOpenPlayerId(undefined)}
+        />
+      )}
+      {openClubId && (
+        <OrganizationProfilePanel
+          bridge={bridge}
+          entityType="CLUB"
+          entityId={openClubId}
+          onClose={() => setOpenClubId(undefined)}
+        />
+      )}
+      {openStaffId && (
+        <OrganizationProfilePanel
+          bridge={bridge}
+          entityType="STAFF"
+          entityId={openStaffId}
+          onClose={() => setOpenStaffId(undefined)}
+        />
+      )}
     </Panel>
-  </section>
-);
+  );
+};
 const Tenure = ({ dashboard }: { dashboard: FederationPresidentDashboard }): React.ReactElement => (
   <section className="role-detail">
     <Panel title="Presidency and tenure">
