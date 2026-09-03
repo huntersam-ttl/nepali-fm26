@@ -6674,6 +6674,11 @@ export class ClubEconomyRepository {
     return rows.map(mapSponsorshipContract);
   }
 
+  sponsorship(id: EntityId): SponsorshipContract | undefined {
+    const row = this.db.prepare("SELECT * FROM sponsorship_contracts WHERE id = ?").get(id) as any;
+    return row ? mapSponsorshipContract(row) : undefined;
+  }
+
   upsertCommercialProfile(profile: ClubCommercialProfile): void {
     this.db
       .prepare(

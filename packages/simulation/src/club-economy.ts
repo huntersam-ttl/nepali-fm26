@@ -743,7 +743,7 @@ export const acceptSponsorOffer = (
   date: string,
 ): SponsorshipContract => {
   const economy = new ClubEconomyRepository(db);
-  const contract = economy.sponsorships().find((item) => item.id === sponsorshipId);
+  const contract = economy.sponsorship(sponsorshipId);
   if (!contract) throw new Error(`Sponsorship offer ${sponsorshipId} not found`);
   if (contract.status !== "OFFERED" && contract.status !== "COUNTERED")
     throw new Error(`Sponsorship ${sponsorshipId} is not available`);

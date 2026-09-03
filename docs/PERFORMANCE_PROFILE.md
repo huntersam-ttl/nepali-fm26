@@ -442,3 +442,25 @@ baseline, but the isolated phase reduction is clear and reproducible.
 
 The next profile target, if needed, is the remaining S3 competition phase; a 20-season run is not
 yet justified until a clean non-instrumented comparison and longer stability gate are recorded.
+
+### Club-finance scaling isolation (2026-09-03)
+
+Finance instrumentation split the monthly cadence across wages, facilities, projects, sponsorship,
+commercial partnerships, merchandise, loan wages, and infrastructure advancement. The dominant
+growth was sponsorship processing: 6.23s / 7.58s / 18.00s across S1/S2/S3. `acceptSponsorOffer`
+loaded the entire sponsorship history once per club before checking the selected offer, creating a
+growing all-history scan during AI's annual sponsorship refresh. Merchandise was the next largest
+but remained approximately linear (12.33s / 15.59s / 15.71s).
+
+The fix adds a primary-key `sponsorship(id)` repository lookup and keeps the existing club-scoped
+exclusivity check, ledger idempotency key, historical event, and contract state transitions intact.
+Club-finance phase timings changed from 31.11s / 32.48s / 43.90s to 30.67s / 37.07s / 41.41s in
+matched instrumented runs; sponsorship changed to 5.22s / 6.94s / 9.01s. The post-fix run took
+160.34s / 148.76s / 165.22s per season, 474.31s cumulative, with 2,571/2,634 matches/fixtures,
+zero structural shortages, zero emergency lineups, zero duplicate IDs, finite finances, and
+reload validation passing. The exact per-season wall time is instrumentation-sensitive; the
+sponsorship reduction is the accepted result.
+
+The finance path still processes 573 club accounts per month. No evidence justified changing
+ledger semantics or deleting history. A 20-season run remains unready pending a clean benchmark and
+longer stability gate.
