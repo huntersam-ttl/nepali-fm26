@@ -497,3 +497,48 @@ The five-season scaling gate **PASSED**: S4/S5 showed no renewed superlinear run
 and sponsorship remained bounded, memory plateaued, and correctness/data integrity stayed green.
 The expensive 20-season run is now **READY_FOR_20_SEASON_VALIDATION**, but has not been run and
 therefore does not itself constitute a 20-season release-performance pass.
+
+### Twenty-season long-save validation (2026-09-03)
+
+The canonical production benchmark was run once from `24b1776` with seed
+`long-save-post-freeze-2026`, one-season checkpoint/reload boundaries, and the final database
+retained for inspection. All **20 seasons** completed through `2046-07-31` in **4,184.53s** of
+simulation elapsed time (**4,199.27s** including Vitest overhead). Per-season elapsed times were:
+
+`172.74 / 137.66 / 154.82 / 166.65 / 187.45 / 186.14 / 216.47 / 211.92 / 231.56 / 224.72 /
+221.89 / 216.47 / 217.19 / 208.26 / 214.60 / 221.79 / 251.75 / 252.06 / 248.48 / 241.92s`.
+
+Median season runtime was **216.47s**, maximum **252.06s**, and Season 20 was **69.18s / 40.1%**
+slower than Season 1. The economy/ownership/AI phase remained bounded at
+**34.85 / 34.56 / 38.86 / 40.94 / 42.68 / 40.38 / 56.73 / 45.02 / 49.31 / 45.37 / 44.78 /
+43.86 / 39.69 / 38.24 / 42.00 / 40.70 / 45.73 / 42.87 / 43.77 / 42.63s**. The 20-season
+harness did not emit separate sponsorship or AI-procurement timers; those submetrics remain
+covered by the five-season instrumentation above and were not inferred here.
+
+| Checkpoint | Runtime |      RSS |  Database | Matches | Persons | Structural shortages |
+| ---------- | ------: | -------: | --------: | ------: | ------: | -------------------: |
+| 1          | 172.74s | 520.8 MB |  82.27 MB |     851 |   3,555 |                    0 |
+| 5          | 187.45s | 511.9 MB | 221.37 MB |   4,309 |   4,469 |                    0 |
+| 10         | 224.72s | 514.0 MB | 402.50 MB |   8,770 |   5,495 |                    0 |
+| 15         | 214.60s | 594.8 MB | 587.55 MB |  13,310 |   6,604 |                    0 |
+| 20         | 241.92s | 595.6 MB | 776.31 MB |  17,934 |   7,714 |                    0 |
+
+Every checkpoint had zero emergency lineups, zero duplicate IDs, finite finances, no suspended
+competition states, and successful save/reload. All 100 competition seasons rolled over. The final
+SQLite integrity check returned `ok`, migrations reached version 91, and no active/retired player
+contradictions were observed. Generated-player history recorded **1,676** `YOUTH_PLAYER_GENERATED`
+events; no retirement-state rows were present in this save, so retirements are reported as **0
+persisted retirement states**, not inferred from population changes.
+
+Database growth was approximately linear: **82.27 → 776.31 MB**. Final `dbstat` leaders were
+`match_events` (321.0 MB), `club_ledger_entries` (98.4 MB), `federation_ledger_entries` (30.6 MB),
+`player_knowledge` (29.5 MB), `commercial_history_events` (19.5 MB), and `historical_events`
+(12.4 MB). Row growth was led by match events (**1,090,321**), club ledger entries (**484,771**),
+commercial history (**137,520**), federation ledger entries (**129,531**), and historical events
+(**34,175**); these are expected persisted histories, with no duplicate-ID accumulation reported.
+
+RSS remained near **508–514 MB** through Season 10 and then rose to **581–596 MB** before
+plateauing through Season 20. This is a bounded capacity step rather than continuous per-season
+growth in this run. The long-save correctness, data-integrity, save/reload, memory-growth, and
+performance gates **PASSED**. The final database is retained in the temporary benchmark directory
+for audit inspection and is not part of the repository.
