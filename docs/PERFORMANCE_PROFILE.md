@@ -464,3 +464,36 @@ sponsorship reduction is the accepted result.
 The finance path still processes 573 club accounts per month. No evidence justified changing
 ledger semantics or deleting history. A 20-season run remains unready pending a clean benchmark and
 longer stability gate.
+
+### Five-season scaling validation (2026-09-03)
+
+The canonical five-season workload was run once from the post-sponsorship optimization state with
+seed `long-save-post-freeze-2026`, checkpoint/reload enabled, and no gameplay changes. All five
+seasons completed through the production progression path. Per-season elapsed times were **178.89s,
+145.10s, 159.93s, 177.32s, and 178.71s**, for **839.95s cumulative**. The economy/ownership/AI
+phase was **34.95s, 36.57s, 41.86s, 46.98s, and 41.67s**; the observed S4 increase did not
+continue into S5. AI procurement remained bounded at **0.70s, 0.96s, 1.20s, 1.46s, and 1.44s**.
+Sponsorship processing across the twelve monthly finance passes was **6.23s, 6.99s, 8.98s,
+8.10s, and 8.97s** per season, with no renewed historical-table growth pattern.
+
+| Season | Elapsed | Economy/AI | Procurement | Sponsorship |      RSS |  Database |
+| ------ | ------: | ---------: | ----------: | ----------: | -------: | --------: |
+| 1      | 178.89s |     34.95s |       0.70s |       6.23s | 519.9 MB |  82.28 MB |
+| 2      | 145.10s |     36.57s |       0.96s |       6.99s | 612.9 MB | 116.49 MB |
+| 3      | 159.93s |     41.86s |       1.20s |       8.98s | 611.4 MB | 151.38 MB |
+| 4      | 177.32s |     46.98s |       1.46s |       8.10s | 612.8 MB | 185.56 MB |
+| 5      | 178.71s |     41.67s |       1.44s |       8.97s | 613.7 MB | 221.37 MB |
+
+All **4,309 / 4,309 matches** completed, with zero structural shortages, zero emergency lineups,
+zero duplicate IDs in the harness checks, finite finances, valid rollovers, and successful reload
+checkpoints. The benchmark DB is removed by the harness after capture, so direct `dbstat` table
+attribution was unavailable; persisted snapshot counts show expected linear growth in fixtures
+(872 → 4,414), matches (851 → 4,309), persons (3,555 → 4,459), and player knowledge
+(21,094 at the final checkpoint). No duplicate or redundant snapshot accumulation was reported.
+RSS rose during the first reload boundary and then plateaued at approximately **611–614 MB**;
+this is bounded over the five-season run, though heap/native attribution was not collected.
+
+The five-season scaling gate **PASSED**: S4/S5 showed no renewed superlinear runtime, procurement
+and sponsorship remained bounded, memory plateaued, and correctness/data integrity stayed green.
+The expensive 20-season run is now **READY_FOR_20_SEASON_VALIDATION**, but has not been run and
+therefore does not itself constitute a 20-season release-performance pass.
