@@ -64,6 +64,9 @@ import type {
   ManagerOwnerPlayerRequest,
   ClubInfrastructureGovernmentContext,
   FederationCommercialRightsOffer,
+  ClubProfile,
+  StaffProfileReadModel,
+  CompetitionProfile,
 } from "@nepal-football-sim/shared-types";
 
 export type {
@@ -198,6 +201,11 @@ const bindCommands = (call: CommandCaller): DesktopRuntimeApi => ({
     call<EntityReference>("getEntityReference", { entityType, entityId }),
   getOrganizationProfile: (entityType: OrganizationProfileEntityType, entityId: EntityId) =>
     call<OrganizationProfile>("getOrganizationProfile", { entityType, entityId }),
+  getClubProfile: (clubId: EntityId) => call<ClubProfile>("getClubProfile", { clubId }),
+  getStaffProfile: (personId: EntityId) =>
+    call<StaffProfileReadModel>("getStaffProfile", { personId }),
+  getCompetitionProfile: (competitionId: EntityId) =>
+    call<CompetitionProfile>("getCompetitionProfile", { competitionId }),
   // Wired only to satisfy DesktopRuntimeApi (landed concurrently in owner-manager-meetings.ts) —
   // no UI consumes this yet; see this task's CODEX_HANDOFF note.
   getManagerOwnerPlayerRequests: () =>

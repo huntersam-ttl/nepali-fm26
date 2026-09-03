@@ -51,9 +51,13 @@ import type {
   MatchEventParticipant,
   OrganizationCommercialDeal,
   OrganizationProfileEntityType,
+  ClubProfile,
+  StaffProfileReadModel,
+  CompetitionProfile,
+  OrganizationProfile,
 } from "@nepal-football-sim/shared-types";
 import type { EntityId } from "@nepal-football-sim/shared-types";
-import type { AppError, DesktopRuntimeApi } from "../appBridge.js";
+import type { AppError, AppResult, DesktopRuntimeApi } from "../appBridge.js";
 import { AsyncPanel, Badge, ErrorBanner, Metrics, Panel, money, useRuntimeData } from "./ui.js";
 import {
   MeetingBrief,
@@ -2908,6 +2912,7 @@ const OwnerManagerMeetingView = ({
   const [dueOn, setDueOn] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [openManagerId, setOpenManagerId] = useState<EntityId | undefined>(undefined);
 
   const openMeeting = async (): Promise<void> => {
     setBusyId("open");
@@ -3003,6 +3008,17 @@ const OwnerManagerMeetingView = ({
             organisation: overview.clubName,
           }}
         />
+        <button className="ghost small" onClick={() => setOpenManagerId(overview.managerPersonId)}>
+          View manager profile
+        </button>
+        {openManagerId && (
+          <OrganizationProfilePanel
+            bridge={bridge}
+            entityType="STAFF"
+            entityId={openManagerId}
+            onClose={() => setOpenManagerId(undefined)}
+          />
+        )}
         {!session ? (
           <>
             <MeetingBrief heading="Choose a topic">
@@ -4673,6 +4689,7 @@ export const PlayerContextPanel = ({
     };
   }, [playerId]);
   const [requestBusy, setRequestBusy] = useState<OwnerPlayerRequestIntent | null>(null);
+  const [openClubId, setOpenClubId] = useState<EntityId | undefined>(undefined);
 
   return (
     <Panel
@@ -4696,7 +4713,16 @@ export const PlayerContextPanel = ({
               <h2>{data.reference.label}</h2>
               <Metrics
                 items={[
-                  { label: "Club", value: data.contract.clubName ?? "Unattached" },
+                  {
+                    label: "Club",
+                    value: data.transfer.currentClubId ? (
+                      <button className="link" onClick={() => setOpenClubId(data.transfer.currentClubId)}>
+                        {data.contract.clubName ?? "Club"}
+                      </button>
+                    ) : (
+                      (data.contract.clubName ?? "Unattached")
+                    ),
+                  },
                   { label: "Squad role", value: data.contract.contract?.squadRole ?? "—" },
                   {
                     label: "Contract status",
@@ -4785,6 +4811,14 @@ export const PlayerContextPanel = ({
                   </button>
                 )}
               </Panel>
+              {openClubId && (
+                <OrganizationProfilePanel
+                  bridge={bridge}
+                  entityType="CLUB"
+                  entityId={openClubId}
+                  onClose={() => setOpenClubId(undefined)}
+                />
+              )}
             </>
           )
         }
@@ -4808,9 +4842,14 @@ export const PlayerContextPanel = ({
 const formatSector = (value: string): string => (/^[A-Z0-9_]+$/.test(value) ? band(value) : value);
 
 const ORGANIZATION_ENTITY_TYPES = new Set(["SPONSOR", "LENDER", "INVESTOR"]);
+/** Club/Staff/Competition profiles (b0d0871) render through the same host as
+ * organizations — see OrganizationProfilePanel below, which now covers both. */
+const WORLD_PROFILE_ENTITY_TYPES = new Set(["CLUB", "STAFF", "COMPETITION"]);
 const isOpenableReference = (reference: EntityReference): boolean =>
   reference.visible &&
-  (reference.entityType === "PLAYER" || ORGANIZATION_ENTITY_TYPES.has(reference.entityType));
+  (reference.entityType === "PLAYER" ||
+    ORGANIZATION_ENTITY_TYPES.has(reference.entityType) ||
+    WORLD_PROFILE_ENTITY_TYPES.has(reference.entityType));
 
 const DEAL_STATUS_TONE: Record<string, MeetingTone> = {
   ACTIVE: "ok",
@@ -4913,6 +4952,31 @@ const OrganizationDealSection = ({
   </Panel>
 );
 
+/** Every entity type this shared host can open — organizations plus the
+ * world-profile trio from b0d0871. */
+export type ProfileEntityType = OrganizationProfileEntityType | "CLUB" | "STAFF" | "COMPETITION";
+
+type ProfileTarget = { entityType: ProfileEntityType; entityId: EntityId };
+
+type ProfileData =
+  | { kind: "ORGANIZATION"; data: OrganizationProfile }
+  | { kind: "CLUB"; data: ClubProfile }
+  | { kind: "STAFF"; data: StaffProfileReadModel }
+  | { kind: "COMPETITION"; data: CompetitionProfile };
+
+const missingProfileMethod = (message: string): { ok: false; error: AppError } => ({
+  ok: false,
+  error: { code: "RUNTIME_UNAVAILABLE", message },
+});
+
+/**
+ * ONE canonical dossier host for every clickable world entity — sponsors,
+ * lenders, investors (getOrganizationProfile), and clubs/staff/competitions
+ * (getClubProfile/getStaffProfile/getCompetitionProfile, b0d0871). Every
+ * screen that makes an EntityReference clickable opens it through this same
+ * component and the same internal back/history stack, so a Club → Manager →
+ * Club → Competition chain works uniformly no matter where it started.
+ */
 export const OrganizationProfilePanel = ({
   bridge,
   entityType,
@@ -4921,39 +4985,46 @@ export const OrganizationProfilePanel = ({
   onOpenPlayer,
 }: {
   bridge: DesktopRuntimeApi;
-  entityType: OrganizationProfileEntityType;
+  entityType: ProfileEntityType;
   entityId: EntityId;
   onClose: () => void;
   /** Present wherever the caller already has a player-profile surface to route PLAYER references into. */
   onOpenPlayer?: (playerId: EntityId) => void;
 }): React.ReactElement => {
-  const [target, setTarget] = useState<{
-    entityType: OrganizationProfileEntityType;
-    entityId: EntityId;
-  }>({
-    entityType,
-    entityId,
-  });
-  const [history, setHistory] = useState<
-    Array<{ entityType: OrganizationProfileEntityType; entityId: EntityId }>
-  >([]);
-  const [state] = useRuntimeData(
-    () => bridge.getOrganizationProfile(target.entityType, target.entityId),
-    [target.entityType, target.entityId],
-  );
+  const [target, setTarget] = useState<ProfileTarget>({ entityType, entityId });
+  const [history, setHistory] = useState<ProfileTarget[]>([]);
+  const [state] = useRuntimeData(async (): Promise<AppResult<ProfileData>> => {
+    if (ORGANIZATION_ENTITY_TYPES.has(target.entityType)) {
+      const result = await bridge.getOrganizationProfile(
+        target.entityType as OrganizationProfileEntityType,
+        target.entityId,
+      );
+      return result.ok ? { ok: true as const, data: { kind: "ORGANIZATION" as const, data: result.data } } : result;
+    }
+    if (target.entityType === "CLUB") {
+      if (!bridge.getClubProfile) return missingProfileMethod("Club profiles are unavailable right now.");
+      const result = await bridge.getClubProfile(target.entityId);
+      return result.ok ? { ok: true as const, data: { kind: "CLUB" as const, data: result.data } } : result;
+    }
+    if (target.entityType === "STAFF") {
+      if (!bridge.getStaffProfile) return missingProfileMethod("Staff profiles are unavailable right now.");
+      const result = await bridge.getStaffProfile(target.entityId);
+      return result.ok ? { ok: true as const, data: { kind: "STAFF" as const, data: result.data } } : result;
+    }
+    if (!bridge.getCompetitionProfile)
+      return missingProfileMethod("Competition profiles are unavailable right now.");
+    const result = await bridge.getCompetitionProfile(target.entityId);
+    return result.ok ? { ok: true as const, data: { kind: "COMPETITION" as const, data: result.data } } : result;
+  }, [target.entityType, target.entityId]);
 
   const openReference = (reference: EntityReference): void => {
     if (reference.entityType === "PLAYER") {
       onOpenPlayer?.(reference.id);
       return;
     }
-    if (ORGANIZATION_ENTITY_TYPES.has(reference.entityType)) {
-      setHistory((previous) => [...previous, target]);
-      setTarget({
-        entityType: reference.entityType as OrganizationProfileEntityType,
-        entityId: reference.id,
-      });
-    }
+    if (!isOpenableReference(reference)) return;
+    setHistory((previous) => [...previous, target]);
+    setTarget({ entityType: reference.entityType as ProfileEntityType, entityId: reference.id });
   };
 
   const goBack = (): void => {
@@ -4963,9 +5034,18 @@ export const OrganizationProfilePanel = ({
     setTarget(previous);
   };
 
+  const title =
+    target.entityType === "CLUB"
+      ? "Club"
+      : target.entityType === "STAFF"
+        ? "Staff"
+        : target.entityType === "COMPETITION"
+          ? "Competition"
+          : "Organization";
+
   return (
     <Panel
-      title="Organization"
+      title={title}
       className="panel-wide organization-profile-panel"
       actions={
         <span className="button-row">
@@ -4981,55 +5061,296 @@ export const OrganizationProfilePanel = ({
       }
     >
       <AsyncPanel state={state}>
-        {(profile) => (
-          <>
-            <h2>{profile.entityReference.label}</h2>
-            <div className="button-row">
-              <Badge tone="info">{band(profile.entityReference.entityType)}</Badge>
-              {profile.sector && <Badge tone="info">{formatSector(profile.sector)}</Badge>}
-              <Badge tone={profile.provenanceStatus === "VERIFIED" ? "ok" : "info"}>
-                {profile.provenanceStatus === "VERIFIED" ? "Verified company" : "Simulation-only"}
-              </Badge>
-            </div>
-            {profile.relationshipClues.length > 0 && (
-              <p className="subtle">{profile.relationshipClues.join(" · ")}</p>
-            )}
-
-            <OrganizationDealSection
-              title="Active relationships"
-              deals={profile.activeDeals}
-              onOpenReference={openReference}
-              empty="No active commercial relationships."
-            />
-            <OrganizationDealSection
-              title="Current negotiations"
-              deals={profile.currentNegotiations}
-              onOpenReference={openReference}
-              empty="No open negotiations."
-            />
-            <OrganizationDealSection
-              title="Partnership history"
-              deals={profile.dealHistory}
-              onOpenReference={openReference}
-              empty="No historical deals recorded."
-            />
-
-            {profile.involvedEntities.length > 0 && (
-              <Panel title="Involved entities">
-                <div className="button-row">
-                  {profile.involvedEntities.map((reference) => (
-                    <EntityRefChip
-                      key={`${reference.entityType}:${reference.id}`}
-                      reference={reference}
-                      onOpen={openReference}
-                    />
-                  ))}
-                </div>
-              </Panel>
-            )}
-          </>
-        )}
+        {(profile) =>
+          profile.kind === "ORGANIZATION" ? (
+            <OrganizationProfileBody profile={profile.data} onOpenReference={openReference} />
+          ) : profile.kind === "CLUB" ? (
+            <ClubProfileBody profile={profile.data} onOpenReference={openReference} />
+          ) : profile.kind === "STAFF" ? (
+            <StaffProfileBody profile={profile.data} onOpenReference={openReference} />
+          ) : (
+            <CompetitionProfileBody profile={profile.data} onOpenReference={openReference} />
+          )
+        }
       </AsyncPanel>
     </Panel>
   );
 };
+
+const OrganizationProfileBody = ({
+  profile,
+  onOpenReference,
+}: {
+  profile: OrganizationProfile;
+  onOpenReference: (reference: EntityReference) => void;
+}): React.ReactElement => (
+  <>
+    <h2>{profile.entityReference.label}</h2>
+    <div className="button-row">
+      <Badge tone="info">{band(profile.entityReference.entityType)}</Badge>
+      {profile.sector && <Badge tone="info">{formatSector(profile.sector)}</Badge>}
+      <Badge tone={profile.provenanceStatus === "VERIFIED" ? "ok" : "info"}>
+        {profile.provenanceStatus === "VERIFIED" ? "Verified company" : "Simulation-only"}
+      </Badge>
+    </div>
+    {profile.relationshipClues.length > 0 && (
+      <p className="subtle">{profile.relationshipClues.join(" · ")}</p>
+    )}
+
+    <OrganizationDealSection
+      title="Active relationships"
+      deals={profile.activeDeals}
+      onOpenReference={onOpenReference}
+      empty="No active commercial relationships."
+    />
+    <OrganizationDealSection
+      title="Current negotiations"
+      deals={profile.currentNegotiations}
+      onOpenReference={onOpenReference}
+      empty="No open negotiations."
+    />
+    <OrganizationDealSection
+      title="Partnership history"
+      deals={profile.dealHistory}
+      onOpenReference={onOpenReference}
+      empty="No historical deals recorded."
+    />
+
+    {profile.involvedEntities.length > 0 && (
+      <Panel title="Involved entities">
+        <div className="button-row">
+          {profile.involvedEntities.map((reference) => (
+            <EntityRefChip
+              key={`${reference.entityType}:${reference.id}`}
+              reference={reference}
+              onOpen={onOpenReference}
+            />
+          ))}
+        </div>
+      </Panel>
+    )}
+  </>
+);
+
+/** Never fabricates club history/metadata — only fields buildClubProfile actually returns. */
+const ClubProfileBody = ({
+  profile,
+  onOpenReference,
+}: {
+  profile: ClubProfile;
+  onOpenReference: (reference: EntityReference) => void;
+}): React.ReactElement => (
+  <>
+    <h2>{profile.entityReference.label}</h2>
+    <div className="button-row">
+      <Badge tone="info">{band(profile.entityReference.entityType)}</Badge>
+      {profile.division && <Badge tone="info">{band(profile.division)}</Badge>}
+    </div>
+    {profile.locationLabel && <p className="subtle">{profile.locationLabel}</p>}
+    <Metrics
+      items={[
+        {
+          label: "Manager",
+          value: profile.manager ? (
+            <EntityRefLink reference={profile.manager} onOpen={onOpenReference} />
+          ) : (
+            "Vacant"
+          ),
+        },
+        {
+          label: "Owner",
+          value: profile.owner ? (
+            <EntityRefLink reference={profile.owner} onOpen={onOpenReference} />
+          ) : (
+            "Unknown"
+          ),
+        },
+      ]}
+    />
+    <Panel title="Active sponsors">
+      {profile.activeSponsors.length === 0 ? (
+        <p className="empty-state">No active sponsors on record.</p>
+      ) : (
+        <div className="button-row">
+          {profile.activeSponsors.map((reference) => (
+            <EntityRefChip
+              key={`${reference.entityType}:${reference.id}`}
+              reference={reference}
+              onOpen={onOpenReference}
+            />
+          ))}
+        </div>
+      )}
+    </Panel>
+    <Panel title="Infrastructure projects">
+      {profile.infrastructureProjects.length === 0 ? (
+        <p className="empty-state">No infrastructure projects in progress.</p>
+      ) : (
+        <ul className="compact-list">
+          {profile.infrastructureProjects.map((reference) => (
+            <li key={reference.id}>{reference.visible ? reference.label : "Unknown project"}</li>
+          ))}
+        </ul>
+      )}
+    </Panel>
+    <Panel title="Recent fixtures">
+      {profile.recentFixtures.length === 0 ? (
+        <p className="empty-state">No fixtures on record.</p>
+      ) : (
+        <ul className="compact-list">
+          {profile.recentFixtures.map((reference) => (
+            <li key={reference.id}>
+              {reference.visible ? reference.label : "Unknown fixture"}
+              {reference.subtitle ? ` · ${reference.subtitle}` : ""}
+            </li>
+          ))}
+        </ul>
+      )}
+    </Panel>
+  </>
+);
+
+/** No hidden personality/attribute scores — only the identity, appointment,
+ * and career fields buildStaffProfile actually returns. */
+const StaffProfileBody = ({
+  profile,
+  onOpenReference,
+}: {
+  profile: StaffProfileReadModel;
+  onOpenReference: (reference: EntityReference) => void;
+}): React.ReactElement => (
+  <>
+    <h2>{profile.entityReference.label}</h2>
+    <div className="button-row">
+      <Badge tone="info">{band(profile.entityReference.entityType)}</Badge>
+      {profile.role && <Badge tone="info">{band(profile.role)}</Badge>}
+    </div>
+    <Metrics
+      items={[
+        {
+          label: "Club",
+          value: profile.club ? (
+            <EntityRefLink reference={profile.club} onOpen={onOpenReference} />
+          ) : (
+            "Unattached"
+          ),
+        },
+        {
+          label: "Federation",
+          value: profile.federation ? (
+            <EntityRefLink reference={profile.federation} onOpen={onOpenReference} />
+          ) : (
+            "—"
+          ),
+        },
+        { label: "Contract ends", value: profile.contractEnd ?? "—" },
+      ]}
+    />
+    {profile.careerHistory.length > 0 && (
+      <Panel title="Career history">
+        <div className="button-row">
+          {profile.careerHistory.map((reference) => (
+            <EntityRefChip
+              key={`${reference.entityType}:${reference.id}`}
+              reference={reference}
+              onOpen={onOpenReference}
+            />
+          ))}
+        </div>
+      </Panel>
+    )}
+  </>
+);
+
+/** Sponsor naming never overwrites the canonical competition name — the two
+ * are always rendered as distinct fields, exactly as CompetitionProfile
+ * itself distinguishes them. */
+const CompetitionProfileBody = ({
+  profile,
+  onOpenReference,
+}: {
+  profile: CompetitionProfile;
+  onOpenReference: (reference: EntityReference) => void;
+}): React.ReactElement => (
+  <>
+    <h2>{profile.canonicalName}</h2>
+    {profile.commercialDisplayTitle && profile.commercialDisplayTitle !== profile.canonicalName && (
+      <p className="subtle">Commercially known as {profile.commercialDisplayTitle}</p>
+    )}
+    <Metrics
+      items={[
+        {
+          label: "Season",
+          value: profile.currentSeason
+            ? `${profile.currentSeason.name} · ${profile.currentSeason.startDate} – ${profile.currentSeason.endDate}`
+            : "No active season",
+        },
+        {
+          label: "Title sponsor",
+          value: profile.titleSponsor ? (
+            <EntityRefLink reference={profile.titleSponsor} onOpen={onOpenReference} />
+          ) : (
+            "None"
+          ),
+        },
+      ]}
+    />
+    <Panel title="Standings">
+      {profile.standings.length === 0 ? (
+        <p className="empty-state">No standings recorded for the current season.</p>
+      ) : (
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Club</th>
+                <th>Played</th>
+                <th>Points</th>
+                <th>Goal difference</th>
+              </tr>
+            </thead>
+            <tbody>
+              {profile.standings.map((row) => (
+                <tr key={row.team.id}>
+                  <td>
+                    <EntityRefLink reference={row.team} onOpen={onOpenReference} />
+                  </td>
+                  <td>{row.played}</td>
+                  <td>{row.points}</td>
+                  <td>{row.goalDifference}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Panel>
+    <Panel title="Participants">
+      {profile.participants.length === 0 ? (
+        <p className="empty-state">No participating clubs on record.</p>
+      ) : (
+        <div className="button-row">
+          {profile.participants.map((reference) => (
+            <EntityRefChip
+              key={`${reference.entityType}:${reference.id}`}
+              reference={reference}
+              onOpen={onOpenReference}
+            />
+          ))}
+        </div>
+      )}
+    </Panel>
+    {profile.fixtures.length > 0 && (
+      <Panel title="Recent fixtures">
+        <ul className="compact-list">
+          {profile.fixtures.map((reference) => (
+            <li key={reference.id}>
+              {reference.visible ? reference.label : "Unknown fixture"}
+              {reference.subtitle ? ` · ${reference.subtitle}` : ""}
+            </li>
+          ))}
+        </ul>
+      </Panel>
+    )}
+  </>
+);
