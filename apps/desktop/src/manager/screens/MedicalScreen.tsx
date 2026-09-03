@@ -1,10 +1,10 @@
 import React, { useState } from "react";
-import type { MedicalCentreEntryView, MedicalCentreView } from "@nepal-football-sim/shared-types";
+import type { EntityId, MedicalCentreEntryView, MedicalCentreView } from "@nepal-football-sim/shared-types";
 import { managerBridge } from "../managerBridge.js";
 import { AsyncPanel, Badge, ErrorBanner, Panel, useRuntimeData } from "../ui.js";
 import type { AppError } from "../../appBridge.js";
 
-export const MedicalScreen = (): React.ReactElement => {
+export const MedicalScreen = ({ onSelectPlayer }: { onSelectPlayer: (id: EntityId) => void }): React.ReactElement => {
   const [state, , replace] = useRuntimeData(() => managerBridge.getMedicalCentre());
   const [error, setError] = useState<AppError | null>(null);
   const [busy, setBusy] = useState(false);
@@ -24,7 +24,9 @@ export const MedicalScreen = (): React.ReactElement => {
   return (
     <>
       {error && <ErrorBanner error={error} />}
-      <AsyncPanel state={state}>{(view) => <MedicalBoard view={view} busy={busy} onDecide={decide} />}</AsyncPanel>
+      <AsyncPanel state={state}>
+        {(view) => <MedicalBoard view={view} busy={busy} onDecide={decide} onSelectPlayer={onSelectPlayer} />}
+      </AsyncPanel>
     </>
   );
 };
@@ -41,10 +43,12 @@ const MedicalBoard = ({
   view,
   busy,
   onDecide,
+  onSelectPlayer,
 }: {
   view: MedicalCentreView;
   busy: boolean;
   onDecide: (personId: MedicalCentreEntryView["personId"], decision: string) => Promise<void>;
+  onSelectPlayer: (id: EntityId) => void;
 }): React.ReactElement => (
   <section className="dashboard">
     <Panel title="Medical centre">
@@ -68,7 +72,11 @@ const MedicalBoard = ({
             <tbody>
               {view.players.map((player) => (
                 <tr key={player.personId}>
-                  <td>{player.name}</td>
+                  <td>
+                    <button className="link" onClick={() => onSelectPlayer(player.personId)}>
+                      {player.name}
+                    </button>
+                  </td>
                   <td>{player.rehabPlan ? stageLabel(player.rehabPlan.stage) : stageLabel(player.stage)}</td>
                   <td>
                     <Badge tone={recommendationTone(player.availabilityRecommendation)}>

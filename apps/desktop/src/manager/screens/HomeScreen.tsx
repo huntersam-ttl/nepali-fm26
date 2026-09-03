@@ -319,7 +319,10 @@ export const HomeScreen = ({
               <Panel title="Medical Centre">
                 {(dashboard.medicalCentre ?? []).filter((item) => item.availabilityRecommendation !== "FULLY_FIT").slice(0, 5).map((item) => (
                   <p key={item.id} className="subtle">
-                    <strong>{item.playerName}</strong>: {item.availabilityRecommendation.replaceAll("_", " ").toLowerCase()} · return {item.estimatedReturnStart}–{item.estimatedReturnEnd} · {item.workloadFlag.toLowerCase()} load
+                    <button className="link" onClick={() => onSelectPlayer(item.personId)}>
+                      {item.playerName}
+                    </button>
+                    : {item.availabilityRecommendation.replaceAll("_", " ").toLowerCase()} · return {item.estimatedReturnStart}–{item.estimatedReturnEnd} · {item.workloadFlag.toLowerCase()} load
                   </p>
                 ))}
                 {(dashboard.medicalCentre ?? []).every((item) => item.availabilityRecommendation === "FULLY_FIT") && <p className="ok">No medical restrictions.</p>}
@@ -394,11 +397,22 @@ export const HomeScreen = ({
                               <li key={dispute.id}>
                                 {dispute.kind === "PLAYER_VS_PLAYER" ? (
                                   <>
-                                    <strong>{dispute.playerName}</strong> vs{" "}
-                                    <strong>{dispute.withPlayerName}</strong>
+                                    <button className="link" onClick={() => onSelectPlayer(dispute.personId)}>
+                                      {dispute.playerName}
+                                    </button>{" "}
+                                    vs{" "}
+                                    {dispute.withPersonId ? (
+                                      <button className="link" onClick={() => onSelectPlayer(dispute.withPersonId!)}>
+                                        {dispute.withPlayerName}
+                                      </button>
+                                    ) : (
+                                      <strong>{dispute.withPlayerName}</strong>
+                                    )}
                                   </>
                                 ) : (
-                                  <strong>{dispute.playerName}</strong>
+                                  <button className="link" onClick={() => onSelectPlayer(dispute.personId)}>
+                                    {dispute.playerName}
+                                  </button>
                                 )}{" "}
                                 <span className="subtle">({concernLabel(dispute.concernType)})</span>
                                 <div className="button-row">
@@ -472,7 +486,9 @@ export const HomeScreen = ({
                     <ul className="report-list">
                       {view.concerns.map((concern) => (
                         <li key={concern.id}>
-                          <strong>{concern.playerName}</strong>{" "}
+                          <button className="link" onClick={() => onSelectPlayer(concern.personId)}>
+                            {concern.playerName}
+                          </button>{" "}
                           <Badge tone={concern.status === "ESCALATED" ? "bad" : "warn"}>
                             {concernLabel(concern.type)}
                           </Badge>{" "}

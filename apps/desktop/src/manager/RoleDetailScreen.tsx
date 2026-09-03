@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import type {
   ChairmanDashboard,
   CareerHeader,
+  CareerRole,
   CareerRoleState,
   ClubDebt,
   ClubFinanceMeetingOverview,
@@ -108,6 +109,10 @@ type Props = {
  */
 const SECTION_TITLES: Record<string, { title: string; subtitle: string }> = {
   finance: { title: "Finances", subtitle: "Balance, borrowing, and where the money went." },
+  "president-finance": {
+    title: "Federation finance",
+    subtitle: "Balance, revenue, expenses, and profit or loss.",
+  },
   manager: { title: "Manager", subtitle: "Appoint and review the person running the team." },
   facilities: { title: "Facilities", subtitle: "Ground and infrastructure projects." },
   sponsorship: { title: "Sponsorship", subtitle: "Commercial agreements and offers." },
@@ -138,8 +143,9 @@ const SECTION_TITLES: Record<string, { title: string; subtitle: string }> = {
   tenure: { title: "Tenure", subtitle: "Term, mandate, and election standing." },
 };
 
-const SectionHeader = ({ screen }: { screen: string }): React.ReactElement | null => {
-  const section = SECTION_TITLES[screen];
+const SectionHeader = ({ screen, role }: { screen: string; role: CareerRole }): React.ReactElement | null => {
+  const section =
+    role === "FEDERATION_PRESIDENT" ? (SECTION_TITLES[`president-${screen}`] ?? SECTION_TITLES[screen]) : SECTION_TITLES[screen];
   if (!section) return null;
   return (
     <header className="page-header">
@@ -159,7 +165,7 @@ export const RoleDetailScreen = ({
   onNavigate,
 }: Props): React.ReactElement => (
   <>
-    <SectionHeader screen={screen} />
+    <SectionHeader screen={screen} role={header.activeRole} />
     {header.activeRole === "CHAIRMAN_OWNER" ? (
       <ChairmanDetail screen={screen as ChairmanScreen} bridge={bridge} onNavigate={onNavigate} />
     ) : (
