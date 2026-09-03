@@ -3774,7 +3774,7 @@ export const OwnerMatchday = ({
           )}
 
           {!live?.finalized && (
-            <Panel title="Next fixture">
+            <Panel title="Next fixture" className="panel-wide">
               {matchday.upcoming.length === 0 ? (
                 <p className="empty-state">No upcoming fixtures scheduled.</p>
               ) : (
@@ -3941,7 +3941,7 @@ export const OwnerMatchday = ({
             </Panel>
           )}
 
-          <Panel title="Recent results">
+          <Panel title="Recent results" className="panel-wide">
             {matchday.results.length === 0 ? (
               <p className="empty-state">No results recorded yet.</p>
             ) : (

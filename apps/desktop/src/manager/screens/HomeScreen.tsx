@@ -32,6 +32,10 @@ const actionLabel = (action: ConcernResponseAction): string => {
       return "Promise squad status review";
     case "PROMISE_TRANSFER_STANCE":
       return "Promise to keep them";
+    case "PROMISE_LOAN_CONSIDERATION":
+      return "Promise to consider a loan";
+    case "PROMISE_SQUAD_STRENGTHENING":
+      return "Promise to strengthen the squad";
     case "DISMISS":
       return "Dismiss";
     default:
@@ -155,7 +159,12 @@ export const HomeScreen = ({
                           ? "—"
                           : Math.round(dashboard.boardConfidence),
                     },
-                    { label: "Board expects", value: dashboard.boardExpectation ?? "—" },
+                    {
+                      label: "Board expects",
+                      value: dashboard.boardExpectation
+                        ? dashboard.boardExpectation.replaceAll("_", " ").toLowerCase()
+                        : "—",
+                    },
                   ]}
                 />
                 <p>
