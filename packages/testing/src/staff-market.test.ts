@@ -225,19 +225,22 @@ describe("staff market phase A: hiring, dismissal, contracts, AI recruitment", (
 
   it("keeps a retired player's staff transition compatible with the hiring pipeline", () => {
     expect(market().staffProfile(retiredPlayerId)).toBeUndefined();
-    const profile = ensureStaffProfileForRetiree(db, retiredPlayerId, "ASSISTANT_COACH");
-    expect(profile.preferredRole).toBe("ASSISTANT_COACH");
+    // TECHNICAL_DIRECTOR (not a CORE_CLUB_ROLES entry) so this fixture never
+    // competes with the dedicated SCOUT free-agent-reuse scenario later in
+    // this file.
+    const profile = ensureStaffProfileForRetiree(db, retiredPlayerId, "DIRECTOR");
+    expect(profile.preferredRole).toBe("TECHNICAL_DIRECTOR");
     expect(market().unemployedStaffProfiles().some((p) => p.personId === retiredPlayerId)).toBe(true);
 
-    // No coaching licence yet, so they're hired into an unlicensed role
-    // (their preference is only a soft note, not a hard block).
+    // TECHNICAL_DIRECTOR has no licence tier, so eligibility is gated purely
+    // on specialisation matching the vacancy — which it does here.
     const appointment = hireStaff(
       db,
       saveAt("2026-09-05"),
       rivalClub.id,
       rivalTeam.id,
       retiredPlayerId,
-      "SCOUT",
+      "TECHNICAL_DIRECTOR",
       600_000,
     );
     expect(appointment.employmentStatus).toBe("ACTIVE");

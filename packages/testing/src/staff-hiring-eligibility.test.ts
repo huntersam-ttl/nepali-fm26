@@ -18,6 +18,7 @@ import {
   createStableEntityId,
   type Club,
   type EntityId,
+  type StaffLicence,
   type Team,
 } from "@nepal-football-sim/shared-types";
 
@@ -219,6 +220,43 @@ describe("staff hiring: vacancy/role eligibility and authority", () => {
         club.id,
       ),
     ).not.toThrow();
+  });
+
+  it("gates unlicensed roles (scout/medical/executive) on exact specialisation, not on 'no licence required'", () => {
+    // Live QA found every candidate — coach, scout, physio, all of them —
+    // showing as eligible for a CEO vacancy purely because CEO has no
+    // coaching-licence tier. Confirm the fix: a candidate is only eligible
+    // for an unlicensed role that actually matches their own specialisation.
+    const ceoId = createStableEntityId("person", "she-ceo-candidate");
+    const w = world();
+    w.insertPerson({ id: ceoId, fullName: "CEO Candidate", nationalityCountryId: country.id, languages: ["ne"] });
+    w.insertStaffProfile({
+      id: createStableEntityId("profile", ceoId),
+      personId: ceoId,
+      preferredRole: "CEO",
+      salaryExpectation: "MEDIUM",
+      reputation: "MEDIUM",
+      countryKnowledge: [country.id],
+      clubKnowledge: [],
+      availability: "AVAILABLE",
+      workEligibilityStatus: "ELIGIBLE",
+    });
+
+    const scoutProfile = market().staffProfile(scoutCandidateId);
+    const fitnessProfile = market().staffProfile(fitnessCandidateId);
+    const ceoProfile = market().staffProfile(ceoId);
+    const noLicences: StaffLicence[] = [];
+
+    // A scout and a fitness coach must NOT be shown eligible for CEO...
+    expect(staffEligibility("CEO", scoutProfile, noLicences).eligible).toBe(false);
+    expect(staffEligibility("CEO", fitnessProfile, noLicences).eligible).toBe(false);
+    // ...but the CEO candidate is eligible for CEO...
+    expect(staffEligibility("CEO", ceoProfile, noLicences).eligible).toBe(true);
+    // ...and the CEO candidate is correctly NOT eligible for SCOUT, another
+    // unlicensed role outside their specialisation.
+    expect(staffEligibility("SCOUT", ceoProfile, noLicences).eligible).toBe(false);
+    // A scout remains correctly eligible for the role they actually specialise in.
+    expect(staffEligibility("SCOUT", scoutProfile, noLicences).eligible).toBe(true);
   });
 
   it("rejects a stale/already-filled vacancy cleanly rather than silently doing nothing", () => {

@@ -126,6 +126,10 @@ const ROLE_LICENCE_REQUIREMENT: Partial<Record<FootballStaffRole, number>> = {
   SET_PIECE_COACH: 1,
   YOUTH_COACH: 1,
   ACADEMY_DIRECTOR: 2,
+  // Same coaching domain as HEAD_COACH — appointNationalTeamHeadCoachForPresident
+  // checks eligibility for this role, and candidates are licensed as
+  // HEAD_COACH, not a national-team-specific variant.
+  NATIONAL_TEAM_HEAD_COACH: 3,
 };
 
 const licenceRankOf = (licences: StaffLicence[]): number =>
@@ -148,14 +152,29 @@ export const staffEligibility = (
         note: `Requires at least a rank-${requiredRank} coaching licence for ${role.replace(/_/g, " ").toLowerCase()}.`,
       };
     }
+    // Licensed coaching roles flex across each other once the badge clears —
+    // a qualified coach can reasonably cover an adjacent coaching vacancy.
+    if (profile?.preferredRole && profile.preferredRole !== role) {
+      return {
+        eligible: true,
+        note: `Prefers ${profile.preferredRole.replace(/_/g, " ").toLowerCase()}, but can cover this role.`,
+      };
+    }
+    return { eligible: true };
   }
-  if (profile?.preferredRole && profile.preferredRole !== role) {
-    return {
-      eligible: true,
-      note: `Prefers ${profile.preferredRole.replace(/_/g, " ").toLowerCase()}, but can cover this role.`,
-    };
-  }
-  return { eligible: true };
+  // Roles with no licence tier (scouting, medical, analysis, and every
+  // executive/administrative role including CEO) have nothing else to gate
+  // on, so specialisation must match the vacancy exactly. Without this,
+  // every candidate — regardless of preferredRole — was "eligible" for
+  // every unlicensed vacancy, which is how a physio or fitness coach ended
+  // up shown as eligible to be hired as club CEO.
+  if (profile?.preferredRole === role) return { eligible: true };
+  return {
+    eligible: false,
+    note: profile?.preferredRole
+      ? `Specialises in ${profile.preferredRole.replace(/_/g, " ").toLowerCase()}, not ${role.replace(/_/g, " ").toLowerCase()}.`
+      : `No recorded specialisation for ${role.replace(/_/g, " ").toLowerCase()}.`,
+  };
 };
 
 // ---------------------------------------------------------------------------

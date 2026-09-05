@@ -30,6 +30,7 @@ describe("Federation President personnel authority", () => {
     world.insertPerson(person); world.insertPersonRole({ id: "federation-personnel-candidate-role" as EntityId, personId: candidateId, role: "STAFF", activeFrom: "2027-01-01" });
     const profile: StaffProfile = { id: "federation-personnel-candidate-profile" as EntityId, personId: candidateId, preferredRole: "NATIONAL_TEAM_HEAD_COACH", salaryExpectation: "NATIONAL_TEAM_SCALE", reputation: "SIMULATION_ONLY", countryKnowledge: [person.nationalityCountryId], clubKnowledge: [], availability: "AVAILABLE", workEligibilityStatus: "ELIGIBLE" };
     world.insertStaffProfile(profile);
+    world.insertStaffLicence({ id: "federation-personnel-candidate-licence" as EntityId, personId: candidateId, licenceType: "AFC_B", issuer: "ANFA", status: "VERIFIED" });
     const appointment = appointNationalTeamHeadCoachForPresident(db, { federationId, nationalTeamId: teamId, presidentPersonId: presidentId, candidatePersonId: candidateId, date: "2027-01-02" });
     expect(appointment.contractId).toBeDefined();
     expect(new StaffMarketRepository(db).employmentContractById(appointment.contractId!)).toMatchObject({ teamId, status: "ACTIVE" });
