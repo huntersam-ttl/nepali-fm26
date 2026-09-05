@@ -102,6 +102,7 @@ import {
   type SimulationClubRecord,
   type Club,
   type ClubProfile,
+  type InfrastructureProjectProfile,
   type StaffProfileReadModel,
   type CompetitionProfile,
   type NationalTeamSquadReadModel,
@@ -362,7 +363,7 @@ import { buildOwnerMatchday, type OwnerMatchdayView } from "./owner-matchday.js"
 import { buildActorPlayerActions, type ActorPlayerActions } from "./player-actions.js";
 import { buildEntityReference } from "./entity-reference.js";
 import { buildOrganizationProfile } from "./organization-profile.js";
-import { buildClubProfile, buildCompetitionProfile, buildStaffProfile } from "./entity-profiles.js";
+import { buildClubProfile, buildCompetitionProfile, buildInfrastructureProjectProfile, buildStaffProfile } from "./entity-profiles.js";
 import { buildNationalTeamSquad } from "./national-team-squad.js";
 import { buildPlayerContractContext, buildPlayerTransferContext } from "./player-context.js";
 import { playerMarketValueView, type PlayerMarketValueView } from "./player-market-value.js";
@@ -1141,6 +1142,7 @@ export class DesktopApplicationService {
 
   getFacilityPlanning(clubId?: EntityId): AppResult<{
     clubId: EntityId;
+    worldDate: string;
     projects: InfrastructureProject[];
     plans: FacilityProjectPlan[];
     sites: FacilitySiteOption[];
@@ -1185,6 +1187,7 @@ export class DesktopApplicationService {
         : [];
       return {
         clubId: target,
+        worldDate: save.worldDate,
         projects: new ClubEconomyRepository(db).infrastructureProjects(target),
         plans: planning.plans(target),
         sites: planning.siteOptions(target),
@@ -3279,6 +3282,12 @@ export class DesktopApplicationService {
 
   getCompetitionProfile(competitionId: EntityId): AppResult<CompetitionProfile> {
     return this.withSession((db, save) => buildCompetitionProfile(db, competitionId, activeCareerRole(db, careerPersonId(db, save))));
+  }
+
+  getInfrastructureProjectProfile(projectId: EntityId): AppResult<InfrastructureProjectProfile> {
+    return this.withSession((db, save) =>
+      buildInfrastructureProjectProfile(db, projectId, activeCareerRole(db, careerPersonId(db, save)), save.worldDate),
+    );
   }
 
   getNationalTeamSquad(nationalTeamId: EntityId, programme?: string): AppResult<NationalTeamSquadReadModel> {

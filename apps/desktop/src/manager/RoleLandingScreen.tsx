@@ -13,6 +13,7 @@ import type { AppError, DesktopRuntimeApi } from "../appBridge.js";
 import { AsyncPanel, Badge, ErrorBanner, Metrics, Panel, useRuntimeData } from "./ui.js";
 import { CandidacyPanel } from "./screens/HomeScreen.js";
 import { BankMeeting, FacilityPlanner, RoleDetailScreen, SponsorMeeting, type ChairmanScreen, type PresidentScreen } from "./RoleDetailScreen.js";
+import { projectStatusLabel } from "./clubWorldPresentation.js";
 
 export const EXECUTIVE_ROLES = ["SPORTING_DIRECTOR", "DIRECTOR_OF_FOOTBALL", "CEO", "GENERAL_SECRETARY"];
 
@@ -442,10 +443,24 @@ const ChairmanDashboardView = ({
               {busyBudget ? "Saving…" : "Save budget"}
             </button>
           </form>
+          {dashboard.infrastructure.length > 0 && (
+            <div className="button-row">
+              {Object.entries(
+                dashboard.infrastructure.reduce<Record<string, number>>((counts, project) => {
+                  counts[project.status] = (counts[project.status] ?? 0) + 1;
+                  return counts;
+                }, {}),
+              ).map(([status, count]) => (
+                <Badge key={status} tone={status === "COMPLETED" ? "ok" : status === "CANCELLED" ? "bad" : "warn"}>
+                  {count} {projectStatusLabel(status).toLowerCase()}
+                </Badge>
+              ))}
+            </div>
+          )}
           <p className="subtle">
-            Infrastructure: {dashboard.infrastructure.length} total · Sponsorships:{" "}
-            {dashboard.sponsorships.length} total. Plan a new facility project from Facilities in
-            the sidebar.
+            {dashboard.infrastructure.length === 0 ? "No infrastructure projects on record. " : ""}
+            Sponsorships: {dashboard.sponsorships.length} total. Plan a new facility project from
+            Facilities in the sidebar.
           </p>
         </Panel>
         <Panel title="Manager appointment">

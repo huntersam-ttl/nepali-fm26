@@ -39,6 +39,14 @@ const descriptors: Record<
   NATIONAL_TEAM: { table: "teams", destination: "national-team", label: "name" },
 };
 
+/** Human-readable label for a SCREAMING_SNAKE_CASE enum value, used only as
+ * a display fallback here — never persisted, never treated as a fact. */
+const titleCase = (value: string): string =>
+  value
+    .split("_")
+    .map((word) => word.charAt(0) + word.slice(1).toLowerCase())
+    .join(" ");
+
 const roleActions = (type: EntityReferenceType, role: CareerRole): string[] => {
   if (type === "NATIONAL_TEAM") return ["OPEN_PROFILE", "VIEW_SQUAD"];
   if (type === "SPONSOR") return ["OPEN_PROFILE", "VIEW_DEALS"];
@@ -73,11 +81,27 @@ export const buildEntityReference = (
         (db
           .prepare("SELECT name, industry AS sector FROM sponsor_organisations WHERE id=?")
           .get(id) as Row | undefined))
-      : (db.prepare(`SELECT * FROM ${descriptor.table} WHERE id=? LIMIT 1`).get(id) as
-          Row | undefined);
+      : type === "FIXTURE"
+        ? (db
+            .prepare(
+              `SELECT f.id, f.scheduled_date, f.status, ht.name AS home_name, at.name AS away_name
+               FROM fixtures f
+               JOIN teams ht ON ht.id = f.home_team_id
+               JOIN teams at ON at.id = f.away_team_id
+               WHERE f.id = ?`,
+            )
+            .get(id) as Row | undefined)
+        : (db.prepare(`SELECT * FROM ${descriptor.table} WHERE id=? LIMIT 1`).get(id) as
+            Row | undefined);
   const exists = Boolean(row);
   const label = exists
-    ? String((type === "SPONSOR" ? row?.name : row?.[descriptor.label]) ?? id)
+    ? type === "SPONSOR"
+      ? String(row?.name ?? id)
+      : type === "FIXTURE"
+        ? `${row!.home_name} vs ${row!.away_name}`
+        : type === "INFRASTRUCTURE_PROJECT"
+          ? titleCase(String(row?.project_type ?? id))
+          : String(row?.[descriptor.label] ?? id)
     : "Unknown entity";
   const reference: EntityReference = {
     entityType: type,

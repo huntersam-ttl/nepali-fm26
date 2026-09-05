@@ -68,6 +68,7 @@ import type {
   ClubProfile,
   StaffProfileReadModel,
   CompetitionProfile,
+  InfrastructureProjectProfile,
   NationalTeamSquadReadModel,
   DatasetAttributionSummary,
 } from "@nepal-football-sim/shared-types";
@@ -210,6 +211,8 @@ const bindCommands = (call: CommandCaller): DesktopRuntimeApi => ({
     call<StaffProfileReadModel>("getStaffProfile", { personId }),
   getCompetitionProfile: (competitionId: EntityId) =>
     call<CompetitionProfile>("getCompetitionProfile", { competitionId }),
+  getInfrastructureProjectProfile: (projectId: EntityId) =>
+    call<InfrastructureProjectProfile>("getInfrastructureProjectProfile", { projectId }),
   getNationalTeamSquad: (nationalTeamId: EntityId, programme?: string) =>
     call<NationalTeamSquadReadModel>("getNationalTeamSquad", { nationalTeamId, programme }),
   // Wired only to satisfy DesktopRuntimeApi (landed concurrently in owner-manager-meetings.ts) —

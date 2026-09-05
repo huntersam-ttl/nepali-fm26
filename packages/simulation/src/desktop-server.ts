@@ -467,6 +467,8 @@ const dispatch = (
       return service.getStaffProfile(body.personId as EntityId);
     case "getCompetitionProfile":
       return service.getCompetitionProfile(body.competitionId as EntityId);
+    case "getInfrastructureProjectProfile":
+      return service.getInfrastructureProjectProfile(body.projectId as EntityId);
     case "getNationalTeamSquad":
       return service.getNationalTeamSquad(body.nationalTeamId as EntityId, body.programme as string | undefined);
     case "getTactics":

@@ -16,6 +16,7 @@ import type {
   ClubBudget,
   ClubBudgetCategory,
   InfrastructureProjectType,
+  InfrastructureProjectStatus,
   SponsorshipContract,
   SponsorOrganisation,
   FederationSponsorshipContract,
@@ -355,6 +356,7 @@ export type OwnerMatchdayView = {
  */
 export type FacilityPlanningView = {
   clubId: EntityId;
+  worldDate: ISODate;
   projects: InfrastructureProject[];
   plans: FacilityProjectPlan[];
   sites: FacilitySiteOption[];
@@ -514,6 +516,53 @@ export type PresidentCommercialHistoryEntry = {
   settlementState: "SETTLED" | "NOT_SETTLED" | "NOT_APPLICABLE";
 };
 
+export type ClubStadiumSummary = {
+  venueId: EntityId;
+  name: string;
+  capacity?: number;
+  surfaceType?: string;
+  pitchQuality?: string;
+  floodlights?: boolean;
+  coveredStands?: boolean;
+  yearOpened?: number;
+  status?: string;
+  /** True when this venue was resolved from an explicit club<->venue
+   * relationship rather than a same-country capacity fallback — surfaced so
+   * the UI can be honest about how confidently this is "the" home ground. */
+  confirmedHomeGround: boolean;
+};
+
+export type ClubFinancialSummary = {
+  cashBalance: number;
+  currency: string;
+  financialHealth: string;
+};
+
+export type ClubReputationSummary = {
+  footballReputation: number;
+  commercialReputation: number;
+};
+
+/** One active infrastructure project's real state, in the shape the club-
+ * world campus visual needs (project type/status/expected date) — a
+ * superset of what the plain `infrastructureProjects` EntityReference list
+ * carries, never a second source of truth (built from the same rows). */
+export type ClubCampusProject = {
+  id: EntityId;
+  reference: EntityReference;
+  projectType: string;
+  status: string;
+  expectedCompletion?: ISODate;
+};
+
+export type ClubFacilitySnapshot = {
+  trainingFacilityQuality: number;
+  youthFacilityQuality: number;
+  medicalFacilityQuality: number;
+  analyticsFacilityQuality: number;
+  academyCapacity: number;
+};
+
 export type ClubProfile = {
   entityReference: EntityReference;
   locationLabel?: string;
@@ -523,6 +572,36 @@ export type ClubProfile = {
   recentFixtures: EntityReference[];
   activeSponsors: EntityReference[];
   infrastructureProjects: EntityReference[];
+  stadium?: ClubStadiumSummary;
+  financialSummary?: ClubFinancialSummary;
+  reputation?: ClubReputationSummary;
+  facilitySnapshot?: ClubFacilitySnapshot;
+  campusProjects: ClubCampusProject[];
+};
+
+/** A single infrastructure project's real detail — the destination behind
+ * every clickable project reference (club profile, campus view, facility
+ * lifecycle list), never a second copy of the project's own state. */
+export type InfrastructureProjectProfile = {
+  entityReference: EntityReference;
+  club: EntityReference;
+  projectType: InfrastructureProjectType;
+  status: InfrastructureProjectStatus;
+  currency: string;
+  capitalCost: number;
+  ongoingCost: number;
+  planningStart: ISODate;
+  constructionStart?: ISODate;
+  expectedCompletion: ISODate;
+  completedAt?: ISODate;
+  cancelledOn?: ISODate;
+  delayDays?: number;
+  fundingStatus?: string;
+  fundingCommitted?: number;
+  siteRights?: string;
+  maintenanceStatus?: string;
+  components?: string[];
+  worldDate: ISODate;
 };
 
 export type StaffProfileReadModel = {
@@ -721,6 +800,7 @@ export type DesktopRuntimeApi = {
   getClubProfile?(clubId: EntityId): Promise<AppResult<ClubProfile>>;
   getStaffProfile?(personId: EntityId): Promise<AppResult<StaffProfileReadModel>>;
   getCompetitionProfile?(competitionId: EntityId): Promise<AppResult<CompetitionProfile>>;
+  getInfrastructureProjectProfile?(projectId: EntityId): Promise<AppResult<InfrastructureProjectProfile>>;
   getNationalTeamSquad?(nationalTeamId: EntityId, programme?: string): Promise<AppResult<NationalTeamSquadReadModel>>;
   /** Real actor-aware action availability for one player — the same authority check the mutating commands themselves use, so a profile can grey out a button honestly instead of the command rejecting it after the click. Works for any active role (Manager/Owner/President all get an honest answer). */
   getPlayerActions(playerId: EntityId): Promise<AppResult<ActorPlayerActions>>;

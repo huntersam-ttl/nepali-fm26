@@ -55,6 +55,9 @@ import type {
   OrganizationCommercialDeal,
   OrganizationProfileEntityType,
   ClubProfile,
+  ClubStadiumSummary,
+  ClubFacilitySnapshot,
+  InfrastructureProjectProfile,
   StaffProfileReadModel,
   CompetitionProfile,
   OrganizationProfile,
@@ -84,6 +87,7 @@ import {
   ownershipOptions,
   ownershipStage,
 } from "./ownershipNegotiationPresentation.js";
+import { campusBlockDescriptors, projectProgressPercent, projectStatusLabel } from "./clubWorldPresentation.js";
 
 export type ChairmanScreen =
   | "dashboard"
@@ -4817,6 +4821,11 @@ const FacilityPlannerView = ({
 
       <FacilityLifecycle planning={planning} />
 
+      <ol className="setup-steps" aria-label="New project progress">
+        <li className={preview ? "complete" : "active"}>Configure</li>
+        <li className={preview ? "active" : ""}>Review &amp; confirm</li>
+      </ol>
+
       {planning.managerFacilityRequests.length > 0 && (
         <Panel title="Manager facility requests">
           <p className="subtle">
@@ -5165,11 +5174,14 @@ const FacilitySummary = ({
   );
 };
 
+const FACILITY_TERMINAL_STATUSES = new Set(["COMPLETED", "CANCELLED"]);
+
 const FacilityLifecycle = ({
   planning,
 }: {
   planning: FacilityPlanningView;
 }): React.ReactElement => {
+  const { worldDate } = planning;
   if (planning.projects.length === 0) {
     return (
       <Panel title="Facility projects">
@@ -5196,6 +5208,12 @@ const FacilityLifecycle = ({
                 <p className="subtle">
                   {FACILITY_MODE_LABELS[plan.mode]} · {FACILITY_SCOPE_LABELS[plan.scope]} scope
                 </p>
+              )}
+              {!FACILITY_TERMINAL_STATUSES.has(project.status) && (
+                <ProjectProgressTimeline
+                  percent={projectProgressPercent(project, worldDate)}
+                  status={project.status}
+                />
               )}
               <Metrics
                 items={[
@@ -5435,7 +5453,7 @@ const formatSector = (value: string): string => (/^[A-Z0-9_]+$/.test(value) ? ba
 const ORGANIZATION_ENTITY_TYPES = new Set(["SPONSOR", "LENDER", "INVESTOR"]);
 /** Club/Staff/Competition profiles (b0d0871) render through the same host as
  * organizations — see OrganizationProfilePanel below, which now covers both. */
-const WORLD_PROFILE_ENTITY_TYPES = new Set(["CLUB", "STAFF", "COMPETITION"]);
+const WORLD_PROFILE_ENTITY_TYPES = new Set(["CLUB", "STAFF", "COMPETITION", "INFRASTRUCTURE_PROJECT"]);
 const isOpenableReference = (reference: EntityReference): boolean =>
   reference.visible &&
   (reference.entityType === "PLAYER" ||
@@ -5545,7 +5563,7 @@ const OrganizationDealSection = ({
 
 /** Every entity type this shared host can open — organizations plus the
  * world-profile trio from b0d0871. */
-export type ProfileEntityType = OrganizationProfileEntityType | "CLUB" | "STAFF" | "COMPETITION";
+export type ProfileEntityType = OrganizationProfileEntityType | "CLUB" | "STAFF" | "COMPETITION" | "INFRASTRUCTURE_PROJECT";
 
 type ProfileTarget = { entityType: ProfileEntityType; entityId: EntityId };
 
@@ -5553,7 +5571,8 @@ type ProfileData =
   | { kind: "ORGANIZATION"; data: OrganizationProfile }
   | { kind: "CLUB"; data: ClubProfile }
   | { kind: "STAFF"; data: StaffProfileReadModel }
-  | { kind: "COMPETITION"; data: CompetitionProfile };
+  | { kind: "COMPETITION"; data: CompetitionProfile }
+  | { kind: "INFRASTRUCTURE_PROJECT"; data: InfrastructureProjectProfile };
 
 const missingProfileMethod = (message: string): { ok: false; error: AppError } => ({
   ok: false,
@@ -5602,10 +5621,16 @@ export const OrganizationProfilePanel = ({
       const result = await bridge.getStaffProfile(target.entityId);
       return result.ok ? { ok: true as const, data: { kind: "STAFF" as const, data: result.data } } : result;
     }
-    if (!bridge.getCompetitionProfile)
-      return missingProfileMethod("Competition profiles are unavailable right now.");
-    const result = await bridge.getCompetitionProfile(target.entityId);
-    return result.ok ? { ok: true as const, data: { kind: "COMPETITION" as const, data: result.data } } : result;
+    if (target.entityType === "COMPETITION") {
+      if (!bridge.getCompetitionProfile)
+        return missingProfileMethod("Competition profiles are unavailable right now.");
+      const result = await bridge.getCompetitionProfile(target.entityId);
+      return result.ok ? { ok: true as const, data: { kind: "COMPETITION" as const, data: result.data } } : result;
+    }
+    if (!bridge.getInfrastructureProjectProfile)
+      return missingProfileMethod("Project profiles are unavailable right now.");
+    const result = await bridge.getInfrastructureProjectProfile(target.entityId);
+    return result.ok ? { ok: true as const, data: { kind: "INFRASTRUCTURE_PROJECT" as const, data: result.data } } : result;
   }, [target.entityType, target.entityId]);
 
   const openReference = (reference: EntityReference): void => {
@@ -5632,7 +5657,9 @@ export const OrganizationProfilePanel = ({
         ? "Staff"
         : target.entityType === "COMPETITION"
           ? "Competition"
-          : "Organization";
+          : target.entityType === "INFRASTRUCTURE_PROJECT"
+            ? "Project"
+            : "Organization";
 
   return (
     <Panel
@@ -5659,8 +5686,10 @@ export const OrganizationProfilePanel = ({
             <ClubProfileBody profile={profile.data} onOpenReference={openReference} />
           ) : profile.kind === "STAFF" ? (
             <StaffProfileBody profile={profile.data} onOpenReference={openReference} />
-          ) : (
+          ) : profile.kind === "COMPETITION" ? (
             <CompetitionProfileBody profile={profile.data} onOpenReference={openReference} />
+          ) : (
+            <InfrastructureProjectProfileBody profile={profile.data} onOpenReference={openReference} />
           )
         }
       </AsyncPanel>
@@ -5723,6 +5752,101 @@ const OrganizationProfileBody = ({
   </>
 );
 
+const CAMPUS_BLOCK_ICON: Record<string, string> = {
+  stadium: "M4 30 L4 14 L32 14 L32 30 Z M4 14 L18 4 L32 14",
+  training: "M4 10 H32 V28 H4 Z M4 19 H32 M12 10 V28 M24 10 V28",
+  academy: "M18 4 L34 14 L18 22 L2 14 Z M9 17 V26 Q18 32 27 26 V17",
+  medical: "M18 6 V30 M6 18 H30",
+  offices: "M8 4 H28 V32 H8 Z M12 10 H16 M20 10 H24 M12 16 H16 M20 16 H24 M12 22 H16 M20 22 H24",
+};
+
+/**
+ * A schematic, SVG/CSS 2D campus overview — not an isometric render, not a
+ * decorative-only graphic. Each block's fill and label come directly from
+ * campusBlockDescriptors, which is itself derived from the club's real
+ * facility-quality snapshot and active infrastructure projects, so clicking
+ * through always matches what's actually on file.
+ */
+const ClubWorldCampus = ({
+  facilitySnapshot,
+  campusProjects,
+  onOpenProject,
+}: {
+  facilitySnapshot?: ClubFacilitySnapshot;
+  campusProjects: ClubProfile["campusProjects"];
+  onOpenProject: (reference: EntityReference) => void;
+}): React.ReactElement => {
+  const blocks = campusBlockDescriptors(facilitySnapshot, campusProjects);
+  const toneFill: Record<string, string> = {
+    ok: "rgba(90, 209, 200, 0.18)",
+    info: "rgba(126, 166, 255, 0.16)",
+    warn: "rgba(245, 185, 90, 0.2)",
+    bad: "rgba(244, 113, 116, 0.16)",
+  };
+  const toneStroke: Record<string, string> = {
+    ok: "#5ad1c8",
+    info: "#7ea6ff",
+    warn: "#f5b95a",
+    bad: "#f47174",
+  };
+  return (
+    <div className="club-campus-grid" role="list" aria-label="Club facility campus">
+      {blocks.map((block) => {
+        const clickable = Boolean(block.activeProject?.reference.visible);
+        const Tag = clickable ? "button" : "div";
+        return (
+          <Tag
+            key={block.key}
+            role="listitem"
+            className="club-campus-block"
+            style={{ borderColor: toneStroke[block.tone], background: toneFill[block.tone] }}
+            onClick={clickable ? () => onOpenProject(block.activeProject!.reference) : undefined}
+            aria-label={`${block.label}: ${block.statusLabel}`}
+          >
+            <svg viewBox="0 0 36 36" width="36" height="36" aria-hidden="true">
+              <path d={CAMPUS_BLOCK_ICON[block.key]} fill="none" stroke={toneStroke[block.tone]} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+            </svg>
+            <strong>{block.label}</strong>
+            <span className="subtle">{block.statusLabel}</span>
+            {block.activeProject && (
+              <Badge tone={block.tone}>{projectStatusLabel(block.activeProject.status)}</Badge>
+            )}
+          </Tag>
+        );
+      })}
+    </div>
+  );
+};
+
+/** A simple architectural-style stand/bowl SVG scaled loosely to capacity —
+ * never claiming exact real geometry, just a visual cue backed by the
+ * club's real (or honestly-fallback) venue data. */
+const StadiumVisual = ({ stadium }: { stadium: ClubStadiumSummary }): React.ReactElement => {
+  const standCount = stadium.capacity ? Math.min(4, Math.max(1, Math.round(stadium.capacity / 8000))) : 1;
+  const stands = Array.from({ length: 4 }, (_, index) => index < standCount);
+  return (
+    <figure className="stadium-visual" aria-label={`${stadium.name}${stadium.capacity ? `, capacity ${stadium.capacity.toLocaleString()}` : ""}${stadium.confirmedHomeGround ? "" : " (nearest known venue, not confirmed as the club's own ground)"}`}>
+      <svg viewBox="0 0 200 140" width="100%" height="140" role="presentation" aria-hidden="true">
+        <ellipse cx="100" cy="70" rx="70" ry="40" fill="#2e6b3e" stroke="#1c4a29" strokeWidth="2" />
+        <ellipse cx="100" cy="70" rx="45" ry="24" fill="none" stroke="#e6e6e6" strokeOpacity="0.5" strokeWidth="1.5" />
+        {stands[0] && <rect x="20" y="18" width="160" height="14" rx="3" fill="#7ea6ff" opacity="0.85" />}
+        {stands[1] && <rect x="20" y="108" width="160" height="14" rx="3" fill="#7ea6ff" opacity="0.85" />}
+        {stands[2] && <rect x="6" y="34" width="14" height="72" rx="3" fill="#9b7cff" opacity="0.85" />}
+        {stands[3] && <rect x="180" y="34" width="14" height="72" rx="3" fill="#9b7cff" opacity="0.85" />}
+      </svg>
+      <figcaption>
+        <strong>{stadium.name}</strong>
+        {!stadium.confirmedHomeGround && <span className="subtle"> (nearest known venue — not confirmed as home ground)</span>}
+        <div className="subtle">
+          {stadium.capacity ? `Capacity ${stadium.capacity.toLocaleString()}` : "Capacity not on record"}
+          {stadium.pitchQuality ? ` · ${band(stadium.pitchQuality)} pitch` : ""}
+          {stadium.floodlights ? " · Floodlights" : ""}
+        </div>
+      </figcaption>
+    </figure>
+  );
+};
+
 /** Never fabricates club history/metadata — only fields buildClubProfile actually returns. */
 const ClubProfileBody = ({
   profile,
@@ -5736,8 +5860,13 @@ const ClubProfileBody = ({
     <div className="button-row">
       <Badge tone="info">{band(profile.entityReference.entityType)}</Badge>
       {profile.division && <Badge tone="info">{band(profile.division)}</Badge>}
+      {profile.financialSummary && (
+        <Badge tone={profile.financialSummary.financialHealth === "DISTRESSED" || profile.financialSummary.financialHealth === "INSOLVENT" ? "bad" : profile.financialSummary.financialHealth === "TIGHT" ? "warn" : "ok"}>
+          {band(profile.financialSummary.financialHealth)}
+        </Badge>
+      )}
     </div>
-    {profile.locationLabel && <p className="subtle">{profile.locationLabel}</p>}
+    <p className="subtle">{profile.locationLabel ?? "Location not on record"}</p>
     <Metrics
       items={[
         {
@@ -5753,11 +5882,29 @@ const ClubProfileBody = ({
           value: profile.owner ? (
             <EntityRefLink reference={profile.owner} onOpen={onOpenReference} />
           ) : (
-            "Unknown"
+            "No controlling owner on record"
           ),
         },
+        ...(profile.financialSummary
+          ? [{ label: "Club cash", value: money(profile.financialSummary.cashBalance, profile.financialSummary.currency) }]
+          : []),
+        ...(profile.reputation
+          ? [{ label: "Football reputation", value: `${Math.round(profile.reputation.footballReputation)}/100` }]
+          : []),
       ]}
     />
+    <Panel title="Club world">
+      <ClubWorldCampus
+        facilitySnapshot={profile.facilitySnapshot}
+        campusProjects={profile.campusProjects}
+        onOpenProject={onOpenReference}
+      />
+    </Panel>
+    {profile.stadium && (
+      <Panel title="Stadium">
+        <StadiumVisual stadium={profile.stadium} />
+      </Panel>
+    )}
     <Panel title="Active sponsors">
       {profile.activeSponsors.length === 0 ? (
         <p className="empty-state">No active sponsors on record.</p>
@@ -5779,7 +5926,15 @@ const ClubProfileBody = ({
       ) : (
         <ul className="compact-list">
           {profile.infrastructureProjects.map((reference) => (
-            <li key={reference.id}>{reference.visible ? reference.label : "Unknown project"}</li>
+            <li key={reference.id}>
+              {reference.visible ? (
+                <button className="link" onClick={() => onOpenReference(reference)}>
+                  {reference.label}
+                </button>
+              ) : (
+                "Unknown project"
+              )}
+            </li>
           ))}
         </ul>
       )}
@@ -5800,6 +5955,90 @@ const ClubProfileBody = ({
     </Panel>
   </>
 );
+
+/** A visual timeline for one infrastructure project's real progress —
+ * derived entirely from projectProgressPercent (itself driven by the
+ * project's own persisted dates/status), never a fabricated animation. */
+const ProjectProgressTimeline = ({
+  percent,
+  status,
+}: {
+  percent: number;
+  status: string;
+}): React.ReactElement => (
+  <div className="project-progress" role="img" aria-label={`${projectStatusLabel(status)} — ${percent}% complete`}>
+    <div className="project-progress-track">
+      <div className="project-progress-fill" style={{ width: `${percent}%` }} />
+    </div>
+    <div className="project-progress-labels">
+      <span>{projectStatusLabel(status)}</span>
+      <span>{percent}%</span>
+    </div>
+  </div>
+);
+
+/** Only the real, persisted project fields — no fabricated milestones or
+ * ROI beyond what the canonical facility/infrastructure engine tracks. */
+const InfrastructureProjectProfileBody = ({
+  profile,
+  onOpenReference,
+}: {
+  profile: InfrastructureProjectProfile;
+  onOpenReference: (reference: EntityReference) => void;
+}): React.ReactElement => {
+  const percent = projectProgressPercent(profile, profile.worldDate);
+  const isTerminal = profile.status === "COMPLETED" || profile.status === "CANCELLED";
+  return (
+    <>
+      <h2>{profile.entityReference.label}</h2>
+      <div className="button-row">
+        <Badge tone="info">{band(profile.projectType)}</Badge>
+        <Badge tone={profile.status === "COMPLETED" ? "ok" : profile.status === "CANCELLED" ? "bad" : "warn"}>
+          {projectStatusLabel(profile.status)}
+        </Badge>
+      </div>
+      <Metrics
+        items={[
+          { label: "Club", value: <EntityRefLink reference={profile.club} onOpen={onOpenReference} /> },
+          { label: "Capital cost", value: money(profile.capitalCost, profile.currency) },
+          { label: "Ongoing cost", value: `${money(profile.ongoingCost, profile.currency)}/mo` },
+          { label: "Expected completion", value: profile.completedAt ?? profile.expectedCompletion },
+        ]}
+      />
+      {!isTerminal && (
+        <Panel title="Progress">
+          <ProjectProgressTimeline percent={percent} status={profile.status} />
+          {profile.delayDays ? (
+            <p className="warning">Running {profile.delayDays} day(s) behind the original schedule.</p>
+          ) : null}
+        </Panel>
+      )}
+      <Panel title="Funding & site">
+        <Metrics
+          items={[
+            ...(profile.fundingStatus ? [{ label: "Funding status", value: band(profile.fundingStatus) }] : []),
+            ...(profile.fundingCommitted !== undefined
+              ? [{ label: "Funding committed", value: money(profile.fundingCommitted, profile.currency) }]
+              : []),
+            ...(profile.siteRights ? [{ label: "Site rights", value: band(profile.siteRights) }] : []),
+            ...(profile.maintenanceStatus ? [{ label: "Maintenance", value: band(profile.maintenanceStatus) }] : []),
+          ]}
+        />
+      </Panel>
+      {profile.components && profile.components.length > 0 && (
+        <Panel title="Components">
+          <div className="button-row">
+            {profile.components.map((component) => (
+              <Badge key={component} tone="info">
+                {component.replace(/_/g, " ")}
+              </Badge>
+            ))}
+          </div>
+        </Panel>
+      )}
+    </>
+  );
+};
 
 /** No hidden personality/attribute scores — only the identity, appointment,
  * and career fields buildStaffProfile actually returns. */
