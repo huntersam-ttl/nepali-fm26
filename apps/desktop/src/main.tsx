@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import {
   createAppBridge,
   type AppError,
+  type DatasetAttributionSummary,
   type DesktopApplicationState,
   type EntityId,
   type CareerRole,
@@ -392,12 +393,71 @@ const NewCareer = (props: {
 const StartShell = (props: {
   children: React.ReactNode;
   error?: AppError | null;
-}): React.ReactElement => (
-  <main className="career-shell">
-    {props.error && <ErrorBanner error={props.error} />}
-    {props.children}
-  </main>
-);
+}): React.ReactElement => {
+  const [aboutOpen, setAboutOpen] = useState(false);
+  return (
+    <main className="career-shell">
+      {props.error && <ErrorBanner error={props.error} />}
+      {props.children}
+      <p className="subtle">
+        <button className="link" onClick={() => setAboutOpen(true)}>
+          About &amp; Data Attribution
+        </button>
+      </p>
+      {aboutOpen && <AboutPanel onClose={() => setAboutOpen(false)} />}
+    </main>
+  );
+};
+
+/**
+ * Minimal Credits surface for the dataset attribution/licensing record that
+ * ships inside the bundle (docs/DATASET_ATTRIBUTION_AND_LICENSING.md,
+ * data/DATASET_MANIFEST.json) — reads only getDatasetAttribution's own
+ * honest summary, never claiming a permission the manifest itself records
+ * as UNRESOLVED/UNKNOWN.
+ */
+const AboutPanel = ({ onClose }: { onClose: () => void }): React.ReactElement => {
+  const [summary, setSummary] = useState<DatasetAttributionSummary | null>(null);
+  const [error, setError] = useState<AppError | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void bridge.getDatasetAttribution().then((result) => {
+      if (cancelled) return;
+      if (result.ok) setSummary(result.data);
+      else setError(result.error);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <section className="career-panel" role="dialog" aria-label="About and data attribution">
+      <p className="eyebrow">About</p>
+      <h1>Data Attribution</h1>
+      {error && <ErrorBanner error={error} />}
+      {summary && (
+        <>
+          <p>
+            <strong>Dataset version:</strong> {summary.datasetVersion}
+          </p>
+          <p>{summary.factualDataNotice}</p>
+          <p>{summary.simulationOnlyNotice}</p>
+          <p>{summary.externalWorldPolicy}</p>
+          <p className="warning">{summary.licensingNotice}</p>
+          <p className="subtle">
+            Full record: {summary.fullDocumentLabel} (docs/DATASET_ATTRIBUTION_AND_LICENSING.md,
+            bundled with this application).
+          </p>
+        </>
+      )}
+      <button className="ghost" onClick={onClose}>
+        Close
+      </button>
+    </section>
+  );
+};
 
 const ErrorBanner = ({ error }: { error: AppError }): React.ReactElement => (
   <div className="warning">

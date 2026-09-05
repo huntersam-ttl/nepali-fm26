@@ -19,6 +19,8 @@
     },
     "resources": {
       "../../../data/nepal/2026-08/club-registry.json": "data/nepal/2026-08/club-registry.json",
+      "../../../data/DATASET_MANIFEST.json": "data/DATASET_MANIFEST.json",
+      "../../../docs/DATASET_ATTRIBUTION_AND_LICENSING.md": "docs/DATASET_ATTRIBUTION_AND_LICENSING.md",
       "runtime": "runtime"
     }
   },

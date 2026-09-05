@@ -76,6 +76,7 @@ export type {
   SquadRow,
   AppResult,
   AutosaveStatusView,
+  DatasetAttributionSummary,
   CareerCreationCommand,
   CareerHeader,
   CareerRole,
