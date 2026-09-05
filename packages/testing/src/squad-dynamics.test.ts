@@ -342,4 +342,13 @@ describe("squad dynamics: hierarchy, relationships, concerns and morale", () => 
     const history = dynamics.historyForPerson(backupId);
     expect(history.some((event) => event.eventType === "CONCERN_ESCALATED")).toBe(true);
   });
+
+  it("never leaves a raw SCREAMING_SNAKE_CASE enum value in a concern's user-facing note", () => {
+    evaluateSquadDynamics(db, saveAt("2026-10-20"), team.id, club.id, managerProfileId);
+    const concerns = new SquadDynamicsRepository(db).concernsForTeam(team.id);
+    expect(concerns.length).toBeGreaterThan(0);
+    for (const concern of concerns) {
+      expect(concern.note).not.toMatch(/[A-Z]{2,}_[A-Z_]+/);
+    }
+  });
 });

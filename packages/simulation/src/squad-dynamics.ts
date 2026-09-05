@@ -40,7 +40,9 @@ import { SeededRandom } from "./rng.js";
 type SqlRow = Record<string, any>;
 
 const daysBetween = (from: string, to: string): number =>
-  Math.round((new Date(`${to}T00:00:00Z`).getTime() - new Date(`${from}T00:00:00Z`).getTime()) / 86_400_000);
+  Math.round(
+    (new Date(`${to}T00:00:00Z`).getTime() - new Date(`${from}T00:00:00Z`).getTime()) / 86_400_000,
+  );
 
 const addDays = (date: string, days: number): string => {
   const next = new Date(`${date}T00:00:00Z`);
@@ -48,7 +50,11 @@ const addDays = (date: string, days: number): string => {
   return next.toISOString().slice(0, 10);
 };
 
-const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
+/** Concern notes are free-standing UI-facing prose, not raw enum dumps. */
+const band = (value: string): string => value.replaceAll("_", " ").toLowerCase();
+
+const clamp = (value: number, min: number, max: number): number =>
+  Math.max(min, Math.min(max, value));
 
 // ---------------------------------------------------------------------------
 // Squad hierarchy — influence and leadership standing
@@ -219,7 +225,8 @@ const detectSignals = (input: {
   worldDate: string;
 }): ConcernSignal[] => {
   const signals: ConcernSignal[] = [];
-  const { contract, hierarchyRole, appearances, teamGamesPlayed, transferInterested, worldDate } = input;
+  const { contract, hierarchyRole, appearances, teamGamesPlayed, transferInterested, worldDate } =
+    input;
 
   if (contract && teamGamesPlayed >= 5) {
     const weight = PLAYING_TIME_WEIGHT[contract.squadRole] ?? 0;
@@ -228,7 +235,7 @@ const detectSignals = (input: {
       type: "PLAYING_TIME",
       active: weight > 0 && ratio < 0.4,
       severity: weight > 0 ? clamp(Math.round(weight * (1 - ratio) * 3), 1, 10) : 0,
-      note: `${contract.squadRole} appearances ${appearances}/${teamGamesPlayed}`,
+      note: `${band(contract.squadRole)} appearances ${appearances}/${teamGamesPlayed}`,
     });
   }
 
@@ -250,7 +257,7 @@ const detectSignals = (input: {
       type: "ROLE_STATUS",
       active: senior && demoted,
       severity: senior && demoted ? 6 : 0,
-      note: `${hierarchyRole} squad standing but registered as ${contract.squadRole}`,
+      note: `${band(hierarchyRole)} squad standing but registered as ${band(contract.squadRole)}`,
     });
   }
 
@@ -389,7 +396,11 @@ export const evaluateSquadDynamics = (
         !dynamics.activePromiseForConcern(existing.id);
       const updated: PlayerConcern = {
         ...existing,
-        status: shouldEscalate ? "ESCALATED" : existing.status === "RAISED" ? "ACTIVE" : existing.status,
+        status: shouldEscalate
+          ? "ESCALATED"
+          : existing.status === "RAISED"
+            ? "ACTIVE"
+            : existing.status,
         severity: signal.severity,
         updatedOn: worldDate,
         note: signal.note,
@@ -652,11 +663,15 @@ const evaluateTeamCohesion = (
   const captainEntry = hierarchy.find((entry) => entry.role === "CAPTAIN");
   let captainInfluence: CaptainInfluence = "NEUTRAL";
   if (captainEntry) {
-    const captainRelationship = dynamics.relationship(managerProfileId, captainEntry.personId)?.score ?? 0;
+    const captainRelationship =
+      dynamics.relationship(managerProfileId, captainEntry.personId)?.score ?? 0;
     const captainConcerns = dynamics
       .concernsForPerson(captainEntry.personId, teamId)
       .filter((concern) => concern.status !== "RESOLVED");
-    if (captainConcerns.some((concern) => concern.status === "ESCALATED") || captainRelationship <= -15) {
+    if (
+      captainConcerns.some((concern) => concern.status === "ESCALATED") ||
+      captainRelationship <= -15
+    ) {
       captainInfluence = "DESTABILIZING";
       score -= 10;
       nudgeSquadMorale(db, teamId, -6, worldDate, [captainEntry.personId]);
@@ -671,8 +686,12 @@ const evaluateTeamCohesion = (
   // tick unsettles the rest of the squad, weighted by how many sources fired.
   const unsettlingSources = new Set(
     [
-      ...outcome.escalatedConcerns.filter((concern) => groupByPerson.get(concern.personId) === "CORE_LEADERS"),
-      ...outcome.brokenPromises.filter((promise) => groupByPerson.get(promise.personId) === "CORE_LEADERS"),
+      ...outcome.escalatedConcerns.filter(
+        (concern) => groupByPerson.get(concern.personId) === "CORE_LEADERS",
+      ),
+      ...outcome.brokenPromises.filter(
+        (promise) => groupByPerson.get(promise.personId) === "CORE_LEADERS",
+      ),
     ].map((entry) => entry.personId),
   );
   if (unsettlingSources.size > 0) {
@@ -703,7 +722,9 @@ const evaluateTeamCohesion = (
   for (const [type, concerns] of escalatedByType) {
     if (concerns.length < 2) continue;
     const [first, second] = concerns;
-    if (!dynamics.findDispute(teamId, "PLAYER_VS_PLAYER", first!.personId, second!.personId, type)) {
+    if (
+      !dynamics.findDispute(teamId, "PLAYER_VS_PLAYER", first!.personId, second!.personId, type)
+    ) {
       const dispute: SquadDispute = {
         id: createEntityId(),
         teamId,
@@ -735,7 +756,15 @@ const evaluateTeamCohesion = (
       return (dynamics.relationship(managerProfileId, concern.personId)?.score ?? 0) <= -50;
     });
     if (managerDispute) {
-      if (!dynamics.findDispute(teamId, "PLAYER_VS_MANAGER", managerDispute.personId, undefined, managerDispute.type)) {
+      if (
+        !dynamics.findDispute(
+          teamId,
+          "PLAYER_VS_MANAGER",
+          managerDispute.personId,
+          undefined,
+          managerDispute.type,
+        )
+      ) {
         const dispute: SquadDispute = {
           id: createEntityId(),
           teamId,
@@ -792,11 +821,16 @@ const gamesPlayedFor = (db: GameDatabase, teamId: EntityId): number => {
   return row?.played ?? 0;
 };
 
-const seasonStatsFor = (db: GameDatabase, teamId: EntityId): Map<EntityId, { appearances: number }> =>
+const seasonStatsFor = (
+  db: GameDatabase,
+  teamId: EntityId,
+): Map<EntityId, { appearances: number }> =>
   new Map(
-    (db.prepare("SELECT person_id, appearances FROM player_season_stats WHERE team_id = ?").all(teamId) as SqlRow[]).map(
-      (row) => [row.person_id as EntityId, { appearances: row.appearances as number }],
-    ),
+    (
+      db
+        .prepare("SELECT person_id, appearances FROM player_season_stats WHERE team_id = ?")
+        .all(teamId) as SqlRow[]
+    ).map((row) => [row.person_id as EntityId, { appearances: row.appearances as number }]),
   );
 
 const logEvent = (
@@ -915,7 +949,12 @@ const recordMeeting = (
   outcome: SquadMeetingOutcome,
   summary: string,
   worldDate: string,
-  extra: { personId?: EntityId; withPersonId?: EntityId; concernId?: EntityId; disputeId?: EntityId } = {},
+  extra: {
+    personId?: EntityId;
+    withPersonId?: EntityId;
+    concernId?: EntityId;
+    disputeId?: EntityId;
+  } = {},
 ): SquadMeeting => {
   const meeting: SquadMeeting = {
     id: createEntityId(),
@@ -931,7 +970,10 @@ const recordMeeting = (
   // Team-wide meetings (no single subject player) aren't attached to any
   // one person's history — the squad_meetings row already records them.
   if (extra.personId) {
-    logEvent(db, extra.personId, teamId, managerProfileId, "MEETING_HELD", worldDate, { type, outcome });
+    logEvent(db, extra.personId, teamId, managerProfileId, "MEETING_HELD", worldDate, {
+      type,
+      outcome,
+    });
   }
   return meeting;
 };
@@ -947,23 +989,36 @@ export const holdSquadMeeting = (
   let personId = command.personId;
   let dispute = command.disputeId ? dynamics.disputeById(command.disputeId) : undefined;
   if (command.type === "MEDIATE_DISPUTE") {
-    if (!dispute) throw new MeetingActionError("DISPUTE_NOT_FOUND", "That dispute no longer exists.");
-    if (dispute.teamId !== teamId) throw new MeetingActionError("DISPUTE_NOT_FOUND", "That dispute is outside your squad.");
-    if (dispute.status !== "OPEN") throw new MeetingActionError("DISPUTE_NOT_OPEN", "That dispute is already closed.");
+    if (!dispute)
+      throw new MeetingActionError("DISPUTE_NOT_FOUND", "That dispute no longer exists.");
+    if (dispute.teamId !== teamId)
+      throw new MeetingActionError("DISPUTE_NOT_FOUND", "That dispute is outside your squad.");
+    if (dispute.status !== "OPEN")
+      throw new MeetingActionError("DISPUTE_NOT_OPEN", "That dispute is already closed.");
     personId = dispute.personId;
   } else if (command.type === "ADDRESS_MANAGER_DISPUTE") {
     if (!personId) throw new MeetingActionError("NOTHING_TO_ADDRESS", "Select a player to meet.");
-    dispute = dynamics.openDisputesForTeam(teamId).find((entry) => entry.kind === "PLAYER_VS_MANAGER" && entry.personId === personId);
-    if (!dispute) throw new MeetingActionError("NOTHING_TO_ADDRESS", "That player has no open dispute with you.");
+    dispute = dynamics
+      .openDisputesForTeam(teamId)
+      .find((entry) => entry.kind === "PLAYER_VS_MANAGER" && entry.personId === personId);
+    if (!dispute)
+      throw new MeetingActionError(
+        "NOTHING_TO_ADDRESS",
+        "That player has no open dispute with you.",
+      );
   } else if (command.type === "CAPTAIN_CONSULTATION") {
-    personId = dynamics.hierarchyForTeam(teamId).find((entry) => entry.role === "CAPTAIN")?.personId;
-    if (!personId) throw new MeetingActionError("NO_CAPTAIN", "This squad has no captain to consult.");
+    personId = dynamics
+      .hierarchyForTeam(teamId)
+      .find((entry) => entry.role === "CAPTAIN")?.personId;
+    if (!personId)
+      throw new MeetingActionError("NO_CAPTAIN", "This squad has no captain to consult.");
   } else if (command.type === "ONE_TO_ONE" && !personId) {
     throw new MeetingActionError("NOTHING_TO_ADDRESS", "Select a player to meet.");
   } else if (command.type === "SQUAD_MEETING") {
     const cohesionRecord = dynamics.cohesion(teamId);
     const meaningful =
-      cohesionRecord && (["SHAKY", "POOR", "CRITICAL"].includes(cohesionRecord.level) || cohesionRecord.topIssue);
+      cohesionRecord &&
+      (["SHAKY", "POOR", "CRITICAL"].includes(cohesionRecord.level) || cohesionRecord.topIssue);
     if (!meaningful) {
       throw new MeetingActionError(
         "NOTHING_TO_ADDRESS",
@@ -977,7 +1032,7 @@ export const holdSquadMeeting = (
   const influenceOf = (id: EntityId | undefined) =>
     hierarchy.find((entry) => entry.personId === id)?.influence ?? 30;
   const relationshipOf = (id: EntityId | undefined) =>
-    id ? dynamics.relationship(managerProfileId, id)?.score ?? 0 : 0;
+    id ? (dynamics.relationship(managerProfileId, id)?.score ?? 0) : 0;
 
   const relationship = relationshipOf(personId);
   const avgRelationship = dispute?.withPersonId
@@ -995,24 +1050,55 @@ export const holdSquadMeeting = (
   );
   const roll = (rng.next() - 0.5) * 20;
   const score = cohesion + avgRelationship - influenceDrag + roll;
-  const outcome: SquadMeetingOutcome = score >= 70 ? "POSITIVE" : score >= 40 ? "NEUTRAL" : "NEGATIVE";
-  const summary = outcome === "POSITIVE" ? "The meeting brought clarity and steadied the dressing room." : outcome === "NEUTRAL" ? "The meeting was constructive, but tensions remain." : "The meeting failed to settle the underlying tension.";
-  const meeting = recordMeeting(db, teamId, managerProfileId, command.type, outcome, summary, save.worldDate, {
-    personId, withPersonId: dispute?.withPersonId, disputeId: dispute?.id,
-    concernId: personId ? dynamics.concernsForPerson(personId, teamId).find((entry) => entry.status !== "RESOLVED")?.id : undefined,
-  });
+  const outcome: SquadMeetingOutcome =
+    score >= 70 ? "POSITIVE" : score >= 40 ? "NEUTRAL" : "NEGATIVE";
+  const summary =
+    outcome === "POSITIVE"
+      ? "The meeting brought clarity and steadied the dressing room."
+      : outcome === "NEUTRAL"
+        ? "The meeting was constructive, but tensions remain."
+        : "The meeting failed to settle the underlying tension.";
+  const meeting = recordMeeting(
+    db,
+    teamId,
+    managerProfileId,
+    command.type,
+    outcome,
+    summary,
+    save.worldDate,
+    {
+      personId,
+      withPersonId: dispute?.withPersonId,
+      disputeId: dispute?.id,
+      concernId: personId
+        ? dynamics.concernsForPerson(personId, teamId).find((entry) => entry.status !== "RESOLVED")
+            ?.id
+        : undefined,
+    },
+  );
   if (dispute) {
     const disputeStatus = outcome === "POSITIVE" ? "MEDIATED" : "UNRESOLVED";
     dynamics.updateDisputeStatus(dispute.id, disputeStatus, save.worldDate);
-    logEvent(db, dispute.personId, teamId, managerProfileId, disputeStatus === "MEDIATED" ? "DISPUTE_MEDIATED" : "DISPUTE_UNRESOLVED", save.worldDate, { disputeId: dispute.id, meetingId: meeting.id });
+    logEvent(
+      db,
+      dispute.personId,
+      teamId,
+      managerProfileId,
+      disputeStatus === "MEDIATED" ? "DISPUTE_MEDIATED" : "DISPUTE_UNRESOLVED",
+      save.worldDate,
+      { disputeId: dispute.id, meetingId: meeting.id },
+    );
     // Easing or deepening whatever the dispute was actually about.
-    for (const involvedId of dispute.withPersonId ? [dispute.personId, dispute.withPersonId] : [dispute.personId]) {
+    for (const involvedId of dispute.withPersonId
+      ? [dispute.personId, dispute.withPersonId]
+      : [dispute.personId]) {
       const concern = dynamics.concern(involvedId, teamId, dispute.concernType);
       if (concern && concern.status !== "RESOLVED") {
         dynamics.upsertConcern({
           ...concern,
           severity: clamp(concern.severity + (outcome === "POSITIVE" ? -3 : 1), 1, 10),
-          status: outcome === "POSITIVE" && concern.status === "ESCALATED" ? "ACTIVE" : concern.status,
+          status:
+            outcome === "POSITIVE" && concern.status === "ESCALATED" ? "ACTIVE" : concern.status,
           updatedOn: save.worldDate,
         });
       }
@@ -1089,7 +1175,7 @@ const PROMISE_TYPE_FOR_ACTION: Partial<Record<ConcernResponseAction, ManagerProm
   PROMISE_SQUAD_STRENGTHENING: "SQUAD_STRENGTHENING",
 };
 
-const CONCERN_TYPE_FOR_PROMISE: Record<ManagerPromiseType, PlayerConcernType> = {
+const CONCERN_TYPE_FOR_PROMISE: Partial<Record<ManagerPromiseType, PlayerConcernType>> = {
   PLAYING_TIME: "PLAYING_TIME",
   CONTRACT_REVIEW: "CONTRACT",
   SQUAD_ROLE: "ROLE_STATUS",
@@ -1098,7 +1184,7 @@ const CONCERN_TYPE_FOR_PROMISE: Record<ManagerPromiseType, PlayerConcernType> = 
   SQUAD_STRENGTHENING: "ROLE_STATUS",
 };
 
-const PROMISE_DURATION_DAYS: Record<ManagerPromiseType, number> = {
+const PROMISE_DURATION_DAYS: Partial<Record<ManagerPromiseType, number>> = {
   PLAYING_TIME: 30,
   CONTRACT_REVIEW: 45,
   SQUAD_ROLE: 45,
@@ -1127,6 +1213,20 @@ const promiseDescription = (type: ManagerPromiseType): string => {
       return "Promised to reconsider their squad status.";
     case "TRANSFER_STANCE":
       return "Promised not to sanction a transfer away.";
+    case "LOAN_CONSIDERATION":
+      return "Promised to consider a suitable loan move.";
+    case "SQUAD_STRENGTHENING":
+      return "Promised to strengthen the squad around them.";
+    case "PROMOTION_CHALLENGE":
+      return "Promised to challenge for promotion or the title.";
+    case "YOUTH_USAGE":
+      return "Promised to give meaningful opportunities to youth players.";
+    case "FINANCIAL_DISCIPLINE":
+      return "Promised to maintain financial discipline.";
+    case "FACILITY_PROJECT":
+      return "Promised to deliver the agreed facility project.";
+    case "TACTICAL_STYLE":
+      return "Promised to use the agreed tactical style.";
   }
 };
 
@@ -1146,6 +1246,12 @@ const createPromise = (
     baselineMetric = contract ? daysBetween("1970-01-01", contract.endDate) : undefined;
   } else if (type === "SQUAD_ROLE") {
     baselineMetric = contract ? ROLE_RANK[contract.squadRole] : undefined;
+  } else if (type === "SQUAD_STRENGTHENING") {
+    const teamRow = db.prepare("SELECT club_id FROM teams WHERE id = ?").get(concern.teamId) as
+      SqlRow | undefined;
+    baselineMetric = teamRow?.club_id
+      ? new TransferMarketRepository(db).activeContractsForClub(teamRow.club_id, worldDate).length
+      : undefined;
   }
 
   const promise: ManagerPromise = {
@@ -1157,12 +1263,14 @@ const createPromise = (
     type,
     description: promiseDescription(type),
     madeOn: worldDate,
-    dueOn: addDays(worldDate, PROMISE_DURATION_DAYS[type]),
+    dueOn: addDays(worldDate, PROMISE_DURATION_DAYS[type] ?? 60),
     status: "ACTIVE",
     baselineMetric,
   };
   new SquadDynamicsRepository(db).upsertPromise(promise);
-  logEvent(db, concern.personId, concern.teamId, managerProfileId, "PROMISE_MADE", worldDate, { type });
+  logEvent(db, concern.personId, concern.teamId, managerProfileId, "PROMISE_MADE", worldDate, {
+    type,
+  });
   return promise;
 };
 
@@ -1367,12 +1475,26 @@ const resolvePromisesForPlayer = (
       kept = evaluable && (requiredAppearances === 0 || appearances >= requiredAppearances);
     } else if (promise.type === "CONTRACT_REVIEW") {
       evaluable = contract !== undefined && promise.baselineMetric !== undefined;
-      kept = evaluable && daysBetween("1970-01-01", contract!.endDate) > (promise.baselineMetric ?? 0);
+      kept =
+        evaluable && daysBetween("1970-01-01", contract!.endDate) > (promise.baselineMetric ?? 0);
     } else if (promise.type === "SQUAD_ROLE") {
       evaluable = contract !== undefined && promise.baselineMetric !== undefined;
       kept = evaluable && ROLE_RANK[contract!.squadRole] > (promise.baselineMetric ?? 0);
+    } else if (promise.type === "SQUAD_STRENGTHENING") {
+      const clubId = contract?.clubId;
+      const currentSquadSize = clubId
+        ? new TransferMarketRepository(db).activeContractsForClub(clubId, worldDate).length
+        : 0;
+      evaluable = clubId !== undefined && promise.baselineMetric !== undefined;
+      kept = evaluable && currentSquadSize > (promise.baselineMetric ?? 0);
+    } else if (promise.type === "LOAN_CONSIDERATION") {
+      const activeLoan = new TransferMarketRepository(db)
+        .activeLoans(worldDate)
+        .some((loan) => loan.playerId === personId);
+      kept = activeLoan;
     } else {
-      kept = new TransferMarketRepository(db).transferStatus(personId)?.status !== "TRANSFER_LISTED";
+      kept =
+        new TransferMarketRepository(db).transferStatus(personId)?.status !== "TRANSFER_LISTED";
     }
 
     if (!evaluable) {
@@ -1400,6 +1522,7 @@ const resolvePromisesForPlayer = (
       worldDate,
       {
         type: promise.type,
+        promiseId: promise.id,
       },
     );
 
@@ -1427,6 +1550,7 @@ const resolvePromisesForPlayer = (
     relationshipDelta -= 18;
     outcome.brokenPromises.push(resolved);
     const concernType = CONCERN_TYPE_FOR_PROMISE[promise.type];
+    if (!concernType) continue;
     const existingConcern =
       (promise.concernId ? dynamics.concernById(promise.concernId) : undefined) ??
       dynamics.concern(personId, teamId, concernType);

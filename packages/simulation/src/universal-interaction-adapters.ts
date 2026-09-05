@@ -596,10 +596,23 @@ const executeAcceptedInteraction = (
             recipientType: "BOARD",
           })
         : undefined;
+    // A concise, canonical-stance-driven label for the history badge — not
+    // an internal description of the mechanism that applied it. The
+    // mechanism itself (board confidence, relationship state) is real, but
+    // it belongs in supporting detail text, not the one-line outcome shown
+    // in the meeting history list.
+    const outcomeLabel =
+      promise
+        ? "Commitment agreed"
+        : stance === "CONCERN"
+          ? "Concern raised"
+          : stance === "REQUEST"
+            ? "Improvement requested"
+            : "Support extended";
     return {
       id: clubId,
       promiseId: promise?.id,
-      note: "Owner-manager meeting applied through board confidence and relationship systems",
+      note: outcomeLabel,
     };
   }
   if (reference.type === "FEDERATION_GRANT" || reference.type === "FEDERATION_FUNDING") {
