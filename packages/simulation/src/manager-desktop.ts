@@ -121,14 +121,17 @@ import {
 } from "./tactics.js";
 import {
   createTransferOffer,
+  createLoanOffer,
   counterTransferOffer,
   evaluateTransferOffer,
   completePermanentTransfer,
+  finalizeLoanOffer,
   initializeTransferMarketForSave,
   negotiatePlayerContract,
+  processDueTransferOffers,
   requestPlayerTransfer,
   respondToPlayerTransferRequest,
-  startLoan,
+  scheduleClubDecision,
 } from "./transfer-market.js";
 import type { ManagerContext } from "./desktop-application.js";
 import {
@@ -1501,6 +1504,9 @@ const offerView = (
       action: round.action,
       message: round.message ?? "",
     })),
+    respondBy: offer.respondBy,
+    pendingDecisionBy: offer.pendingDecisionBy,
+    loanTerms: offer.loanTerms,
   };
 };
 
@@ -1557,6 +1563,7 @@ export const buildTransferCentre = (
     }));
 
   return {
+    worldDate: save.worldDate,
     budget: budgetView(db, save, context),
     windowOpen: windows.length > 0,
     windowCloses: windows[0]?.closeDate,
@@ -1658,12 +1665,29 @@ export const negotiateManagerLoan = (
       "That player cannot be approached for a loan.",
     );
   }
-  startLoan(db, parentClubId, context.club.id, command.playerId, save.worldDate, save.randomSeed, {
+  // The parent club now genuinely evaluates the proposed wage split instead
+  // of the loan being granted the instant validation passes — see
+  // createLoanOffer/evaluateLoanOffer in transfer-market.ts.
+  createLoanOffer(db, {
+    buyingClubId: context.club.id,
+    sellingClubId: parentClubId,
+    playerId: command.playerId,
+    submittedAt: save.worldDate,
+    offerType: "LOAN",
     endDate: command.endDate,
     wageContributionPercent: command.wageContributionPercent,
     loanFee: command.loanFee,
     playingTimeExpectation: command.playingTimeExpectation,
     recallAllowed: command.recallAllowed,
+  });
+  new ManagerRepository(db).insertInboxItem({
+    id: createStableEntityId("inbox", `${command.playerId}:${save.worldDate}:loan-enquiry`),
+    createdOn: save.worldDate,
+    type: "COMPETITION_UPDATE",
+    title: "Loan enquiry sent",
+    body: `${personName(db, command.playerId)}: the parent club is reviewing your loan proposal.`,
+    relatedEntity: { type: "person", id: command.playerId },
+    read: false,
   });
   return buildTransferCentre(db, save, context);
 };
@@ -1703,22 +1727,17 @@ export const makeManagerTransferOffer = (
     exchangePlayerIds: command.exchangePlayerIds,
     sellerRequestedPlayerId: command.sellerRequestedPlayerId,
   });
-  // The selling club's decision is made by the engine, never by the UI.
-  const outcome = evaluateTransferOffer(
-    db,
-    offer,
-    save.worldDate,
-    `${save.randomSeed}:offer:${offer.id}`,
-  );
-  if (outcome.accepted) {
-    completePermanentTransfer(db, offer, save.worldDate, `${save.randomSeed}:complete:${offer.id}`);
-  }
+  // The selling club's decision no longer arrives in the same tick it was
+  // asked — scheduleClubDecision sets a plausible respondBy date, and
+  // processDueTransferOffers (run once per simulated day from
+  // advanceManagerCareer) is what actually evaluates it once that day comes.
+  scheduleClubDecision(db, offer, save.worldDate);
   new ManagerRepository(db).insertInboxItem({
-    id: createStableEntityId("inbox", `${offer.id}:response`),
+    id: createStableEntityId("inbox", `${offer.id}:submitted`),
     createdOn: save.worldDate,
     type: "COMPETITION_UPDATE",
-    title: outcome.accepted ? "Transfer offer accepted" : "Transfer offer rejected",
-    body: `${personName(db, command.playerId)}: ${outcome.reason}.`,
+    title: "Transfer offer submitted",
+    body: `${personName(db, command.playerId)}: the offer has been sent — the club is reviewing it.`,
     relatedEntity: { type: "person", id: command.playerId },
     read: false,
   });
@@ -1767,6 +1786,65 @@ export const respondToTransferOffer = (
   } else {
     market.updateOfferStatus(offer.id, "REJECTED");
   }
+  return buildTransferCentre(db, save, context);
+};
+
+/**
+ * The buying-club side of a loan negotiation — responding to the parent
+ * club's counter (see evaluateLoanOffer) by accepting the higher wage
+ * contribution they want, or walking away. There is no separate
+ * "respondToLoanOffer" domain concept: this is the exact same TransferOffer
+ * a COUNTERED loan already is, just answered from the other side.
+ */
+export const respondToLoanOffer = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  context: ManagerContext,
+  command: { offerId: EntityId; action: "ACCEPT" | "WITHDRAW" },
+): TransferCentre => {
+  assertManagerAuthority(context, undefined, "OFFER_TRANSFER");
+  assertManagerResponsibility(db, save, context, "TRANSFERS", "respondToLoanOffer");
+  const market = new TransferMarketRepository(db);
+  const offer = market.transferOffers().find((candidate) => candidate.id === command.offerId);
+  if (!offer || !offer.loanTerms) {
+    throw new ManagerCommandError("INVALID_SELECTION", "Unknown loan offer.");
+  }
+  if (offer.buyingClubId !== context.club?.id) {
+    throw new ManagerCommandError(
+      "ROLE_NOT_AUTHORIZED",
+      "You may only respond to your own club's loan enquiries.",
+    );
+  }
+  if (offer.status !== "COUNTERED") {
+    throw new ManagerCommandError("INVALID_SELECTION", "This loan enquiry has no open counter to respond to.");
+  }
+  if (command.action === "WITHDRAW") {
+    market.updateOfferStatus(offer.id, "WITHDRAWN");
+    market.insertNegotiationRound({
+      id: createStableEntityId("negotiation-round", `${offer.id}:buyer:withdraw`),
+      offerId: offer.id,
+      roundNumber: market.negotiationRounds(offer.id).length + 1,
+      actor: "BUYING_CLUB",
+      action: "REJECT",
+      message: "Manager withdrew the loan enquiry",
+      createdAt: save.worldDate,
+    });
+    return buildTransferCentre(db, save, context);
+  }
+  if (!offer.sellingClubId) {
+    throw new ManagerCommandError("INVALID_SELECTION", "This loan enquiry has no parent club on record.");
+  }
+  const terms = offer.loanTerms;
+  finalizeLoanOffer(db, offer, save.worldDate, `${save.randomSeed}:loan-accept:${offer.id}`);
+  market.insertNegotiationRound({
+    id: createStableEntityId("negotiation-round", `${offer.id}:buyer:accept`),
+    offerId: offer.id,
+    roundNumber: market.negotiationRounds(offer.id).length + 1,
+    actor: "BUYING_CLUB",
+    action: "ACCEPT",
+    message: `Manager accepted the ${terms.wageContributionPercent}% wage contribution`,
+    createdAt: save.worldDate,
+  });
   return buildTransferCentre(db, save, context);
 };
 
@@ -2233,6 +2311,32 @@ export const advanceManagerCareer = (
     simulateScoutingDay({ db, worldDate: date, seed: `${save.randomSeed}:scouting:${date}` });
     applyDailyTraining(db, save, context, players, trainingPlan, date);
 
+    // Any transfer/loan decision due today actually happens here — this is
+    // the real fix for offers that used to resolve the instant they were
+    // submitted. Only the current club's own offers are surfaced to the
+    // inbox; AI-vs-AI decisions elsewhere in the world stay silent noise.
+    const dueOutcomes = processDueTransferOffers(db, date, `${save.randomSeed}:transfers:${date}`);
+    if (clubId) {
+      const ownOffers = new Set(
+        market
+          .transferOffers()
+          .filter((offer) => offer.buyingClubId === clubId || offer.sellingClubId === clubId)
+          .map((offer) => offer.playerId),
+      );
+      for (const outcome of dueOutcomes) {
+        if (!ownOffers.has(outcome.playerId)) continue;
+        new ManagerRepository(db).insertInboxItem({
+          id: createStableEntityId("inbox", `${outcome.playerId}:${date}:${outcome.inboxTitle}`),
+          createdOn: date,
+          type: "COMPETITION_UPDATE",
+          title: outcome.inboxTitle,
+          body: outcome.inboxBody,
+          relatedEntity: { type: "person", id: outcome.playerId },
+          read: false,
+        });
+      }
+    }
+
     if (nextFixture && date >= nextFixture.scheduledDate) {
       stopReason = "NEXT_FIXTURE";
       break;
@@ -2252,11 +2356,14 @@ export const advanceManagerCareer = (
         .some(
           (offer) =>
             (offer.buyingClubId === clubId || offer.sellingClubId === clubId) &&
-            ["ACCEPTED", "REJECTED"].includes(offer.status) &&
+            ["ACCEPTED", "REJECTED", "COUNTERED", "COMPLETED"].includes(offer.status) &&
             offer.expiresAt >= date &&
             offer.submittedAt <= date,
         );
-      if (responded && days >= 3) {
+      // A response now genuinely takes at least a day to arrive (see
+      // processDueTransferOffers above), so there is no longer a reason to
+      // wait three simulated days before surfacing it.
+      if (responded && days >= 1) {
         stopReason = "TRANSFER_RESPONSE";
         break;
       }

@@ -8,6 +8,7 @@ import {
   type ClubFinancialProfile,
   type CompetitionRegistration,
   type EntityId,
+  type ISODate,
   type KnowledgeRange,
   type NegotiationRound,
   type PlayerContractRecord,
@@ -741,6 +742,48 @@ export const evaluateTransferOffer = (
   return { accepted, reason: accepted ? "accepted" : "seller value not met" };
 };
 
+/**
+ * How many simulated days out a decision should actually land — never
+ * instant, never so slow the game stalls. Deadline-day urgency and prior
+ * back-and-forth (more negotiation rounds already logged) both compress the
+ * wait; a brand-new opening offer takes the longest to hear back on.
+ */
+const respondByDate = (input: {
+  worldDate: string;
+  expiresAt: string;
+  roundNumber: number;
+}): string => {
+  const daysToDeadline = Math.max(
+    0,
+    Math.round(
+      (new Date(`${input.expiresAt}T00:00:00Z`).getTime() -
+        new Date(`${input.worldDate}T00:00:00Z`).getTime()) /
+        86_400_000,
+    ),
+  );
+  const urgent = daysToDeadline <= 2;
+  const baseDelay = input.roundNumber <= 1 ? 3 : 2;
+  const delay = urgent ? 1 : Math.min(baseDelay, Math.max(1, daysToDeadline - 1));
+  return addDays(input.worldDate, delay);
+};
+
+/**
+ * Marks a fresh (or countered) offer as awaiting the selling club's
+ * decision, due some plausible number of days out — the counterpart no
+ * longer decides in the same tick it was proposed in. Callers that used to
+ * invoke evaluateTransferOffer directly right after creating an offer
+ * should call this instead; processDueTransferOffers is what actually runs
+ * evaluateTransferOffer once the wait is over.
+ */
+export const scheduleClubDecision = (db: GameDatabase, offer: TransferOffer, worldDate: string): void => {
+  const market = new TransferMarketRepository(db);
+  const rounds = market.negotiationRounds(offer.id).length;
+  market.updateOfferPendingDecision(offer.id, {
+    respondBy: respondByDate({ worldDate, expiresAt: offer.expiresAt, roundNumber: rounds }) as ISODate,
+    pendingDecisionBy: "CLUB",
+  });
+};
+
 export const calculateTransferValuation = (
   db: GameDatabase,
   input: {
@@ -842,6 +885,255 @@ export const calculateTransferValuation = (
       playerDesire,
     },
   };
+};
+
+/**
+ * Loans go through the exact same TransferOffer/NegotiationRound machinery
+ * as permanent transfers — offerType carries which loan variant, loanTerms
+ * carries the loan-only fields — rather than a second, parallel offer
+ * system. Previously "negotiate a loan" (manager-desktop.ts) called
+ * startLoan directly: whatever wage split the manager asked for was simply
+ * granted the instant validation passed, with no parent-club evaluation at
+ * all. This is the actual fix for "loan resolves in a second."
+ */
+export const createLoanOffer = (
+  db: GameDatabase,
+  input: {
+    buyingClubId: EntityId;
+    sellingClubId: EntityId;
+    playerId: EntityId;
+    submittedAt: string;
+    offerType: Extract<TransferOffer["offerType"], "LOAN" | "LOAN_WITH_OPTION" | "LOAN_WITH_OBLIGATION">;
+    endDate?: string;
+    wageContributionPercent?: number;
+    loanFee?: number;
+    playingTimeExpectation?: PlayerSquadRole;
+    recallAllowed?: boolean;
+  },
+): TransferOffer => {
+  const wageContributionPercent = input.wageContributionPercent ?? 55;
+  const loanFee = Math.round(input.loanFee ?? 0);
+  const endDate = input.endDate ?? addMonths(input.submittedAt, 6);
+  const offer: TransferOffer = {
+    id: createStableEntityId(
+      "transfer-offer",
+      `loan:${input.buyingClubId}:${input.sellingClubId}:${input.playerId}:${input.submittedAt}`,
+    ),
+    buyingClubId: input.buyingClubId,
+    sellingClubId: input.sellingClubId,
+    playerId: input.playerId,
+    offerType: input.offerType,
+    transferFee: loanFee,
+    installments: 0,
+    addOns: 0,
+    sellOnPercentage: 0,
+    submittedAt: input.submittedAt,
+    expiresAt: addDays(input.submittedAt, 10),
+    status: "SUBMITTED",
+    currency,
+    agentFee: 0,
+    signingFee: 0,
+    loanTerms: {
+      durationMonths: Math.max(
+        1,
+        Math.round(
+          (new Date(`${endDate}T00:00:00Z`).getTime() -
+            new Date(`${input.submittedAt}T00:00:00Z`).getTime()) /
+            (30.44 * 86_400_000),
+        ),
+      ),
+      wageContributionPercent,
+      playingTimeExpectation: input.playingTimeExpectation ?? "ROTATION",
+      recallOption: input.recallAllowed ?? true,
+    },
+  };
+  const market = new TransferMarketRepository(db);
+  const existing = market.transferOffers().find((item) => item.id === offer.id);
+  if (existing) return existing;
+  market.insertTransferOffer(offer);
+  market.insertNegotiationRound({
+    id: createStableEntityId("negotiation-round", `${offer.id}:buyer:opening`),
+    offerId: offer.id,
+    roundNumber: 1,
+    actor: "BUYING_CLUB",
+    action: "OPENING_OFFER",
+    message: `Loan enquiry: ${wageContributionPercent}% wage contribution offered`,
+    createdAt: input.submittedAt,
+  });
+  scheduleClubDecision(db, offer, input.submittedAt);
+  return offer;
+};
+
+/**
+ * New AI logic — no loan evaluation existed before this. Uses the same
+ * squad-role/positional-scarcity signals calculateTransferValuation already
+ * relies on: a more important player commands a higher required wage
+ * contribution before the parent club will let them go, since they're
+ * giving up more sporting value for a fee that's typically much smaller
+ * than a permanent sale.
+ */
+export const evaluateLoanOffer = (
+  db: GameDatabase,
+  offer: TransferOffer,
+  worldDate: string,
+): { decision: "ACCEPTED" | "REJECTED" | "COUNTERED"; reason: string; requiredWagePercent: number } => {
+  const market = new TransferMarketRepository(db);
+  const terms = offer.loanTerms;
+  if (!terms) throw new Error("Loan offer is missing loan terms");
+  const contract = market.activeContract(offer.playerId, worldDate);
+  const role = contract?.squadRole ?? "ROTATION";
+  const player = marketPlayer(db, offer.playerId);
+  const importance = squadRoleWeight(role);
+  // KEY_PLAYER-weight players rarely go out on loan at all; this keeps the
+  // required contribution high enough that only a genuinely strong offer
+  // gets through, without hard-blocking it outright.
+  const requiredWagePercent = Math.round(
+    Math.min(90, 40 + importance * 22 + (player?.reputation ?? 5) * 1.4),
+  );
+  if (terms.wageContributionPercent >= requiredWagePercent) {
+    market.updateOfferPendingDecision(offer.id, {});
+    market.updateOfferStatus(offer.id, "ACCEPTED");
+    market.insertNegotiationRound({
+      id: createStableEntityId("negotiation-round", `${offer.id}:seller:1`),
+      offerId: offer.id,
+      roundNumber: market.negotiationRounds(offer.id).length + 1,
+      actor: "SELLING_CLUB",
+      action: "ACCEPT",
+      message: `Accepted: ${terms.wageContributionPercent}% wage contribution meets what the club needs`,
+      createdAt: worldDate,
+    });
+    return { decision: "ACCEPTED", reason: "wage contribution accepted", requiredWagePercent };
+  }
+  const gap = requiredWagePercent - terms.wageContributionPercent;
+  if (gap <= 20) {
+    market.updateOfferPendingDecision(offer.id, {});
+    market.updateOfferStatus(offer.id, "COUNTERED");
+    const countered: TransferOffer = {
+      ...offer,
+      loanTerms: { ...terms, wageContributionPercent: requiredWagePercent },
+      status: "COUNTERED",
+    };
+    market.insertTransferOffer(countered);
+    market.insertNegotiationRound({
+      id: createStableEntityId("negotiation-round", `${offer.id}:seller:counter`),
+      offerId: offer.id,
+      roundNumber: market.negotiationRounds(offer.id).length + 1,
+      actor: "SELLING_CLUB",
+      action: "COUNTER",
+      message: `Open to discussion but wants ${requiredWagePercent}% wage contribution`,
+      createdAt: worldDate,
+    });
+    return { decision: "COUNTERED", reason: "wage contribution too low", requiredWagePercent };
+  }
+  market.updateOfferPendingDecision(offer.id, {});
+  market.updateOfferStatus(offer.id, "REJECTED");
+  market.insertNegotiationRound({
+    id: createStableEntityId("negotiation-round", `${offer.id}:seller:1`),
+    offerId: offer.id,
+    roundNumber: market.negotiationRounds(offer.id).length + 1,
+    actor: "SELLING_CLUB",
+    action: "REJECT",
+    message: `Rejected: ${role.toLowerCase().replace(/_/g, " ")} is too important to release on these terms`,
+    createdAt: worldDate,
+  });
+  return { decision: "REJECTED", reason: "player too important for the terms offered", requiredWagePercent };
+};
+
+/** The single place a loan offer's agreed terms actually become a real
+ * PlayerLoanRecord — used both when the parent club's AI accepts outright
+ * and when the manager accepts a countered wage split. */
+export const finalizeLoanOffer = (
+  db: GameDatabase,
+  offer: TransferOffer,
+  worldDate: string,
+  seed: string,
+): void => {
+  const terms = offer.loanTerms;
+  if (!terms || !offer.sellingClubId) throw new Error("Loan offer is missing terms or a parent club");
+  const market = new TransferMarketRepository(db);
+  startLoan(db, offer.sellingClubId, offer.buyingClubId, offer.playerId, worldDate, seed, {
+    endDate: addMonths(worldDate, terms.durationMonths),
+    wageContributionPercent: terms.wageContributionPercent,
+    loanFee: offer.transferFee,
+    playingTimeExpectation: terms.playingTimeExpectation as PlayerSquadRole,
+    recallAllowed: terms.recallOption,
+  });
+  market.updateOfferStatus(offer.id, "COMPLETED");
+};
+
+/**
+ * The actual driver behind "a negotiation takes real time." Runs whichever
+ * decision (club-side, then player-side for permanent transfers) is due,
+ * and never more than once per call — each branch clears its own respondBy
+ * before returning, so re-running this for the same offer on a later day
+ * with no state change is a no-op.
+ */
+export const processDueTransferOffer = (
+  db: GameDatabase,
+  offer: TransferOffer,
+  worldDate: string,
+  seed: string,
+): { inboxTitle: string; inboxBody: string } | undefined => {
+  const market = new TransferMarketRepository(db);
+  const isLoan = offer.offerType !== "PERMANENT" && offer.offerType !== "FREE_TRANSFER";
+  if (offer.pendingDecisionBy === "CLUB") {
+    if (isLoan) {
+      const result = evaluateLoanOffer(db, offer, worldDate);
+      if (result.decision === "ACCEPTED") {
+        finalizeLoanOffer(db, offer, worldDate, seed);
+        return { inboxTitle: "Loan agreed", inboxBody: `${result.reason}.` };
+      }
+      if (result.decision === "COUNTERED") {
+        return {
+          inboxTitle: "Loan club responded",
+          inboxBody: `They want ${result.requiredWagePercent}% wage contribution — review and respond.`,
+        };
+      }
+      return { inboxTitle: "Loan enquiry declined", inboxBody: `${result.reason}.` };
+    }
+    const outcome = evaluateTransferOffer(db, offer, worldDate, `${seed}:club`);
+    if (outcome.accepted) {
+      market.updateOfferPendingDecision(offer.id, {
+        respondBy: addDays(worldDate, 1) as ISODate,
+        pendingDecisionBy: "PLAYER",
+      });
+      return {
+        inboxTitle: "Club agreed a fee",
+        inboxBody: "Now discussing personal terms with the player and their representation.",
+      };
+    }
+    market.updateOfferPendingDecision(offer.id, {});
+    return { inboxTitle: "Transfer offer rejected", inboxBody: `${outcome.reason}.` };
+  }
+  if (offer.pendingDecisionBy === "PLAYER") {
+    market.updateOfferPendingDecision(offer.id, {});
+    completePermanentTransfer(db, offer, worldDate, `${seed}:personal`);
+    const resolved = market.transferOffers().find((item) => item.id === offer.id);
+    if (resolved?.status === "COMPLETED") {
+      return { inboxTitle: "Transfer completed", inboxBody: "Personal terms agreed and the move is done." };
+    }
+    if (resolved?.status === "WITHDRAWN") {
+      return { inboxTitle: "Transfer talks collapsed", inboxBody: "The player would not agree personal terms." };
+    }
+    return { inboxTitle: "Transfer talks ended", inboxBody: "The player rejected the proposed terms." };
+  }
+  return undefined;
+};
+
+/** Called once per simulated day from the manager's continue-career loop. */
+export const processDueTransferOffers = (
+  db: GameDatabase,
+  worldDate: string,
+  seed: string,
+): Array<{ playerId: EntityId; inboxTitle: string; inboxBody: string }> => {
+  const market = new TransferMarketRepository(db);
+  const due = market.dueTransferOffers(worldDate as ISODate);
+  const results: Array<{ playerId: EntityId; inboxTitle: string; inboxBody: string }> = [];
+  for (const offer of due) {
+    const outcome = processDueTransferOffer(db, offer, worldDate, `${seed}:${offer.id}`);
+    if (outcome) results.push({ playerId: offer.playerId, ...outcome });
+  }
+  return results;
 };
 
 export const createTransferEnquiry = (

@@ -430,6 +430,7 @@ import {
   makeManagerTransferRequest,
   respondManagerTransferRequest,
   negotiateManagerLoan,
+  respondToLoanOffer,
   searchManagerRecruitment,
   setManagerTransferStatus,
   toggleManagerShortlist,
@@ -3456,6 +3457,13 @@ export class DesktopApplicationService {
   negotiateLoan(command: TransferLoanCommand): AppResult<TransferCentre> {
     return this.managerCommand(
       (db, save, context) => negotiateManagerLoan(db, save, context, command),
+      true,
+    );
+  }
+
+  respondLoanOffer(command: { offerId: EntityId; action: "ACCEPT" | "WITHDRAW" }): AppResult<TransferCentre> {
+    return this.managerCommand(
+      (db, save, context) => respondToLoanOffer(db, save, context, command),
       true,
     );
   }

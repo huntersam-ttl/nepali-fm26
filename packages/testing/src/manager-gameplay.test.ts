@@ -441,7 +441,9 @@ describe("manager gameplay", () => {
 
     const offer = offered.data.incoming.find((row) => row.playerId === target.playerId);
     expect(offer).toBeTruthy();
-    expect(["SUBMITTED", "ACCEPTED", "REJECTED", "COMPLETED"]).toContain(offer!.status);
+    // Regression: a fresh offer no longer resolves in the same click — the
+    // seller's decision is scheduled, not made synchronously here.
+    expect(offer!.status).toBe("SUBMITTED");
     expect(offer!.negotiation.length).toBeGreaterThan(0);
     if (offer!.otherClubName) {
       // Regression: the counterpart club on a transfer offer must resolve

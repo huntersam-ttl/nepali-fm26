@@ -108,6 +108,7 @@ import type {
   FixtureRecord,
   InjuryRecord,
   InboxItem,
+  ISODate,
   JobApplication,
   ManagerJobNegotiation,
   JobVacancy,
@@ -4082,8 +4083,9 @@ export class TransferMarketRepository {
           installments, addons, sell_on_percentage, submitted_at, expires_at, status,
           currency, asking_range_json, agent_fee, signing_fee, buyer_perceived_value_json,
           seller_internal_value_json, player_desire_to_move, conditionals_json,
-          player_exchanges_json, seller_requested_player_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          player_exchanges_json, seller_requested_player_id, respond_by, pending_decision_by,
+          loan_terms_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           status = excluded.status,
           transfer_fee = excluded.transfer_fee,
@@ -4097,7 +4099,10 @@ export class TransferMarketRepository {
           player_desire_to_move = excluded.player_desire_to_move,
           conditionals_json = excluded.conditionals_json,
           player_exchanges_json = excluded.player_exchanges_json,
-          seller_requested_player_id = excluded.seller_requested_player_id`,
+          seller_requested_player_id = excluded.seller_requested_player_id,
+          respond_by = excluded.respond_by,
+          pending_decision_by = excluded.pending_decision_by,
+          loan_terms_json = excluded.loan_terms_json`,
       )
       .run(
         offer.id,
@@ -4122,11 +4127,39 @@ export class TransferMarketRepository {
         offer.conditionals ? json.stringify(offer.conditionals) : null,
         offer.playerExchanges ? json.stringify(offer.playerExchanges) : null,
         offer.sellerRequestedPlayerId ?? null,
+        offer.respondBy ?? null,
+        offer.pendingDecisionBy ?? null,
+        offer.loanTerms ? json.stringify(offer.loanTerms) : null,
       );
   }
 
   updateOfferStatus(id: EntityId, status: TransferOffer["status"]): void {
     this.db.prepare("UPDATE transfer_offers SET status = ? WHERE id = ?").run(status, id);
+  }
+
+  /** Advances (or clears) the pending-decision clock on an offer without
+   * touching any of its negotiated terms. */
+  updateOfferPendingDecision(
+    id: EntityId,
+    pending: { respondBy?: ISODate; pendingDecisionBy?: "CLUB" | "PLAYER" },
+  ): void {
+    this.db
+      .prepare(
+        "UPDATE transfer_offers SET respond_by = ?, pending_decision_by = ? WHERE id = ?",
+      )
+      .run(pending.respondBy ?? null, pending.pendingDecisionBy ?? null, id);
+  }
+
+  /** Offers with an AI decision genuinely due — the actual driver of the
+   * whole delayed-negotiation loop. */
+  dueTransferOffers(worldDate: ISODate): TransferOffer[] {
+    return (
+      this.db
+        .prepare(
+          "SELECT * FROM transfer_offers WHERE respond_by IS NOT NULL AND respond_by <= ? ORDER BY respond_by, id",
+        )
+        .all(worldDate) as any[]
+    ).map(mapTransferOffer);
   }
 
   transferOffers(): TransferOffer[] {
@@ -5938,6 +5971,9 @@ const mapTransferOffer = (row: any): TransferOffer => ({
     ? json.parse(row.player_exchanges_json, [])
     : undefined,
   sellerRequestedPlayerId: row.seller_requested_player_id ?? undefined,
+  respondBy: row.respond_by ?? undefined,
+  pendingDecisionBy: row.pending_decision_by ?? undefined,
+  loanTerms: row.loan_terms_json ? json.parse(row.loan_terms_json, undefined) : undefined,
 });
 
 const mapSellOnEntitlement = (row: any): SellOnEntitlement => ({

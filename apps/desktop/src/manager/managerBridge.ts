@@ -150,6 +150,8 @@ export const managerBridge = {
     runtimeCall<TransferCentre>("respondTransferRequest", { command }),
   negotiateLoan: (command: TransferLoanCommand) =>
     runtimeCall<TransferCentre>("negotiateLoan", { command }),
+  respondLoanOffer: (command: { offerId: EntityId; action: "ACCEPT" | "WITHDRAW" }) =>
+    runtimeCall<TransferCentre>("respondLoanOffer", { command }),
   setTransferStatus: (command: TransferListCommand) =>
     runtimeCall<TransferCentre>("setTransferStatus", { command }),
   getContracts: () => runtimeCall<ContractList>("getContracts"),

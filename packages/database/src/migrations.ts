@@ -3738,6 +3738,16 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
         ON player_valuation_history(player_id, occurred_on DESC);
     `,
   },
+  {
+    version: 93,
+    sql: `
+      ALTER TABLE transfer_offers ADD COLUMN respond_by TEXT;
+      ALTER TABLE transfer_offers ADD COLUMN pending_decision_by TEXT;
+      ALTER TABLE transfer_offers ADD COLUMN loan_terms_json TEXT;
+      CREATE INDEX IF NOT EXISTS idx_transfer_offers_respond_by
+        ON transfer_offers(respond_by) WHERE respond_by IS NOT NULL;
+    `,
+  },
 ];
 
 export const migrateDatabase = (db: GameDatabase): number => {

@@ -508,6 +508,8 @@ const dispatch = (
       return service.respondTransferRequest(body.command as TransferRequestResponseCommand);
     case "negotiateLoan":
       return service.negotiateLoan(body.command as TransferLoanCommand);
+    case "respondLoanOffer":
+      return service.respondLoanOffer(body.command as { offerId: EntityId; action: "ACCEPT" | "WITHDRAW" });
     case "setTransferStatus":
       return service.setTransferStatus(body.command as TransferListCommand);
     case "getContracts":

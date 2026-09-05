@@ -605,6 +605,17 @@ export type TransferOfferView = {
   submittedAt: ISODate;
   expiresAt: ISODate;
   negotiation: Array<{ round: number; actor: string; action: string; message: string }>;
+  /** When the next AI decision on this offer is actually due — undefined
+   * means nothing is currently pending (terminal state, or it's the
+   * manager's own move to make). */
+  respondBy?: ISODate;
+  pendingDecisionBy?: "CLUB" | "PLAYER";
+  loanTerms?: {
+    durationMonths: number;
+    wageContributionPercent: number;
+    playingTimeExpectation: string;
+    recallOption: boolean;
+  };
 };
 
 export type TransferBudgetView = {
@@ -620,6 +631,7 @@ export type TransferBudgetView = {
 };
 
 export type TransferCentre = {
+  worldDate: ISODate;
   budget: TransferBudgetView;
   windowOpen: boolean;
   windowCloses?: ISODate;

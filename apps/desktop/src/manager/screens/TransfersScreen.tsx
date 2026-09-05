@@ -318,7 +318,15 @@ export const TransfersScreen = ({
                   {centre.incoming.length === 0 ? (
                     <p className="empty-state">No active bids.</p>
                   ) : (
-                    <OfferTable offers={centre.incoming} onOpenClub={onOpenClub} />
+                    <OfferTable
+                      offers={centre.incoming}
+                      worldDate={centre.worldDate}
+                      onOpenClub={onOpenClub}
+                      onRespondLoan={(offerId, action) =>
+                        void act(() => managerBridge.respondLoanOffer({ offerId, action }))
+                      }
+                      busy={busy}
+                    />
                   )}
                   <h3>Bids for our players</h3>
                   {centre.outgoing.length === 0 ? (
@@ -326,6 +334,7 @@ export const TransfersScreen = ({
                   ) : (
                     <OfferTable
                       offers={centre.outgoing}
+                      worldDate={centre.worldDate}
                       onOpenClub={onOpenClub}
                       onRespond={(offerId, action, transferFee) =>
                         void act(() =>
@@ -543,18 +552,43 @@ export const TransfersScreen = ({
   );
 };
 
+/** Days remaining until the next AI decision on an offer, or undefined when
+ * nothing is currently scheduled (terminal state, or it's the manager's own
+ * move to make right now). */
+const daysUntil = (worldDate: string, respondBy?: string): number | undefined => {
+  if (!respondBy) return undefined;
+  const days = Math.round(
+    (new Date(`${respondBy}T00:00:00Z`).getTime() - new Date(`${worldDate}T00:00:00Z`).getTime()) /
+      86_400_000,
+  );
+  return Math.max(0, days);
+};
+
+const NEGOTIATION_STAGE_LABEL: Record<string, string> = {
+  SUBMITTED: "Awaiting response",
+  NEGOTIATING: "In discussion",
+  COUNTERED: "Countered — your move",
+  PLAYER_NEGOTIATING: "Discussing personal terms",
+};
+
 const OfferTable = ({
   offers,
+  worldDate,
   onRespond,
+  onRespondLoan,
   onOpenClub,
   busy,
 }: {
   offers: TransferCentre["incoming"];
+  worldDate: string;
   onRespond?: (
     offerId: EntityId,
     action: "ACCEPT" | "REJECT" | "COUNTER",
     transferFee?: number,
   ) => void;
+  /** Buying-club response to a countered loan enquiry — a different shape
+   * (accept the wage split, or withdraw) than the fee-based onRespond above. */
+  onRespondLoan?: (offerId: EntityId, action: "ACCEPT" | "WITHDRAW") => void;
   onOpenClub: (clubId: EntityId) => void;
   busy?: boolean;
 }): React.ReactElement => (
@@ -567,8 +601,9 @@ const OfferTable = ({
           <th>Fee</th>
           <th>Asking / contact</th>
           <th>Status</th>
+          <th>Stage</th>
           <th>Latest</th>
-          {onRespond && <th />}
+          {(onRespond || onRespondLoan) && <th />}
         </tr>
       </thead>
       <tbody>
@@ -615,6 +650,28 @@ const OfferTable = ({
               >
                 {offer.status.toLowerCase()}
               </Badge>
+              {offer.loanTerms && (
+                <div className="subtle">{offer.loanTerms.wageContributionPercent}% wage share</div>
+              )}
+            </td>
+            <td className="subtle">
+              {offer.respondBy ? (
+                <>
+                  {NEGOTIATION_STAGE_LABEL[offer.status] ?? "In progress"}
+                  {offer.status !== "COUNTERED" && (
+                    <div>
+                      {(() => {
+                        const days = daysUntil(worldDate, offer.respondBy);
+                        return days === 0
+                          ? "Response due today"
+                          : `Response expected in ${days} day${days === 1 ? "" : "s"}`;
+                      })()}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <span className="empty-state">No response pending</span>
+              )}
             </td>
             <td className="subtle">
               {offer.negotiation.at(-1)?.message ?? "Awaiting response"}
@@ -627,31 +684,54 @@ const OfferTable = ({
                 ))}
               </details>
             </td>
-            {onRespond && (
+            {(onRespond || onRespondLoan) && (
               <td>
-                <button
-                  className="ghost small"
-                  disabled={busy}
-                  onClick={() => onRespond(offer.id, "ACCEPT")}
-                >
-                  Accept
-                </button>
-                <button
-                  className="ghost small"
-                  disabled={busy}
-                  onClick={() => onRespond(offer.id, "REJECT")}
-                >
-                  Reject
-                </button>
-                <button
-                  className="ghost small"
-                  disabled={busy}
-                  onClick={() =>
-                    onRespond(offer.id, "COUNTER", Math.round(offer.transferFee * 1.1))
-                  }
-                >
-                  Counter
-                </button>
+                {onRespondLoan && offer.loanTerms && offer.status === "COUNTERED" ? (
+                  <>
+                    <button
+                      className="ghost small"
+                      disabled={busy}
+                      onClick={() => onRespondLoan(offer.id, "ACCEPT")}
+                    >
+                      Accept {offer.loanTerms.wageContributionPercent}%
+                    </button>
+                    <button
+                      className="ghost small"
+                      disabled={busy}
+                      onClick={() => onRespondLoan(offer.id, "WITHDRAW")}
+                    >
+                      Withdraw
+                    </button>
+                  </>
+                ) : onRespond ? (
+                  <>
+                    <button
+                      className="ghost small"
+                      disabled={busy}
+                      onClick={() => onRespond(offer.id, "ACCEPT")}
+                    >
+                      Accept
+                    </button>
+                    <button
+                      className="ghost small"
+                      disabled={busy}
+                      onClick={() => onRespond(offer.id, "REJECT")}
+                    >
+                      Reject
+                    </button>
+                    <button
+                      className="ghost small"
+                      disabled={busy}
+                      onClick={() =>
+                        onRespond(offer.id, "COUNTER", Math.round(offer.transferFee * 1.1))
+                      }
+                    >
+                      Counter
+                    </button>
+                  </>
+                ) : (
+                  <span className="subtle">—</span>
+                )}
               </td>
             )}
           </tr>

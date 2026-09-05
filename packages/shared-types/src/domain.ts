@@ -2613,6 +2613,29 @@ export type TransferOffer = {
   conditionals?: TransferConditionalClause[];
   playerExchanges?: TransferPlayerExchange[];
   sellerRequestedPlayerId?: EntityId;
+  /**
+   * When the counterparty's next decision on this offer is actually due.
+   * Undefined means no decision is currently pending (the offer is in a
+   * terminal state, or a human response is what's awaited instead of an
+   * AI one). Optional/backward-compatible: older saves simply have no
+   * pending decision recorded, which reads as "nothing due" rather than
+   * fabricating a date.
+   */
+  respondBy?: ISODate;
+  /** Which side's decision respondBy refers to — the club (fee/terms) or
+   * the player/agent (personal terms), matching the SUBMITTED/COUNTERED
+   * vs. PLAYER_NEGOTIATING phase of the same offer. */
+  pendingDecisionBy?: "CLUB" | "PLAYER";
+  /** Loan-specific terms, present only when offerType is one of the LOAN
+   * variants. Kept on the same TransferOffer row rather than a second
+   * offer type, so loans go through the identical negotiation/respondBy
+   * machinery as permanent transfers. */
+  loanTerms?: {
+    durationMonths: number;
+    wageContributionPercent: number;
+    playingTimeExpectation: string;
+    recallOption: boolean;
+  };
 };
 
 export type NegotiationRound = {
