@@ -3748,6 +3748,31 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
         ON transfer_offers(respond_by) WHERE respond_by IS NOT NULL;
     `,
   },
+  {
+    version: 94,
+    sql: `
+      ALTER TABLE ownership_acquisition_offers ADD COLUMN respond_by TEXT;
+      ALTER TABLE ownership_acquisition_offers ADD COLUMN pending_decision_by TEXT;
+      ALTER TABLE ownership_acquisition_offers ADD COLUMN deal_structure TEXT;
+      ALTER TABLE ownership_acquisition_offers ADD COLUMN owner_proceeds_amount INTEGER;
+      ALTER TABLE ownership_acquisition_offers ADD COLUMN capital_injection_amount INTEGER;
+      ALTER TABLE ownership_acquisition_offers ADD COLUMN due_diligence_findings_json TEXT;
+      ALTER TABLE ownership_acquisition_offers ADD COLUMN board_stance TEXT;
+      CREATE INDEX IF NOT EXISTS idx_ownership_offers_respond_by
+        ON ownership_acquisition_offers(respond_by) WHERE respond_by IS NOT NULL;
+      CREATE TABLE IF NOT EXISTS ownership_negotiation_rounds (
+        id TEXT PRIMARY KEY,
+        offer_id TEXT NOT NULL REFERENCES ownership_acquisition_offers(id),
+        round_number INTEGER NOT NULL,
+        actor TEXT NOT NULL,
+        action TEXT NOT NULL,
+        message TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_ownership_negotiation_rounds_offer
+        ON ownership_negotiation_rounds(offer_id, round_number);
+    `,
+  },
 ];
 
 export const migrateDatabase = (db: GameDatabase): number => {

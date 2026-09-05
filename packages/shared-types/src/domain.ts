@@ -1948,6 +1948,21 @@ export type ClubOwnershipStake = {
   ownershipModel: ClubOwnershipModel;
   provenanceStatus: "SIMULATION_ONLY" | "VERIFIED" | "REPORTED" | "ESTIMATED" | "UNKNOWN";
 };
+/**
+ * Whether the investor's money pays an existing owner for their shares
+ * (nothing new reaches the club), goes into the club as fresh capital
+ * (existing owners are diluted, but receive no cash), or splits between
+ * the two. This must stay explicit end-to-end — money is never silently
+ * credited to the club for what is actually a payment to an owner, or
+ * vice versa.
+ */
+export type OwnershipDealStructure =
+  | "SECONDARY_STAKE_SALE"
+  | "PRIMARY_CAPITAL_INJECTION"
+  | "MIXED";
+
+export type OwnershipNegotiationPendingParty = "OWNER" | "INVESTOR";
+
 export type OwnershipAcquisitionOffer = {
   id: EntityId;
   clubId: EntityId;
@@ -1956,12 +1971,50 @@ export type OwnershipAcquisitionOffer = {
   percentage: number;
   offerAmount: number;
   counterAmount?: number;
-  status: "ENQUIRY" | "OFFER" | "COUNTER" | "ACCEPTED" | "REJECTED" | "WITHDRAWN";
+  status:
+    | "ENQUIRY"
+    | "OFFER"
+    | "COUNTER"
+    | "DUE_DILIGENCE"
+    | "BOARD_REVIEW"
+    | "FINAL_TERMS"
+    | "ACCEPTED"
+    | "COMPLETED"
+    | "REJECTED"
+    | "WITHDRAWN";
   createdOn: ISODate;
   decidedOn?: ISODate;
   rationale?: string;
   investorType?: OwnershipInvestorType;
+  /** When the next decision on this offer is actually due — undefined means
+   * nothing is currently pending (terminal state, or it's the owner's own
+   * move to make right now). Mirrors TransferOffer.respondBy. */
+  respondBy?: ISODate;
+  pendingDecisionBy?: OwnershipNegotiationPendingParty;
+  dealStructure?: OwnershipDealStructure;
+  /** Cash that would go to the existing owner being bought out — 0/undefined
+   * for a pure primary injection. */
+  ownerProceedsAmount?: number;
+  /** New cash that would go into the club's own ledger — 0/undefined for a
+   * pure secondary sale. */
+  capitalInjectionAmount?: number;
+  /** SIMULATION_ONLY findings surfaced once the DUE_DILIGENCE stage has run,
+   * derived from real persisted club state — never fabricated. */
+  dueDiligenceFindings?: string[];
+  /** A short, real-state-derived board reaction line surfaced during
+   * BOARD_REVIEW — informational, not a veto (see role-authority notes). */
+  boardStance?: string;
   provenanceStatus: "SIMULATION_ONLY";
+};
+
+export type OwnershipNegotiationRound = {
+  id: EntityId;
+  offerId: EntityId;
+  roundNumber: number;
+  actor: "OWNER" | "INVESTOR" | "BOARD" | "SYSTEM";
+  action: "OFFER" | "COUNTER" | "ACCEPT" | "REJECT" | "WITHDRAW" | "DUE_DILIGENCE" | "BOARD_REVIEW";
+  message: string;
+  createdAt: ISODate;
 };
 export type OwnershipAcquisitionTransaction = {
   id: EntityId;
@@ -1983,6 +2036,7 @@ export type OwnershipInvestorBidView = {
   investorName: string;
   investorType: OwnershipInvestorType;
   impliedValuation: number;
+  negotiation: OwnershipNegotiationRound[];
   simulationOnly: true;
 };
 export type OwnershipInvestorMarketView = {
@@ -2375,6 +2429,28 @@ export type ClubValuation = {
   calculatedAt: ISODate;
   method: "SIMULATION_FOUNDATION";
   status: "SIMULATION_ONLY";
+};
+
+/**
+ * A richer acquisition-context valuation than the flat ClubValuation number
+ * above — a negotiation range with a factor breakdown, mirroring
+ * TransferValuationSnapshot's shape for players. Always SIMULATION_ONLY:
+ * there is no factual club market-value source.
+ */
+export type ClubValuationBreakdown = {
+  clubId: EntityId;
+  currency: string;
+  midpoint: number;
+  negotiationRange: { min: number; max: number };
+  factors: {
+    financialFoundation: number;
+    supporterBase: number;
+    commercialStrength: number;
+    facilityQuality: number;
+    competitionStanding: number;
+    debtBurden: number;
+  };
+  provenanceStatus: "SIMULATION_ONLY";
 };
 
 export type ClubBoardPolicy = {

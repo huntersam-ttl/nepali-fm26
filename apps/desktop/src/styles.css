@@ -2363,3 +2363,49 @@ tbody tr:last-child td {
 .sparkline-point {
   fill: var(--accent-2, #5eead4);
 }
+
+.negotiation-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.negotiation-badges {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.negotiation-player-link {
+  font-size: 1.1rem;
+  font-weight: 600;
+  align-self: flex-start;
+}
+.negotiation-meeting-panel {
+  margin-top: 12px;
+}
+
+.ownership-donut-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.ownership-donut {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+}
+.ownership-donut-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+}
+.ownership-donut-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 6px;
+}

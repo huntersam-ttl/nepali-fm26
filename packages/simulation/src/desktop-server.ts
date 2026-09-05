@@ -295,6 +295,10 @@ const dispatch = (
       );
     case "decideInvestorBid":
       return service.decideInvestorBid(body.offerId as EntityId, body.accept as boolean);
+    case "counterInvestorBid":
+      return service.counterInvestorBid(body.offerId as EntityId, body.amount as number);
+    case "withdrawInvestorBidResponse":
+      return service.withdrawInvestorBidResponse(body.offerId as EntityId);
     case "getInvestorMeeting":
       return service.getInvestorMeeting();
     case "injectOwnerCapital":

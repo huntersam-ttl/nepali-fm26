@@ -1,4 +1,5 @@
 import {
+  CareerWorldRepository,
   ClubEconomyRepository,
   GlobalFootballContextRepository,
   EventRepository,
@@ -10,28 +11,34 @@ import {
   createStableEntityId,
   type ClubOwnershipModel,
   type ClubOwnershipStake,
+  type ClubValuationBreakdown,
   type EntityId,
   type OwnershipAcquisitionOffer,
   type OwnershipAcquisitionTransaction,
+  type OwnershipDealStructure,
   type OwnershipInvestorBidView,
   type OwnershipInvestorMarketView,
   type OwnershipInvestorType,
+  type OwnershipNegotiationPendingParty,
+  type OwnershipNegotiationRound,
   type InvestorMeetingOverview,
+  type HistoricalEvent,
   type Person,
 } from "@nepal-football-sim/shared-types";
-import { calculateClubValuation } from "./club-economy.js";
+import { calculateClubValuation, investPersonalFunds } from "./club-economy.js";
 import { applySupporterOwnershipOutcome } from "./supporter-culture.js";
 
 const status = "SIMULATION_ONLY" as const;
 const clamp = (value: number, low: number, high: number): number =>
   Math.max(low, Math.min(high, value));
 
-export const calculateAcquisitionValuation = (db: GameDatabase, clubId: EntityId, date: string) => {
+const acquisitionValuationFactors = (db: GameDatabase, clubId: EntityId, date: string) => {
   const base = calculateClubValuation(db, clubId, date).valuation;
   const economy = new ClubEconomyRepository(db);
   const supporters = economy.supporterProfile(clubId);
   const commercial = economy.commercialProfile(clubId);
   const facility = economy.facilityProfile(clubId);
+  const account = economy.financialAccount(clubId);
   const competitions = Number(
     (
       db
@@ -53,11 +60,186 @@ export const calculateAcquisitionValuation = (db: GameDatabase, clubId: EntityId
       (facility?.youthFacilityQuality ?? 0) +
       (facility?.medicalFacilityQuality ?? 0)) *
     50000;
+  const competitionValue = competitions * 100000;
+  return {
+    base,
+    supportValue,
+    commercialValue,
+    facilityValue,
+    competitionValue,
+    debtBalance: account?.debtBalance ?? 0,
+  };
+};
+
+export const calculateAcquisitionValuation = (db: GameDatabase, clubId: EntityId, date: string) => {
+  const factors = acquisitionValuationFactors(db, clubId, date);
   return Math.max(
     250000,
-    Math.round(base + supportValue + commercialValue + facilityValue + competitions * 100000),
+    Math.round(
+      factors.base + factors.supportValue + factors.commercialValue + factors.facilityValue + factors.competitionValue,
+    ),
   );
 };
+
+/**
+ * The richer, negotiation-facing counterpart to calculateAcquisitionValuation
+ * — same underlying factors (financialFoundation already nets out debt, the
+ * way calculateClubValuation always has), but exposed as a labelled
+ * breakdown plus a negotiation range instead of one flat number, so the
+ * ownership meeting can show a real range to argue over rather than a
+ * single number either side must simply accept or reject.
+ */
+export const calculateAcquisitionValuationBreakdown = (
+  db: GameDatabase,
+  clubId: EntityId,
+  date: string,
+): ClubValuationBreakdown => {
+  const factors = acquisitionValuationFactors(db, clubId, date);
+  const midpoint = calculateAcquisitionValuation(db, clubId, date);
+  return {
+    clubId,
+    currency: "NPR",
+    midpoint,
+    negotiationRange: { min: Math.round(midpoint * 0.85), max: Math.round(midpoint * 1.15) },
+    factors: {
+      financialFoundation: Math.round(factors.base),
+      supporterBase: Math.round(factors.supportValue),
+      commercialStrength: Math.round(factors.commercialValue),
+      facilityQuality: Math.round(factors.facilityValue),
+      competitionStanding: Math.round(factors.competitionValue),
+      debtBurden: Math.round(factors.debtBalance),
+    },
+    provenanceStatus: "SIMULATION_ONLY",
+  };
+};
+
+/**
+ * A SIMULATION_ONLY due-diligence pass — findings derived strictly from real
+ * persisted club state (debt, cash flow, sponsorship expiry, facility
+ * strength), never fabricated. severity drives what the investor does next
+ * in processDueOwnershipOffer: CLEAN/MINOR proceeds to board review,
+ * CONCERNING makes the investor counter down or walk away.
+ */
+export const runDueDiligence = (
+  db: GameDatabase,
+  clubId: EntityId,
+  date: string,
+): { findings: string[]; severity: "CLEAN" | "MINOR" | "CONCERNING" } => {
+  const economy = new ClubEconomyRepository(db);
+  const account = economy.financialAccount(clubId);
+  const facility = economy.facilityProfile(clubId);
+  const findings: string[] = [];
+  let concerns = 0;
+  if (account) {
+    if (account.debtBalance > Math.max(account.cashBalance, 1) * 2) {
+      findings.push("Club debt is high relative to cash reserves.");
+      concerns += 1;
+    }
+    if (account.financialHealth === "DISTRESSED" || account.financialHealth === "INSOLVENT") {
+      findings.push("Club finances are assessed as weak overall.");
+      concerns += 1;
+    }
+    if (account.seasonProfitLoss < 0) {
+      findings.push("The club is currently running at a loss this season.");
+    }
+  }
+  const expiringSponsorships = economy
+    .sponsorships(clubId)
+    .filter((deal) => deal.status === "ACTIVE" && deal.endDate <= daysAfter(date, 90));
+  if (expiringSponsorships.length > 0) {
+    findings.push(`${expiringSponsorships.length} sponsorship deal(s) expire within 90 days.`);
+  }
+  if (facility && (facility.youthFacilityQuality ?? 0) >= 14) {
+    findings.push("The academy is a valuable, well-regarded asset.");
+  }
+  if (findings.length === 0) findings.push("No material concerns were found.");
+  const severity: "CLEAN" | "MINOR" | "CONCERNING" =
+    concerns >= 2 ? "CONCERNING" : concerns === 1 ? "MINOR" : "CLEAN";
+  return { findings, severity };
+};
+
+/** Minority / significant-minority / blocking / controlling — the real
+ * governance consequence of a stake size, given the club's own majority
+ * threshold. Purely descriptive: it does not invent legal mechanics beyond
+ * what the existing ownership model (majority = 51%+) already implies. */
+export const describeOwnershipControl = (
+  percentage: number,
+  majorityThreshold = 51,
+): { label: string; detail: string } => {
+  if (percentage >= majorityThreshold) {
+    return { label: "Controlling stake", detail: "Would take majority control of the club." };
+  }
+  if (percentage >= 25) {
+    return {
+      label: "Significant minority",
+      detail: "Large enough to influence major decisions without controlling them.",
+    };
+  }
+  if (percentage >= 10) {
+    return { label: "Minority investor", detail: "A meaningful stake, but no special influence." };
+  }
+  return { label: "Small minority", detail: "A limited financial interest with no real influence." };
+};
+
+const ownershipRespondByDate = (worldDate: string, stage: "DUE_DILIGENCE" | "BOARD_REVIEW" | "FINAL_TERMS" | "INVESTOR_REVIEW"): string =>
+  daysAfter(
+    worldDate,
+    stage === "DUE_DILIGENCE" ? 3 : stage === "BOARD_REVIEW" ? 2 : stage === "FINAL_TERMS" ? 2 : 2,
+  );
+
+const insertOwnershipRound = (
+  db: GameDatabase,
+  input: { offerId: EntityId; actor: OwnershipNegotiationRound["actor"]; action: OwnershipNegotiationRound["action"]; message: string; date: string },
+): void => {
+  const repo = new OwnershipRepository(db);
+  const roundNumber = repo.negotiationRounds(input.offerId).length + 1;
+  repo.insertNegotiationRound({
+    id: createStableEntityId("ownership-negotiation-round", `${input.offerId}:${roundNumber}`),
+    offerId: input.offerId,
+    roundNumber,
+    actor: input.actor,
+    action: input.action,
+    message: input.message,
+    createdAt: input.date,
+  });
+};
+
+const insertOwnershipStoryEvent = (
+  db: GameDatabase,
+  input: { clubId: EntityId; buyerPersonId: EntityId; eventType: string; title: string; date: string; data?: Record<string, unknown>; importance?: HistoricalEvent["importance"] },
+): void => {
+  new EventRepository(db).insertHistoricalEvent({
+    id: createStableEntityId("history", `${input.eventType}:${input.clubId}:${input.buyerPersonId}:${input.date}`),
+    occurredOn: input.date,
+    eventType: input.eventType,
+    involvedEntities: [
+      { id: input.clubId, type: "club" },
+      { id: input.buyerPersonId, type: "person" },
+    ],
+    title: input.title,
+    data: input.data,
+    importance: input.importance ?? "medium",
+    scope: "club",
+  });
+};
+
+/** The last ownership/investor story beats for this club, drawn from the
+ * same canonical historical-event log every other system writes to — not a
+ * second event feed. */
+export const ownershipStoryFeed = (
+  db: GameDatabase,
+  clubId: EntityId,
+  limit = 15,
+): HistoricalEvent[] =>
+  new EventRepository(db)
+    .historicalEvents()
+    .filter(
+      (event) =>
+        event.eventType.startsWith("OWNERSHIP_") &&
+        event.involvedEntities.some((entity) => entity.type === "club" && entity.id === clubId),
+    )
+    .slice(-limit)
+    .reverse();
 
 const investorTypeFor = (sequence: number): OwnershipInvestorType =>
   (["LOCAL_BUSINESS", "STRATEGIC_COMPANY", "WEALTHY_INDIVIDUAL", "INSTITUTIONAL"] as const)[sequence % 4];
@@ -67,18 +249,25 @@ const investorNameFor = (db: GameDatabase, personId: EntityId): string => {
   return person?.display_name ?? person?.full_name ?? personId;
 };
 
+const OPEN_BID_STATUSES = ["OFFER", "COUNTER", "DUE_DILIGENCE", "BOARD_REVIEW", "FINAL_TERMS"] as const;
+const DECIDED_OR_OPEN_BID_STATUSES = [...OPEN_BID_STATUSES, "ACCEPTED", "COMPLETED", "REJECTED", "WITHDRAWN"] as const;
+
 export const buildOwnershipInvestorMarket = (db: GameDatabase, clubId: EntityId, date?: string): OwnershipInvestorMarketView => {
   const repo = new OwnershipRepository(db);
   const ownership = new ClubEconomyRepository(db).ownershipStakes(clubId);
   const active = ownership.filter((stake) => stake.status === "ACTIVE");
-  const open = repo.offers(clubId).filter((offer) => ["OFFER", "COUNTER"].includes(offer.status));
-  const bids: OwnershipInvestorBidView[] = repo.offers(clubId).filter((offer) => offer.sellerHolderId && ["OFFER", "COUNTER", "ACCEPTED", "REJECTED", "WITHDRAWN"].includes(offer.status)).map((offer) => ({
-    offer,
-    investorName: investorNameFor(db, offer.buyerPersonId),
-    investorType: offer.investorType ?? investorTypeFor(0),
-    impliedValuation: Math.round((offer.counterAmount ?? offer.offerAmount) * 100 / Math.max(offer.percentage, 0.01)),
-    simulationOnly: true,
-  }));
+  const open = repo.offers(clubId).filter((offer) => (OPEN_BID_STATUSES as readonly string[]).includes(offer.status));
+  const bids: OwnershipInvestorBidView[] = repo
+    .offers(clubId)
+    .filter((offer) => offer.sellerHolderId && (DECIDED_OR_OPEN_BID_STATUSES as readonly string[]).includes(offer.status))
+    .map((offer) => ({
+      offer,
+      investorName: investorNameFor(db, offer.buyerPersonId),
+      investorType: offer.investorType ?? investorTypeFor(0),
+      impliedValuation: Math.round((offer.counterAmount ?? offer.offerAmount) * 100 / Math.max(offer.percentage, 0.01)),
+      negotiation: repo.negotiationRounds(offer.id),
+      simulationOnly: true,
+    }));
   const controller = active.filter((stake) => (stake.percentage ?? 0) >= 51).sort((a, b) => (b.percentage ?? 0) - (a.percentage ?? 0))[0];
   return { valuation: calculateAcquisitionValuation(db, clubId, date ?? new Date().toISOString().slice(0, 10)), ownership, controllingOwnerId: controller?.holderId, openOffer: open[0], bids, provenanceStatus: "SIMULATION_ONLY" };
 };
@@ -105,7 +294,14 @@ export const investorMeetingOverview = (
     ownerPersonId,
     ownerPersonalCash: personal?.cash ?? 0,
     majorityThreshold: 51,
+    worldDate: date,
     market: buildOwnershipInvestorMarket(db, clubId, date),
+    valuation: calculateAcquisitionValuationBreakdown(db, clubId, date),
+    recentActivity: ownershipStoryFeed(db, clubId).map((event) => ({
+      occurredOn: event.occurredOn,
+      title: event.title,
+      eventType: event.eventType,
+    })),
   };
 };
 
@@ -116,19 +312,65 @@ export const createInvestorStakeOffer = (db: GameDatabase, input: { clubId: Enti
   const valuation = calculateAcquisitionValuation(db, input.clubId, input.date);
   const minimum = Math.max(1, Math.round(input.minimumAmount ?? valuation * input.percentage / 100 * 0.85));
   const repo = new OwnershipRepository(db);
-  const existing = repo.offers(input.clubId).filter((offer) => offer.sellerHolderId === input.sellerHolderId && offer.percentage === input.percentage && ["OFFER", "COUNTER"].includes(offer.status));
+  const existing = repo.offers(input.clubId).filter((offer) => offer.sellerHolderId === input.sellerHolderId && offer.percentage === input.percentage && (OPEN_BID_STATUSES as readonly string[]).includes(offer.status));
   if (existing.length === 0) {
     for (let sequence = 0; sequence < 3; sequence += 1) {
       const buyerPersonId = generateOwnershipCandidate(db, input.clubId, input.date, valuation, sequence);
       const multiplier = 0.92 + sequence * 0.05;
       const amount = Math.max(minimum, Math.round(valuation * input.percentage / 100 * multiplier));
       const investorType = investorTypeFor(sequence);
-      repo.upsertOffer({ id: createStableEntityId("ownership-investor-bid", `${input.clubId}:${input.sellerHolderId}:${input.percentage}:${sequence}`), clubId: input.clubId, buyerPersonId, sellerHolderId: input.sellerHolderId, percentage: input.percentage, offerAmount: amount, status: "OFFER", createdOn: input.date, investorType, rationale: `Simulation bid from ${investorType.replaceAll("_", " ").toLowerCase()} investor.`, provenanceStatus: status });
+      // The third simulated bidder proposes fresh capital into the club
+      // (diluting existing holders) rather than paying the seller directly
+      // — a distinct deal structure with a distinct money flow, not a
+      // cosmetic variant of the other two.
+      const dealStructure: OwnershipDealStructure = sequence === 2 ? "PRIMARY_CAPITAL_INJECTION" : "SECONDARY_STAKE_SALE";
+      const offerId = createStableEntityId("ownership-investor-bid", `${input.clubId}:${input.sellerHolderId}:${input.percentage}:${sequence}`);
+      repo.upsertOffer({
+        id: offerId,
+        clubId: input.clubId,
+        buyerPersonId,
+        sellerHolderId: input.sellerHolderId,
+        percentage: input.percentage,
+        offerAmount: amount,
+        status: "OFFER",
+        createdOn: input.date,
+        investorType,
+        rationale: `Simulation bid from ${investorType.replaceAll("_", " ").toLowerCase()} investor.`,
+        dealStructure,
+        ownerProceedsAmount: dealStructure === "SECONDARY_STAKE_SALE" ? amount : 0,
+        capitalInjectionAmount: dealStructure === "PRIMARY_CAPITAL_INJECTION" ? amount : 0,
+        provenanceStatus: status,
+      });
+      insertOwnershipRound(db, {
+        offerId,
+        actor: "INVESTOR",
+        action: "OFFER",
+        message:
+          dealStructure === "PRIMARY_CAPITAL_INJECTION"
+            ? `Proposes ${amount.toLocaleString()} NPR as fresh capital into the club for ${input.percentage}% (existing holders diluted).`
+            : `Proposes ${amount.toLocaleString()} NPR paid directly to the selling owner for ${input.percentage}%.`,
+        date: input.date,
+      });
     }
+    insertOwnershipStoryEvent(db, {
+      clubId: input.clubId,
+      buyerPersonId: input.sellerHolderId,
+      eventType: "OWNERSHIP_INVESTOR_INTEREST",
+      title: "Investor interest emerges",
+      date: input.date,
+      data: { percentage: input.percentage },
+    });
   }
   return buildOwnershipInvestorMarket(db, input.clubId);
 };
 
+/**
+ * The owner's first response to a bid — no longer settles in the same
+ * call. Accepting opens due diligence (a real multi-day stage, see
+ * processDueOwnershipOffer) instead of moving money and ownership
+ * immediately; rejecting is still final and immediate, since there is
+ * nothing further to negotiate once the owner has said no outright.
+ */
 export const decideInvestorBid = (db: GameDatabase, input: { offerId: EntityId; date: string; accept: boolean }): OwnershipAcquisitionOffer => {
   const repo = new OwnershipRepository(db);
   const current = repo.offer(input.offerId);
@@ -136,13 +378,62 @@ export const decideInvestorBid = (db: GameDatabase, input: { offerId: EntityId; 
   if (!input.accept) {
     const rejected = { ...current, status: "REJECTED" as const, decidedOn: input.date, rationale: "Owner rejected the simulation investor bid." };
     repo.upsertOffer(rejected);
+    insertOwnershipRound(db, { offerId: current.id, actor: "OWNER", action: "REJECT", message: "Owner rejected the bid.", date: input.date });
     return rejected;
   }
-  const transaction = completeShareSale(db, current, current.counterAmount ?? current.offerAmount, input.date);
-  const accepted = { ...current, status: "ACCEPTED" as const, decidedOn: input.date, rationale: "Owner accepted the simulation investor bid." };
+  const accepted: OwnershipAcquisitionOffer = {
+    ...current,
+    status: "DUE_DILIGENCE",
+    pendingDecisionBy: "INVESTOR",
+    respondBy: ownershipRespondByDate(input.date, "DUE_DILIGENCE"),
+    rationale: "Owner accepted the terms — due diligence has begun.",
+  };
   repo.upsertOffer(accepted);
-  db.prepare("UPDATE ownership_acquisition_offers SET status='REJECTED', decided_on=?, rationale=? WHERE club_id=? AND id<>? AND seller_holder_id=? AND status IN ('OFFER','COUNTER')").run(input.date, "Competing bid closed after another bid was accepted.", current.clubId, current.id, current.sellerHolderId);
+  insertOwnershipRound(db, { offerId: current.id, actor: "OWNER", action: "ACCEPT", message: "Owner accepted the proposed terms — due diligence begins.", date: input.date });
+  db.prepare(
+    "UPDATE ownership_acquisition_offers SET status='REJECTED', decided_on=?, rationale=? WHERE club_id=? AND id<>? AND seller_holder_id=? AND status IN ('OFFER','COUNTER')",
+  ).run(input.date, "Competing bid closed after another bid was accepted.", current.clubId, current.id, current.sellerHolderId);
   return accepted;
+};
+
+/** The owner asking for more before committing — the investor genuinely
+ * re-evaluates this once due (processDueOwnershipOffer), rather than the
+ * owner being able to name any number and have it silently accepted. */
+export const counterInvestorBid = (db: GameDatabase, input: { offerId: EntityId; amount: number; date: string }): OwnershipAcquisitionOffer => {
+  if (input.amount <= 0) throw new Error("Counter amount must be positive.");
+  const repo = new OwnershipRepository(db);
+  const current = repo.offer(input.offerId);
+  if (!current || !current.sellerHolderId || !["OFFER", "COUNTER"].includes(current.status))
+    throw new Error("Investor bid is no longer open to counter.");
+  const next: OwnershipAcquisitionOffer = {
+    ...current,
+    counterAmount: Math.round(input.amount),
+    status: "COUNTER",
+    pendingDecisionBy: "INVESTOR",
+    respondBy: ownershipRespondByDate(input.date, "INVESTOR_REVIEW"),
+    rationale: "Owner asked for a higher price.",
+  };
+  repo.upsertOffer(next);
+  insertOwnershipRound(db, { offerId: current.id, actor: "OWNER", action: "COUNTER", message: `Owner countered at ${Math.round(input.amount).toLocaleString()} NPR.`, date: input.date });
+  return next;
+};
+
+export const withdrawInvestorBidResponse = (db: GameDatabase, input: { offerId: EntityId; date: string }): OwnershipAcquisitionOffer => {
+  const repo = new OwnershipRepository(db);
+  const current = repo.offer(input.offerId);
+  if (!current || !current.sellerHolderId || (["ACCEPTED", "COMPLETED", "REJECTED", "WITHDRAWN"] as string[]).includes(current.status))
+    throw new Error("This negotiation is no longer open to withdraw.");
+  const next: OwnershipAcquisitionOffer = {
+    ...current,
+    status: "WITHDRAWN",
+    decidedOn: input.date,
+    pendingDecisionBy: undefined,
+    respondBy: undefined,
+    rationale: "Owner withdrew from the negotiation.",
+  };
+  repo.upsertOffer(next);
+  insertOwnershipRound(db, { offerId: current.id, actor: "OWNER", action: "WITHDRAW", message: "Owner withdrew from the negotiation.", date: input.date });
+  return next;
 };
 
 export const createOwnershipEnquiry = (
@@ -405,6 +696,215 @@ const completeShareSale = (db: GameDatabase, offer: OwnershipAcquisitionOffer, a
   new EventRepository(db).insertHistoricalEvent({ id: createStableEntityId("history", `OWNERSHIP_SHARE_SALE:${offer.id}`), occurredOn: date, eventType: "CLUB_OWNERSHIP_TRANSFERRED", involvedEntities: [{ id: offer.clubId, type: "club" }, { id: offer.buyerPersonId, type: "person" }, { id: offer.sellerHolderId!, type: "person" }], title: "Club ownership share sold", data: { amount, percentage: offer.percentage, transactionType: "PERSONAL_SHARE_SALE" }, importance: "high", scope: "club" });
   applySupporterOwnershipOutcome({ db, clubId: offer.clubId, date, trustImpact: 1 });
   return transaction;
+};
+
+/**
+ * Settlement for a PRIMARY_CAPITAL_INJECTION deal — money goes into the
+ * club's own ledger (via investPersonalFunds, the same club-economy
+ * mechanism owner top-ups already use), and every existing holder is
+ * diluted by the investor's new percentage, rather than any cash moving to
+ * an existing owner. This is the money-flow distinction Sprint 3 requires:
+ * a primary deal must never silently credit an owner for cash that
+ * actually went to the club, or vice versa.
+ */
+const completeCapitalInjectionAcquisition = (
+  db: GameDatabase,
+  offer: OwnershipAcquisitionOffer,
+  amount: number,
+  date: string,
+): OwnershipAcquisitionTransaction => {
+  const repo = new OwnershipRepository(db);
+  const prior = repo.transactions(offer.clubId).find((transaction) => transaction.offerId === offer.id);
+  if (prior) return prior;
+  const economy = new ClubEconomyRepository(db);
+  const buyerCash = economy.personalFinancialProfile(offer.buyerPersonId);
+  if (!buyerCash || buyerCash.cash < amount) throw new Error("Investor cash is insufficient for this capital injection.");
+  investPersonalFunds(db, { personId: offer.buyerPersonId, clubId: offer.clubId, date, amount, form: "EQUITY" });
+  const active = economy.ownershipStakes(offer.clubId).filter((stake) => stake.status === "ACTIVE");
+  const diluted = clamp(offer.percentage / 100, 0, 0.9);
+  for (const stake of active) {
+    const percentage = (stake.percentage ?? 0) * (1 - diluted);
+    economy.upsertOwnershipStake({ ...stake, percentage, votingPercentage: percentage });
+  }
+  const existingBuyerStake = active.find((stake) => stake.holderId === offer.buyerPersonId);
+  const buyerPercentage = (existingBuyerStake?.percentage ?? 0) * (1 - diluted) + offer.percentage;
+  const buyerStake: ClubOwnershipStake = {
+    id: existingBuyerStake?.id ?? createStableEntityId("club-ownership-stake", `${offer.clubId}:${offer.buyerPersonId}`),
+    clubId: offer.clubId,
+    holderType: "PERSON",
+    holderId: offer.buyerPersonId,
+    holderName: investorNameFor(db, offer.buyerPersonId),
+    role: buyerPercentage >= 51 ? "MAJORITY_OWNER" : "MINORITY_OWNER",
+    percentage: buyerPercentage,
+    votingPercentage: buyerPercentage,
+    startDate: existingBuyerStake?.startDate ?? date,
+    status: "ACTIVE",
+    ownershipModel: buyerPercentage >= 51 ? "BUYABLE" : "PARTIALLY_BUYABLE",
+    provenanceStatus: status,
+  };
+  economy.upsertOwnershipStake(buyerStake);
+  if (!existingBuyerStake)
+    db.prepare(
+      "INSERT OR IGNORE INTO club_ownership_history (id,club_id,holder_id,holder_name,start_date,end_date,exit_reason,successor_holder_id,acquisition_price,percentage,provenance_status) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+    ).run(buyerStake.id, offer.clubId, buyerStake.holderId ?? null, buyerStake.holderName, date, null, null, null, amount, offer.percentage, status);
+  const transaction: OwnershipAcquisitionTransaction = {
+    id: createStableEntityId("ownership-transaction", offer.id),
+    offerId: offer.id,
+    clubId: offer.clubId,
+    buyerPersonId: offer.buyerPersonId,
+    sellerHolderId: offer.sellerHolderId,
+    date,
+    amount,
+    percentage: offer.percentage,
+    status: "POSTED",
+    provenanceStatus: status,
+  };
+  repo.insertTransaction(transaction);
+  insertOwnershipStoryEvent(db, {
+    clubId: offer.clubId,
+    buyerPersonId: offer.buyerPersonId,
+    eventType: "OWNERSHIP_CAPITAL_INJECTION_COMPLETED",
+    title: "Capital injection arrives",
+    date,
+    data: { amount, percentage: offer.percentage },
+    importance: "high",
+  });
+  applySupporterOwnershipOutcome({ db, clubId: offer.clubId, date, trustImpact: 2 });
+  return transaction;
+};
+
+/**
+ * Runs whichever decision is due for one ownership negotiation — due
+ * diligence, board review, or final settlement — and never more than once
+ * per call, mirroring processDueTransferOffer for transfers. Clears its own
+ * respondBy before returning, so re-running this for an offer that hasn't
+ * moved is a no-op.
+ */
+export const processDueOwnershipOffer = (
+  db: GameDatabase,
+  offer: OwnershipAcquisitionOffer,
+  date: string,
+): { title: string; body: string } | undefined => {
+  const repo = new OwnershipRepository(db);
+
+  if (offer.status === "DUE_DILIGENCE") {
+    const result = runDueDiligence(db, offer.clubId, date);
+    if (result.severity === "CONCERNING") {
+      const loweredAmount = Math.round((offer.counterAmount ?? offer.offerAmount) * 0.88);
+      const next: OwnershipAcquisitionOffer = {
+        ...offer,
+        status: "COUNTER",
+        counterAmount: loweredAmount,
+        pendingDecisionBy: "OWNER",
+        respondBy: undefined,
+        dueDiligenceFindings: result.findings,
+        rationale: "Due diligence raised concerns — the investor wants a lower price.",
+      };
+      repo.upsertOffer(next);
+      insertOwnershipRound(db, {
+        offerId: offer.id,
+        actor: "INVESTOR",
+        action: "DUE_DILIGENCE",
+        message: `Due diligence concern: ${result.findings[0]} Revised offer: ${loweredAmount.toLocaleString()} NPR.`,
+        date,
+      });
+      insertOwnershipStoryEvent(db, { clubId: offer.clubId, buyerPersonId: offer.buyerPersonId, eventType: "OWNERSHIP_DUE_DILIGENCE_CONCERN", title: "Due diligence concern raised", date, data: { findings: result.findings } });
+      return { title: "Due diligence concern", body: "The investor has revised their offer down after due diligence." };
+    }
+    const next: OwnershipAcquisitionOffer = {
+      ...offer,
+      status: "BOARD_REVIEW",
+      pendingDecisionBy: "INVESTOR",
+      respondBy: ownershipRespondByDate(date, "BOARD_REVIEW"),
+      dueDiligenceFindings: result.findings,
+    };
+    repo.upsertOffer(next);
+    insertOwnershipRound(db, { offerId: offer.id, actor: "INVESTOR", action: "DUE_DILIGENCE", message: "Due diligence complete — no material concerns. Moving to board review.", date });
+    return { title: "Due diligence complete", body: "No material concerns were found. The deal now goes to board review." };
+  }
+
+  if (offer.status === "COUNTER" && offer.pendingDecisionBy === "INVESTOR") {
+    const valuation = calculateAcquisitionValuation(db, offer.clubId, date);
+    const askedShare = (offer.counterAmount ?? offer.offerAmount) * 100 / Math.max(offer.percentage, 0.01);
+    if (askedShare <= valuation * 1.1) {
+      const next: OwnershipAcquisitionOffer = {
+        ...offer,
+        status: "DUE_DILIGENCE",
+        pendingDecisionBy: "INVESTOR",
+        respondBy: ownershipRespondByDate(date, "DUE_DILIGENCE"),
+        rationale: "Investor accepted the revised price — due diligence begins.",
+      };
+      repo.upsertOffer(next);
+      insertOwnershipRound(db, { offerId: offer.id, actor: "INVESTOR", action: "ACCEPT", message: "Investor accepted the revised terms.", date });
+      return { title: "Investor accepted terms", body: "Due diligence has begun." };
+    }
+    const rejected: OwnershipAcquisitionOffer = { ...offer, status: "REJECTED", decidedOn: date, pendingDecisionBy: undefined, respondBy: undefined, rationale: "Investor walked away — the asking price was too far from their valuation." };
+    repo.upsertOffer(rejected);
+    insertOwnershipRound(db, { offerId: offer.id, actor: "INVESTOR", action: "REJECT", message: "Investor walked away from the negotiation.", date });
+    return { title: "Investor walked away", body: "The gap to your asking price was too wide." };
+  }
+
+  if (offer.status === "BOARD_REVIEW") {
+    const confidence = new CareerWorldRepository(db).boardConfidence(offer.clubId);
+    const stance =
+      confidence === undefined
+        ? "The board has no strong view either way."
+        : confidence.confidence >= 60
+          ? "The board is supportive of this deal."
+          : confidence.confidence >= 35
+            ? "The board is cautious but does not object."
+            : "The board has real reservations about this deal.";
+    const next: OwnershipAcquisitionOffer = {
+      ...offer,
+      status: "FINAL_TERMS",
+      pendingDecisionBy: "INVESTOR",
+      respondBy: ownershipRespondByDate(date, "FINAL_TERMS"),
+      boardStance: stance,
+    };
+    repo.upsertOffer(next);
+    insertOwnershipRound(db, { offerId: offer.id, actor: "BOARD", action: "BOARD_REVIEW", message: stance, date });
+    insertOwnershipStoryEvent(db, { clubId: offer.clubId, buyerPersonId: offer.buyerPersonId, eventType: "OWNERSHIP_BOARD_REVIEWED", title: "Board reviews ownership deal", date, data: { stance } });
+    return { title: "Board reviewed the deal", body: stance };
+  }
+
+  if (offer.status === "FINAL_TERMS") {
+    const amount = offer.counterAmount ?? offer.offerAmount;
+    const transaction =
+      offer.dealStructure === "PRIMARY_CAPITAL_INJECTION"
+        ? completeCapitalInjectionAcquisition(db, offer, amount, date)
+        : completeShareSale(db, offer, amount, date);
+    const completed: OwnershipAcquisitionOffer = {
+      ...offer,
+      status: "COMPLETED",
+      decidedOn: date,
+      pendingDecisionBy: undefined,
+      respondBy: undefined,
+      ownerProceedsAmount: offer.dealStructure === "PRIMARY_CAPITAL_INJECTION" ? 0 : transaction.amount,
+      capitalInjectionAmount: offer.dealStructure === "PRIMARY_CAPITAL_INJECTION" ? transaction.amount : 0,
+      rationale: "Deal completed.",
+    };
+    repo.upsertOffer(completed);
+    insertOwnershipRound(db, { offerId: offer.id, actor: "SYSTEM", action: "ACCEPT", message: "Ownership deal completed.", date });
+    return { title: "Ownership deal completed", body: "The deal has been finalised." };
+  }
+
+  return undefined;
+};
+
+/** Called once per simulated day from whichever career-progression loop
+ * drives ownership state — mirrors processDueTransferOffers. */
+export const processDueOwnershipOffers = (
+  db: GameDatabase,
+  date: string,
+): Array<{ clubId: EntityId; title: string; body: string }> => {
+  const repo = new OwnershipRepository(db);
+  const due = repo.dueOffers(date);
+  const results: Array<{ clubId: EntityId; title: string; body: string }> = [];
+  for (const offer of due) {
+    const outcome = processDueOwnershipOffer(db, offer, date);
+    if (outcome) results.push({ clubId: offer.clubId, ...outcome });
+  }
+  return results;
 };
 
 export const withdrawOwnershipOffer = (

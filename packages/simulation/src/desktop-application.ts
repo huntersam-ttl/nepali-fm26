@@ -340,7 +340,10 @@ import { backroomSummary } from "./career-market-deepening.js";
 import {
   createInvestorStakeOffer,
   decideInvestorBid,
+  counterInvestorBid,
+  withdrawInvestorBidResponse,
   investorMeetingOverview,
+  processDueOwnershipOffers,
 } from "./ownership.js";
 import {
   createOwnerManagerMeeting,
@@ -2094,6 +2097,44 @@ export class DesktopApplicationService {
         throw appError(
           "INVALID_SELECTION",
           error instanceof Error ? error.message : "Investor bid could not be decided.",
+        );
+      }
+    });
+  }
+
+  counterInvestorBid(offerId: EntityId, amount: number): AppResult<OwnershipAcquisitionOffer> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER")
+        throw appError(
+          "ROLE_NOT_AUTHORIZED",
+          "Only a controlling chairman/owner may counter investor bids.",
+        );
+      try {
+        return counterInvestorBid(db, { offerId, amount, date: save.worldDate });
+      } catch (error) {
+        throw appError(
+          "INVALID_SELECTION",
+          error instanceof Error ? error.message : "Investor bid could not be countered.",
+        );
+      }
+    });
+  }
+
+  withdrawInvestorBidResponse(offerId: EntityId): AppResult<OwnershipAcquisitionOffer> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER")
+        throw appError(
+          "ROLE_NOT_AUTHORIZED",
+          "Only a controlling chairman/owner may withdraw from a negotiation.",
+        );
+      try {
+        return withdrawInvestorBidResponse(db, { offerId, date: save.worldDate });
+      } catch (error) {
+        throw appError(
+          "INVALID_SELECTION",
+          error instanceof Error ? error.message : "This negotiation could not be withdrawn from.",
         );
       }
     });
@@ -4225,6 +4266,22 @@ const advanceOwnerCareer = (
     advanceProcurementServices(db, { date: next });
     advanceProcurementOrders(db, { date: next, seed: `${save.randomSeed}:owner:${clubId}` });
     advanceClubLoanRepayments(db, next);
+    // Any ownership/investor negotiation decision due today happens here —
+    // due diligence, board review, and final settlement all take real
+    // simulated days rather than resolving the instant the owner clicks
+    // Accept (see processDueOwnershipOffer).
+    const ownershipOutcomes = processDueOwnershipOffers(db, next);
+    for (const outcome of ownershipOutcomes) {
+      if (outcome.clubId !== clubId) continue;
+      new ManagerRepository(db).insertInboxItem({
+        id: createStableEntityId("inbox", `ownership:${outcome.clubId}:${next}:${outcome.title}`),
+        createdOn: next,
+        type: "COMPETITION_UPDATE",
+        title: outcome.title,
+        body: outcome.body,
+        read: false,
+      });
+    }
     if (next.slice(0, 7) !== previousMonth) {
       advanceMacroEconomyForWorldDate(db, {
         date: next,

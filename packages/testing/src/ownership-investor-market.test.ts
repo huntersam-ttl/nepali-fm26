@@ -2,8 +2,8 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { ClubEconomyRepository, openGameDatabase } from "@nepal-football-sim/database";
-import { buildOwnershipInvestorMarket, createInvestorStakeOffer, createNepalSave, decideInvestorBid, heldCareerRoles, initializeClubEconomyForSave, runChairmanDemo } from "@nepal-football-sim/simulation";
+import { ClubEconomyRepository, OwnershipRepository, openGameDatabase } from "@nepal-football-sim/database";
+import { buildOwnershipInvestorMarket, createInvestorStakeOffer, createNepalSave, decideInvestorBid, heldCareerRoles, initializeClubEconomyForSave, processDueOwnershipOffers, runChairmanDemo } from "@nepal-football-sim/simulation";
 import type { EntityId } from "@nepal-football-sim/shared-types";
 
 const dataset = JSON.parse(readFileSync(resolve(process.cwd(), "data/nepal/2026-08/club-registry.json"), "utf8"));
@@ -40,13 +40,38 @@ describe("ownership investor market", () => {
       reordered.bids.map((bid) => bid.investorType),
     );
     expect(reordered.bids.every((bid) => bid.offer.rationale?.includes(bid.investorType.replaceAll("_", " ").toLowerCase()))).toBe(true);
-    const accepted = decideInvestorBid(db, { offerId: market.bids[0]!.offer.id, date: "2027-07-03", accept: true });
-    expect(accepted.status).toBe("ACCEPTED");
+    // Accepting no longer settles in the same call — it opens a real,
+    // multi-day due-diligence -> board-review -> final-terms pipeline (see
+    // processDueOwnershipOffer). Ownership/cash only move once that
+    // pipeline actually completes.
+    const acceptedOfferId = market.bids[0]!.offer.id;
+    const targetPercentage = market.bids[0]!.offer.percentage;
+    const accepted = decideInvestorBid(db, { offerId: acceptedOfferId, date: "2027-07-03", accept: true });
+    expect(accepted.status).toBe("DUE_DILIGENCE");
+    expect(accepted.respondBy).toBeTruthy();
+    const midway = new ClubEconomyRepository(db);
+    expect(midway.financialAccount(row.id)!.cashBalance).toBe(beforeClubCash);
+    expect(midway.personalFinancialProfile(demo.chairmanPersonId)!.cash).toBe(beforePersonalCash);
+
+    let current = accepted;
+    for (let i = 0; i < 8 && current.status !== "COMPLETED" && current.status !== "REJECTED"; i += 1) {
+      if (current.status === "COUNTER" && current.pendingDecisionBy === "OWNER") {
+        // Due diligence found something and the investor lowered their
+        // price — the owner accepting again re-enters due diligence rather
+        // than settling immediately.
+        current = decideInvestorBid(db, { offerId: acceptedOfferId, date: "2027-07-05", accept: true });
+        continue;
+      }
+      processDueOwnershipOffers(db, current.respondBy ?? "2027-07-25");
+      current = new OwnershipRepository(db).offer(acceptedOfferId)!;
+    }
+    expect(current.status).toBe("COMPLETED");
+    const settled = new OwnershipRepository(db).transactions(row.id).find((t) => t.offerId === acceptedOfferId)!;
     const after = new ClubEconomyRepository(db);
     expect(after.financialAccount(row.id)!.cashBalance).toBe(beforeClubCash);
-    expect(after.personalFinancialProfile(demo.chairmanPersonId)!.cash).toBe(beforePersonalCash + market.bids[0]!.offer.offerAmount);
-    expect(after.ownershipStakes(row.id).find((stake) => stake.holderId === demo.chairmanPersonId && stake.status === "ACTIVE")?.percentage).toBe(41);
-    expect(after.ownershipStakes(row.id).find((stake) => stake.holderId === market.bids[0]!.offer.buyerPersonId && stake.status === "ACTIVE")?.percentage).toBe(10);
+    expect(after.personalFinancialProfile(demo.chairmanPersonId)!.cash).toBe(beforePersonalCash + settled.amount);
+    expect(after.ownershipStakes(row.id).find((stake) => stake.holderId === demo.chairmanPersonId && stake.status === "ACTIVE")?.percentage).toBe(51 - targetPercentage);
+    expect(after.ownershipStakes(row.id).find((stake) => stake.holderId === market.bids[0]!.offer.buyerPersonId && stake.status === "ACTIVE")?.percentage).toBe(targetPercentage);
     expect(heldCareerRoles(db, demo.chairmanPersonId).some((role) => role.role === "CHAIRMAN_OWNER")).toBe(false);
     const rejectedMarket = createInvestorStakeOffer(db, { clubId: row.id, sellerHolderId: demo.chairmanPersonId, percentage: 5, date: "2027-07-04" });
     const sellerCashBeforeReject = after.personalFinancialProfile(demo.chairmanPersonId)!.cash;
@@ -55,7 +80,7 @@ describe("ownership investor market", () => {
     expect(after.personalFinancialProfile(demo.chairmanPersonId)!.cash).toBe(sellerCashBeforeReject);
     db.close();
     const reloaded = openGameDatabase(path);
-    expect(buildOwnershipInvestorMarket(reloaded, row.id, "2027-07-03").bids.find((bid) => bid.offer.id === market.bids[0]!.offer.id)?.offer.status).toBe("ACCEPTED");
+    expect(buildOwnershipInvestorMarket(reloaded, row.id, "2027-07-03").bids.find((bid) => bid.offer.id === market.bids[0]!.offer.id)?.offer.status).toBe("COMPLETED");
     reloaded.close();
     rmSync(dir, { recursive: true, force: true });
   }, 180_000);
