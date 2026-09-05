@@ -138,6 +138,8 @@ export type PlayerProfile = {
   primaryPosition: PlayerPosition;
   secondaryPositions: PlayerPosition[];
   clubName?: string;
+  /** Resolved via the player's real current_club_id — never derived from clubName text. */
+  club?: EntityReference;
   squadStatus: string;
   availability: SquadAvailability;
   /** Whether this player is on the viewing manager's own team — gates which actions the profile can offer (transfer/loan-list and renew only make sense for your own squad; shortlisting works for anyone). */

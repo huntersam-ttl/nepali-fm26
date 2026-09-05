@@ -361,6 +361,7 @@ import { buildOrganizationProfile } from "./organization-profile.js";
 import { buildClubProfile, buildCompetitionProfile, buildStaffProfile } from "./entity-profiles.js";
 import { buildNationalTeamSquad } from "./national-team-squad.js";
 import { buildPlayerContractContext, buildPlayerTransferContext } from "./player-context.js";
+import { playerMarketValueView, type PlayerMarketValueView } from "./player-market-value.js";
 import { buildOwnerPostMatchSuggestion } from "./owner-meeting-suggestion.js";
 import {
   createFacilityProjectPlan,
@@ -3243,6 +3244,10 @@ export class DesktopApplicationService {
     playerId: EntityId,
   ): AppResult<ReturnType<typeof buildPlayerTransferContext>> {
     return this.withSession((db, save) => buildPlayerTransferContext(db, save, playerId));
+  }
+
+  getPlayerMarketValue(playerId: EntityId): AppResult<PlayerMarketValueView> {
+    return this.withSession((db, save) => playerMarketValueView(db, playerId, save.worldDate));
   }
 
   getOwnerFixtures(): AppResult<OwnerMatchdayView> {

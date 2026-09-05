@@ -45,6 +45,7 @@ import type {
   StaffAppointment,
   ManagerPromise,
   MatchViewMode,
+  PlayerMarketValueView,
 } from "./domain.js";
 import type { ExecutiveAuthorityDesktopView } from "./executive-roles.js";
 import type { FederationDevelopmentSummary } from "./federation-policy.js";
@@ -720,6 +721,8 @@ export type DesktopRuntimeApi = {
   getPlayerContractContext(playerId: EntityId): Promise<AppResult<PlayerContractContext>>;
   /** Real transfer-market status + recent offer activity for any player, safe for any active role to view. */
   getPlayerTransferContext(playerId: EntityId): Promise<AppResult<PlayerTransferContext>>;
+  /** SIMULATION_ONLY market-value read (current value, range, asking range, club stance, interest, valuation history) — safe for any active role to view. */
+  getPlayerMarketValue?(playerId: EntityId): Promise<AppResult<PlayerMarketValueView>>;
   /** Any real, currently-open Owner request to the Manager about this player — undefined when none exists. */
   getOwnerPlayerRequestContext(
     playerId: EntityId,

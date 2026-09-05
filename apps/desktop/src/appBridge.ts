@@ -54,6 +54,7 @@ import type {
   ActorPlayerActions,
   PlayerContractContext,
   PlayerTransferContext,
+  PlayerMarketValueView,
   OwnerPlayerRequestContext,
   OwnerPlayerRequestIntent,
   OwnerPostMatchSuggestion,
@@ -221,6 +222,8 @@ const bindCommands = (call: CommandCaller): DesktopRuntimeApi => ({
     call<PlayerContractContext>("getPlayerContractContext", { playerId }),
   getPlayerTransferContext: (playerId: EntityId) =>
     call<PlayerTransferContext>("getPlayerTransferContext", { playerId }),
+  getPlayerMarketValue: (playerId: EntityId) =>
+    call<PlayerMarketValueView>("getPlayerMarketValue", { playerId }),
   getOwnerPlayerRequestContext: (playerId: EntityId) =>
     call<OwnerPlayerRequestContext | undefined>("getOwnerPlayerRequestContext", { playerId }),
   openOwnerPlayerRequest: (

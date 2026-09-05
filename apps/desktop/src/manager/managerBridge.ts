@@ -23,6 +23,7 @@ import type {
   SupporterReadModel,
   PostMatchReport,
   PlayerProfile,
+  PlayerMarketValueView,
   QuickSimSummary,
   RecruitmentSearchCommand,
   RecruitmentSearchPage,
@@ -83,6 +84,8 @@ export const managerBridge = {
     runtimeCall<SquadMeetingResult>("holdSquadMeeting", { command }),
   getPlayerProfile: (playerId: EntityId) =>
     runtimeCall<PlayerProfile>("getPlayerProfile", { playerId }),
+  getPlayerMarketValue: (playerId: EntityId) =>
+    runtimeCall<PlayerMarketValueView>("getPlayerMarketValue", { playerId }),
   getPlayerActions: (playerId: EntityId) =>
     runtimeCall<ActorPlayerActions>("getPlayerActions", { playerId }),
   getManagerOwnerPlayerRequests: () =>

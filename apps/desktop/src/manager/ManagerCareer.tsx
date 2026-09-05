@@ -428,7 +428,11 @@ export const ManagerCareer = ({
         )}
         {header.activeRole === "MANAGER" && screen === "squad" &&
           (playerId ? (
-            <PlayerProfileScreen playerId={playerId} onClose={() => setPlayerId(null)} />
+            <PlayerProfileScreen
+              playerId={playerId}
+              onClose={() => setPlayerId(null)}
+              onOpenClub={setOpenClubId}
+            />
           ) : (
             <SquadScreen onSelectPlayer={setPlayerId} />
           ))}

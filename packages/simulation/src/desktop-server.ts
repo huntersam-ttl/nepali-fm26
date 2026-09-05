@@ -443,6 +443,8 @@ const dispatch = (
       return service.getPlayerContractContext(body.playerId as EntityId);
     case "getPlayerTransferContext":
       return service.getPlayerTransferContext(body.playerId as EntityId);
+    case "getPlayerMarketValue":
+      return service.getPlayerMarketValue(body.playerId as EntityId);
     case "getEntityReference":
       return service.getEntityReference(body.entityType as any, body.entityId as EntityId);
     case "getOrganizationProfile":

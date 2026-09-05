@@ -2548,6 +2548,48 @@ export type TransferValuationSnapshot = {
   };
 };
 
+/**
+ * A persisted valuation snapshot for a player's market-value history graph.
+ * One row per (player, calendar day) — see the player_valuation_history
+ * table's UNIQUE constraint — so repeated same-day views never create
+ * duplicate points. Always SIMULATION_ONLY: there is no factual player
+ * market-value data source.
+ */
+export type PlayerValuationSnapshot = {
+  id: EntityId;
+  playerId: EntityId;
+  occurredOn: ISODate;
+  reason: string;
+  currency: string;
+  internalMin: number;
+  internalMax: number;
+  askingMin: number;
+  askingMax: number;
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+/**
+ * A general, no-counterparty read of a player's market standing — computed
+ * from the same canonical valuation engine real transfer offers use
+ * (calculateTransferValuation), never a second/competing model. Always
+ * SIMULATION_ONLY: there is no factual player market-value source.
+ */
+export type PlayerMarketValueView = {
+  playerId: EntityId;
+  currency: string;
+  currentValue: number;
+  valuationMin: number;
+  valuationMax: number;
+  askingMin: number;
+  askingMax: number;
+  clubStance: string;
+  contractLeverageMonths?: number;
+  activeOfferCount: number;
+  interestSummary: string;
+  history: PlayerValuationSnapshot[];
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
 export type TransferOffer = {
   id: EntityId;
   buyingClubId: EntityId;

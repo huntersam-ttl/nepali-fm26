@@ -181,6 +181,7 @@ import type {
   YouthPlayerStatusRecord,
   MatchSessionRecord,
   PlayerMatchRatingRecord,
+  PlayerValuationSnapshot,
 } from "@nepal-football-sim/shared-types";
 import type { EntityId } from "@nepal-football-sim/shared-types";
 import type { GameDatabase } from "./connection.js";
@@ -5045,6 +5046,53 @@ export class PlayerRepository {
         occurredOn: row.occurred_on,
         data: row.data_json ? json.parse(row.data_json, undefined) : undefined,
       }));
+  }
+
+  /** Idempotent per (player, day) via the table's own UNIQUE constraint — silently keeps the
+   * existing snapshot rather than inserting a duplicate for the same date. */
+  insertPlayerValuationSnapshot(snapshot: PlayerValuationSnapshot): void {
+    this.db
+      .prepare(
+        `INSERT OR IGNORE INTO player_valuation_history
+        (id, player_id, occurred_on, reason, currency, internal_min, internal_max, asking_min, asking_max, provenance_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        snapshot.id,
+        snapshot.playerId,
+        snapshot.occurredOn,
+        snapshot.reason,
+        snapshot.currency,
+        snapshot.internalMin,
+        snapshot.internalMax,
+        snapshot.askingMin,
+        snapshot.askingMax,
+        snapshot.provenanceStatus,
+      );
+  }
+
+  playerValuationHistory(playerId: EntityId, limit = 40): PlayerValuationSnapshot[] {
+    return (
+      this.db
+        .prepare(
+          `SELECT * FROM player_valuation_history
+          WHERE player_id = ?
+          ORDER BY occurred_on DESC, id DESC
+          LIMIT ?`,
+        )
+        .all(playerId, limit) as any[]
+    ).map((row) => ({
+      id: row.id,
+      playerId: row.player_id,
+      occurredOn: row.occurred_on,
+      reason: row.reason,
+      currency: row.currency,
+      internalMin: row.internal_min,
+      internalMax: row.internal_max,
+      askingMin: row.asking_min,
+      askingMax: row.asking_max,
+      provenanceStatus: row.provenance_status,
+    }));
   }
 
   insertInjury(injury: InjuryRecord): void {

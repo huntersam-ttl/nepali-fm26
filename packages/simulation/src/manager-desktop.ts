@@ -463,6 +463,25 @@ export const buildSquadList = (
   };
 };
 
+/**
+ * The dataset's own factual squadStatus field is genuinely absent for most
+ * generated players — that's a real gap, not a bug, but showing the raw
+ * string "UNKNOWN" in the UI reads as broken. Rather than fabricate a fake
+ * VERIFIED status, this derives a clearly-labeled, honest standing from real
+ * current gameplay signals (contract squad role, actual minutes played) —
+ * the same kind of SIMULATION_ONLY fallback used elsewhere for missing
+ * physical/nationality facts.
+ */
+const simulatedSquadStanding = (input: { squadRole?: string; minutes: number }): string => {
+  if (input.squadRole === "KEY_PLAYER" || input.minutes > 2200) return "Key player";
+  if (input.squadRole === "IMPORTANT_PLAYER" || input.minutes > 1600) return "Important player";
+  if (input.squadRole === "FIRST_TEAM" || input.minutes > 900) return "First-team regular";
+  if (input.squadRole === "ROTATION" || input.minutes > 300) return "Squad rotation";
+  if (input.squadRole === "YOUTH") return "Youth prospect";
+  if (input.minutes > 0) return "Fringe player";
+  return "Yet to feature this season";
+};
+
 const squadRow = (
   db: GameDatabase,
   save: SaveMetadata,
@@ -498,7 +517,12 @@ const squadRow = (
       "NEP",
     primaryPosition: player.primaryPosition,
     positions: [player.primaryPosition, ...player.secondaryPositions],
-    squadStatus: (profile?.factual?.squadStatus as string) ?? "UNKNOWN",
+    squadStatus:
+      (profile?.factual?.squadStatus as string) ??
+      simulatedSquadStanding({
+        squadRole: extra.contract?.squadRole,
+        minutes: (extra.stat?.minutes as number) ?? 0,
+      }),
     availability: availabilityOf(extra.state?.availability),
     fitness: Math.round(extra.state?.fitness ?? 85),
     condition: Math.round(extra.state?.fitness ?? 85),
@@ -616,7 +640,13 @@ export const buildPlayerProfile = (
     primaryPosition: attributes.primaryPosition,
     secondaryPositions: attributes.secondaryPositions,
     clubName: clubName(db, (profile?.current_club_id as EntityId) ?? context.club?.id),
-    squadStatus: (factual.squadStatus as string) ?? "UNKNOWN",
+    club: clubReference(db, (profile?.current_club_id as EntityId) ?? context.club?.id),
+    squadStatus:
+      (factual.squadStatus as string) ??
+      simulatedSquadStanding({
+        squadRole: contract?.squadRole,
+        minutes: (stat?.minutes as number) ?? 0,
+      }),
     availability: availabilityOf(state?.availability),
     ownSquad,
     transferListStatus: ownSquad
@@ -625,7 +655,12 @@ export const buildPlayerProfile = (
         )
       : undefined,
     attributeProvenance: "SIMULATION_ONLY",
-    attributeGroups: attributeGroups(attributes),
+    // Full per-attribute detail only for players your knowledge is
+    // EXTENSIVE/COMPLETE on (your own squad, or thoroughly scouted targets) —
+    // otherwise the exact hidden values would leak straight past the
+    // scouting-report banding this same profile otherwise respects.
+    attributeGroups:
+      knowledge === "EXTENSIVE" || knowledge === "COMPLETE" ? attributeGroups(attributes) : [],
     ability,
     abilityLabel: abilityLabel(ability),
     form: Math.round(state?.formModifier ?? 0),

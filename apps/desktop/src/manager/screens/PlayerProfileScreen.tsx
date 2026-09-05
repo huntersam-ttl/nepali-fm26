@@ -1,12 +1,16 @@
 import React, { useState } from "react";
 import type {
   AppResult,
+  AttributeGroupView,
   DressingRoomHierarchyLabel,
   EntityId,
   ManagerSupportLabel,
+  PlayerMarketValueView,
   PlayerProfile,
+  PlayerValuationSnapshot,
 } from "@nepal-football-sim/shared-types";
 import { managerBridge } from "../managerBridge.js";
+import { EntityRefLink } from "../RoleDetailScreen.js";
 import {
   AsyncPanel,
   Badge,
@@ -18,6 +22,230 @@ import {
   money,
   useRuntimeData,
 } from "../ui.js";
+
+const band = (value: string): string => value.replaceAll("_", " ").toLowerCase();
+
+/**
+ * Position abbreviation for the football-card badge — a compact identity
+ * marker, not a tactical diagram (that already exists on the Tactics screen).
+ */
+const POSITION_SHORT: Record<string, string> = {
+  GOALKEEPER: "GK",
+  CENTRE_BACK: "CB",
+  LEFT_BACK: "LB",
+  RIGHT_BACK: "RB",
+  DEFENSIVE_MIDFIELDER: "DM",
+  CENTRAL_MIDFIELDER: "CM",
+  ATTACKING_MIDFIELDER: "AM",
+  LEFT_MIDFIELDER: "LM",
+  RIGHT_MIDFIELDER: "RM",
+  LEFT_WINGER: "LW",
+  RIGHT_WINGER: "RW",
+  STRIKER: "ST",
+};
+
+const positionShort = (position: string): string =>
+  POSITION_SHORT[position] ?? position.slice(0, 2).toUpperCase();
+
+const initialsFor = (name: string): string =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("") || "?";
+
+/**
+ * A compact 2D football-card presentation for the header — silhouette
+ * initials, position badge, club identity chip, and an overall-rating ring.
+ * Deliberately simple SVG/CSS, not an attempt at proprietary FM/EA card art.
+ */
+const PlayerCard = ({
+  player,
+  onOpenClub,
+}: {
+  player: PlayerProfile;
+  onOpenClub: (clubId: EntityId) => void;
+}): React.ReactElement => {
+  const ringCircumference = 2 * Math.PI * 42;
+  const ringProgress = Math.max(0, Math.min(1, player.ability / 20));
+  return (
+    <div className="player-card">
+      <svg viewBox="0 0 120 120" className="player-card-ring" role="img" aria-label={`Overall rating ${player.ability.toFixed(1)}`}>
+        <circle cx="60" cy="60" r="42" className="player-card-ring-track" />
+        <circle
+          cx="60"
+          cy="60"
+          r="42"
+          className="player-card-ring-fill"
+          strokeDasharray={`${ringCircumference}`}
+          strokeDashoffset={`${ringCircumference * (1 - ringProgress)}`}
+          transform="rotate(-90 60 60)"
+        />
+        <text x="60" y="55" textAnchor="middle" className="player-card-silhouette">
+          {initialsFor(player.name)}
+        </text>
+        <text x="60" y="78" textAnchor="middle" className="player-card-rating">
+          {player.ability.toFixed(1)}
+        </text>
+      </svg>
+      <div className="player-card-meta">
+        <span className="player-card-position">{positionShort(player.primaryPosition)}</span>
+        {player.club ? (
+          <EntityRefLink reference={player.club} onOpen={(reference) => onOpenClub(reference.id)} />
+        ) : (
+          <span className="subtle">{player.clubName ?? "Free agent"}</span>
+        )}
+      </div>
+    </div>
+  );
+};
+
+/**
+ * Grouped attribute radar. Only ever fed groups the backend has already
+ * decided are safe to show in full (buildPlayerProfile gates this by
+ * knowledge level) — never per-attribute values for a player you don't know
+ * well, which would leak past the same scouting-report banding the rest of
+ * this screen respects.
+ */
+const AttributeRadar = ({ groups }: { groups: AttributeGroupView[] }): React.ReactElement | null => {
+  const visible = groups.filter((group) => group.attributes.length > 0);
+  if (visible.length < 3) return null;
+  const size = 240;
+  const center = size / 2;
+  const maxRadius = center - 46;
+  const angleStep = (2 * Math.PI) / visible.length;
+  const averages = visible.map(
+    (group) => group.attributes.reduce((sum, attribute) => sum + attribute.value, 0) / group.attributes.length,
+  );
+  const pointAt = (ratio: number, index: number) => {
+    const angle = -Math.PI / 2 + index * angleStep;
+    return { x: center + ratio * maxRadius * Math.cos(angle), y: center + ratio * maxRadius * Math.sin(angle) };
+  };
+  const shapePoints = averages.map((average, index) => pointAt(average / 20, index));
+  const shape = shapePoints.map((point) => `${point.x},${point.y}`).join(" ");
+  const rings = [0.25, 0.5, 0.75, 1].map((ratio) =>
+    visible.map((_, index) => pointAt(ratio, index)).map((point) => `${point.x},${point.y}`).join(" "),
+  );
+  return (
+    <svg viewBox={`0 0 ${size} ${size}`} className="attribute-radar" role="img" aria-label="Attribute radar">
+      {rings.map((ring, index) => (
+        <polygon key={index} points={ring} className="radar-ring" />
+      ))}
+      <polygon points={shape} className="radar-shape" />
+      {visible.map((group, index) => {
+        const label = pointAt(1.18, index);
+        const dot = shapePoints[index]!;
+        return (
+          <g key={group.group}>
+            <circle cx={dot.x} cy={dot.y} r={3.5} className="radar-point" />
+            <text x={label.x} y={label.y} textAnchor="middle" className="radar-label">
+              {group.group}
+            </text>
+            <text x={label.x} y={label.y + 13} textAnchor="middle" className="radar-label-value">
+              {averages[index]!.toFixed(1)}
+            </text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+};
+
+/** A simpler gauge for players whose full attribute breakdown isn't visible
+ * to you — an honest scouted-ability band, never a fabricated per-attribute
+ * radar for a player you don't actually know well. */
+const ScoutedAbilityGauge = ({
+  min,
+  max,
+}: {
+  min: number;
+  max: number;
+}): React.ReactElement => (
+  <div className="scouted-gauge">
+    <div className="scouted-gauge-track">
+      <div
+        className="scouted-gauge-fill"
+        style={{ left: `${(min / 20) * 100}%`, width: `${((max - min) / 20) * 100}%` }}
+      />
+    </div>
+    <p className="subtle">
+      Scouted estimate: {min}–{max} <span className="sim-tag">est</span>
+    </p>
+  </div>
+);
+
+const ValuationSparkline = ({
+  history,
+}: {
+  history: PlayerValuationSnapshot[];
+}): React.ReactElement => {
+  if (history.length < 2) {
+    return <p className="empty-state">Not enough valuation history yet to chart a trend.</p>;
+  }
+  const width = 360;
+  const height = 90;
+  const pad = 10;
+  const values = history.map((entry) => (entry.internalMin + entry.internalMax) / 2);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const coords = values.map((value, index) => ({
+    x: pad + (index / (values.length - 1)) * (width - pad * 2),
+    y: height - pad - ((value - min) / range) * (height - pad * 2),
+  }));
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} className="valuation-sparkline" role="img" aria-label="Market value history">
+      <polyline points={coords.map((point) => `${point.x},${point.y}`).join(" ")} className="sparkline-line" />
+      {coords.map((point, index) => (
+        <circle key={index} cx={point.x} cy={point.y} r={2.5} className="sparkline-point" />
+      ))}
+    </svg>
+  );
+};
+
+const MarketValuePanel = ({ playerId }: { playerId: EntityId }): React.ReactElement | null => {
+  const [state] = useRuntimeData(() => managerBridge.getPlayerMarketValue(playerId), [playerId]);
+  if (state.status === "error") return null;
+  return (
+    <AsyncPanel state={state}>
+      {(value: PlayerMarketValueView) => (
+        <Panel title="Market value">
+          <p className="market-value-headline">
+            {money(value.currentValue, value.currency)} <span className="sim-tag">sim</span>
+          </p>
+          <Metrics
+            items={[
+              {
+                label: "Estimated deal range",
+                value: `${money(value.valuationMin, value.currency)} – ${money(value.valuationMax, value.currency)}`,
+              },
+              {
+                label: "Club asking range",
+                value: `${money(value.askingMin, value.currency)} – ${money(value.askingMax, value.currency)}`,
+              },
+              { label: "Club stance", value: value.clubStance },
+              {
+                label: "Contract leverage",
+                value:
+                  value.contractLeverageMonths !== undefined
+                    ? `${value.contractLeverageMonths} months remaining`
+                    : "No active contract",
+              },
+              { label: "Interest", value: value.interestSummary },
+            ]}
+          />
+          <h3>Valuation history</h3>
+          <ValuationSparkline history={value.history} />
+          <p className="subtle">
+            Simulation-derived from ability, potential, form, reputation, contract position, and
+            market interest — not a factual appraisal.
+          </p>
+        </Panel>
+      )}
+    </AsyncPanel>
+  );
+};
 
 /**
  * Real, actor-aware actions only — grouped, not a button dump. RELEASE and
@@ -221,9 +449,11 @@ const PlayerDressingRoomPanel = ({ playerId }: { playerId: EntityId }): React.Re
 export const PlayerProfileScreen = ({
   playerId,
   onClose,
+  onOpenClub,
 }: {
   playerId: EntityId;
   onClose: () => void;
+  onOpenClub: (clubId: EntityId) => void;
 }): React.ReactElement => {
   const [state, refresh] = useRuntimeData(() => managerBridge.getPlayerProfile(playerId), [playerId]);
   const [salary, setSalary] = useState("");
@@ -245,35 +475,41 @@ export const PlayerProfileScreen = ({
       <AsyncPanel state={state}>
         {(player) => (
           <>
-            <Panel title={player.name}>
-              <p className="subtle">
-                {/* The panel is titled with the display name, so the full name is
-                    only worth repeating when it actually says something more. */}
-                {player.fullName !== player.name && `${player.fullName} · `}
-                {player.primaryPosition}
-                {player.secondaryPositions.length > 0 &&
-                  ` (${player.secondaryPositions.join(", ")})`}{" "}
-                ·{" "}
-                <Badge tone={availabilityTone(player.availability)}>
-                  {player.availability.replace("_", " ").toLowerCase()}
-                </Badge>
-              </p>
-              <Metrics
-                items={[
-                  { label: "Date of birth", value: <FactValue fact={player.dateOfBirth} /> },
-                  { label: "Age", value: <FactValue fact={player.age} /> },
-                  { label: "Nationality", value: <FactValue fact={player.nationality} /> },
-                  {
-                    label: "Height",
-                    value: <FactValue fact={player.heightCm} render={(cm) => `${cm} cm`} />,
-                  },
-                  { label: "Preferred foot", value: <FactValue fact={player.preferredFoot} /> },
-                  { label: "Club", value: player.clubName ?? "—" },
-                  { label: "Squad status", value: player.squadStatus },
-                  { label: "Knowledge", value: player.knowledge },
-                ]}
-              />
+            <Panel title={player.name} className="player-header-panel">
+              <div className="player-header-layout">
+                <PlayerCard player={player} onOpenClub={onOpenClub} />
+                <div className="player-header-details">
+                  <p className="subtle">
+                    {/* The panel is titled with the display name, so the full name is
+                        only worth repeating when it actually says something more. */}
+                    {player.fullName !== player.name && `${player.fullName} · `}
+                    {player.primaryPosition}
+                    {player.secondaryPositions.length > 0 &&
+                      ` (${player.secondaryPositions.join(", ")})`}{" "}
+                    ·{" "}
+                    <Badge tone={availabilityTone(player.availability)}>
+                      {band(player.availability)}
+                    </Badge>
+                  </p>
+                  <Metrics
+                    items={[
+                      { label: "Date of birth", value: <FactValue fact={player.dateOfBirth} /> },
+                      { label: "Age", value: <FactValue fact={player.age} /> },
+                      { label: "Nationality", value: <FactValue fact={player.nationality} /> },
+                      {
+                        label: "Height",
+                        value: <FactValue fact={player.heightCm} render={(cm) => `${cm} cm`} />,
+                      },
+                      { label: "Preferred foot", value: <FactValue fact={player.preferredFoot} /> },
+                      { label: "Squad standing", value: player.squadStatus },
+                      { label: "Your knowledge", value: <Badge tone="info">{band(player.knowledge)}</Badge> },
+                    ]}
+                  />
+                </div>
+              </div>
             </Panel>
+
+            <MarketValuePanel playerId={playerId} />
 
             <PlayerActionRail
               player={player}
@@ -334,8 +570,8 @@ export const PlayerProfileScreen = ({
                       value: `${money(player.contract.salary, player.contract.currency)} / month`,
                     },
                     { label: "Expires", value: player.contract.endDate },
-                    { label: "Squad role", value: player.contract.squadRole },
-                    { label: "Status", value: player.contract.status },
+                    { label: "Squad role", value: band(player.contract.squadRole) },
+                    { label: "Status", value: <Badge tone="info">{band(player.contract.status)}</Badge> },
                     {
                       label: "Release clause",
                       value: player.contract.releaseClause
@@ -392,25 +628,39 @@ export const PlayerProfileScreen = ({
                 Gameplay attributes on the engine&rsquo;s 1&ndash;20 scale. These are{" "}
                 <span className="sim-tag">simulation-only</span> values, not researched facts.
               </p>
-              <div className="attribute-groups">
-                {player.attributeGroups.map((group) => (
-                  <section key={group.group}>
-                    <h3>{group.group}</h3>
-                    {group.attributes.map((attribute) => (
-                      <div className="attribute" key={attribute.key}>
-                        <span>{attribute.label}</span>
-                        <span className="attribute-bar">
-                          <span
-                            className="attribute-fill"
-                            style={{ width: `${(attribute.value / 20) * 100}%` }}
-                          />
-                        </span>
-                        <strong>{attribute.value}</strong>
-                      </div>
+              {player.attributeGroups.length > 0 ? (
+                <>
+                  <AttributeRadar groups={player.attributeGroups} />
+                  <div className="attribute-groups">
+                    {player.attributeGroups.map((group) => (
+                      <section key={group.group}>
+                        <h3>{group.group}</h3>
+                        {group.attributes.map((attribute) => (
+                          <div className="attribute" key={attribute.key}>
+                            <span>{attribute.label}</span>
+                            <span className="attribute-bar">
+                              <span
+                                className="attribute-fill"
+                                style={{ width: `${(attribute.value / 20) * 100}%` }}
+                              />
+                            </span>
+                            <strong>{attribute.value}</strong>
+                          </div>
+                        ))}
+                      </section>
                     ))}
-                  </section>
-                ))}
-              </div>
+                  </div>
+                </>
+              ) : player.scoutingSummary?.estimatedAbility ? (
+                <ScoutedAbilityGauge
+                  min={player.scoutingSummary.estimatedAbility.min}
+                  max={player.scoutingSummary.estimatedAbility.max}
+                />
+              ) : (
+                <p className="empty-state">
+                  Your knowledge of this player isn&rsquo;t deep enough yet for a detailed breakdown.
+                </p>
+              )}
             </Panel>
 
             {player.scoutingSummary && (

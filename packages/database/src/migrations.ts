@@ -3718,6 +3718,26 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
         ON procurement_orders(offer_id, status);
     `,
   },
+  {
+    version: 92,
+    sql: `
+      CREATE TABLE IF NOT EXISTS player_valuation_history (
+        id TEXT PRIMARY KEY,
+        player_id TEXT NOT NULL REFERENCES persons(id),
+        occurred_on TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        currency TEXT NOT NULL,
+        internal_min INTEGER NOT NULL,
+        internal_max INTEGER NOT NULL,
+        asking_min INTEGER NOT NULL,
+        asking_max INTEGER NOT NULL,
+        provenance_status TEXT NOT NULL,
+        UNIQUE(player_id, occurred_on)
+      );
+      CREATE INDEX IF NOT EXISTS idx_player_valuation_history_player
+        ON player_valuation_history(player_id, occurred_on DESC);
+    `,
+  },
 ];
 
 export const migrateDatabase = (db: GameDatabase): number => {
