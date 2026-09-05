@@ -4136,31 +4136,27 @@ const GOVERNMENT_NEXT_ACTION_LABEL: Record<ClubInfrastructureGovernmentContext["
 };
 
 /**
- * Facility Planner's government-support integration
- * (getClubInfrastructureGovernmentContext / openClubInfrastructureGovernmentRequest,
- * f70fe5d/6c6cbdb) — replaces the former dead-end message for a
- * GOVERNMENT_REVIEW site.
- *
- * Real, confirmed backend gap this works within rather than around: no
- * command lets an Owner/CEO discover a real GovernmentInstitution id —
- * getGovernmentOverview (the only institution listing) is
- * FEDERATION_PRESIDENT-gated, and no institution is ever seeded anywhere
- * except once a year (August) via the federation's own
- * proposeAnnualGovernmentFunding cadence. So a club with no prior
- * government application has no real institution to submit against —
- * submission below only enables once at least one real application already
- * exists for this club, whose real institution id is then known and reused.
- * See CODEX_UI_BRIDGE_NEEDED in the commit message.
+ * Facility Planner's government-support integration. Anchors directly on
+ * the GOVERNMENT_REVIEW site option via openFacilitySiteGovernmentRequest —
+ * no InfrastructureProject is created (or required) to open the request.
+ * The institution itself comes from planning.resolvedInstitution
+ * (resolveGovernmentInstitutionForClub), which an Owner/CEO can discover
+ * even with zero prior applications; getGovernmentOverview remains
+ * FEDERATION_PRESIDENT-only, but is no longer the only way to find an
+ * institution id. createFacilityProjectPlan proceeds once this application
+ * is approved and the site itself flips to AVAILABLE.
  */
 const GovernmentSupportPanel = ({
   bridge,
   clubId,
-  projectType,
+  siteOptionId,
+  projectType: _projectType,
   planning,
   refresh,
 }: {
   bridge: DesktopRuntimeApi;
   clubId: EntityId;
+  siteOptionId: EntityId;
   projectType: InfrastructureProjectType;
   planning: FacilityPlanningView;
   refresh: () => void;
@@ -4171,7 +4167,11 @@ const GovernmentSupportPanel = ({
   const current =
     applications.find((application) => LAND_FUNDING_TYPES.includes(application.fundingType)) ??
     applications[0];
-  const knownInstitutionId = current?.institutionId;
+  // resolvedInstitution is discoverable even for a brand-new club with no
+  // prior application (see resolveGovernmentInstitutionForClub); an existing
+  // application's own institutionId is kept as a fallback for saves made
+  // before that resolution existed.
+  const knownInstitutionId = planning.resolvedInstitution?.id ?? current?.institutionId;
 
   const [context, setContext] = useState<ClubInfrastructureGovernmentContext | null>(null);
   const [contextError, setContextError] = useState<string | null>(null);
@@ -4222,30 +4222,22 @@ const GovernmentSupportPanel = ({
   const canOpenNew = Boolean(knownInstitutionId) && !openNonTerminal;
 
   const submit = async (): Promise<void> => {
-    if (!knownInstitutionId) return;
     const requestedAmount = Number(amount);
     if (!Number.isFinite(requestedAmount) || requestedAmount <= 0) return;
     setBusy(true);
     setMessage(null);
-    // No existing project anchors this brand-new request yet — a plain
-    // project (the same real createInfrastructureProject command the
-    // Owner dashboard's own "Order..." actions already use) is created
-    // first so the request has a real projectId to attach to, exactly as
-    // requestClubInfrastructureGovernmentSupport requires.
-    if (!bridge.openClubInfrastructureGovernmentRequest) {
+    // Anchored directly on the site option — no InfrastructureProject is
+    // created here or required to exist first. The canonical project is
+    // only ever created once, by createFacilityProjectPlan itself, after
+    // this application is approved and the site flips to AVAILABLE.
+    if (!bridge.openFacilitySiteGovernmentRequest) {
       setBusy(false);
       setMessage("Government support requests are unavailable right now.");
       return;
     }
-    const projectResult = await bridge.createInfrastructureProject(clubId, projectType);
-    if (!projectResult.ok) {
-      setBusy(false);
-      setMessage(projectResult.error.message);
-      return;
-    }
-    const result = await bridge.openClubInfrastructureGovernmentRequest({
-      projectId: projectResult.data.id,
-      institutionId: knownInstitutionId,
+    const result = await bridge.openFacilitySiteGovernmentRequest({
+      clubId,
+      siteOptionId,
       fundingType,
       requestedAmount,
     });
@@ -4268,8 +4260,8 @@ const GovernmentSupportPanel = ({
           </p>
           {!knownInstitutionId && (
             <p className="subtle">
-              No government institution has engaged with this club yet — support requests become
-              available once one has.
+              No government institution can be resolved for this club's location yet — support
+              requests become available once one has been established.
             </p>
           )}
         </>
@@ -4684,6 +4676,7 @@ const FacilityPlannerView = ({
                   <GovernmentSupportPanel
                     bridge={bridge}
                     clubId={clubId}
+                    siteOptionId={selectedSite.id}
                     projectType={projectType}
                     planning={planning}
                     refresh={refresh}

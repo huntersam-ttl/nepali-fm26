@@ -193,6 +193,8 @@ const dispatch = (
       return service.getClubInfrastructureGovernmentContext(body.projectId as EntityId);
     case "openClubInfrastructureGovernmentRequest":
       return service.openClubInfrastructureGovernmentRequest(body.input as any);
+    case "openFacilitySiteGovernmentRequest":
+      return service.openFacilitySiteGovernmentRequest(body.input as any);
     case "watchOwnerFixture":
       return service.watchOwnerFixture(body.fixtureId as EntityId | undefined);
     case "advanceOwnerFixture":
@@ -276,6 +278,8 @@ const dispatch = (
       );
     case "getFederationCommercialOverview":
       return service.getFederationCommercialOverview();
+    case "getDatasetAttribution":
+      return service.getDatasetAttribution();
     case "negotiateFederationCommercialOffer":
       return service.negotiateFederationCommercialOffer(body.offerId as EntityId);
     case "counterFederationCommercialOffer":

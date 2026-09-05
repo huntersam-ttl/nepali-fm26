@@ -125,6 +125,17 @@ export type DesktopAppError = {
 
 export type AppResult<T> = { ok: true; data: T } | { ok: false; error: DesktopAppError };
 
+/** Read-only, packaged attribution summary for an About/Credits surface. */
+export type DatasetAttributionSummary = {
+  datasetVersion: string;
+  provenanceCategories: string[];
+  factualDataNotice: string;
+  simulationOnlyNotice: string;
+  externalWorldPolicy: string;
+  licensingNotice: string;
+  fullDocumentLabel: string;
+};
+
 export type CareerRole =
   | "MANAGER"
   | "CHAIRMAN_OWNER"
@@ -347,6 +358,14 @@ export type FacilityPlanningView = {
   homeDistrict?: { districtId: EntityId; districtName: string; municipalityName: string };
   governmentApplications: GovernmentFundingApplication[];
   managerFacilityRequests: ManagerPromise[];
+  /**
+   * The government institution with real jurisdiction over this club's own
+   * district/municipality, resolved even when the club has never had a prior
+   * application (so a brand-new club is not blocked from ever discovering an
+   * institution id). Undefined, never fabricated, when the club's location or
+   * a covering institution genuinely cannot be determined yet.
+   */
+  resolvedInstitution?: EntityReference;
 };
 
 export type FacilityProjectPlanInput = {
@@ -659,6 +678,7 @@ export type DesktopRuntimeApi = {
   loadCareer(saveId: EntityId): Promise<AppResult<DesktopApplicationState>>;
   closeCareer(): Promise<AppResult<{ closed: boolean }>>;
   getCareerHeader(): Promise<AppResult<CareerHeader>>;
+  getDatasetAttribution(): Promise<AppResult<DatasetAttributionSummary>>;
   getCareerRoles(): Promise<AppResult<CareerRoleState>>;
   getExecutiveAuthority(
     clubId?: EntityId,
@@ -732,6 +752,20 @@ export type DesktopRuntimeApi = {
   openClubInfrastructureGovernmentRequest?: (input: {
     projectId: EntityId;
     institutionId: EntityId;
+    fundingType: "INFRASTRUCTURE" | "REGIONAL_GROUND" | "MUNICIPAL_LAND_OR_VENUE";
+    requestedAmount: number;
+  }) => Promise<AppResult<GovernmentFundingApplication>>;
+  /**
+   * Anchors a government support request on a facility site option directly —
+   * no InfrastructureProject need exist yet. This is the pre-project entry
+   * point a NEW_SITE / GOVERNMENT_REVIEW facility plan actually needs;
+   * createFacilityProjectPlan can then proceed once the resulting
+   * application is approved and the site itself flips to AVAILABLE, without
+   * ever requiring (or creating) a placeholder project first.
+   */
+  openFacilitySiteGovernmentRequest?: (input: {
+    clubId: EntityId;
+    siteOptionId: EntityId;
     fundingType: "INFRASTRUCTURE" | "REGIONAL_GROUND" | "MUNICIPAL_LAND_OR_VENUE";
     requestedAmount: number;
   }) => Promise<AppResult<GovernmentFundingApplication>>;

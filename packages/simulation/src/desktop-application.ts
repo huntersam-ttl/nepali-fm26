@@ -117,6 +117,7 @@ import {
   type DesktopAppError,
   type DesktopApplicationState,
   type DesktopErrorCode,
+  type DatasetAttributionSummary,
   type EntityId,
   type EntityReference,
   type EntityReferenceType,
@@ -378,7 +379,7 @@ import {
   negotiateCommercialRights,
 } from "./commercial-rights.js";
 import { federationDevelopmentSummary } from "./federation-policy.js";
-import { governmentOverview, requestGovernmentFunding, requestClubInfrastructureGovernmentSupport, clubInfrastructureGovernmentContext } from "./government.js";
+import { governmentOverview, requestGovernmentFunding, requestClubInfrastructureGovernmentSupport, requestFacilitySiteGovernmentSupport, resolveGovernmentInstitutionForClub, clubInfrastructureGovernmentContext } from "./government.js";
 import {
   assessFederationCandidacy,
   declareFederationElectionCandidacy,
@@ -492,6 +493,21 @@ export class DesktopApplicationService {
     this.gameVersion = options.gameVersion ?? GAME_VERSION;
     this.autosaveIntervalDays = options.autosaveIntervalDays ?? DEFAULT_AUTOSAVE_INTERVAL_DAYS;
     this.autosaveEnabled = options.autosaveEnabled ?? true;
+  }
+
+  getDatasetAttribution(): AppResult<DatasetAttributionSummary> {
+    return ok({
+      datasetVersion: "football_world_import_v16_reconciled_final",
+      provenanceCategories: ["VERIFIED", "REPORTED", "ESTIMATED", "UNKNOWN", "SIMULATION_ONLY"],
+      factualDataNotice:
+        "Factual seed data retains source and provenance classifications; it is not a claim of unrestricted redistribution rights.",
+      simulationOnlyNotice:
+        "Generated businesses, offers, estimates, and other generated terms are SIMULATION_ONLY and are not factual claims.",
+      externalWorldPolicy: "Nepal is simulated in full; outside-Nepal entities and outcomes remain CONTEXT_ONLY unless explicitly supported.",
+      licensingNotice:
+        "Source-specific redistribution permissions remain UNKNOWN or UNRESOLVED. Review the full attribution and licensing record before redistribution.",
+      fullDocumentLabel: "Dataset Attribution and Licensing",
+    });
   }
 
   listSaves(): AppResult<SaveCatalogEntry[]> {
@@ -1174,6 +1190,12 @@ export class DesktopApplicationService {
           .applications()
           .filter((application) => application.clubId === target),
         managerFacilityRequests,
+        resolvedInstitution: (() => {
+          const institution = resolveGovernmentInstitutionForClub(db, target);
+          return institution
+            ? buildEntityReference(db, "GOVERNMENT_INSTITUTION", institution.id, role)
+            : undefined;
+        })(),
       };
     });
   }
@@ -1285,6 +1307,31 @@ export class DesktopApplicationService {
       }
       try {
         return requestClubInfrastructureGovernmentSupport(db, { ...input, clubId: project.club_id, date: save.worldDate });
+      } catch (error) {
+        throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "Government support request could not be opened.");
+      }
+    });
+  }
+
+  openFacilitySiteGovernmentRequest(input: {
+    clubId: EntityId;
+    siteOptionId: EntityId;
+    fundingType: "INFRASTRUCTURE" | "REGIONAL_GROUND" | "MUNICIPAL_LAND_OR_VENUE";
+    requestedAmount: number;
+  }): AppResult<GovernmentFundingApplication> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      const role = activeCareerRole(db, personId);
+      if (role === "CHAIRMAN_OWNER") {
+        if (!heldCareerRoles(db, personId).some((entry) => entry.role === role && entry.targetId === input.clubId))
+          throw appError("ROLE_NOT_AUTHORIZED", "The owner does not control this club.");
+      } else if (role === "CEO") {
+        this.executiveActor(db, save, input.clubId);
+      } else {
+        throw appError("ROLE_NOT_AUTHORIZED", "Only the owner or authorized CEO may request club government support.");
+      }
+      try {
+        return requestFacilitySiteGovernmentSupport(db, { ...input, date: save.worldDate });
       } catch (error) {
         throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "Government support request could not be opened.");
       }

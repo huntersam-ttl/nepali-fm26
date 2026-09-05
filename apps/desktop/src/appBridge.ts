@@ -253,6 +253,12 @@ const bindCommands = (call: CommandCaller): DesktopRuntimeApi => ({
     fundingType: "INFRASTRUCTURE" | "REGIONAL_GROUND" | "MUNICIPAL_LAND_OR_VENUE";
     requestedAmount: number;
   }) => call<GovernmentFundingApplication>("openClubInfrastructureGovernmentRequest", { input }),
+  openFacilitySiteGovernmentRequest: (input: {
+    clubId: EntityId;
+    siteOptionId: EntityId;
+    fundingType: "INFRASTRUCTURE" | "REGIONAL_GROUND" | "MUNICIPAL_LAND_OR_VENUE";
+    requestedAmount: number;
+  }) => call<GovernmentFundingApplication>("openFacilitySiteGovernmentRequest", { input }),
   getFederationPresidentDashboard: () =>
     call<FederationPresidentDashboard>("getFederationPresidentDashboard"),
   getNationalDevelopment: () => call<FederationDevelopmentSummary>("getNationalDevelopment"),

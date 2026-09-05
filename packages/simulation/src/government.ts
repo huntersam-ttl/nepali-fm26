@@ -190,6 +190,85 @@ export const requestGovernmentFunding = (
   });
 };
 
+/**
+ * The institution with real jurisdiction over a club's own district/
+ * municipality. Solves the circularity where an Owner/CEO otherwise had no
+ * way to discover an institution id at all (getGovernmentOverview is
+ * FEDERATION_PRESIDENT-gated, and institutions are seeded sparsely — often
+ * only once, nationally, via the federation's annual cadence): this walks
+ * the same real location chain a club actually sits in and matches an
+ * institution whose own locationId falls in that chain, falling back to an
+ * institution with no locationId (national jurisdiction). Returns undefined,
+ * never a fabricated id, when the club has no location on record or no
+ * institution has been seeded yet at all.
+ */
+export const resolveGovernmentInstitutionForClub = (
+  db: GameDatabase,
+  clubId: EntityId,
+): GovernmentInstitution | undefined => {
+  const club = db.prepare("SELECT location_id FROM clubs WHERE id=?").get(clubId) as
+    | { location_id?: EntityId }
+    | undefined;
+  if (!club?.location_id) return undefined;
+  const institutions = new GovernmentRepository(db).institutions();
+  if (!institutions.length) return undefined;
+  const chain = db
+    .prepare(
+      `WITH RECURSIVE up(id, parent_location_id) AS (
+         SELECT id, parent_location_id FROM locations WHERE id = ?
+         UNION ALL
+         SELECT l.id, l.parent_location_id FROM locations l JOIN up ON l.id = up.parent_location_id
+       )
+       SELECT id FROM up`,
+    )
+    .all(club.location_id) as Array<{ id: EntityId }>;
+  const chainIds = new Set(chain.map((entry) => entry.id));
+  const local = institutions.find(
+    (institution) => institution.locationId && chainIds.has(institution.locationId),
+  );
+  return local ?? institutions.find((institution) => !institution.locationId);
+};
+
+/**
+ * Anchors a government support request on a facility site option directly,
+ * before any InfrastructureProject exists. requestClubInfrastructureGovernmentSupport
+ * requires an existing project, which created a real circularity for a
+ * brand-new GOVERNMENT_REVIEW site: createFacilityProjectPlan refuses to
+ * create that project until an application exists, and (before this) the
+ * only way to open an application was to already have the project. This
+ * lets the site option itself anchor the request; createFacilityProjectPlan
+ * then proceeds once the site's own readiness flips to AVAILABLE on
+ * approval (settleApprovedFunding), never via a placeholder project.
+ */
+export const requestFacilitySiteGovernmentSupport = (
+  db: GameDatabase,
+  input: {
+    clubId: EntityId;
+    siteOptionId: EntityId;
+    fundingType: Extract<GovernmentFundingType, "INFRASTRUCTURE" | "REGIONAL_GROUND" | "MUNICIPAL_LAND_OR_VENUE">;
+    requestedAmount: number;
+    date: string;
+  },
+): GovernmentFundingApplication => {
+  if (!db.prepare("SELECT 1 FROM clubs WHERE id=?").get(input.clubId)) throw new Error("Club missing");
+  const site = new FacilityPlanningRepository(db)
+    .siteOptions(input.clubId)
+    .find((option) => option.id === input.siteOptionId);
+  if (!site) throw new Error("Facility site option missing");
+  const institution = resolveGovernmentInstitutionForClub(db, input.clubId);
+  if (!institution)
+    throw new Error(
+      "No government institution can be resolved for this club's location yet; the request cannot be opened.",
+    );
+  return proposeGovernmentFunding(db, {
+    institutionId: institution.id,
+    clubId: input.clubId,
+    fundingType: input.fundingType,
+    requestedAmount: Math.round(input.requestedAmount),
+    proposedOn: input.date,
+  });
+};
+
 /** Club-scoped infrastructure request. This deliberately uses the existing
  * government application lifecycle; it is not the federation funding command. */
 export const requestClubInfrastructureGovernmentSupport = (
@@ -321,14 +400,21 @@ const settleApprovedFunding = (
       relatedEntityId: application.id,
       idempotencyKey: `government-funding:${application.id}`,
     });
-    const plan = application.projectId
-      ? new FacilityPlanningRepository(db).planByProject(application.projectId)
+    const sites = new FacilityPlanningRepository(db);
+    const plan = application.projectId ? sites.planByProject(application.projectId) : undefined;
+    const siteFromPlan = plan?.siteOptionId
+      ? sites.siteOptions(application.clubId).find((option) => option.id === plan.siteOptionId)
       : undefined;
-    if (plan?.siteOptionId) {
-      const sites = new FacilityPlanningRepository(db);
-      const site = sites.siteOptions(application.clubId).find((option) => option.id === plan.siteOptionId);
-      if (site && site.readiness === "GOVERNMENT_REVIEW") sites.upsertSiteOption({ ...site, readiness: "AVAILABLE" });
-    }
+    // A site-anchored request (requestFacilitySiteGovernmentSupport, opened
+    // before any project/plan exists) has no plan to look the site up
+    // through — fall back to the club's own pending site(s), which in
+    // practice is at most one at a time per district.
+    const sitesToRelease = siteFromPlan
+      ? [siteFromPlan]
+      : application.projectId
+        ? []
+        : sites.siteOptions(application.clubId).filter((option) => option.readiness === "GOVERNMENT_REVIEW");
+    for (const site of sitesToRelease) sites.upsertSiteOption({ ...site, readiness: "AVAILABLE" });
     return;
   }
   if (!application.federationId) return;
