@@ -18,6 +18,8 @@ import type {
   GovernmentRelationshipBand,
   InvestorMeetingOverview,
   OwnershipInvestorBidView,
+  OwnershipAcquisitionOffer,
+  CompletedOwnershipDeal,
   OwnerManagerCandidate,
   SponsorMeetingOverview,
   SponsorMeetingContract,
@@ -73,8 +75,10 @@ import {
   type MeetingTone,
 } from "./meetings.js";
 import {
+  MAX_NEGOTIATION_ROUNDS,
   daysUntilOwnershipResponse,
   describeOwnershipControl,
+  investorStanceLabel,
   ownershipHistoryEntries,
   ownershipNarrative,
   ownershipOptions,
@@ -934,6 +938,54 @@ const OwnershipDonut = ({
   );
 };
 
+/** A small SVG money-flow diagram — Investor → Owner for a secondary sale,
+ * Investor → Club for a primary injection, or both for a mixed deal.
+ * Amounts are shown as text alongside the arrows, never colour-only. */
+const CapitalFlowDiagram = ({
+  offer,
+  investorName,
+}: {
+  offer: OwnershipAcquisitionOffer;
+  investorName: string;
+}): React.ReactElement => {
+  const ownerAmount = offer.ownerProceedsAmount ?? (offer.dealStructure === "PRIMARY_CAPITAL_INJECTION" ? 0 : offer.counterAmount ?? offer.offerAmount);
+  const clubAmount = offer.capitalInjectionAmount ?? (offer.dealStructure === "PRIMARY_CAPITAL_INJECTION" ? offer.counterAmount ?? offer.offerAmount : 0);
+  const rows: Array<{ to: string; amount: number }> = [];
+  if (ownerAmount > 0) rows.push({ to: "Existing owner (you)", amount: ownerAmount });
+  if (clubAmount > 0) rows.push({ to: "Club cash", amount: clubAmount });
+  const rowHeight = 40;
+  const height = Math.max(1, rows.length) * rowHeight + 20;
+  return (
+    <figure className="capital-flow" aria-label={`Money flow: ${rows.map((row) => `${investorName} to ${row.to}, ${money(row.amount)}`).join("; ")}`}>
+      <svg viewBox={`0 0 320 ${height}`} width="320" height={height} role="presentation" aria-hidden="true">
+        <text x="4" y="16" className="capital-flow-label">{investorName}</text>
+        {rows.map((row, index) => {
+          const y = 30 + index * rowHeight;
+          return (
+            <g key={row.to}>
+              <line x1="10" y1={y} x2="190" y2={y} className="capital-flow-arrow" markerEnd="url(#capital-flow-arrowhead)" />
+              <text x="200" y={y + 4} className="capital-flow-label">{row.to}</text>
+            </g>
+          );
+        })}
+        <defs>
+          <marker id="capital-flow-arrowhead" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+            <path d="M0,0 L8,4 L0,8 Z" className="capital-flow-arrowhead" />
+          </marker>
+        </defs>
+      </svg>
+      <figcaption className="compact-list">
+        {rows.map((row) => (
+          <div key={row.to}>
+            {investorName} → {row.to}: {money(row.amount)}
+          </div>
+        ))}
+        {rows.length === 0 && <div className="empty-state">No cash movement recorded for this deal yet.</div>}
+      </figcaption>
+    </figure>
+  );
+};
+
 const InvestorMeeting = ({ bridge }: { bridge: DesktopRuntimeApi }): React.ReactElement => {
   const [state, refresh] = useRuntimeData(() => bridge.getInvestorMeeting());
   return (
@@ -964,6 +1016,8 @@ const InvestorMeetingView = ({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [counterAmount, setCounterAmount] = useState("");
+  const [counterPercentage, setCounterPercentage] = useState("");
+  const [counterBoardSeat, setCounterBoardSeat] = useState(false);
 
   const [offerPercentage, setOfferPercentage] = useState(
     String(Math.min(10, Math.max(1, Math.round(currentPercentage)))),
@@ -1003,9 +1057,14 @@ const InvestorMeetingView = ({
       setMessage("Enter a valid counter amount first.");
       return;
     }
+    const percentage = counterPercentage ? Number(counterPercentage) : undefined;
     setBusyId(bid.offer.id);
     setMessage(null);
-    const result = await bridge.counterInvestorBid(bid.offer.id, amount);
+    const result = await bridge.counterInvestorBid(bid.offer.id, {
+      amount,
+      percentage,
+      boardSeatRequested: counterBoardSeat || undefined,
+    });
     setBusyId(null);
     setMessage(result.ok ? "Counter sent — waiting on the investor to review it." : result.error.message);
     if (result.ok) refresh();
@@ -1017,6 +1076,15 @@ const InvestorMeetingView = ({
     const result = await bridge.withdrawInvestorBidResponse(bid.offer.id);
     setBusyId(null);
     setMessage(result.ok ? "Withdrew from the negotiation." : result.error.message);
+    if (result.ok) refresh();
+  };
+
+  const acknowledgeBoardOpposition = async (bid: OwnershipInvestorBidView): Promise<void> => {
+    setBusyId(bid.offer.id);
+    setMessage(null);
+    const result = await bridge.acknowledgeBoardOppositionForInvestorBid(bid.offer.id);
+    setBusyId(null);
+    setMessage(result.ok ? "Proceeded despite board opposition — the deal is now finalising." : result.error.message);
     if (result.ok) refresh();
   };
 
@@ -1033,9 +1101,8 @@ const InvestorMeetingView = ({
     if (result.ok) refresh();
   };
 
-  const resultingPercentage = selectedBid
-    ? Math.max(0, currentPercentage - selectedBid.offer.percentage)
-    : currentPercentage;
+  const dealPercentage = selectedBid ? (selectedBid.offer.counterPercentage ?? selectedBid.offer.percentage) : 0;
+  const resultingPercentage = selectedBid ? Math.max(0, currentPercentage - dealPercentage) : currentPercentage;
   const wouldLoseControl =
     Boolean(selectedBid) &&
     currentPercentage >= overview.majorityThreshold &&
@@ -1078,6 +1145,10 @@ const InvestorMeetingView = ({
     }
     if (id === "counter") {
       void counter(selectedBid);
+      return;
+    }
+    if (id === "acknowledge-board-opposition") {
+      void acknowledgeBoardOpposition(selectedBid);
       return;
     }
     if (id === "withdraw") {
@@ -1193,10 +1264,16 @@ const InvestorMeetingView = ({
                     {selectedBid.offer.dealStructure === "PRIMARY_CAPITAL_INJECTION" ? "Capital injection" : "Stake sale"}
                   </Badge>
                   <Badge tone={ownershipStage(selectedBid.offer).tone}>{ownershipStage(selectedBid.offer).label}</Badge>
-                  <Badge tone={describeOwnershipControl(selectedBid.offer.percentage, overview.majorityThreshold).label === "Controlling stake" ? "warn" : "info"}>
-                    {describeOwnershipControl(selectedBid.offer.percentage, overview.majorityThreshold).label}
+                  <Badge tone={describeOwnershipControl(dealPercentage, overview.majorityThreshold).label === "Controlling stake" ? "warn" : "info"}>
+                    {describeOwnershipControl(dealPercentage, overview.majorityThreshold).label}
                   </Badge>
+                  {investorStanceLabel(selectedBid.offer.investorStance) && (
+                    <Badge tone="info">{investorStanceLabel(selectedBid.offer.investorStance)}</Badge>
+                  )}
                 </div>
+                <MeetingBrief heading="Capital flow">
+                  <CapitalFlowDiagram offer={selectedBid.offer} investorName={selectedBid.investorName} />
+                </MeetingBrief>
                 <MeetingBrief heading="Terms offered">
                   {ownershipNarrative(selectedBid.offer, overview.worldDate).map((line, index) => (
                     <p key={index}>{line}</p>
@@ -1210,19 +1287,55 @@ const InvestorMeetingView = ({
                     ) : null;
                   })()}
                 </MeetingBrief>
+                {wouldLoseControl && !confirmingControlLoss && (
+                  <p className="warning" role="status">
+                    Accepting this deal as it stands would take you below majority control ({resultingPercentage}%
+                    remaining) — you will be asked to confirm before it goes through.
+                  </p>
+                )}
                 {options.some((option) => option.id === "counter") && (
-                  <MeetingBrief heading="Counter valuation">
-                    <label className="inline-form">
-                      Your asking amount (NPR)
-                      <input
-                        type="number"
-                        min="1"
-                        value={counterAmount}
-                        placeholder={String(selectedBid.offer.counterAmount ?? selectedBid.offer.offerAmount)}
-                        onChange={(event) => setCounterAmount(event.target.value)}
-                      />
-                    </label>
+                  <MeetingBrief heading="Counter terms">
+                    <div className="inline-form">
+                      <label>
+                        Your asking amount (NPR)
+                        <input
+                          type="number"
+                          min="1"
+                          value={counterAmount}
+                          placeholder={String(selectedBid.offer.counterAmount ?? selectedBid.offer.offerAmount)}
+                          onChange={(event) => setCounterAmount(event.target.value)}
+                        />
+                      </label>
+                      <label>
+                        Stake requested (%, optional)
+                        <input
+                          type="number"
+                          min="1"
+                          max="100"
+                          value={counterPercentage}
+                          placeholder={String(dealPercentage)}
+                          onChange={(event) => setCounterPercentage(event.target.value)}
+                        />
+                      </label>
+                      <label className="checkbox-field">
+                        <input
+                          type="checkbox"
+                          checked={counterBoardSeat}
+                          onChange={(event) => setCounterBoardSeat(event.target.checked)}
+                        />
+                        Request a board seat
+                      </label>
+                    </div>
+                    <p className="subtle">
+                      Round {selectedBid.offer.negotiationRoundCount ?? 0} of {MAX_NEGOTIATION_ROUNDS}.
+                    </p>
                   </MeetingBrief>
+                )}
+                {selectedBid.offer.status === "FINAL_TERMS" && selectedBid.offer.pendingDecisionBy === "OWNER" && (
+                  <p className="warning" role="status">
+                    The board opposes this deal. Proceeding is your decision to make — the board cannot block it, but
+                    it will not go through automatically.
+                  </p>
                 )}
               </>
             )}
@@ -1322,7 +1435,15 @@ const InvestorMeetingView = ({
                   .filter((stake) => stake.status === "ACTIVE" && (stake.percentage ?? 0) > 0)
                   .map((stake) => (
                     <tr key={stake.id}>
-                      <td>{stake.holderName}</td>
+                      <td>
+                        {stake.holderId ? (
+                          <button className="link" onClick={() => setOpenOrgId(stake.holderId)}>
+                            {stake.holderName}
+                          </button>
+                        ) : (
+                          stake.holderName
+                        )}
+                      </td>
                       <td>{stake.role.replaceAll("_", " ")}</td>
                       <td>{stake.percentage}%</td>
                     </tr>
@@ -1331,6 +1452,46 @@ const InvestorMeetingView = ({
             </table>
           </div>
         </Panel>
+        {overview.completedDeals.length > 0 && (
+          <Panel title="Ownership history">
+            <div className="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Investor</th>
+                    <th>Deal type</th>
+                    <th>Stake</th>
+                    <th>Owner proceeds</th>
+                    <th>Club capital</th>
+                    <th>Valuation</th>
+                    <th>Outcome</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {overview.completedDeals.map((deal: CompletedOwnershipDeal) => (
+                    <tr key={deal.offerId}>
+                      <td>{deal.date}</td>
+                      <td>
+                        <button className="link" onClick={() => setOpenOrgId(deal.investorPersonId)}>
+                          {deal.investorName}
+                        </button>
+                      </td>
+                      <td>{deal.dealStructure === "PRIMARY_CAPITAL_INJECTION" ? "Capital injection" : "Stake sale"}</td>
+                      <td>{deal.percentage}%</td>
+                      <td>{deal.ownerProceedsAmount > 0 ? money(deal.ownerProceedsAmount) : "—"}</td>
+                      <td>{deal.capitalInjectionAmount > 0 ? money(deal.capitalInjectionAmount) : "—"}</td>
+                      <td>{money(deal.impliedValuation)}</td>
+                      <td>
+                        <Badge tone={deal.outcome === "COMPLETED" ? "ok" : "bad"}>{deal.outcome.toLowerCase()}</Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Panel>
+        )}
         <Panel title="Offer a stake for sale">
           <p className="subtle">
             Invites simulation investor bids for a percentage of your own stake. A sale pays you

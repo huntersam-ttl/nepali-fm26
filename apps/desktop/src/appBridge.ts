@@ -344,10 +344,14 @@ const bindCommands = (call: CommandCaller): DesktopRuntimeApi => ({
     call("createInvestorStakeOffer", { percentage, minimumAmount }),
   decideInvestorBid: (offerId: EntityId, accept: boolean) =>
     call("decideInvestorBid", { offerId, accept }),
-  counterInvestorBid: (offerId: EntityId, amount: number) =>
-    call("counterInvestorBid", { offerId, amount }),
+  counterInvestorBid: (
+    offerId: EntityId,
+    terms: { amount: number; percentage?: number; boardSeatRequested?: boolean },
+  ) => call("counterInvestorBid", { offerId, terms }),
   withdrawInvestorBidResponse: (offerId: EntityId) =>
     call("withdrawInvestorBidResponse", { offerId }),
+  acknowledgeBoardOppositionForInvestorBid: (offerId: EntityId) =>
+    call("acknowledgeBoardOppositionForInvestorBid", { offerId }),
   getInvestorMeeting: () => call<InvestorMeetingOverview>("getInvestorMeeting"),
   injectOwnerCapital: (amount: number) =>
     call<OwnerInvestmentTransaction>("injectOwnerCapital", { amount }),

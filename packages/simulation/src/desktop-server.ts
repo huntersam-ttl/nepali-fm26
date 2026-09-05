@@ -296,9 +296,14 @@ const dispatch = (
     case "decideInvestorBid":
       return service.decideInvestorBid(body.offerId as EntityId, body.accept as boolean);
     case "counterInvestorBid":
-      return service.counterInvestorBid(body.offerId as EntityId, body.amount as number);
+      return service.counterInvestorBid(
+        body.offerId as EntityId,
+        body.terms as { amount: number; percentage?: number; boardSeatRequested?: boolean },
+      );
     case "withdrawInvestorBidResponse":
       return service.withdrawInvestorBidResponse(body.offerId as EntityId);
+    case "acknowledgeBoardOppositionForInvestorBid":
+      return service.acknowledgeBoardOppositionForInvestorBid(body.offerId as EntityId);
     case "getInvestorMeeting":
       return service.getInvestorMeeting();
     case "injectOwnerCapital":

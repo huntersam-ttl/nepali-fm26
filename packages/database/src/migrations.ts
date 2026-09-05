@@ -3773,6 +3773,16 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
         ON ownership_negotiation_rounds(offer_id, round_number);
     `,
   },
+  {
+    version: 95,
+    sql: `
+      ALTER TABLE ownership_acquisition_offers ADD COLUMN counter_percentage REAL;
+      ALTER TABLE ownership_acquisition_offers ADD COLUMN investor_stance TEXT;
+      ALTER TABLE ownership_acquisition_offers ADD COLUMN negotiation_round_count INTEGER;
+      ALTER TABLE ownership_acquisition_offers ADD COLUMN board_seat_requested INTEGER;
+      ALTER TABLE ownership_acquisition_offers ADD COLUMN board_stance_tier TEXT;
+    `,
+  },
 ];
 
 export const migrateDatabase = (db: GameDatabase): number => {

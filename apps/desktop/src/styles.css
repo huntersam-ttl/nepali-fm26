@@ -2409,3 +2409,30 @@ tbody tr:last-child td {
   border-radius: 2px;
   margin-right: 6px;
 }
+
+.capital-flow {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.capital-flow svg {
+  max-width: 100%;
+  height: auto;
+}
+.capital-flow-arrow {
+  stroke: var(--accent, #9b7cff);
+  stroke-width: 2;
+}
+.capital-flow-arrowhead {
+  fill: var(--accent, #9b7cff);
+}
+.capital-flow-label {
+  font-size: 12px;
+  fill: var(--text, #e6e6e6);
+}
+.checkbox-field {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 6px;
+}

@@ -342,6 +342,7 @@ import {
   decideInvestorBid,
   counterInvestorBid,
   withdrawInvestorBidResponse,
+  acknowledgeBoardOpposition,
   investorMeetingOverview,
   processDueOwnershipOffers,
 } from "./ownership.js";
@@ -2102,7 +2103,10 @@ export class DesktopApplicationService {
     });
   }
 
-  counterInvestorBid(offerId: EntityId, amount: number): AppResult<OwnershipAcquisitionOffer> {
+  counterInvestorBid(
+    offerId: EntityId,
+    terms: { amount: number; percentage?: number; boardSeatRequested?: boolean },
+  ): AppResult<OwnershipAcquisitionOffer> {
     return this.withSession((db, save) => {
       const personId = careerPersonId(db, save);
       if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER")
@@ -2111,7 +2115,7 @@ export class DesktopApplicationService {
           "Only a controlling chairman/owner may counter investor bids.",
         );
       try {
-        return counterInvestorBid(db, { offerId, amount, date: save.worldDate });
+        return counterInvestorBid(db, { offerId, ...terms, date: save.worldDate });
       } catch (error) {
         throw appError(
           "INVALID_SELECTION",
@@ -2135,6 +2139,25 @@ export class DesktopApplicationService {
         throw appError(
           "INVALID_SELECTION",
           error instanceof Error ? error.message : "This negotiation could not be withdrawn from.",
+        );
+      }
+    });
+  }
+
+  acknowledgeBoardOppositionForInvestorBid(offerId: EntityId): AppResult<OwnershipAcquisitionOffer> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER")
+        throw appError(
+          "ROLE_NOT_AUTHORIZED",
+          "Only a controlling chairman/owner may confirm a deal despite board opposition.",
+        );
+      try {
+        return acknowledgeBoardOpposition(db, { offerId, date: save.worldDate });
+      } catch (error) {
+        throw appError(
+          "INVALID_SELECTION",
+          error instanceof Error ? error.message : "This deal is not waiting on your confirmation.",
         );
       }
     });

@@ -1963,6 +1963,21 @@ export type OwnershipDealStructure =
 
 export type OwnershipNegotiationPendingParty = "OWNER" | "INVESTOR";
 
+/**
+ * A deterministic, SIMULATION_ONLY negotiating personality assigned to each
+ * generated investor bid — never a factual claim about a real company or
+ * person. Drives valuation tolerance, stake appetite, deal-structure
+ * preference, due-diligence sensitivity, and walk-away behaviour.
+ */
+export type OwnershipInvestorStance =
+  | "GROWTH"
+  | "CONTROL_SEEKING"
+  | "CONSERVATIVE"
+  | "INFRASTRUCTURE_FOCUSED"
+  | "TURNAROUND";
+
+export type OwnershipBoardStance = "SUPPORTIVE" | "CAUTIOUS" | "OPPOSED";
+
 export type OwnershipAcquisitionOffer = {
   id: EntityId;
   clubId: EntityId;
@@ -1971,6 +1986,10 @@ export type OwnershipAcquisitionOffer = {
   percentage: number;
   offerAmount: number;
   counterAmount?: number;
+  /** The stake a COUNTER round wants instead of `percentage`, when the
+   * counter changes the size of the stake and not just its price. Undefined
+   * means the counter is price-only. */
+  counterPercentage?: number;
   status:
     | "ENQUIRY"
     | "OFFER"
@@ -1986,6 +2005,16 @@ export type OwnershipAcquisitionOffer = {
   decidedOn?: ISODate;
   rationale?: string;
   investorType?: OwnershipInvestorType;
+  investorStance?: OwnershipInvestorStance;
+  /** How many owner<->investor counter rounds have happened — bounds the
+   * negotiation (see MAX_NEGOTIATION_ROUNDS) rather than letting it run
+   * forever. */
+  negotiationRoundCount?: number;
+  /** True once a party has requested a board seat as part of the deal —
+   * displayed and factored into the investor's own stance, never a
+   * fabricated legal mechanic beyond what the ownership model already
+   * supports (control percentage). */
+  boardSeatRequested?: boolean;
   /** When the next decision on this offer is actually due — undefined means
    * nothing is currently pending (terminal state, or it's the owner's own
    * move to make right now). Mirrors TransferOffer.respondBy. */
@@ -2004,6 +2033,7 @@ export type OwnershipAcquisitionOffer = {
   /** A short, real-state-derived board reaction line surfaced during
    * BOARD_REVIEW — informational, not a veto (see role-authority notes). */
   boardStance?: string;
+  boardStanceTier?: OwnershipBoardStance;
   provenanceStatus: "SIMULATION_ONLY";
 };
 
@@ -2015,6 +2045,24 @@ export type OwnershipNegotiationRound = {
   action: "OFFER" | "COUNTER" | "ACCEPT" | "REJECT" | "WITHDRAW" | "DUE_DILIGENCE" | "BOARD_REVIEW";
   message: string;
   createdAt: ISODate;
+};
+
+/** One completed (or collapsed) ownership deal, for the ownership-history
+ * view — built from the real OwnershipAcquisitionOffer/Transaction records,
+ * never a separately tracked summary that could drift from them. */
+export type CompletedOwnershipDeal = {
+  offerId: EntityId;
+  clubId: EntityId;
+  investorPersonId: EntityId;
+  investorName: string;
+  dealStructure?: OwnershipDealStructure;
+  date: ISODate;
+  percentage: number;
+  amount: number;
+  ownerProceedsAmount: number;
+  capitalInjectionAmount: number;
+  impliedValuation: number;
+  outcome: "COMPLETED" | "REJECTED" | "WITHDRAWN";
 };
 export type OwnershipAcquisitionTransaction = {
   id: EntityId;

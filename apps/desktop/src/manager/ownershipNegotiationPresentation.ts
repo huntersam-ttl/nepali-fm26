@@ -3,6 +3,19 @@ import type { MeetingOption, MeetingOutcomeEntry, MeetingTone } from "./meetings
 
 type Offer = OwnershipAcquisitionOffer;
 
+const STANCE_LABEL: Record<string, string> = {
+  GROWTH: "Growth investor",
+  CONTROL_SEEKING: "Control-seeking investor",
+  CONSERVATIVE: "Conservative investor",
+  INFRASTRUCTURE_FOCUSED: "Infrastructure-focused investor",
+  TURNAROUND: "Turnaround investor",
+};
+
+export const investorStanceLabel = (stance?: string): string | undefined =>
+  stance ? (STANCE_LABEL[stance] ?? stance) : undefined;
+
+export const MAX_NEGOTIATION_ROUNDS = 4;
+
 /** The single source of truth for "what stage is this ownership negotiation
  * actually in" — derived from the real persisted status/pendingDecisionBy
  * pair, never a separate tracked value. */
@@ -11,6 +24,9 @@ export const ownershipStage = (offer: Offer): { label: string; tone: MeetingTone
   if (offer.status === "REJECTED") return { label: "Rejected", tone: "bad" };
   if (offer.status === "WITHDRAWN") return { label: "Withdrawn", tone: "bad" };
   if (offer.status === "ACCEPTED") return { label: "Accepted — finalising", tone: "ok" };
+  if (offer.status === "FINAL_TERMS" && offer.pendingDecisionBy === "OWNER") {
+    return { label: "Board opposed — awaiting your confirmation", tone: "bad" };
+  }
   if (offer.status === "FINAL_TERMS") return { label: "Final terms — closing", tone: "warn" };
   if (offer.status === "BOARD_REVIEW") return { label: "Board review", tone: "warn" };
   if (offer.status === "DUE_DILIGENCE") return { label: "Due diligence", tone: "warn" };
@@ -32,20 +48,37 @@ export const daysUntilOwnershipResponse = (worldDate: string, respondBy?: string
 
 /** Which meeting actions are real, given the real persisted state. The
  * owner's turn only exists at OFFER/COUNTER (before due diligence commits
- * both sides) and again once WITHDRAWN is still possible through every
- * non-terminal stage. */
+ * both sides), at a board-opposed FINAL_TERMS (an explicit confirm-to-
+ * proceed gate), and Withdraw remains available through every non-terminal
+ * stage. Countering is disabled once the round limit is reached — the
+ * owner must accept, reject, or withdraw instead of haggling forever. */
 export const ownershipOptions = (offer: Offer): MeetingOption[] => {
   const isTerminal =
     offer.status === "COMPLETED" || offer.status === "REJECTED" || offer.status === "WITHDRAWN";
   if (isTerminal) return [];
+  if (offer.status === "FINAL_TERMS" && offer.pendingDecisionBy === "OWNER") {
+    return [
+      { id: "acknowledge-board-opposition", label: "Proceed despite board opposition", tone: "risk" },
+      { id: "withdraw", label: "Withdraw", tone: "neutral" },
+    ];
+  }
   const isOwnerTurn = offer.status === "OFFER" || (offer.status === "COUNTER" && offer.pendingDecisionBy === "OWNER");
+  const roundsLeft = MAX_NEGOTIATION_ROUNDS - (offer.negotiationRoundCount ?? 0);
   const options: MeetingOption[] = [];
   if (isOwnerTurn) {
-    options.push(
-      { id: "accept", label: "Accept", tone: "primary" },
-      { id: "counter", label: "Counter valuation", tone: "neutral" },
-      { id: "reject", label: "Reject", tone: "risk" },
-    );
+    options.push({ id: "accept", label: "Accept", tone: "primary" });
+    if (roundsLeft > 0) {
+      options.push({ id: "counter", label: "Counter terms", tone: "neutral" });
+    } else {
+      options.push({
+        id: "counter",
+        label: "Counter terms",
+        tone: "neutral",
+        disabled: true,
+        disabledReason: "This negotiation has reached its round limit.",
+      });
+    }
+    options.push({ id: "reject", label: "Reject", tone: "risk" });
   }
   options.push({ id: "withdraw", label: "Withdraw", tone: "risk" });
   return options;
@@ -61,9 +94,10 @@ const narrativeForDealStructure = (offer: Offer): string =>
 export const ownershipNarrative = (offer: Offer, worldDate: string): string[] => {
   const lines: string[] = [];
   const days = daysUntilOwnershipResponse(worldDate, offer.respondBy);
+  const stanceLabel = investorStanceLabel(offer.investorStance);
 
   if (offer.status === "OFFER") {
-    lines.push("An investor has proposed terms for this stake.");
+    lines.push(stanceLabel ? `${stanceLabel} has proposed terms for this stake.` : "An investor has proposed terms for this stake.");
   }
   if (offer.status === "COUNTER" && offer.pendingDecisionBy === "INVESTOR") {
     lines.push(
@@ -71,7 +105,18 @@ export const ownershipNarrative = (offer: Offer, worldDate: string): string[] =>
     );
   }
   if (offer.status === "COUNTER" && offer.pendingDecisionBy === "OWNER") {
-    lines.push("The investor has revised their price — it's your move.");
+    lines.push("The investor has revised their proposal — it's your move.");
+  }
+  if ((offer.negotiationRoundCount ?? 0) > 0 && offer.status !== "COMPLETED") {
+    const roundsLeft = Math.max(0, MAX_NEGOTIATION_ROUNDS - (offer.negotiationRoundCount ?? 0));
+    lines.push(
+      roundsLeft > 0
+        ? `Round ${offer.negotiationRoundCount} of ${MAX_NEGOTIATION_ROUNDS} — ${roundsLeft} more counter${roundsLeft === 1 ? "" : "s"} possible before one side must accept, reject, or walk away.`
+        : "This negotiation has reached its round limit — no further counters are possible.",
+    );
+  }
+  if (offer.boardSeatRequested) {
+    lines.push("A board seat has been requested as part of this deal.");
   }
   if (offer.status === "DUE_DILIGENCE") {
     lines.push(
@@ -87,7 +132,9 @@ export const ownershipNarrative = (offer: Offer, worldDate: string): string[] =>
   if (offer.boardStance) {
     lines.push(offer.boardStance);
   }
-  if (offer.status === "FINAL_TERMS") {
+  if (offer.status === "FINAL_TERMS" && offer.pendingDecisionBy === "OWNER") {
+    lines.push("The board opposes this deal. It will not proceed unless you explicitly confirm.");
+  } else if (offer.status === "FINAL_TERMS") {
     lines.push("Final terms are being drawn up ahead of completion.");
   }
   if (offer.status === "COMPLETED") {

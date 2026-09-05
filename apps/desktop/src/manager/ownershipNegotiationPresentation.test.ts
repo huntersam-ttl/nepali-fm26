@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { EntityId, OwnershipAcquisitionOffer, OwnershipInvestorBidView } from "@nepal-football-sim/shared-types";
 import {
+  MAX_NEGOTIATION_ROUNDS,
   daysUntilOwnershipResponse,
+  investorStanceLabel,
   ownershipHistoryEntries,
   ownershipNarrative,
   ownershipOptions,
@@ -72,6 +74,27 @@ describe("ownershipOptions", () => {
       expect(ownershipOptions(offer({ status }))).toEqual([]);
     }
   });
+
+  it("disables Counter once the round limit is reached, but Accept/Reject/Withdraw remain", () => {
+    const options = ownershipOptions(offer({ status: "OFFER", negotiationRoundCount: MAX_NEGOTIATION_ROUNDS }));
+    const counter = options.find((option) => option.id === "counter");
+    expect(counter?.disabled).toBe(true);
+    expect(options.map((option) => option.id).sort()).toEqual(["accept", "counter", "reject", "withdraw"]);
+  });
+
+  it("only offers proceed-despite-opposition or withdraw when the board has opposed a final-terms deal", () => {
+    const options = ownershipOptions(offer({ status: "FINAL_TERMS", pendingDecisionBy: "OWNER" }));
+    expect(options.map((option) => option.id).sort()).toEqual(["acknowledge-board-opposition", "withdraw"]);
+  });
+});
+
+describe("investorStanceLabel", () => {
+  it("maps every stance to a distinct, human-readable label", () => {
+    const stances = ["GROWTH", "CONTROL_SEEKING", "CONSERVATIVE", "INFRASTRUCTURE_FOCUSED", "TURNAROUND"];
+    const labels = new Set(stances.map((stance) => investorStanceLabel(stance)));
+    expect(labels.size).toBe(stances.length);
+    for (const label of labels) expect(label).not.toMatch(/^[A-Z_]+$/);
+  });
 });
 
 describe("ownershipNarrative", () => {
@@ -102,6 +125,23 @@ describe("ownershipNarrative", () => {
       "2026-08-01",
     );
     expect(lines.some((line) => line.includes("Club debt is high"))).toBe(true);
+  });
+
+  it("names the investor's stance and how many negotiation rounds remain", () => {
+    const lines = ownershipNarrative(
+      offer({ investorStance: "CONTROL_SEEKING", negotiationRoundCount: 2 }),
+      "2026-08-01",
+    );
+    const text = lines.join(" ");
+    expect(text).toMatch(/control-seeking/i);
+    expect(text).toMatch(/round 2 of/i);
+  });
+
+  it("flags a board seat request and a board-opposed final-terms gate distinctly", () => {
+    const requested = ownershipNarrative(offer({ boardSeatRequested: true }), "2026-08-01").join(" ");
+    expect(requested).toMatch(/board seat/i);
+    const opposed = ownershipNarrative(offer({ status: "FINAL_TERMS", pendingDecisionBy: "OWNER" }), "2026-08-01").join(" ");
+    expect(opposed).toMatch(/will not proceed unless you explicitly confirm/i);
   });
 });
 

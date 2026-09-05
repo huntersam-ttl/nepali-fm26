@@ -42,6 +42,7 @@ import type {
   OwnershipInvestorMarketView,
   OwnershipAcquisitionOffer,
   OwnershipDealStructure,
+  CompletedOwnershipDeal,
   ClubValuationBreakdown,
   OwnerInvestmentTransaction,
   StaffAppointment,
@@ -428,6 +429,7 @@ export type InvestorMeetingOverview = {
   market: OwnershipInvestorMarketView;
   valuation: ClubValuationBreakdown;
   recentActivity: Array<{ occurredOn: ISODate; title: string; eventType: string }>;
+  completedDeals: CompletedOwnershipDeal[];
 };
 
 /**
@@ -852,9 +854,12 @@ export type DesktopRuntimeApi = {
   ): Promise<AppResult<OwnershipAcquisitionOffer>>;
   counterInvestorBid(
     offerId: EntityId,
-    amount: number,
+    terms: { amount: number; percentage?: number; boardSeatRequested?: boolean },
   ): Promise<AppResult<OwnershipAcquisitionOffer>>;
   withdrawInvestorBidResponse(offerId: EntityId): Promise<AppResult<OwnershipAcquisitionOffer>>;
+  acknowledgeBoardOppositionForInvestorBid(
+    offerId: EntityId,
+  ): Promise<AppResult<OwnershipAcquisitionOffer>>;
   getInvestorMeeting(): Promise<AppResult<InvestorMeetingOverview>>;
   injectOwnerCapital(amount: number): Promise<AppResult<OwnerInvestmentTransaction>>;
   getOwnerManagerMeeting(clubId?: EntityId): Promise<AppResult<OwnerManagerMeetingOverview>>;
