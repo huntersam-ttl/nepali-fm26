@@ -12,3 +12,6 @@ apps/desktop/src-tauri/gen/
 releases/tester/
 test-results/
 playwright-report/
+.DS_Store
+.playwright-cli/
+output/

@@ -266,7 +266,12 @@ describe("staff market phase A: hiring, dismissal, contracts, AI recruitment", (
     } else {
       expect(updatedContract.status).toBe("EXPIRED");
       expect(market().activeAppointment(retiredPlayerId)).toBeUndefined();
-      const vacancy = market().openVacancyForRole(rivalClub.id, "SCOUT");
+      // retiredPlayerId was hired as TECHNICAL_DIRECTOR above, not SCOUT —
+      // checking the SCOUT vacancy here was a leftover from before that role
+      // was changed, so this never queried the vacancy this test actually
+      // created and only "passed" by coincidence depending on unrelated
+      // shared state from other tests in this file.
+      const vacancy = market().openVacancyForRole(rivalClub.id, "TECHNICAL_DIRECTOR");
       expect(vacancy?.reason).toBe("EXPIRED");
     }
   });

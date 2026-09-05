@@ -7,7 +7,8 @@
     "build": "vite build",
     "prepare:runtime": "node scripts/prepare-runtime.mjs",
     "dev": "vite --host 127.0.0.1",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "package:unsigned": "tauri build --bundles app"
   },
   "dependencies": {
     "@nepal-football-sim/shared-types": "workspace:*",
