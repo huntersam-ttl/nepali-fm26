@@ -36,4 +36,19 @@ describe("national-team squad read model", () => {
     expect(new NationalTeamManagementRepository(db).campLifecycles(teamId).length).toBe(1);
     db.close();
   });
+
+  it("derives WOMENS_GIRLS and YOUTH programmes from the real gender/level values, not the placeholder ones", () => {
+    const db = openGameDatabase(makeSave("national-team-squad-programme-mapping"));
+    initializeFederationGovernanceForSave({ db, worldDate: "2026-08-01", seed: "national-team-squad-programme-mapping" });
+    const federationId = (db.prepare("SELECT f.id FROM federations f JOIN countries c ON c.id=f.country_id WHERE c.iso_code IN ('NPL','NP') ORDER BY f.id LIMIT 1").get() as { id: EntityId }).id;
+    const womenTeamId = getTeam(db, federationId, "senior", "women");
+    const u17TeamId = getTeam(db, federationId, "u17", "men");
+    const u20TeamId = getTeam(db, federationId, "u20", "men");
+    const u23TeamId = getTeam(db, federationId, "u23", "men");
+    expect(buildNationalTeamSquad(db, womenTeamId, "2026-09-02", "FEDERATION_PRESIDENT").programme).toBe("WOMENS_GIRLS");
+    expect(buildNationalTeamSquad(db, u17TeamId, "2026-09-02", "FEDERATION_PRESIDENT").programme).toBe("YOUTH");
+    expect(buildNationalTeamSquad(db, u20TeamId, "2026-09-02", "FEDERATION_PRESIDENT").programme).toBe("YOUTH");
+    expect(buildNationalTeamSquad(db, u23TeamId, "2026-09-02", "FEDERATION_PRESIDENT").programme).toBe("YOUTH");
+    db.close();
+  });
 });

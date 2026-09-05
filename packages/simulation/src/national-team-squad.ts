@@ -18,7 +18,13 @@ export const buildNationalTeamSquad = (db: GameDatabase, nationalTeamId: EntityI
   if (!team) throw new Error("National team not found");
   const federation = new FederationGovernanceRepository(db);
   const management = new NationalTeamManagementRepository(db);
-  const derivedProgramme = programme ?? (team.gender === "female" ? "WOMENS_GIRLS" : team.level === "youth" ? "YOUTH" : "SENIOR_MENS");
+  const derivedProgramme =
+    programme ??
+    (team.gender === "women"
+      ? "WOMENS_GIRLS"
+      : ["u17", "u20", "u23"].includes(team.level)
+        ? "YOUTH"
+        : "SENIOR_MENS");
   const allCallups = federation.nationalTeamCallups(nationalTeamId).filter((callup) => callup.callupDate <= asOf && (!programme || callup.programme === programme)).sort((left, right) => `${right.callupDate}:${right.id}`.localeCompare(`${left.callupDate}:${left.id}`));
   const currentCallups = allCallups.filter((callup) => callup.status !== "DECLINED");
   const latest = new Map<EntityId, typeof currentCallups[number]>();
