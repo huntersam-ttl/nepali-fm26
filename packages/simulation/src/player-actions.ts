@@ -71,15 +71,28 @@ export const buildActorPlayerActions = (
     Boolean(managerClubId) &&
     managerMayUse(db, save, managerClubId, "SCOUTING");
   const ownerReadOnly = actorRole === "CHAIRMAN_OWNER" && Boolean(owner?.club_id);
+  const isDelegatedExecutive = (
+    ["CEO", "GENERAL_SECRETARY", "SPORTING_DIRECTOR", "DIRECTOR_OF_FOOTBALL"] as CareerRole[]
+  ).includes(actorRole);
+  // The generic fallback reason is actor-aware by construction: an Owner is
+  // told football authority sits with the Manager, a President is told this
+  // is outside federation authority over a club, and a delegated executive
+  // is told their delegation doesn't extend to direct player control. Only
+  // the Manager gets the more specific "which responsibility, and why"
+  // reasons below, since only the Manager can actually hold (or be denied)
+  // one of those responsibilities in the first place.
   const reason = ownerReadOnly
     ? "Owner view is read-only; football decisions must be routed through the Manager or delegated Director."
     : actorRole === "FEDERATION_PRESIDENT"
       ? "The President may view player context but cannot mutate club football decisions."
-      : "The active role does not control this player's club.";
+      : isDelegatedExecutive
+        ? "This delegated role does not carry direct control over players; football decisions remain with the Manager."
+        : "The active role does not control this player's club.";
   const reasonFor = (id: PlayerActionId): string | undefined => {
-    if (id === "SHORTLIST_SCOUT" && !scoutingActions && actorRole === "MANAGER")
+    if (actorRole !== "MANAGER") return reason;
+    if (id === "SHORTLIST_SCOUT" && !scoutingActions)
       return "Scouting responsibility is not currently available to the Manager.";
-    if (["RENEW_CONTRACT"].includes(id) && !contractActions)
+    if (id === "RENEW_CONTRACT" && !contractActions)
       return "Contract responsibility is not currently available to the Manager.";
     if (["TRANSFER_LIST", "LOAN_LIST", "RELEASE"].includes(id) && !transferActions)
       return "Transfer responsibility is not currently available to the Manager.";
