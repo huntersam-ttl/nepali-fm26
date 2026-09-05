@@ -270,6 +270,14 @@ describe("manager gameplay", () => {
     expect(detail.data.fixture.opponent).toBeTruthy();
     expect(detail.data.selectedXI).toHaveLength(11);
     expect(detail.data.availableCount).toBeGreaterThan(0);
+
+    // Regression: the opponent club link must resolve through teams.club_id,
+    // never be guessed from the `opponent` team-name text.
+    for (const fixture of list.data.upcoming) {
+      expect(fixture.opponentClub?.entityType).toBe("CLUB");
+      expect(fixture.opponentClub?.visible).toBe(true);
+      expect(fixture.opponentClub?.label).toBeTruthy();
+    }
   });
 
   it("returns a full league table for the real competition", () => {
@@ -281,6 +289,9 @@ describe("manager gameplay", () => {
     for (const row of result.data.table) {
       expect(row.teamName).not.toMatch(/Testing|Sample|Demo/);
       expect(row.position).toBeGreaterThan(0);
+      // Regression: every standings row must carry a real club link via teams.club_id.
+      expect(row.club?.entityType).toBe("CLUB");
+      expect(row.club?.visible).toBe(true);
     }
   });
 
@@ -361,14 +372,24 @@ describe("manager gameplay", () => {
   });
 
   it("persists shortlist changes across reload", () => {
-    const search = service.searchRecruitment({ pageSize: 10 });
+    const search = service.searchRecruitment({ pageSize: 50 });
     if (!search.ok) return;
-    const target = search.data.rows[0]!;
+    const clubbed = search.data.rows.find((row) => row.clubName);
+    const target = clubbed ?? search.data.rows[0]!;
 
     const added = service.toggleShortlist(target.playerId);
     expect(added.ok).toBe(true);
     if (!added.ok) return;
     expect(added.data.shortlist.some((entry) => entry.playerId === target.playerId)).toBe(true);
+    if (clubbed) {
+      // Regression: a shortlisted player's club link must resolve through
+      // teams.club_id / persons' current_club_id, never be left text-only.
+      const shortlistedEntry = added.data.shortlist.find(
+        (entry) => entry.playerId === target.playerId,
+      );
+      expect(shortlistedEntry?.club?.entityType).toBe("CLUB");
+      expect(shortlistedEntry?.club?.visible).toBe(true);
+    }
 
     reopen();
     const afterReload = service.getScoutingDashboard();
@@ -412,6 +433,12 @@ describe("manager gameplay", () => {
     expect(offer).toBeTruthy();
     expect(["SUBMITTED", "ACCEPTED", "REJECTED", "COMPLETED"]).toContain(offer!.status);
     expect(offer!.negotiation.length).toBeGreaterThan(0);
+    if (offer!.otherClubName) {
+      // Regression: the counterpart club on a transfer offer must resolve
+      // through teams.club_id, never be left as text-only otherClubName.
+      expect(offer!.otherClub?.entityType).toBe("CLUB");
+      expect(offer!.otherClub?.visible).toBe(true);
+    }
 
     reopen();
     const afterReload = service.getTransferCentre();

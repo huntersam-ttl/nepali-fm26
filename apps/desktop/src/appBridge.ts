@@ -68,6 +68,7 @@ import type {
   StaffProfileReadModel,
   CompetitionProfile,
   NationalTeamSquadReadModel,
+  DatasetAttributionSummary,
 } from "@nepal-football-sim/shared-types";
 
 export type {
@@ -409,6 +410,7 @@ const bindCommands = (call: CommandCaller): DesktopRuntimeApi => ({
   saveCareerAs: (saveName: string) => call<SaveCatalogEntry>("saveCareerAs", { saveName }),
   deleteSave: (saveId: EntityId) => call<{ deleted: boolean }>("deleteSave", { saveId }),
   getAutosaveStatus: () => call<AutosaveStatusView>("getAutosaveStatus"),
+  getDatasetAttribution: () => call<DatasetAttributionSummary>("getDatasetAttribution"),
   loadAutosaveSlot: (slotIndex: number) =>
     call<DesktopApplicationState>("loadAutosaveSlot", { slotIndex }),
 });

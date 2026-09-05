@@ -19,6 +19,7 @@ import { MediaScreen } from "./screens/MediaScreen.js";
 import { MatchdayScreen } from "./matchday/MatchdayScreen.js";
 import { RoleLandingScreen, EXECUTIVE_ROLES } from "./RoleLandingScreen.js";
 import type { ChairmanScreen, PresidentScreen } from "./RoleDetailScreen.js";
+import { OrganizationProfilePanel } from "./RoleDetailScreen.js";
 
 const careerRoleLabel = (role: CareerRole): string =>
   role === "CHAIRMAN_OWNER"
@@ -147,6 +148,7 @@ export const ManagerCareer = ({
   const [notice, setNotice] = useState<string | null>(null);
   const [autosave, setAutosave] = useState<AutosaveStatusView | null>(null);
   const [matchdayFixture, setMatchdayFixture] = useState<FixtureRow | null>(null);
+  const [openClubId, setOpenClubId] = useState<EntityId | null>(null);
 
   const refreshAutosave = async (): Promise<void> => {
     const result = await bridge.getAutosaveStatus();
@@ -445,11 +447,18 @@ export const ManagerCareer = ({
           ) : (
             <FixturesScreen
               onOpenMatch={(fixtureId, alreadyPlayed) => openMatch(fixtureId, false, alreadyPlayed)}
+              onOpenClub={setOpenClubId}
             />
           ))}
-        {header.activeRole === "MANAGER" && screen === "competition" && <CompetitionScreen />}
-        {header.activeRole === "MANAGER" && screen === "scouting" && <ScoutingScreen onSelectPlayer={openPlayer} />}
-        {header.activeRole === "MANAGER" && screen === "transfers" && <TransfersScreen onSelectPlayer={openPlayer} />}
+        {header.activeRole === "MANAGER" && screen === "competition" && (
+          <CompetitionScreen onOpenClub={setOpenClubId} />
+        )}
+        {header.activeRole === "MANAGER" && screen === "scouting" && (
+          <ScoutingScreen onSelectPlayer={openPlayer} onOpenClub={setOpenClubId} />
+        )}
+        {header.activeRole === "MANAGER" && screen === "transfers" && (
+          <TransfersScreen onSelectPlayer={openPlayer} onOpenClub={setOpenClubId} />
+        )}
         {header.activeRole === "MANAGER" && screen === "contracts" && <ContractsScreen onSelectPlayer={openPlayer} />}
         {header.activeRole === "MANAGER" && screen === "staff" && (
           <StaffScreen refreshKey={refreshKey} />
@@ -457,6 +466,14 @@ export const ManagerCareer = ({
         {header.activeRole === "MANAGER" && screen === "medical" && <MedicalScreen onSelectPlayer={openPlayer} />}
         {header.activeRole === "MANAGER" && screen === "media" && <MediaScreen />}
       </section>
+      {openClubId && (
+        <OrganizationProfilePanel
+          bridge={bridge}
+          entityType="CLUB"
+          entityId={openClubId}
+          onClose={() => setOpenClubId(null)}
+        />
+      )}
     </main>
   );
 };

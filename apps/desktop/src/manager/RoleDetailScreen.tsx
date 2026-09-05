@@ -5161,7 +5161,7 @@ const DEAL_STATUS_TONE: Record<string, MeetingTone> = {
 };
 
 /** A single reference, rendered clickable only when it actually has somewhere to go. */
-const EntityRefLink = ({
+export const EntityRefLink = ({
   reference,
   onOpen,
 }: {

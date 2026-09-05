@@ -28,6 +28,7 @@ import {
   type CreateDevelopmentPlanCommand,
   type DevelopmentFocusType,
   type EntityId,
+  type EntityReference,
   type Fact,
   type FixtureDetail,
   type FixtureList,
@@ -80,6 +81,7 @@ import {
   type TransferLoanCommand,
 } from "@nepal-football-sim/shared-types";
 import { initializeClubEconomyForSave } from "./club-economy.js";
+import { buildEntityReference } from "./entity-reference.js";
 import { activeConcernCount } from "./squad-dynamics.js";
 import { medicalCentreReadModel } from "./medical.js";
 import {
@@ -328,9 +330,20 @@ const clubName = (db: GameDatabase, id?: EntityId): string | undefined => {
   return row?.name as string | undefined;
 };
 
+/** Manager-desktop screens are always viewed by the Manager role. */
+const clubReference = (db: GameDatabase, id?: EntityId): EntityReference | undefined =>
+  id ? buildEntityReference(db, "CLUB", id, "MANAGER") : undefined;
+
 const teamName = (db: GameDatabase, id: EntityId): string => {
   const row = db.prepare("SELECT name FROM teams WHERE id = ?").get(id) as SqlRow | undefined;
   return (row?.name as string) ?? "Unknown team";
+};
+
+const clubIdForTeam = (db: GameDatabase, teamId: EntityId): EntityId | undefined => {
+  const row = db.prepare("SELECT club_id FROM teams WHERE id = ?").get(teamId) as
+    | { club_id?: EntityId }
+    | undefined;
+  return row?.club_id;
 };
 
 const playerNationality = (db: GameDatabase, playerId: EntityId): string | undefined => {
@@ -982,6 +995,7 @@ const fixtureRow = (
     competition: context.season.name,
     opponent: teamName(db, opponentId),
     opponentId,
+    opponentClub: clubReference(db, clubIdForTeam(db, opponentId)),
     homeAway: isHome ? "home" : "away",
     venue: venueForFixture(db, { home_team_id: fixture.homeTeamId }),
     status: fixture.status,
@@ -1107,6 +1121,7 @@ export const buildCompetitionView = (
     position: index + 1,
     teamId: standing.teamId,
     teamName: teamName(db, standing.teamId),
+    club: clubReference(db, clubIdForTeam(db, standing.teamId)),
     played: standing.played,
     won: standing.won,
     drawn: standing.drawn,
@@ -1256,6 +1271,7 @@ export const buildScoutingDashboard = (
       playerId: item.playerId,
       playerName: personName(db, item.playerId),
       clubName: clubName(db, factualProfile(db, item.playerId)?.current_club_id as EntityId),
+      club: clubReference(db, factualProfile(db, item.playerId)?.current_club_id as EntityId),
       priority: item.priority,
       addedAt: item.addedAt,
       scoutingStatus: item.scoutingStatus,
@@ -1361,6 +1377,7 @@ export const searchManagerRecruitment = (
       playerId: result.playerId,
       name: result.name,
       clubName: clubName(db, result.clubId),
+      club: clubReference(db, result.clubId),
       discoveryStatus: result.discoveryStatus,
       knowledge: result.knowledgeLevel,
       confidence: result.confidence,
@@ -1419,6 +1436,7 @@ const offerView = (
     playerName: personName(db, offer.playerId),
     direction: outgoing ? "OUTGOING" : "INCOMING",
     otherClubName: clubName(db, outgoing ? offer.buyingClubId : offer.sellingClubId),
+    otherClub: clubReference(db, outgoing ? offer.buyingClubId : offer.sellingClubId),
     offerType: offer.offerType,
     transferFee: offer.transferFee,
     installments: offer.installments,

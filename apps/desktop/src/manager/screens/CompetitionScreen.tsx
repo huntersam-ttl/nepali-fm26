@@ -1,8 +1,14 @@
 import React from "react";
+import type { EntityId } from "@nepal-football-sim/shared-types";
 import { managerBridge } from "../managerBridge.js";
 import { AsyncPanel, Badge, FormRun, Panel, useRuntimeData } from "../ui.js";
+import { EntityRefLink } from "../RoleDetailScreen.js";
 
-export const CompetitionScreen = (): React.ReactElement => {
+export const CompetitionScreen = ({
+  onOpenClub,
+}: {
+  onOpenClub: (clubId: EntityId) => void;
+}): React.ReactElement => {
   const [state] = useRuntimeData(() => managerBridge.getCompetition());
   return (
     <section className="dashboard">
@@ -35,7 +41,11 @@ export const CompetitionScreen = (): React.ReactElement => {
                       <tr key={row.teamId} className={row.isManagerTeam ? "row-highlight" : ""}>
                         <td>{row.position}</td>
                         <td>
-                          {row.teamName}
+                          {row.club ? (
+                            <EntityRefLink reference={row.club} onOpen={(reference) => onOpenClub(reference.id)} />
+                          ) : (
+                            row.teamName
+                          )}
                           {row.isManagerTeam && (
                             <>
                               {" "}

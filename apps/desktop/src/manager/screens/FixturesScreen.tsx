@@ -2,11 +2,14 @@ import React, { useState } from "react";
 import type { EntityId, FixtureRow } from "@nepal-football-sim/shared-types";
 import { managerBridge } from "../managerBridge.js";
 import { AsyncPanel, Badge, Panel, useRuntimeData } from "../ui.js";
+import { EntityRefLink } from "../RoleDetailScreen.js";
 
 export const FixturesScreen = ({
   onOpenMatch,
+  onOpenClub,
 }: {
   onOpenMatch: (fixtureId: EntityId, alreadyPlayed: boolean) => void;
+  onOpenClub: (clubId: EntityId) => void;
 }): React.ReactElement => {
   const [state] = useRuntimeData(() => managerBridge.getFixtures());
   const [tab, setTab] = useState<"upcoming" | "results">("upcoming");
@@ -77,6 +80,7 @@ export const FixturesScreen = ({
                         isNext={tab === "upcoming" && index === 0}
                         actionable={tab === "results" || fixture.date <= list.worldDate}
                         onSelect={() => onOpenMatch(fixture.id, tab === "results")}
+                        onOpenClub={onOpenClub}
                       />
                     ))}
                   </tbody>
@@ -100,12 +104,14 @@ const FixtureLine = ({
   showCompetition,
   isNext,
   onSelect,
+  onOpenClub,
 }: {
   fixture: FixtureRow;
   actionable: boolean;
   showCompetition: boolean;
   isNext: boolean;
   onSelect: () => void;
+  onOpenClub: (clubId: EntityId) => void;
 }): React.ReactElement => (
   <tr
     tabIndex={actionable ? 0 : -1}
@@ -127,7 +133,13 @@ const FixtureLine = ({
     </td>
     {showCompetition && <td>{fixture.competition}</td>}
     <td>{fixture.homeAway === "home" ? "H" : "A"}</td>
-    <td>{fixture.opponent}</td>
+    <td onClick={(event) => fixture.opponentClub && event.stopPropagation()}>
+      {fixture.opponentClub ? (
+        <EntityRefLink reference={fixture.opponentClub} onOpen={(reference) => onOpenClub(reference.id)} />
+      ) : (
+        fixture.opponent
+      )}
+    </td>
     <td>{fixture.venue ?? <span className="unknown">Unknown</span>}</td>
     <td>{fixture.status === "scheduled" && !actionable ? "Future · read only" : fixture.status}</td>
     <td>

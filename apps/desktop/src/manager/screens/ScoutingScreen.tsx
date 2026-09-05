@@ -3,13 +3,16 @@ import type { EntityId, RecruitmentSearchPage } from "@nepal-football-sim/shared
 import { managerBridge } from "../managerBridge.js";
 import { AsyncPanel, Badge, ErrorBanner, Metrics, Panel, useRuntimeData } from "../ui.js";
 import type { AppError } from "../../appBridge.js";
+import { EntityRefLink } from "../RoleDetailScreen.js";
 
 const PAGE_SIZE = 20;
 
 export const ScoutingScreen = ({
   onSelectPlayer,
+  onOpenClub,
 }: {
   onSelectPlayer: (playerId: EntityId) => void;
+  onOpenClub: (clubId: EntityId) => void;
 }): React.ReactElement => {
   const [dashboard, refreshDashboard, replaceDashboard] = useRuntimeData(() =>
     managerBridge.getScoutingDashboard(),
@@ -106,7 +109,13 @@ export const ScoutingScreen = ({
                             <span className="unknown">Unknown player</span>
                           )}
                         </td>
-                        <td>{row.clubName ?? "Free agent"}</td>
+                        <td>
+                          {row.club ? (
+                            <EntityRefLink reference={row.club} onOpen={(reference) => onOpenClub(reference.id)} />
+                          ) : (
+                            (row.clubName ?? "Free agent")
+                          )}
+                        </td>
                         <td>{row.knownPosition ?? row.positionGroup ?? "Unknown"}</td>
                         <td>
                           <Badge tone={row.knowledge === "NONE" ? "info" : "ok"}>
@@ -196,7 +205,13 @@ export const ScoutingScreen = ({
                         {entry.playerName ?? "Unknown"}
                       </button>
                     </td>
-                    <td>{entry.clubName ?? "Free agent"}</td>
+                    <td>
+                      {entry.club ? (
+                        <EntityRefLink reference={entry.club} onOpen={(reference) => onOpenClub(reference.id)} />
+                      ) : (
+                        (entry.clubName ?? "Free agent")
+                      )}
+                    </td>
                     <td>{entry.knowledge.toLowerCase()}</td>
                     <td>
                       {entry.estimatedAbility

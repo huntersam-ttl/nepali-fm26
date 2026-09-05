@@ -8,13 +8,16 @@ import type {
 import { managerBridge } from "../managerBridge.js";
 import { AsyncPanel, Badge, ErrorBanner, Metrics, Panel, money, useRuntimeData } from "../ui.js";
 import type { AppError } from "../../appBridge.js";
+import { EntityRefLink } from "../RoleDetailScreen.js";
 
 type Tab = "targets" | "offers" | "loans" | "free" | "expiring" | "requests" | "history";
 
 export const TransfersScreen = ({
   onSelectPlayer,
+  onOpenClub,
 }: {
   onSelectPlayer: (playerId: EntityId) => void;
+  onOpenClub: (clubId: EntityId) => void;
 }): React.ReactElement => {
   const [state, , replace] = useRuntimeData(() => managerBridge.getTransferCentre());
   const [tab, setTab] = useState<Tab>("targets");
@@ -263,7 +266,16 @@ export const TransfersScreen = ({
                                 {target.playerName ?? "Unknown"}
                               </button>
                             </td>
-                            <td>{target.clubName ?? "Free agent"}</td>
+                            <td>
+                              {target.club ? (
+                                <EntityRefLink
+                                  reference={target.club}
+                                  onOpen={(reference) => onOpenClub(reference.id)}
+                                />
+                              ) : (
+                                (target.clubName ?? "Free agent")
+                              )}
+                            </td>
                             <td>
                               {target.estimatedAbility
                                 ? `${target.estimatedAbility.min}–${target.estimatedAbility.max}`
@@ -306,7 +318,7 @@ export const TransfersScreen = ({
                   {centre.incoming.length === 0 ? (
                     <p className="empty-state">No active bids.</p>
                   ) : (
-                    <OfferTable offers={centre.incoming} />
+                    <OfferTable offers={centre.incoming} onOpenClub={onOpenClub} />
                   )}
                   <h3>Bids for our players</h3>
                   {centre.outgoing.length === 0 ? (
@@ -314,6 +326,7 @@ export const TransfersScreen = ({
                   ) : (
                     <OfferTable
                       offers={centre.outgoing}
+                      onOpenClub={onOpenClub}
                       onRespond={(offerId, action, transferFee) =>
                         void act(() =>
                           managerBridge.respondTransferOffer({
@@ -533,6 +546,7 @@ export const TransfersScreen = ({
 const OfferTable = ({
   offers,
   onRespond,
+  onOpenClub,
   busy,
 }: {
   offers: TransferCentre["incoming"];
@@ -541,6 +555,7 @@ const OfferTable = ({
     action: "ACCEPT" | "REJECT" | "COUNTER",
     transferFee?: number,
   ) => void;
+  onOpenClub: (clubId: EntityId) => void;
   busy?: boolean;
 }): React.ReactElement => (
   <div className="table-scroll">
@@ -560,7 +575,13 @@ const OfferTable = ({
         {offers.map((offer) => (
           <tr key={offer.id}>
             <td>{offer.playerName}</td>
-            <td>{offer.otherClubName ?? "—"}</td>
+            <td>
+              {offer.otherClub ? (
+                <EntityRefLink reference={offer.otherClub} onOpen={(reference) => onOpenClub(reference.id)} />
+              ) : (
+                (offer.otherClubName ?? "—")
+              )}
+            </td>
             <td>{money(offer.transferFee, offer.currency)}</td>
             <td className="subtle">
               {offer.askingRange

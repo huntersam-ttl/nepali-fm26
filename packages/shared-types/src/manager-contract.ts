@@ -416,6 +416,8 @@ export type FixtureRow = {
   competition: string;
   opponent: string;
   opponentId: EntityId;
+  /** The opponent's club, resolved via teams.club_id — never derived from `opponent` text. */
+  opponentClub?: EntityReference;
   homeAway: "home" | "away";
   venue?: string;
   status: string;
@@ -447,6 +449,8 @@ export type CompetitionTableRow = {
   position: number;
   teamId: EntityId;
   teamName: string;
+  /** The team's club, resolved via teams.club_id — never derived from `teamName` text. */
+  club?: EntityReference;
   played: number;
   won: number;
   drawn: number;
@@ -502,6 +506,8 @@ export type ShortlistEntry = {
   playerId: EntityId;
   playerName?: string;
   clubName?: string;
+  /** The player's club, resolved via teams.club_id — never derived from `clubName` text. */
+  club?: EntityReference;
   priority: string;
   addedAt: ISODate;
   scoutingStatus: string;
@@ -514,6 +520,8 @@ export type RecruitmentRow = {
   /** Undefined while the player is still undiscovered. */
   name?: string;
   clubName?: string;
+  /** The player's club, resolved via teams.club_id — never derived from `clubName` text. */
+  club?: EntityReference;
   discoveryStatus: PlayerDiscoveryStatus;
   knowledge: PlayerKnowledgeLevel;
   confidence: KnowledgeConfidence;
@@ -571,6 +579,8 @@ export type TransferOfferView = {
   playerName?: string;
   direction: "INCOMING" | "OUTGOING";
   otherClubName?: string;
+  /** The counterpart club, resolved via teams.club_id — never derived from `otherClubName` text. */
+  otherClub?: EntityReference;
   offerType: string;
   transferFee: number;
   installments: number;
