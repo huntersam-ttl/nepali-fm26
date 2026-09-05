@@ -17,6 +17,7 @@ import {
   ensureYouthDevelopmentPartnerPackage,
   ensureSeniorNationalTeamMainPartnerPackage,
   expireNationalTeamCommercialSettlements,
+  federationCommercialOverview,
   nationalTeamCommercialReadModel,
 } from "@nepal-football-sim/simulation";
 import type { EntityId } from "@nepal-football-sim/shared-types";
@@ -58,7 +59,7 @@ describe("national-team commercial finance foundation", () => {
           version: number;
         }
       ).version,
-    ).toBe(90);
+    ).toBe(91);
     const columns = db
       .prepare("PRAGMA table_info(national_team_commercial_settlements)")
       .all() as Array<{ name: string }>;
@@ -261,6 +262,27 @@ describe("national-team commercial finance foundation", () => {
         startDate: "2026-08-01",
       }),
     ).toThrow(/active federation president/);
+    // Regression: federationCommercialOverview only recognised scope==="NATIONAL_TEAM"
+    // as a national-programme package, but youth/women packages carry their own
+    // real scope ("YOUTH"/"WOMENS") — so both silently fell back to "FEDERATION"
+    // in the President Commercial screen's properties and history lists.
+    const overview = federationCommercialOverview(db, federationId);
+    expect(overview.properties).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: youthPackage.id, scope: "YOUTH", programme: "YOUTH" }),
+        expect.objectContaining({
+          id: womenPackage.id,
+          scope: "WOMENS_GIRLS",
+          programme: "WOMENS_GIRLS",
+        }),
+      ]),
+    );
+    expect(overview.history).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: youthOffer.id, scope: "YOUTH" }),
+        expect.objectContaining({ id: womenOffer.id, scope: "WOMENS_GIRLS" }),
+      ]),
+    );
     db.close();
     rmSync(directory, { recursive: true, force: true });
   });

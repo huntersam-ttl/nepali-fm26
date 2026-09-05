@@ -1776,16 +1776,13 @@ export const federationCommercialOverview = (
         : selected && nationalSettlements.some((item) => item.rightsOfferId === selected.id)
           ? "SETTLED"
           : competition.settlement;
+      const programmeScope = nationalProgrammeScopeFor(rightsPackage);
       return {
         id: rightsPackage.id,
         scope: rightsPackage.scope === "COMPETITION"
           ? "COMPETITION"
-          : rightsPackage.scope === "NATIONAL_TEAM"
-            ? (rightsPackage.category === "YOUTH_PROGRAMME_PARTNER" ? "YOUTH" : rightsPackage.category === "WOMENS_GIRLS_PROGRAMME_PARTNER" ? "WOMENS_GIRLS" : "SENIOR_MENS")
-            : rightsPackage.category === "FEDERATION_MAIN_PARTNER" ? "FEDERATION" : "FEDERATION",
-        programme: rightsPackage.scope === "NATIONAL_TEAM"
-          ? (rightsPackage.category === "YOUTH_PROGRAMME_PARTNER" ? "YOUTH" : rightsPackage.category === "WOMENS_GIRLS_PROGRAMME_PARTNER" ? "WOMENS_GIRLS" : "SENIOR_MENS")
-          : undefined,
+          : programmeScope ?? "FEDERATION",
+        programme: programmeScope,
         competitionSeasonId: competition.seasonId,
         canonicalName: competition.name,
         commercialDisplayTitle: competition.displayTitle,
@@ -1832,7 +1829,7 @@ export const federationCommercialOverview = (
       const competition = competitionContext(item.id);
       return {
         id: item.id,
-        scope: competition.seasonId ? "COMPETITION" : rightsPackage?.scope === "NATIONAL_TEAM" ? (rightsPackage.category === "YOUTH_PROGRAMME_PARTNER" ? "YOUTH" : rightsPackage.category === "WOMENS_GIRLS_PROGRAMME_PARTNER" ? "WOMENS_GIRLS" : "SENIOR_MENS") : "FEDERATION",
+        scope: competition.seasonId ? "COMPETITION" : nationalProgrammeScopeFor(rightsPackage) ?? "FEDERATION",
         canonicalName: competition.name,
         sponsor: sponsorReference(item.sponsorId),
         status: item.status,
@@ -2825,3 +2822,29 @@ const addYears = (date: string, years: number): string => {
 };
 
 const round = (value: number): number => Math.round(value * 100) / 100;
+
+/**
+ * A commercial rights package's own `scope` already distinguishes senior
+ * national-team, youth, and women's & girls' programmes at creation time
+ * (see ensureSeniorNationalTeamMainPartnerPackage /
+ * ensureNationalProgrammePartnerPackage in commercial-rights.ts) — it is
+ * "NATIONAL_TEAM" / "YOUTH" / "WOMENS" respectively, never a single shared
+ * value re-split by category. Reading only `scope === "NATIONAL_TEAM"` as
+ * the national-programme gate silently dropped every youth/women's package
+ * to the FEDERATION fallback, since their own scope is "YOUTH"/"WOMENS",
+ * not "NATIONAL_TEAM". This reads the package's real scope directly.
+ */
+const nationalProgrammeScopeFor = (
+  rightsPackage: { scope: string } | undefined,
+): "SENIOR_MENS" | "YOUTH" | "WOMENS_GIRLS" | undefined => {
+  switch (rightsPackage?.scope) {
+    case "NATIONAL_TEAM":
+      return "SENIOR_MENS";
+    case "YOUTH":
+      return "YOUTH";
+    case "WOMENS":
+      return "WOMENS_GIRLS";
+    default:
+      return undefined;
+  }
+};

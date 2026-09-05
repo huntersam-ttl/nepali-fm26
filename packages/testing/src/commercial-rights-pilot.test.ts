@@ -54,7 +54,7 @@ describe("commercial rights federation pilot", () => {
           version: number;
         }
       ).version,
-    ).toBe(90);
+    ).toBe(91);
     expect(
       db
         .prepare(
@@ -143,6 +143,93 @@ describe("commercial rights federation pilot", () => {
         startDate: "2026-08-01",
       }),
     ).toThrow(/active federation president/);
+    db.close();
+    rmSync(directory, { recursive: true, force: true });
+  });
+
+  it("links the President's direct A/B/C award to the competition season automatically", () => {
+    // Regression: the desktop `acceptFederationCommercialOffer` command and the
+    // universal-interaction adapter both call awardCommercialRightsForPresident
+    // directly (never activateADivisionTitleSponsorship/activateDivisionTitleSponsorship),
+    // so a title-sponsor package accepted through the real President UI path never
+    // reached CompetitionCommercialRepository — the competition's commercialDisplayTitle
+    // and titleSponsor read-model fields silently stayed empty. Fixed inside
+    // awardCommercialRights itself so every acceptance path benefits.
+    const { directory, db, federationId, personId } = setup();
+    const season = db
+      .prepare(
+        "SELECT cs.id, c.name FROM competition_seasons cs JOIN competitions c ON c.id=cs.competition_id WHERE c.federation_id=? AND lower(c.name) LIKE '%b-division%' ORDER BY cs.start_date LIMIT 1",
+      )
+      .get(federationId) as { id: EntityId; name: string };
+    const rightsPackage = ensureDivisionTitleSponsorPackage(db, {
+      federationId,
+      division: "B",
+      date: "2026-08-01",
+    });
+    const repo = new CommercialRightsRepository(db);
+    const sponsorId = "b-division-direct-award-sponsor" as EntityId;
+    repo.upsertSponsor({
+      id: sponsorId,
+      name: "B Division Direct Bank",
+      sector: "Banking",
+      financialStrength: 60,
+      strategicValue: 55,
+      reputation: 58,
+      domesticReach: 60,
+      internationalReach: 10,
+      reliability: 70,
+      provenanceStatus: "SIMULATION_ONLY",
+    });
+    const offer = calculateCommercialRightsOffer({
+      rightsPackage,
+      sponsor: repo.sponsor(sponsorId)!,
+      evidence: {
+        federationReputation: 45,
+        competitionReputation: 40,
+        nationalTeamPerformance: 30,
+        audienceScale: 30_000,
+        mediaExposure: 35,
+        womenYouthGrowth: 20,
+      },
+      offeredOn: "2026-08-01",
+    });
+    repo.upsertOffer(offer);
+    db.prepare(
+      "INSERT INTO federation_leadership_tenures (id,person_id,federation_id,role,term_start,status,provenance_status) VALUES (?,?,?,?,?,?,?)",
+    ).run(
+      "b-division-direct-award-tenure",
+      personId,
+      federationId,
+      "FEDERATION_PRESIDENT",
+      "2026-08-01",
+      "ACTIVE",
+      "SIMULATION_ONLY",
+    );
+    const active = awardCommercialRightsForPresident(db, {
+      offerId: offer.id,
+      federationId,
+      presidentPersonId: personId,
+      date: "2026-08-01",
+      startDate: "2026-08-01",
+    });
+    expect(active.status).toBe("ACTIVE");
+    expect(
+      (
+        db
+          .prepare(
+            "SELECT name FROM competitions WHERE id=(SELECT competition_id FROM competition_seasons WHERE id=?)",
+          )
+          .get(season.id) as { name: string }
+      ).name,
+    ).toBe(season.name);
+    const linkedRow = db
+      .prepare(
+        "SELECT sponsor_id AS sponsorId, display_title AS displayTitle, rights_offer_id AS rightsOfferId FROM competition_commercial_sponsorships WHERE competition_season_id=?",
+      )
+      .get(season.id) as { sponsorId: EntityId; displayTitle: string; rightsOfferId: EntityId } | undefined;
+    expect(linkedRow?.rightsOfferId).toBe(offer.id);
+    expect(linkedRow?.sponsorId).toBe(sponsorId);
+    expect(linkedRow?.displayTitle).toContain("B Division Direct Bank");
     db.close();
     rmSync(directory, { recursive: true, force: true });
   });

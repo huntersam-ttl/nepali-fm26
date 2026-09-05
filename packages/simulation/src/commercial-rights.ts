@@ -713,6 +713,50 @@ export const counterCommercialRights = (
   return countered;
 };
 
+const titleSponsorDivision = (
+  exclusivityGroup: string | undefined,
+): "A" | "B" | "C" | undefined => {
+  if (exclusivityGroup === "A_DIVISION_TITLE_SPONSOR") return "A";
+  if (exclusivityGroup === "B_DIVISION_TITLE_SPONSOR") return "B";
+  if (exclusivityGroup === "C_DIVISION_TITLE_SPONSOR") return "C";
+  return undefined;
+};
+
+const currentDivisionSeasonId = (
+  db: GameDatabase,
+  federationId: EntityId,
+  division: "A" | "B" | "C",
+): EntityId | undefined => {
+  const row = db
+    .prepare(
+      "SELECT cs.id FROM competition_seasons cs JOIN competitions c ON c.id=cs.competition_id WHERE c.federation_id=? AND c.scope='domestic' AND lower(c.name) LIKE ? ORDER BY cs.end_date DESC, cs.id DESC LIMIT 1",
+    )
+    .get(federationId, `%${division.toLowerCase()}-division%`) as { id?: EntityId } | undefined;
+  return row?.id;
+};
+
+/**
+ * Every path that accepts a LEAGUE_TITLE_SPONSOR offer (President direct award,
+ * universal-interaction adapter) converges on awardCommercialRights for accounting —
+ * so the competition-side linkage is applied here too, once, via the same
+ * link{A,}DivisionTitleSponsor functions the pilot activation flow uses. If no
+ * season can be resolved yet, the award still stands; we don't fabricate a link.
+ */
+const linkTitleSponsorIfApplicable = (
+  db: GameDatabase,
+  rightsPackage: FederationCommercialRightsPackage,
+  offer: FederationCommercialRightsOffer,
+): void => {
+  if (rightsPackage.category !== "LEAGUE_TITLE_SPONSOR" || rightsPackage.scope !== "COMPETITION")
+    return;
+  const division = titleSponsorDivision(rightsPackage.exclusivityGroup);
+  if (!division) return;
+  const competitionSeasonId = currentDivisionSeasonId(db, offer.federationId, division);
+  if (!competitionSeasonId) return;
+  if (division === "A") linkADivisionTitleSponsor(db, { competitionSeasonId, offerId: offer.id });
+  else linkDivisionTitleSponsor(db, { division, competitionSeasonId, offerId: offer.id });
+};
+
 /** The caller explicitly selects an offer; cash alone never awards a package. */
 export const awardCommercialRights = (
   db: GameDatabase,
@@ -764,6 +808,7 @@ export const awardCommercialRights = (
   };
   repo.upsertOffer(active);
   repo.upsertPackage({ ...rightsPackage, status: "ACTIVE" });
+  linkTitleSponsorIfApplicable(db, rightsPackage, active);
   new EventRepository(db).insertHistoricalEvent({
     id: createStableEntityId("history", `COMMERCIAL_RIGHTS_AWARDED:${offer.id}`),
     occurredOn: input.date,
