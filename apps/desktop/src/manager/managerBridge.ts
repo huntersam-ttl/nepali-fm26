@@ -152,6 +152,15 @@ export const managerBridge = {
     runtimeCall<TransferCentre>("negotiateLoan", { command }),
   respondLoanOffer: (command: { offerId: EntityId; action: "ACCEPT" | "WITHDRAW" }) =>
     runtimeCall<TransferCentre>("respondLoanOffer", { command }),
+  withdrawTransferOffer: (command: { offerId: EntityId }) =>
+    runtimeCall<TransferCentre>("withdrawTransferOffer", { command }),
+  counterLoanOffer: (command: {
+    offerId: EntityId;
+    wageContributionPercent?: number;
+    durationMonths?: number;
+    playingTimeExpectation?: string;
+    recallOption?: boolean;
+  }) => runtimeCall<TransferCentre>("counterLoanOffer", { command }),
   setTransferStatus: (command: TransferListCommand) =>
     runtimeCall<TransferCentre>("setTransferStatus", { command }),
   getContracts: () => runtimeCall<ContractList>("getContracts"),

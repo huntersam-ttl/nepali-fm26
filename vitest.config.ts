@@ -25,7 +25,11 @@ export default defineConfig({
     },
   },
   test: {
-    include: ["packages/**/*.test.ts"],
+    // apps/desktop's negotiationPresentation.test.ts covers pure
+    // (non-React, non-DOM) presentation logic — the app has no
+    // React/jsdom test harness, so only type-erased-import-safe,
+    // DOM-free modules belong here.
+    include: ["packages/**/*.test.ts", "apps/desktop/src/**/*.test.ts"],
     pool: "forks",
   },
 });

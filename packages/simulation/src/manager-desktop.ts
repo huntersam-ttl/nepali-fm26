@@ -1848,6 +1848,110 @@ export const respondToLoanOffer = (
   return buildTransferCentre(db, save, context);
 };
 
+/**
+ * The buying-club side of withdrawing its own pending bid — the manager's
+ * move, not an AI decision, so it applies immediately rather than going
+ * through processDueTransferOffers. Only valid while a decision is still
+ * outstanding; a terminal offer (already accepted/rejected/completed) is
+ * read-only.
+ */
+export const withdrawManagerTransferOffer = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  context: ManagerContext,
+  command: { offerId: EntityId },
+): TransferCentre => {
+  assertManagerAuthority(context, undefined, "OFFER_TRANSFER");
+  assertManagerResponsibility(db, save, context, "TRANSFERS", "withdrawTransferOffer");
+  const market = new TransferMarketRepository(db);
+  const offer = market.transferOffers().find((candidate) => candidate.id === command.offerId);
+  if (!offer) throw new ManagerCommandError("INVALID_SELECTION", "Unknown transfer offer.");
+  if (offer.buyingClubId !== context.club?.id) {
+    throw new ManagerCommandError(
+      "ROLE_NOT_AUTHORIZED",
+      "You may only withdraw your own club's offers.",
+    );
+  }
+  if (!offer.pendingDecisionBy && offer.status !== "SUBMITTED" && offer.status !== "COUNTERED") {
+    throw new ManagerCommandError("INVALID_SELECTION", "This offer is no longer open to withdraw.");
+  }
+  market.updateOfferPendingDecision(offer.id, {});
+  market.updateOfferStatus(offer.id, "WITHDRAWN");
+  market.insertNegotiationRound({
+    id: createStableEntityId("negotiation-round", `${offer.id}:buyer:withdraw:${save.worldDate}`),
+    offerId: offer.id,
+    roundNumber: market.negotiationRounds(offer.id).length + 1,
+    actor: "BUYING_CLUB",
+    action: "REJECT",
+    message: "Manager withdrew the offer",
+    createdAt: save.worldDate,
+  });
+  return buildTransferCentre(db, save, context);
+};
+
+/**
+ * The buying club revising its own loan proposal after the parent club
+ * countered on wage contribution (or other terms) — reuses the exact same
+ * createLoanOffer/scheduleClubDecision path a fresh enquiry uses, so the
+ * revised offer goes through real re-evaluation instead of being granted on
+ * submission. Not a new negotiation engine: same TransferOffer row, same
+ * evaluateLoanOffer that will assess it once due.
+ */
+export const counterManagerLoanOffer = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  context: ManagerContext,
+  command: {
+    offerId: EntityId;
+    wageContributionPercent?: number;
+    durationMonths?: number;
+    playingTimeExpectation?: string;
+    recallOption?: boolean;
+  },
+): TransferCentre => {
+  assertManagerAuthority(context, undefined, "OFFER_TRANSFER");
+  assertManagerResponsibility(db, save, context, "TRANSFERS", "counterLoanOffer");
+  const market = new TransferMarketRepository(db);
+  const offer = market.transferOffers().find((candidate) => candidate.id === command.offerId);
+  if (!offer || !offer.loanTerms) {
+    throw new ManagerCommandError("INVALID_SELECTION", "Unknown loan offer.");
+  }
+  if (offer.buyingClubId !== context.club?.id) {
+    throw new ManagerCommandError(
+      "ROLE_NOT_AUTHORIZED",
+      "You may only revise your own club's loan enquiries.",
+    );
+  }
+  if (offer.status !== "COUNTERED") {
+    throw new ManagerCommandError("INVALID_SELECTION", "This loan enquiry has no open counter to respond to.");
+  }
+  const previousTerms = offer.loanTerms;
+  const revisedTerms = {
+    ...previousTerms,
+    wageContributionPercent: command.wageContributionPercent ?? previousTerms.wageContributionPercent,
+    durationMonths: command.durationMonths ?? previousTerms.durationMonths,
+    playingTimeExpectation: command.playingTimeExpectation ?? previousTerms.playingTimeExpectation,
+    recallOption: command.recallOption ?? previousTerms.recallOption,
+  };
+  const revised: TransferOffer = {
+    ...offer,
+    loanTerms: revisedTerms,
+    status: "SUBMITTED",
+  };
+  market.insertTransferOffer(revised);
+  market.insertNegotiationRound({
+    id: createStableEntityId("negotiation-round", `${offer.id}:buyer:counter:${save.worldDate}`),
+    offerId: offer.id,
+    roundNumber: market.negotiationRounds(offer.id).length + 1,
+    actor: "BUYING_CLUB",
+    action: "COUNTER",
+    message: `Manager revised the proposal to ${revisedTerms.wageContributionPercent}% wage contribution`,
+    createdAt: save.worldDate,
+  });
+  scheduleClubDecision(db, revised, save.worldDate);
+  return buildTransferCentre(db, save, context);
+};
+
 export const setManagerTransferStatus = (
   db: GameDatabase,
   save: SaveMetadata,

@@ -1251,6 +1251,15 @@ export type ManagerRuntimeApi = {
   makeTransferRequest(command: TransferRequestCommand): Promise<unknown>;
   respondTransferRequest(command: TransferRequestResponseCommand): Promise<unknown>;
   negotiateLoan(command: TransferLoanCommand): Promise<unknown>;
+  respondLoanOffer(command: { offerId: EntityId; action: "ACCEPT" | "WITHDRAW" }): Promise<unknown>;
+  withdrawTransferOffer(command: { offerId: EntityId }): Promise<unknown>;
+  counterLoanOffer(command: {
+    offerId: EntityId;
+    wageContributionPercent?: number;
+    durationMonths?: number;
+    playingTimeExpectation?: string;
+    recallOption?: boolean;
+  }): Promise<unknown>;
   setTransferStatus(command: TransferListCommand): Promise<unknown>;
   getContracts(): Promise<unknown>;
   renewContract(command: ContractRenewalCommand): Promise<unknown>;

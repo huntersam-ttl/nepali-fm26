@@ -734,7 +734,7 @@ export const evaluateTransferOffer = (
     actor: "SELLING_CLUB",
     action: accepted ? "ACCEPT" : "REJECT",
     message: accepted
-      ? `Accepted within internal willingness range (${seed})`
+      ? "Accepted within internal willingness range"
       : `Rejected: package ${packageValue} below contextual range ${minimum}${repeatedLowballs > 0 ? " after repeated lowball offers" : ""}`,
     createdAt: worldDate,
   });

@@ -451,4 +451,77 @@ describe("transfer negotiation depth", () => {
     expect(afterOffer?.status).toBe("COUNTERED");
     expect(afterOffer?.loanTerms?.wageContributionPercent).toBe(wageBeforeReload);
   }, 120_000);
+
+  it("lets the manager withdraw a pending bid, and refuses a second withdraw on the now-terminal offer", () => {
+    const search = service.searchRecruitment({ pageSize: 60 });
+    if (!search.ok) return;
+    const squad = service.getSquad();
+    if (!squad.ok) return;
+    const ownIds = new Set(squad.data.players.map((player) => player.personId));
+    const target = pickUnusedTarget(search.data.rows.filter((row) => !ownIds.has(row.playerId)));
+    if (!target) return;
+
+    const offered = service.makeTransferOffer({ playerId: target.playerId });
+    expect(offered.ok).toBe(true);
+    if (!offered.ok) return;
+    const offer = offered.data.incoming.find((row) => row.playerId === target.playerId)!;
+
+    const withdrawn = service.withdrawTransferOffer({ offerId: offer.id });
+    expect(withdrawn.ok).toBe(true);
+    if (!withdrawn.ok) return;
+    const afterWithdraw = withdrawn.data.incoming.find((row) => row.id === offer.id);
+    expect(afterWithdraw?.status).toBe("WITHDRAWN");
+
+    // The offer is now terminal — a second withdraw must be refused, not
+    // silently re-applied (the exact-once guarantee the manager's own
+    // actions need just as much as the AI's scheduled decisions do).
+    const secondWithdraw = service.withdrawTransferOffer({ offerId: offer.id });
+    expect(secondWithdraw.ok).toBe(false);
+  }, 120_000);
+
+  it("lets the manager revise a countered loan proposal, which is re-evaluated rather than accepted on submission", () => {
+    const squad = service.getSquad();
+    if (!squad.ok) return;
+    let seedDb = openGameDatabase(saveFilePath);
+    const ownClubId = ownClubIdFor(seedDb, squad.data.players[0]!.personId);
+    const targetId = findLoanableRivalPlayer(seedDb, ownClubId, "2026-08-01");
+    seedDb.close();
+    if (!targetId) return;
+
+    const loaned = service.negotiateLoan({ playerId: targetId, wageContributionPercent: 5 });
+    expect(loaned.ok).toBe(true);
+    if (!loaned.ok) return;
+
+    let db = openGameDatabase(saveFilePath);
+    let market = new TransferMarketRepository(db);
+    let offer = market.transferOffers().find((row) => row.playerId === targetId && row.loanTerms);
+    const offerId = offer!.id;
+    db.close();
+
+    for (let i = 0; i < 5 && offer?.status === "SUBMITTED"; i++) {
+      const advanced = service.continueCareer();
+      if (!advanced.ok) break;
+      db = openGameDatabase(saveFilePath);
+      market = new TransferMarketRepository(db);
+      offer = market.transferOffers().find((row) => row.id === offerId);
+      db.close();
+    }
+    if (offer?.status !== "COUNTERED") return; // Counter not reached this run — nothing to verify.
+
+    const demandedWage = offer.loanTerms!.wageContributionPercent;
+    const revised = service.counterLoanOffer({ offerId, wageContributionPercent: demandedWage - 1 });
+    expect(revised.ok).toBe(true);
+    if (!revised.ok) return;
+
+    db = openGameDatabase(saveFilePath);
+    market = new TransferMarketRepository(db);
+    const afterRevision = market.transferOffers().find((row) => row.id === offerId);
+    db.close();
+    // Not resolved on submission — back to a pending club decision, not
+    // instantly accepted or rejected.
+    expect(afterRevision?.status).toBe("SUBMITTED");
+    expect(afterRevision?.pendingDecisionBy).toBe("CLUB");
+    expect(afterRevision?.respondBy).toBeTruthy();
+    expect(afterRevision?.loanTerms?.wageContributionPercent).toBe(demandedWage - 1);
+  }, 120_000);
 });

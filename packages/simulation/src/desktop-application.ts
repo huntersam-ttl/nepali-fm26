@@ -431,6 +431,8 @@ import {
   respondManagerTransferRequest,
   negotiateManagerLoan,
   respondToLoanOffer,
+  withdrawManagerTransferOffer,
+  counterManagerLoanOffer,
   searchManagerRecruitment,
   setManagerTransferStatus,
   toggleManagerShortlist,
@@ -3464,6 +3466,26 @@ export class DesktopApplicationService {
   respondLoanOffer(command: { offerId: EntityId; action: "ACCEPT" | "WITHDRAW" }): AppResult<TransferCentre> {
     return this.managerCommand(
       (db, save, context) => respondToLoanOffer(db, save, context, command),
+      true,
+    );
+  }
+
+  withdrawTransferOffer(command: { offerId: EntityId }): AppResult<TransferCentre> {
+    return this.managerCommand(
+      (db, save, context) => withdrawManagerTransferOffer(db, save, context, command),
+      true,
+    );
+  }
+
+  counterLoanOffer(command: {
+    offerId: EntityId;
+    wageContributionPercent?: number;
+    durationMonths?: number;
+    playingTimeExpectation?: string;
+    recallOption?: boolean;
+  }): AppResult<TransferCentre> {
+    return this.managerCommand(
+      (db, save, context) => counterManagerLoanOffer(db, save, context, command),
       true,
     );
   }

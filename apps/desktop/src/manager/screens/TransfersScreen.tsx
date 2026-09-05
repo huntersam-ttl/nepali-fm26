@@ -9,6 +9,8 @@ import { managerBridge } from "../managerBridge.js";
 import { AsyncPanel, Badge, ErrorBanner, Metrics, Panel, money, useRuntimeData } from "../ui.js";
 import type { AppError } from "../../appBridge.js";
 import { EntityRefLink } from "../RoleDetailScreen.js";
+import { TransferNegotiationMeeting } from "./TransferNegotiationMeeting.js";
+import { daysUntilResponse, negotiationStage } from "../negotiationPresentation.js";
 
 type Tab = "targets" | "offers" | "loans" | "free" | "expiring" | "requests" | "history";
 
@@ -30,6 +32,7 @@ export const TransfersScreen = ({
   const [budgetRequest, setBudgetRequest] = useState({ category: "TRANSFER_BUDGET" as ClubBudgetCategory, amount: "" });
   const [budgetMessage, setBudgetMessage] = useState<string | null>(null);
   const [busyBudgetRequest, setBusyBudgetRequest] = useState(false);
+  const [openNegotiationId, setOpenNegotiationId] = useState<EntityId | null>(null);
 
   const requestBudget = async (seasonLabel: string): Promise<void> => {
     if (busyBudgetRequest) return;
@@ -129,6 +132,7 @@ export const TransfersScreen = ({
 
             <Panel
               title="Transfer centre"
+              className="panel-wide"
               actions={
                 <div className="tab-row">
                   {(
@@ -322,6 +326,7 @@ export const TransfersScreen = ({
                       offers={centre.incoming}
                       worldDate={centre.worldDate}
                       onOpenClub={onOpenClub}
+                      onOpenNegotiation={setOpenNegotiationId}
                       onRespondLoan={(offerId, action) =>
                         void act(() => managerBridge.respondLoanOffer({ offerId, action }))
                       }
@@ -336,6 +341,7 @@ export const TransfersScreen = ({
                       offers={centre.outgoing}
                       worldDate={centre.worldDate}
                       onOpenClub={onOpenClub}
+                      onOpenNegotiation={setOpenNegotiationId}
                       onRespond={(offerId, action, transferFee) =>
                         void act(() =>
                           managerBridge.respondTransferOffer({
@@ -352,6 +358,18 @@ export const TransfersScreen = ({
                     />
                   )}
                 </>
+              )}
+              {openNegotiationId && (
+                <TransferNegotiationMeeting
+                  offerId={openNegotiationId}
+                  centre={centre}
+                  onClose={() => setOpenNegotiationId(null)}
+                  onUpdate={(updated) => {
+                    replace(updated);
+                  }}
+                  onSelectPlayer={onSelectPlayer}
+                  onOpenClub={onOpenClub}
+                />
               )}
 
               {tab === "loans" &&
@@ -552,31 +570,13 @@ export const TransfersScreen = ({
   );
 };
 
-/** Days remaining until the next AI decision on an offer, or undefined when
- * nothing is currently scheduled (terminal state, or it's the manager's own
- * move to make right now). */
-const daysUntil = (worldDate: string, respondBy?: string): number | undefined => {
-  if (!respondBy) return undefined;
-  const days = Math.round(
-    (new Date(`${respondBy}T00:00:00Z`).getTime() - new Date(`${worldDate}T00:00:00Z`).getTime()) /
-      86_400_000,
-  );
-  return Math.max(0, days);
-};
-
-const NEGOTIATION_STAGE_LABEL: Record<string, string> = {
-  SUBMITTED: "Awaiting response",
-  NEGOTIATING: "In discussion",
-  COUNTERED: "Countered — your move",
-  PLAYER_NEGOTIATING: "Discussing personal terms",
-};
-
 const OfferTable = ({
   offers,
   worldDate,
   onRespond,
   onRespondLoan,
   onOpenClub,
+  onOpenNegotiation,
   busy,
 }: {
   offers: TransferCentre["incoming"];
@@ -590,6 +590,7 @@ const OfferTable = ({
    * (accept the wage split, or withdraw) than the fee-based onRespond above. */
   onRespondLoan?: (offerId: EntityId, action: "ACCEPT" | "WITHDRAW") => void;
   onOpenClub: (clubId: EntityId) => void;
+  onOpenNegotiation: (offerId: EntityId) => void;
   busy?: boolean;
 }): React.ReactElement => (
   <div className="table-scroll">
@@ -603,6 +604,7 @@ const OfferTable = ({
           <th>Status</th>
           <th>Stage</th>
           <th>Latest</th>
+          <th />
           {(onRespond || onRespondLoan) && <th />}
         </tr>
       </thead>
@@ -655,23 +657,18 @@ const OfferTable = ({
               )}
             </td>
             <td className="subtle">
-              {offer.respondBy ? (
-                <>
-                  {NEGOTIATION_STAGE_LABEL[offer.status] ?? "In progress"}
-                  {offer.status !== "COUNTERED" && (
-                    <div>
-                      {(() => {
-                        const days = daysUntil(worldDate, offer.respondBy);
-                        return days === 0
-                          ? "Response due today"
-                          : `Response expected in ${days} day${days === 1 ? "" : "s"}`;
-                      })()}
-                    </div>
-                  )}
-                </>
-              ) : (
-                <span className="empty-state">No response pending</span>
-              )}
+              {(() => {
+                const stage = negotiationStage(offer);
+                const days = daysUntilResponse(worldDate, offer.respondBy);
+                return (
+                  <>
+                    <Badge tone={stage.tone}>{stage.label}</Badge>
+                    {offer.respondBy && days !== undefined && (
+                      <div>{days === 0 ? "Response due today" : `Response expected in ${days} day${days === 1 ? "" : "s"}`}</div>
+                    )}
+                  </>
+                );
+              })()}
             </td>
             <td className="subtle">
               {offer.negotiation.at(-1)?.message ?? "Awaiting response"}
@@ -683,6 +680,11 @@ const OfferTable = ({
                   </div>
                 ))}
               </details>
+            </td>
+            <td>
+              <button className="ghost small" onClick={() => onOpenNegotiation(offer.id)}>
+                Open negotiation
+              </button>
             </td>
             {(onRespond || onRespondLoan) && (
               <td>
@@ -703,7 +705,7 @@ const OfferTable = ({
                       Withdraw
                     </button>
                   </>
-                ) : onRespond ? (
+                ) : onRespond && offer.status === "SUBMITTED" ? (
                   <>
                     <button
                       className="ghost small"

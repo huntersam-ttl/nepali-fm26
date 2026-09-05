@@ -510,6 +510,18 @@ const dispatch = (
       return service.negotiateLoan(body.command as TransferLoanCommand);
     case "respondLoanOffer":
       return service.respondLoanOffer(body.command as { offerId: EntityId; action: "ACCEPT" | "WITHDRAW" });
+    case "withdrawTransferOffer":
+      return service.withdrawTransferOffer(body.command as { offerId: EntityId });
+    case "counterLoanOffer":
+      return service.counterLoanOffer(
+        body.command as {
+          offerId: EntityId;
+          wageContributionPercent?: number;
+          durationMonths?: number;
+          playingTimeExpectation?: string;
+          recallOption?: boolean;
+        },
+      );
     case "setTransferStatus":
       return service.setTransferStatus(body.command as TransferListCommand);
     case "getContracts":
