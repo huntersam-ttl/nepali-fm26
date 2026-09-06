@@ -668,6 +668,30 @@ export type CompetitionPyramid = {
   provenanceStatus: "SIMULATION_ONLY";
 };
 
+/** One real national-team programme this player has actually been called
+ * up to — never a fabricated selection guarantee. */
+export type PlayerPathwayStage = {
+  team: EntityReference;
+  level: string;
+  gender: string;
+  programme: "SENIOR_MENS" | "YOUTH" | "WOMENS_GIRLS";
+  firstCallup: ISODate;
+  lastCallup: ISODate;
+  appearances: number;
+  firstAppearance?: ISODate;
+};
+
+/** A per-player national-team pathway timeline built entirely from real
+ * call-up/appearance history — Women & Girls forms its own distinct stage
+ * sequence, never a renamed men's flow. */
+export type PlayerPathway = {
+  playerId: EntityId;
+  stages: PlayerPathwayStage[];
+  currentStage?: string;
+  nextPlausibleStage?: string;
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
 export type NationalTeamSquadPlayer = {
   player: EntityReference;
   personId: EntityId;
@@ -922,6 +946,7 @@ export type DesktopRuntimeApi = {
   getNationalDevelopment(): Promise<AppResult<FederationDevelopmentSummary>>;
   getNationDevelopmentScorecard?: () => Promise<AppResult<NationDevelopmentScorecard>>;
   getFederationRefereeContext?: () => Promise<AppResult<FederationRefereeContext>>;
+  getPlayerPathway?: (playerId: EntityId) => Promise<AppResult<PlayerPathway>>;
   getFederationMap?: () => Promise<AppResult<FederationMap>>;
   getDistrictDetail?: (districtId: EntityId) => Promise<AppResult<DistrictDetail>>;
   getCompetitionPyramid?: () => Promise<AppResult<CompetitionPyramid>>;

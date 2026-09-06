@@ -4,6 +4,7 @@ import type { DesktopRuntimeApi } from "../../appBridge.js";
 import { managerBridge } from "../managerBridge.js";
 import { AsyncPanel, Badge, FormRun, Metrics, Panel, useRuntimeData } from "../ui.js";
 import { OwnerPlayerRequestInbox } from "./OwnerPlayerRequestInbox.js";
+import { InboxPanel } from "../RoleDetailScreen.js";
 
 const concernLabel = (type: string): string => {
   switch (type) {
@@ -573,19 +574,7 @@ export const HomeScreen = ({
             </>
           )}
 
-          <Panel title="Inbox">
-            {dashboard.inbox.length === 0 ? (
-              <p className="empty-state">Your inbox is empty.</p>
-            ) : (
-              dashboard.inbox.map((item) => (
-                <div className="inbox-item" key={item.id}>
-                  <strong>{item.title}</strong>
-                  <span>{item.body}</span>
-                  <span className="subtle">{item.createdOn}</span>
-                </div>
-              ))
-            )}
-          </Panel>
+          <InboxPanel inbox={dashboard.inbox} bridge={bridge} />
 
           {dashboard.employmentStatus === "EMPLOYED" && (
             <OwnerPlayerRequestInbox

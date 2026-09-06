@@ -24,6 +24,7 @@ import {
   clampSupporterScore,
   supporterUnrestState,
 } from "./supporter-culture.js";
+import { resolveStoryEntityReference, storyImportanceBand } from "./story-entities.js";
 
 const status = "SIMULATION_ONLY" as const;
 const outlets: Array<Omit<MediaOutlet, "id">> = [
@@ -325,18 +326,23 @@ export const roleInboxItems = (
       (!story || !eventIds.has(story.sourceEntityId))
     );
   });
-  const routed = deliveries.map(
-    ({ event }) =>
-      ({
-        id: createStableEntityId("role-inbox", `${input.role}:${input.personId}:${event.id}`),
-        createdOn: event.occurredOn,
-        type: inboxTypeForEvent(event),
-        title: event.title,
-        body: event.title,
-        relatedEntity: event.involvedEntities[0],
-        read: legacyReadByEvent.get(event.id) ?? false,
-      }) satisfies InboxItem,
-  );
+  const careerRole = input.role === "OWNER" ? "CHAIRMAN_OWNER" : input.role === "PRESIDENT" ? "FEDERATION_PRESIDENT" : "MANAGER";
+  const routed = deliveries.map(({ event }) => {
+    const entityReferences = event.involvedEntities
+      .map((ref) => resolveStoryEntityReference(db, ref, careerRole))
+      .filter((ref): ref is NonNullable<typeof ref> => Boolean(ref));
+    return {
+      id: createStableEntityId("role-inbox", `${input.role}:${input.personId}:${event.id}`),
+      createdOn: event.occurredOn,
+      type: inboxTypeForEvent(event),
+      title: event.title,
+      body: event.title,
+      relatedEntity: event.involvedEntities[0],
+      read: legacyReadByEvent.get(event.id) ?? false,
+      entityReferences: entityReferences.length > 0 ? entityReferences : undefined,
+      importanceBand: storyImportanceBand(event.importance),
+    } satisfies InboxItem;
+  });
   return [...legacy, ...routed].sort(
     (a, b) => b.createdOn.localeCompare(a.createdOn) || b.id.localeCompare(a.id),
   );

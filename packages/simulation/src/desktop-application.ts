@@ -81,6 +81,7 @@ import {
   type FederationDevelopmentSummary,
   type NationDevelopmentScorecard,
   type FederationRefereeContext,
+  type PlayerPathway,
   type FederationMap,
   type DistrictDetail,
   type CompetitionPyramid,
@@ -395,6 +396,7 @@ import { buildNationDevelopmentScorecard } from "./federation-scorecard.js";
 import { buildFederationRefereeContext } from "./federation-referee-context.js";
 import { buildFederationMap, buildDistrictDetail } from "./federation-map.js";
 import { initializeNepalTerritorialStructure } from "./territorial-football.js";
+import { buildPlayerPathway } from "./player-pathway.js";
 import { buildCompetitionPyramid } from "./competition-pyramid-view.js";
 import { governmentOverview, requestGovernmentFunding, requestClubInfrastructureGovernmentSupport, requestFacilitySiteGovernmentSupport, resolveGovernmentInstitutionForClub, clubInfrastructureGovernmentContext, advanceGovernmentApplications, buildGovernmentSupportMeeting, submitGovernmentFunding } from "./government.js";
 import { publishMediaForDate } from "./media.js";
@@ -3404,6 +3406,14 @@ export class DesktopApplicationService {
 
   getClubProfile(clubId: EntityId): AppResult<ClubProfile> {
     return this.withSession((db, save) => buildClubProfile(db, clubId, activeCareerRole(db, careerPersonId(db, save))));
+  }
+
+  getPlayerPathway(playerId: EntityId): AppResult<PlayerPathway> {
+    return this.withSession((db, save) => {
+      const pathway = buildPlayerPathway(db, playerId, activeCareerRole(db, careerPersonId(db, save)));
+      if (!pathway) throw appError("INVALID_SELECTION", "This player has no national-team call-up history on record.");
+      return pathway;
+    });
   }
 
   getStaffProfile(personId: EntityId): AppResult<StaffProfileReadModel> {

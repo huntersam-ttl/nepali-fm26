@@ -222,6 +222,8 @@ const dispatch = (
       return service.getNationDevelopmentScorecard();
     case "getFederationRefereeContext":
       return service.getFederationRefereeContext();
+    case "getPlayerPathway":
+      return service.getPlayerPathway(body.playerId as EntityId);
     case "getFederationMap":
       return service.getFederationMap();
     case "getDistrictDetail":

@@ -3078,6 +3078,11 @@ export type TeamAnalyticsSummary = {
   averageRating: number;
 };
 
+/** BREAKING/MAJOR/IMPORTANT/ROUTINE — a presentation-only banding derived
+ * from a real historical event's importance, never a fabricated drama
+ * signal. */
+export type StoryImportanceBand = "BREAKING" | "MAJOR" | "IMPORTANT" | "ROUTINE";
+
 export type InboxItem = {
   id: EntityId;
   createdOn: ISODate;
@@ -3086,6 +3091,11 @@ export type InboxItem = {
   body: string;
   relatedEntity?: EntityRef;
   read: boolean;
+  /** Populated only where the item derives from a real historical event —
+   * a routed item's full resolved entities and importance band, additive
+   * to the raw relatedEntity write-side field above. */
+  entityReferences?: import("./entity-reference.js").EntityReference[];
+  importanceBand?: StoryImportanceBand;
 };
 
 export type ManagerHomeSummary = {

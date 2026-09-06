@@ -446,6 +446,34 @@ const PlayerDressingRoomPanel = ({ playerId }: { playerId: EntityId }): React.Re
   );
 };
 
+/** No call-up history is the common case for most players, not an error —
+ * this quietly renders nothing rather than showing a warning banner for
+ * every player who has simply never been capped. Women & Girls call-ups
+ * form their own stage sequence in the backend, never a renamed men's flow. */
+const PlayerPathwayPanel = ({ playerId }: { playerId: EntityId }): React.ReactElement | null => {
+  const [state] = useRuntimeData(() => managerBridge.getPlayerPathway(playerId), [playerId]);
+  if (state.status !== "ready") return null;
+  const pathway = state.data;
+  return (
+    <Panel title="National pathway">
+      <ul className="compact-list">
+        {pathway.stages.map((stage) => (
+          <li key={`${stage.team.id}:${stage.programme}`}>
+            <EntityRefLink reference={stage.team} onOpen={() => undefined} /> ·{" "}
+            <Badge tone="info">{stage.programme.replace(/_/g, " ")}</Badge> · {stage.appearances} appearance
+            {stage.appearances === 1 ? "" : "s"} · called up {stage.firstCallup}
+            {stage.firstCallup !== stage.lastCallup ? ` – ${stage.lastCallup}` : ""}
+            {stage.firstAppearance && ` · debut ${stage.firstAppearance}`}
+          </li>
+        ))}
+      </ul>
+      {pathway.nextPlausibleStage && (
+        <p className="subtle">Next plausible stage: {pathway.nextPlausibleStage.toUpperCase()}.</p>
+      )}
+    </Panel>
+  );
+};
+
 export const PlayerProfileScreen = ({
   playerId,
   onClose,
@@ -622,6 +650,8 @@ export const PlayerProfileScreen = ({
             )}
 
             <PlayerDressingRoomPanel playerId={playerId} />
+
+            <PlayerPathwayPanel playerId={playerId} />
 
             <Panel title="Attributes">
               <p className="subtle">

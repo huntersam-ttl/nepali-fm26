@@ -20,6 +20,7 @@ import {
   BankMeeting,
   EntityRefLink,
   FacilityPlanner,
+  InboxPanel,
   OrganizationProfilePanel,
   RoleDetailScreen,
   SponsorMeeting,
@@ -527,7 +528,7 @@ const ChairmanDashboardView = ({
       <Panel title="Recent club transactions">
         <TransactionList entries={dashboard.finances.ledgerEntries} />
       </Panel>
-      <InboxPanel inbox={dashboard.inbox} />
+      <InboxPanel inbox={dashboard.inbox} bridge={bridge} />
       {/*
        * Standing for the federation presidency is a long-horizon career option,
        * not the owner's daily business, so it sits below the club rather than
@@ -727,7 +728,7 @@ const FederationDashboardView = ({
           </button>
         </div>
       </Panel>
-      <InboxPanel inbox={dashboard.inbox} />
+      <InboxPanel inbox={dashboard.inbox} bridge={bridge} />
       {openReferenceTarget && (
         <OrganizationProfilePanel
           bridge={bridge}
@@ -882,21 +883,8 @@ const DevelopmentScorecardCard = ({
   );
 };
 
-const InboxPanel = ({ inbox }: { inbox: InboxItem[] }): React.ReactElement => (
-  <Panel title="Inbox">
-    {inbox.length === 0 ? (
-      <p className="empty-state">Your inbox is empty.</p>
-    ) : (
-      inbox.map((item) => (
-        <div className="inbox-item" key={item.id}>
-          <strong>{item.title}</strong>
-          <span>{item.body}</span>
-          <span className="subtle">{item.createdOn}</span>
-        </div>
-      ))
-    )}
-  </Panel>
-);
+// InboxPanel now lives in RoleDetailScreen.tsx (shared with Manager Home,
+// which cannot import from this file without a circular dependency).
 
 const TransactionList = ({
   entries,

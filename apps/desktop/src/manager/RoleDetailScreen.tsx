@@ -16,6 +16,7 @@ import type {
   GovernmentPriorityBand,
   GovernmentRelationshipBand,
   GovernmentSupportMeetingContext,
+  InboxItem,
   InvestorMeetingOverview,
   OwnershipInvestorBidView,
   OwnershipAcquisitionOffer,
@@ -6081,6 +6082,80 @@ const missingProfileMethod = (message: string): { ok: false; error: AppError } =
  * component and the same internal back/history stack, so a Club → Manager →
  * Club → Competition chain works uniformly no matter where it started.
  */
+const IMPORTANCE_TONE: Record<string, "bad" | "warn" | "info" | "ok"> = {
+  BREAKING: "bad",
+  MAJOR: "warn",
+  IMPORTANT: "info",
+  ROUTINE: "ok",
+};
+
+/** A single inbox story — importance and entities are only ever real,
+ * already-computed data (StoryImportanceBand, EntityReference[]); plain
+ * items with neither still render exactly as before. Expandable to a
+ * lightweight "detail" view showing every involved entity, not just the
+ * first. */
+const InboxStoryCard = ({
+  item,
+  onOpenReference,
+}: {
+  item: InboxItem;
+  onOpenReference: (reference: EntityReference) => void;
+}): React.ReactElement => {
+  const [expanded, setExpanded] = useState(false);
+  const entities = item.entityReferences ?? [];
+  return (
+    <div className="inbox-item" key={item.id}>
+      <div className="button-row">
+        {item.importanceBand && <Badge tone={IMPORTANCE_TONE[item.importanceBand]}>{item.importanceBand}</Badge>}
+        <strong>{item.title}</strong>
+      </div>
+      {item.body !== item.title && <span>{item.body}</span>}
+      <span className="subtle">{item.createdOn}</span>
+      {entities.length > 0 && (
+        <div className="button-row">
+          {(expanded ? entities : entities.slice(0, 2)).map((reference) => (
+            <span key={`${reference.entityType}:${reference.id}`} className="entity-chip">
+              <Badge tone="info">{reference.entityType.replace(/_/g, " ").toLowerCase()}</Badge>{" "}
+              <EntityRefLink reference={reference} onOpen={onOpenReference} />
+            </span>
+          ))}
+          {entities.length > 2 && (
+            <button className="link" onClick={() => setExpanded((value) => !value)}>
+              {expanded ? "Show less" : `+${entities.length - 2} more`}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+/** Shared by Owner Home, President Home, and Manager Home — the only inbox
+ * rendering in the app. Importance/entities enrich routed stories only;
+ * legacy plain items render exactly as before. */
+export const InboxPanel = ({ inbox, bridge }: { inbox: InboxItem[]; bridge: DesktopRuntimeApi }): React.ReactElement => {
+  const [openReferenceTarget, setOpenReferenceTarget] = useState<{ entityType: ProfileEntityType; entityId: EntityId } | null>(null);
+  const openReference = (reference: EntityReference): void =>
+    setOpenReferenceTarget({ entityType: reference.entityType as ProfileEntityType, entityId: reference.id });
+  return (
+    <Panel title="Inbox">
+      {inbox.length === 0 ? (
+        <p className="empty-state">Your inbox is empty.</p>
+      ) : (
+        inbox.map((item) => <InboxStoryCard key={item.id} item={item} onOpenReference={openReference} />)
+      )}
+      {openReferenceTarget && (
+        <OrganizationProfilePanel
+          bridge={bridge}
+          entityType={openReferenceTarget.entityType}
+          entityId={openReferenceTarget.entityId}
+          onClose={() => setOpenReferenceTarget(null)}
+        />
+      )}
+    </Panel>
+  );
+};
+
 export const OrganizationProfilePanel = ({
   bridge,
   entityType,
