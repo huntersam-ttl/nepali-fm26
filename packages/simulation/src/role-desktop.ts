@@ -94,7 +94,33 @@ export const buildFederationPresidentDashboard = (db: GameDatabase, save: SaveMe
   const teams = db.prepare("SELECT id, name, level, gender FROM teams WHERE federation_id=? AND club_id IS NULL ORDER BY CASE WHEN level='senior' THEN 0 ELSE 1 END, gender, name").all(federationId) as Array<{ id: EntityId; name: string; level: string; gender: string }>;
   const nationalTeams: FederationNationalTeamSummary[] = teams.map((team) => {
     const coach = db.prepare("SELECT person_id FROM staff_appointments WHERE team_id=? AND role='NATIONAL_TEAM_HEAD_COACH' AND employment_status='ACTIVE' ORDER BY start_date DESC LIMIT 1").get(team.id) as { person_id?: EntityId } | undefined;
-    return { id: team.id, name: team.name, level: team.level, gender: team.gender, headCoach: coach?.person_id ? personName(db, coach.person_id) : undefined };
+    const squadSize = new Set(
+      governance
+        .nationalTeamCallups(team.id)
+        .filter((callup) => callup.callupDate <= save.worldDate && callup.status !== "DECLINED")
+        .map((callup) => callup.playerId),
+    ).size;
+    const next = db
+      .prepare("SELECT opponent_name, fixture_date FROM national_team_fixtures WHERE national_team_id=? AND fixture_date>=? ORDER BY fixture_date LIMIT 1")
+      .get(team.id, save.worldDate) as { opponent_name: string; fixture_date: string } | undefined;
+    const recent = db
+      .prepare(
+        "SELECT opponent_name, home_goals, away_goals FROM national_team_fixtures WHERE national_team_id=? AND fixture_date<? AND status='PLAYED' ORDER BY fixture_date DESC LIMIT 1",
+      )
+      .get(team.id, save.worldDate) as { opponent_name: string; home_goals?: number; away_goals?: number } | undefined;
+    return {
+      id: team.id,
+      name: team.name,
+      level: team.level,
+      gender: team.gender,
+      headCoach: coach?.person_id ? personName(db, coach.person_id) : undefined,
+      squadSize,
+      nextFixture: next ? { opponent: next.opponent_name, date: next.fixture_date } : undefined,
+      recentResult:
+        recent && recent.home_goals != null && recent.away_goals != null
+          ? { opponent: recent.opponent_name, result: `${recent.home_goals}-${recent.away_goals}` }
+          : undefined,
+    };
   });
   return {
     role: "FEDERATION_PRESIDENT",

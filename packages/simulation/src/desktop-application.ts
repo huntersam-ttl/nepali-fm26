@@ -81,6 +81,9 @@ import {
   type FederationDevelopmentSummary,
   type NationDevelopmentScorecard,
   type FederationRefereeContext,
+  type FederationMap,
+  type DistrictDetail,
+  type CompetitionPyramid,
   type GovernmentOverview,
   type GovernmentFundingApplication,
   type ClubInfrastructureGovernmentContext,
@@ -390,6 +393,9 @@ import {
 import { federationDevelopmentSummary } from "./federation-policy.js";
 import { buildNationDevelopmentScorecard } from "./federation-scorecard.js";
 import { buildFederationRefereeContext } from "./federation-referee-context.js";
+import { buildFederationMap, buildDistrictDetail } from "./federation-map.js";
+import { initializeNepalTerritorialStructure } from "./territorial-football.js";
+import { buildCompetitionPyramid } from "./competition-pyramid-view.js";
 import { governmentOverview, requestGovernmentFunding, requestClubInfrastructureGovernmentSupport, requestFacilitySiteGovernmentSupport, resolveGovernmentInstitutionForClub, clubInfrastructureGovernmentContext, advanceGovernmentApplications, buildGovernmentSupportMeeting, submitGovernmentFunding } from "./government.js";
 import { publishMediaForDate } from "./media.js";
 import {
@@ -657,6 +663,7 @@ export class DesktopApplicationService {
       db.exec("BEGIN;");
       try {
         importNepalWorld(db, dataset);
+        initializeNepalTerritorialStructure(db, `${dataset.meta.targetDatabaseDate}-01`);
         ensureNepalFounderLocations(db);
         ensurePlayableClubVenues(db, `${dataset.meta.targetDatabaseDate}-01`);
         const candidateCountry = db
@@ -1557,6 +1564,47 @@ export class DesktopApplicationService {
       )?.targetId;
       if (!federationId) throw appError("ROLE_NOT_AUTHORIZED", "No federation is available.");
       return buildFederationRefereeContext(db, federationId, save.worldDate);
+    });
+  }
+
+  private currentFederationId(db: GameDatabase, personId: EntityId): EntityId {
+    if (activeCareerRole(db, personId) !== "FEDERATION_PRESIDENT") {
+      throw appError("ROLE_NOT_AUTHORIZED", "You are not the active Federation President.");
+    }
+    const federationId = heldCareerRoles(db, personId).find(
+      (entry) => entry.role === "FEDERATION_PRESIDENT",
+    )?.targetId;
+    if (!federationId) throw appError("ROLE_NOT_AUTHORIZED", "No federation is available.");
+    return federationId;
+  }
+
+  getFederationMap(): AppResult<FederationMap> {
+    return this.withSession((db, save) => {
+      const federationId = this.currentFederationId(db, careerPersonId(db, save));
+      // Self-healing for saves created before the territorial-football
+      // structure was wired into career creation: upsertDistrict/Province
+      // never overwrite an existing row's tracked stats, so this is a
+      // no-op on any save that already has the structure.
+      initializeNepalTerritorialStructure(db, save.worldDate);
+      return buildFederationMap(db, federationId);
+    });
+  }
+
+  getDistrictDetail(districtId: EntityId): AppResult<DistrictDetail> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      const federationId = this.currentFederationId(db, personId);
+      initializeNepalTerritorialStructure(db, save.worldDate);
+      const detail = buildDistrictDetail(db, federationId, districtId, "FEDERATION_PRESIDENT");
+      if (!detail) throw appError("INVALID_SELECTION", "That district is not on record.");
+      return detail;
+    });
+  }
+
+  getCompetitionPyramid(): AppResult<CompetitionPyramid> {
+    return this.withSession((db, save) => {
+      const federationId = this.currentFederationId(db, careerPersonId(db, save));
+      return buildCompetitionPyramid(db, federationId, "FEDERATION_PRESIDENT", save.worldDate);
     });
   }
 

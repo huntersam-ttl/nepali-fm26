@@ -74,7 +74,7 @@ export const RoleLandingScreen = ({
   ) : header.activeRole === "CHAIRMAN_OWNER" ? (
     <ChairmanDashboardScreen header={header} roles={roles} bridge={bridge} />
   ) : (
-    <FederationDashboardScreen header={header} roles={roles} bridge={bridge} />
+    <FederationDashboardScreen header={header} roles={roles} bridge={bridge} onNavigate={onNavigate} />
   );
 
 /**
@@ -550,10 +550,12 @@ const FederationDashboardScreen = ({
   header,
   roles,
   bridge,
+  onNavigate,
 }: {
   header: CareerHeader;
   roles: CareerRoleState;
   bridge: DesktopRuntimeApi;
+  onNavigate: (screen: ChairmanScreen | PresidentScreen) => void;
 }): React.ReactElement => {
   const [state, refresh] = useRuntimeData(() => bridge.getFederationPresidentDashboard());
   return (
@@ -565,6 +567,7 @@ const FederationDashboardScreen = ({
           roles={roles}
           bridge={bridge}
           refresh={refresh}
+          onNavigate={onNavigate}
         />
       )}
     </AsyncPanel>
@@ -577,12 +580,14 @@ const FederationDashboardView = ({
   roles,
   bridge,
   refresh,
+  onNavigate,
 }: {
   dashboard: FederationPresidentDashboard;
   header: CareerHeader;
   roles: CareerRoleState;
   bridge: DesktopRuntimeApi;
   refresh: () => void;
+  onNavigate: (screen: ChairmanScreen | PresidentScreen) => void;
 }): React.ReactElement => {
   const [message, setMessage] = useState<string | null>(null);
   const [openReferenceTarget, setOpenReferenceTarget] = useState<{ entityType: ProfileEntityType; entityId: EntityId } | null>(null);
@@ -651,7 +656,7 @@ const FederationDashboardView = ({
         </Panel>
       </div>
       <StoryUpdateCard title="Latest national story" update={dashboard.latestStory} onOpenReference={openReference} />
-      <DevelopmentScorecardCard scorecard={dashboard.developmentScorecard} />
+      <DevelopmentScorecardCard scorecard={dashboard.developmentScorecard} onNavigate={onNavigate} />
       <div className="summary-grid">
         <Panel
           title="Governance"
@@ -674,6 +679,9 @@ const FederationDashboardView = ({
               <li>No governance proposals recorded.</li>
             )}
           </ul>
+          <button className="link" onClick={() => onNavigate("governance")}>
+            Open Governance
+          </button>
         </Panel>
         <Panel title="National teams">
           <ul className="compact-list">
@@ -683,6 +691,9 @@ const FederationDashboardView = ({
               </li>
             ))}
           </ul>
+          <button className="link" onClick={() => onNavigate("national-teams")}>
+            Open National Team Hub
+          </button>
         </Panel>
       </div>
       <Panel title="Programmes and finance">
@@ -691,6 +702,30 @@ const FederationDashboardView = ({
           budget lines
         </p>
         <TransactionList entries={dashboard.finances.ledgerEntries} />
+        <div className="button-row">
+          <button className="link" onClick={() => onNavigate("national-development")}>
+            Open National Development
+          </button>
+          <button className="link" onClick={() => onNavigate("finance")}>
+            Open Finance
+          </button>
+        </div>
+      </Panel>
+      <Panel title="Explore the federation">
+        <div className="button-row">
+          <button className="ghost small" onClick={() => onNavigate("nepal-map")}>
+            Nepal Map
+          </button>
+          <button className="ghost small" onClick={() => onNavigate("competition-pyramid")}>
+            Domestic Pyramid
+          </button>
+          <button className="ghost small" onClick={() => onNavigate("commercial")}>
+            Commercial Portfolio
+          </button>
+          <button className="ghost small" onClick={() => onNavigate("government-relations")}>
+            Government Relations
+          </button>
+        </div>
       </Panel>
       <InboxPanel inbox={dashboard.inbox} />
       {openReferenceTarget && (
@@ -755,7 +790,49 @@ const TREND_TONE: Record<string, "ok" | "warn" | "info"> = { IMPROVING: "ok", ST
  * already-computed FederationSimulationProfile dimension, never an
  * invented rating. A text summary line accompanies every bar so the score
  * is never conveyed by colour alone. */
-const DevelopmentScorecardCard = ({ scorecard }: { scorecard?: NationDevelopmentScorecard }): React.ReactElement | null => {
+/** A simple annual bar chart of the overall Build-a-Nation score — one bar
+ * per real persisted snapshot, never one per tick. A plain-text summary
+ * accompanies the bars for accessibility. */
+const DevelopmentHistoryChart = ({ history }: { history: NationDevelopmentScorecard["history"] }): React.ReactElement => {
+  const max = Math.max(100, ...history.map((entry) => entry.overallScore));
+  return (
+    <div>
+      <h3>Development history</h3>
+      <div className="history-chart" role="img" aria-label={`Overall score by season: ${history.map((entry) => `${entry.seasonLabel} ${entry.overallScore}`).join(", ")}`}>
+        {history.map((entry) => (
+          <div key={entry.seasonLabel} className="history-chart-bar-wrap">
+            <div className="history-chart-bar" style={{ height: `${(entry.overallScore / max) * 100}%` }} />
+            <span className="subtle">{entry.seasonLabel}</span>
+            <span className="subtle">{entry.overallScore}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+/** Where clicking each scorecard category should take the President — every
+ * category routes somewhere real, never an isolated number. */
+const SCORECARD_CATEGORY_SCREEN: Record<string, PresidentScreen> = {
+  domesticCompetitions: "competition-pyramid",
+  grassrootsYouth: "national-development",
+  playerDevelopment: "national-development",
+  coachingQuality: "national-development",
+  refereeQuality: "national-development",
+  infrastructure: "nepal-map",
+  commercialStrength: "commercial",
+  federationFinances: "finance",
+  internationalStanding: "national-teams",
+  governance: "governance",
+};
+
+const DevelopmentScorecardCard = ({
+  scorecard,
+  onNavigate,
+}: {
+  scorecard?: NationDevelopmentScorecard;
+  onNavigate: (screen: ChairmanScreen | PresidentScreen) => void;
+}): React.ReactElement | null => {
   if (!scorecard) return null;
   return (
     <Panel title="Build-a-Nation development scorecard" className="panel-wide">
@@ -764,17 +841,25 @@ const DevelopmentScorecardCard = ({ scorecard }: { scorecard?: NationDevelopment
         {scorecard.trend && <Badge tone={TREND_TONE[scorecard.trend]}>{TREND_LABEL[scorecard.trend]}</Badge>}
       </div>
       <div className="development-scorecard-grid">
-        {scorecard.categories.map((category) => (
-          <div key={category.key} className="development-scorecard-item">
-            <div className="project-progress-labels">
-              <span>{category.label}</span>
-              <span>{category.score}/100</span>
-            </div>
-            <div className="project-progress-track">
-              <div className="project-progress-fill" style={{ width: `${category.score}%` }} />
-            </div>
-          </div>
-        ))}
+        {scorecard.categories.map((category) => {
+          const target = SCORECARD_CATEGORY_SCREEN[category.key];
+          const Wrapper = target ? "button" : "div";
+          return (
+            <Wrapper
+              key={category.key}
+              className="development-scorecard-item"
+              {...(target ? { onClick: () => onNavigate(target), type: "button" } : {})}
+            >
+              <div className="project-progress-labels">
+                <span>{category.label}</span>
+                <span>{category.score}/100</span>
+              </div>
+              <div className="project-progress-track">
+                <div className="project-progress-fill" style={{ width: `${category.score}%` }} />
+              </div>
+            </Wrapper>
+          );
+        })}
       </div>
       <p className="subtle">
         Strongest: {scorecard.strongest.label} ({scorecard.strongest.score}) · Weakest: {scorecard.weakest.label} ({scorecard.weakest.score})
@@ -786,11 +871,12 @@ const DevelopmentScorecardCard = ({ scorecard }: { scorecard?: NationDevelopment
           ))}
         </ul>
       )}
-      {scorecard.history.length > 1 && (
-        <p className="subtle">
-          {scorecard.history.length} seasons of history recorded, from {scorecard.history[0]!.seasonLabel} to{" "}
-          {scorecard.history[scorecard.history.length - 1]!.seasonLabel}.
-        </p>
+      {scorecard.history.length === 0 ? (
+        <p className="subtle">Trend begins after the next annual snapshot.</p>
+      ) : scorecard.history.length === 1 ? (
+        <p className="subtle">One season recorded so far ({scorecard.history[0]!.seasonLabel}) — trend begins after the next annual snapshot.</p>
+      ) : (
+        <DevelopmentHistoryChart history={scorecard.history} />
       )}
     </Panel>
   );

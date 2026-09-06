@@ -54,6 +54,7 @@ import type {
 import type { ExecutiveAuthorityDesktopView } from "./executive-roles.js";
 import type { FederationDevelopmentSummary, NationDevelopmentScorecard } from "./federation-policy.js";
 import type { FederationRefereeContext } from "./referee-development.js";
+import type { DistrictDetail, FederationMap } from "./territorial-football.js";
 import type { UniversalInteraction } from "./universal-interactions.js";
 import type { EntityReference, EntityReferenceType } from "./entity-reference.js";
 import type { FederationCommercialRightsOffer } from "./commercial-rights.js";
@@ -644,6 +645,29 @@ export type CompetitionProfile = {
   participants: EntityReference[];
 };
 
+/** One real domestic tier — identified from the dataset's own competition
+ * names (there is no explicit tier-number column), never an invented
+ * division. */
+export type CompetitionPyramidTier = {
+  level: number;
+  label: string;
+  competition: EntityReference;
+  currentSeasonName?: string;
+  seasonStatus?: string;
+  teamCount: number;
+  leadingClub?: EntityReference;
+  leadingClubPoints?: number;
+  promotionSlots?: number;
+  relegationSlots?: number;
+  titleSponsor?: EntityReference;
+  commercialDisplayTitle?: string;
+};
+
+export type CompetitionPyramid = {
+  tiers: CompetitionPyramidTier[];
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
 export type NationalTeamSquadPlayer = {
   player: EntityReference;
   personId: EntityId;
@@ -700,6 +724,9 @@ export type FederationNationalTeamSummary = {
   level: string;
   gender: string;
   headCoach?: string;
+  squadSize: number;
+  nextFixture?: { opponent: string; date: string };
+  recentResult?: { opponent: string; result: string };
 };
 
 export type FederationPresidentDashboard = {
@@ -895,6 +922,9 @@ export type DesktopRuntimeApi = {
   getNationalDevelopment(): Promise<AppResult<FederationDevelopmentSummary>>;
   getNationDevelopmentScorecard?: () => Promise<AppResult<NationDevelopmentScorecard>>;
   getFederationRefereeContext?: () => Promise<AppResult<FederationRefereeContext>>;
+  getFederationMap?: () => Promise<AppResult<FederationMap>>;
+  getDistrictDetail?: (districtId: EntityId) => Promise<AppResult<DistrictDetail>>;
+  getCompetitionPyramid?: () => Promise<AppResult<CompetitionPyramid>>;
   getGovernmentOverview(): Promise<AppResult<GovernmentOverview>>;
   requestGovernmentFunding(
     institutionId: EntityId,

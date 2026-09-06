@@ -222,6 +222,12 @@ const dispatch = (
       return service.getNationDevelopmentScorecard();
     case "getFederationRefereeContext":
       return service.getFederationRefereeContext();
+    case "getFederationMap":
+      return service.getFederationMap();
+    case "getDistrictDetail":
+      return service.getDistrictDetail(body.districtId as EntityId);
+    case "getCompetitionPyramid":
+      return service.getCompetitionPyramid();
     case "getGovernmentOverview":
       return service.getGovernmentOverview();
     case "requestGovernmentFunding":

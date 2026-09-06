@@ -108,6 +108,8 @@ export type PresidentScreen =
   | "national-teams"
   | "national-development"
   | "government-relations"
+  | "nepal-map"
+  | "competition-pyramid"
   | "tenure";
 
 type Props = {
@@ -155,6 +157,14 @@ const SECTION_TITLES: Record<string, { title: string; subtitle: string }> = {
   "government-relations": {
     title: "Government relations",
     subtitle: "Institution relationships and land, ground, and infrastructure funding requests.",
+  },
+  "nepal-map": {
+    title: "Nepal football map",
+    subtitle: "Provinces and districts by club density, development, and active projects.",
+  },
+  "competition-pyramid": {
+    title: "Domestic pyramid",
+    subtitle: "Every real division, its leading club, and promotion/relegation shape.",
   },
   tenure: { title: "Tenure", subtitle: "Term, mandate, and election standing." },
 };
@@ -1597,6 +1607,8 @@ const PresidentDetail = ({
           return <NationalTeams dashboard={dashboard} bridge={bridge} />;
         if (screen === "national-development") return <NationalDevelopment bridge={bridge} />;
         if (screen === "government-relations") return <GovernmentRelations bridge={bridge} />;
+        if (screen === "nepal-map") return <NepalFootballMap bridge={bridge} />;
+        if (screen === "competition-pyramid") return <CompetitionPyramidView bridge={bridge} />;
         return <Tenure dashboard={dashboard} />;
       }}
     </AsyncPanel>
@@ -1685,6 +1697,78 @@ const Governance = ({
   );
 };
 
+/** Every source/use bucket here is a real, already-persisted ledger
+ * category — never an invented accounting line. Buckets group only the
+ * categories that actually appear in this federation's own ledger. */
+const FinanceSourceUsePanel = ({
+  dashboard,
+}: {
+  dashboard: FederationPresidentDashboard;
+}): React.ReactElement | null => {
+  const currency = dashboard.finances.account.currency;
+  const credits = dashboard.finances.ledgerEntries.filter((entry) => entry.direction === "CREDIT");
+  const debits = dashboard.finances.ledgerEntries.filter((entry) => entry.direction === "DEBIT");
+  const bySource = new Map<string, number>();
+  for (const entry of credits) bySource.set(entry.category, (bySource.get(entry.category) ?? 0) + entry.amount);
+  const byUse = new Map<string, number>();
+  for (const entry of debits) byUse.set(entry.category, (byUse.get(entry.category) ?? 0) + entry.amount);
+  const totalIn = [...bySource.values()].reduce((sum, value) => sum + value, 0);
+  const totalOut = [...byUse.values()].reduce((sum, value) => sum + value, 0);
+  if (dashboard.finances.ledgerEntries.length === 0) return null;
+  const largestSource = [...bySource.entries()].sort((a, b) => b[1] - a[1])[0];
+  const largestUse = [...byUse.entries()].sort((a, b) => b[1] - a[1])[0];
+  return (
+    <Panel title="Source → use" className="panel-wide">
+      <Metrics
+        items={[
+          { label: "Total inflow (recent entries)", value: money(totalIn, currency) },
+          { label: "Total outflow (recent entries)", value: money(totalOut, currency) },
+          { label: "Net", value: money(totalIn - totalOut, currency) },
+          ...(largestSource ? [{ label: "Largest source", value: `${band(largestSource[0])} · ${money(largestSource[1], currency)}` }] : []),
+          ...(largestUse ? [{ label: "Largest use", value: `${band(largestUse[0])} · ${money(largestUse[1], currency)}` }] : []),
+        ]}
+      />
+      <div className="finance-flow-columns">
+        <div>
+          <h3>Sources</h3>
+          <div className="development-scorecard-grid">
+            {[...bySource.entries()].map(([category, value]) => (
+              <div key={category} className="development-scorecard-item">
+                <div className="project-progress-labels">
+                  <span>{band(category)}</span>
+                  <span>{money(value, currency)}</span>
+                </div>
+                <div className="project-progress-track">
+                  <div className="project-progress-fill" style={{ width: `${totalIn > 0 ? Math.round((value / totalIn) * 100) : 0}%` }} />
+                </div>
+              </div>
+            ))}
+            {bySource.size === 0 && <p className="empty-state">No recent income recorded.</p>}
+          </div>
+        </div>
+        <div>
+          <h3>Uses</h3>
+          <div className="development-scorecard-grid">
+            {[...byUse.entries()].map(([category, value]) => (
+              <div key={category} className="development-scorecard-item">
+                <div className="project-progress-labels">
+                  <span>{band(category)}</span>
+                  <span>{money(value, currency)}</span>
+                </div>
+                <div className="project-progress-track">
+                  <div className="project-progress-fill" style={{ width: `${totalOut > 0 ? Math.round((value / totalOut) * 100) : 0}%` }} />
+                </div>
+              </div>
+            ))}
+            {byUse.size === 0 && <p className="empty-state">No recent spending recorded.</p>}
+          </div>
+        </div>
+      </div>
+      <p className="subtle">Based on the {dashboard.finances.ledgerEntries.length} most recent recorded transactions.</p>
+    </Panel>
+  );
+};
+
 const FederationFinance = ({
   dashboard,
 }: {
@@ -1734,6 +1818,7 @@ const FederationFinance = ({
         ]}
       />
     </Panel>
+    <FinanceSourceUsePanel dashboard={dashboard} />
     <Ledger entries={dashboard.finances.ledgerEntries} />
   </section>
 );
@@ -2024,11 +2109,6 @@ const PresidentCommercial = ({ bridge }: { bridge: DesktopRuntimeApi }): React.R
       {(overview) => {
         const competitions = overview.properties.filter((item) => item.scope === "COMPETITION");
         const federation = overview.properties.filter((item) => item.scope === "FEDERATION");
-        const programmes = overview.properties.filter((item) =>
-          (["SENIOR_MENS", "YOUTH", "WOMENS_GIRLS"] as const).includes(
-            item.scope as "SENIOR_MENS" | "YOUTH" | "WOMENS_GIRLS",
-          ),
-        );
         // Defensive fallback only: federationCommercialOverview already folds the
         // legacy auto-generated sponsorship into `properties` whenever no
         // FEDERATION-scope commercial-rights property exists yet — this covers the
@@ -2036,8 +2116,55 @@ const PresidentCommercial = ({ bridge }: { bridge: DesktopRuntimeApi }): React.R
         const legacySponsorshipUnrepresented =
           overview.sponsorship &&
           !federation.some((item) => item.sponsor?.id === overview.sponsorship!.sponsorId);
+        const seniorMens = overview.properties.filter((item) => item.scope === "SENIOR_MENS");
+        const youth = overview.properties.filter((item) => item.scope === "YOUTH");
+        const womensGirls = overview.properties.filter((item) => item.scope === "WOMENS_GIRLS");
+        const active = overview.properties.filter((item) => item.annualValue && item.status !== "EXPIRED");
+        const totalIncome = active.reduce((sum, item) => sum + (item.annualValue ?? 0), 0);
+        const incomeByScope = new Map<string, number>();
+        for (const item of active) incomeByScope.set(item.scope, (incomeByScope.get(item.scope) ?? 0) + (item.annualValue ?? 0));
+        const largestDeal = [...active].sort((a, b) => (b.annualValue ?? 0) - (a.annualValue ?? 0))[0];
+        const concentrationPercent = largestDeal && totalIncome > 0 ? Math.round(((largestDeal.annualValue ?? 0) / totalIncome) * 100) : undefined;
+        const upcomingRenewals = [...active].filter((item) => item.endDate).sort((a, b) => a.endDate!.localeCompare(b.endDate!)).slice(0, 3);
+        const unfilled = overview.properties.filter((item) => !item.sponsor);
         return (
           <section className="role-detail">
+            <Panel title="Commercial portfolio" className="panel-wide">
+              <Metrics
+                items={[
+                  { label: "Total annual income", value: money(totalIncome) },
+                  { label: "Active properties", value: active.length },
+                  { label: "Unfilled properties", value: unfilled.length },
+                  ...(largestDeal && concentrationPercent !== undefined
+                    ? [{ label: "Concentration risk", value: `${largestDeal.canonicalName} · ${concentrationPercent}% of income` }]
+                    : []),
+                ]}
+              />
+              {incomeByScope.size > 0 && (
+                <div className="development-scorecard-grid">
+                  {[...incomeByScope.entries()].map(([scope, value]) => (
+                    <div key={scope} className="development-scorecard-item">
+                      <div className="project-progress-labels">
+                        <span>{band(scope)}</span>
+                        <span>{money(value)}</span>
+                      </div>
+                      <div className="project-progress-track">
+                        <div
+                          className="project-progress-fill"
+                          style={{ width: `${totalIncome > 0 ? Math.round((value / totalIncome) * 100) : 0}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {upcomingRenewals.length > 0 && (
+                <p className="subtle">
+                  Next renewals:{" "}
+                  {upcomingRenewals.map((item) => `${item.canonicalName} (${item.endDate})`).join(", ")}.
+                </p>
+              )}
+            </Panel>
             <Panel title="Competitions">
               {competitions.length === 0 ? (
                 <p className="empty-state">No competition title-sponsorship properties recorded yet.</p>
@@ -2110,26 +2237,31 @@ const PresidentCommercial = ({ bridge }: { bridge: DesktopRuntimeApi }): React.R
                 </div>
               )}
             </Panel>
-            <Panel title="National programmes">
-              {programmes.length === 0 ? (
-                <p className="empty-state">
-                  No national-programme sponsorship properties recorded yet.
-                </p>
-              ) : (
-                <div className="commercial-property-grid">
-                  {programmes.map((property) => (
-                    <PropertyCard
-                      key={property.id}
-                      property={property}
-                      bridge={bridge}
-                      refresh={refresh}
-                      onOpenOrg={setOpenOrgId}
-                      groupLabel={property.programme ? PROGRAMME_LABEL[property.programme] : undefined}
-                    />
-                  ))}
-                </div>
-              )}
-            </Panel>
+            {(
+              [
+                { title: "Senior Men", items: seniorMens },
+                { title: "Youth", items: youth },
+                { title: "Women & Girls", items: womensGirls },
+              ] as const
+            ).map(({ title, items }) => (
+              <Panel key={title} title={title}>
+                {items.length === 0 ? (
+                  <p className="empty-state">No {title.toLowerCase()} sponsorship properties recorded yet.</p>
+                ) : (
+                  <div className="commercial-property-grid">
+                    {items.map((property) => (
+                      <PropertyCard
+                        key={property.id}
+                        property={property}
+                        bridge={bridge}
+                        refresh={refresh}
+                        onOpenOrg={setOpenOrgId}
+                      />
+                    ))}
+                  </div>
+                )}
+              </Panel>
+            ))}
             <Panel title="Broadcast & other rights">
               <p className="subtle">
                 Generated and settled automatically by the federation&rsquo;s media-rights cadence —
@@ -2201,36 +2333,37 @@ const NationalTeams = ({
   bridge: DesktopRuntimeApi;
 }): React.ReactElement => {
   const [squadTeamId, setSquadTeamId] = useState<EntityId | undefined>(undefined);
+  const programmeLabel = (team: FederationPresidentDashboard["nationalTeams"][number]): string =>
+    team.gender === "women" ? "Women & Girls" : team.level === "senior" ? "Senior Men" : `Youth · ${team.level.toUpperCase()}`;
   return (
     <section className="role-detail">
-      <Panel title="National teams">
-        <div className="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Team</th>
-                <th>Level</th>
-                <th>Gender</th>
-                <th>Head coach</th>
-              </tr>
-            </thead>
-            <tbody>
-              {dashboard.nationalTeams.map((team) => (
-                <tr key={team.id}>
-                  <td>
-                    <button className="link" onClick={() => setSquadTeamId(team.id)}>
-                      {team.name}
-                    </button>
-                  </td>
-                  <td>{team.level}</td>
-                  <td>{team.gender}</td>
-                  <td>{team.headCoach ?? "Not recorded"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Panel>
+      <div className="facility-lifecycle-grid">
+        {dashboard.nationalTeams.map((team) => (
+          <article key={team.id} className="facility-project-card">
+            <header>
+              <strong>{team.name}</strong>
+              <Badge tone="info">{programmeLabel(team)}</Badge>
+            </header>
+            <p className="subtle">Coach: {team.headCoach ?? "Not recorded"}</p>
+            <Metrics
+              items={[
+                { label: "Squad", value: team.squadSize },
+                {
+                  label: "Next fixture",
+                  value: team.nextFixture ? `${team.nextFixture.opponent} · ${team.nextFixture.date}` : "None scheduled",
+                },
+                {
+                  label: "Recent result",
+                  value: team.recentResult ? `${team.recentResult.opponent} ${team.recentResult.result}` : "No result recorded",
+                },
+              ]}
+            />
+            <button className="link" onClick={() => setSquadTeamId(team.id)}>
+              View squad
+            </button>
+          </article>
+        ))}
+      </div>
       {squadTeamId && (
         <NationalTeamSquadPanel
           bridge={bridge}
@@ -2570,6 +2703,217 @@ const participationBandLabel = (
       : band === "BUILDING"
         ? "Building"
         : "Limited";
+
+const MAP_TONE_LABEL: Record<string, string> = { ok: "Strong", info: "Developing", warn: "Emerging", bad: "Struggling" };
+
+/** A schematic Nepal-region board — real province/district data from the
+ * territorial-football system, never fabricated GPS geometry. Every
+ * region's tone is paired with plain text (never colour-only). */
+const NepalFootballMap = ({ bridge }: { bridge: DesktopRuntimeApi }): React.ReactElement => {
+  const [state] = useRuntimeData(
+    () =>
+      bridge.getFederationMap
+        ? bridge.getFederationMap()
+        : Promise.resolve({ ok: false as const, error: { code: "RUNTIME_UNAVAILABLE" as const, message: "The Nepal map is unavailable right now." } }),
+    [],
+  );
+  const [openDistrictId, setOpenDistrictId] = useState<EntityId | null>(null);
+  return (
+    <AsyncPanel state={state}>
+      {(map) => (
+        <section className="role-detail">
+          {map.provinces.map((province) => (
+            <Panel key={province.id} title={province.name} className="panel-wide">
+              {province.districts.length === 0 ? (
+                <p className="empty-state">No districts on record for this province.</p>
+              ) : (
+                <div className="map-region-grid" role="list" aria-label={`${province.name} districts`}>
+                  {province.districts.map((district) => (
+                    <button
+                      key={district.id}
+                      role="listitem"
+                      className="map-region-block"
+                      onClick={() => setOpenDistrictId(district.id)}
+                      aria-label={`${district.name}: ${MAP_TONE_LABEL[district.tone]}, ${district.registeredClubCount} clubs, ${district.activeProjectCount} active projects`}
+                    >
+                      <strong>{district.name}</strong>
+                      <Badge tone={district.tone}>{MAP_TONE_LABEL[district.tone]}</Badge>
+                      <span className="subtle">
+                        {district.registeredClubCount} clubs · {district.activeProjectCount} active projects
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </Panel>
+          ))}
+          {openDistrictId && <DistrictDetailPanel bridge={bridge} districtId={openDistrictId} onClose={() => setOpenDistrictId(null)} />}
+        </section>
+      )}
+    </AsyncPanel>
+  );
+};
+
+const DistrictDetailPanel = ({
+  bridge,
+  districtId,
+  onClose,
+}: {
+  bridge: DesktopRuntimeApi;
+  districtId: EntityId;
+  onClose: () => void;
+}): React.ReactElement => {
+  const [state] = useRuntimeData(
+    () =>
+      bridge.getDistrictDetail
+        ? bridge.getDistrictDetail(districtId)
+        : Promise.resolve({ ok: false as const, error: { code: "RUNTIME_UNAVAILABLE" as const, message: "District detail is unavailable right now." } }),
+    [districtId],
+  );
+  const [openOrgId, setOpenOrgId] = useState<{ entityType: ProfileEntityType; entityId: EntityId } | null>(null);
+  return (
+    <div className="panel panel-wide">
+      <div className="panel-head">
+        <h2>District detail</h2>
+        <button className="ghost small" onClick={onClose}>
+          Close
+        </button>
+      </div>
+      <AsyncPanel state={state}>
+        {(detail) => (
+          <>
+            <p className="subtle">{detail.provinceName}</p>
+            <Metrics
+              items={[
+                { label: "Development reputation", value: `${detail.district.developmentReputation}/100` },
+                { label: "Registered clubs (tracked)", value: detail.district.registeredClubCount },
+                { label: "Girls participation", value: `${detail.district.girlsParticipation}/100` },
+                { label: "Youth participation", value: `${detail.district.youthParticipation}/100` },
+                { label: "Coach supply", value: `${detail.district.coachSupply}/100` },
+                { label: "Referee supply", value: `${detail.district.refereeSupply}/100` },
+              ]}
+            />
+            <Panel title="Clubs">
+              {detail.clubs.length === 0 ? (
+                <p className="empty-state">No clubs resolved to this district's location on record.</p>
+              ) : (
+                <div className="button-row">
+                  {detail.clubs.map((club) => (
+                    <EntityRefLink
+                      key={club.id}
+                      reference={club}
+                      onOpen={(reference) => setOpenOrgId({ entityType: reference.entityType as ProfileEntityType, entityId: reference.id })}
+                    />
+                  ))}
+                </div>
+              )}
+            </Panel>
+            {(detail.federationProjects.length > 0 || detail.districtProjects.length > 0) && (
+              <Panel title="Active projects">
+                <ul className="compact-list">
+                  {detail.federationProjects.map((project) => (
+                    <li key={project.id}>
+                      {project.name} · {band(project.projectType)} · <Badge tone="info">{band(project.status)}</Badge>
+                    </li>
+                  ))}
+                  {detail.districtProjects.map((project) => (
+                    <li key={project.id}>
+                      {band(project.projectType)} (district-funded) · <Badge tone="info">{band(project.status)}</Badge>
+                    </li>
+                  ))}
+                </ul>
+              </Panel>
+            )}
+            {detail.latestStory && (
+              <p className="subtle">
+                Latest federation story: <Badge tone={detail.latestStory.tone}>{detail.latestStory.occurredOn}</Badge> {detail.latestStory.headline}
+              </p>
+            )}
+            {openOrgId && (
+              <OrganizationProfilePanel
+                bridge={bridge}
+                entityType={openOrgId.entityType}
+                entityId={openOrgId.entityId}
+                onClose={() => setOpenOrgId(null)}
+              />
+            )}
+          </>
+        )}
+      </AsyncPanel>
+    </div>
+  );
+};
+
+const PYRAMID_ARROW = "↓ promotion / relegation ↓";
+
+/** A stacked, real domestic-pyramid board — every tier genuinely exists in
+ * the dataset (identified from real competition names, never invented). */
+const CompetitionPyramidView = ({ bridge }: { bridge: DesktopRuntimeApi }): React.ReactElement => {
+  const [state] = useRuntimeData(
+    () =>
+      bridge.getCompetitionPyramid
+        ? bridge.getCompetitionPyramid()
+        : Promise.resolve({ ok: false as const, error: { code: "RUNTIME_UNAVAILABLE" as const, message: "The competition pyramid is unavailable right now." } }),
+    [],
+  );
+  const [openOrgId, setOpenOrgId] = useState<{ entityType: ProfileEntityType; entityId: EntityId } | null>(null);
+  const openReference = (reference: EntityReference): void =>
+    setOpenOrgId({ entityType: reference.entityType as ProfileEntityType, entityId: reference.id });
+  return (
+    <AsyncPanel state={state}>
+      {(pyramid) =>
+        pyramid.tiers.length === 0 ? (
+          <p className="empty-state">No domestic competition tiers are on record for this federation.</p>
+        ) : (
+          <section className="role-detail">
+            {pyramid.tiers.map((tier, index) => (
+              <React.Fragment key={tier.competition.id}>
+                <div className="pyramid-tier">
+                  <header className="button-row">
+                    <strong>
+                      Tier {tier.level} · <EntityRefLink reference={tier.competition} onOpen={openReference} /> ({tier.label})
+                    </strong>
+                    {tier.seasonStatus && <Badge tone="info">{tier.seasonStatus}</Badge>}
+                  </header>
+                  <Metrics
+                    items={[
+                      { label: "Current season", value: tier.currentSeasonName ?? "No season on record" },
+                      { label: "Teams", value: tier.teamCount },
+                      {
+                        label: "Leading club",
+                        value: tier.leadingClub ? (
+                          <EntityRefLink reference={tier.leadingClub} onOpen={openReference} />
+                        ) : (
+                          "No standings recorded yet"
+                        ),
+                      },
+                      ...(tier.leadingClubPoints !== undefined ? [{ label: "Leading points", value: tier.leadingClubPoints }] : []),
+                      ...(tier.promotionSlots !== undefined ? [{ label: "Promotion places", value: tier.promotionSlots }] : []),
+                      ...(tier.relegationSlots !== undefined ? [{ label: "Relegation places", value: tier.relegationSlots }] : []),
+                      {
+                        label: "Title partner",
+                        value: tier.titleSponsor ? <EntityRefLink reference={tier.titleSponsor} onOpen={openReference} /> : "None",
+                      },
+                    ]}
+                  />
+                </div>
+                {index < pyramid.tiers.length - 1 && <p className="pyramid-arrow">{PYRAMID_ARROW}</p>}
+              </React.Fragment>
+            ))}
+            {openOrgId && (
+              <OrganizationProfilePanel
+                bridge={bridge}
+                entityType={openOrgId.entityType}
+                entityId={openOrgId.entityId}
+                onClose={() => setOpenOrgId(null)}
+              />
+            )}
+          </section>
+        )
+      }
+    </AsyncPanel>
+  );
+};
 
 const NationalDevelopment = ({ bridge }: { bridge: DesktopRuntimeApi }): React.ReactElement => {
   const [state] = useRuntimeData(() => bridge.getNationalDevelopment());

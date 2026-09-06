@@ -1,6 +1,47 @@
 import type { EntityId } from "./ids.js";
+import type { EntityReference } from "./entity-reference.js";
+import type { InfrastructureStoryEntry } from "./desktop-contract.js";
 
 export type TerritorialProvenance = "VERIFIED" | "UNKNOWN" | "SIMULATION_ONLY";
+
+/** A schematic Nepal-region map read model — grouped by real province and
+ * district data the territorial-football system already tracks, never
+ * fabricated GPS geometry. */
+export type MapRegionTone = "ok" | "warn" | "bad" | "info";
+
+export type MapDistrictSummary = {
+  id: EntityId;
+  name: string;
+  locationLabel?: string;
+  developmentReputation: number;
+  registeredClubCount: number;
+  girlsParticipation: number;
+  youthParticipation: number;
+  coachSupply: number;
+  refereeSupply: number;
+  activeProjectCount: number;
+  tone: MapRegionTone;
+};
+
+export type MapProvinceSummary = {
+  id: EntityId;
+  name: string;
+  districts: MapDistrictSummary[];
+};
+
+export type FederationMap = {
+  provinces: MapProvinceSummary[];
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+export type DistrictDetail = {
+  district: MapDistrictSummary;
+  provinceName: string;
+  clubs: EntityReference[];
+  federationProjects: Array<{ id: EntityId; name: string; projectType: string; status: string }>;
+  districtProjects: Array<{ id: EntityId; projectType: string; status: string; reportingStatus: string }>;
+  latestStory?: InfrastructureStoryEntry;
+};
 export type DistrictFootballUnit = { id: EntityId; name: string; provinceId: EntityId; locationId?: EntityId; remoteness: number; developmentStatus: "DEVELOPING" | "ESTABLISHED"; affiliationStatus: "VERIFIED" | "UNKNOWN" | "DEVELOPING"; developmentReputation: number; registeredClubCount: number; schoolParticipation: number; girlsParticipation: number; youthParticipation: number; coachSupply: number; refereeSupply: number; groundAvailability: number; scoutingVisibility: number; governanceCompliance: number; history: Array<{ date: string; event: string; indicators: Record<string, number> }>; provenanceStatus: TerritorialProvenance };
 export type ProvinceFootballUnit = { id: EntityId; name: string; districtIds: EntityId[]; footballStrength: number; infrastructure: number; playerProduction: number; competitionPerformance: number; fundingReceived: number; fundingSpent: number; representativeTeamId?: EntityId; history: Array<{ date: string; event: string }>; provenanceStatus: TerritorialProvenance };
 export type DistrictDevelopmentProjectStatus = "PROPOSED" | "SUBMITTED" | "UNDER_REVIEW" | "APPROVED" | "FUNDED" | "ACTIVE" | "REPORTING_DUE" | "COMPLETED" | "REJECTED" | "DELAYED" | "FROZEN" | "CANCELLED";

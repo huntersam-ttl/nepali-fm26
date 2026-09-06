@@ -23,6 +23,8 @@ export * from "./universal-interaction-adapters.js";
 export * from "./federation-governance.js";
 export * from "./federation-scorecard.js";
 export * from "./federation-referee-context.js";
+export * from "./federation-map.js";
+export * from "./competition-pyramid-view.js";
 export * from "./national-team-management.js";
 export * from "./media.js";
 export * from "./medical.js";
