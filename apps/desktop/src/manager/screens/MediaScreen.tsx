@@ -11,6 +11,7 @@ import type {
 import { managerBridge } from "../managerBridge.js";
 import { AsyncPanel, Badge, EmptyState, Metrics, Panel, useRuntimeData } from "../ui.js";
 import { StoryDetailPanel } from "../RoleDetailScreen.js";
+import { TransferNegotiationLauncher } from "./TransferNegotiationMeeting.js";
 
 const IMPORTANCE_TONE: Record<StoryImportanceBand, "bad" | "warn" | "info" | "ok"> = {
   BREAKING: "bad",
@@ -123,6 +124,7 @@ export const MediaScreen = (): React.ReactElement => {
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [openStoryEventId, setOpenStoryEventId] = useState<EntityId | null>(null);
+  const [openTransferOfferId, setOpenTransferOfferId] = useState<EntityId | null>(null);
 
   const requestConference = async (storyId: EntityId) => {
     setBusy(true);
@@ -325,7 +327,11 @@ export const MediaScreen = (): React.ReactElement => {
                 eventId={openStoryEventId}
                 onClose={() => setOpenStoryEventId(null)}
                 onOpenReference={() => undefined}
+                onOpenTransferNegotiation={setOpenTransferOfferId}
               />
+            )}
+            {openTransferOfferId && (
+              <TransferNegotiationLauncher offerId={openTransferOfferId} onClose={() => setOpenTransferOfferId(null)} />
             )}
 
             {media.completedInterviews.length > 0 && (

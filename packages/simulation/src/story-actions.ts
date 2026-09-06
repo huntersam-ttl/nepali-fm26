@@ -1,5 +1,5 @@
 import type { CareerRole, EntityId, EntityReference, HistoricalEvent, StoryAction } from "@nepal-football-sim/shared-types";
-import { OwnershipRepository, type GameDatabase } from "@nepal-football-sim/database";
+import { OwnershipRepository, TransferMarketRepository, type GameDatabase } from "@nepal-football-sim/database";
 import { buildEntityReference } from "./entity-reference.js";
 
 /**
@@ -30,6 +30,23 @@ export const buildStoryActions = (
         id: `open-investor-meeting:${offer.id}`,
         label: terminal ? "View investor talks (settled)" : "View investor talks",
         kind: "OPEN_INVESTOR_MEETING",
+        offerId: offer.id,
+      });
+    }
+  }
+
+  // Transfer/loan negotiation — the manager's own workflow authority, not
+  // the owner's or president's. TransferNegotiationMeeting itself already
+  // renders a settled offer read-only (no Accept/Counter), so the SAME
+  // action reaches both an active and a terminal negotiation honestly.
+  if (/TRANSFER|LOAN|FREE_AGENT/.test(type) && typeof data?.offerId === "string" && role === "MANAGER") {
+    const offer = new TransferMarketRepository(db).transferOffers().find((item) => item.id === data.offerId);
+    if (offer) {
+      const terminal = ["COMPLETED", "REJECTED", "WITHDRAWN", "EXPIRED"].includes(offer.status);
+      actions.push({
+        id: `open-transfer-negotiation:${offer.id}`,
+        label: terminal ? "View negotiation history" : "Open negotiation",
+        kind: "OPEN_TRANSFER_NEGOTIATION",
         offerId: offer.id,
       });
     }

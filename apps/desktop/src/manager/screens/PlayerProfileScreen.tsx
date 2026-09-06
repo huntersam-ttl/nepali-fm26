@@ -12,6 +12,7 @@ import type {
 } from "@nepal-football-sim/shared-types";
 import { managerBridge } from "../managerBridge.js";
 import { EntityRefLink, EntityStorylinePanel } from "../RoleDetailScreen.js";
+import { TransferNegotiationLauncher } from "./TransferNegotiationMeeting.js";
 import {
   AsyncPanel,
   Badge,
@@ -490,6 +491,7 @@ export const PlayerProfileScreen = ({
   const [busy, setBusy] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
+  const [openTransferOfferId, setOpenTransferOfferId] = useState<EntityId | null>(null);
   /** This screen only has a manager-scoped bridge, which has no general
    * organization-profile lookup — so only CLUB references (routed through
    * the club-profile callback this screen already receives) are openable
@@ -660,7 +662,15 @@ export const PlayerProfileScreen = ({
             <PlayerDressingRoomPanel playerId={playerId} />
 
             <PlayerPathwayPanel playerId={playerId} />
-            <EntityStorylinePanel bridge={managerBridge} entityId={playerId} onOpenReference={openReference} />
+            <EntityStorylinePanel
+              bridge={managerBridge}
+              entityId={playerId}
+              onOpenReference={openReference}
+              onOpenTransferNegotiation={setOpenTransferOfferId}
+            />
+            {openTransferOfferId && (
+              <TransferNegotiationLauncher offerId={openTransferOfferId} onClose={() => setOpenTransferOfferId(null)} />
+            )}
 
             <Panel title="Attributes">
               <p className="subtle">

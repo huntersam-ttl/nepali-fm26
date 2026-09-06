@@ -5,6 +5,7 @@ import { managerBridge } from "../managerBridge.js";
 import { AsyncPanel, Badge, FormRun, Metrics, Panel, useRuntimeData } from "../ui.js";
 import { OwnerPlayerRequestInbox } from "./OwnerPlayerRequestInbox.js";
 import { InboxPanel } from "../RoleDetailScreen.js";
+import { TransferNegotiationLauncher } from "./TransferNegotiationMeeting.js";
 
 const concernLabel = (type: string): string => {
   switch (type) {
@@ -111,6 +112,7 @@ export const HomeScreen = ({
   const [concerns, refreshConcerns] = useRuntimeData(() => managerBridge.getSquadConcerns(), [refreshKey]);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [openTransferOfferId, setOpenTransferOfferId] = useState<EntityId | null>(null);
 
   const runAction = async (key: string, run: () => Promise<{ ok: boolean; error?: { message: string } }>) => {
     setActionBusy(key);
@@ -574,7 +576,10 @@ export const HomeScreen = ({
             </>
           )}
 
-          <InboxPanel inbox={dashboard.inbox} bridge={bridge} />
+          <InboxPanel inbox={dashboard.inbox} bridge={bridge} onOpenTransferNegotiation={setOpenTransferOfferId} />
+          {openTransferOfferId && (
+            <TransferNegotiationLauncher offerId={openTransferOfferId} onClose={() => setOpenTransferOfferId(null)} />
+          )}
 
           {dashboard.employmentStatus === "EMPLOYED" && (
             <OwnerPlayerRequestInbox

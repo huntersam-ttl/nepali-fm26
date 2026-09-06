@@ -110,6 +110,13 @@ export type TransferWindowSimulationReport = {
 
 const currency = "NPR";
 
+const clubName = (db: GameDatabase, clubId: EntityId): string =>
+  (db.prepare("SELECT name FROM clubs WHERE id=?").get(clubId) as { name?: string } | undefined)?.name ?? "The club";
+
+const personName = (db: GameDatabase, personId: EntityId): string =>
+  (db.prepare("SELECT full_name FROM persons WHERE id=?").get(personId) as { full_name?: string } | undefined)
+    ?.full_name ?? "The player";
+
 export const initializeTransferMarketForSave = (input: {
   db: GameDatabase;
   worldDate: string;
@@ -648,6 +655,16 @@ export const createTransferOffer = (
     action: "OPENING_OFFER",
     message: "Opening offer submitted from the buying club valuation range",
     createdAt: input.submittedAt,
+  });
+  emitTransferPublicEvent(db, {
+    sourceId: `${offer.id}:submitted` as EntityId,
+    occurredOn: input.submittedAt,
+    eventType: "TRANSFER_OFFER_SUBMITTED",
+    title: `${clubName(db, input.buyingClubId)} open talks for ${personName(db, input.playerId)}`,
+    playerId: input.playerId,
+    clubId: input.buyingClubId,
+    relatedClubId: input.sellingClubId,
+    data: { offerId: offer.id },
   });
   return offer;
 };
@@ -1236,6 +1253,16 @@ export const counterTransferOffer = (
       : "Selling club counters with revised package terms",
     createdAt: input.worldDate,
   });
+  emitTransferPublicEvent(db, {
+    sourceId: `${offer.id}:countered:${market.negotiationRounds(offer.id).length}` as EntityId,
+    occurredOn: input.worldDate,
+    eventType: "TRANSFER_OFFER_COUNTERED",
+    title: `Revised terms keep talks alive for ${personName(db, offer.playerId)}`,
+    playerId: offer.playerId,
+    clubId: offer.buyingClubId,
+    relatedClubId: offer.sellingClubId,
+    data: { offerId: offer.id },
+  });
   return counter;
 };
 
@@ -1272,6 +1299,16 @@ export const rejectTransferOffer = (
     action: "REJECT",
     message: "Selling club rejects the negotiated package",
     createdAt: worldDate,
+  });
+  emitTransferPublicEvent(db, {
+    sourceId: `${offer.id}:rejected` as EntityId,
+    occurredOn: worldDate,
+    eventType: "TRANSFER_OFFER_REJECTED",
+    title: `${clubName(db, offer.sellingClubId ?? offer.buyingClubId)} rejects the offer for ${personName(db, offer.playerId)}`,
+    playerId: offer.playerId,
+    clubId: offer.buyingClubId,
+    relatedClubId: offer.sellingClubId,
+    data: { offerId: offer.id },
   });
 };
 
@@ -2229,11 +2266,13 @@ export const completePermanentTransfer = (
     occurredOn: worldDate,
     eventType: offer.offerType === "FREE_TRANSFER" ? "FREE_AGENT_SIGNED" : "TRANSFER_COMPLETED",
     title:
-      offer.offerType === "FREE_TRANSFER" ? "Free-agent signing completed" : "Transfer completed",
+      offer.offerType === "FREE_TRANSFER"
+        ? `${clubName(db, offer.buyingClubId)} sign ${personName(db, offer.playerId)} as a free agent`
+        : `${personName(db, offer.playerId)} completes move to ${clubName(db, offer.buyingClubId)}`,
     playerId: offer.playerId,
     clubId: offer.buyingClubId,
     relatedClubId: offer.sellingClubId,
-    data: { transferHistoryId, transferFee: offer.transferFee, currency: offer.currency },
+    data: { transferHistoryId, offerId: offer.id, transferFee: offer.transferFee, currency: offer.currency },
     importance: offer.transferFee >= 1_000_000 ? "high" : "medium",
   });
   recordTransferEconomy(db, offer, worldDate);
@@ -2460,11 +2499,11 @@ export const startLoan = (
     sourceId: loan.id,
     occurredOn: worldDate,
     eventType: "LOAN_STARTED",
-    title: "Loan move completed",
+    title: `${personName(db, playerId)} joins ${clubName(db, loan.loanClubId)} on loan`,
     playerId,
     clubId: loan.loanClubId,
     relatedClubId: loan.parentClubId,
-    data: { loanId: loan.id, loanFee: loan.loanFee, purchaseOption: loan.purchaseOption },
+    data: { loanId: loan.id, offerId: loan.id, loanFee: loan.loanFee, purchaseOption: loan.purchaseOption },
   });
   return loan;
 };
@@ -2710,11 +2749,13 @@ const finishLoan = (
     sourceId: `${persisted.id}:loan-ended` as EntityId,
     occurredOn: worldDate,
     eventType: "LOAN_ENDED",
-    title: returnToParent ? "Loan spell ended" : "Loan converted to permanent transfer",
+    title: returnToParent
+      ? `${personName(db, persisted.playerId)} returns to ${clubName(db, persisted.parentClubId)} as the loan ends`
+      : `${clubName(db, persisted.loanClubId)} sign ${personName(db, persisted.playerId)} permanently after a loan spell`,
     playerId: persisted.playerId,
     clubId: persisted.loanClubId,
     relatedClubId: persisted.parentClubId,
-    data: { loanId: persisted.id, terminationReason: reason },
+    data: { loanId: persisted.id, offerId: persisted.id, terminationReason: reason },
   });
   return true;
 };

@@ -6,7 +6,7 @@ import type {
   TransferCentre,
 } from "@nepal-football-sim/shared-types";
 import { managerBridge } from "../managerBridge.js";
-import { Badge, ErrorBanner, Panel, money, useRuntimeData } from "../ui.js";
+import { AsyncPanel, Badge, ErrorBanner, Panel, money, useRuntimeData } from "../ui.js";
 import type { AppError } from "../../appBridge.js";
 import { EntityRefLink } from "../RoleDetailScreen.js";
 import {
@@ -267,5 +267,41 @@ export const TransferNegotiationMeeting = ({
           />
       </MeetingShell>
     </article>
+  );
+};
+
+/**
+ * Self-contained entry point for opening one specific negotiation from
+ * outside the Transfers screen — e.g. a Story Detail action. Fetches its
+ * own TransferCentre rather than requiring the caller to already have one;
+ * player/club cross-navigation is a secondary convenience here, so it's
+ * inert rather than requiring the caller to wire a full profile stack.
+ */
+export const TransferNegotiationLauncher = ({
+  offerId,
+  onClose,
+}: {
+  offerId: EntityId;
+  onClose: () => void;
+}): React.ReactElement => {
+  const [state, , replace] = useRuntimeData(() => managerBridge.getTransferCentre());
+  return (
+    <Panel title="Transfer negotiation" className="panel-wide">
+      <button className="ghost" onClick={onClose}>
+        Close
+      </button>
+      <AsyncPanel state={state}>
+        {(centre) => (
+          <TransferNegotiationMeeting
+            offerId={offerId}
+            centre={centre}
+            onClose={onClose}
+            onUpdate={replace}
+            onSelectPlayer={() => undefined}
+            onOpenClub={() => undefined}
+          />
+        )}
+      </AsyncPanel>
+    </Panel>
   );
 };

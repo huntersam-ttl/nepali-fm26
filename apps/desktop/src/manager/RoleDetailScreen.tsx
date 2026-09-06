@@ -6140,6 +6140,7 @@ export const StoryDetailPanel = ({
   onClose,
   onOpenReference,
   onOpenInvestorMeeting,
+  onOpenTransferNegotiation,
 }: {
   bridge: StoryBridge;
   eventId: EntityId;
@@ -6148,6 +6149,8 @@ export const StoryDetailPanel = ({
   /** Present only where a full DesktopRuntimeApi is actually available —
    * absent, the action renders as plain text rather than a dead button. */
   onOpenInvestorMeeting?: (offerId: EntityId) => void;
+  /** Present only in Manager contexts that can render TransferNegotiationLauncher. */
+  onOpenTransferNegotiation?: (offerId: EntityId) => void;
 }): React.ReactElement => {
   const [state] = useRuntimeData<StoryDetail>(
     () => (bridge.getStoryDetail ? bridge.getStoryDetail(eventId) : Promise.resolve({ ok: false, error: { code: "RUNTIME_UNAVAILABLE", message: "Story detail is unavailable." } })),
@@ -6215,8 +6218,12 @@ export const StoryDetailPanel = ({
                 {detail.actions.map((action) =>
                   action.kind === "OPEN_ENTITY" ? (
                     <EntityRefLink key={action.id} reference={action.entity} onOpen={onOpenReference} />
-                  ) : onOpenInvestorMeeting ? (
+                  ) : action.kind === "OPEN_INVESTOR_MEETING" && onOpenInvestorMeeting ? (
                     <button key={action.id} className="link" onClick={() => onOpenInvestorMeeting(action.offerId)}>
+                      {action.label}
+                    </button>
+                  ) : action.kind === "OPEN_TRANSFER_NEGOTIATION" && onOpenTransferNegotiation ? (
+                    <button key={action.id} className="link" onClick={() => onOpenTransferNegotiation(action.offerId)}>
                       {action.label}
                     </button>
                   ) : (
@@ -6338,7 +6345,17 @@ const InboxStoryCard = ({
 /** Shared by Owner Home, President Home, and Manager Home — the only inbox
  * rendering in the app. Importance/entities enrich routed stories only;
  * legacy plain items render exactly as before. */
-export const InboxPanel = ({ inbox, bridge }: { inbox: InboxItem[]; bridge: DesktopRuntimeApi }): React.ReactElement => {
+export const InboxPanel = ({
+  inbox,
+  bridge,
+  onOpenTransferNegotiation,
+}: {
+  inbox: InboxItem[];
+  bridge: DesktopRuntimeApi;
+  /** Manager-only — Owner/President never receive a transfer action from
+   * buildStoryActions, so this is simply unused (and safely omittable) there. */
+  onOpenTransferNegotiation?: (offerId: EntityId) => void;
+}): React.ReactElement => {
   const [openReferenceTarget, setOpenReferenceTarget] = useState<{ entityType: ProfileEntityType; entityId: EntityId } | null>(null);
   const [openStoryEventId, setOpenStoryEventId] = useState<EntityId | null>(null);
   const [openInvestorOfferId, setOpenInvestorOfferId] = useState<EntityId | null>(null);
@@ -6374,6 +6391,7 @@ export const InboxPanel = ({ inbox, bridge }: { inbox: InboxItem[]; bridge: Desk
           onClose={() => setOpenStoryEventId(null)}
           onOpenReference={openReference}
           onOpenInvestorMeeting={setOpenInvestorOfferId}
+          onOpenTransferNegotiation={onOpenTransferNegotiation}
         />
       )}
       {showThreads && (
@@ -6406,10 +6424,12 @@ export const EntityStorylinePanel = ({
   bridge,
   entityId,
   onOpenReference,
+  onOpenTransferNegotiation,
 }: {
   bridge: StoryBridge;
   entityId: EntityId;
   onOpenReference: (reference: EntityReference) => void;
+  onOpenTransferNegotiation?: (offerId: EntityId) => void;
 }): React.ReactElement | null => {
   const [openStoryEventId, setOpenStoryEventId] = useState<EntityId | null>(null);
   const [state] = useRuntimeData(
@@ -6446,6 +6466,7 @@ export const EntityStorylinePanel = ({
           eventId={openStoryEventId}
           onClose={() => setOpenStoryEventId(null)}
           onOpenReference={onOpenReference}
+          onOpenTransferNegotiation={onOpenTransferNegotiation}
         />
       )}
     </Panel>

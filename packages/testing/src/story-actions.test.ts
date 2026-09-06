@@ -2,9 +2,9 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { OwnershipRepository, openGameDatabase } from "@nepal-football-sim/database";
+import { OwnershipRepository, TransferMarketRepository, openGameDatabase } from "@nepal-football-sim/database";
 import { buildStoryActions, createNepalSave, runChairmanDemo } from "@nepal-football-sim/simulation";
-import { createStableEntityId, type EntityId, type HistoricalEvent, type OwnershipAcquisitionOffer } from "@nepal-football-sim/shared-types";
+import { createStableEntityId, type EntityId, type HistoricalEvent, type OwnershipAcquisitionOffer, type TransferOffer } from "@nepal-football-sim/shared-types";
 
 const dirs: string[] = [];
 const registryPath = resolve(process.cwd(), "data/nepal/2026-08/club-registry.json");
@@ -35,6 +35,39 @@ const ownershipEvent = (offerId: string, involvedClubId: EntityId, buyerId: Enti
   importance: "medium",
   scope: "club",
   data: { offerId },
+});
+
+const transferEvent = (offerId: string, playerId: EntityId, clubId: EntityId, eventType = "TRANSFER_OFFER_SUBMITTED"): HistoricalEvent => ({
+  id: createStableEntityId("history", `story-actions-transfer:${offerId}`),
+  occurredOn: "2026-08-01",
+  eventType,
+  involvedEntities: [
+    { id: playerId, type: "person" },
+    { id: clubId, type: "club" },
+  ],
+  title: "A club opens talks for a player",
+  importance: "medium",
+  scope: "club",
+  data: { offerId },
+});
+
+const baseTransferOffer = (overrides: Partial<TransferOffer>): TransferOffer => ({
+  id: "transfer-offer-1" as EntityId,
+  buyingClubId: "club-1" as EntityId,
+  sellingClubId: undefined,
+  playerId: "player-1" as EntityId,
+  offerType: "FREE_TRANSFER",
+  transferFee: 500_000,
+  installments: 0,
+  addOns: 0,
+  sellOnPercentage: 5,
+  submittedAt: "2026-08-01",
+  expiresAt: "2026-08-15",
+  status: "SUBMITTED",
+  currency: "NPR",
+  agentFee: 10_000,
+  signingFee: 20_000,
+  ...overrides,
 });
 
 const baseOffer = (overrides: Partial<OwnershipAcquisitionOffer>): OwnershipAcquisitionOffer => ({
@@ -121,6 +154,78 @@ describe("central story action model", () => {
     };
     const actions = buildStoryActions(db, event, "MANAGER");
     expect(actions).toHaveLength(0);
+    db.close();
+  });
+});
+
+describe("transfer/loan story action routing", () => {
+  it("gives the Manager an 'Open negotiation' action for an active transfer offer", () => {
+    const db = openGameDatabase(makeSave("transfer-active"));
+    const club = db.prepare("SELECT id FROM clubs WHERE name = 'Machhindra FC'").get() as { id: EntityId };
+    const player = db.prepare("SELECT id FROM persons LIMIT 1").get() as { id: EntityId };
+    const offer = baseTransferOffer({ id: "active-offer" as EntityId, buyingClubId: club.id, playerId: player.id, status: "SUBMITTED" });
+    new TransferMarketRepository(db).insertTransferOffer(offer);
+    const event = transferEvent("active-offer", player.id, club.id);
+    const actions = buildStoryActions(db, event, "MANAGER");
+    expect(actions).toHaveLength(1);
+    expect(actions[0]!.kind).toBe("OPEN_TRANSFER_NEGOTIATION");
+    expect(actions[0]!.label).toBe("Open negotiation");
+    db.close();
+  });
+
+  it("labels the same action 'View negotiation history' once the offer is terminal", () => {
+    const db = openGameDatabase(makeSave("transfer-terminal"));
+    const club = db.prepare("SELECT id FROM clubs WHERE name = 'Machhindra FC'").get() as { id: EntityId };
+    const player = db.prepare("SELECT id FROM persons LIMIT 1").get() as { id: EntityId };
+    const offer = baseTransferOffer({ id: "done-offer" as EntityId, buyingClubId: club.id, playerId: player.id, status: "COMPLETED" });
+    new TransferMarketRepository(db).insertTransferOffer(offer);
+    const event = transferEvent("done-offer", player.id, club.id, "TRANSFER_COMPLETED");
+    const actions = buildStoryActions(db, event, "MANAGER");
+    expect(actions).toHaveLength(1);
+    expect(actions[0]!.label).toBe("View negotiation history");
+    db.close();
+  });
+
+  it("never gives the Owner or President the Manager-only transfer negotiation action", () => {
+    const db = openGameDatabase(makeSave("transfer-role-denied"));
+    const club = db.prepare("SELECT id FROM clubs WHERE name = 'Machhindra FC'").get() as { id: EntityId };
+    const player = db.prepare("SELECT id FROM persons LIMIT 1").get() as { id: EntityId };
+    const offer = baseTransferOffer({ id: "owner-denied-offer" as EntityId, buyingClubId: club.id, playerId: player.id, status: "SUBMITTED" });
+    new TransferMarketRepository(db).insertTransferOffer(offer);
+    const event = transferEvent("owner-denied-offer", player.id, club.id);
+    expect(buildStoryActions(db, event, "CHAIRMAN_OWNER")).toHaveLength(0);
+    expect(buildStoryActions(db, event, "FEDERATION_PRESIDENT")).toHaveLength(0);
+    db.close();
+  });
+
+  it("never fabricates a transfer action when the offer id on the event no longer resolves to a real offer", () => {
+    const db = openGameDatabase(makeSave("transfer-missing-offer"));
+    const club = db.prepare("SELECT id FROM clubs WHERE name = 'Machhindra FC'").get() as { id: EntityId };
+    const player = db.prepare("SELECT id FROM persons LIMIT 1").get() as { id: EntityId };
+    const event = transferEvent("no-such-transfer-offer", player.id, club.id);
+    expect(buildStoryActions(db, event, "MANAGER")).toHaveLength(0);
+    db.close();
+  });
+
+  it("handles REVIEWING/COUNTERED/PLAYER_DISCUSSION-style in-progress states as still-open, and REJECTED/WITHDRAWN as terminal", () => {
+    const db = openGameDatabase(makeSave("transfer-states"));
+    const club = db.prepare("SELECT id FROM clubs WHERE name = 'Machhindra FC'").get() as { id: EntityId };
+    const player = db.prepare("SELECT id FROM persons LIMIT 1").get() as { id: EntityId };
+    const market = new TransferMarketRepository(db);
+    const openStates: TransferOffer["status"][] = ["COUNTERED", "NEGOTIATING", "PLAYER_NEGOTIATING"];
+    const terminalStates: TransferOffer["status"][] = ["REJECTED", "WITHDRAWN"];
+    for (const status of openStates) {
+      const offer = baseTransferOffer({ id: `open-${status}` as EntityId, buyingClubId: club.id, playerId: player.id, status });
+      market.insertTransferOffer(offer);
+      const actions = buildStoryActions(db, transferEvent(`open-${status}`, player.id, club.id), "MANAGER");
+      expect(actions[0]!.label).toBe("Open negotiation");
+    }
+    for (const status of terminalStates) {
+      const offer = baseTransferOffer({ id: `terminal-${status}` as EntityId, buyingClubId: club.id, playerId: player.id, status });
+      market.insertTransferOffer(offer);
+      const actions = buildStoryActions(db, transferEvent(`terminal-${status}`, player.id, club.id), "MANAGER");
+      expect(actions[0]!.label).toBe("View negotiation history");
+    }
     db.close();
   });
 });
