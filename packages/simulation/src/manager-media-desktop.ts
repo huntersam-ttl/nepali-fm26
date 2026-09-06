@@ -1,10 +1,14 @@
 import type { GameDatabase } from "@nepal-football-sim/database";
-import { MediaPhaseBRepository, MediaRepository } from "@nepal-football-sim/database";
+import { EventRepository, MediaPhaseBRepository, MediaRepository } from "@nepal-football-sim/database";
 import type {
   EntityId,
+  HistoricalEvent,
   MediaCentreView,
+  MediaFeedItem,
   MediaInterview,
   MediaResponseStance,
+  MediaSection,
+  MediaStory,
   PressConferenceView,
   SaveMetadata,
   SupporterReadModel,
@@ -18,6 +22,57 @@ import {
 } from "./press-social-lifestyle.js";
 import { commitmentFromPressResponse } from "./commitments.js";
 import { supporterReadModel } from "./supporter-culture.js";
+import { resolveStoryEntityReference, storyImportanceBand } from "./story-entities.js";
+import { deriveStoryThreadsFromEvents, findThreadForEvent } from "./story-threads.js";
+
+const sectionFor = (
+  story: MediaStory,
+  event: HistoricalEvent | undefined,
+  mySubjectIds: Set<EntityId>,
+): MediaSection => {
+  // "world" scope is the actual signal for a genuinely foreign story — the
+  // outlet reporting it (even a wide-reach regional desk) is a publication
+  // choice, not evidence the subject itself is international.
+  if (event?.scope === "world") return "INTERNATIONAL_CONTEXT";
+  if (story.eventType === "NATIONAL_TEAM") return "NATIONAL_TEAM";
+  if (event?.scope === "federation" || event?.scope === "country") return "FEDERATION";
+  if (story.eventType === "TRANSFER") return "TRANSFERS";
+  if (story.subjectIds.some((id) => mySubjectIds.has(id))) return "CLUB_NEWS";
+  return "AROUND_NEPAL";
+};
+
+/** The bounded, categorized Media/News feed — built once from the same
+ * canonical published stories the club-scoped view already reads, never a
+ * second content source. International stories stay CONTEXT_ONLY: they are
+ * shown, never made interactive or playable. */
+const buildFeed = (db: GameDatabase, stories: MediaStory[], mySubjectIds: Set<EntityId>): MediaFeedItem[] => {
+  const outlets = new Map(new MediaRepository(db).outlets().map((outlet) => [outlet.id, outlet]));
+  const eventsById = new Map(new EventRepository(db).historicalEvents().map((event) => [event.id, event]));
+  const relevantEvents = stories
+    .map((story) => eventsById.get(story.sourceEntityId))
+    .filter((event): event is HistoricalEvent => Boolean(event));
+  const threads = deriveStoryThreadsFromEvents(db, relevantEvents, "MANAGER");
+  return stories.map((story) => {
+    const outlet = outlets.get(story.outletId);
+    const event = eventsById.get(story.sourceEntityId);
+    const entities = event
+      ? event.involvedEntities
+          .map((ref) => resolveStoryEntityReference(db, ref, "MANAGER"))
+          .filter((ref): ref is NonNullable<typeof ref> => Boolean(ref))
+      : [];
+    const thread = event ? findThreadForEvent(threads, event.id) : undefined;
+    return {
+      story,
+      reaction: deriveSocialReaction(story, undefined),
+      section: sectionFor(story, event, mySubjectIds),
+      outletName: outlet?.name ?? "Unattributed desk",
+      importanceBand: storyImportanceBand(event?.importance ?? "low"),
+      standfirst: story.summary,
+      entities,
+      threadStatus: thread?.statusLabel,
+    };
+  });
+};
 
 /** Minimum story importance eligible for a press-conference request, matching createMediaInterview's own gate. */
 const INTERVIEW_IMPORTANCE_THRESHOLD = 6;
@@ -78,10 +133,18 @@ export const buildMediaCentreView = (
     (story) => story.importance >= INTERVIEW_IMPORTANCE_THRESHOLD && !answeredSourceIds.has(story.id),
   );
   const pendingInterview = openInterview ? viewFromStoredInterview(openInterview) : undefined;
+  const allStories = new MediaRepository(db)
+    .stories()
+    .sort((a, b) => (a.publishedOn < b.publishedOn ? 1 : a.publishedOn > b.publishedOn ? -1 : 0))
+    .slice(0, 60);
   return {
-    recentStories: stories.map((story) => ({
-      story,
-      reaction: deriveSocialReaction(story, supporters),
+    recentStories: buildFeed(db, stories, subjects).map((item) => ({
+      ...item,
+      reaction: deriveSocialReaction(item.story, supporters),
+    })),
+    feed: buildFeed(db, allStories, subjects).map((item) => ({
+      ...item,
+      reaction: deriveSocialReaction(item.story, item.section === "CLUB_NEWS" ? supporters : undefined),
     })),
     eligibleForInterview,
     pendingInterview,

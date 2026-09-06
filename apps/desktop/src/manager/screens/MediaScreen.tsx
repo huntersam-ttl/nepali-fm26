@@ -1,12 +1,86 @@
 import React, { useState } from "react";
 import type {
   EntityId,
+  MediaFeedItem,
   MediaResponseStance,
+  MediaSection,
+  StoryImportanceBand,
   SupporterReactionState,
   SupporterUnrestState,
 } from "@nepal-football-sim/shared-types";
 import { managerBridge } from "../managerBridge.js";
 import { AsyncPanel, Badge, EmptyState, Metrics, Panel, useRuntimeData } from "../ui.js";
+import { StoryDetailPanel } from "../RoleDetailScreen.js";
+
+const IMPORTANCE_TONE: Record<StoryImportanceBand, "bad" | "warn" | "info" | "ok"> = {
+  BREAKING: "bad",
+  MAJOR: "warn",
+  IMPORTANT: "info",
+  ROUTINE: "ok",
+};
+
+const MEDIA_SECTION_TITLE: Record<Exclude<MediaSection, "TOP_STORIES">, string> = {
+  CLUB_NEWS: "Club News",
+  TRANSFERS: "Transfers",
+  NATIONAL_TEAM: "National Team",
+  FEDERATION: "Federation",
+  AROUND_NEPAL: "Around Nepal",
+  INTERNATIONAL_CONTEXT: "International Context",
+};
+
+const THREAD_STATUS_TONE: Record<NonNullable<MediaFeedItem["threadStatus"]>, "bad" | "warn" | "info" | "ok"> = {
+  Active: "info",
+  Waiting: "warn",
+  Resolved: "ok",
+  Collapsed: "bad",
+};
+
+/** One card in the Media/News feed — importance, source, headline, a short
+ * standfirst, world date, involved entities, and thread status when this
+ * story belongs to a still-derivable saga. The headline opens the same
+ * Story Detail used everywhere else in the game. */
+const MediaFeedCard = ({ item, onOpen }: { item: MediaFeedItem; onOpen: (eventId: EntityId) => void }): React.ReactElement => (
+  <li className="media-feed-card">
+    <div className="button-row">
+      <Badge tone={IMPORTANCE_TONE[item.importanceBand]}>{item.importanceBand}</Badge>
+      <span className="subtle">{item.outletName}</span>
+      {item.threadStatus && <Badge tone={THREAD_STATUS_TONE[item.threadStatus]}>{item.threadStatus}</Badge>}
+    </div>
+    <button className="link" onClick={() => onOpen(item.story.sourceEntityId)}>
+      {item.story.headline}
+    </button>
+    <p className="subtle">{item.standfirst}</p>
+    <div className="button-row">
+      <span className="subtle">{item.story.publishedOn}</span>
+      {item.entities.map((entity) => (
+        <Badge key={`${entity.entityType}:${entity.id}`} tone="info">
+          {entity.label}
+        </Badge>
+      ))}
+    </div>
+  </li>
+);
+
+const MediaFeedSection = ({
+  title,
+  items,
+  onOpen,
+}: {
+  title: string;
+  items: MediaFeedItem[];
+  onOpen: (eventId: EntityId) => void;
+}): React.ReactElement | null => {
+  if (items.length === 0) return null;
+  return (
+    <Panel title={title}>
+      <ul className="report-list">
+        {items.map((item) => (
+          <MediaFeedCard key={item.story.id} item={item} onOpen={onOpen} />
+        ))}
+      </ul>
+    </Panel>
+  );
+};
 
 const STANCES: MediaResponseStance[] = ["CALM", "AMBITIOUS", "PROTECTIVE", "CONCILIATORY"];
 
@@ -38,9 +112,6 @@ const reactionTone = (state?: SupporterReactionState): "ok" | "warn" | "bad" | "
   }
 };
 
-const socialToneFor = (label: "POSITIVE" | "MIXED" | "CRITICAL" | "VIRAL"): "ok" | "warn" | "bad" | "info" =>
-  label === "POSITIVE" ? "ok" : label === "CRITICAL" ? "bad" : label === "VIRAL" ? "warn" : "info";
-
 const framingTone = (framing: "POSITIVE" | "NEUTRAL" | "CRITICAL" | "SENSATIONAL"): "ok" | "warn" | "bad" | "info" =>
   framing === "POSITIVE" ? "ok" : framing === "CRITICAL" ? "bad" : framing === "SENSATIONAL" ? "warn" : "info";
 
@@ -51,6 +122,7 @@ export const MediaScreen = (): React.ReactElement => {
   const [response, setResponse] = useState("");
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [openStoryEventId, setOpenStoryEventId] = useState<EntityId | null>(null);
 
   const requestConference = async (storyId: EntityId) => {
     setBusy(true);
@@ -226,21 +298,35 @@ export const MediaScreen = (): React.ReactElement => {
               )}
             </Panel>
 
-            <Panel title="Recent coverage" className="panel-wide">
-              {media.recentStories.length === 0 ? (
+            {media.feed.length === 0 ? (
+              <Panel title="Media">
                 <EmptyState>No media coverage yet.</EmptyState>
-              ) : (
-                <ul className="report-list">
-                  {media.recentStories.map(({ story, reaction }) => (
-                    <li key={story.id}>
-                      {story.headline} <span className="subtle">{story.publishedOn}</span>{" "}
-                      <Badge tone={socialToneFor(reaction.label)}>{reaction.label.toLowerCase()}</Badge>
-                      <div className="subtle">{story.summary}</div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Panel>
+              </Panel>
+            ) : (
+              <>
+                <MediaFeedSection
+                  title="Top Stories"
+                  items={[...media.feed].sort((a, b) => b.story.importance - a.story.importance).slice(0, 5)}
+                  onOpen={setOpenStoryEventId}
+                />
+                {(Object.keys(MEDIA_SECTION_TITLE) as Exclude<MediaSection, "TOP_STORIES">[]).map((section) => (
+                  <MediaFeedSection
+                    key={section}
+                    title={MEDIA_SECTION_TITLE[section]}
+                    items={media.feed.filter((item) => item.section === section)}
+                    onOpen={setOpenStoryEventId}
+                  />
+                ))}
+              </>
+            )}
+            {openStoryEventId && (
+              <StoryDetailPanel
+                bridge={managerBridge}
+                eventId={openStoryEventId}
+                onClose={() => setOpenStoryEventId(null)}
+                onOpenReference={() => undefined}
+              />
+            )}
 
             {media.completedInterviews.length > 0 && (
               <Panel title="Past interviews">

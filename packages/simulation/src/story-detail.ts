@@ -36,6 +36,21 @@ const financialImpactFrom = (
   return undefined;
 };
 
+/** A short, bounded list of known-safe extra facts — never a blind dump of
+ * `event.data`, only fields this reader explicitly recognizes. */
+const additionalFactsFrom = (data: Record<string, unknown> | undefined): { label: string; value: string }[] => {
+  if (!data) return [];
+  const facts: { label: string; value: string }[] = [];
+  if (typeof data.percentage === "number") facts.push({ label: "Stake", value: `${data.percentage}%` });
+  const progress = data.progress ?? data.percentComplete;
+  if (typeof progress === "number") facts.push({ label: "Project progress", value: `${Math.round(progress)}%` });
+  if (typeof data.governmentContribution === "number")
+    facts.push({ label: "Government contribution", value: `NPR ${Math.round(data.governmentContribution).toLocaleString("en-US")}` });
+  const deadline = data.deadline ?? data.dueDate;
+  if (typeof deadline === "string") facts.push({ label: "Deadline", value: deadline });
+  return facts;
+};
+
 export const buildStoryDetail = (
   db: GameDatabase,
   event: HistoricalEvent,
@@ -45,13 +60,19 @@ export const buildStoryDetail = (
   const entities = event.involvedEntities
     .map((ref) => resolveStoryEntityReference(db, ref, role))
     .filter((ref): ref is NonNullable<typeof ref> => Boolean(ref));
-  const resolved = thread ? thread.resolved : false;
   const category = thread?.category;
+  const statusLabel = thread?.statusLabel ?? "Active";
   const priorEvents = thread
     ? thread.events
         .filter((candidate) => candidate.id !== event.id)
         .map((candidate) => ({ date: candidate.occurredOn, headline: candidate.title }))
     : [];
+  const CONSEQUENCE_BY_STATUS: Record<typeof statusLabel, string> = {
+    Resolved: "This is now settled and reflected in the current save state.",
+    Collapsed: "This fell through and will not proceed further.",
+    Waiting: "This is waiting on a decision before it can move forward.",
+    Active: "This is still developing and may produce further events.",
+  };
   return {
     header: {
       importance: event.importance,
@@ -63,14 +84,13 @@ export const buildStoryDetail = (
     body: {
       narrative: event.title,
       whyItMatters: WHY_IT_MATTERS[category ?? "GENERAL"],
-      immediateConsequence: resolved
-        ? "This is now settled and reflected in the current save state."
-        : "This is still developing and may produce further events.",
+      immediateConsequence: CONSEQUENCE_BY_STATUS[statusLabel],
       currentState: humanizeEventType(event.eventType),
     },
     contextRail: {
       entities,
       financialImpact: financialImpactFrom(event.data),
+      additionalFacts: additionalFactsFrom(event.data),
       priorEvents,
     },
   };

@@ -87,12 +87,15 @@ describe("story pipeline exact-once under re-publish", () => {
     for (let i = 0; i < 3; i += 1) {
       const threads = roleStoryThreads(db, { personId: demo.chairmanPersonId, role: "OWNER" });
       const transferThread = threads.find((thread) => thread.category === "TRANSFER");
-      const facilityThread = threads.find((thread) => thread.category === "FACILITY");
       expect(transferThread?.events.map((event) => event.id)).toEqual([transferEvent.id]);
       // The fixture's own setup already seeds two real infrastructure events
-      // for this club (started, delayed) — a real facility saga our new
-      // event legitimately joins as a third chapter, not a duplicate.
-      const facilityEventIds = facilityThread?.events.map((event) => event.id) ?? [];
+      // for this club under their OWN real project id — a genuinely separate
+      // saga from our manually-inserted event (no projectId), which now
+      // correctly stays its own thread rather than merging just because both
+      // happen to involve the same club.
+      const facilityThreads = threads.filter((thread) => thread.category === "FACILITY");
+      const ourThread = facilityThreads.find((thread) => thread.events.some((event) => event.id === facilityEvent.id));
+      const facilityEventIds = ourThread?.events.map((event) => event.id) ?? [];
       expect(new Set(facilityEventIds).size).toBe(facilityEventIds.length);
       expect(facilityEventIds).toContain(facilityEvent.id);
       expect(facilityEventIds.filter((id) => id === facilityEvent.id)).toHaveLength(1);

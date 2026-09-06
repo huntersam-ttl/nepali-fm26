@@ -28,6 +28,7 @@ import type {
   SquadMeeting,
   SquadMeetingType,
   StaffApplicationStatus,
+  StoryImportanceBand,
   SetPieceAssignments,
   TacticalFamiliarity,
   TacticalSetup,
@@ -1069,9 +1070,27 @@ export type MediaSocialReaction = {
   summary: string;
 };
 
+/** A Media/News UI section — reused from the same canonical published
+ * events, never a second content source. International stays context-only. */
+export type MediaSection =
+  | "TOP_STORIES"
+  | "CLUB_NEWS"
+  | "TRANSFERS"
+  | "NATIONAL_TEAM"
+  | "FEDERATION"
+  | "AROUND_NEPAL"
+  | "INTERNATIONAL_CONTEXT";
+
 export type MediaFeedItem = {
   story: MediaStory;
   reaction: MediaSocialReaction;
+  section: MediaSection;
+  outletName: string;
+  importanceBand: StoryImportanceBand;
+  standfirst: string;
+  entities: EntityReference[];
+  /** Present only when this story belongs to a still-derivable thread. */
+  threadStatus?: "Active" | "Waiting" | "Resolved" | "Collapsed";
 };
 
 export type PressConferenceQuestion = {
@@ -1088,7 +1107,10 @@ export type PressConferenceView = {
 };
 
 export type MediaCentreView = {
+  /** Club-scoped coverage — unchanged behavior, still drives interview eligibility. */
   recentStories: MediaFeedItem[];
+  /** The full categorized Media/News feed across every section. */
+  feed: MediaFeedItem[];
   /** Stories significant enough to request an interview about, not already open/answered. */
   eligibleForInterview: MediaStory[];
   pendingInterview?: PressConferenceView;

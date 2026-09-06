@@ -716,6 +716,8 @@ export type StoryThread = {
   currentState: string;
   latestEvent: HistoricalEvent;
   resolved: boolean;
+  /** Human status text — never a raw stage enum. */
+  statusLabel: "Active" | "Waiting" | "Resolved" | "Collapsed";
   events: HistoricalEvent[];
   involvedEntities: EntityReference[];
 };
@@ -737,6 +739,7 @@ export type StoryDetail = {
   contextRail: {
     entities: EntityReference[];
     financialImpact?: { amount: number; currency: string };
+    additionalFacts: { label: string; value: string }[];
     priorEvents: { date: ISODate; headline: string }[];
   };
 };

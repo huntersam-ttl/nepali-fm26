@@ -25,6 +25,7 @@ import {
   supporterUnrestState,
 } from "./supporter-culture.js";
 import { resolveStoryEntityReference, storyImportanceBand } from "./story-entities.js";
+import { deriveFollowUpEvents } from "./follow-up-reactions.js";
 
 const status = "SIMULATION_ONLY" as const;
 const outlets: Array<Omit<MediaOutlet, "id">> = [
@@ -154,13 +155,13 @@ const federationEvent = (event: HistoricalEvent): boolean =>
 
 const ownerEvent = (event: HistoricalEvent): boolean =>
   numericImportance(event) >= 5 &&
-  /(OWNERSHIP|INVESTOR|TAKEOVER|CAPITAL|SPONSOR|COMMERCIAL|FACILITY|STADIUM|DEBT|DEFAULT|MANAGER_APPOINT|MANAGER_DISMISS|STAFF_APPOINT|TRANSFER|LOAN|PROMOTION|RELEGATION|TROPHY|CHAMPION|PROTEST|GOVERNMENT|INFRASTRUCTURE)/i.test(
+  /(OWNERSHIP|INVESTOR|TAKEOVER|CAPITAL|SPONSOR|COMMERCIAL|FACILITY|STADIUM|DEBT|DEFAULT|MANAGER_APPOINT|MANAGER_DISMISS|STAFF_APPOINT|TRANSFER|LOAN|PROMOTION|RELEGATION|TROPHY|CHAMPION|PROTEST|GOVERNMENT|INFRASTRUCTURE|SUPPORTER)/i.test(
     event.eventType,
   );
 
 const managerEvent = (event: HistoricalEvent): boolean =>
   numericImportance(event) >= 5 &&
-  /(PROMISE|TRANSFER|LOAN|INJURY|MANAGER|MATCH|PROMOTION|RELEGATION|TROPHY|CHAMPION|PROTEST)/i.test(
+  /(PROMISE|TRANSFER|LOAN|INJURY|MANAGER|MATCH|PROMOTION|RELEGATION|TROPHY|CHAMPION|PROTEST|SUPPORTER)/i.test(
     event.eventType,
   );
 
@@ -299,13 +300,29 @@ const MANAGER_ONLY_LEGACY_TYPES: ReadonlySet<InboxItem["type"]> = new Set([
  * events may fall back into the Owner or President inbox.
  */
 const legacyVisibleToRole = (
+  db: GameDatabase,
   role: PublicEventRole,
+  personId: EntityId,
   item: InboxItem,
   sourceEvent?: HistoricalEvent,
 ): boolean => {
   if (sourceEvent) {
-    if (role === "PRESIDENT") return federationEvent(sourceEvent);
-    if (role === "OWNER") return ownerEvent(sourceEvent);
+    // A keyword match alone is not enough once the event names a specific
+    // club/federation — this viewer must actually hold that role for THAT
+    // entity, or a real story about someone else's club would leak in.
+    if (role === "PRESIDENT") {
+      if (!federationEvent(sourceEvent)) return false;
+      const federationIds = idsOfType(sourceEvent, "federation");
+      return (
+        federationIds.length === 0 ||
+        federationIds.some((id) => activePresidentsForFederation(db, id).includes(personId))
+      );
+    }
+    if (role === "OWNER") {
+      if (!ownerEvent(sourceEvent)) return false;
+      const clubIds = idsOfType(sourceEvent, "club");
+      return clubIds.length === 0 || clubIds.some((id) => activeOwnersForClub(db, id).includes(personId));
+    }
     return managerEvent(sourceEvent) || sourceEvent.scope === "person";
   }
   if (role === "MANAGER") return true;
@@ -349,7 +366,7 @@ export const roleInboxItems = (
       (candidate) => item.id === createStableEntityId("media-inbox", candidate.id),
     );
     return (
-      legacyVisibleToRole(input.role, item, story ? events.get(story.sourceEntityId) : undefined) &&
+      legacyVisibleToRole(db, input.role, input.personId, item, story ? events.get(story.sourceEntityId) : undefined) &&
       (!story || !eventIds.has(story.sourceEntityId))
     );
   });
@@ -418,36 +435,53 @@ const applyPromiseSupporterReaction = (db: GameDatabase, event: HistoricalEvent)
   });
 };
 
+const publishOneEvent = (db: GameDatabase, repo: MediaRepository, event: HistoricalEvent): MediaStory => {
+  const outlet = outletFor(repo, importance(event));
+  const story = eventStory(event, outlet);
+  repo.upsertStory(story);
+  if (story.importance >= 6) {
+    const inbox: InboxItem = {
+      id: createStableEntityId("media-inbox", story.id),
+      createdOn: story.publishedOn,
+      type: "COMPETITION_UPDATE",
+      title: story.headline,
+      body: story.summary,
+      read: false,
+    };
+    new ManagerRepository(db).insertInboxItem(inbox);
+  }
+  return story;
+};
+
 export const publishMediaForDate = (
   db: GameDatabase,
   input: { date: string; minimumImportance?: number },
 ): MediaStory[] => {
   const repo = new MediaRepository(db);
+  const eventRepo = new EventRepository(db);
   initializeMediaForSave(db);
   const threshold = input.minimumImportance ?? 4;
   const published: MediaStory[] = [];
-  const events = new EventRepository(db)
-    .historicalEvents()
-    .filter((item) => item.occurredOn <= input.date);
+  const events = eventRepo.historicalEvents().filter((item) => item.occurredOn <= input.date);
   for (const event of events) routeHistoricalEvent(db, event);
-  for (const event of events.filter(
+  const newlyPublishable = events.filter(
     (item) => importance(item) >= threshold && !repo.hasStory(item.id),
-  )) {
+  );
+  for (const event of newlyPublishable) {
     applyPromiseSupporterReaction(db, event);
-    const outlet = outletFor(repo, importance(event));
-    const story = eventStory(event, outlet);
-    repo.upsertStory(story);
-    published.push(story);
-    if (story.importance >= 6) {
-      const inbox: InboxItem = {
-        id: createStableEntityId("media-inbox", story.id),
-        createdOn: story.publishedOn,
-        type: "COMPETITION_UPDATE",
-        title: story.headline,
-        body: story.summary,
-        read: false,
-      };
-      new ManagerRepository(db).insertInboxItem(inbox);
+    published.push(publishOneEvent(db, repo, event));
+  }
+  // Canonical follow-up reactions — derived from, and inserted right after,
+  // the source event they react to. Deterministic ids make this exact-once
+  // even if the same date is published again.
+  const knownIds = new Set(events.map((event) => event.id));
+  for (const source of newlyPublishable) {
+    for (const reaction of deriveFollowUpEvents(db, source)) {
+      if (knownIds.has(reaction.id)) continue;
+      knownIds.add(reaction.id);
+      eventRepo.insertHistoricalEvent(reaction);
+      routeHistoricalEvent(db, reaction);
+      published.push(publishOneEvent(db, repo, reaction));
     }
   }
   return published;

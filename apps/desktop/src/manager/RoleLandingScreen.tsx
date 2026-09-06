@@ -19,6 +19,7 @@ import { CandidacyPanel } from "./screens/HomeScreen.js";
 import {
   BankMeeting,
   EntityRefLink,
+  EntityStorylinePanel,
   FacilityPlanner,
   InboxPanel,
   OrganizationProfilePanel,
@@ -729,6 +730,7 @@ const FederationDashboardView = ({
         </div>
       </Panel>
       <InboxPanel inbox={dashboard.inbox} bridge={bridge} />
+      <EntityStorylinePanel bridge={bridge} entityId={dashboard.federation.id} onOpenReference={openReference} />
       {openReferenceTarget && (
         <OrganizationProfilePanel
           bridge={bridge}

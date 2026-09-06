@@ -23,6 +23,10 @@ export type { StoryThread, StoryThreadCategory } from "@nepal-football-sim/share
 
 /** Event types matching this are a settled end-state, not an open thread. */
 const RESOLVED_EVENT = /(COMPLETED|TRANSFERRED|AGREED|DECLARED|ENDED|SETTLED|WALKED_AWAY|COLLAPSED|REJECTED|WITHDRAWN|EXPIRED|PAID|PROMOTED|DEAL_COMPLETED)/;
+/** A thread that ended by falling apart, not by succeeding. */
+const COLLAPSED_EVENT = /(COLLAPSED|WALKED_AWAY|REJECTED)/;
+/** A thread waiting on an outside decision rather than actively moving. */
+const WAITING_EVENT = /(REQUESTED|SUBMITTED|PENDING|REVIEW|DUE_DILIGENCE)/;
 
 /** Turns a raw SNAKE_CASE event type into readable copy — never shown as an enum. */
 export const humanizeEventType = (eventType: string): string =>
@@ -66,6 +70,32 @@ const primaryRefFor = (
   return event.involvedEntities.find((ref) => ref.type === wanted) ?? event.involvedEntities[0];
 };
 
+/** Known stable-id fields a producer may have stamped onto `event.data` for
+ * this category — checked in priority order. Two events sharing one of
+ * these describe the SAME real saga; two events that only happen to share a
+ * player/club do not, so this always wins over primary-entity grouping. */
+const SECONDARY_ID_FIELDS: Record<StoryThreadCategory, readonly string[]> = {
+  TRANSFER: ["negotiationId", "offerId", "transferHistoryId"],
+  LOAN: ["negotiationId", "offerId", "transferHistoryId"],
+  OWNERSHIP: ["offerId", "negotiationId", "dealId"],
+  FACILITY: ["projectId", "applicationId"],
+  COMMERCIAL: ["dealId", "contractId"],
+  COMPETITION: ["seasonId", "competitionId"],
+  INJURY: [],
+  CONTRACT: [],
+  NATIONAL_PATHWAY: [],
+};
+
+const secondaryThreadKey = (category: StoryThreadCategory, event: HistoricalEvent): string | undefined => {
+  const data = event.data;
+  if (!data) return undefined;
+  for (const field of SECONDARY_ID_FIELDS[category]) {
+    const value = data[field];
+    if (typeof value === "string" && value.length > 0) return value;
+  }
+  return undefined;
+};
+
 /**
  * Pure, deterministic grouping: same input events always produce the same
  * threads in the same order, regardless of call order or Map iteration.
@@ -81,7 +111,11 @@ export const deriveStoryThreadsFromEvents = (
     if (!category) continue;
     const primaryRef = primaryRefFor(category, event);
     if (!primaryRef) continue;
-    const key = `${category}:${primaryRef.id}`;
+    // A stable negotiation/project/deal id (when the producer stamped one)
+    // always wins over grouping by primary entity alone — two unrelated
+    // transfer sagas for the same player must never merge into one thread.
+    const secondaryKey = secondaryThreadKey(category, event);
+    const key = secondaryKey ? `${category}:${secondaryKey}` : `${category}:${primaryRef.id}`;
     const existing = groups.get(key);
     if (existing) existing.events.push(event);
     else groups.set(key, { category, primaryRef, events: [event] });
@@ -106,13 +140,23 @@ export const deriveStoryThreadsFromEvents = (
         involvedEntities.push(resolved);
       }
     }
+    const latestType = latestEvent.eventType.toUpperCase();
+    const resolved = RESOLVED_EVENT.test(latestType);
+    const statusLabel = COLLAPSED_EVENT.test(latestType)
+      ? "Collapsed"
+      : resolved
+        ? "Resolved"
+        : WAITING_EVENT.test(latestType)
+          ? "Waiting"
+          : "Active";
     threads.push({
       id: key,
       category: group.category,
       primaryEntity,
       currentState: humanizeEventType(latestEvent.eventType),
       latestEvent,
-      resolved: RESOLVED_EVENT.test(latestEvent.eventType.toUpperCase()),
+      resolved,
+      statusLabel,
       events: ordered,
       involvedEntities,
     });

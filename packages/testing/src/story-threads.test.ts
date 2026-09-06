@@ -121,6 +121,87 @@ describe("story detail", () => {
     const detail = buildStoryDetail(db, solo, "MANAGER");
     expect(detail.contextRail.financialImpact).toBeUndefined();
     expect(detail.contextRail.priorEvents).toEqual([]);
+    expect(detail.contextRail.additionalFacts).toEqual([]);
+    db.close();
+  });
+
+  it("surfaces only known, bounded extra facts (stake %, project progress) — never a blind data dump", () => {
+    const db = openGameDatabase(makeSave("detail-facts"));
+    const club = db.prepare("SELECT id FROM clubs LIMIT 1").get() as { id: EntityId };
+    const stakeEvent = event("d4", "OWNERSHIP_CAPITAL_INJECTION_COMPLETED", "2026-08-01", [{ id: club.id, type: "club" }], {
+      data: { percentage: 25, unrelatedInternalField: "should-not-appear" },
+    });
+    const detail = buildStoryDetail(db, stakeEvent, "MANAGER");
+    expect(detail.contextRail.additionalFacts).toEqual([{ label: "Stake", value: "25%" }]);
+    db.close();
+  });
+
+  it("phrases the consequence by real thread status, never a fixed resolved/unresolved binary", () => {
+    const db = openGameDatabase(makeSave("detail-status-phrasing"));
+    const club = db.prepare("SELECT id FROM clubs LIMIT 1").get() as { id: EntityId };
+    const collapsedThreadEvents = [
+      event("s1", "OWNERSHIP_INVESTOR_INTEREST", "2026-08-01", [{ id: club.id, type: "club" }]),
+      event("s2", "OWNERSHIP_INVESTOR_WALKED_AWAY", "2026-08-05", [{ id: club.id, type: "club" }]),
+    ];
+    const threads = deriveStoryThreadsFromEvents(db, collapsedThreadEvents, "MANAGER");
+    const thread = threads[0]!;
+    expect(thread.statusLabel).toBe("Collapsed");
+    const detail = buildStoryDetail(db, collapsedThreadEvents[1]!, "MANAGER", thread);
+    expect(detail.body.immediateConsequence).toMatch(/fell through/i);
+    db.close();
+  });
+});
+
+describe("thread identity separation", () => {
+  it("keeps two separate transfer sagas for the same player apart when they carry different negotiation ids", () => {
+    const db = openGameDatabase(makeSave("identity-transfer"));
+    const player = db.prepare("SELECT id FROM persons LIMIT 1").get() as { id: EntityId };
+    const sagaOne = [
+      event("t1a", "TRANSFER_OFFER_SUBMITTED", "2026-08-01", [{ id: player.id, type: "person" }], { data: { negotiationId: "neg-1" } }),
+      event("t1b", "TRANSFER_REJECTED", "2026-08-03", [{ id: player.id, type: "person" }], { data: { negotiationId: "neg-1" } }),
+    ];
+    const sagaTwo = [
+      event("t2a", "TRANSFER_OFFER_SUBMITTED", "2026-09-01", [{ id: player.id, type: "person" }], { data: { negotiationId: "neg-2" } }),
+      event("t2b", "TRANSFER_COMPLETED", "2026-09-05", [{ id: player.id, type: "person" }], { data: { negotiationId: "neg-2" } }),
+    ];
+    const threads = deriveStoryThreadsFromEvents(db, [...sagaOne, ...sagaTwo], "MANAGER");
+    const transferThreads = threads.filter((thread) => thread.category === "TRANSFER");
+    expect(transferThreads).toHaveLength(2);
+    const collapsed = transferThreads.find((thread) => thread.statusLabel === "Collapsed");
+    const resolved = transferThreads.find((thread) => thread.statusLabel === "Resolved");
+    expect(collapsed?.events.map((e) => e.id)).toEqual([sagaOne[0]!.id, sagaOne[1]!.id]);
+    expect(resolved?.events.map((e) => e.id)).toEqual([sagaTwo[0]!.id, sagaTwo[1]!.id]);
+    db.close();
+  });
+
+  it("keeps two separate facility projects for the same club apart when they carry different project ids", () => {
+    const db = openGameDatabase(makeSave("identity-facility"));
+    const club = db.prepare("SELECT id FROM clubs LIMIT 1").get() as { id: EntityId };
+    const projectA = [
+      event("fa1", "INFRASTRUCTURE_PROJECT_STARTED", "2026-08-01", [{ id: club.id, type: "club" }], { data: { projectId: "proj-a" } }),
+      event("fa2", "FACILITY_PROJECT_COMPLETED", "2026-08-20", [{ id: club.id, type: "club" }], { data: { projectId: "proj-a" } }),
+    ];
+    const projectB = [
+      event("fb1", "INFRASTRUCTURE_PROJECT_STARTED", "2026-09-01", [{ id: club.id, type: "club" }], { data: { projectId: "proj-b" } }),
+    ];
+    const threads = deriveStoryThreadsFromEvents(db, [...projectA, ...projectB], "MANAGER");
+    const facilityThreads = threads.filter((thread) => thread.category === "FACILITY");
+    expect(facilityThreads).toHaveLength(2);
+    const finished = facilityThreads.find((thread) => thread.statusLabel === "Resolved");
+    const active = facilityThreads.find((thread) => thread.statusLabel === "Active");
+    expect(finished?.events).toHaveLength(2);
+    expect(active?.events).toHaveLength(1);
+    db.close();
+  });
+
+  it("never merges an ownership story and a commercial story for the same club into one thread", () => {
+    const db = openGameDatabase(makeSave("identity-category-split"));
+    const club = db.prepare("SELECT id FROM clubs LIMIT 1").get() as { id: EntityId };
+    const ownershipEvent = event("o1", "OWNERSHIP_INVESTOR_INTEREST", "2026-08-01", [{ id: club.id, type: "club" }]);
+    const commercialEvent = event("c1", "SPONSORSHIP_ACCEPTED", "2026-08-01", [{ id: club.id, type: "club" }]);
+    const threads = deriveStoryThreadsFromEvents(db, [ownershipEvent, commercialEvent], "MANAGER");
+    expect(threads).toHaveLength(2);
+    expect(new Set(threads.map((thread) => thread.category))).toEqual(new Set(["OWNERSHIP", "COMMERCIAL"]));
     db.close();
   });
 });

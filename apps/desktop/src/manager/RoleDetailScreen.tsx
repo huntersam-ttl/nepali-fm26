@@ -6108,6 +6108,13 @@ const THREAD_CATEGORY_LABEL: Record<StoryThread["category"], string> = {
   COMPETITION: "Competition",
 };
 
+const THREAD_STATUS_TONE: Record<StoryThread["statusLabel"], "bad" | "warn" | "info" | "ok"> = {
+  Active: "info",
+  Waiting: "warn",
+  Resolved: "ok",
+  Collapsed: "bad",
+};
+
 /**
  * The full detail view for one story: header, narrative body, and a context
  * rail of real entities/financial impact/prior thread events. Every action
@@ -6115,7 +6122,7 @@ const THREAD_CATEGORY_LABEL: Record<StoryThread["category"], string> = {
  * used everywhere else — never a raw id, never a destination that doesn't
  * really exist.
  */
-const StoryDetailPanel = ({
+export const StoryDetailPanel = ({
   bridge,
   eventId,
   onClose,
@@ -6159,6 +6166,11 @@ const StoryDetailPanel = ({
                 Financial impact:{" "}
                 {money(detail.contextRail.financialImpact.amount, detail.contextRail.financialImpact.currency)}
               </p>
+            )}
+            {detail.contextRail.additionalFacts.length > 0 && (
+              <Metrics
+                items={detail.contextRail.additionalFacts.map((fact) => ({ label: fact.label, value: fact.value }))}
+              />
             )}
             {detail.contextRail.entities.length > 0 && (
               <div className="button-row">
@@ -6224,7 +6236,7 @@ const StoryThreadsPanel = ({
                   </button>
                   <div className="button-row">
                     <Badge tone="info">{THREAD_CATEGORY_LABEL[thread.category]}</Badge>
-                    <Badge tone={thread.resolved ? "ok" : "warn"}>{thread.resolved ? "Resolved" : "Unresolved"}</Badge>
+                    <Badge tone={THREAD_STATUS_TONE[thread.statusLabel]}>{thread.statusLabel}</Badge>
                     <span className="subtle">
                       {thread.primaryEntity.label} · {thread.events.length} event{thread.events.length === 1 ? "" : "s"} · latest {thread.latestEvent.occurredOn}
                     </span>
@@ -6370,7 +6382,7 @@ export const EntityStorylinePanel = ({
     <Panel title="Recent story">
       {currentStory && (
         <p>
-          <Badge tone={currentStory.resolved ? "ok" : "warn"}>{currentStory.resolved ? "Resolved" : "Ongoing"}</Badge>{" "}
+          <Badge tone={THREAD_STATUS_TONE[currentStory.statusLabel]}>{currentStory.statusLabel}</Badge>{" "}
           <strong>Current:</strong> {currentStory.currentState}
         </p>
       )}
