@@ -218,6 +218,10 @@ const dispatch = (
       return service.getFederationPresidentDashboard();
     case "getNationalDevelopment":
       return service.getNationalDevelopment();
+    case "getNationDevelopmentScorecard":
+      return service.getNationDevelopmentScorecard();
+    case "getFederationRefereeContext":
+      return service.getFederationRefereeContext();
     case "getGovernmentOverview":
       return service.getGovernmentOverview();
     case "requestGovernmentFunding":

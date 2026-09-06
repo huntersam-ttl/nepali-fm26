@@ -79,6 +79,8 @@ import {
   type FederationCommercialOverview,
   type OwnerInvestmentTransaction,
   type FederationDevelopmentSummary,
+  type NationDevelopmentScorecard,
+  type FederationRefereeContext,
   type GovernmentOverview,
   type GovernmentFundingApplication,
   type ClubInfrastructureGovernmentContext,
@@ -386,6 +388,8 @@ import {
   negotiateCommercialRights,
 } from "./commercial-rights.js";
 import { federationDevelopmentSummary } from "./federation-policy.js";
+import { buildNationDevelopmentScorecard } from "./federation-scorecard.js";
+import { buildFederationRefereeContext } from "./federation-referee-context.js";
 import { governmentOverview, requestGovernmentFunding, requestClubInfrastructureGovernmentSupport, requestFacilitySiteGovernmentSupport, resolveGovernmentInstitutionForClub, clubInfrastructureGovernmentContext, advanceGovernmentApplications, buildGovernmentSupportMeeting, submitGovernmentFunding } from "./government.js";
 import { publishMediaForDate } from "./media.js";
 import {
@@ -1523,6 +1527,36 @@ export class DesktopApplicationService {
       )?.targetId;
       if (!federationId) throw appError("ROLE_NOT_AUTHORIZED", "No federation is available.");
       return federationDevelopmentSummary(db, federationId, save.worldDate);
+    });
+  }
+
+  getNationDevelopmentScorecard(): AppResult<NationDevelopmentScorecard> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "FEDERATION_PRESIDENT") {
+        throw appError("ROLE_NOT_AUTHORIZED", "You are not the active Federation President.");
+      }
+      const federationId = heldCareerRoles(db, personId).find(
+        (entry) => entry.role === "FEDERATION_PRESIDENT",
+      )?.targetId;
+      if (!federationId) throw appError("ROLE_NOT_AUTHORIZED", "No federation is available.");
+      const scorecard = buildNationDevelopmentScorecard(db, federationId, save.worldDate);
+      if (!scorecard) throw appError("WORLD_DATA_UNAVAILABLE", "No development profile is on record for this federation yet.");
+      return scorecard;
+    });
+  }
+
+  getFederationRefereeContext(): AppResult<FederationRefereeContext> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "FEDERATION_PRESIDENT") {
+        throw appError("ROLE_NOT_AUTHORIZED", "You are not the active Federation President.");
+      }
+      const federationId = heldCareerRoles(db, personId).find(
+        (entry) => entry.role === "FEDERATION_PRESIDENT",
+      )?.targetId;
+      if (!federationId) throw appError("ROLE_NOT_AUTHORIZED", "No federation is available.");
+      return buildFederationRefereeContext(db, federationId, save.worldDate);
     });
   }
 

@@ -10,6 +10,7 @@ import type {
   FederationPresidentDashboard,
   InboxItem,
   InfrastructureStoryEntry,
+  NationDevelopmentScorecard,
   OwnerManagerCandidate,
 } from "@nepal-football-sim/shared-types";
 import type { AppError, DesktopRuntimeApi } from "../appBridge.js";
@@ -412,7 +413,7 @@ const ChairmanDashboardView = ({
           </ul>
         </Panel>
       </div>
-      <InfrastructureUpdateCard update={dashboard.latestInfrastructureUpdate} onOpenReference={openReference} />
+      <StoryUpdateCard title="Infrastructure update" update={dashboard.latestInfrastructureUpdate} onOpenReference={openReference} />
       <div className="summary-grid">
         <Panel title="Club management">
           <form
@@ -584,6 +585,9 @@ const FederationDashboardView = ({
   refresh: () => void;
 }): React.ReactElement => {
   const [message, setMessage] = useState<string | null>(null);
+  const [openReferenceTarget, setOpenReferenceTarget] = useState<{ entityType: ProfileEntityType; entityId: EntityId } | null>(null);
+  const openReference = (reference: EntityReference): void =>
+    setOpenReferenceTarget({ entityType: reference.entityType as ProfileEntityType, entityId: reference.id });
   const approved = dashboard.proposals.find((item) => item.status === "APPROVED");
   const implement = async (): Promise<void> => {
     if (!approved) return;
@@ -646,6 +650,8 @@ const FederationDashboardView = ({
           </p>
         </Panel>
       </div>
+      <StoryUpdateCard title="Latest national story" update={dashboard.latestStory} onOpenReference={openReference} />
+      <DevelopmentScorecardCard scorecard={dashboard.developmentScorecard} />
       <div className="summary-grid">
         <Panel
           title="Governance"
@@ -687,6 +693,14 @@ const FederationDashboardView = ({
         <TransactionList entries={dashboard.finances.ledgerEntries} />
       </Panel>
       <InboxPanel inbox={dashboard.inbox} />
+      {openReferenceTarget && (
+        <OrganizationProfilePanel
+          bridge={bridge}
+          entityType={openReferenceTarget.entityType}
+          entityId={openReferenceTarget.entityId}
+          onClose={() => setOpenReferenceTarget(null)}
+        />
+      )}
     </section>
   );
 };
@@ -698,18 +712,22 @@ const FederationDashboardView = ({
  * event infrastructure, just the same read-only rendering the manager
  * workspace already uses.
  */
-/** A single concise infrastructure/government story — never a feed — driven
- * entirely by the most recent real historical_events row for this club. */
-const InfrastructureUpdateCard = ({
+/** A single concise story card — never a feed — driven entirely by the most
+ * recent real historical_events row for this club or federation. Shared by
+ * Owner Home ("Infrastructure update") and President Home ("Latest
+ * national story"). */
+const StoryUpdateCard = ({
+  title,
   update,
   onOpenReference,
 }: {
+  title: string;
   update?: InfrastructureStoryEntry;
   onOpenReference: (reference: EntityReference) => void;
 }): React.ReactElement | null => {
   if (!update) return null;
   return (
-    <Panel title="Infrastructure update">
+    <Panel title={title}>
       <p>
         <Badge tone={update.tone}>{update.occurredOn}</Badge> {update.headline}
       </p>
@@ -722,6 +740,57 @@ const InfrastructureUpdateCard = ({
             </span>
           ))}
         </div>
+      )}
+    </Panel>
+  );
+};
+
+const scoreTone = (score: number): "ok" | "warn" | "bad" | "info" =>
+  score >= 70 ? "ok" : score >= 45 ? "info" : score >= 25 ? "warn" : "bad";
+
+const TREND_LABEL: Record<string, string> = { IMPROVING: "Improving", STABLE: "Stable", DECLINING: "Declining" };
+const TREND_TONE: Record<string, "ok" | "warn" | "info"> = { IMPROVING: "ok", STABLE: "info", DECLINING: "warn" };
+
+/** The Build-a-Nation development scorecard — every bar is a direct,
+ * already-computed FederationSimulationProfile dimension, never an
+ * invented rating. A text summary line accompanies every bar so the score
+ * is never conveyed by colour alone. */
+const DevelopmentScorecardCard = ({ scorecard }: { scorecard?: NationDevelopmentScorecard }): React.ReactElement | null => {
+  if (!scorecard) return null;
+  return (
+    <Panel title="Build-a-Nation development scorecard" className="panel-wide">
+      <div className="button-row">
+        <Badge tone={scoreTone(scorecard.overallScore)}>Overall {scorecard.overallScore}/100</Badge>
+        {scorecard.trend && <Badge tone={TREND_TONE[scorecard.trend]}>{TREND_LABEL[scorecard.trend]}</Badge>}
+      </div>
+      <div className="development-scorecard-grid">
+        {scorecard.categories.map((category) => (
+          <div key={category.key} className="development-scorecard-item">
+            <div className="project-progress-labels">
+              <span>{category.label}</span>
+              <span>{category.score}/100</span>
+            </div>
+            <div className="project-progress-track">
+              <div className="project-progress-fill" style={{ width: `${category.score}%` }} />
+            </div>
+          </div>
+        ))}
+      </div>
+      <p className="subtle">
+        Strongest: {scorecard.strongest.label} ({scorecard.strongest.score}) · Weakest: {scorecard.weakest.label} ({scorecard.weakest.score})
+      </p>
+      {scorecard.nextOpportunities.length > 0 && (
+        <ul className="compact-list">
+          {scorecard.nextOpportunities.map((line, index) => (
+            <li key={index}>{line}</li>
+          ))}
+        </ul>
+      )}
+      {scorecard.history.length > 1 && (
+        <p className="subtle">
+          {scorecard.history.length} seasons of history recorded, from {scorecard.history[0]!.seasonLabel} to{" "}
+          {scorecard.history[scorecard.history.length - 1]!.seasonLabel}.
+        </p>
       )}
     </Panel>
   );

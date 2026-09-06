@@ -80,3 +80,31 @@ export const recentInfrastructureHistory = (
   clubInfrastructureEvents(db, clubId)
     .slice(0, limit)
     .map((event) => buildStoryEntry(db, event, role));
+
+/** The single most relevant national-level story for President Home's
+ * "latest story" card — any historical event genuinely scoped to this
+ * federation, richest one first (highest importance, then most recent).
+ * Undefined, honestly, when nothing has happened yet. */
+export const latestFederationStory = (
+  db: GameDatabase,
+  federationId: EntityId,
+  role: CareerRole,
+): InfrastructureStoryEntry | undefined => {
+  const importanceRank: Record<string, number> = { historic: 3, high: 2, medium: 1, low: 0 };
+  const [latest] = new EventRepository(db)
+    .historicalEvents()
+    .filter(
+      (event) =>
+        event.scope === "federation" ||
+        event.scope === "country" ||
+        event.involvedEntities.some((ref) => ref.type === "federation" && ref.id === federationId) ||
+        event.data?.federationId === federationId,
+    )
+    .sort(
+      (a, b) =>
+        (importanceRank[b.importance] ?? 0) - (importanceRank[a.importance] ?? 0) ||
+        b.occurredOn.localeCompare(a.occurredOn) ||
+        b.id.localeCompare(a.id),
+    );
+  return latest ? buildStoryEntry(db, latest, role) : undefined;
+};

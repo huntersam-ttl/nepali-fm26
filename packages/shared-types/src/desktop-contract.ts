@@ -52,7 +52,8 @@ import type {
   PlayerMarketValueView,
 } from "./domain.js";
 import type { ExecutiveAuthorityDesktopView } from "./executive-roles.js";
-import type { FederationDevelopmentSummary } from "./federation-policy.js";
+import type { FederationDevelopmentSummary, NationDevelopmentScorecard } from "./federation-policy.js";
+import type { FederationRefereeContext } from "./referee-development.js";
 import type { UniversalInteraction } from "./universal-interactions.js";
 import type { EntityReference, EntityReferenceType } from "./entity-reference.js";
 import type { FederationCommercialRightsOffer } from "./commercial-rights.js";
@@ -716,6 +717,8 @@ export type FederationPresidentDashboard = {
   projects: FederationProject[];
   nationalTeams: FederationNationalTeamSummary[];
   inbox: InboxItem[];
+  developmentScorecard?: NationDevelopmentScorecard;
+  latestStory?: InfrastructureStoryEntry;
 };
 
 export type FederationCandidacyAssessment = {
@@ -890,6 +893,8 @@ export type DesktopRuntimeApi = {
   submitGovernmentSupportCase?: (applicationId: EntityId) => Promise<AppResult<GovernmentFundingApplication>>;
   getFederationPresidentDashboard(): Promise<AppResult<FederationPresidentDashboard>>;
   getNationalDevelopment(): Promise<AppResult<FederationDevelopmentSummary>>;
+  getNationDevelopmentScorecard?: () => Promise<AppResult<NationDevelopmentScorecard>>;
+  getFederationRefereeContext?: () => Promise<AppResult<FederationRefereeContext>>;
   getGovernmentOverview(): Promise<AppResult<GovernmentOverview>>;
   requestGovernmentFunding(
     institutionId: EntityId,

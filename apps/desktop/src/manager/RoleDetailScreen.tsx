@@ -2575,15 +2575,17 @@ const NationalDevelopment = ({ bridge }: { bridge: DesktopRuntimeApi }): React.R
   const [state] = useRuntimeData(() => bridge.getNationalDevelopment());
   return (
     <AsyncPanel state={state}>
-      {(summary) => <NationalDevelopmentView summary={summary} />}
+      {(summary) => <NationalDevelopmentView summary={summary} bridge={bridge} />}
     </AsyncPanel>
   );
 };
 
 const NationalDevelopmentView = ({
   summary,
+  bridge,
 }: {
   summary: FederationDevelopmentSummary;
+  bridge: DesktopRuntimeApi;
 }): React.ReactElement => {
   const { outcomes } = summary;
   const fixtureRecord = (record: {
@@ -2786,27 +2788,143 @@ const NationalDevelopmentView = ({
           />
         </Panel>
       </div>
+      <RefereeCoachingContextPanel bridge={bridge} />
     </section>
   );
 };
 
+const REFEREE_BAND_TONE: Record<string, MeetingTone> = { LIMITED: "warn", WORKING: "info", STRONG: "ok" };
+const REFEREE_BAND_LABEL: Record<string, string> = { LIMITED: "Limited", WORKING: "Working", STRONG: "Strong" };
+
+/** Real assignment/match-event-derived referee governance signals — the
+ * backend already computes these (refereeGovernanceSummary), they were
+ * simply never surfaced to the President before this panel. */
+const RefereeCoachingContextPanel = ({ bridge }: { bridge: DesktopRuntimeApi }): React.ReactElement | null => {
+  const [state] = useRuntimeData(
+    () =>
+      bridge.getFederationRefereeContext
+        ? bridge.getFederationRefereeContext()
+        : Promise.resolve({
+            ok: false as const,
+            error: { code: "RUNTIME_UNAVAILABLE" as const, message: "Referee context is unavailable right now." },
+          }),
+    [],
+  );
+  if (state.status !== "ready") return null;
+  const context = state.data;
+  return (
+    <Panel title="Referees & coaching">
+      <Metrics
+        items={[
+          { label: "Referee pool", value: context.poolSize },
+          { label: "Active development programmes", value: context.activeDevelopmentProgrammes },
+          {
+            label: "Appointment confidence",
+            value: (
+              <Badge tone={REFEREE_BAND_TONE[context.governance.appointmentConfidence]}>
+                {REFEREE_BAND_LABEL[context.governance.appointmentConfidence]}
+              </Badge>
+            ),
+          },
+          {
+            label: "Stakeholder trust",
+            value: (
+              <Badge tone={REFEREE_BAND_TONE[context.governance.stakeholderTrust]}>
+                {REFEREE_BAND_LABEL[context.governance.stakeholderTrust]}
+              </Badge>
+            ),
+          },
+          { label: "Development priority", value: band(context.governance.developmentPriority) },
+          { label: "Recent assignments (90d)", value: context.governance.recentAssignments },
+        ]}
+      />
+      <p className="subtle">
+        Recent match events: {context.governance.recentMatchEvents.cards} cards ·{" "}
+        {context.governance.recentMatchEvents.fouls} fouls · {context.governance.recentMatchEvents.varReviews} VAR reviews.
+      </p>
+      {context.governance.controversyPressure && (
+        <p className="subtle">
+          Controversy pressure:{" "}
+          <Badge tone={context.governance.controversyPressure === "HIGH" ? "bad" : context.governance.controversyPressure === "MODERATE" ? "warn" : "ok"}>
+            {band(context.governance.controversyPressure)}
+          </Badge>
+        </p>
+      )}
+    </Panel>
+  );
+};
+
+const FEDERATION_PROJECT_CATEGORY: Record<string, string> = {
+  GRASSROOTS_PROGRAMME: "Grassroots",
+  COACH_EDUCATION: "Coaching",
+  REFEREE_PROGRAMME: "Referees",
+  ACADEMY_EXPANSION: "Youth",
+  NATIONAL_TRAINING_CENTRE: "Infrastructure",
+  REGIONAL_CENTRE: "Infrastructure",
+  WOMENS_DEVELOPMENT: "Women & girls",
+  DIGITAL_BROADCAST: "Commercial",
+  CLUB_SUPPORT_PROGRAMME: "Competitions",
+};
+const FEDERATION_PROJECT_PROGRESS: Record<string, number> = {
+  IDEA: 0,
+  PLANNING: 15,
+  FINANCING: 25,
+  CONSTRUCTION: 55,
+  IMPLEMENTATION: 80,
+  COMPLETED: 100,
+  CANCELLED: 0,
+};
+
+/** Every project grouped by the real programme category its own type
+ * implies — no invented league-table of "national development areas". */
 const ProjectList = ({
   projects,
 }: {
   projects: FederationPresidentDashboard["projects"];
-}): React.ReactElement => (
-  <ul className="compact-list">
-    {projects.length ? (
-      projects.map((project) => (
-        <li key={project.id}>
-          {project.name} · {project.status} · {project.expectedCompletion}
-        </li>
-      ))
-    ) : (
-      <li>No federation projects recorded.</li>
-    )}
-  </ul>
-);
+}): React.ReactElement => {
+  if (projects.length === 0) return <p className="empty-state">No federation projects recorded.</p>;
+  const groups = new Map<string, typeof projects>();
+  for (const project of projects) {
+    const category = FEDERATION_PROJECT_CATEGORY[project.projectType] ?? "Other";
+    groups.set(category, [...(groups.get(category) ?? []), project]);
+  }
+  return (
+    <>
+      {[...groups.entries()].map(([category, items]) => (
+        <div key={category}>
+          <h3>{category}</h3>
+          <div className="facility-lifecycle-grid">
+            {items.map((project) => {
+              const percent = FEDERATION_PROJECT_PROGRESS[project.status] ?? 0;
+              const terminal = project.status === "COMPLETED" || project.status === "CANCELLED";
+              return (
+                <article key={project.id} className="facility-project-card">
+                  <header>
+                    <strong>{project.name}</strong>
+                    <Badge tone="info">{category}</Badge>
+                  </header>
+                  <p className="subtle">{band(project.projectType)}</p>
+                  {!terminal && <ProjectProgressTimeline percent={percent} status={project.status} />}
+                  <Metrics
+                    items={[
+                      { label: "Capital cost", value: money(project.capitalCost, project.currency) },
+                      { label: "Funding", value: project.fundingStatus ? band(project.fundingStatus) : "—" },
+                      {
+                        label: project.status === "COMPLETED" ? "Completed" : "Expected completion",
+                        value: project.completedAt ?? project.expectedCompletion,
+                      },
+                    ]}
+                  />
+                  {project.delayDays ? <p className="subtle">Running {project.delayDays} day(s) behind schedule.</p> : null}
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </>
+  );
+};
 
 // Land, ground, and infrastructure requests all route through these three
 // real funding types — there is no separate "stadium vs training ground vs

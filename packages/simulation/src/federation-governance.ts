@@ -56,6 +56,7 @@ import { simulateMatch } from "./match-engine.js";
 import { PLAYABLE_CLUB_PREDICATE } from "./playable-world.js";
 import { SeededRandom } from "./rng.js";
 import { buildEntityReference } from "./entity-reference.js";
+import { recordFederationDevelopmentSnapshot } from "./federation-scorecard.js";
 
 const currency = "NPR";
 const simulationStatus = "SIMULATION_ONLY" as const;
@@ -1119,6 +1120,7 @@ export const processFederationMonth = (
     runFederationAiSeasonPlanning(db, { date: input.date, seed: input.seed });
   }
   for (const federation of allFederations(db)) {
+    recordFederationDevelopmentSnapshot(db, federation.id, input.date);
     runFederationRefereeDevelopment(db, federation, input.date, input.seed);
     const activeSponsorships = repo
       .federationSponsorships(federation.id)

@@ -21,6 +21,8 @@ import type {
   GovernmentFundingApplication,
   GovernmentFundingType,
   GovernmentSupportMeetingContext,
+  NationDevelopmentScorecard,
+  FederationRefereeContext,
   ClubFinanceMeetingOverview,
   InvestorMeetingOverview,
   OwnerInvestmentTransaction,
@@ -274,6 +276,8 @@ const bindCommands = (call: CommandCaller): DesktopRuntimeApi => ({
   getFederationPresidentDashboard: () =>
     call<FederationPresidentDashboard>("getFederationPresidentDashboard"),
   getNationalDevelopment: () => call<FederationDevelopmentSummary>("getNationalDevelopment"),
+  getNationDevelopmentScorecard: () => call<NationDevelopmentScorecard>("getNationDevelopmentScorecard"),
+  getFederationRefereeContext: () => call<FederationRefereeContext>("getFederationRefereeContext"),
   getGovernmentOverview: () => call<GovernmentOverview>("getGovernmentOverview"),
   requestGovernmentFunding: (
     institutionId: EntityId,

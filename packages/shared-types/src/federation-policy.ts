@@ -1,4 +1,5 @@
 import type { EntityId } from "./ids.js";
+import type { ISODate } from "./domain.js";
 
 export type FederationStakeholderType =
   "CLUBS" | "REGIONS" | "REFEREES" | "YOUTH" | "NATIONAL_TEAMS" | "GOVERNMENT";
@@ -105,5 +106,41 @@ export type FederationDevelopmentSummary = {
   outcomes: FederationOutcomeSummary;
   governmentRelationship: "LIMITED" | "WORKING" | "STRONG";
   asOf: string;
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+/**
+ * "Build-a-Nation" development scorecard — a 0-100 rollup of the
+ * FederationSimulationProfile dimensions the game already tracks (never a
+ * fabricated FIFA-style rating). One category per already-computed
+ * dimension so every score is directly traceable to real game state.
+ */
+export type NationDevelopmentCategory = {
+  key: string;
+  label: string;
+  score: number;
+};
+
+export type NationDevelopmentScorecard = {
+  federationId: EntityId;
+  asOfDate: ISODate;
+  overallScore: number;
+  categories: NationDevelopmentCategory[];
+  strongest: NationDevelopmentCategory;
+  weakest: NationDevelopmentCategory;
+  keyDrivers: string[];
+  nextOpportunities: string[];
+  trend?: "IMPROVING" | "STABLE" | "DECLINING";
+  history: NationDevelopmentSnapshot[];
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+/** One persisted annual snapshot behind the scorecard's trend line. */
+export type NationDevelopmentSnapshot = {
+  federationId: EntityId;
+  seasonLabel: string;
+  asOfDate: ISODate;
+  overallScore: number;
+  categories: Record<string, number>;
   provenanceStatus: "SIMULATION_ONLY";
 };

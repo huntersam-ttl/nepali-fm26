@@ -15,11 +15,14 @@ import type { ClubStadiumSummary, EntityId } from "@nepal-football-sim/shared-ty
  * These are real Nepal administrative names already in the dataset, not
  * SIMULATION_ONLY inventions — the club genuinely sits at this place.
  */
-export const presentClubLocation = (db: GameDatabase, clubId: EntityId): string | undefined => {
-  const club = db.prepare("SELECT location_id FROM clubs WHERE id=?").get(clubId) as
-    | { location_id?: EntityId }
-    | undefined;
-  if (!club?.location_id) return undefined;
+/**
+ * The same strategy as presentClubLocation, generalized to any location id
+ * — used wherever a non-club entity (a federation project's target
+ * district/province, a map tile) needs the identical honest presentation
+ * rule rather than a second, divergent implementation.
+ */
+export const presentLocationById = (db: GameDatabase, locationId: EntityId | undefined): string | undefined => {
+  if (!locationId) return undefined;
   const chain = db
     .prepare(
       `WITH RECURSIVE up(id, name, kind, parent_location_id, depth) AS (
@@ -30,7 +33,7 @@ export const presentClubLocation = (db: GameDatabase, clubId: EntityId): string 
        )
        SELECT id, name, kind FROM up ORDER BY depth`,
     )
-    .all(club.location_id) as Array<{ id: EntityId; name: string; kind: string }>;
+    .all(locationId) as Array<{ id: EntityId; name: string; kind: string }>;
   if (chain.length === 0) return undefined;
   const self = chain[0]!;
   const municipality = chain.find((entry) => entry.kind === "municipality" || entry.kind === "city" || entry.kind === "neighbourhood");
@@ -41,6 +44,13 @@ export const presentClubLocation = (db: GameDatabase, clubId: EntityId): string 
   if (province) return `${self.name}, ${province.name}`;
   if (self.kind === "unknown") return undefined;
   return self.name;
+};
+
+export const presentClubLocation = (db: GameDatabase, clubId: EntityId): string | undefined => {
+  const club = db.prepare("SELECT location_id FROM clubs WHERE id=?").get(clubId) as
+    | { location_id?: EntityId }
+    | undefined;
+  return presentLocationById(db, club?.location_id);
 };
 
 /**

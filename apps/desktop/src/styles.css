@@ -2527,3 +2527,15 @@ button.club-campus-block:focus-visible,
   font-size: 12px;
   color: var(--muted);
 }
+
+.development-scorecard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin: 12px 0;
+}
+.development-scorecard-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}

@@ -17,6 +17,8 @@ import { getFederationFinances, getFederationOverview } from "./federation-gover
 import { heldCareerRoles } from "./career-control.js";
 import { buildOwnershipInvestorMarket } from "./ownership.js";
 import { roleInboxItems } from "./media.js";
+import { buildNationDevelopmentScorecard } from "./federation-scorecard.js";
+import { latestFederationStory } from "./infrastructure-story.js";
 import { latestInfrastructureUpdate } from "./infrastructure-story.js";
 
 const personName = (db: GameDatabase, personId: EntityId): string => {
@@ -108,5 +110,7 @@ export const buildFederationPresidentDashboard = (db: GameDatabase, save: SaveMe
       role: "PRESIDENT",
       legacyItems: new ManagerRepository(db).inboxItems(),
     }).slice(0, 12),
+    developmentScorecard: buildNationDevelopmentScorecard(db, federationId, save.worldDate),
+    latestStory: latestFederationStory(db, federationId, "FEDERATION_PRESIDENT"),
   };
 };
