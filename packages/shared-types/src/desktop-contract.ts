@@ -71,6 +71,7 @@ import type {
   GovernmentFundingApplication,
   GovernmentFundingType,
   ClubInfrastructureGovernmentContext,
+  GovernmentSupportMeetingContext,
 } from "./government.js";
 import type {
   FacilityFundingSource,
@@ -324,6 +325,7 @@ export type ChairmanDashboard = {
   sponsorships: SponsorshipContract[];
   manager?: { name: string; contract: ManagerContract };
   inbox: InboxItem[];
+  latestInfrastructureUpdate?: InfrastructureStoryEntry;
 };
 
 /**
@@ -577,6 +579,23 @@ export type ClubProfile = {
   reputation?: ClubReputationSummary;
   facilitySnapshot?: ClubFacilitySnapshot;
   campusProjects: ClubCampusProject[];
+  infrastructureHistory: InfrastructureStoryEntry[];
+};
+
+/** Tone-only classification for a story card — never used as the sole
+ * signal in the UI (always paired with real status text), only as an
+ * accent. */
+export type InfrastructureStoryTone = "ok" | "warn" | "bad" | "info";
+
+/** One real, already-occurred infrastructure/government moment — headline
+ * text plus the entities actually involved, so the UI can render clickable
+ * references instead of plain prose. Backed 1:1 by a historical_events row;
+ * never a fabricated or duplicated local history model. */
+export type InfrastructureStoryEntry = {
+  headline: string;
+  occurredOn: string;
+  tone: InfrastructureStoryTone;
+  entities: EntityReference[];
 };
 
 /** A single infrastructure project's real detail — the destination behind
@@ -859,6 +878,16 @@ export type DesktopRuntimeApi = {
     fundingType: "INFRASTRUCTURE" | "REGIONAL_GROUND" | "MUNICIPAL_LAND_OR_VENUE";
     requestedAmount: number;
   }) => Promise<AppResult<GovernmentFundingApplication>>;
+  /** Everything the Owner-side Government Support meeting needs in one call. */
+  getGovernmentSupportMeeting?: (input: {
+    clubId?: EntityId;
+    siteOptionId?: EntityId;
+    projectId?: EntityId;
+  }) => Promise<AppResult<GovernmentSupportMeetingContext>>;
+  /** PROPOSED -> SUBMITTED on a club-scoped application — a real, previously
+   * unused step in the canonical lifecycle; this just gives the Owner a way
+   * to trigger it instead of only ever reaching it from a test. */
+  submitGovernmentSupportCase?: (applicationId: EntityId) => Promise<AppResult<GovernmentFundingApplication>>;
   getFederationPresidentDashboard(): Promise<AppResult<FederationPresidentDashboard>>;
   getNationalDevelopment(): Promise<AppResult<FederationDevelopmentSummary>>;
   getGovernmentOverview(): Promise<AppResult<GovernmentOverview>>;

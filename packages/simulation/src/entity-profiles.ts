@@ -12,6 +12,7 @@ import type {
 import { CompetitionCommercialRepository, CompetitionRepository, ClubEconomyRepository, WorldRepository } from "@nepal-football-sim/database";
 import { buildEntityReference } from "./entity-reference.js";
 import { presentClubLocation, resolveClubStadium } from "./club-location.js";
+import { recentInfrastructureHistory } from "./infrastructure-story.js";
 
 export const buildClubProfile = (db: GameDatabase, clubId: EntityId, role: CareerRole): ClubProfile => {
   const club = db.prepare("SELECT id,name,location_id FROM clubs WHERE id=?").get(clubId) as { id: EntityId; name: string; location_id?: EntityId } | undefined;
@@ -64,6 +65,7 @@ export const buildClubProfile = (db: GameDatabase, clubId: EntityId, role: Caree
           academyCapacity: facility.academyCapacity,
         }
       : undefined,
+    infrastructureHistory: recentInfrastructureHistory(db, clubId, role),
   };
 };
 

@@ -1118,6 +1118,47 @@ export const createInfrastructureProjectCommand = (
   return createInfrastructureProject(db, input);
 };
 
+/** Once-only historical-event insert — historical_events has no unique
+ * constraint of its own, so every caller that might re-run for the same
+ * project/milestone on a later tick must check before inserting, keyed by a
+ * stable id that never includes the date. */
+const recordHistoricalEventOnce = (
+  db: GameDatabase,
+  event: Parameters<InstanceType<typeof EventRepository>["insertHistoricalEvent"]>[0],
+): void => {
+  if (db.prepare("SELECT 1 FROM historical_events WHERE id=?").get(event.id)) return;
+  new EventRepository(db).insertHistoricalEvent(event);
+};
+
+/** A short, human phrase for the physical thing a project type actually
+ * builds — used only for story text, never for gameplay logic. */
+const projectStoryPhrase = (type: InfrastructureProjectType): string => {
+  switch (type) {
+    case "STADIUM":
+    case "STAND":
+    case "FLOODLIGHTS":
+    case "PITCH":
+    case "DRAINAGE":
+      return "stadium expansion";
+    case "TRAINING_GROUND":
+    case "GYM":
+    case "ANALYSIS_ROOM":
+      return "training-ground upgrade";
+    case "ACADEMY":
+      return "academy upgrade";
+    case "MEDICAL_ROOM":
+    case "RECOVERY_CENTRE":
+      return "medical centre upgrade";
+    case "OFFICE":
+    case "SCOUTING_DEPARTMENT":
+      return "club offices upgrade";
+    case "REFURBISHMENT":
+      return "facility refurbishment";
+    default:
+      return "facility project";
+  }
+};
+
 export const advanceInfrastructureProjects = (
   db: GameDatabase,
   input: { date: string; seed: string },
@@ -1154,6 +1195,50 @@ export const advanceInfrastructureProjects = (
         relatedEntityId: project.id,
         idempotencyKey: `project-start:${project.id}`,
       });
+      recordHistoricalEventOnce(db, {
+        id: createStableEntityId("history", `INFRASTRUCTURE_PROJECT_STARTED:${project.id}`),
+        occurredOn: input.date,
+        eventType: "INFRASTRUCTURE_PROJECT_STARTED",
+        involvedEntities: [{ id: project.clubId, type: "club" }, { id: project.id, type: "infrastructureProject" }],
+        title: `Construction has begun on the club's ${projectStoryPhrase(next.projectType)}.`,
+        data: { projectId: project.id, projectType: project.projectType },
+        importance: "medium",
+        scope: "club",
+      });
+      if (delayDays > 0) {
+        recordHistoricalEventOnce(db, {
+          id: createStableEntityId("history", `INFRASTRUCTURE_PROJECT_DELAYED:${project.id}`),
+          occurredOn: input.date,
+          eventType: "INFRASTRUCTURE_PROJECT_DELAYED",
+          involvedEntities: [{ id: project.clubId, type: "club" }, { id: project.id, type: "infrastructureProject" }],
+          title: `The club's ${projectStoryPhrase(next.projectType)} is running ${delayDays} day(s) behind schedule.`,
+          data: { projectId: project.id, projectType: project.projectType, delayDays },
+          importance: "medium",
+          scope: "club",
+        });
+      }
+    }
+    if (
+      next.status === "CONSTRUCTION" &&
+      next.constructionStart &&
+      addDays(next.expectedCompletion, next.delayDays ?? 0) > input.date
+    ) {
+      const startMs = new Date(`${next.constructionStart}T00:00:00Z`).getTime();
+      const endMs = new Date(`${addDays(next.expectedCompletion, next.delayDays ?? 0)}T00:00:00Z`).getTime();
+      const nowMs = new Date(`${input.date}T00:00:00Z`).getTime();
+      const elapsed = endMs > startMs ? (nowMs - startMs) / (endMs - startMs) : 0;
+      if (elapsed >= 0.5) {
+        recordHistoricalEventOnce(db, {
+          id: createStableEntityId("history", `INFRASTRUCTURE_MILESTONE_REACHED:${project.id}`),
+          occurredOn: input.date,
+          eventType: "INFRASTRUCTURE_MILESTONE_REACHED",
+          involvedEntities: [{ id: project.clubId, type: "club" }, { id: project.id, type: "infrastructureProject" }],
+          title: `The ${projectStoryPhrase(next.projectType)} has reached its construction halfway milestone.`,
+          data: { projectId: project.id, projectType: project.projectType },
+          importance: "medium",
+          scope: "club",
+        });
+      }
     }
     if (
       next.status === "CONSTRUCTION" &&
@@ -1210,12 +1295,12 @@ export const advanceInfrastructureProjects = (
                   : {};
         economy.upsertFacilityProfile({ ...facility, ...quality });
       }
-      new EventRepository(db).insertHistoricalEvent({
+      recordHistoricalEventOnce(db, {
         id: createStableEntityId("history", `FACILITY_PROJECT_COMPLETED:${project.id}`),
         occurredOn: input.date,
         eventType: "FACILITY_PROJECT_COMPLETED",
-        involvedEntities: [{ id: project.clubId, type: "club" }],
-        title: `${project.projectType} project completed`,
+        involvedEntities: [{ id: project.clubId, type: "club" }, { id: project.id, type: "infrastructureProject" }],
+        title: `The ${projectStoryPhrase(next.projectType)} has opened.`,
         data: { projectId: project.id, projectType: project.projectType },
         importance: "high",
         scope: "club",

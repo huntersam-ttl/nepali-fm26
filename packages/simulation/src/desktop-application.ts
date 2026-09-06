@@ -82,6 +82,7 @@ import {
   type GovernmentOverview,
   type GovernmentFundingApplication,
   type ClubInfrastructureGovernmentContext,
+  type GovernmentSupportMeetingContext,
   type GovernmentFundingType,
   type FederationPresidentDashboard,
   type E2ERoleFixtureResult,
@@ -385,7 +386,8 @@ import {
   negotiateCommercialRights,
 } from "./commercial-rights.js";
 import { federationDevelopmentSummary } from "./federation-policy.js";
-import { governmentOverview, requestGovernmentFunding, requestClubInfrastructureGovernmentSupport, requestFacilitySiteGovernmentSupport, resolveGovernmentInstitutionForClub, clubInfrastructureGovernmentContext } from "./government.js";
+import { governmentOverview, requestGovernmentFunding, requestClubInfrastructureGovernmentSupport, requestFacilitySiteGovernmentSupport, resolveGovernmentInstitutionForClub, clubInfrastructureGovernmentContext, advanceGovernmentApplications, buildGovernmentSupportMeeting, submitGovernmentFunding } from "./government.js";
+import { publishMediaForDate } from "./media.js";
 import {
   assessFederationCandidacy,
   declareFederationElectionCandidacy,
@@ -1346,6 +1348,52 @@ export class DesktopApplicationService {
       } catch (error) {
         throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "Government support request could not be opened.");
       }
+    });
+  }
+
+  getGovernmentSupportMeeting(input: {
+    clubId?: EntityId;
+    siteOptionId?: EntityId;
+    projectId?: EntityId;
+  }): AppResult<GovernmentSupportMeetingContext> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      const role = activeCareerRole(db, personId);
+      const target =
+        input.clubId ??
+        heldCareerRoles(db, personId).find((entry) =>
+          ["CHAIRMAN_OWNER", "CEO", "GENERAL_SECRETARY"].includes(entry.role),
+        )?.targetId;
+      if (!target) throw appError("ROLE_NOT_AUTHORIZED", "No club facility responsibility is available.");
+      if (role === "CHAIRMAN_OWNER") {
+        if (!heldCareerRoles(db, personId).some((entry) => entry.role === role && entry.targetId === target))
+          throw appError("ROLE_NOT_AUTHORIZED", "The owner does not control this club.");
+      } else if (role === "CEO" || role === "GENERAL_SECRETARY") {
+        this.executiveActor(db, save, target);
+      } else {
+        throw appError("ROLE_NOT_AUTHORIZED", "The active role cannot view club government support.");
+      }
+      return buildGovernmentSupportMeeting(db, { ...input, clubId: target }, role);
+    });
+  }
+
+  submitGovernmentSupportCase(applicationId: EntityId): AppResult<GovernmentFundingApplication> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      const role = activeCareerRole(db, personId);
+      const application = db
+        .prepare("SELECT club_id FROM government_funding_applications WHERE id=?")
+        .get(applicationId) as { club_id?: EntityId } | undefined;
+      if (!application?.club_id) throw appError("INVALID_SELECTION", "Government funding application is unavailable.");
+      if (role === "CHAIRMAN_OWNER") {
+        if (!heldCareerRoles(db, personId).some((entry) => entry.role === role && entry.targetId === application.club_id))
+          throw appError("ROLE_NOT_AUTHORIZED", "The owner does not control this club.");
+      } else if (role === "CEO" || role === "GENERAL_SECRETARY") {
+        this.executiveActor(db, save, application.club_id);
+      } else {
+        throw appError("ROLE_NOT_AUTHORIZED", "Only the owner or authorized executive may submit this case.");
+      }
+      return submitGovernmentFunding(db, applicationId);
     });
   }
 
@@ -4294,6 +4342,8 @@ const advanceOwnerCareer = (
     ensureAiManagersAssigned(db, tick, undefined);
     evaluateBoardConfidence(db, tick);
     advanceInfrastructureProjects(db, { date: next, seed: `${save.randomSeed}:owner:${clubId}` });
+    advanceGovernmentApplications(db, { date: next });
+    publishMediaForDate(db, { date: next });
     advanceProcurementContracts(db, next);
     advanceProcurementServices(db, { date: next });
     advanceProcurementOrders(db, { date: next, seed: `${save.randomSeed}:owner:${clubId}` });

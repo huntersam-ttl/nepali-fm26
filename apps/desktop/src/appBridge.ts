@@ -20,6 +20,7 @@ import type {
   GovernmentOverview,
   GovernmentFundingApplication,
   GovernmentFundingType,
+  GovernmentSupportMeetingContext,
   ClubFinanceMeetingOverview,
   InvestorMeetingOverview,
   OwnerInvestmentTransaction,
@@ -266,6 +267,10 @@ const bindCommands = (call: CommandCaller): DesktopRuntimeApi => ({
     fundingType: "INFRASTRUCTURE" | "REGIONAL_GROUND" | "MUNICIPAL_LAND_OR_VENUE";
     requestedAmount: number;
   }) => call<GovernmentFundingApplication>("openFacilitySiteGovernmentRequest", { input }),
+  getGovernmentSupportMeeting: (input: { clubId?: EntityId; siteOptionId?: EntityId; projectId?: EntityId }) =>
+    call<GovernmentSupportMeetingContext>("getGovernmentSupportMeeting", { input }),
+  submitGovernmentSupportCase: (applicationId: EntityId) =>
+    call<GovernmentFundingApplication>("submitGovernmentSupportCase", { applicationId }),
   getFederationPresidentDashboard: () =>
     call<FederationPresidentDashboard>("getFederationPresidentDashboard"),
   getNationalDevelopment: () => call<FederationDevelopmentSummary>("getNationalDevelopment"),

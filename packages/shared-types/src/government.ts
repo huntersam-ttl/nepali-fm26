@@ -123,3 +123,39 @@ export type ClubInfrastructureGovernmentContext = {
   nextAction: "OPEN_REQUEST" | "WAIT_FOR_REVIEW" | "START_PROJECT" | "NONE";
   blockedReason?: string;
 };
+
+export type GovernmentSupportApplicationSummary = {
+  applicationId: EntityId;
+  fundingType: GovernmentFundingType;
+  status: GovernmentFundingApplicationStatus;
+  requestedAmount: number;
+  approvedAmount?: number;
+  proposedOn: string;
+  decidedOn?: string;
+  decisionReason?: string;
+  conditions: string[];
+};
+
+/**
+ * Everything the Owner-side Government Support meeting needs in one call —
+ * club/institution/site/project identity, the current + prior applications,
+ * relationship context, and the real financing figures behind the request.
+ */
+export type GovernmentSupportMeetingContext = {
+  club: EntityReference;
+  locationLabel?: string;
+  institution?: EntityReference;
+  relationshipBand?: GovernmentRelationshipBand;
+  site?: { siteType: string; municipalityName: string; readiness: string };
+  project?: EntityReference;
+  reasonNeeded: string;
+  current?: GovernmentSupportApplicationSummary;
+  priorApplications: GovernmentSupportApplicationSummary[];
+  totalProjectCost?: number;
+  clubContribution?: number;
+  governmentContributionRequested?: number;
+  financingSource?: string;
+  fundingSettled: boolean;
+  nextAction: "OPEN_REQUEST" | "SUBMIT_CASE" | "WAIT_FOR_REVIEW" | "START_PROJECT" | "NONE";
+  blockedReason?: string;
+};

@@ -17,6 +17,7 @@ import { getFederationFinances, getFederationOverview } from "./federation-gover
 import { heldCareerRoles } from "./career-control.js";
 import { buildOwnershipInvestorMarket } from "./ownership.js";
 import { roleInboxItems } from "./media.js";
+import { latestInfrastructureUpdate } from "./infrastructure-story.js";
 
 const personName = (db: GameDatabase, personId: EntityId): string => {
   const row = db.prepare("SELECT display_name, full_name FROM persons WHERE id=?").get(personId) as
@@ -77,6 +78,7 @@ export const buildChairmanDashboard = (db: GameDatabase, save: SaveMetadata): Ch
       role: "OWNER",
       legacyItems: new ManagerRepository(db).inboxItems(),
     }).slice(0, 12),
+    latestInfrastructureUpdate: latestInfrastructureUpdate(db, clubId, "CHAIRMAN_OWNER"),
   };
 };
 

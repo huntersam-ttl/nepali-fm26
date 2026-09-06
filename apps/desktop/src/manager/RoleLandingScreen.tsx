@@ -4,15 +4,28 @@ import type {
   CareerHeader,
   CareerRoleState,
   ClubBudgetCategory,
+  EntityId,
+  EntityReference,
   ExecutiveAuthorityDesktopView,
   FederationPresidentDashboard,
   InboxItem,
+  InfrastructureStoryEntry,
   OwnerManagerCandidate,
 } from "@nepal-football-sim/shared-types";
 import type { AppError, DesktopRuntimeApi } from "../appBridge.js";
 import { AsyncPanel, Badge, ErrorBanner, Metrics, Panel, useRuntimeData } from "./ui.js";
 import { CandidacyPanel } from "./screens/HomeScreen.js";
-import { BankMeeting, FacilityPlanner, RoleDetailScreen, SponsorMeeting, type ChairmanScreen, type PresidentScreen } from "./RoleDetailScreen.js";
+import {
+  BankMeeting,
+  EntityRefLink,
+  FacilityPlanner,
+  OrganizationProfilePanel,
+  RoleDetailScreen,
+  SponsorMeeting,
+  type ChairmanScreen,
+  type PresidentScreen,
+  type ProfileEntityType,
+} from "./RoleDetailScreen.js";
 import { projectStatusLabel } from "./clubWorldPresentation.js";
 
 export const EXECUTIVE_ROLES = ["SPORTING_DIRECTOR", "DIRECTOR_OF_FOOTBALL", "CEO", "GENERAL_SECRETARY"];
@@ -294,6 +307,9 @@ const ChairmanDashboardView = ({
   const [busyBudget, setBusyBudget] = useState(false);
   const [busyEquipment, setBusyEquipment] = useState(false);
   const [candidateFilter, setCandidateFilter] = useState("");
+  const [openReferenceTarget, setOpenReferenceTarget] = useState<{ entityType: ProfileEntityType; entityId: EntityId } | null>(null);
+  const openReference = (reference: EntityReference): void =>
+    setOpenReferenceTarget({ entityType: reference.entityType as ProfileEntityType, entityId: reference.id });
   const saveBudget = async (): Promise<void> => {
     if (!budget || busyBudget) return;
     setBusyBudget(true);
@@ -396,6 +412,7 @@ const ChairmanDashboardView = ({
           </ul>
         </Panel>
       </div>
+      <InfrastructureUpdateCard update={dashboard.latestInfrastructureUpdate} onOpenReference={openReference} />
       <div className="summary-grid">
         <Panel title="Club management">
           <form
@@ -516,6 +533,14 @@ const ChairmanDashboardView = ({
        * above it — the same order the manager workspace uses.
        */}
       <CandidacyPanel />
+      {openReferenceTarget && (
+        <OrganizationProfilePanel
+          bridge={bridge}
+          entityType={openReferenceTarget.entityType}
+          entityId={openReferenceTarget.entityId}
+          onClose={() => setOpenReferenceTarget(null)}
+        />
+      )}
     </section>
   );
 };
@@ -673,6 +698,35 @@ const FederationDashboardView = ({
  * event infrastructure, just the same read-only rendering the manager
  * workspace already uses.
  */
+/** A single concise infrastructure/government story — never a feed — driven
+ * entirely by the most recent real historical_events row for this club. */
+const InfrastructureUpdateCard = ({
+  update,
+  onOpenReference,
+}: {
+  update?: InfrastructureStoryEntry;
+  onOpenReference: (reference: EntityReference) => void;
+}): React.ReactElement | null => {
+  if (!update) return null;
+  return (
+    <Panel title="Infrastructure update">
+      <p>
+        <Badge tone={update.tone}>{update.occurredOn}</Badge> {update.headline}
+      </p>
+      {update.entities.length > 0 && (
+        <div className="button-row">
+          {update.entities.map((reference) => (
+            <span key={`${reference.entityType}:${reference.id}`} className="entity-chip">
+              <Badge tone="info">{reference.entityType.replace(/_/g, " ").toLowerCase()}</Badge>{" "}
+              <EntityRefLink reference={reference} onOpen={onOpenReference} />
+            </span>
+          ))}
+        </div>
+      )}
+    </Panel>
+  );
+};
+
 const InboxPanel = ({ inbox }: { inbox: InboxItem[] }): React.ReactElement => (
   <Panel title="Inbox">
     {inbox.length === 0 ? (

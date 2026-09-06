@@ -195,6 +195,10 @@ const dispatch = (
       return service.openClubInfrastructureGovernmentRequest(body.input as any);
     case "openFacilitySiteGovernmentRequest":
       return service.openFacilitySiteGovernmentRequest(body.input as any);
+    case "getGovernmentSupportMeeting":
+      return service.getGovernmentSupportMeeting(body.input as any);
+    case "submitGovernmentSupportCase":
+      return service.submitGovernmentSupportCase(body.applicationId as EntityId);
     case "watchOwnerFixture":
       return service.watchOwnerFixture(body.fixtureId as EntityId | undefined);
     case "advanceOwnerFixture":

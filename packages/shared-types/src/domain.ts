@@ -40,7 +40,9 @@ export type EntityRef = {
     | "trainingHistoryEvent"
     | "youthIntakeEvent"
     | "generatedPlayerOrigin"
-    | "retirementState";
+    | "retirementState"
+    | "governmentInstitution"
+    | "infrastructureProject";
 };
 
 export type RiskLevel = "LOW" | "MEDIUM" | "HIGH" | "UNKNOWN";

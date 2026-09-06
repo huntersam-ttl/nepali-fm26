@@ -1,8 +1,47 @@
-import { createStableEntityId, type ClubInfrastructureGovernmentContext, type EntityId, type GovernmentFundingApplication, type GovernmentInstitution, type GovernmentFundingType, type GovernmentOverview, type GovernmentPriorityBand, type GovernmentRelationshipBand } from "@nepal-football-sim/shared-types";
-import { FacilityPlanningRepository, GovernmentRepository, type GameDatabase } from "@nepal-football-sim/database";
+import { createStableEntityId, type ClubInfrastructureGovernmentContext, type EntityId, type GovernmentFundingApplication, type GovernmentInstitution, type GovernmentFundingType, type GovernmentOverview, type GovernmentPriorityBand, type GovernmentRelationshipBand, type GovernmentSupportApplicationSummary, type GovernmentSupportMeetingContext } from "@nepal-football-sim/shared-types";
+import { ClubEconomyRepository, EventRepository, FacilityPlanningRepository, GovernmentRepository, type GameDatabase } from "@nepal-football-sim/database";
 import { postClubTransaction } from "./club-economy.js";
 import { postFederationTransaction } from "./federation-governance.js";
 import { buildEntityReference } from "./entity-reference.js";
+import { presentClubLocation } from "./club-location.js";
+
+/** Once-only historical-event insert — see the identical helper in
+ * club-economy.ts for why this cannot rely on the table's own constraints. */
+const recordHistoricalEventOnce = (
+  db: GameDatabase,
+  event: Parameters<InstanceType<typeof EventRepository>["insertHistoricalEvent"]>[0],
+): void => {
+  if (db.prepare("SELECT 1 FROM historical_events WHERE id=?").get(event.id)) return;
+  new EventRepository(db).insertHistoricalEvent(event);
+};
+
+const clubName = (db: GameDatabase, clubId: EntityId): string =>
+  (db.prepare("SELECT name FROM clubs WHERE id=?").get(clubId) as { name?: string } | undefined)?.name ?? "The club";
+
+/** A short human phrase for what the requested support is actually for —
+ * derived from the linked project's real type when one exists yet, and
+ * from the funding type alone (site-anchored requests predate the project)
+ * otherwise. Never fabricates a project that doesn't exist. */
+const supportPurposePhrase = (db: GameDatabase, application: Pick<GovernmentFundingApplication, "projectId" | "fundingType">): string => {
+  if (application.projectId) {
+    const project = db.prepare("SELECT project_type FROM infrastructure_projects WHERE id=?").get(application.projectId) as { project_type?: string } | undefined;
+    if (project?.project_type) return `proposed ${project.project_type.replaceAll("_", " ").toLowerCase()} project`;
+  }
+  switch (application.fundingType) {
+    case "MUNICIPAL_LAND_OR_VENUE":
+      return "proposed municipal ground";
+    case "REGIONAL_GROUND":
+      return "proposed regional ground";
+    case "INFRASTRUCTURE":
+      return "proposed infrastructure project";
+    case "YOUTH_GRASSROOTS":
+      return "youth development programme";
+    case "WOMENS_FOOTBALL":
+      return "women's football programme";
+    default:
+      return "funding request";
+  }
+};
 
 export type GovernmentFundingEvidence = {
   federationCredibility: number;
@@ -53,6 +92,21 @@ export const proposeGovernmentFunding = (db: GameDatabase, input: Omit<Governmen
   const application: GovernmentFundingApplication = { ...input, id: applicationId, status: "PROPOSED", conditions: [], provenanceStatus: "SIMULATION_ONLY" };
   repo.upsertApplication(application);
   adjustGovernmentRelationship(db, application, 1, input.proposedOn);
+  if (application.clubId) {
+    recordHistoricalEventOnce(db, {
+      id: createStableEntityId("history", `GOVERNMENT_SUPPORT_REQUESTED:${application.id}`),
+      occurredOn: input.proposedOn,
+      eventType: "GOVERNMENT_SUPPORT_REQUESTED",
+      involvedEntities: [
+        { id: application.clubId, type: "club" },
+        { id: application.institutionId, type: "governmentInstitution" },
+      ],
+      title: `${clubName(db, application.clubId)} has opened a government support request for its ${supportPurposePhrase(db, application)}.`,
+      data: { applicationId: application.id, institutionId: application.institutionId },
+      importance: "medium",
+      scope: "club",
+    });
+  }
   return application;
 };
 
@@ -348,6 +402,148 @@ export const clubInfrastructureGovernmentContext = (
   };
 };
 
+const applicationSummary = (application: GovernmentFundingApplication): GovernmentSupportApplicationSummary => ({
+  applicationId: application.id,
+  fundingType: application.fundingType,
+  status: application.status,
+  requestedAmount: application.requestedAmount,
+  approvedAmount: application.approvedAmount,
+  proposedOn: application.proposedOn,
+  decidedOn: application.decidedOn,
+  decisionReason: application.decisionReason,
+  conditions: application.conditions,
+});
+
+/**
+ * Everything the Owner-side Government Support meeting needs in one call —
+ * club/institution/site/project identity, the current + prior applications,
+ * relationship context, and the real financing figures behind the request.
+ * Never fabricates an institution or a precise real-world address; when the
+ * club's location genuinely cannot resolve an institution, callers get an
+ * honest blockedReason instead of a placeholder.
+ */
+export const buildGovernmentSupportMeeting = (
+  db: GameDatabase,
+  input: { clubId: EntityId; siteOptionId?: EntityId; projectId?: EntityId },
+  role: "CHAIRMAN_OWNER" | "CEO" | "GENERAL_SECRETARY",
+): GovernmentSupportMeetingContext => {
+  if (!db.prepare("SELECT 1 FROM clubs WHERE id=?").get(input.clubId)) throw new Error("Club missing");
+  const repo = new GovernmentRepository(db);
+  const institution = resolveGovernmentInstitutionForClub(db, input.clubId);
+  const applications = repo
+    .applications()
+    .filter((application) => application.clubId === input.clubId)
+    .sort((a, b) => b.proposedOn.localeCompare(a.proposedOn) || b.id.localeCompare(a.id));
+  const openApplication = applications.find((application) =>
+    ["PROPOSED", "SUBMITTED", "REVIEWED"].includes(application.status),
+  );
+  const current = openApplication ?? applications[0];
+  const priorApplications = applications.filter((application) => application.id !== current?.id);
+  const site = input.siteOptionId
+    ? new FacilityPlanningRepository(db).siteOptions(input.clubId).find((option) => option.id === input.siteOptionId)
+    : undefined;
+  const project = input.projectId
+    ? (db.prepare("SELECT id, project_type, capital_cost, financing_json FROM infrastructure_projects WHERE id=?").get(input.projectId) as
+        | { id: EntityId; project_type: string; capital_cost: number; financing_json?: string }
+        | undefined)
+    : undefined;
+  const relationship = institution
+    ? repo.relationships(institution.id).find((item) => item.entityType === "CLUB" && item.entityId === input.clubId)
+    : undefined;
+  const settlement = current
+    ? (db.prepare("SELECT id FROM club_ledger_entries WHERE related_entity_id=? ORDER BY id LIMIT 1").get(current.id) as { id?: EntityId } | undefined)
+    : undefined;
+  const approved = current && ["APPROVED", "CONDITIONAL", "COMPLETED"].includes(current.status);
+  const nextAction: GovernmentSupportMeetingContext["nextAction"] = !institution
+    ? "NONE"
+    : !current || current.status === "REJECTED" || current.status === "COMPLETED"
+      ? "OPEN_REQUEST"
+      : current.status === "PROPOSED"
+        ? "SUBMIT_CASE"
+        : current.status === "SUBMITTED" || current.status === "REVIEWED"
+          ? "WAIT_FOR_REVIEW"
+          : approved && (!site || site.readiness === "AVAILABLE")
+            ? "START_PROJECT"
+            : "NONE";
+  const financing = project?.financing_json ? (JSON.parse(project.financing_json) as Record<string, number>) : undefined;
+  return {
+    club: buildEntityReference(db, "CLUB", input.clubId, role),
+    locationLabel: presentClubLocation(db, input.clubId),
+    institution: institution ? buildEntityReference(db, "GOVERNMENT_INSTITUTION", institution.id, role) : undefined,
+    relationshipBand: relationship ? relationshipBand(relationship.trust) : institution ? "NOT_ESTABLISHED" : undefined,
+    site: site ? { siteType: site.siteType, municipalityName: site.municipalityName, readiness: site.readiness } : undefined,
+    project: project ? buildEntityReference(db, "INFRASTRUCTURE_PROJECT", project.id, role) : undefined,
+    reasonNeeded: project
+      ? `The club's ${project.project_type.replaceAll("_", " ").toLowerCase()} project needs municipal/government support to proceed.`
+      : site?.readiness === "GOVERNMENT_REVIEW"
+        ? "This site requires government support before the club can develop it."
+        : "The club is seeking government support for a facility need.",
+    current: current ? applicationSummary(current) : undefined,
+    priorApplications: priorApplications.map(applicationSummary),
+    totalProjectCost: project?.capital_cost,
+    clubContribution: financing ? Object.values(financing).reduce((total, value) => total + Math.max(0, value), 0) : undefined,
+    governmentContributionRequested: current?.requestedAmount,
+    financingSource: financing ? Object.keys(financing)[0] : undefined,
+    fundingSettled: Boolean(settlement?.id),
+    nextAction,
+    blockedReason: !institution
+      ? "No government institution can be resolved for this club's location yet — it lacks enough canonical location/institution context."
+      : undefined,
+  };
+};
+
+const addDays = (date: string, days: number): string => {
+  const parsed = new Date(`${date}T00:00:00.000Z`);
+  parsed.setUTCDate(parsed.getUTCDate() + days);
+  return parsed.toISOString().slice(0, 10);
+};
+
+/** A municipal/national institution takes real time to respond — nothing
+ * elsewhere in the tick loop ever reviews a club-scoped application, so
+ * without this every request opened via the Owner-side flow would sit at
+ * PROPOSED forever. Runs on the same daily cadence as
+ * advanceInfrastructureProjects. Evidence is derived from the club's own
+ * real, already-persisted reputation/finance state — never invented — so
+ * the same club scores the same way regardless of how many times a given
+ * day is (re-)processed. */
+export const advanceGovernmentApplications = (
+  db: GameDatabase,
+  input: { date: string },
+): GovernmentFundingApplication[] => {
+  const REVIEW_LAG_DAYS = 14;
+  const repo = new GovernmentRepository(db);
+  const economy = new ClubEconomyRepository(db);
+  const due = repo
+    .applications()
+    .filter(
+      (application) =>
+        application.clubId &&
+        (application.status === "PROPOSED" || application.status === "SUBMITTED") &&
+        addDays(application.proposedOn, REVIEW_LAG_DAYS) <= input.date,
+    );
+  const reviewed: GovernmentFundingApplication[] = [];
+  for (const application of due) {
+    const institution = repo.institution(application.institutionId);
+    if (!institution) continue;
+    const supporter = application.clubId ? economy.supporterProfile(application.clubId) : undefined;
+    reviewed.push(
+      reviewGovernmentFunding(db, {
+        applicationId: application.id,
+        reviewedOn: input.date,
+        evidence: {
+          federationCredibility: supporter?.commercialReputation ?? 40,
+          projectQuality: 55,
+          footballPerformance: supporter?.footballReputation ?? 40,
+          existingCommitments: institution.profile.budgetCapacity > 0
+            ? Math.round((institution.profile.committedBudget / institution.profile.budgetCapacity) * 100)
+            : 50,
+        },
+      }),
+    );
+  }
+  return reviewed;
+};
+
 export const submitGovernmentFunding = (db: GameDatabase, applicationId: string): GovernmentFundingApplication => {
   const repo = new GovernmentRepository(db); const application = repo.applications().find((item) => item.id === applicationId);
   if (!application) throw new Error(`Government funding application missing: ${applicationId}`);
@@ -372,6 +568,25 @@ export const reviewGovernmentFunding = (db: GameDatabase, input: { applicationId
   }
   const relationshipDelta = decision.status === "REJECTED" ? -3 : decision.status === "APPROVED" ? 5 : 3;
   adjustGovernmentRelationship(db, reviewed, relationshipDelta, input.reviewedOn);
+  if (reviewed.clubId && ["APPROVED", "CONDITIONAL", "REJECTED"].includes(decision.status)) {
+    const approvedLike = decision.status !== "REJECTED";
+    recordHistoricalEventOnce(db, {
+      id: createStableEntityId("history", `GOVERNMENT_SUPPORT_DECIDED:${reviewed.id}`),
+      occurredOn: input.reviewedOn,
+      eventType: approvedLike ? "GOVERNMENT_SUPPORT_APPROVED" : "GOVERNMENT_SUPPORT_REJECTED",
+      involvedEntities: [
+        { id: reviewed.clubId, type: "club" },
+        ...(institution ? [{ id: institution.id, type: "governmentInstitution" as const }] : []),
+        ...(reviewed.projectId ? [{ id: reviewed.projectId, type: "infrastructureProject" as const }] : []),
+      ],
+      title: approvedLike
+        ? `${institution.name} has approved support for ${clubName(db, reviewed.clubId)}'s ${supportPurposePhrase(db, reviewed)}.`
+        : `${institution.name} has rejected ${clubName(db, reviewed.clubId)}'s government support request.`,
+      data: { applicationId: reviewed.id, institutionId: institution.id },
+      importance: approvedLike ? "high" : "medium",
+      scope: "club",
+    });
+  }
   return reviewed;
 };
 

@@ -6,7 +6,6 @@ import type {
   CareerRoleState,
   ClubDebt,
   ClubFinanceMeetingOverview,
-  ClubInfrastructureGovernmentContext,
   ClubLoanApplication,
   FederationDevelopmentBand,
   FederationDevelopmentSummary,
@@ -16,6 +15,7 @@ import type {
   GovernmentOverview,
   GovernmentPriorityBand,
   GovernmentRelationshipBand,
+  GovernmentSupportMeetingContext,
   InvestorMeetingOverview,
   OwnershipInvestorBidView,
   OwnershipAcquisitionOffer,
@@ -4433,13 +4433,6 @@ const facilityNarrative = (input: {
   return sentences.join(" ");
 };
 
-const GOVERNMENT_NEXT_ACTION_LABEL: Record<ClubInfrastructureGovernmentContext["nextAction"], string> = {
-  OPEN_REQUEST: "Open a government support request to proceed.",
-  WAIT_FOR_REVIEW: "Awaiting the institution's review — no further action is needed yet.",
-  START_PROJECT: "Approved — this site is ready to plan.",
-  NONE: "",
-};
-
 /**
  * Facility Planner's government-support integration. Anchors directly on
  * the GOVERNMENT_REVIEW site option via openFacilitySiteGovernmentRequest —
@@ -4455,9 +4448,7 @@ const GovernmentSupportPanel = ({
   bridge,
   clubId,
   siteOptionId,
-  projectType: _projectType,
-  planning,
-  refresh,
+  refresh: refreshPlanner,
 }: {
   bridge: DesktopRuntimeApi;
   clubId: EntityId;
@@ -4466,77 +4457,71 @@ const GovernmentSupportPanel = ({
   planning: FacilityPlanningView;
   refresh: () => void;
 }): React.ReactElement => {
-  const applications = [...planning.governmentApplications].sort((a, b) =>
-    `${b.proposedOn}:${b.id}`.localeCompare(`${a.proposedOn}:${a.id}`),
+  const [state, refresh] = useRuntimeData(
+    () =>
+      bridge.getGovernmentSupportMeeting
+        ? bridge.getGovernmentSupportMeeting({ clubId, siteOptionId })
+        : Promise.resolve({
+            ok: false as const,
+            error: { code: "RUNTIME_UNAVAILABLE" as const, message: "Government support meetings are unavailable right now." },
+          }),
+    [clubId, siteOptionId],
   );
-  const current =
-    applications.find((application) => LAND_FUNDING_TYPES.includes(application.fundingType)) ??
-    applications[0];
-  // resolvedInstitution is discoverable even for a brand-new club with no
-  // prior application (see resolveGovernmentInstitutionForClub); an existing
-  // application's own institutionId is kept as a fallback for saves made
-  // before that resolution existed.
-  const knownInstitutionId = planning.resolvedInstitution?.id ?? current?.institutionId;
+  return (
+    <AsyncPanel state={state}>
+      {(meeting) => (
+        <GovernmentSupportMeetingView
+          meeting={meeting}
+          bridge={bridge}
+          clubId={clubId}
+          siteOptionId={siteOptionId}
+          refresh={() => {
+            refresh();
+            refreshPlanner();
+          }}
+        />
+      )}
+    </AsyncPanel>
+  );
+};
 
-  const [context, setContext] = useState<ClubInfrastructureGovernmentContext | null>(null);
-  const [contextError, setContextError] = useState<string | null>(null);
-  useEffect(() => {
-    if (!current?.projectId || !bridge.getClubInfrastructureGovernmentContext) {
-      setContext(null);
-      return;
-    }
-    let cancelled = false;
-    void bridge.getClubInfrastructureGovernmentContext(current.projectId).then((result) => {
-      if (cancelled) return;
-      if (result.ok) {
-        setContext(result.data);
-        setContextError(null);
-      } else setContextError(result.error.message);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [current?.projectId]);
+const GOVERNMENT_MEETING_ACTION_LABEL: Record<GovernmentSupportMeetingContext["nextAction"], string> = {
+  OPEN_REQUEST: "Open a government support request",
+  SUBMIT_CASE: "Submit the supporting case",
+  WAIT_FOR_REVIEW: "Awaiting the institution's review",
+  START_PROJECT: "Approved — start the project from the planner above",
+  NONE: "No action is available right now",
+};
 
-  const [institutionName, setInstitutionName] = useState<string | undefined>();
-  useEffect(() => {
-    if (!knownInstitutionId) {
-      setInstitutionName(undefined);
-      return;
-    }
-    let cancelled = false;
-    void bridge.getEntityReference("GOVERNMENT_INSTITUTION", knownInstitutionId).then((result) => {
-      if (!cancelled && result.ok && result.data.visible) setInstitutionName(result.data.label);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [knownInstitutionId]);
-
+const GovernmentSupportMeetingView = ({
+  meeting,
+  bridge,
+  clubId,
+  siteOptionId,
+  refresh,
+}: {
+  meeting: GovernmentSupportMeetingContext;
+  bridge: DesktopRuntimeApi;
+  clubId: EntityId;
+  siteOptionId: EntityId;
+  refresh: () => void;
+}): React.ReactElement => {
   const [fundingType, setFundingType] = useState<
     "INFRASTRUCTURE" | "REGIONAL_GROUND" | "MUNICIPAL_LAND_OR_VENUE"
   >("MUNICIPAL_LAND_OR_VENUE");
   const [amount, setAmount] = useState("2000000");
   const [confirming, setConfirming] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [openOrgId, setOpenOrgId] = useState<{ entityType: ProfileEntityType; entityId: EntityId } | null>(null);
 
-  const openNonTerminal = applications.find(
-    (application) => !["REJECTED", "COMPLETED"].includes(application.status),
-  );
-  const canOpenNew = Boolean(knownInstitutionId) && !openNonTerminal;
-
-  const submit = async (): Promise<void> => {
+  const openRequest = async (): Promise<void> => {
     const requestedAmount = Number(amount);
     if (!Number.isFinite(requestedAmount) || requestedAmount <= 0) return;
-    setBusy(true);
+    setBusyId("OPEN_REQUEST");
     setMessage(null);
-    // Anchored directly on the site option — no InfrastructureProject is
-    // created here or required to exist first. The canonical project is
-    // only ever created once, by createFacilityProjectPlan itself, after
-    // this application is approved and the site flips to AVAILABLE.
     if (!bridge.openFacilitySiteGovernmentRequest) {
-      setBusy(false);
+      setBusyId(null);
       setMessage("Government support requests are unavailable right now.");
       return;
     }
@@ -4546,7 +4531,7 @@ const GovernmentSupportPanel = ({
       fundingType,
       requestedAmount,
     });
-    setBusy(false);
+    setBusyId(null);
     setConfirming(false);
     setMessage(
       result.ok
@@ -4556,126 +4541,173 @@ const GovernmentSupportPanel = ({
     if (result.ok) refresh();
   };
 
+  const submitCase = async (): Promise<void> => {
+    if (!meeting.current || !bridge.submitGovernmentSupportCase) return;
+    setBusyId("SUBMIT_CASE");
+    setMessage(null);
+    const result = await bridge.submitGovernmentSupportCase(meeting.current.applicationId);
+    setBusyId(null);
+    setMessage(result.ok ? "Supporting case submitted for review." : result.error.message);
+    if (result.ok) refresh();
+  };
+
+  const options: MeetingOption[] =
+    meeting.nextAction === "OPEN_REQUEST"
+      ? [
+          {
+            id: "OPEN_REQUEST",
+            label: "Open government support request",
+            tone: "primary",
+            description: meeting.current?.status === "REJECTED" ? "Reapply after the earlier rejection." : undefined,
+            disabled: !meeting.institution,
+            disabledReason: meeting.blockedReason,
+          },
+        ]
+      : meeting.nextAction === "SUBMIT_CASE"
+        ? [{ id: "SUBMIT_CASE", label: "Submit supporting case", tone: "primary" }]
+        : [];
+
   return (
-    <Panel title="Government support">
-      {!current ? (
-        <>
-          <p className="empty-state">
-            No government support request has been opened for this club yet.
-          </p>
-          {!knownInstitutionId && (
+    <div className="panel meeting-shell-embedded">
+      <MeetingShell
+        title={meeting.institution?.label ?? "Government support"}
+        meetingType="Government relations"
+        context={[
+          ...(meeting.totalProjectCost !== undefined
+            ? [{ label: "Total project cost", value: money(meeting.totalProjectCost) }]
+            : []),
+          ...(meeting.clubContribution !== undefined
+            ? [{ label: "Club contribution", value: money(meeting.clubContribution) }]
+            : []),
+          ...(meeting.governmentContributionRequested !== undefined
+            ? [{ label: "Government contribution requested", value: money(meeting.governmentContributionRequested) }]
+            : []),
+          ...(meeting.financingSource ? [{ label: "Financing source", value: band(meeting.financingSource) }] : []),
+          ...(meeting.site ? [{ label: "Site availability", value: band(meeting.site.readiness) }] : []),
+          {
+            label: "Funding settlement",
+            value: meeting.fundingSettled ? "Settled to club ledger" : "Not yet settled",
+            tone: meeting.fundingSettled ? "ok" : "info",
+          },
+        ]}
+      >
+        <MeetingParticipants
+          initiator={{ name: meeting.club.label, role: "Club" }}
+          counterpart={
+            meeting.institution
+              ? { name: meeting.institution.label, role: "Government institution" }
+              : { name: "No institution resolved", role: "Government institution" }
+          }
+        />
+        <MeetingBrief heading="Why support is needed">
+          <p>{meeting.reasonNeeded}</p>
+          {meeting.locationLabel && <p className="subtle">Location: {meeting.locationLabel}</p>}
+          {meeting.relationshipBand && (
             <p className="subtle">
-              No government institution can be resolved for this club's location yet — support
-              requests become available once one has been established.
+              Relationship: <Badge tone={relationshipTone(meeting.relationshipBand)}>{relationshipLabel(meeting.relationshipBand)}</Badge>
             </p>
           )}
-        </>
-      ) : (
-        <>
-          <Metrics
-            items={[
-              { label: "Institution", value: institutionName ?? "Unknown institution" },
-              { label: "Request type", value: FUNDING_TYPE_LABELS[current.fundingType] },
-              {
-                label: "Status",
-                value: (
-                  <Badge tone={applicationStatusTone(current.status)}>
-                    {applicationStatusLabel(current.status)}
-                  </Badge>
-                ),
-              },
-              { label: "Requested support", value: money(current.requestedAmount) },
-              ...(current.approvedAmount !== undefined
-                ? [{ label: "Approved support", value: money(current.approvedAmount) }]
-                : []),
-              { label: "Submitted", value: current.proposedOn },
-              ...(current.decidedOn ? [{ label: "Decided", value: current.decidedOn }] : []),
-            ]}
-          />
-          {current.conditions.length > 0 && (
-            <p className="subtle">Conditions: {current.conditions.join(", ")}</p>
+          {meeting.project && (
+            <p className="subtle">
+              Project:{" "}
+              <button className="link" onClick={() => setOpenOrgId({ entityType: "INFRASTRUCTURE_PROJECT", entityId: meeting.project!.id })}>
+                {meeting.project.label}
+              </button>
+            </p>
           )}
-          {context && (
+        </MeetingBrief>
+        {meeting.current && (
+          <MeetingBrief heading="Current proposal">
             <Metrics
               items={[
+                { label: "Request type", value: FUNDING_TYPE_LABELS[meeting.current.fundingType] },
                 {
-                  label: "Site readiness",
-                  value: context.siteReadiness ? band(context.siteReadiness) : "—",
-                },
-                {
-                  label: "Settlement",
+                  label: "Status",
                   value: (
-                    <Badge tone={context.fundingSettled ? "ok" : "info"}>
-                      {context.fundingSettled ? "Settled to club ledger" : "Not yet settled"}
+                    <Badge tone={applicationStatusTone(meeting.current.status)}>
+                      {applicationStatusLabel(meeting.current.status)}
                     </Badge>
                   ),
                 },
+                { label: "Requested support", value: money(meeting.current.requestedAmount) },
+                ...(meeting.current.approvedAmount !== undefined
+                  ? [{ label: "Approved support", value: money(meeting.current.approvedAmount) }]
+                  : []),
+                { label: "Submitted", value: meeting.current.proposedOn },
+                ...(meeting.current.decidedOn ? [{ label: "Decided", value: meeting.current.decidedOn }] : []),
               ]}
             />
-          )}
-          {context?.nextAction && GOVERNMENT_NEXT_ACTION_LABEL[context.nextAction] && (
-            <p className="subtle">{GOVERNMENT_NEXT_ACTION_LABEL[context.nextAction]}</p>
-          )}
-          {context?.blockedReason && <p className="empty-state">{context.blockedReason}</p>}
-          {contextError && <p className="subtle">{contextError}</p>}
-        </>
-      )}
-      {canOpenNew && !confirming && (
-        <button className="ghost small" onClick={() => setConfirming(true)}>
-          Open government request
-        </button>
-      )}
-      {canOpenNew && confirming && (
-        <div className="inline-form">
-          <label>
-            Purpose
-            <select
-              value={fundingType}
-              onChange={(event) => setFundingType(event.target.value as typeof fundingType)}
-            >
-              {LAND_FUNDING_TYPES.map((type) => (
-                <option key={type} value={type}>
-                  {FUNDING_TYPE_LABELS[type]}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Requested amount
-            <input
-              type="number"
-              min="1"
-              value={amount}
-              onChange={(event) => setAmount(event.target.value)}
-            />
-          </label>
-          <div className="button-row">
-            <button
-              className="primary small"
-              disabled={busy || !Number.isFinite(Number(amount)) || Number(amount) <= 0}
-              onClick={() => void submit()}
-            >
-              {busy ? "Submitting…" : "Confirm request"}
-            </button>
-            <button className="ghost small" disabled={busy} onClick={() => setConfirming(false)}>
-              Cancel
-            </button>
+            {meeting.current.decisionReason && <p className="subtle">{meeting.current.decisionReason}</p>}
+            {meeting.current.conditions.length > 0 && (
+              <p className="subtle">Conditions: {meeting.current.conditions.join(", ")}</p>
+            )}
+          </MeetingBrief>
+        )}
+        <p className="subtle">{GOVERNMENT_MEETING_ACTION_LABEL[meeting.nextAction]}</p>
+        {meeting.blockedReason && <p className="empty-state">{meeting.blockedReason}</p>}
+        {options.length > 0 && !confirming && (
+          <MeetingOptions
+            options={options}
+            busyId={busyId}
+            onChoose={(id) => {
+              if (id === "OPEN_REQUEST") setConfirming(true);
+              else if (id === "SUBMIT_CASE") void submitCase();
+            }}
+          />
+        )}
+        {confirming && (
+          <div className="inline-form">
+            <label>
+              Purpose
+              <select value={fundingType} onChange={(event) => setFundingType(event.target.value as typeof fundingType)}>
+                {LAND_FUNDING_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {FUNDING_TYPE_LABELS[type]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Requested amount
+              <input type="number" min="1" value={amount} onChange={(event) => setAmount(event.target.value)} />
+            </label>
+            <div className="button-row">
+              <button
+                className="primary small"
+                disabled={busyId !== null || !Number.isFinite(Number(amount)) || Number(amount) <= 0}
+                onClick={() => void openRequest()}
+              >
+                {busyId === "OPEN_REQUEST" ? "Submitting…" : "Confirm request"}
+              </button>
+              <button className="ghost small" disabled={busyId !== null} onClick={() => setConfirming(false)}>
+                Cancel
+              </button>
+            </div>
           </div>
-        </div>
+        )}
+        {message && (
+          <p className="notice" role="status">
+            {message}
+          </p>
+        )}
+        <MeetingOutcome
+          history={meeting.priorApplications.map((application) => ({
+            date: application.decidedOn ?? application.proposedOn,
+            label: applicationStatusLabel(application.status),
+            tone: applicationStatusTone(application.status),
+            detail: `${FUNDING_TYPE_LABELS[application.fundingType]} · ${money(application.requestedAmount)}`,
+          }))}
+        />
+      </MeetingShell>
+      {openOrgId && (
+        <OrganizationProfilePanel
+          bridge={bridge}
+          entityType={openOrgId.entityType}
+          entityId={openOrgId.entityId}
+          onClose={() => setOpenOrgId(null)}
+        />
       )}
-      {openNonTerminal && (
-        <p className="subtle">
-          A government support request is already{" "}
-          {applicationStatusLabel(openNonTerminal.status).toLowerCase()} for this club — a new one
-          cannot be opened until it is resolved.
-        </p>
-      )}
-      {message && (
-        <p className="notice" role="status">
-          {message}
-        </p>
-      )}
-    </Panel>
+    </div>
   );
 };
 
@@ -5939,6 +5971,28 @@ const ClubProfileBody = ({
         </ul>
       )}
     </Panel>
+    {profile.infrastructureHistory.length > 0 && (
+      <Panel title="Recent infrastructure history">
+        <ul className="compact-list">
+          {profile.infrastructureHistory.map((entry, index) => (
+            <li key={`${entry.occurredOn}:${index}`}>
+              <Badge tone={entry.tone}>{entry.occurredOn}</Badge> {entry.headline}
+              {entry.entities.length > 0 && (
+                <span className="button-row">
+                  {entry.entities.map((reference) => (
+                    <EntityRefLink
+                      key={`${reference.entityType}:${reference.id}`}
+                      reference={reference}
+                      onOpen={onOpenReference}
+                    />
+                  ))}
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      </Panel>
+    )}
     <Panel title="Recent fixtures">
       {profile.recentFixtures.length === 0 ? (
         <p className="empty-state">No fixtures on record.</p>
