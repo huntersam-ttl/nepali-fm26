@@ -314,6 +314,11 @@ const insertOwnershipStoryEvent = (
      * negotiation that fires the same event type twice in one simulated
      * day doesn't collide on a duplicate history-row id. */
     dedupeKey?: string;
+    /** The live OwnershipAcquisitionOffer this story is about — carried on
+     * the event so a Story Detail can deep-link back into the real,
+     * still-queryable negotiation rather than only naming the club. Omitted
+     * only where a story genuinely spans multiple fresh offers at once. */
+    offerId?: EntityId;
   },
 ): void => {
   new EventRepository(db).insertHistoricalEvent({
@@ -328,7 +333,7 @@ const insertOwnershipStoryEvent = (
       { id: input.buyerPersonId, type: "person" },
     ],
     title: input.title,
-    data: input.data,
+    data: input.offerId ? { ...input.data, offerId: input.offerId } : input.data,
     importance: input.importance ?? "medium",
     scope: "club",
   });
@@ -942,6 +947,7 @@ const completeCapitalInjectionAcquisition = (
     date,
     data: { amount, percentage: offer.percentage },
     importance: "high",
+    offerId: offer.id,
   });
   applySupporterOwnershipOutcome({ db, clubId: offer.clubId, date, trustImpact: 2 });
   return transaction;
@@ -980,7 +986,7 @@ const settleOwnershipDeal = (db: GameDatabase, offer: OwnershipAcquisitionOffer,
   };
   repo.upsertOffer(completed);
   insertOwnershipRound(db, { offerId: offer.id, actor: "SYSTEM", action: "ACCEPT", message: "Ownership deal completed.", date });
-  insertOwnershipStoryEvent(db, { clubId: offer.clubId, buyerPersonId: offer.buyerPersonId, eventType: offer.percentage >= 51 ? "OWNERSHIP_CONTROLLING_STAKE_AGREED" : "OWNERSHIP_DEAL_COMPLETED", title: offer.percentage >= 51 ? "Controlling stake agreed" : "Ownership deal completed", date, data: { amount, percentage: offer.percentage }, importance: "high", dedupeKey: offer.id });
+  insertOwnershipStoryEvent(db, { clubId: offer.clubId, buyerPersonId: offer.buyerPersonId, eventType: offer.percentage >= 51 ? "OWNERSHIP_CONTROLLING_STAKE_AGREED" : "OWNERSHIP_DEAL_COMPLETED", title: offer.percentage >= 51 ? "Controlling stake agreed" : "Ownership deal completed", date, data: { amount, percentage: offer.percentage }, importance: "high", dedupeKey: offer.id, offerId: offer.id });
   return completed;
 };
 
@@ -1027,7 +1033,7 @@ export const processDueOwnershipOffer = (
       };
       repo.upsertOffer(rejected);
       insertOwnershipRound(db, { offerId: offer.id, actor: "INVESTOR", action: "REJECT", message: `Due diligence concern: ${findingDescriptions[0]} The investor walked away.`, date });
-      insertOwnershipStoryEvent(db, { clubId: offer.clubId, buyerPersonId: offer.buyerPersonId, eventType: "OWNERSHIP_NEGOTIATION_COLLAPSED", title: "Negotiation collapses after due diligence", date, data: { findings: findingDescriptions }, dedupeKey: offer.id });
+      insertOwnershipStoryEvent(db, { clubId: offer.clubId, buyerPersonId: offer.buyerPersonId, eventType: "OWNERSHIP_NEGOTIATION_COLLAPSED", title: "Negotiation collapses after due diligence", date, data: { findings: findingDescriptions }, dedupeKey: offer.id, offerId: offer.id });
       return { title: "Investor withdrew", body: "Due diligence findings were serious enough that the investor walked away." };
     }
     if (scaledAdjustment < -4) {
@@ -1044,7 +1050,7 @@ export const processDueOwnershipOffer = (
       };
       repo.upsertOffer(next);
       insertOwnershipRound(db, { offerId: offer.id, actor: "INVESTOR", action: "DUE_DILIGENCE", message: `Due diligence concern: ${findingDescriptions[0]} Revised offer: ${loweredAmount.toLocaleString()} NPR.`, date });
-      insertOwnershipStoryEvent(db, { clubId: offer.clubId, buyerPersonId: offer.buyerPersonId, eventType: "OWNERSHIP_DUE_DILIGENCE_CONCERN", title: "Due diligence concern raised", date, data: { findings: findingDescriptions }, dedupeKey: `${offer.id}:${repo.negotiationRounds(offer.id).length}` });
+      insertOwnershipStoryEvent(db, { clubId: offer.clubId, buyerPersonId: offer.buyerPersonId, eventType: "OWNERSHIP_DUE_DILIGENCE_CONCERN", title: "Due diligence concern raised", date, data: { findings: findingDescriptions }, dedupeKey: `${offer.id}:${repo.negotiationRounds(offer.id).length}`, offerId: offer.id });
       return { title: "Due diligence concern", body: "The investor has revised their offer down after due diligence." };
     }
     const next: OwnershipAcquisitionOffer = {
@@ -1096,13 +1102,13 @@ export const processDueOwnershipOffer = (
       };
       repo.upsertOffer(next);
       insertOwnershipRound(db, { offerId: offer.id, actor: "INVESTOR", action: "COUNTER", message: `Investor revised their proposal to ${evaluation.amount.toLocaleString()} NPR.`, date });
-      insertOwnershipStoryEvent(db, { clubId: offer.clubId, buyerPersonId: offer.buyerPersonId, eventType: "OWNERSHIP_REVISED_PROPOSAL", title: "Investor revises proposal", date, data: { amount: evaluation.amount }, dedupeKey: `${offer.id}:${repo.negotiationRounds(offer.id).length}` });
+      insertOwnershipStoryEvent(db, { clubId: offer.clubId, buyerPersonId: offer.buyerPersonId, eventType: "OWNERSHIP_REVISED_PROPOSAL", title: "Investor revises proposal", date, data: { amount: evaluation.amount }, dedupeKey: `${offer.id}:${repo.negotiationRounds(offer.id).length}`, offerId: offer.id });
       return { title: "Investor revised their offer", body: `New proposal: ${evaluation.amount.toLocaleString()} NPR.` };
     }
     const rejected: OwnershipAcquisitionOffer = { ...offer, status: "REJECTED", decidedOn: date, pendingDecisionBy: undefined, respondBy: undefined, rationale: `Investor walked away — ${evaluation.reason}.` };
     repo.upsertOffer(rejected);
     insertOwnershipRound(db, { offerId: offer.id, actor: "INVESTOR", action: "REJECT", message: "Investor walked away from the negotiation.", date });
-    insertOwnershipStoryEvent(db, { clubId: offer.clubId, buyerPersonId: offer.buyerPersonId, eventType: "OWNERSHIP_INVESTOR_WALKED_AWAY", title: "Investor walks away", date, data: { reason: evaluation.reason }, dedupeKey: offer.id });
+    insertOwnershipStoryEvent(db, { clubId: offer.clubId, buyerPersonId: offer.buyerPersonId, eventType: "OWNERSHIP_INVESTOR_WALKED_AWAY", title: "Investor walks away", date, data: { reason: evaluation.reason }, dedupeKey: offer.id, offerId: offer.id });
     return { title: "Investor walked away", body: `The gap to your asking price never closed (${evaluation.reason}).` };
   }
 
@@ -1129,7 +1135,7 @@ export const processDueOwnershipOffer = (
     };
     repo.upsertOffer(next);
     insertOwnershipRound(db, { offerId: offer.id, actor: "BOARD", action: "BOARD_REVIEW", message: stanceLine, date });
-    insertOwnershipStoryEvent(db, { clubId: offer.clubId, buyerPersonId: offer.buyerPersonId, eventType: "OWNERSHIP_BOARD_REVIEWED", title: tier === "OPPOSED" ? "Board opposes ownership deal" : "Board reviews ownership deal", date, data: { stance: stanceLine, tier }, dedupeKey: offer.id });
+    insertOwnershipStoryEvent(db, { clubId: offer.clubId, buyerPersonId: offer.buyerPersonId, eventType: "OWNERSHIP_BOARD_REVIEWED", title: tier === "OPPOSED" ? "Board opposes ownership deal" : "Board reviews ownership deal", date, data: { stance: stanceLine, tier }, dedupeKey: offer.id, offerId: offer.id });
     return { title: "Board reviewed the deal", body: stanceLine };
   }
 

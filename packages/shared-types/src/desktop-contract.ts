@@ -722,6 +722,17 @@ export type StoryThread = {
   involvedEntities: EntityReference[];
 };
 
+/**
+ * A real, authority-checked next step from a story — never a name/text
+ * match, never shown when the underlying workflow can no longer be found.
+ * `OPEN_ENTITY` reuses the existing EntityReference/profile mechanism;
+ * `OPEN_INVESTOR_MEETING` deep-links into the live (or, once settled,
+ * read-only) ownership negotiation by its own stable offer id.
+ */
+export type StoryAction =
+  | { id: string; label: string; kind: "OPEN_ENTITY"; entity: EntityReference }
+  | { id: string; label: string; kind: "OPEN_INVESTOR_MEETING"; offerId: EntityId };
+
 export type StoryDetail = {
   header: {
     importance: HistoricalEvent["importance"];
@@ -742,6 +753,8 @@ export type StoryDetail = {
     additionalFacts: { label: string; value: string }[];
     priorEvents: { date: ISODate; headline: string }[];
   };
+  /** Real, role-authority-checked next steps — see StoryAction. */
+  actions: StoryAction[];
 };
 
 /** One line in a Player/Club Profile's recent-story section — read from the

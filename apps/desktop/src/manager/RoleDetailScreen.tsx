@@ -1003,11 +1003,20 @@ const CapitalFlowDiagram = ({
   );
 };
 
-const InvestorMeeting = ({ bridge }: { bridge: DesktopRuntimeApi }): React.ReactElement => {
+const InvestorMeeting = ({
+  bridge,
+  focusOfferId,
+}: {
+  bridge: DesktopRuntimeApi;
+  /** Pre-selects a specific offer — e.g. arriving here from a Story
+   * Detail's "View investor talks" action — rather than defaulting to the
+   * first open bid. Works for a decided (read-only) offer too. */
+  focusOfferId?: EntityId;
+}): React.ReactElement => {
   const [state, refresh] = useRuntimeData(() => bridge.getInvestorMeeting());
   return (
     <AsyncPanel state={state}>
-      {(overview) => <InvestorMeetingView overview={overview} bridge={bridge} refresh={refresh} />}
+      {(overview) => <InvestorMeetingView overview={overview} bridge={bridge} refresh={refresh} focusOfferId={focusOfferId} />}
     </AsyncPanel>
   );
 };
@@ -1016,10 +1025,12 @@ const InvestorMeetingView = ({
   overview,
   bridge,
   refresh,
+  focusOfferId,
 }: {
   overview: InvestorMeetingOverview;
   bridge: DesktopRuntimeApi;
   refresh: () => void;
+  focusOfferId?: EntityId;
 }): React.ReactElement => {
   const { market } = overview;
   const openBids = market.bids.filter((bid) => OWNERSHIP_OPEN_STATUSES.includes(bid.offer.status));
@@ -1027,8 +1038,8 @@ const InvestorMeetingView = ({
   const currentStake = market.ownership.find((stake) => stake.holderId === overview.ownerPersonId);
   const currentPercentage = currentStake?.percentage ?? 0;
 
-  const [selectedBidId, setSelectedBidId] = useState<EntityId | undefined>(openBids[0]?.offer.id);
-  const selectedBid = openBids.find((bid) => bid.offer.id === selectedBidId) ?? openBids[0];
+  const [selectedBidId, setSelectedBidId] = useState<EntityId | undefined>(focusOfferId ?? openBids[0]?.offer.id);
+  const selectedBid = [...openBids, ...decidedBids].find((bid) => bid.offer.id === selectedBidId) ?? openBids[0];
   const [confirmingControlLoss, setConfirmingControlLoss] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -6087,7 +6098,8 @@ const missingProfileMethod = (message: string): { ok: false; error: AppError } =
 /** The narrow slice of DesktopRuntimeApi the story surfaces actually call —
  * lets a manager-scoped bridge (which doesn't implement the full session
  * API) use these components without an unsafe cast. */
-export type StoryBridge = Pick<DesktopRuntimeApi, "getStoryDetail" | "getStoryThreads" | "getEntityStoryline">;
+export type StoryBridge = Pick<DesktopRuntimeApi, "getStoryDetail" | "getStoryThreads" | "getEntityStoryline"> &
+  Partial<Pick<DesktopRuntimeApi, "getInvestorMeeting">>;
 
 const IMPORTANCE_TONE: Record<string, "bad" | "warn" | "info" | "ok"> = {
   BREAKING: "bad",
@@ -6127,11 +6139,15 @@ export const StoryDetailPanel = ({
   eventId,
   onClose,
   onOpenReference,
+  onOpenInvestorMeeting,
 }: {
   bridge: StoryBridge;
   eventId: EntityId;
   onClose: () => void;
   onOpenReference: (reference: EntityReference) => void;
+  /** Present only where a full DesktopRuntimeApi is actually available —
+   * absent, the action renders as plain text rather than a dead button. */
+  onOpenInvestorMeeting?: (offerId: EntityId) => void;
 }): React.ReactElement => {
   const [state] = useRuntimeData<StoryDetail>(
     () => (bridge.getStoryDetail ? bridge.getStoryDetail(eventId) : Promise.resolve({ ok: false, error: { code: "RUNTIME_UNAVAILABLE", message: "Story detail is unavailable." } })),
@@ -6193,6 +6209,23 @@ export const StoryDetailPanel = ({
                   ))}
                 </ul>
               </>
+            )}
+            {detail.actions.length > 0 && (
+              <div className="button-row">
+                {detail.actions.map((action) =>
+                  action.kind === "OPEN_ENTITY" ? (
+                    <EntityRefLink key={action.id} reference={action.entity} onOpen={onOpenReference} />
+                  ) : onOpenInvestorMeeting ? (
+                    <button key={action.id} className="link" onClick={() => onOpenInvestorMeeting(action.offerId)}>
+                      {action.label}
+                    </button>
+                  ) : (
+                    <span key={action.id} className="subtle">
+                      {action.label}
+                    </span>
+                  ),
+                )}
+              </div>
             )}
           </>
         )}
@@ -6308,6 +6341,7 @@ const InboxStoryCard = ({
 export const InboxPanel = ({ inbox, bridge }: { inbox: InboxItem[]; bridge: DesktopRuntimeApi }): React.ReactElement => {
   const [openReferenceTarget, setOpenReferenceTarget] = useState<{ entityType: ProfileEntityType; entityId: EntityId } | null>(null);
   const [openStoryEventId, setOpenStoryEventId] = useState<EntityId | null>(null);
+  const [openInvestorOfferId, setOpenInvestorOfferId] = useState<EntityId | null>(null);
   const [showThreads, setShowThreads] = useState(false);
   const openReference = (reference: EntityReference): void =>
     setOpenReferenceTarget({ entityType: reference.entityType as ProfileEntityType, entityId: reference.id });
@@ -6339,6 +6373,7 @@ export const InboxPanel = ({ inbox, bridge }: { inbox: InboxItem[]; bridge: Desk
           eventId={openStoryEventId}
           onClose={() => setOpenStoryEventId(null)}
           onOpenReference={openReference}
+          onOpenInvestorMeeting={setOpenInvestorOfferId}
         />
       )}
       {showThreads && (
@@ -6350,6 +6385,14 @@ export const InboxPanel = ({ inbox, bridge }: { inbox: InboxItem[]; bridge: Desk
             setOpenStoryEventId(eventId);
           }}
         />
+      )}
+      {openInvestorOfferId && (
+        <Panel title="Investor negotiation">
+          <button className="ghost" onClick={() => setOpenInvestorOfferId(null)}>
+            Close
+          </button>
+          <InvestorMeeting bridge={bridge} focusOfferId={openInvestorOfferId} />
+        </Panel>
       )}
     </Panel>
   );

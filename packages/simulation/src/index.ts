@@ -29,6 +29,7 @@ export * from "./story-entities.js";
 export * from "./story-threads.js";
 export * from "./story-detail.js";
 export * from "./follow-up-reactions.js";
+export * from "./story-actions.js";
 export * from "./player-pathway.js";
 export * from "./national-team-management.js";
 export * from "./media.js";

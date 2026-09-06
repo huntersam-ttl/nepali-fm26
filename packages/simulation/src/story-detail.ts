@@ -2,6 +2,7 @@ import type { CareerRole, HistoricalEvent, StoryDetail, StoryThread, StoryThread
 import type { GameDatabase } from "@nepal-football-sim/database";
 import { resolveStoryEntityReference, storyImportanceBand } from "./story-entities.js";
 import { humanizeEventType } from "./story-threads.js";
+import { buildStoryActions } from "./story-actions.js";
 
 export type { StoryDetail } from "@nepal-football-sim/shared-types";
 
@@ -48,6 +49,10 @@ const additionalFactsFrom = (data: Record<string, unknown> | undefined): { label
     facts.push({ label: "Government contribution", value: `NPR ${Math.round(data.governmentContribution).toLocaleString("en-US")}` });
   const deadline = data.deadline ?? data.dueDate;
   if (typeof deadline === "string") facts.push({ label: "Deadline", value: deadline });
+  if (typeof data.wageShare === "number") facts.push({ label: "Wage share", value: `${data.wageShare}%` });
+  if (typeof data.impliedValuation === "number")
+    facts.push({ label: "Implied valuation", value: `NPR ${Math.round(data.impliedValuation).toLocaleString("en-US")}` });
+  if (typeof data.term === "number") facts.push({ label: "Term", value: `${data.term} year${data.term === 1 ? "" : "s"}` });
   return facts;
 };
 
@@ -93,5 +98,6 @@ export const buildStoryDetail = (
       additionalFacts: additionalFactsFrom(event.data),
       priorEvents,
     },
+    actions: buildStoryActions(db, event, role),
   };
 };
