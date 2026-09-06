@@ -4,13 +4,14 @@ import type {
   AttributeGroupView,
   DressingRoomHierarchyLabel,
   EntityId,
+  EntityReference,
   ManagerSupportLabel,
   PlayerMarketValueView,
   PlayerProfile,
   PlayerValuationSnapshot,
 } from "@nepal-football-sim/shared-types";
 import { managerBridge } from "../managerBridge.js";
-import { EntityRefLink } from "../RoleDetailScreen.js";
+import { EntityRefLink, EntityStorylinePanel } from "../RoleDetailScreen.js";
 import {
   AsyncPanel,
   Badge,
@@ -489,6 +490,13 @@ export const PlayerProfileScreen = ({
   const [busy, setBusy] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
+  /** This screen only has a manager-scoped bridge, which has no general
+   * organization-profile lookup — so only CLUB references (routed through
+   * the club-profile callback this screen already receives) are openable
+   * here; anything else in a storyline stays a plain, honest label. */
+  const openReference = (reference: EntityReference): void => {
+    if (reference.entityType === "CLUB") onOpenClub(reference.id);
+  };
 
   return (
     <section
@@ -652,6 +660,7 @@ export const PlayerProfileScreen = ({
             <PlayerDressingRoomPanel playerId={playerId} />
 
             <PlayerPathwayPanel playerId={playerId} />
+            <EntityStorylinePanel bridge={managerBridge} entityId={playerId} onOpenReference={openReference} />
 
             <Panel title="Attributes">
               <p className="subtle">

@@ -4,6 +4,7 @@ import {
   CareerWorldRepository,
   ClubEconomyRepository,
   CommercialRightsRepository,
+  EventRepository,
   FacilityPlanningRepository,
   ClubLicensingRepository,
   CompetitionRepository,
@@ -22,6 +23,7 @@ import {
   migrateDatabase,
   openGameDatabase,
   type GameDatabase,
+  type PublicEventRole,
 } from "@nepal-football-sim/database";
 import {
   assertSchemaCompatible,
@@ -82,6 +84,9 @@ import {
   type NationDevelopmentScorecard,
   type FederationRefereeContext,
   type PlayerPathway,
+  type StoryThread,
+  type StoryDetail,
+  type EntityStoryline,
   type FederationMap,
   type DistrictDetail,
   type CompetitionPyramid,
@@ -397,6 +402,9 @@ import { buildFederationRefereeContext } from "./federation-referee-context.js";
 import { buildFederationMap, buildDistrictDetail } from "./federation-map.js";
 import { initializeNepalTerritorialStructure } from "./territorial-football.js";
 import { buildPlayerPathway } from "./player-pathway.js";
+import { roleStoryThreads, deriveStoryThreadsFromEvents, findThreadForEvent, buildEntityStoryline, currentEntityThread } from "./story-threads.js";
+import { buildStoryDetail } from "./story-detail.js";
+import { roleInboxEvents } from "./media.js";
 import { buildCompetitionPyramid } from "./competition-pyramid-view.js";
 import { governmentOverview, requestGovernmentFunding, requestClubInfrastructureGovernmentSupport, requestFacilitySiteGovernmentSupport, resolveGovernmentInstitutionForClub, clubInfrastructureGovernmentContext, advanceGovernmentApplications, buildGovernmentSupportMeeting, submitGovernmentFunding } from "./government.js";
 import { publishMediaForDate } from "./media.js";
@@ -3413,6 +3421,47 @@ export class DesktopApplicationService {
       const pathway = buildPlayerPathway(db, playerId, activeCareerRole(db, careerPersonId(db, save)));
       if (!pathway) throw appError("INVALID_SELECTION", "This player has no national-team call-up history on record.");
       return pathway;
+    });
+  }
+
+  private publicEventRoleForStories(db: GameDatabase, personId: EntityId): PublicEventRole {
+    const role = activeCareerRole(db, personId);
+    if (role === "CHAIRMAN_OWNER") return "OWNER";
+    if (role === "FEDERATION_PRESIDENT") return "PRESIDENT";
+    return "MANAGER";
+  }
+
+  getStoryThreads(): AppResult<StoryThread[]> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      return roleStoryThreads(db, { personId, role: this.publicEventRoleForStories(db, personId) });
+    });
+  }
+
+  getStoryDetail(eventId: EntityId): AppResult<StoryDetail> {
+    return this.withSession((db, save) => {
+      const role = activeCareerRole(db, careerPersonId(db, save));
+      const allEvents = new EventRepository(db).historicalEvents();
+      const event = allEvents.find((candidate) => candidate.id === eventId);
+      if (!event) throw appError("INVALID_SELECTION", "This story could not be found.");
+      // Thread context comes from every event sharing an involved entity with
+      // this one — bounded to what's actually relevant, still fully derived.
+      const relatedEvents = allEvents.filter((candidate) =>
+        candidate.involvedEntities.some((ref) => event.involvedEntities.some((own) => own.id === ref.id)),
+      );
+      const threads = deriveStoryThreadsFromEvents(db, relatedEvents, role);
+      const thread = findThreadForEvent(threads, eventId);
+      return buildStoryDetail(db, event, role, thread);
+    });
+  }
+
+  getEntityStoryline(entityId: EntityId): AppResult<EntityStoryline> {
+    return this.withSession((db, save) => {
+      const role = activeCareerRole(db, careerPersonId(db, save));
+      return {
+        entries: buildEntityStoryline(db, entityId),
+        currentStory: currentEntityThread(db, entityId, role),
+      };
     });
   }
 

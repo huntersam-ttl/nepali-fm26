@@ -224,6 +224,12 @@ const dispatch = (
       return service.getFederationRefereeContext();
     case "getPlayerPathway":
       return service.getPlayerPathway(body.playerId as EntityId);
+    case "getStoryThreads":
+      return service.getStoryThreads();
+    case "getStoryDetail":
+      return service.getStoryDetail(body.eventId as EntityId);
+    case "getEntityStoryline":
+      return service.getEntityStoryline(body.entityId as EntityId);
     case "getFederationMap":
       return service.getFederationMap();
     case "getDistrictDetail":

@@ -55,6 +55,33 @@ const outlets: Array<Omit<MediaOutlet, "id">> = [
     style: "TRADE",
     status,
   },
+  {
+    name: "ANFA Federation Bulletin",
+    scope: "NATIONAL",
+    reputation: 7.2,
+    reach: 5.5,
+    bias: "DEVELOPMENT_FOCUS",
+    style: "WIRE",
+    status,
+  },
+  {
+    name: "Nepal Football Business Desk",
+    scope: "NATIONAL",
+    reputation: 6.2,
+    reach: 4.8,
+    bias: "NEUTRAL",
+    style: "TRADE",
+    status,
+  },
+  {
+    name: "Club Media Channel",
+    scope: "LOCAL",
+    reputation: 4.5,
+    reach: 2.8,
+    bias: "CLUB_FOCUSED",
+    style: "TABLOID",
+    status,
+  },
 ];
 
 export const initializeMediaForSave = (db: GameDatabase): MediaOutlet[] => {
@@ -338,6 +365,7 @@ export const roleInboxItems = (
       title: event.title,
       body: event.title,
       relatedEntity: event.involvedEntities[0],
+      sourceEventId: event.id,
       read: legacyReadByEvent.get(event.id) ?? false,
       entityReferences: entityReferences.length > 0 ? entityReferences : undefined,
       importanceBand: storyImportanceBand(event.importance),

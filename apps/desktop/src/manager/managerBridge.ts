@@ -24,6 +24,9 @@ import type {
   PostMatchReport,
   PlayerProfile,
   PlayerPathway,
+  StoryThread,
+  StoryDetail,
+  EntityStoryline,
   PlayerMarketValueView,
   QuickSimSummary,
   RecruitmentSearchCommand,
@@ -87,6 +90,9 @@ export const managerBridge = {
     runtimeCall<PlayerProfile>("getPlayerProfile", { playerId }),
   getPlayerPathway: (playerId: EntityId) =>
     runtimeCall<PlayerPathway>("getPlayerPathway", { playerId }),
+  getStoryThreads: () => runtimeCall<StoryThread[]>("getStoryThreads"),
+  getStoryDetail: (eventId: EntityId) => runtimeCall<StoryDetail>("getStoryDetail", { eventId }),
+  getEntityStoryline: (entityId: EntityId) => runtimeCall<EntityStoryline>("getEntityStoryline", { entityId }),
   getPlayerMarketValue: (playerId: EntityId) =>
     runtimeCall<PlayerMarketValueView>("getPlayerMarketValue", { playerId }),
   getPlayerActions: (playerId: EntityId) =>

@@ -26,6 +26,8 @@ export * from "./federation-referee-context.js";
 export * from "./federation-map.js";
 export * from "./competition-pyramid-view.js";
 export * from "./story-entities.js";
+export * from "./story-threads.js";
+export * from "./story-detail.js";
 export * from "./player-pathway.js";
 export * from "./national-team-management.js";
 export * from "./media.js";

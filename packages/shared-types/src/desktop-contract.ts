@@ -50,6 +50,8 @@ import type {
   ManagerPromise,
   MatchViewMode,
   PlayerMarketValueView,
+  HistoricalEvent,
+  StoryImportanceBand,
 } from "./domain.js";
 import type { ExecutiveAuthorityDesktopView } from "./executive-roles.js";
 import type { FederationDevelopmentSummary, NationDevelopmentScorecard } from "./federation-policy.js";
@@ -692,6 +694,68 @@ export type PlayerPathway = {
   provenanceStatus: "SIMULATION_ONLY";
 };
 
+/** A thread is derived on every read from the existing historical-event
+ * stream, never stored as its own record — membership comes from stable
+ * event metadata (the involved player/club/competition), not a second
+ * event/thread table. */
+export type StoryThreadCategory =
+  | "TRANSFER"
+  | "LOAN"
+  | "OWNERSHIP"
+  | "FACILITY"
+  | "INJURY"
+  | "CONTRACT"
+  | "NATIONAL_PATHWAY"
+  | "COMMERCIAL"
+  | "COMPETITION";
+
+export type StoryThread = {
+  id: string;
+  category: StoryThreadCategory;
+  primaryEntity: EntityReference;
+  currentState: string;
+  latestEvent: HistoricalEvent;
+  resolved: boolean;
+  events: HistoricalEvent[];
+  involvedEntities: EntityReference[];
+};
+
+export type StoryDetail = {
+  header: {
+    importance: HistoricalEvent["importance"];
+    importanceBand: StoryImportanceBand;
+    category: string;
+    date: ISODate;
+    headline: string;
+  };
+  body: {
+    narrative: string;
+    whyItMatters: string;
+    immediateConsequence: string;
+    currentState: string;
+  };
+  contextRail: {
+    entities: EntityReference[];
+    financialImpact?: { amount: number; currency: string };
+    priorEvents: { date: ISODate; headline: string }[];
+  };
+};
+
+/** One line in a Player/Club Profile's recent-story section — read from the
+ * same canonical historical events as the Inbox, never a separate record. */
+export type StorylineEntry = {
+  date: ISODate;
+  headline: string;
+  importanceBand: StoryImportanceBand;
+  category?: StoryThreadCategory;
+  eventId: EntityId;
+};
+
+export type EntityStoryline = {
+  entries: StorylineEntry[];
+  currentStory?: StoryThread;
+};
+
 export type NationalTeamSquadPlayer = {
   player: EntityReference;
   personId: EntityId;
@@ -947,6 +1011,9 @@ export type DesktopRuntimeApi = {
   getNationDevelopmentScorecard?: () => Promise<AppResult<NationDevelopmentScorecard>>;
   getFederationRefereeContext?: () => Promise<AppResult<FederationRefereeContext>>;
   getPlayerPathway?: (playerId: EntityId) => Promise<AppResult<PlayerPathway>>;
+  getStoryThreads?: () => Promise<AppResult<StoryThread[]>>;
+  getStoryDetail?: (eventId: EntityId) => Promise<AppResult<StoryDetail>>;
+  getEntityStoryline?: (entityId: EntityId) => Promise<AppResult<EntityStoryline>>;
   getFederationMap?: () => Promise<AppResult<FederationMap>>;
   getDistrictDetail?: (districtId: EntityId) => Promise<AppResult<DistrictDetail>>;
   getCompetitionPyramid?: () => Promise<AppResult<CompetitionPyramid>>;

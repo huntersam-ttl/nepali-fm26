@@ -65,6 +65,8 @@ import type {
   NationalTeamSquadReadModel,
   NationalTeamSquadPlayer,
   NationalTeamSelectionHistoryEntry,
+  StoryDetail,
+  StoryThread,
 } from "@nepal-football-sim/shared-types";
 import type { EntityId } from "@nepal-football-sim/shared-types";
 import type { AppError, AppResult, DesktopRuntimeApi } from "../appBridge.js";
@@ -6082,6 +6084,11 @@ const missingProfileMethod = (message: string): { ok: false; error: AppError } =
  * component and the same internal back/history stack, so a Club → Manager →
  * Club → Competition chain works uniformly no matter where it started.
  */
+/** The narrow slice of DesktopRuntimeApi the story surfaces actually call —
+ * lets a manager-scoped bridge (which doesn't implement the full session
+ * API) use these components without an unsafe cast. */
+export type StoryBridge = Pick<DesktopRuntimeApi, "getStoryDetail" | "getStoryThreads" | "getEntityStoryline">;
+
 const IMPORTANCE_TONE: Record<string, "bad" | "warn" | "info" | "ok"> = {
   BREAKING: "bad",
   MAJOR: "warn",
@@ -6089,17 +6096,164 @@ const IMPORTANCE_TONE: Record<string, "bad" | "warn" | "info" | "ok"> = {
   ROUTINE: "ok",
 };
 
+const THREAD_CATEGORY_LABEL: Record<StoryThread["category"], string> = {
+  TRANSFER: "Transfer",
+  LOAN: "Loan",
+  OWNERSHIP: "Ownership",
+  FACILITY: "Facility",
+  INJURY: "Injury",
+  CONTRACT: "Contract",
+  NATIONAL_PATHWAY: "National pathway",
+  COMMERCIAL: "Commercial",
+  COMPETITION: "Competition",
+};
+
+/**
+ * The full detail view for one story: header, narrative body, and a context
+ * rail of real entities/financial impact/prior thread events. Every action
+ * routes through the same EntityRefLink/OrganizationProfilePanel machinery
+ * used everywhere else — never a raw id, never a destination that doesn't
+ * really exist.
+ */
+const StoryDetailPanel = ({
+  bridge,
+  eventId,
+  onClose,
+  onOpenReference,
+}: {
+  bridge: StoryBridge;
+  eventId: EntityId;
+  onClose: () => void;
+  onOpenReference: (reference: EntityReference) => void;
+}): React.ReactElement => {
+  const [state] = useRuntimeData<StoryDetail>(
+    () => (bridge.getStoryDetail ? bridge.getStoryDetail(eventId) : Promise.resolve({ ok: false, error: { code: "RUNTIME_UNAVAILABLE", message: "Story detail is unavailable." } })),
+    [eventId],
+  );
+  return (
+    <Panel title="Story detail" className="panel-wide story-detail-panel">
+      <button className="ghost" onClick={onClose}>
+        Close
+      </button>
+      <AsyncPanel state={state}>
+        {(detail: StoryDetail) => (
+          <>
+            <header className="button-row">
+              <Badge tone={IMPORTANCE_TONE[detail.header.importanceBand]}>{detail.header.importanceBand}</Badge>
+              <Badge tone="info">{detail.header.category}</Badge>
+              <span className="subtle">{detail.header.date}</span>
+            </header>
+            <h3>{detail.header.headline}</h3>
+            <p>{detail.body.narrative}</p>
+            <p className="subtle">
+              <strong>Why it matters:</strong> {detail.body.whyItMatters}
+            </p>
+            <p className="subtle">
+              <strong>Current state:</strong> {detail.body.currentState}
+            </p>
+            <p className="subtle">
+              <strong>Consequence:</strong> {detail.body.immediateConsequence}
+            </p>
+            {detail.contextRail.financialImpact && (
+              <p>
+                Financial impact:{" "}
+                {money(detail.contextRail.financialImpact.amount, detail.contextRail.financialImpact.currency)}
+              </p>
+            )}
+            {detail.contextRail.entities.length > 0 && (
+              <div className="button-row">
+                {detail.contextRail.entities.map((reference) => (
+                  <span key={`${reference.entityType}:${reference.id}`} className="entity-chip">
+                    <Badge tone="info">{reference.entityType.replace(/_/g, " ").toLowerCase()}</Badge>{" "}
+                    <EntityRefLink reference={reference} onOpen={onOpenReference} />
+                  </span>
+                ))}
+              </div>
+            )}
+            {detail.contextRail.priorEvents.length > 0 && (
+              <>
+                <h4>Earlier in this story</h4>
+                <ul className="compact-list">
+                  {detail.contextRail.priorEvents.map((prior) => (
+                    <li key={`${prior.date}:${prior.headline}`}>
+                      <span className="subtle">{prior.date}</span> {prior.headline}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </>
+        )}
+      </AsyncPanel>
+    </Panel>
+  );
+};
+
+/** A list of derived story threads for the active role, sorted by real
+ * importance band (BREAKING → MAJOR → IMPORTANT → ROUTINE) and then by
+ * most-recent event within a band. Clicking a thread opens its latest
+ * event's Story Detail. */
+const StoryThreadsPanel = ({
+  bridge,
+  onOpenEvent,
+  onClose,
+}: {
+  bridge: StoryBridge;
+  onOpenEvent: (eventId: EntityId) => void;
+  onClose: () => void;
+}): React.ReactElement => {
+  const [state] = useRuntimeData<StoryThread[]>(
+    () => (bridge.getStoryThreads ? bridge.getStoryThreads() : Promise.resolve({ ok: false, error: { code: "RUNTIME_UNAVAILABLE", message: "Story threads are unavailable." } })),
+    [],
+  );
+  return (
+    <Panel title="Story threads">
+      <button className="ghost" onClick={onClose}>
+        Close
+      </button>
+      <AsyncPanel state={state}>
+        {(threads: StoryThread[]) =>
+          threads.length === 0 ? (
+            <p className="empty-state">No developing storylines right now.</p>
+          ) : (
+            <ul className="compact-list">
+              {threads.map((thread) => (
+                <li key={thread.id}>
+                  <button className="link" onClick={() => onOpenEvent(thread.latestEvent.id)}>
+                    {thread.latestEvent.title}
+                  </button>
+                  <div className="button-row">
+                    <Badge tone="info">{THREAD_CATEGORY_LABEL[thread.category]}</Badge>
+                    <Badge tone={thread.resolved ? "ok" : "warn"}>{thread.resolved ? "Resolved" : "Unresolved"}</Badge>
+                    <span className="subtle">
+                      {thread.primaryEntity.label} · {thread.events.length} event{thread.events.length === 1 ? "" : "s"} · latest {thread.latestEvent.occurredOn}
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )
+        }
+      </AsyncPanel>
+    </Panel>
+  );
+};
+
 /** A single inbox story — importance and entities are only ever real,
  * already-computed data (StoryImportanceBand, EntityReference[]); plain
  * items with neither still render exactly as before. Expandable to a
  * lightweight "detail" view showing every involved entity, not just the
- * first. */
+ * first. The headline opens the full Story Detail only when the item is
+ * backed by a real historical event (sourceEventId) — legacy items have
+ * no detail to open, so they stay plain text. */
 const InboxStoryCard = ({
   item,
   onOpenReference,
+  onOpenStory,
 }: {
   item: InboxItem;
   onOpenReference: (reference: EntityReference) => void;
+  onOpenStory: (eventId: EntityId) => void;
 }): React.ReactElement => {
   const [expanded, setExpanded] = useState(false);
   const entities = item.entityReferences ?? [];
@@ -6107,7 +6261,13 @@ const InboxStoryCard = ({
     <div className="inbox-item" key={item.id}>
       <div className="button-row">
         {item.importanceBand && <Badge tone={IMPORTANCE_TONE[item.importanceBand]}>{item.importanceBand}</Badge>}
-        <strong>{item.title}</strong>
+        {item.sourceEventId ? (
+          <button className="link" onClick={() => onOpenStory(item.sourceEventId!)}>
+            {item.title}
+          </button>
+        ) : (
+          <strong>{item.title}</strong>
+        )}
       </div>
       {item.body !== item.title && <span>{item.body}</span>}
       <span className="subtle">{item.createdOn}</span>
@@ -6135,14 +6295,23 @@ const InboxStoryCard = ({
  * legacy plain items render exactly as before. */
 export const InboxPanel = ({ inbox, bridge }: { inbox: InboxItem[]; bridge: DesktopRuntimeApi }): React.ReactElement => {
   const [openReferenceTarget, setOpenReferenceTarget] = useState<{ entityType: ProfileEntityType; entityId: EntityId } | null>(null);
+  const [openStoryEventId, setOpenStoryEventId] = useState<EntityId | null>(null);
+  const [showThreads, setShowThreads] = useState(false);
   const openReference = (reference: EntityReference): void =>
     setOpenReferenceTarget({ entityType: reference.entityType as ProfileEntityType, entityId: reference.id });
   return (
     <Panel title="Inbox">
+      <div className="button-row">
+        <button className="ghost" onClick={() => setShowThreads(true)}>
+          Story threads
+        </button>
+      </div>
       {inbox.length === 0 ? (
         <p className="empty-state">Your inbox is empty.</p>
       ) : (
-        inbox.map((item) => <InboxStoryCard key={item.id} item={item} onOpenReference={openReference} />)
+        inbox.map((item) => (
+          <InboxStoryCard key={item.id} item={item} onOpenReference={openReference} onOpenStory={setOpenStoryEventId} />
+        ))
       )}
       {openReferenceTarget && (
         <OrganizationProfilePanel
@@ -6150,6 +6319,78 @@ export const InboxPanel = ({ inbox, bridge }: { inbox: InboxItem[]; bridge: Desk
           entityType={openReferenceTarget.entityType}
           entityId={openReferenceTarget.entityId}
           onClose={() => setOpenReferenceTarget(null)}
+        />
+      )}
+      {openStoryEventId && (
+        <StoryDetailPanel
+          bridge={bridge}
+          eventId={openStoryEventId}
+          onClose={() => setOpenStoryEventId(null)}
+          onOpenReference={openReference}
+        />
+      )}
+      {showThreads && (
+        <StoryThreadsPanel
+          bridge={bridge}
+          onClose={() => setShowThreads(false)}
+          onOpenEvent={(eventId) => {
+            setShowThreads(false);
+            setOpenStoryEventId(eventId);
+          }}
+        />
+      )}
+    </Panel>
+  );
+};
+
+/** A Player or Club Profile's "recent story" section — reads the same
+ * canonical historical events the Inbox reads, filtered to this one entity,
+ * ranked by recency. Never a second, fabricated biography record. Shared
+ * between Player and Club profiles rather than duplicated per screen. */
+export const EntityStorylinePanel = ({
+  bridge,
+  entityId,
+  onOpenReference,
+}: {
+  bridge: StoryBridge;
+  entityId: EntityId;
+  onOpenReference: (reference: EntityReference) => void;
+}): React.ReactElement | null => {
+  const [openStoryEventId, setOpenStoryEventId] = useState<EntityId | null>(null);
+  const [state] = useRuntimeData(
+    () =>
+      bridge.getEntityStoryline
+        ? bridge.getEntityStoryline(entityId)
+        : Promise.resolve({ ok: false as const, error: { code: "RUNTIME_UNAVAILABLE" as const, message: "Storylines are unavailable right now." } }),
+    [entityId],
+  );
+  if (state.status !== "ready" || state.data.entries.length === 0) return null;
+  const { entries, currentStory } = state.data;
+  return (
+    <Panel title="Recent story">
+      {currentStory && (
+        <p>
+          <Badge tone={currentStory.resolved ? "ok" : "warn"}>{currentStory.resolved ? "Resolved" : "Ongoing"}</Badge>{" "}
+          <strong>Current:</strong> {currentStory.currentState}
+        </p>
+      )}
+      <ul className="compact-list">
+        {entries.map((entry) => (
+          <li key={entry.eventId}>
+            {entry.importanceBand && <Badge tone={IMPORTANCE_TONE[entry.importanceBand]}>{entry.importanceBand}</Badge>}{" "}
+            <button className="link" onClick={() => setOpenStoryEventId(entry.eventId)}>
+              {entry.headline}
+            </button>{" "}
+            <span className="subtle">{entry.date}</span>
+          </li>
+        ))}
+      </ul>
+      {openStoryEventId && (
+        <StoryDetailPanel
+          bridge={bridge}
+          eventId={openStoryEventId}
+          onClose={() => setOpenStoryEventId(null)}
+          onOpenReference={onOpenReference}
         />
       )}
     </Panel>
@@ -6252,7 +6493,7 @@ export const OrganizationProfilePanel = ({
           profile.kind === "ORGANIZATION" ? (
             <OrganizationProfileBody profile={profile.data} onOpenReference={openReference} />
           ) : profile.kind === "CLUB" ? (
-            <ClubProfileBody profile={profile.data} onOpenReference={openReference} />
+            <ClubProfileBody profile={profile.data} onOpenReference={openReference} bridge={bridge} />
           ) : profile.kind === "STAFF" ? (
             <StaffProfileBody profile={profile.data} onOpenReference={openReference} />
           ) : profile.kind === "COMPETITION" ? (
@@ -6420,9 +6661,11 @@ const StadiumVisual = ({ stadium }: { stadium: ClubStadiumSummary }): React.Reac
 const ClubProfileBody = ({
   profile,
   onOpenReference,
+  bridge,
 }: {
   profile: ClubProfile;
   onOpenReference: (reference: EntityReference) => void;
+  bridge: DesktopRuntimeApi;
 }): React.ReactElement => (
   <>
     <h2>{profile.entityReference.label}</h2>
@@ -6462,6 +6705,7 @@ const ClubProfileBody = ({
           : []),
       ]}
     />
+    <EntityStorylinePanel bridge={bridge} entityId={profile.entityReference.id} onOpenReference={onOpenReference} />
     <Panel title="Club world">
       <ClubWorldCampus
         facilitySnapshot={profile.facilitySnapshot}

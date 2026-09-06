@@ -3096,6 +3096,9 @@ export type InboxItem = {
    * to the raw relatedEntity write-side field above. */
   entityReferences?: import("./entity-reference.js").EntityReference[];
   importanceBand?: StoryImportanceBand;
+  /** The originating HistoricalEvent id — populated only for routed items,
+   * so a card can open its full Story Detail. Legacy items have none. */
+  sourceEventId?: EntityId;
 };
 
 export type ManagerHomeSummary = {
