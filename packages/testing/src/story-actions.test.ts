@@ -2,8 +2,16 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { OwnershipRepository, TransferMarketRepository, openGameDatabase } from "@nepal-football-sim/database";
-import { buildStoryActions, createNepalSave, runChairmanDemo } from "@nepal-football-sim/simulation";
+import { GovernmentRepository, OwnershipRepository, TransferMarketRepository, openGameDatabase } from "@nepal-football-sim/database";
+import {
+  buildStoryActions,
+  createInfrastructureProject,
+  createNepalSave,
+  initializeClubEconomyForSave,
+  requestClubInfrastructureGovernmentSupport,
+  resolveGovernmentInstitutionForClub,
+  runChairmanDemo,
+} from "@nepal-football-sim/simulation";
 import { createStableEntityId, type EntityId, type HistoricalEvent, type OwnershipAcquisitionOffer, type TransferOffer } from "@nepal-football-sim/shared-types";
 
 const dirs: string[] = [];
@@ -226,6 +234,137 @@ describe("transfer/loan story action routing", () => {
       const actions = buildStoryActions(db, transferEvent(`terminal-${status}`, player.id, club.id), "MANAGER");
       expect(actions[0]!.label).toBe("View negotiation history");
     }
+    db.close();
+  });
+});
+
+const governmentEvent = (applicationId: string, clubId: EntityId, institutionId: EntityId): HistoricalEvent => ({
+  id: createStableEntityId("history", `story-actions-government:${applicationId}`),
+  occurredOn: "2026-08-02",
+  eventType: "GOVERNMENT_SUPPORT_REQUESTED",
+  involvedEntities: [
+    { id: clubId, type: "club" },
+    { id: institutionId, type: "governmentInstitution" },
+  ],
+  title: "A club opens a government support request",
+  importance: "medium",
+  scope: "club",
+  data: { applicationId },
+});
+
+describe("government story action routing", () => {
+  const setUp = (name: string) => {
+    const db = openGameDatabase(makeSave(name));
+    initializeClubEconomyForSave({ db, worldDate: "2026-08-01", seed: name });
+    const club = db.prepare("SELECT id FROM clubs WHERE name = 'Machhindra FC'").get() as { id: EntityId };
+    db.prepare(
+      "UPDATE clubs SET location_id = (SELECT location_id FROM clubs WHERE location_id IS NOT NULL LIMIT 1) WHERE id = ?",
+    ).run(club.id);
+    new GovernmentRepository(db).upsertInstitution({
+      id: "nsc-story-actions" as EntityId,
+      name: "National Sports Council",
+      institutionType: "NATIONAL_SPORTS_COUNCIL",
+      profile: {
+        budgetCapacity: 40_000_000,
+        committedBudget: 0,
+        footballPriority: 90,
+        credibilityTowardFederation: 85,
+        infrastructurePriority: 90,
+        youthWomenPriority: 90,
+      },
+      provenanceStatus: "SIMULATION_ONLY",
+    });
+    const project = createInfrastructureProject(db, { clubId: club.id, projectType: "TRAINING_GROUND", date: "2026-08-01", seed: name });
+    const institution = resolveGovernmentInstitutionForClub(db, club.id)!;
+    const application = requestClubInfrastructureGovernmentSupport(db, {
+      clubId: club.id,
+      projectId: project.id,
+      institutionId: institution.id,
+      fundingType: "INFRASTRUCTURE",
+      requestedAmount: 1_000_000,
+      date: "2026-08-02",
+    });
+    return { db, club, institution, application };
+  };
+
+  it("gives the club's own facility authority a 'Review government request' action for an open application", () => {
+    const { db, club, institution, application } = setUp("gov-actions-open");
+    const actions = buildStoryActions(db, governmentEvent(application.id, club.id, institution.id), "CHAIRMAN_OWNER");
+    expect(actions).toHaveLength(1);
+    expect(actions[0]!.kind).toBe("OPEN_GOVERNMENT_SUPPORT");
+    expect(actions[0]!.label).toBe("Review government request");
+    db.close();
+  });
+
+  it("relabels the action 'View government decision' once the application is approved", () => {
+    const { db, club, institution, application } = setUp("gov-actions-approved");
+    new GovernmentRepository(db).upsertApplication({ ...application, status: "APPROVED", approvedAmount: application.requestedAmount, decidedOn: "2026-08-10" });
+    const actions = buildStoryActions(db, governmentEvent(application.id, club.id, institution.id), "CHAIRMAN_OWNER");
+    expect(actions[0]!.label).toBe("View government decision");
+    db.close();
+  });
+
+  it("never gives the Manager or President the club's government-support action", () => {
+    const { db, club, institution, application } = setUp("gov-actions-denied");
+    const event = governmentEvent(application.id, club.id, institution.id);
+    expect(buildStoryActions(db, event, "MANAGER")).toHaveLength(0);
+    expect(buildStoryActions(db, event, "FEDERATION_PRESIDENT")).toHaveLength(0);
+    db.close();
+  });
+
+  it("never fabricates a government action when the application id no longer resolves", () => {
+    const { db, club, institution } = setUp("gov-actions-missing");
+    const event = governmentEvent("no-such-application", club.id, institution.id);
+    expect(buildStoryActions(db, event, "CHAIRMAN_OWNER")).toHaveLength(0);
+    db.close();
+  });
+});
+
+const nationalTeamEvent = (teamId: string, playerId: EntityId): HistoricalEvent => ({
+  id: createStableEntityId("history", `story-actions-national-team:${teamId}:${playerId}`),
+  occurredOn: "2026-08-02",
+  eventType: "NATIONAL_TEAM_CALLUP",
+  involvedEntities: [
+    { id: teamId as EntityId, type: "team" },
+    { id: playerId, type: "person" },
+  ],
+  title: "Nepal call up a player",
+  importance: "medium",
+  scope: "federation",
+  data: { teamId, playerId },
+});
+
+describe("national team story action routing", () => {
+  const setUp = (name: string) => {
+    const db = openGameDatabase(makeSave(name));
+    const team = db.prepare("SELECT id FROM teams WHERE federation_id IS NOT NULL AND gender = 'men' AND level = 'senior' LIMIT 1").get() as
+      | { id: EntityId }
+      | undefined;
+    const player = db.prepare("SELECT id FROM persons LIMIT 1").get() as { id: EntityId };
+    return { db, team: team!, player };
+  };
+
+  it("gives the President an 'Open national team' action for a real national team", () => {
+    const { db, team, player } = setUp("nt-actions-open");
+    const actions = buildStoryActions(db, nationalTeamEvent(team.id, player.id), "FEDERATION_PRESIDENT");
+    expect(actions).toHaveLength(1);
+    expect(actions[0]!.kind).toBe("OPEN_NATIONAL_TEAM");
+    expect(actions[0]!.label).toBe("Open national team");
+    db.close();
+  });
+
+  it("never gives the Manager or Owner the President-only national team action", () => {
+    const { db, team, player } = setUp("nt-actions-denied");
+    const event = nationalTeamEvent(team.id, player.id);
+    expect(buildStoryActions(db, event, "MANAGER")).toHaveLength(0);
+    expect(buildStoryActions(db, event, "CHAIRMAN_OWNER")).toHaveLength(0);
+    db.close();
+  });
+
+  it("never fabricates a national team action when the team id no longer resolves", () => {
+    const { db, player } = setUp("nt-actions-missing");
+    const event = nationalTeamEvent("no-such-team", player.id);
+    expect(buildStoryActions(db, event, "FEDERATION_PRESIDENT")).toHaveLength(0);
     db.close();
   });
 });

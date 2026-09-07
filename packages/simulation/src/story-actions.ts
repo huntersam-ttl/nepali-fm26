@@ -1,6 +1,8 @@
 import type { CareerRole, EntityId, EntityReference, HistoricalEvent, StoryAction } from "@nepal-football-sim/shared-types";
-import { OwnershipRepository, TransferMarketRepository, type GameDatabase } from "@nepal-football-sim/database";
+import { GovernmentRepository, OwnershipRepository, TransferMarketRepository, type GameDatabase } from "@nepal-football-sim/database";
 import { buildEntityReference } from "./entity-reference.js";
+
+const FACILITY_AUTHORITY_ROLES: readonly CareerRole[] = ["CHAIRMAN_OWNER", "CEO", "GENERAL_SECRETARY"];
 
 /**
  * The single, central place that decides what a Story Detail can actually
@@ -52,6 +54,26 @@ export const buildStoryActions = (
     }
   }
 
+  // Government support application — buildGovernmentSupportMeeting already
+  // resolves the club's current/most-recent application from clubId alone
+  // (siteOptionId/projectId are optional enrichment, not required), so the
+  // real, still-queryable application id is enough to route here safely.
+  // Only the club's own facility authority — never the Manager or President
+  // — can act on it; the President's own government view is a separate,
+  // federation-wide screen (getGovernmentOverview), not this club meeting.
+  if (/GOVERNMENT/.test(type) && typeof data?.applicationId === "string" && FACILITY_AUTHORITY_ROLES.includes(role)) {
+    const application = new GovernmentRepository(db).applications().find((item) => item.id === data.applicationId);
+    if (application?.clubId) {
+      const terminal = ["APPROVED", "REJECTED", "COMPLETED"].includes(application.status);
+      actions.push({
+        id: `open-government-support:${application.id}`,
+        label: terminal ? "View government decision" : "Review government request",
+        kind: "OPEN_GOVERNMENT_SUPPORT",
+        clubId: application.clubId,
+      });
+    }
+  }
+
   // Facility/infrastructure project — a real, still-resolvable profile
   // entity, so this reuses the existing entity-open mechanism rather than
   // inventing a second navigation path.
@@ -63,6 +85,20 @@ export const buildStoryActions = (
         label: "Open project",
         kind: "OPEN_ENTITY",
         entity: project,
+      });
+    }
+  }
+
+  // National-team call-up — President-only (the federation's own football
+  // authority, not a club role); the team id is real and always resolvable
+  // (national teams are permanent fixtures, never deleted).
+  if (/NATIONAL_TEAM/.test(type) && typeof data?.teamId === "string" && role === "FEDERATION_PRESIDENT") {
+    if (db.prepare("SELECT 1 FROM teams WHERE id=?").get(data.teamId)) {
+      actions.push({
+        id: `open-national-team:${data.teamId}`,
+        label: "Open national team",
+        kind: "OPEN_NATIONAL_TEAM",
+        teamId: data.teamId as EntityId,
       });
     }
   }

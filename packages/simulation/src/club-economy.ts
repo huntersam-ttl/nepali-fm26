@@ -168,7 +168,7 @@ export const initializeClubEconomyForSave = (input: {
       count: 1,
     })[0];
     if (offer) {
-      acceptSponsorOffer(input.db, offer.id, input.worldDate);
+      acceptSponsorOffer(input.db, offer.id, input.worldDate, { silent: true });
     }
   }
 };
@@ -741,6 +741,11 @@ export const acceptSponsorOffer = (
   db: GameDatabase,
   sponsorshipId: EntityId,
   date: string,
+  /** True only for the one-off bulk baseline sponsorship every club is
+   * seeded with at world creation — not a real in-game decision, so it
+   * must never become a public story or trigger a follow-up reaction.
+   * Every genuine gameplay acceptance (the default) still publishes. */
+  options?: { silent?: boolean },
 ): SponsorshipContract => {
   const economy = new ClubEconomyRepository(db);
   const contract = economy.sponsorship(sponsorshipId);
@@ -771,14 +776,16 @@ export const acceptSponsorOffer = (
     idempotencyKey: `sponsor-initial:${sponsorshipId}`,
   });
   const eventId = createStableEntityId("history", `SPONSORSHIP_ACCEPTED:${sponsorshipId}`);
-  if (!db.prepare("SELECT 1 FROM historical_events WHERE id=?").get(eventId)) {
+  if (!options?.silent && !db.prepare("SELECT 1 FROM historical_events WHERE id=?").get(eventId)) {
+    const club_ = (db.prepare("SELECT name FROM clubs WHERE id=?").get(contract.clubId) as { name?: string } | undefined)?.name ?? "The club";
+    const sponsor_ = (db.prepare("SELECT name FROM sponsor_organisations WHERE id=?").get(contract.sponsorId) as { name?: string } | undefined)?.name;
     new EventRepository(db).insertHistoricalEvent({
       id: eventId,
       occurredOn: date,
       eventType: "SPONSORSHIP_ACCEPTED",
       involvedEntities: [{ id: contract.clubId, type: "club" }],
-      title: "Club sponsorship accepted",
-      data: { sponsorshipId, annualValue: contract.annualValue, endDate: contract.endDate },
+      title: sponsor_ ? `${club_} agrees new partnership with ${sponsor_}` : `${club_} agrees a new sponsorship deal`,
+      data: { sponsorshipId, dealId: sponsorshipId, annualValue: contract.annualValue, endDate: contract.endDate },
       importance: "high",
       scope: "club",
     });

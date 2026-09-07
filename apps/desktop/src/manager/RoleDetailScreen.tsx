@@ -2647,6 +2647,29 @@ const NationalTeamSquadPanel = ({
     </Panel>
   );
 };
+
+/** Self-contained entry point for a Story Detail's "Open national team"
+ * action — fetches its own federation dashboard (for the team switcher's
+ * team list) rather than requiring the caller to already have one loaded. */
+const NationalTeamSquadLauncher = ({
+  bridge,
+  teamId,
+  onClose,
+}: {
+  bridge: DesktopRuntimeApi;
+  teamId: EntityId;
+  onClose: () => void;
+}): React.ReactElement => {
+  const [state] = useRuntimeData(() => bridge.getFederationPresidentDashboard(), []);
+  return (
+    <AsyncPanel state={state}>
+      {(dashboard) => (
+        <NationalTeamSquadPanel bridge={bridge} teams={dashboard.nationalTeams} initialTeamId={teamId} onClose={onClose} />
+      )}
+    </AsyncPanel>
+  );
+};
+
 const Tenure = ({ dashboard }: { dashboard: FederationPresidentDashboard }): React.ReactElement => (
   <section className="role-detail">
     <Panel title="Presidency and tenure">
@@ -6141,6 +6164,8 @@ export const StoryDetailPanel = ({
   onOpenReference,
   onOpenInvestorMeeting,
   onOpenTransferNegotiation,
+  onOpenGovernmentSupport,
+  onOpenNationalTeam,
 }: {
   bridge: StoryBridge;
   eventId: EntityId;
@@ -6151,6 +6176,10 @@ export const StoryDetailPanel = ({
   onOpenInvestorMeeting?: (offerId: EntityId) => void;
   /** Present only in Manager contexts that can render TransferNegotiationLauncher. */
   onOpenTransferNegotiation?: (offerId: EntityId) => void;
+  /** Present only where a full DesktopRuntimeApi is available to render FacilityPlanner. */
+  onOpenGovernmentSupport?: (clubId: EntityId) => void;
+  /** Present only where a full DesktopRuntimeApi is available to render NationalTeamSquadLauncher. */
+  onOpenNationalTeam?: (teamId: EntityId) => void;
 }): React.ReactElement => {
   const [state] = useRuntimeData<StoryDetail>(
     () => (bridge.getStoryDetail ? bridge.getStoryDetail(eventId) : Promise.resolve({ ok: false, error: { code: "RUNTIME_UNAVAILABLE", message: "Story detail is unavailable." } })),
@@ -6224,6 +6253,14 @@ export const StoryDetailPanel = ({
                     </button>
                   ) : action.kind === "OPEN_TRANSFER_NEGOTIATION" && onOpenTransferNegotiation ? (
                     <button key={action.id} className="link" onClick={() => onOpenTransferNegotiation(action.offerId)}>
+                      {action.label}
+                    </button>
+                  ) : action.kind === "OPEN_GOVERNMENT_SUPPORT" && onOpenGovernmentSupport ? (
+                    <button key={action.id} className="link" onClick={() => onOpenGovernmentSupport(action.clubId)}>
+                      {action.label}
+                    </button>
+                  ) : action.kind === "OPEN_NATIONAL_TEAM" && onOpenNationalTeam ? (
+                    <button key={action.id} className="link" onClick={() => onOpenNationalTeam(action.teamId)}>
                       {action.label}
                     </button>
                   ) : (
@@ -6359,6 +6396,8 @@ export const InboxPanel = ({
   const [openReferenceTarget, setOpenReferenceTarget] = useState<{ entityType: ProfileEntityType; entityId: EntityId } | null>(null);
   const [openStoryEventId, setOpenStoryEventId] = useState<EntityId | null>(null);
   const [openInvestorOfferId, setOpenInvestorOfferId] = useState<EntityId | null>(null);
+  const [openGovernmentClubId, setOpenGovernmentClubId] = useState<EntityId | null>(null);
+  const [openNationalTeamId, setOpenNationalTeamId] = useState<EntityId | null>(null);
   const [showThreads, setShowThreads] = useState(false);
   const openReference = (reference: EntityReference): void =>
     setOpenReferenceTarget({ entityType: reference.entityType as ProfileEntityType, entityId: reference.id });
@@ -6392,6 +6431,8 @@ export const InboxPanel = ({
           onOpenReference={openReference}
           onOpenInvestorMeeting={setOpenInvestorOfferId}
           onOpenTransferNegotiation={onOpenTransferNegotiation}
+          onOpenGovernmentSupport={setOpenGovernmentClubId}
+          onOpenNationalTeam={setOpenNationalTeamId}
         />
       )}
       {showThreads && (
@@ -6411,6 +6452,17 @@ export const InboxPanel = ({
           </button>
           <InvestorMeeting bridge={bridge} focusOfferId={openInvestorOfferId} />
         </Panel>
+      )}
+      {openGovernmentClubId && (
+        <Panel title="Facilities & government support">
+          <button className="ghost" onClick={() => setOpenGovernmentClubId(null)}>
+            Close
+          </button>
+          <FacilityPlanner bridge={bridge} clubId={openGovernmentClubId} />
+        </Panel>
+      )}
+      {openNationalTeamId && (
+        <NationalTeamSquadLauncher bridge={bridge} teamId={openNationalTeamId} onClose={() => setOpenNationalTeamId(null)} />
       )}
     </Panel>
   );

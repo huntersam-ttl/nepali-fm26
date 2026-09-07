@@ -40,6 +40,7 @@ import {
 import {
   ClubEconomyRepository,
   CompetitionRepository,
+  EventRepository,
   FederationComplianceRepository,
   FederationGovernanceRepository,
   MediaRightsRepository,
@@ -746,6 +747,11 @@ export const selectNationalTeamSquad = (
   );
   const selected = balancedSelection(players, input.size ?? 23);
   const repo = new FederationGovernanceRepository(db);
+  const alreadyCappedPlayerIds = new Set(
+    repo.nationalTeamCallups(team.id).map((existing) => existing.playerId),
+  );
+  const programmeLabel =
+    team.gender === "women" ? "Women & Girls" : team.level === "senior" ? "Senior Men" : `U${team.level.replace(/\D/g, "")}`;
   const callups = selected.map((player) => {
     const callup: NationalTeamCallup = {
       id: createStableEntityId(
@@ -761,6 +767,30 @@ export const selectNationalTeamSquad = (
       provenanceStatus: simulationStatus,
     };
     repo.upsertNationalTeamCallup(callup);
+    // A story only for a player's first-ever call-up to this team — every
+    // subsequent monthly re-selection is routine squad news, not a headline.
+    if (!alreadyCappedPlayerIds.has(player.personId)) {
+      alreadyCappedPlayerIds.add(player.personId);
+      const eventId = createStableEntityId("history", `NATIONAL_TEAM_CALLUP:${team.id}:${player.personId}`);
+      if (!db.prepare("SELECT 1 FROM historical_events WHERE id=?").get(eventId)) {
+        const playerName =
+          (db.prepare("SELECT full_name FROM persons WHERE id=?").get(player.personId) as { full_name?: string } | undefined)
+            ?.full_name ?? "A player";
+        new EventRepository(db).insertHistoricalEvent({
+          id: eventId,
+          occurredOn: input.date,
+          eventType: "NATIONAL_TEAM_CALLUP",
+          involvedEntities: [
+            { id: team.id, type: "team" },
+            { id: player.personId, type: "person" },
+          ],
+          title: `Nepal call up ${playerName} for ${programmeLabel}`,
+          data: { teamId: team.id, playerId: player.personId, programme: programmeLabel },
+          importance: "medium",
+          scope: "federation",
+        });
+      }
+    }
     return callup;
   });
   return callups;
