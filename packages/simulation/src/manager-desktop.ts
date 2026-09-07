@@ -43,6 +43,7 @@ import {
   type PlayerDevelopmentEntry,
   type PlayerDevelopmentView,
   type SquadAvailability,
+  type CareerRole,
   type PlayerKnowledgeLevel,
   type PlayerPosition,
   type PlayerProfile,
@@ -573,13 +574,56 @@ const potentialBandFor = (ceiling: number): string => {
   return "Limited potential";
 };
 
+/**
+ * Who is looking at a player. The Player Profile is a shared world entity
+ * view — every legitimate role can open it — but what it *shows* still
+ * depends on the viewer's own club: scouting knowledge comes from
+ * `clubId`, and only a real manager appointment carries a ManagerContext
+ * (and therefore a scouting operation). A viewer with no club simply has
+ * no knowledge, which is exactly the existing gating rule, not a new one.
+ */
+export type PlayerProfileViewer = {
+  role: CareerRole;
+  /** The viewer's own club, when they have one. Drives scouting knowledge. */
+  clubId?: EntityId;
+  /** The viewer's own team, when they have one. Drives "is this my player". */
+  teamId?: EntityId;
+  /** Present only for a genuine, authority-checked manager appointment. */
+  managerContext?: ManagerContext;
+};
+
+/** The manager's own viewer, with the existing authority assertion intact. */
+export const managerProfileViewer = (context: ManagerContext): PlayerProfileViewer => {
+  assertManagerAuthority(context);
+  return {
+    role: "MANAGER",
+    clubId: context.club?.id,
+    teamId: context.team.id,
+    managerContext: context,
+  };
+};
+
+/** The team a player actually belongs to — used so a profile opened by
+ * someone outside that club still shows the player's real season record
+ * instead of a zeroed row scoped to the viewer's own team. */
+const teamOfPlayer = (db: GameDatabase, playerId: EntityId): EntityId | undefined =>
+  (
+    db
+      .prepare(
+        `SELECT team_id AS teamId FROM team_person_assignments
+         WHERE person_id = ? AND role = 'PLAYER' AND ended_on IS NULL
+         ORDER BY team_id LIMIT 1`,
+      )
+      .get(playerId) as { teamId?: EntityId } | undefined
+  )?.teamId;
+
 export const buildPlayerProfile = (
   db: GameDatabase,
   save: SaveMetadata,
-  context: ManagerContext,
+  viewer: PlayerProfileViewer,
   playerId: EntityId,
 ): PlayerProfile => {
-  assertManagerAuthority(context);
+  const context = viewer.managerContext;
   const players = new PlayerRepository(db);
   const attributes = players.getAttributes(playerId);
   if (!attributes) throw new ManagerCommandError("PLAYER_MISSING", `Unknown player ${playerId}.`);
@@ -587,19 +631,27 @@ export const buildPlayerProfile = (
   const profile = factualProfile(db, playerId);
   const factual = profile?.factual ?? {};
   const simulation = profile?.simulation ?? {};
-  const ownSquad = players
-    .attributesForTeam(context.team.id)
-    .some((candidate) => candidate.personId === playerId);
+  // "My player" is only true for a viewer who actually has a team.
+  const ownSquad = viewer.teamId
+    ? players.attributesForTeam(viewer.teamId).some((candidate) => candidate.personId === playerId)
+    : false;
 
-  const state = players
-    .availabilityStates(context.team.id)
-    .find((candidate) => candidate.personId === playerId);
-  const stat = seasonStats(db, context.team.id).get(playerId);
+  // Availability and season record belong to the player's OWN team, so a
+  // profile opened from outside that club still reads truthfully. For the
+  // player's own manager this resolves to the same team as before.
+  const playerTeamId = ownSquad ? viewer.teamId : teamOfPlayer(db, playerId);
+  const state = playerTeamId
+    ? players.availabilityStates(playerTeamId).find((candidate) => candidate.personId === playerId)
+    : undefined;
+  const stat = playerTeamId ? seasonStats(db, playerTeamId).get(playerId) : undefined;
   const contract = new TransferMarketRepository(db).activeContract(playerId, save.worldDate);
   const development = players.developmentState(playerId);
   const potential = players.potential(playerId);
+  // Knowledge comes from the VIEWER's own club recruitment record. A viewer
+  // with no club (a federation president) therefore has no knowledge at all
+  // and never sees per-attribute detail — the existing rule, unchanged.
   const knowledge =
-    knowledgeMap(db, context.club?.id).get(playerId) ?? (ownSquad ? "EXTENSIVE" : "NONE");
+    knowledgeMap(db, viewer.clubId).get(playerId) ?? (ownSquad ? "EXTENSIVE" : "NONE");
 
   const factualDob = (person?.date_of_birth as string | undefined) ?? factual.dateOfBirth;
   const simulationDob = simulation.dateOfBirth as string | undefined;
@@ -642,8 +694,8 @@ export const buildPlayerProfile = (
         ),
     primaryPosition: attributes.primaryPosition,
     secondaryPositions: attributes.secondaryPositions,
-    clubName: clubName(db, (profile?.current_club_id as EntityId) ?? context.club?.id),
-    club: clubReference(db, (profile?.current_club_id as EntityId) ?? context.club?.id),
+    clubName: clubName(db, (profile?.current_club_id as EntityId) ?? viewer.clubId),
+    club: clubReference(db, (profile?.current_club_id as EntityId) ?? viewer.clubId),
     squadStatus:
       (factual.squadStatus as string) ??
       simulatedSquadStanding({
@@ -704,7 +756,15 @@ export const buildPlayerProfile = (
       averageRating: (stat?.average_rating as number) ?? 0,
     },
     knowledge,
-    scoutingSummary: ownSquad ? undefined : buildScoutingReport(db, save, context, playerId, false),
+    // A scouting report is a manager's own scouting operation. A viewer with
+    // no manager appointment has none, so they get no report rather than a
+    // borrowed one — never a way to gain club scouting knowledge by role.
+    scoutingSummary:
+      ownSquad || !context ? undefined : buildScoutingReport(db, save, context, playerId, false),
+    // Opening a profile is universal; acting on a player is not. Only a real
+    // manager appointment carries player-management authority today, so no
+    // other role is offered controls that would be rejected on click.
+    viewer: { role: viewer.role, canManagePlayer: Boolean(context) },
   };
 };
 

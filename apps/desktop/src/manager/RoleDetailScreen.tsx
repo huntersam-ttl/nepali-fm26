@@ -5971,7 +5971,11 @@ export const PlayerContextPanel = ({
                   {data.actions.actions[0]?.reason ??
                     "Football decisions for this player belong to the Manager or a delegated Director."}
                 </p>
-                {data.request ? (
+                {/* Raising a player request with the Manager is the OWNER's
+                    channel. Any other viewer (a president reading a call-up
+                    story, say) is told the authority position and offered
+                    nothing that would be rejected on click. */}
+                {data.actions.actorRole !== "CHAIRMAN_OWNER" ? null : data.request ? (
                   <div className="action-group">
                     <h3>Open request</h3>
                     <p className="subtle">
@@ -6157,7 +6161,16 @@ const OrganizationDealSection = ({
 
 /** Every entity type this shared host can open — organizations plus the
  * world-profile trio from b0d0871. */
-export type ProfileEntityType = OrganizationProfileEntityType | "CLUB" | "STAFF" | "COMPETITION" | "INFRASTRUCTURE_PROJECT";
+/** Every entity kind a story/profile surface can open. PLAYER belongs here:
+ * a player is a first-class world entity that any role may view, and leaving
+ * it out is what made a player chip fall through to the wrong fetcher. */
+export type ProfileEntityType =
+  | OrganizationProfileEntityType
+  | "CLUB"
+  | "STAFF"
+  | "COMPETITION"
+  | "INFRASTRUCTURE_PROJECT"
+  | "PLAYER";
 
 type ProfileTarget = { entityType: ProfileEntityType; entityId: EntityId };
 
@@ -6166,7 +6179,10 @@ type ProfileData =
   | { kind: "CLUB"; data: ClubProfile }
   | { kind: "STAFF"; data: StaffProfileReadModel }
   | { kind: "COMPETITION"; data: CompetitionProfile }
-  | { kind: "INFRASTRUCTURE_PROJECT"; data: InfrastructureProjectProfile };
+  | { kind: "INFRASTRUCTURE_PROJECT"; data: InfrastructureProjectProfile }
+  /** Players render through the shared PlayerContextPanel rather than a
+   * second profile implementation, so only the id travels here. */
+  | { kind: "PLAYER"; playerId: EntityId };
 
 const missingProfileMethod = (message: string): { ok: false; error: AppError } => ({
   ok: false,
@@ -6643,7 +6659,13 @@ export const OrganizationProfilePanel = ({
 }): React.ReactElement => {
   const [target, setTarget] = useState<ProfileTarget>({ entityType, entityId });
   const [history, setHistory] = useState<ProfileTarget[]>([]);
+  // A PLAYER reference is not an organization/world profile — it has its own
+  // shared, role-aware surface. Without this it fell through to the project
+  // fetcher and failed outright for every non-manager role.
+  const playerTarget = target.entityType === "PLAYER" ? target.entityId : undefined;
   const [state] = useRuntimeData(async (): Promise<AppResult<ProfileData>> => {
+    if (target.entityType === "PLAYER")
+      return { ok: true as const, data: { kind: "PLAYER" as const, playerId: target.entityId } };
     if (ORGANIZATION_ENTITY_TYPES.has(target.entityType)) {
       const result = await bridge.getOrganizationProfile(
         target.entityType as OrganizationProfileEntityType,
@@ -6699,7 +6721,21 @@ export const OrganizationProfilePanel = ({
           ? "Competition"
           : target.entityType === "INFRASTRUCTURE_PROJECT"
             ? "Project"
-            : "Organization";
+            : target.entityType === "PLAYER"
+              ? "Player"
+              : "Organization";
+
+  // A player reference resolves to the one shared, role-aware player surface
+  // — the same component the National Team hub already opens — rather than a
+  // second, viewer-specific profile implementation.
+  if (playerTarget)
+    return (
+      <PlayerContextPanel
+        bridge={bridge}
+        playerId={playerTarget}
+        onClose={history.length > 0 ? goBack : onClose}
+      />
+    );
 
   return (
     <Panel
@@ -6728,9 +6764,9 @@ export const OrganizationProfilePanel = ({
             <StaffProfileBody profile={profile.data} onOpenReference={openReference} />
           ) : profile.kind === "COMPETITION" ? (
             <CompetitionProfileBody profile={profile.data} onOpenReference={openReference} />
-          ) : (
+          ) : profile.kind === "INFRASTRUCTURE_PROJECT" ? (
             <InfrastructureProjectProfileBody profile={profile.data} onOpenReference={openReference} />
-          )
+          ) : null
         }
       </AsyncPanel>
     </Panel>

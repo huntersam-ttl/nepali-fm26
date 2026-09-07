@@ -440,6 +440,7 @@ import {
   buildManagerDashboard,
   buildPlayerDevelopmentView,
   buildPlayerProfile,
+  managerProfileViewer,
   buildQuickSimSummary,
   buildScoutingDashboard,
   buildScoutingReport,
@@ -3416,10 +3417,45 @@ export class DesktopApplicationService {
     }, true);
   }
 
+  /**
+   * The Player Profile is a shared world entity view: any legitimate career
+   * role may OPEN it, because every story surface can link to a player. What
+   * it shows is still gated by the viewer's own club — scouting knowledge and
+   * scouting reports come from a real appointment, never from the role name —
+   * and mutating a player remains a separate, manager-authority command.
+   */
   getPlayerProfile(playerId: EntityId): AppResult<PlayerProfile> {
-    return this.managerCommand((db, save, context) =>
-      buildPlayerProfile(db, save, context, playerId),
-    );
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      const role = activeCareerRole(db, personId);
+      const context = role === "MANAGER" ? tryManagerContext(db, save) : undefined;
+      const viewer = context
+        ? managerProfileViewer(context)
+        : { role, ...this.viewerClubAndTeam(db, personId, role) };
+      return buildPlayerProfile(db, save, viewer, playerId);
+    });
+  }
+
+  /** The viewer's own club/team, when their held role actually has one. A
+   * federation president has neither, which is what withholds club scouting
+   * knowledge from them. */
+  private viewerClubAndTeam(
+    db: GameDatabase,
+    personId: EntityId,
+    role: CareerRole,
+  ): { clubId?: EntityId; teamId?: EntityId } {
+    const held = heldCareerRoles(db, personId).find((entry) => entry.role === role);
+    if (!held?.targetId) return {};
+    // CHAIRMAN_OWNER/CEO/GENERAL_SECRETARY/DoF hold a club; the team is that
+    // club's senior side when one exists.
+    const clubRow = db.prepare("SELECT id FROM clubs WHERE id=?").get(held.targetId) as
+      | { id?: EntityId }
+      | undefined;
+    if (!clubRow?.id) return {};
+    const team = db
+      .prepare("SELECT id FROM teams WHERE club_id=? ORDER BY id LIMIT 1")
+      .get(clubRow.id) as { id?: EntityId } | undefined;
+    return { clubId: clubRow.id, teamId: team?.id };
   }
 
   getClubProfile(clubId: EntityId): AppResult<ClubProfile> {

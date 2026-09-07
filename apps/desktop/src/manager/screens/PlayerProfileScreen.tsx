@@ -549,13 +549,26 @@ export const PlayerProfileScreen = ({
 
             <MarketValuePanel playerId={playerId} />
 
-            <PlayerActionRail
-              player={player}
-              actionBusy={actionBusy}
-              setActionBusy={setActionBusy}
-              setActionMessage={setActionMessage}
-              refresh={refresh}
-            />
+            {/* A profile opens for every role, but player actions belong to
+                whoever actually holds player-management authority. Roles
+                without it get no action rail rather than controls that would
+                be rejected on click. */}
+            {player.viewer.canManagePlayer ? (
+              <PlayerActionRail
+                player={player}
+                actionBusy={actionBusy}
+                setActionBusy={setActionBusy}
+                setActionMessage={setActionMessage}
+                refresh={refresh}
+              />
+            ) : (
+              <Panel title="Actions">
+                <p className="subtle">
+                  You are viewing this player as {player.viewer.role.replaceAll("_", " ").toLowerCase()}. Player
+                  actions belong to the club's football management.
+                </p>
+              </Panel>
+            )}
             {actionMessage && (
               <p className="notice" role="status">
                 {actionMessage}

@@ -32,6 +32,14 @@ export * from "./follow-up-reactions.js";
 export * from "./story-actions.js";
 export * from "./story-territory.js";
 export * from "./story-headline.js";
+// manager-desktop.ts is deliberately not re-exported wholesale (its surface is
+// large and manager-specific), but the Player Profile is a shared world entity
+// view every role can open, so its builder and viewer type are public.
+export {
+  buildPlayerProfile,
+  managerProfileViewer,
+  type PlayerProfileViewer,
+} from "./manager-desktop.js";
 export * from "./player-pathway.js";
 export * from "./national-team-management.js";
 export * from "./media.js";

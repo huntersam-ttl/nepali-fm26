@@ -1,5 +1,6 @@
 import type { EntityId } from "./ids.js";
 import type { EntityReference } from "./entity-reference.js";
+import type { CareerRole } from "./desktop-contract.js";
 import type {
   CaptainInfluence,
   ConcernResponseAction,
@@ -188,6 +189,17 @@ export type PlayerProfile = {
   knowledge: PlayerKnowledgeLevel;
   /** Present only when this is not the manager's own player. */
   scoutingSummary?: ScoutingReportView;
+  /**
+   * Who is looking, and whether they may actually act on this player. Every
+   * legitimate role can OPEN a profile (it is a shared world entity view),
+   * but player actions stay behind real authority — so the UI shows an
+   * action rail only when `canManagePlayer` is true rather than rendering
+   * controls that would be rejected on click.
+   */
+  viewer: {
+    role: CareerRole;
+    canManagePlayer: boolean;
+  };
 };
 
 // ---------------------------------------------------------------------------
