@@ -9,7 +9,7 @@ const districtTone = (district: { developmentReputation: number }): MapRegionTon
 
 /** The district a given location sits in, walking the same real hierarchy
  * presentLocationById already walks — never a fabricated placement. */
-const districtIdForLocation = (db: GameDatabase, locationId: EntityId | undefined): EntityId | undefined => {
+export const districtIdForLocation = (db: GameDatabase, locationId: EntityId | undefined): EntityId | undefined => {
   if (!locationId) return undefined;
   const districts = new TerritorialFootballRepository(db).districts();
   const districtByLocationId = new Map(districts.filter((item) => item.locationId).map((item) => [item.locationId, item.id]));

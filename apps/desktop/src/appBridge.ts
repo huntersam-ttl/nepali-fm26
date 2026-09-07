@@ -291,6 +291,7 @@ const bindCommands = (call: CommandCaller): DesktopRuntimeApi => ({
   getEntityStoryline: (entityId: EntityId) => call<EntityStoryline>("getEntityStoryline", { entityId }),
   getFederationMap: () => call<FederationMap>("getFederationMap"),
   getDistrictDetail: (districtId: EntityId) => call<DistrictDetail>("getDistrictDetail", { districtId }),
+  getDistrictStoryline: (districtId: EntityId) => call<EntityStoryline>("getDistrictStoryline", { districtId }),
   getCompetitionPyramid: () => call<CompetitionPyramid>("getCompetitionPyramid"),
   getGovernmentOverview: () => call<GovernmentOverview>("getGovernmentOverview"),
   requestGovernmentFunding: (

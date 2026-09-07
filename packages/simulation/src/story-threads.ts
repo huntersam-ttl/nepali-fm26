@@ -36,7 +36,7 @@ export const humanizeEventType = (eventType: string): string =>
     .join(" ")
     .replace(/^./, (char) => char.toUpperCase());
 
-const categoryFor = (event: HistoricalEvent): StoryThreadCategory | undefined => {
+export const categoryFor = (event: HistoricalEvent): StoryThreadCategory | undefined => {
   const type = event.eventType.toUpperCase();
   if (/LOAN/.test(type)) return "LOAN";
   if (/TRANSFER|FREE_AGENT/.test(type)) return "TRANSFER";

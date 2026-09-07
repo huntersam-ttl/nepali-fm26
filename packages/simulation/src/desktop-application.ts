@@ -404,6 +404,7 @@ import { initializeNepalTerritorialStructure } from "./territorial-football.js";
 import { buildPlayerPathway } from "./player-pathway.js";
 import { roleStoryThreads, deriveStoryThreadsFromEvents, findThreadForEvent, buildEntityStoryline, currentEntityThread } from "./story-threads.js";
 import { buildStoryDetail } from "./story-detail.js";
+import { buildDistrictStoryline } from "./story-territory.js";
 import { roleInboxEvents } from "./media.js";
 import { buildCompetitionPyramid } from "./competition-pyramid-view.js";
 import { governmentOverview, requestGovernmentFunding, requestClubInfrastructureGovernmentSupport, requestFacilitySiteGovernmentSupport, resolveGovernmentInstitutionForClub, clubInfrastructureGovernmentContext, advanceGovernmentApplications, buildGovernmentSupportMeeting, submitGovernmentFunding } from "./government.js";
@@ -1608,6 +1609,13 @@ export class DesktopApplicationService {
       const detail = buildDistrictDetail(db, federationId, districtId, "FEDERATION_PRESIDENT");
       if (!detail) throw appError("INVALID_SELECTION", "That district is not on record.");
       return detail;
+    });
+  }
+
+  getDistrictStoryline(districtId: EntityId): AppResult<EntityStoryline> {
+    return this.withSession((db, save) => {
+      const role = activeCareerRole(db, careerPersonId(db, save));
+      return buildDistrictStoryline(db, districtId, role);
     });
   }
 

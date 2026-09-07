@@ -234,6 +234,8 @@ const dispatch = (
       return service.getFederationMap();
     case "getDistrictDetail":
       return service.getDistrictDetail(body.districtId as EntityId);
+    case "getDistrictStoryline":
+      return service.getDistrictStoryline(body.districtId as EntityId);
     case "getCompetitionPyramid":
       return service.getCompetitionPyramid();
     case "getGovernmentOverview":

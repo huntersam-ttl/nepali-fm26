@@ -1036,6 +1036,10 @@ export type DesktopRuntimeApi = {
   getEntityStoryline?: (entityId: EntityId) => Promise<AppResult<EntityStoryline>>;
   getFederationMap?: () => Promise<AppResult<FederationMap>>;
   getDistrictDetail?: (districtId: EntityId) => Promise<AppResult<DistrictDetail>>;
+  /** A district's own storyline — events that canonically resolve into this
+   * exact geography (club/project/institution location), never the
+   * federation-wide feed under a misleading district label. */
+  getDistrictStoryline?: (districtId: EntityId) => Promise<AppResult<EntityStoryline>>;
   getCompetitionPyramid?: () => Promise<AppResult<CompetitionPyramid>>;
   getGovernmentOverview(): Promise<AppResult<GovernmentOverview>>;
   requestGovernmentFunding(

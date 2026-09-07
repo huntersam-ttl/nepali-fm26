@@ -68,6 +68,7 @@ import type {
   StoryDetail,
   StoryThread,
   StoryThreadCategory,
+  EntityStoryline,
 } from "@nepal-football-sim/shared-types";
 import type { EntityId } from "@nepal-football-sim/shared-types";
 import type { AppError, AppResult, DesktopRuntimeApi } from "../appBridge.js";
@@ -2903,6 +2904,17 @@ const DistrictDetailPanel = ({
                 Latest federation story: <Badge tone={detail.latestStory.tone}>{detail.latestStory.occurredOn}</Badge> {detail.latestStory.headline}
               </p>
             )}
+            <EntityStorylinePanel
+              bridge={bridge}
+              entityId={districtId}
+              title="District story"
+              onOpenReference={(reference) => setOpenOrgId({ entityType: reference.entityType as ProfileEntityType, entityId: reference.id })}
+              fetch={() =>
+                bridge.getDistrictStoryline
+                  ? bridge.getDistrictStoryline(districtId)
+                  : Promise.resolve({ ok: false as const, error: { code: "RUNTIME_UNAVAILABLE" as const, message: "District storylines are unavailable right now." } })
+              }
+            />
             {openOrgId && (
               <OrganizationProfilePanel
                 bridge={bridge}
@@ -6547,6 +6559,7 @@ export const EntityStorylinePanel = ({
   onOpenTransferNegotiation,
   title = "Recent story",
   categoryFilter,
+  fetch: fetchOverride,
 }: {
   bridge: StoryBridge;
   entityId: EntityId;
@@ -6558,13 +6571,19 @@ export const EntityStorylinePanel = ({
    * categories — e.g. Finance shows COMMERCIAL/FACILITY only, never a
    * duplicate of the generic federation-wide feed shown elsewhere. */
   categoryFilter?: readonly StoryThreadCategory[];
+  /** Overrides the default bridge.getEntityStoryline(entityId) fetch — used
+   * by Map's district panel, whose storyline is scoped by real geography
+   * (getDistrictStoryline) rather than a single entity id. */
+  fetch?: () => Promise<AppResult<EntityStoryline>>;
 }): React.ReactElement | null => {
   const [openStoryEventId, setOpenStoryEventId] = useState<EntityId | null>(null);
   const [state] = useRuntimeData(
     () =>
-      bridge.getEntityStoryline
-        ? bridge.getEntityStoryline(entityId)
-        : Promise.resolve({ ok: false as const, error: { code: "RUNTIME_UNAVAILABLE" as const, message: "Storylines are unavailable right now." } }),
+      fetchOverride
+        ? fetchOverride()
+        : bridge.getEntityStoryline
+          ? bridge.getEntityStoryline(entityId)
+          : Promise.resolve({ ok: false as const, error: { code: "RUNTIME_UNAVAILABLE" as const, message: "Storylines are unavailable right now." } }),
     [entityId],
   );
   if (state.status !== "ready" || state.data.entries.length === 0) return null;
