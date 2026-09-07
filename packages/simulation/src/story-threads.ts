@@ -46,7 +46,7 @@ const categoryFor = (event: HistoricalEvent): StoryThreadCategory | undefined =>
   if (/CONTRACT/.test(type)) return "CONTRACT";
   if (/NATIONAL_TEAM|CALLUP|CALL_UP|NATIONAL.*CAMP/.test(type)) return "NATIONAL_PATHWAY";
   if (/SPONSOR|COMMERCIAL/.test(type)) return "COMMERCIAL";
-  if (/COMPETITION|CHAMPION|PROMOTION|RELEGATION|SEASON/.test(type)) return "COMPETITION";
+  if (/COMPETITION|CHAMPION|PROMOT|RELEGAT|QUALIFIED|SEASON/.test(type)) return "COMPETITION";
   return undefined;
 };
 

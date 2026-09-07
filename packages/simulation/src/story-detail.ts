@@ -53,6 +53,17 @@ const additionalFactsFrom = (data: Record<string, unknown> | undefined): { label
   if (typeof data.impliedValuation === "number")
     facts.push({ label: "Implied valuation", value: `NPR ${Math.round(data.impliedValuation).toLocaleString("en-US")}` });
   if (typeof data.term === "number") facts.push({ label: "Term", value: `${data.term} year${data.term === 1 ? "" : "s"}` });
+  if (typeof data.termYears === "number")
+    facts.push({ label: "Term", value: `${data.termYears} year${data.termYears === 1 ? "" : "s"}` });
+  if (typeof data.programme === "string") facts.push({ label: "Programme", value: data.programme });
+  if (typeof data.endDate === "string") facts.push({ label: "Runs until", value: data.endDate });
+  if (typeof data.requestedAmount === "number")
+    facts.push({ label: "Requested support", value: `NPR ${Math.round(data.requestedAmount).toLocaleString("en-US")}` });
+  if (typeof data.approvedAmount === "number")
+    facts.push({ label: "Approved support", value: `NPR ${Math.round(data.approvedAmount).toLocaleString("en-US")}` });
+  if (typeof data.status === "string" && /^[A-Z][A-Z_]*$/.test(data.status))
+    facts.push({ label: "Status", value: humanizeEventType(data.status) });
+  if (typeof data.reason === "string" && data.reason.length > 0) facts.push({ label: "Reason", value: data.reason });
   return facts;
 };
 

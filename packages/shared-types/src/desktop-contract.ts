@@ -734,7 +734,8 @@ export type StoryAction =
   | { id: string; label: string; kind: "OPEN_INVESTOR_MEETING"; offerId: EntityId }
   | { id: string; label: string; kind: "OPEN_TRANSFER_NEGOTIATION"; offerId: EntityId }
   | { id: string; label: string; kind: "OPEN_GOVERNMENT_SUPPORT"; clubId: EntityId }
-  | { id: string; label: string; kind: "OPEN_NATIONAL_TEAM"; teamId: EntityId };
+  | { id: string; label: string; kind: "OPEN_NATIONAL_TEAM"; teamId: EntityId }
+  | { id: string; label: string; kind: "OPEN_COMMERCIAL"; offerId: EntityId };
 
 export type StoryDetail = {
   header: {

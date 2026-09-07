@@ -1,5 +1,11 @@
 import type { CareerRole, EntityId, EntityReference, HistoricalEvent, StoryAction } from "@nepal-football-sim/shared-types";
-import { GovernmentRepository, OwnershipRepository, TransferMarketRepository, type GameDatabase } from "@nepal-football-sim/database";
+import {
+  ClubEconomyRepository,
+  GovernmentRepository,
+  OwnershipRepository,
+  TransferMarketRepository,
+  type GameDatabase,
+} from "@nepal-football-sim/database";
 import { buildEntityReference } from "./entity-reference.js";
 
 const FACILITY_AUTHORITY_ROLES: readonly CareerRole[] = ["CHAIRMAN_OWNER", "CEO", "GENERAL_SECRETARY"];
@@ -85,6 +91,60 @@ export const buildStoryActions = (
         label: "Open project",
         kind: "OPEN_ENTITY",
         entity: project,
+      });
+    }
+  }
+
+  // Competition outcome (promotion/relegation/championship/expansion) — a
+  // real, permanent Competition entity, so this reuses the existing
+  // entity-open mechanism (like the facility branch above) rather than
+  // inventing a second navigation path. Every role may view a competition,
+  // so there is no role gate here — visibility/mutation authority within
+  // the profile itself is handled by buildEntityReference's own role actions.
+  if (/CLUB_PROMOTED|CLUB_RELEGATED|COMPETITION_CHAMPION_DECLARED|COMPETITION_EXPANDED|CLUB_QUALIFIED/.test(type)) {
+    const competitionId = (data?.competitionId ?? data?.toCompetitionId ?? data?.fromCompetitionId) as
+      | string
+      | undefined;
+    if (typeof competitionId === "string") {
+      const competition = buildEntityReference(db, "COMPETITION", competitionId as EntityId, role);
+      if (competition?.visible) {
+        actions.push({
+          id: `open-entity:${competition.entityType}:${competition.id}`,
+          label: "View competition",
+          kind: "OPEN_ENTITY",
+          entity: competition,
+        });
+      }
+    }
+  }
+
+  // Club sponsorship — the SPONSOR entity type resolves the sponsor
+  // ORGANIZATION profile (commercial_sponsor_profiles/sponsor_organisations),
+  // not the contract row itself, so the contract must be looked up first to
+  // find its real, still-queryable sponsorId before reusing the existing
+  // entity-open mechanism.
+  if (/SPONSORSHIP/.test(type) && typeof data?.sponsorshipId === "string") {
+    const contract = new ClubEconomyRepository(db).sponsorship(data.sponsorshipId as EntityId);
+    const sponsorship = contract ? buildEntityReference(db, "SPONSOR", contract.sponsorId, role) : undefined;
+    if (sponsorship?.visible) {
+      actions.push({
+        id: `open-entity:${sponsorship.entityType}:${sponsorship.id}`,
+        label: "View sponsorship",
+        kind: "OPEN_ENTITY",
+        entity: sponsorship,
+      });
+    }
+  }
+
+  // Federation commercial rights — the President's own federation-wide
+  // commercial portfolio; only real once the awarded offer still resolves.
+  if (/FEDERATION_COMMERCIAL/.test(type) && typeof data?.offerId === "string" && role === "FEDERATION_PRESIDENT") {
+    if (db.prepare("SELECT 1 FROM federation_commercial_rights_offers WHERE id=?").get(data.offerId)) {
+      actions.push({
+        id: `open-commercial:${data.offerId}`,
+        label: "Open commercial portfolio",
+        kind: "OPEN_COMMERCIAL",
+        offerId: data.offerId as EntityId,
       });
     }
   }

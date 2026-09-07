@@ -120,7 +120,11 @@ export const persistSeasonSimulation = (
         decidedOn: input.ruleSet.seasonEndDate,
       });
     }
-    const history = championHistory(input.competitionSeason, champion.teamId, winnerId);
+    const team = db.prepare("SELECT club_id FROM teams WHERE id=?").get(champion.teamId) as { club_id?: EntityId } | undefined;
+    const club = team?.club_id
+      ? (db.prepare("SELECT id, name FROM clubs WHERE id=?").get(team.club_id) as { id: EntityId; name: string } | undefined)
+      : undefined;
+    const history = championHistory(input.competitionSeason, champion.teamId, winnerId, club);
     if (!db.prepare("SELECT 1 FROM historical_events WHERE id=?").get(history.id)) {
       events.insertHistoricalEvent(history);
     }
@@ -146,6 +150,7 @@ const championHistory = (
   season: CompetitionSeason,
   teamId: EntityId,
   winnerId: EntityId,
+  club: { id: EntityId; name: string } | undefined,
 ): HistoricalEvent => ({
   id: createStableEntityId("history", `COMPETITION_CHAMPION:${season.id}:${teamId}`),
   occurredOn: season.endDate,
@@ -154,9 +159,10 @@ const championHistory = (
     { type: "competitionSeason", id: season.id },
     { type: "team", id: teamId },
     { type: "match", id: winnerId },
+    ...(club ? [{ type: "club" as const, id: club.id }] : []),
   ],
-  title: `Champion declared for ${season.name}`,
-  data: { teamId },
+  title: club ? `${club.name} crowned champions of ${season.name}` : `Champion declared for ${season.name}`,
+  data: { teamId, clubId: club?.id, competitionId: season.competitionId },
   importance: "high",
   scope: "club",
 });

@@ -2115,7 +2115,7 @@ const CommercialHistoryPanel = ({
  * RightsForCompetition creates and settles its deal in one step, with no
  * OFFERED state for a president to decide.
  */
-const PresidentCommercial = ({ bridge }: { bridge: DesktopRuntimeApi }): React.ReactElement => {
+export const PresidentCommercial = ({ bridge }: { bridge: DesktopRuntimeApi }): React.ReactElement => {
   const [state, refresh] = useRuntimeData(() => bridge.getFederationCommercialOverview());
   const [openOrgId, setOpenOrgId] = useState<EntityId | undefined>(undefined);
   return (
@@ -6166,6 +6166,7 @@ export const StoryDetailPanel = ({
   onOpenTransferNegotiation,
   onOpenGovernmentSupport,
   onOpenNationalTeam,
+  onOpenCommercial,
 }: {
   bridge: StoryBridge;
   eventId: EntityId;
@@ -6180,6 +6181,8 @@ export const StoryDetailPanel = ({
   onOpenGovernmentSupport?: (clubId: EntityId) => void;
   /** Present only where a full DesktopRuntimeApi is available to render NationalTeamSquadLauncher. */
   onOpenNationalTeam?: (teamId: EntityId) => void;
+  /** Present only where a full DesktopRuntimeApi is available to render PresidentCommercial. */
+  onOpenCommercial?: () => void;
 }): React.ReactElement => {
   const [state] = useRuntimeData<StoryDetail>(
     () => (bridge.getStoryDetail ? bridge.getStoryDetail(eventId) : Promise.resolve({ ok: false, error: { code: "RUNTIME_UNAVAILABLE", message: "Story detail is unavailable." } })),
@@ -6261,6 +6264,10 @@ export const StoryDetailPanel = ({
                     </button>
                   ) : action.kind === "OPEN_NATIONAL_TEAM" && onOpenNationalTeam ? (
                     <button key={action.id} className="link" onClick={() => onOpenNationalTeam(action.teamId)}>
+                      {action.label}
+                    </button>
+                  ) : action.kind === "OPEN_COMMERCIAL" && onOpenCommercial ? (
+                    <button key={action.id} className="link" onClick={() => onOpenCommercial()}>
                       {action.label}
                     </button>
                   ) : (
@@ -6398,6 +6405,7 @@ export const InboxPanel = ({
   const [openInvestorOfferId, setOpenInvestorOfferId] = useState<EntityId | null>(null);
   const [openGovernmentClubId, setOpenGovernmentClubId] = useState<EntityId | null>(null);
   const [openNationalTeamId, setOpenNationalTeamId] = useState<EntityId | null>(null);
+  const [showCommercial, setShowCommercial] = useState(false);
   const [showThreads, setShowThreads] = useState(false);
   const openReference = (reference: EntityReference): void =>
     setOpenReferenceTarget({ entityType: reference.entityType as ProfileEntityType, entityId: reference.id });
@@ -6433,6 +6441,7 @@ export const InboxPanel = ({
           onOpenTransferNegotiation={onOpenTransferNegotiation}
           onOpenGovernmentSupport={setOpenGovernmentClubId}
           onOpenNationalTeam={setOpenNationalTeamId}
+          onOpenCommercial={() => setShowCommercial(true)}
         />
       )}
       {showThreads && (
@@ -6463,6 +6472,14 @@ export const InboxPanel = ({
       )}
       {openNationalTeamId && (
         <NationalTeamSquadLauncher bridge={bridge} teamId={openNationalTeamId} onClose={() => setOpenNationalTeamId(null)} />
+      )}
+      {showCommercial && (
+        <Panel title="Commercial portfolio">
+          <button className="ghost" onClick={() => setShowCommercial(false)}>
+            Close
+          </button>
+          <PresidentCommercial bridge={bridge} />
+        </Panel>
       )}
     </Panel>
   );

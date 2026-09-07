@@ -819,6 +819,7 @@ export const awardCommercialRights = (
     ],
     title: "Federation commercial rights awarded",
     data: {
+      offerId: offer.id,
       category: rightsPackage.category,
       sponsorId: sponsor.id,
       annualValue: offer.annualValue,

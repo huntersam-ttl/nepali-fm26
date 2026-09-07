@@ -2,11 +2,23 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { GovernmentRepository, OwnershipRepository, TransferMarketRepository, openGameDatabase } from "@nepal-football-sim/database";
 import {
+  ClubEconomyRepository,
+  CommercialRightsRepository,
+  GovernmentRepository,
+  OwnershipRepository,
+  TransferMarketRepository,
+  openGameDatabase,
+} from "@nepal-football-sim/database";
+import {
+  acceptSponsorOffer,
+  awardCommercialRightsForPresident,
   buildStoryActions,
+  calculateCommercialRightsOffer,
   createInfrastructureProject,
   createNepalSave,
+  ensureFederationMainPartnerPackage,
+  generateSponsorOffers,
   initializeClubEconomyForSave,
   requestClubInfrastructureGovernmentSupport,
   resolveGovernmentInstitutionForClub,
@@ -364,6 +376,202 @@ describe("national team story action routing", () => {
   it("never fabricates a national team action when the team id no longer resolves", () => {
     const { db, player } = setUp("nt-actions-missing");
     const event = nationalTeamEvent("no-such-team", player.id);
+    expect(buildStoryActions(db, event, "FEDERATION_PRESIDENT")).toHaveLength(0);
+    db.close();
+  });
+});
+
+const competitionEvent = (eventType: string, competitionId: string, clubId: EntityId): HistoricalEvent => ({
+  id: createStableEntityId("history", `story-actions-competition:${eventType}:${competitionId}:${clubId}`),
+  occurredOn: "2026-08-02",
+  eventType,
+  involvedEntities: [
+    { id: clubId, type: "club" },
+    { id: competitionId as EntityId, type: "competition" },
+  ],
+  title: "A club's competition status changes",
+  importance: "medium",
+  scope: "club",
+  data: { competitionId, clubId },
+});
+
+describe("competition story action routing", () => {
+  const setUp = (name: string) => {
+    const db = openGameDatabase(makeSave(name));
+    const club = db.prepare("SELECT id FROM clubs WHERE name = 'Machhindra FC'").get() as { id: EntityId };
+    const competition = db.prepare("SELECT id FROM competitions LIMIT 1").get() as { id: string };
+    return { db, club, competition };
+  };
+
+  it("gives the Manager/Owner/President a 'View competition' action for a championship story", () => {
+    const { db, club, competition } = setUp("comp-actions-champion");
+    const event = competitionEvent("COMPETITION_CHAMPION_DECLARED", competition.id, club.id);
+    for (const role of ["MANAGER", "CHAIRMAN_OWNER", "FEDERATION_PRESIDENT"] as const) {
+      const actions = buildStoryActions(db, event, role);
+      expect(actions).toHaveLength(1);
+      expect(actions[0]!.kind).toBe("OPEN_ENTITY");
+      expect(actions[0]!.label).toBe("View competition");
+    }
+    db.close();
+  });
+
+  it("gives a 'View competition' action for a promotion story", () => {
+    const { db, club, competition } = setUp("comp-actions-promoted");
+    const event = competitionEvent("CLUB_PROMOTED", competition.id, club.id);
+    expect(buildStoryActions(db, event, "CHAIRMAN_OWNER")).toHaveLength(1);
+    db.close();
+  });
+
+  it("gives a 'View competition' action for a relegation story", () => {
+    const { db, club, competition } = setUp("comp-actions-relegated");
+    const event = competitionEvent("CLUB_RELEGATED", competition.id, club.id);
+    expect(buildStoryActions(db, event, "CHAIRMAN_OWNER")).toHaveLength(1);
+    db.close();
+  });
+
+  it("never fabricates a competition action when the competition id no longer resolves", () => {
+    const { db, club } = setUp("comp-actions-missing");
+    const event = competitionEvent("CLUB_PROMOTED", "no-such-competition", club.id);
+    expect(buildStoryActions(db, event, "CHAIRMAN_OWNER")).toHaveLength(0);
+    db.close();
+  });
+});
+
+describe("club sponsorship story action routing", () => {
+  const setUp = (name: string) => {
+    const db = openGameDatabase(makeSave(name));
+    initializeClubEconomyForSave({ db, worldDate: "2026-08-01", seed: name });
+    const club = db.prepare("SELECT id FROM clubs WHERE name = 'Machhindra FC'").get() as { id: EntityId };
+    for (const existing of new ClubEconomyRepository(db).sponsorships(club.id)) {
+      if (existing.status === "ACTIVE") new ClubEconomyRepository(db).upsertSponsorship({ ...existing, status: "EXPIRED" });
+    }
+    const offer = generateSponsorOffers(db, { clubId: club.id, date: "2026-08-05", seed: name, count: 1 })[0]!;
+    acceptSponsorOffer(db, offer.id, "2026-08-05");
+    return { db, club, sponsorshipId: offer.id };
+  };
+
+  const sponsorshipEvent = (sponsorshipId: EntityId, clubId: EntityId): HistoricalEvent => ({
+    id: createStableEntityId("history", `story-actions-sponsorship:${sponsorshipId}`),
+    occurredOn: "2026-08-05",
+    eventType: "SPONSORSHIP_ACCEPTED",
+    involvedEntities: [{ id: clubId, type: "club" }],
+    title: "A club agrees a new sponsorship deal",
+    importance: "high",
+    scope: "club",
+    data: { sponsorshipId },
+  });
+
+  it("gives a 'View sponsorship' action for a real, active sponsorship contract", () => {
+    const { db, club, sponsorshipId } = setUp("sponsorship-actions-open");
+    const actions = buildStoryActions(db, sponsorshipEvent(sponsorshipId, club.id), "CHAIRMAN_OWNER");
+    expect(actions).toHaveLength(1);
+    expect(actions[0]!.kind).toBe("OPEN_ENTITY");
+    expect(actions[0]!.label).toBe("View sponsorship");
+    db.close();
+  });
+
+  it("never fabricates a sponsorship action when the sponsorship id no longer resolves", () => {
+    const { db, club } = setUp("sponsorship-actions-missing");
+    const actions = buildStoryActions(db, sponsorshipEvent("no-such-sponsorship" as EntityId, club.id), "CHAIRMAN_OWNER");
+    expect(actions).toHaveLength(0);
+    db.close();
+  });
+});
+
+describe("federation commercial story action routing", () => {
+  const setUp = (name: string) => {
+    const dir = mkdtempSync(join(tmpdir(), "story-actions-commercial-"));
+    dirs.push(dir);
+    const path = join(dir, "career.sqlite");
+    createNepalSave({
+      databasePath: path,
+      dataset: JSON.parse(readFileSync(registryPath, "utf8")) as unknown,
+      saveName: name,
+      gameVersion: "test",
+      randomSeed: name,
+    });
+    const db = openGameDatabase(path);
+    const federationId = (
+      db
+        .prepare("SELECT federation_id AS id FROM competitions WHERE lower(name) LIKE '%a-division%' ORDER BY id LIMIT 1")
+        .get() as { id: EntityId }
+    ).id;
+    const personId = (db.prepare("SELECT id FROM persons ORDER BY id LIMIT 1").get() as { id: EntityId }).id;
+    db.prepare(
+      "INSERT INTO federation_leadership_tenures (id,person_id,federation_id,role,term_start,status,provenance_status) VALUES (?,?,?,?,?,?,?)",
+    ).run(`${name}-tenure`, personId, federationId, "FEDERATION_PRESIDENT", "2026-08-01", "ACTIVE", "SIMULATION_ONLY");
+    const rightsPackage = ensureFederationMainPartnerPackage(db, federationId, "2026-08-01");
+    const repo = new CommercialRightsRepository(db);
+    const sponsorId = `${name}-sponsor` as EntityId;
+    repo.upsertSponsor({
+      id: sponsorId,
+      name: "Story Actions Test Partner",
+      sector: "Banking",
+      financialStrength: 70,
+      strategicValue: 65,
+      reputation: 60,
+      domesticReach: 70,
+      internationalReach: 20,
+      reliability: 75,
+      provenanceStatus: "SIMULATION_ONLY",
+    });
+    const offer = calculateCommercialRightsOffer({
+      rightsPackage,
+      sponsor: repo.sponsor(sponsorId)!,
+      evidence: {
+        federationReputation: 50,
+        competitionReputation: 40,
+        nationalTeamPerformance: 40,
+        audienceScale: 50_000,
+        mediaExposure: 45,
+        womenYouthGrowth: 35,
+      },
+      offeredOn: "2026-08-01",
+    });
+    repo.upsertOffer(offer);
+    awardCommercialRightsForPresident(db, {
+      offerId: offer.id,
+      federationId,
+      presidentPersonId: personId,
+      date: "2026-08-01",
+      startDate: "2026-08-01",
+    });
+    return { db, federationId, offerId: offer.id };
+  };
+
+  const commercialEvent = (offerId: EntityId, federationId: EntityId): HistoricalEvent => ({
+    id: createStableEntityId("history", `story-actions-commercial:${offerId}`),
+    occurredOn: "2026-08-01",
+    eventType: "FEDERATION_COMMERCIAL_RIGHTS_AWARDED",
+    involvedEntities: [
+      { id: federationId, type: "federation" },
+      { id: offerId, type: "contract" },
+    ],
+    title: "Federation commercial rights awarded",
+    importance: "high",
+    scope: "federation",
+    data: { offerId },
+  });
+
+  it("gives the President an 'Open commercial portfolio' action for a real, awarded offer", () => {
+    const { db, federationId, offerId } = setUp("fed-commercial-actions-open");
+    const actions = buildStoryActions(db, commercialEvent(offerId, federationId), "FEDERATION_PRESIDENT");
+    expect(actions).toHaveLength(1);
+    expect(actions[0]!.kind).toBe("OPEN_COMMERCIAL");
+    db.close();
+  });
+
+  it("never gives the Manager or Owner the President-only federation commercial action", () => {
+    const { db, federationId, offerId } = setUp("fed-commercial-actions-denied");
+    const event = commercialEvent(offerId, federationId);
+    expect(buildStoryActions(db, event, "MANAGER")).toHaveLength(0);
+    expect(buildStoryActions(db, event, "CHAIRMAN_OWNER")).toHaveLength(0);
+    db.close();
+  });
+
+  it("never fabricates a federation commercial action when the offer id no longer resolves", () => {
+    const { db, federationId } = setUp("fed-commercial-actions-missing");
+    const event = commercialEvent("no-such-offer" as EntityId, federationId);
     expect(buildStoryActions(db, event, "FEDERATION_PRESIDENT")).toHaveLength(0);
     db.close();
   });
