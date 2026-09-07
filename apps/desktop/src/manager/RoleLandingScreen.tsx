@@ -406,7 +406,8 @@ const ChairmanDashboardView = ({
             {ownership.length ? (
               ownership.map((item) => (
                 <li key={item.id}>
-                  {item.holderName} · {item.percentage ?? "shared"}% · {item.role}
+                  {item.holderName} · {item.percentage === undefined ? "shared holding" : `${item.percentage}%`} ·{" "}
+                  {item.role.replaceAll("_", " ").toLowerCase()}
                 </li>
               ))
             ) : (

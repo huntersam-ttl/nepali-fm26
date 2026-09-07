@@ -107,7 +107,11 @@ describe("story detail", () => {
     const threads = deriveStoryThreadsFromEvents(db, [first, second], "MANAGER");
     const thread = threads[0]!;
     const detail = buildStoryDetail(db, second, "MANAGER", thread);
-    expect(detail.header.headline).toBe(second.title);
+    // This fixture's title is the literal placeholder "Event d2", which the
+    // headline presenter deliberately refuses to echo — it derives a real
+    // transfer-family headline instead (see story-headline.test.ts).
+    expect(detail.header.headline).not.toBe(second.title);
+    expect(detail.header.headline).toMatch(/completes the move|completes move to/);
     expect(detail.contextRail.financialImpact).toEqual({ amount: 500_000, currency: "NPR" });
     expect(detail.contextRail.priorEvents).toEqual([{ date: first.occurredOn, headline: first.title }]);
     expect(detail.body.immediateConsequence).toMatch(/settled/i);
@@ -132,7 +136,13 @@ describe("story detail", () => {
       data: { percentage: 25, unrelatedInternalField: "should-not-appear" },
     });
     const detail = buildStoryDetail(db, stakeEvent, "MANAGER");
-    expect(detail.contextRail.additionalFacts).toEqual([{ label: "Stake", value: "25%" }]);
+    const facts = detail.contextRail.additionalFacts;
+    // Bounded and recognized-only: the ownership family contributes the real
+    // stake plus the club resolved from the event's own involved entity, and
+    // the unrecognized internal field never appears.
+    expect(facts).toContainEqual({ label: "Stake", value: "25%" });
+    expect(facts.map((fact) => fact.label).sort()).toEqual(["Club", "Stake"]);
+    expect(JSON.stringify(facts)).not.toContain("should-not-appear");
     db.close();
   });
 

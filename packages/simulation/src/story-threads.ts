@@ -10,6 +10,7 @@ import type {
 import { EventRepository, type GameDatabase, type PublicEventRole } from "@nepal-football-sim/database";
 import { resolveStoryEntityReference, storyImportanceBand } from "./story-entities.js";
 import { roleInboxEvents } from "./media.js";
+import { storyHeadline } from "./story-headline.js";
 
 export type { StoryThread, StoryThreadCategory } from "@nepal-football-sim/shared-types";
 
@@ -38,9 +39,12 @@ export const humanizeEventType = (eventType: string): string =>
 
 export const categoryFor = (event: HistoricalEvent): StoryThreadCategory | undefined => {
   const type = event.eventType.toUpperCase();
+  // Ownership is checked BEFORE transfer: CLUB_OWNERSHIP_TRANSFERRED contains
+  // "TRANSFERRED", so a player-transfer match would otherwise swallow every
+  // ownership hand-over and file it as a transfer saga.
+  if (/OWNERSHIP|INVESTOR|TAKEOVER/.test(type)) return "OWNERSHIP";
   if (/LOAN/.test(type)) return "LOAN";
   if (/TRANSFER|FREE_AGENT/.test(type)) return "TRANSFER";
-  if (/OWNERSHIP|INVESTOR|TAKEOVER/.test(type)) return "OWNERSHIP";
   if (/FACILITY|INFRASTRUCTURE|GOVERNMENT_SUPPORT/.test(type)) return "FACILITY";
   if (/INJURY/.test(type)) return "INJURY";
   if (/CONTRACT/.test(type)) return "CONTRACT";
@@ -126,7 +130,18 @@ export const deriveStoryThreadsFromEvents = (
       (a, b) => a.occurredOn.localeCompare(b.occurredOn) || a.id.localeCompare(b.id),
     );
     const latestEvent = ordered[ordered.length - 1]!;
-    const primaryEntity = resolveStoryEntityReference(db, group.primaryRef, role);
+    // Some real event types involve entities that have no EntityReference
+    // form of their own — a federation-scope commercial award, for instance,
+    // involves only {federation, contract}. Dropping the whole thread in that
+    // case silently hid genuine President stories, so the primary entity
+    // falls back to the first involved entity that DOES resolve. A thread is
+    // only skipped when nothing in it resolves at all.
+    const primaryEntity =
+      resolveStoryEntityReference(db, group.primaryRef, role) ??
+      ordered
+        .flatMap((event) => event.involvedEntities)
+        .map((ref) => resolveStoryEntityReference(db, ref, role))
+        .find((resolved): resolved is EntityReference => Boolean(resolved));
     if (!primaryEntity) continue;
     const seen = new Set<string>();
     const involvedEntities: EntityReference[] = [];
@@ -202,7 +217,7 @@ export const buildEntityStoryline = (
     .slice(0, limit)
     .map((event) => ({
       date: event.occurredOn,
-      headline: event.title,
+      headline: storyHeadline(db, event),
       importanceBand: storyImportanceBand(event.importance),
       category: categoryFor(event),
       eventId: event.id,

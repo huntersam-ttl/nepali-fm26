@@ -12,6 +12,7 @@ import {
 } from "@nepal-football-sim/database";
 import {
   acceptSponsorOffer,
+  assignExecutiveRole,
   awardCommercialRightsForPresident,
   buildStoryActions,
   calculateCommercialRightsOffer,
@@ -19,6 +20,7 @@ import {
   createNepalSave,
   ensureFederationMainPartnerPackage,
   generateSponsorOffers,
+  hireStaff,
   initializeClubEconomyForSave,
   requestClubInfrastructureGovernmentSupport,
   resolveGovernmentInstitutionForClub,
@@ -690,9 +692,9 @@ describe("role action safety — full executive matrix", () => {
   });
 
   it(
-    "transfer negotiation: only MANAGER gets a mutation-routing action today — documents the current gap where " +
-      "SPORTING_DIRECTOR/DIRECTOR_OF_FOOTBALL hold real TRANSFER_NEGOTIATION authority (executive-roles.ts) but " +
-      "buildStoryActions does not yet route it to them; this is a known, reported limitation, not a fabricated pass",
+    "transfer negotiation: MANAGER gets the action by role, and no other role gets it without a real appointment — " +
+      "SPORTING_DIRECTOR/DIRECTOR_OF_FOOTBALL only qualify through executiveHasAuthority (covered in the " +
+      "'executive transfer authority' suite), never from the role name alone",
     () => {
       const db = openGameDatabase(makeSave("matrix-transfer"));
       const club = db.prepare("SELECT id FROM clubs WHERE name = 'Machhindra FC'").get() as { id: EntityId };
@@ -834,6 +836,107 @@ describe("terminal action safety — full status matrix", () => {
     expect(actions).toHaveLength(1);
     expect(actions[0]!.label).toMatch(/decision/i);
     expect(actions[0]!.label).not.toMatch(/review|submit|request/i);
+    db.close();
+  });
+});
+
+/**
+ * Delegated transfer authority. The canonical model (executiveAuthorities,
+ * shared-types/src/executive-roles.ts) gives SPORTING_DIRECTOR and
+ * DIRECTOR_OF_FOOTBALL real TRANSFER_NEGOTIATION authority, so a story action
+ * must reach them — but only through executiveHasAuthority, i.e. only when the
+ * appointment is genuinely filled at a club actually in the negotiation.
+ */
+describe("executive transfer authority", () => {
+  const setUp = (name: string, role: "SPORTING_DIRECTOR" | "DIRECTOR_OF_FOOTBALL") => {
+    const db = openGameDatabase(makeSave(name));
+    initializeClubEconomyForSave({ db, worldDate: "2026-08-01", seed: name });
+    const club = db.prepare("SELECT id FROM clubs WHERE name = 'Machhindra FC'").get() as { id: EntityId };
+    const other = db.prepare("SELECT id FROM clubs WHERE name != 'Machhindra FC' LIMIT 1").get() as { id: EntityId };
+    // A real staff person, specialised into the executive role the same way
+    // world generation records any other specialisation — hireStaff's own
+    // eligibility gate then applies exactly as it does in the live game.
+    const person = db
+      .prepare(
+        `SELECT sp.person_id AS id FROM staff_profiles sp
+         WHERE NOT EXISTS (
+           SELECT 1 FROM staff_appointments sa
+           WHERE sa.person_id = sp.person_id AND sa.employment_status = 'ACTIVE'
+         )
+         ORDER BY sp.id LIMIT 1`,
+      )
+      .get() as { id: EntityId };
+    db.prepare("UPDATE staff_profiles SET preferred_role = ? WHERE person_id = ?").run(role, person.id);
+    const save = {
+      id: `${name}-save` as EntityId,
+      name,
+      worldDate: "2026-08-01",
+      databaseVersion: 38,
+      gameVersion: "test",
+      randomSeed: name,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      lastSavedAt: "2026-01-01T00:00:00.000Z",
+    };
+    // A real controlling owner has to be the one making the appointment —
+    // assignExecutiveRole enforces majority voting control, exactly as in the
+    // game, so the fixture grants a genuine majority stake first.
+    const owner = db.prepare("SELECT id FROM persons ORDER BY id DESC LIMIT 1").get() as { id: EntityId };
+    db.prepare(
+      "INSERT OR IGNORE INTO club_ownership_stakes (id,club_id,holder_type,holder_id,holder_name,role,percentage,voting_percentage,start_date,status,ownership_model,provenance_status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+    ).run(`${name}-owner-stake`, club.id, "PERSON", owner.id, "Test Owner", "MAJORITY_OWNER", 75, 75, "2026-08-01", "ACTIVE", "BUYABLE", "SIMULATION_ONLY");
+    const appointment = hireStaff(db, save as never, club.id, undefined, person.id, role, 120_000, 24);
+    assignExecutiveRole(db, { clubId: club.id, ownerPersonId: owner.id, role, appointment, date: "2026-08-01" });
+    const offer = baseTransferOffer({ id: `${name}-offer` as EntityId, playerId: person.id, buyingClubId: club.id });
+    new TransferMarketRepository(db).insertTransferOffer(offer);
+    const event = transferEvent(`${name}-offer`, person.id, club.id);
+    return { db, club, other, person, event };
+  };
+
+  it.each(["SPORTING_DIRECTOR", "DIRECTOR_OF_FOOTBALL"] as const)(
+    "%s with a genuinely filled appointment at the buying club gets the same transfer action a Manager gets",
+    (role) => {
+      const { db, person, event } = setUp(`exec-authority-${role.toLowerCase()}`, role);
+      const actions = buildStoryActions(db, event, role, person.id);
+      expect(actions).toHaveLength(1);
+      expect(actions[0]!.kind).toBe("OPEN_TRANSFER_NEGOTIATION");
+      expect(actions[0]!.label).toBe("Open negotiation");
+      db.close();
+    },
+  );
+
+  it("denies the same executive role when no personId is supplied — authority is never inferred from the role name", () => {
+    const { db, event } = setUp("exec-authority-no-person", "SPORTING_DIRECTOR");
+    expect(buildStoryActions(db, event, "SPORTING_DIRECTOR")).toHaveLength(0);
+    db.close();
+  });
+
+  it("denies a person holding no executive appointment at all, even under the authorized role", () => {
+    const { db, event } = setUp("exec-authority-unappointed", "SPORTING_DIRECTOR");
+    const stranger = db.prepare("SELECT id FROM persons ORDER BY id DESC LIMIT 1").get() as { id: EntityId };
+    expect(buildStoryActions(db, event, "SPORTING_DIRECTOR", stranger.id)).toHaveLength(0);
+    db.close();
+  });
+
+  it("denies an appointed executive when the negotiation involves no club they are appointed to", () => {
+    const { db, person, other } = setUp("exec-authority-other-club", "SPORTING_DIRECTOR");
+    const elsewhere = baseTransferOffer({ id: "exec-elsewhere-offer" as EntityId, playerId: person.id, buyingClubId: other.id });
+    new TransferMarketRepository(db).insertTransferOffer(elsewhere);
+    const event = transferEvent("exec-elsewhere-offer", person.id, other.id);
+    expect(buildStoryActions(db, event, "SPORTING_DIRECTOR", person.id)).toHaveLength(0);
+    db.close();
+  });
+
+  it("never lets the Owner or President gain transfer mutation authority through the same delegated path", () => {
+    const { db, person, event } = setUp("exec-authority-owner-president", "SPORTING_DIRECTOR");
+    expect(buildStoryActions(db, event, "CHAIRMAN_OWNER", person.id)).toHaveLength(0);
+    expect(buildStoryActions(db, event, "FEDERATION_PRESIDENT", person.id)).toHaveLength(0);
+    db.close();
+  });
+
+  it("keeps the Manager's own transfer action working exactly as before, with or without a personId", () => {
+    const { db, person, event } = setUp("exec-authority-manager-unchanged", "SPORTING_DIRECTOR");
+    expect(buildStoryActions(db, event, "MANAGER")).toHaveLength(1);
+    expect(buildStoryActions(db, event, "MANAGER", person.id)).toHaveLength(1);
     db.close();
   });
 });

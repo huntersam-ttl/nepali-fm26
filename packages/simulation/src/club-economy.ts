@@ -2356,7 +2356,10 @@ const generatedOwnershipStake = (club: Club, worldDate: string): ClubOwnershipSt
           ? "Community members and committee"
           : holderType === "ORGANISATION"
             ? "Simulation franchise ownership group"
-            : "Unknown ownership group",
+            : // No owner identity is on record for this club, and one must never
+              // be invented. A conservative, generic SIMULATION_ONLY descriptor
+              // reads naturally and claims nothing — unlike a bare "Unknown".
+              "Private ownership group",
     role: holderType === "COMMUNITY" ? "PRESIDENT" : "OWNER",
     percentage: model === "BUYABLE" || model === "FRANCHISE" ? 100 : undefined,
     votingPercentage: model === "BUYABLE" || model === "FRANCHISE" ? 100 : undefined,

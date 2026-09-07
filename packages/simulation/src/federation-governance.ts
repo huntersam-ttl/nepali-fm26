@@ -780,12 +780,17 @@ export const selectNationalTeamSquad = (
           id: eventId,
           occurredOn: input.date,
           eventType: "NATIONAL_TEAM_CALLUP",
+          // The federation itself has to be an involved entity: event routing
+          // delivers a federation-scope story to the President by matching a
+          // federation id, so without this a call-up was published but never
+          // reached anyone's inbox.
           involvedEntities: [
+            ...(team.federationId ? [{ id: team.federationId, type: "federation" as const }] : []),
             { id: team.id, type: "team" },
             { id: player.personId, type: "person" },
           ],
           title: `Nepal call up ${playerName} for ${programmeLabel}`,
-          data: { teamId: team.id, playerId: player.personId, programme: programmeLabel },
+          data: { teamId: team.id, playerId: player.personId, programme: programmeLabel, federationId: team.federationId },
           importance: "medium",
           scope: "federation",
         });

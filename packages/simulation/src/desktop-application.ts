@@ -3450,7 +3450,8 @@ export class DesktopApplicationService {
 
   getStoryDetail(eventId: EntityId): AppResult<StoryDetail> {
     return this.withSession((db, save) => {
-      const role = activeCareerRole(db, careerPersonId(db, save));
+      const personId = careerPersonId(db, save);
+      const role = activeCareerRole(db, personId);
       const allEvents = new EventRepository(db).historicalEvents();
       const event = allEvents.find((candidate) => candidate.id === eventId);
       if (!event) throw appError("INVALID_SELECTION", "This story could not be found.");
@@ -3461,7 +3462,7 @@ export class DesktopApplicationService {
       );
       const threads = deriveStoryThreadsFromEvents(db, relatedEvents, role);
       const thread = findThreadForEvent(threads, eventId);
-      return buildStoryDetail(db, event, role, thread);
+      return buildStoryDetail(db, event, role, thread, personId);
     });
   }
 
