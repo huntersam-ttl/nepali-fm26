@@ -150,6 +150,32 @@ describe("central story action model", () => {
     db.close();
   });
 
+  it("treats an ACCEPTED ownership offer as still-open (finalization is still pending), never mislabelled settled", () => {
+    const db = openGameDatabase(makeSave("actions-accepted-not-terminal"));
+    const club = db.prepare("SELECT id FROM clubs WHERE name = 'Machhindra FC'").get() as { id: EntityId };
+    const demo = runChairmanDemo({ db, seed: "actions-accepted-not-terminal", worldDate: "2026-08-01", clubId: club.id });
+    const offer = baseOffer({ id: "accepted-offer" as EntityId, clubId: club.id, buyerPersonId: demo.chairmanPersonId, status: "ACCEPTED" });
+    new OwnershipRepository(db).upsertOffer(offer);
+    const event = ownershipEvent("accepted-offer", club.id, demo.chairmanPersonId);
+    const actions = buildStoryActions(db, event, "CHAIRMAN_OWNER");
+    expect(actions).toHaveLength(1);
+    expect(actions[0]!.label).not.toMatch(/settled/i);
+    db.close();
+  });
+
+  it("labels a COMPLETED ownership offer as settled/read-only", () => {
+    const db = openGameDatabase(makeSave("actions-completed-terminal"));
+    const club = db.prepare("SELECT id FROM clubs WHERE name = 'Machhindra FC'").get() as { id: EntityId };
+    const demo = runChairmanDemo({ db, seed: "actions-completed-terminal", worldDate: "2026-08-01", clubId: club.id });
+    const offer = baseOffer({ id: "completed-offer" as EntityId, clubId: club.id, buyerPersonId: demo.chairmanPersonId, status: "COMPLETED" });
+    new OwnershipRepository(db).upsertOffer(offer);
+    const event = ownershipEvent("completed-offer", club.id, demo.chairmanPersonId);
+    const actions = buildStoryActions(db, event, "CHAIRMAN_OWNER");
+    expect(actions).toHaveLength(1);
+    expect(actions[0]!.label).toMatch(/settled/i);
+    db.close();
+  });
+
   it("never fabricates a workflow action when the event carries no real, still-queryable offer id", () => {
     const db = openGameDatabase(makeSave("actions-missing-offer"));
     const club = db.prepare("SELECT id FROM clubs WHERE name = 'Machhindra FC'").get() as { id: EntityId };

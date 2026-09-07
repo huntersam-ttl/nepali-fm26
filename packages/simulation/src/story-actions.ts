@@ -33,7 +33,7 @@ export const buildStoryActions = (
   if (/OWNERSHIP|INVESTOR/.test(type) && typeof data?.offerId === "string" && role === "CHAIRMAN_OWNER") {
     const offer = new OwnershipRepository(db).offer(data.offerId as EntityId);
     if (offer) {
-      const terminal = ["ACCEPTED", "REJECTED", "WITHDRAWN", "EXPIRED"].includes(offer.status);
+      const terminal = ["COMPLETED", "REJECTED", "WITHDRAWN"].includes(offer.status);
       actions.push({
         id: `open-investor-meeting:${offer.id}`,
         label: terminal ? "View investor talks (settled)" : "View investor talks",

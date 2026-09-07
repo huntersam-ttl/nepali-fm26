@@ -64,6 +64,12 @@ const additionalFactsFrom = (data: Record<string, unknown> | undefined): { label
   if (typeof data.status === "string" && /^[A-Z][A-Z_]*$/.test(data.status))
     facts.push({ label: "Status", value: humanizeEventType(data.status) });
   if (typeof data.reason === "string" && data.reason.length > 0) facts.push({ label: "Reason", value: data.reason });
+  // `stance` is already a full human sentence at the producer (e.g. "The
+  // board is supportive of this deal.") — used verbatim, never re-humanized.
+  if (typeof data.stance === "string" && data.stance.length > 0) facts.push({ label: "Investor stance", value: data.stance });
+  if (typeof data.tier === "string" && /^[A-Z][A-Z_]*$/.test(data.tier)) facts.push({ label: "Board position", value: humanizeEventType(data.tier) });
+  if (Array.isArray(data.findings) && data.findings.every((item): item is string => typeof item === "string") && data.findings.length > 0)
+    facts.push({ label: "Due diligence findings", value: data.findings.join("; ") });
   return facts;
 };
 
