@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { openGameDatabase } from "@nepal-football-sim/database";
-import { createNepalSave, presentClubLocation, resolveClubStadium } from "@nepal-football-sim/simulation";
+import { createNepalSave, PLAUSIBLE_CLUB_LOCALITY_HUBS, presentClubLocation, resolveClubStadium } from "@nepal-football-sim/simulation";
 import type { EntityId } from "@nepal-football-sim/shared-types";
 
 /**
@@ -42,14 +42,19 @@ describe("club location and stadium presentation", () => {
     rmSync(directory, { recursive: true, force: true });
   });
 
-  it("returns undefined rather than a placeholder for a club with no location on record", () => {
+  it("gives a club with no location on record a bounded, honestly-labelled SIMULATION_ONLY estimate rather than a bare placeholder", () => {
     const { db, directory } = setup();
     const clubId = db.prepare("SELECT id FROM clubs WHERE location_id IS NULL ORDER BY id LIMIT 1").get() as
       | { id: EntityId }
       | undefined;
     if (clubId) {
       const label = presentClubLocation(db, clubId.id);
-      expect(label).toBeUndefined();
+      expect(label).not.toMatch(/unknown|not on record/i);
+      expect(label).toMatch(/\(estimated\)$/);
+      expect(PLAUSIBLE_CLUB_LOCALITY_HUBS.some((hub) => label.startsWith(hub))).toBe(true);
+      // Deterministic: the same club always gets the same estimate, never a
+      // different one each call — never presented as a precise fabricated address.
+      expect(presentClubLocation(db, clubId.id)).toBe(label);
     }
     db.close();
     rmSync(directory, { recursive: true, force: true });

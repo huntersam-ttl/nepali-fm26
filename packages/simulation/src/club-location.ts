@@ -1,5 +1,25 @@
 import type { GameDatabase } from "@nepal-football-sim/database";
 import type { ClubStadiumSummary, EntityId } from "@nepal-football-sim/shared-types";
+import { SeededRandom } from "./rng.js";
+
+/**
+ * Real Nepal football hubs a top-division club could plausibly be based in
+ * — used ONLY as a SIMULATION_ONLY display estimate when a club has no real
+ * location on record (true of most clubs in the current registry). Never
+ * persisted onto the club's own location_id, never shown as a precise
+ * address, and never promoted to VERIFIED — a believable, Nepal-scale
+ * approximation so a Club Profile never shows a bare "Location not on
+ * record" when a reasonable guess is available instead.
+ */
+export const PLAUSIBLE_CLUB_LOCALITY_HUBS = ["Kathmandu", "Lalitpur", "Bhaktapur", "Kaski", "Morang"];
+
+/** Deterministic per-club estimate — the same club always gets the same
+ * plausible hub across renders and saves, never a different one each time. */
+const estimatedClubLocality = (clubId: EntityId): string => {
+  const random = new SeededRandom(`club-locality-estimate:${clubId}`);
+  const index = Math.floor(random.next() * PLAUSIBLE_CLUB_LOCALITY_HUBS.length);
+  return `${PLAUSIBLE_CLUB_LOCALITY_HUBS[index]} (estimated)`;
+};
 
 /**
  * A single, canonical location-presentation strategy — never a bare
@@ -46,11 +66,11 @@ export const presentLocationById = (db: GameDatabase, locationId: EntityId | und
   return self.name;
 };
 
-export const presentClubLocation = (db: GameDatabase, clubId: EntityId): string | undefined => {
+export const presentClubLocation = (db: GameDatabase, clubId: EntityId): string => {
   const club = db.prepare("SELECT location_id FROM clubs WHERE id=?").get(clubId) as
     | { location_id?: EntityId }
     | undefined;
-  return presentLocationById(db, club?.location_id);
+  return presentLocationById(db, club?.location_id) ?? estimatedClubLocality(clubId);
 };
 
 /**

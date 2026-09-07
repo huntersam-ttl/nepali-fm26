@@ -401,6 +401,8 @@ import { buildNationDevelopmentScorecard } from "./federation-scorecard.js";
 import { buildFederationRefereeContext } from "./federation-referee-context.js";
 import { buildFederationMap, buildDistrictDetail } from "./federation-map.js";
 import { initializeNepalTerritorialStructure } from "./territorial-football.js";
+import { SeededRandom } from "./rng.js";
+import { PLAUSIBLE_CLUB_LOCALITY_HUBS } from "./club-location.js";
 import { buildPlayerPathway } from "./player-pathway.js";
 import { roleStoryThreads, deriveStoryThreadsFromEvents, findThreadForEvent, buildEntityStoryline, currentEntityThread } from "./story-threads.js";
 import { buildStoryDetail } from "./story-detail.js";
@@ -4320,7 +4322,17 @@ export class DesktopApplicationService {
   }
 }
 
-const startingClubOptions = (dataset: NepalWorldDataset): StartingClubOption[] => {
+/** Deterministic per-club setup-screen estimate — same hub list and same
+ * SIMULATION_ONLY intent as presentClubLocation's fallback (club-location.ts),
+ * keyed by dataset club key here since no database row exists yet at setup
+ * time. The same club key always gets the same plausible hub. */
+const estimatedClubLocality = (clubKey: string): string => {
+  const random = new SeededRandom(`club-locality-estimate:${clubKey}`);
+  const index = Math.floor(random.next() * PLAUSIBLE_CLUB_LOCALITY_HUBS.length);
+  return `${PLAUSIBLE_CLUB_LOCALITY_HUBS[index]} (estimated)`;
+};
+
+export const startingClubOptions = (dataset: NepalWorldDataset): StartingClubOption[] => {
   const squadSizes = new Map<string, number>();
   for (const assignment of dataset.teamPersonAssignments) {
     if (assignment.role !== "PLAYER") continue;
@@ -4352,9 +4364,10 @@ const startingClubOptions = (dataset: NepalWorldDataset): StartingClubOption[] =
       const clubKey = team.clubKey?.value;
       const membership = membershipByTeam.get(team.key)!;
       const club = clubKey ? dataset.clubs.find((item) => item.key === clubKey) : undefined;
-      const locationName = club?.locationKey.value
-        ? dataset.locations.find((item) => item.key === club.locationKey.value)?.name
-        : undefined;
+      const locationName =
+        (club?.locationKey.value
+          ? dataset.locations.find((item) => item.key === club.locationKey.value)?.name
+          : undefined) ?? (clubKey ? estimatedClubLocality(clubKey) : undefined);
       return {
         teamId: createStableEntityId("team", team.key),
         clubId: clubKey ? createStableEntityId("club", clubKey) : undefined,
