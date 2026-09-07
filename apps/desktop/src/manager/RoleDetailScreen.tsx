@@ -67,6 +67,7 @@ import type {
   NationalTeamSelectionHistoryEntry,
   StoryDetail,
   StoryThread,
+  StoryThreadCategory,
 } from "@nepal-football-sim/shared-types";
 import type { EntityId } from "@nepal-football-sim/shared-types";
 import type { AppError, AppResult, DesktopRuntimeApi } from "../appBridge.js";
@@ -91,6 +92,7 @@ import {
   ownershipStage,
 } from "./ownershipNegotiationPresentation.js";
 import { campusBlockDescriptors, projectProgressPercent, projectStatusLabel } from "./clubWorldPresentation.js";
+import { humanizeToken } from "./storyHumanizer.js";
 
 export type ChairmanScreen =
   | "dashboard"
@@ -566,7 +568,7 @@ const ChairmanManager = ({
                     <tr key={request.id}>
                       <td>{request.category.replaceAll("_", " ")}</td>
                       <td>{money(request.requestedAmount)}</td>
-                      <td>{request.status}</td>
+                      <td>{humanizeToken(request.status)}</td>
                       <td>
                         <span className="button-row">
                           <button
@@ -810,7 +812,7 @@ const SponsorMeetingView = ({
                   >
                     {overview.offers.map((item) => (
                       <option key={item.id} value={item.id}>
-                        {item.sponsorName} · {SPONSORSHIP_TYPE_LABELS[item.type] ?? item.type}
+                        {item.sponsorName} · {SPONSORSHIP_TYPE_LABELS[item.type] ?? humanizeToken(item.type)}
                       </option>
                     ))}
                   </select>
@@ -826,7 +828,7 @@ const SponsorMeetingView = ({
                   }}
                   counterpart={{ name: selected.sponsorName, role: selected.sponsorIndustry }}
                 />
-                <MeetingBrief heading={SPONSORSHIP_TYPE_LABELS[selected.type] ?? selected.type}>
+                <MeetingBrief heading={SPONSORSHIP_TYPE_LABELS[selected.type] ?? humanizeToken(selected.type)}>
                   <p>{sponsorNarrative(selected)}</p>
                   <p className="subtle">
                     {money(selected.annualValue, selected.currency)} per year · {selected.startDate}{" "}
@@ -864,7 +866,7 @@ const SponsorMeetingView = ({
             date: item.endDate,
             label: item.status,
             tone: sponsorStatusTone(item.status),
-            detail: `${item.sponsorName} · ${SPONSORSHIP_TYPE_LABELS[item.type] ?? item.type} · ${money(item.annualValue, item.currency)} · ${item.startDate} – ${item.endDate}`,
+            detail: `${item.sponsorName} · ${SPONSORSHIP_TYPE_LABELS[item.type] ?? humanizeToken(item.type)} · ${money(item.annualValue, item.currency)} · ${item.startDate} – ${item.endDate}`,
           }))}
         />
         {[...overview.active, ...overview.history].length > 0 && (
@@ -888,13 +890,13 @@ const SponsorMeetingView = ({
                           {item.sponsorName}
                         </button>
                       </td>
-                      <td>{SPONSORSHIP_TYPE_LABELS[item.type] ?? item.type}</td>
+                      <td>{SPONSORSHIP_TYPE_LABELS[item.type] ?? humanizeToken(item.type)}</td>
                       <td>{money(item.annualValue, item.currency)} / year</td>
                       <td>
                         {item.startDate} – {item.endDate}
                       </td>
                       <td>
-                        <Badge tone={sponsorStatusTone(item.status)}>{item.status}</Badge>
+                        <Badge tone={sponsorStatusTone(item.status)}>{humanizeToken(item.status)}</Badge>
                       </td>
                     </tr>
                   ))}
@@ -1615,7 +1617,7 @@ const PresidentDetail = ({
           return <p className="subtle">Select a federation-office section from the sidebar.</p>;
         if (screen === "governance")
           return <Governance dashboard={dashboard} bridge={bridge} refresh={refresh} />;
-        if (screen === "finance") return <FederationFinance dashboard={dashboard} />;
+        if (screen === "finance") return <FederationFinance dashboard={dashboard} bridge={bridge} />;
         if (screen === "commercial") return <PresidentCommercial bridge={bridge} />;
         if (screen === "national-teams")
           return <NationalTeams dashboard={dashboard} bridge={bridge} />;
@@ -1686,7 +1688,7 @@ const Governance = ({
                             : "info"
                       }
                     >
-                      {item.status}
+                      {humanizeToken(item.status)}
                     </Badge>
                   </td>
                   <td>{item.proposedAt}</td>
@@ -1785,57 +1787,79 @@ const FinanceSourceUsePanel = ({
 
 const FederationFinance = ({
   dashboard,
+  bridge,
 }: {
   dashboard: FederationPresidentDashboard;
-}): React.ReactElement => (
-  <section className="role-detail">
-    <Panel title="Federation finance">
-      <Metrics
-        items={[
-          {
-            label: "Balance",
-            value: money(
-              dashboard.finances.account.cashBalance,
-              dashboard.finances.account.currency,
-            ),
-          },
-          {
-            label: "Revenue",
-            value: money(
-              dashboard.finances.account.seasonRevenue,
-              dashboard.finances.account.currency,
-            ),
-          },
-          {
-            label: "Expenses",
-            value: money(
-              dashboard.finances.account.seasonExpenses,
-              dashboard.finances.account.currency,
-            ),
-          },
-          {
-            label: "Profit / loss",
-            value: money(
-              dashboard.finances.account.seasonProfitLoss,
-              dashboard.finances.account.currency,
-            ),
-          },
-          {
-            label: "Government / grants",
-            value: money(
-              dashboard.finances.ledgerEntries
-                .filter((entry) => entry.category.includes("GRANT"))
-                .reduce((sum, entry) => sum + entry.amount, 0),
-              dashboard.finances.account.currency,
-            ),
-          },
-        ]}
+  bridge: DesktopRuntimeApi;
+}): React.ReactElement => {
+  const [openStoryRef, setOpenStoryRef] = useState<{ entityType: ProfileEntityType; entityId: EntityId } | null>(null);
+  const openStoryReference = (reference: EntityReference): void =>
+    setOpenStoryRef({ entityType: reference.entityType as ProfileEntityType, entityId: reference.id });
+  return (
+    <section className="role-detail">
+      <Panel title="Federation finance">
+        <Metrics
+          items={[
+            {
+              label: "Balance",
+              value: money(
+                dashboard.finances.account.cashBalance,
+                dashboard.finances.account.currency,
+              ),
+            },
+            {
+              label: "Revenue",
+              value: money(
+                dashboard.finances.account.seasonRevenue,
+                dashboard.finances.account.currency,
+              ),
+            },
+            {
+              label: "Expenses",
+              value: money(
+                dashboard.finances.account.seasonExpenses,
+                dashboard.finances.account.currency,
+              ),
+            },
+            {
+              label: "Profit / loss",
+              value: money(
+                dashboard.finances.account.seasonProfitLoss,
+                dashboard.finances.account.currency,
+              ),
+            },
+            {
+              label: "Government / grants",
+              value: money(
+                dashboard.finances.ledgerEntries
+                  .filter((entry) => entry.category.includes("GRANT"))
+                  .reduce((sum, entry) => sum + entry.amount, 0),
+                dashboard.finances.account.currency,
+              ),
+            },
+          ]}
+        />
+      </Panel>
+      <EntityStorylinePanel
+        bridge={bridge}
+        entityId={dashboard.federation.id}
+        onOpenReference={openStoryReference}
+        title="Finance story"
+        categoryFilter={["COMMERCIAL", "FACILITY"]}
       />
-    </Panel>
-    <FinanceSourceUsePanel dashboard={dashboard} />
-    <Ledger entries={dashboard.finances.ledgerEntries} />
-  </section>
-);
+      <FinanceSourceUsePanel dashboard={dashboard} />
+      <Ledger entries={dashboard.finances.ledgerEntries} />
+      {openStoryRef && (
+        <OrganizationProfilePanel
+          bridge={bridge}
+          entityType={openStoryRef.entityType}
+          entityId={openStoryRef.entityId}
+          onClose={() => setOpenStoryRef(null)}
+        />
+      )}
+    </section>
+  );
+};
 
 const PROPERTY_STATUS_TONE: Record<string, MeetingTone> = {
   ACTIVE: "ok",
@@ -2118,6 +2142,9 @@ const CommercialHistoryPanel = ({
 export const PresidentCommercial = ({ bridge }: { bridge: DesktopRuntimeApi }): React.ReactElement => {
   const [state, refresh] = useRuntimeData(() => bridge.getFederationCommercialOverview());
   const [openOrgId, setOpenOrgId] = useState<EntityId | undefined>(undefined);
+  const [openStoryRef, setOpenStoryRef] = useState<{ entityType: ProfileEntityType; entityId: EntityId } | null>(null);
+  const openStoryReference = (reference: EntityReference): void =>
+    setOpenStoryRef({ entityType: reference.entityType as ProfileEntityType, entityId: reference.id });
   return (
     <AsyncPanel state={state}>
       {(overview) => {
@@ -2154,6 +2181,7 @@ export const PresidentCommercial = ({ bridge }: { bridge: DesktopRuntimeApi }): 
                     : []),
                 ]}
               />
+              <EntityStorylinePanel bridge={bridge} entityId={overview.federationId} onOpenReference={openStoryReference} />
               {incomeByScope.size > 0 && (
                 <div className="development-scorecard-grid">
                   {[...incomeByScope.entries()].map(([scope, value]) => (
@@ -2311,7 +2339,7 @@ export const PresidentCommercial = ({ bridge }: { bridge: DesktopRuntimeApi }): 
                                     : "info"
                               }
                             >
-                              {item.status}
+                              {humanizeToken(item.status)}
                             </Badge>
                           </td>
                           <td>
@@ -2331,6 +2359,14 @@ export const PresidentCommercial = ({ bridge }: { bridge: DesktopRuntimeApi }): 
                 entityType="SPONSOR"
                 entityId={openOrgId}
                 onClose={() => setOpenOrgId(undefined)}
+              />
+            )}
+            {openStoryRef && (
+              <OrganizationProfilePanel
+                bridge={bridge}
+                entityType={openStoryRef.entityType}
+                entityId={openStoryRef.entityId}
+                onClose={() => setOpenStoryRef(null)}
               />
             )}
           </section>
@@ -2481,6 +2517,7 @@ const NationalTeamSquadPanel = ({
             <div className="button-row">
               <Badge tone="info">{PROGRAMME_DISPLAY_LABEL[squad.programme] ?? band(squad.programme)}</Badge>
             </div>
+            <EntityStorylinePanel bridge={bridge} entityId={teamId} onOpenReference={openEntity} />
             {!squad.supported ? (
               <p className="empty-state">
                 {squad.unsupportedReason ?? "This national team's squad is not available."}
@@ -2910,7 +2947,7 @@ const CompetitionPyramidView = ({ bridge }: { bridge: DesktopRuntimeApi }): Reac
                     <strong>
                       Tier {tier.level} · <EntityRefLink reference={tier.competition} onOpen={openReference} /> ({tier.label})
                     </strong>
-                    {tier.seasonStatus && <Badge tone="info">{tier.seasonStatus}</Badge>}
+                    {tier.seasonStatus && <Badge tone="info">{humanizeToken(tier.seasonStatus)}</Badge>}
                   </header>
                   <Metrics
                     items={[
@@ -2933,6 +2970,7 @@ const CompetitionPyramidView = ({ bridge }: { bridge: DesktopRuntimeApi }): Reac
                       },
                     ]}
                   />
+                  <EntityStorylinePanel bridge={bridge} entityId={tier.competition.id} onOpenReference={openReference} />
                 </div>
                 {index < pyramid.tiers.length - 1 && <p className="pyramid-arrow">{PYRAMID_ARROW}</p>}
               </React.Fragment>
@@ -2969,6 +3007,9 @@ const NationalDevelopmentView = ({
   bridge: DesktopRuntimeApi;
 }): React.ReactElement => {
   const { outcomes } = summary;
+  const [openStoryRef, setOpenStoryRef] = useState<{ entityType: ProfileEntityType; entityId: EntityId } | null>(null);
+  const openStoryReference = (reference: EntityReference): void =>
+    setOpenStoryRef({ entityType: reference.entityType as ProfileEntityType, entityId: reference.id });
   const fixtureRecord = (record: {
     fixtures: number;
     wins: number;
@@ -3014,6 +3055,8 @@ const NationalDevelopmentView = ({
           ))}
         </div>
       </Panel>
+
+      <EntityStorylinePanel bridge={bridge} entityId={summary.federationId} onOpenReference={openStoryReference} />
 
       <div className="summary-grid">
         <Panel title="Strengths">
@@ -3170,6 +3213,14 @@ const NationalDevelopmentView = ({
         </Panel>
       </div>
       <RefereeCoachingContextPanel bridge={bridge} />
+      {openStoryRef && (
+        <OrganizationProfilePanel
+          bridge={bridge}
+          entityType={openStoryRef.entityType}
+          entityId={openStoryRef.entityId}
+          onClose={() => setOpenStoryRef(null)}
+        />
+      )}
     </section>
   );
 };
@@ -3796,7 +3847,7 @@ const BankMeetingView = ({
                       <td>{(debt.interestRate * 100).toFixed(2)}%</td>
                       <td>{debt.nextPaymentDate ?? "—"}</td>
                       <td>
-                        <Badge tone={debtStatusTone(debt.status)}>{debt.status}</Badge>
+                        <Badge tone={debtStatusTone(debt.status)}>{humanizeToken(debt.status)}</Badge>
                       </td>
                       <td>
                         {debt.status === "ACTIVE" && (
@@ -6494,11 +6545,19 @@ export const EntityStorylinePanel = ({
   entityId,
   onOpenReference,
   onOpenTransferNegotiation,
+  title = "Recent story",
+  categoryFilter,
 }: {
   bridge: StoryBridge;
   entityId: EntityId;
   onOpenReference: (reference: EntityReference) => void;
   onOpenTransferNegotiation?: (offerId: EntityId) => void;
+  /** Panel heading — override for surfaces that give this its own context (e.g. "Finance story"). */
+  title?: string;
+  /** Restricts entries (and the current-story banner) to only these
+   * categories — e.g. Finance shows COMMERCIAL/FACILITY only, never a
+   * duplicate of the generic federation-wide feed shown elsewhere. */
+  categoryFilter?: readonly StoryThreadCategory[];
 }): React.ReactElement | null => {
   const [openStoryEventId, setOpenStoryEventId] = useState<EntityId | null>(null);
   const [state] = useRuntimeData(
@@ -6509,9 +6568,16 @@ export const EntityStorylinePanel = ({
     [entityId],
   );
   if (state.status !== "ready" || state.data.entries.length === 0) return null;
-  const { entries, currentStory } = state.data;
+  const entries = categoryFilter
+    ? state.data.entries.filter((entry) => entry.category && categoryFilter.includes(entry.category))
+    : state.data.entries;
+  const currentStory =
+    categoryFilter && state.data.currentStory && !categoryFilter.includes(state.data.currentStory.category)
+      ? undefined
+      : state.data.currentStory;
+  if (entries.length === 0 && !currentStory) return null;
   return (
-    <Panel title="Recent story">
+    <Panel title={title}>
       {currentStory && (
         <p>
           <Badge tone={THREAD_STATUS_TONE[currentStory.statusLabel]}>{currentStory.statusLabel}</Badge>{" "}

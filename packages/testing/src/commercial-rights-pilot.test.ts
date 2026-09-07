@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { CommercialRightsRepository, openGameDatabase } from "@nepal-football-sim/database";
+import { CommercialRightsRepository, HIGHEST_KNOWN_SCHEMA_VERSION, openGameDatabase } from "@nepal-football-sim/database";
 import {
   aDivisionCommercialReadModel,
   activateADivisionTitleSponsorship,
@@ -54,7 +54,7 @@ describe("commercial rights federation pilot", () => {
           version: number;
         }
       ).version,
-    ).toBe(91);
+    ).toBe(HIGHEST_KNOWN_SCHEMA_VERSION);
     expect(
       db
         .prepare(
