@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { validateImportRecord } from "@nepal-football-sim/data-import";
 import {
   CURRENT_DATABASE_VERSION,
+  HIGHEST_KNOWN_SCHEMA_VERSION,
   createNewSave,
   EventRepository,
   FinanceRepository,
@@ -57,7 +58,7 @@ describe("stage one foundation", () => {
     expect(migrateDatabase(db)).toBe(CURRENT_DATABASE_VERSION);
     expect(migrateDatabase(db)).toBe(CURRENT_DATABASE_VERSION);
     const rows = db.prepare("SELECT version FROM schema_migrations").all();
-    expect(rows).toHaveLength(CURRENT_DATABASE_VERSION);
+    expect(rows).toHaveLength(HIGHEST_KNOWN_SCHEMA_VERSION);
     db.close();
   });
 

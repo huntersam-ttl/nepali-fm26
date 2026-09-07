@@ -4,6 +4,7 @@ import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   CommercialRightsRepository,
+  HIGHEST_KNOWN_SCHEMA_VERSION,
   NationalTeamCommercialRepository,
   openGameDatabase,
 } from "@nepal-football-sim/database";
@@ -59,7 +60,7 @@ describe("national-team commercial finance foundation", () => {
           version: number;
         }
       ).version,
-    ).toBe(91);
+    ).toBe(HIGHEST_KNOWN_SCHEMA_VERSION);
     const columns = db
       .prepare("PRAGMA table_info(national_team_commercial_settlements)")
       .all() as Array<{ name: string }>;
