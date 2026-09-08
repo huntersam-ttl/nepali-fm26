@@ -88,6 +88,47 @@ const acquisitionValuationFactors = (db: GameDatabase, clubId: EntityId, date: s
   };
 };
 
+/**
+ * Every AI ownership candidate is seeded with a personal financial profile
+ * the moment it's generated (see `generateOwnershipCandidate` below) — but no
+ * owner-career start path ever created one for the real player. Since
+ * `ClubEconomyRepository.updatePersonalCash` is a plain `UPDATE ... WHERE
+ * person_id = ?` with no upsert fallback, a missing row doesn't error — it
+ * silently no-ops. That made every core owner-money mechanic dead on a real
+ * playthrough: `investPersonalFunds` throws outright, and a secondary stake
+ * sale's proceeds simply vanish, while the UI's `ownerPersonalCash ?? 0`
+ * masked the missing row as an honest "you have no cash" rather than the
+ * real defect.
+ *
+ * Scaled off the same club valuation an AI investor's opening cash uses (see
+ * `generateOwnershipCandidate`), but far more modestly — a controlling owner
+ * already has their wealth committed to the club itself; this only needs to
+ * be enough personal liquidity for the owner mechanics (further investment,
+ * receiving stake-sale proceeds) to be meaningfully usable, not a windfall.
+ */
+export const ensureOwnerPersonalFinancialProfile = (
+  db: GameDatabase,
+  personId: EntityId,
+  clubId: EntityId,
+  date: string,
+): void => {
+  const economy = new ClubEconomyRepository(db);
+  if (economy.personalFinancialProfile(personId)) return;
+  const valuation = calculateAcquisitionValuation(db, clubId, date);
+  const cash = Math.max(Math.round(valuation * 0.15), 500000);
+  economy.upsertPersonalFinancialProfile({
+    personId,
+    cash,
+    investments: 0,
+    assets: cash,
+    liabilities: 0,
+    netWorth: cash,
+    currency: "NPR",
+    lastUpdatedAt: date,
+    status: "SIMULATION_ONLY",
+  });
+};
+
 export const calculateAcquisitionValuation = (db: GameDatabase, clubId: EntityId, date: string) => {
   const factors = acquisitionValuationFactors(db, clubId, date);
   return Math.max(

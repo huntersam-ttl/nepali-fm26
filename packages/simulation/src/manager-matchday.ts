@@ -456,7 +456,10 @@ export const buildPostMatchReport = (
     matchId: match.id as EntityId,
     fixtureId,
     competitionName,
-    venue: undefined,
+    // Was hardcoded to undefined — the live match screen already resolves
+    // this via the same venueForFixture helper (see the LIVE state above);
+    // the post-match report must show the same venue, not "Unknown".
+    venue: venueForFixture(db, { home_team_id: homeTeamId }),
     date: (match.played_date ?? fixture.scheduled_date) as string,
     homeTeamName: homeName,
     awayTeamName: awayName,

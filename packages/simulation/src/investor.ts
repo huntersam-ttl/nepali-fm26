@@ -59,7 +59,15 @@ export const capitalInjectionFromInvestor = (db: GameDatabase, input: { clubId: 
   for (const stake of stakes) { const percentage = (stake.percentage ?? 0) * (1 - added); economy.upsertOwnershipStake({ ...stake, percentage, votingPercentage: percentage }); }
   const person = db.prepare("SELECT display_name, full_name FROM persons WHERE id=?").get(input.personId) as any;
   const percentage = (own?.percentage ?? 0) + added * 100;
-  const stake: ClubOwnershipStake = { id: createStableEntityId("ownership-stake", `${input.clubId}:${input.personId}`), clubId: input.clubId, holderType: "PERSON", holderId: input.personId, holderName: person?.display_name ?? person?.full_name ?? input.personId, role: percentage >= 51 ? "MAJORITY_OWNER" : "MINORITY_OWNER", percentage, votingPercentage: percentage, startDate: own?.startDate ?? input.date, status: "ACTIVE", ownershipModel: "PARTIALLY_BUYABLE", provenanceStatus: "SIMULATION_ONLY" };
+  // Reuse the investor's EXISTING stake id when they already hold one (the
+  // common case: the club's own controlling owner topping up their stake).
+  // The dilution loop above already upserts every existing stake — including
+  // this one — by its real id; always minting a fresh
+  // `ownership-stake:{clubId}:{personId}` id here regardless ignored that
+  // real id and created a second, duplicate ACTIVE stake row for the same
+  // holder at the same club (their percentage never actually summed to the
+  // right total — it just showed as two separate ownership rows).
+  const stake: ClubOwnershipStake = { id: own?.id ?? createStableEntityId("ownership-stake", `${input.clubId}:${input.personId}`), clubId: input.clubId, holderType: "PERSON", holderId: input.personId, holderName: person?.display_name ?? person?.full_name ?? input.personId, role: percentage >= 51 ? "MAJORITY_OWNER" : "MINORITY_OWNER", percentage, votingPercentage: percentage, startDate: own?.startDate ?? input.date, status: "ACTIVE", ownershipModel: "PARTIALLY_BUYABLE", provenanceStatus: "SIMULATION_ONLY" };
   economy.upsertOwnershipStake(stake);
   return transaction;
 };

@@ -392,6 +392,11 @@ describe("interactive matchday", () => {
     if (report.ok) {
       expect(report.data?.ratings.length).toBeGreaterThanOrEqual(22);
       expect(report.data?.attendance).toBeGreaterThan(0);
+      // The report's venue was hardcoded to undefined, rendering as a raw
+      // "Unknown" in the UI even though the live match screen resolves a
+      // real venue (or a Nepal-scale SIMULATION_ONLY fallback) for the same
+      // fixture via the same venueForFixture helper.
+      expect(report.data?.venue).toBeTruthy();
     }
   }, 180_000);
 
@@ -407,6 +412,7 @@ describe("interactive matchday", () => {
 
     expect(report.data.homeTeamName).toBeTruthy();
     expect(["W", "D", "L"]).toContain(report.data.result);
+    expect(report.data.venue).toBeTruthy();
     expect(report.data.timeline.length).toBeGreaterThan(5);
     expect(report.data.ratings.length).toBeGreaterThanOrEqual(22);
     expect(report.data.stats.possession.home + report.data.stats.possession.away).toBe(100);

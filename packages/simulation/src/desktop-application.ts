@@ -362,6 +362,7 @@ import {
   acknowledgeBoardOpposition,
   investorMeetingOverview,
   processDueOwnershipOffers,
+  ensureOwnerPersonalFinancialProfile,
 } from "./ownership.js";
 import {
   createOwnerManagerMeeting,
@@ -806,6 +807,7 @@ export class DesktopApplicationService {
           rebalanceNewNepalSaveSquads(db, careerStartDate);
           db.prepare("DELETE FROM fixtures WHERE competition_season_id=?").run(season.id);
           scheduleSeasonFixtures(db, season, ruleSet);
+          ensureOwnerPersonalFinancialProfile(db, career.person.id, founded.clubId, careerStartDate);
         }
         if (!team) throw appError("SAVE_CORRUPT", "The career team is missing.");
         if ((command.careerMode ?? "MANAGER") === "MANAGER")
@@ -850,6 +852,7 @@ export class DesktopApplicationService {
             ownershipModel: "PARTIALLY_BUYABLE",
             provenanceStatus: "SIMULATION_ONLY",
           });
+          ensureOwnerPersonalFinancialProfile(db, career.person.id, team.clubId, careerStartDate);
         }
         initializePeopleFoundation({
           db,
