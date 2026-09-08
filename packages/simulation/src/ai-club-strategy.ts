@@ -175,7 +175,7 @@ export const runClubAiSeasonPlanning = (db: GameDatabase, input: { date: string;
       contracts.filter((contract) => contract.endDate <= `${Number(input.date.slice(0, 4)) + 1}-08-28`).length > 0 ? "PRIORITISE_RENEWALS" : "MONITOR_CONTRACTS",
       account.financialHealth === "DISTRESSED" || account.financialHealth === "INSOLVENT" ? "RELEASE_OR_SELL_BEFORE_SPENDING" : "KEEP_WAGE_COMMITMENTS_WITHIN_BUDGET",
       priorities.youth >= priorities.squad ? "PROTECT_YOUTH_PATHWAY" : "RECRUIT_PUBLICLY_IDENTIFIED_SQUAD_NEEDS",
-      sponsorships.length === 0 ? "REVIEW_COMMERCIAL_OFFERS" : "RETAIN_COMMERCIAL_PARTNERS",
+      sponsorships.length < 4 ? "REVIEW_COMMERCIAL_OFFERS" : "RETAIN_COMMERCIAL_PARTNERS",
     ];
     /*
      * Commercial AI. Until now "REVIEW_COMMERCIAL_OFFERS" was a label with
@@ -185,8 +185,15 @@ export const runClubAiSeasonPlanning = (db: GameDatabase, input: { date: string;
      * stayed permanently at zero. An uncovered club now goes to market on the
      * same canonical path a player-controlled club uses, and takes the best
      * offer it is actually allowed to hold.
+     *
+     * A club can hold up to four concurrent sponsors (one per exclusivity
+     * slot); gating on "any active sponsorship" rather than "still has an
+     * open slot" meant a club's very first (baseline) sponsor permanently
+     * blocked every other slot from ever being filled. generateSponsorOffers
+     * itself now only proposes genuinely open slots, so this only needs to
+     * skip clubs that are already fully sponsored.
      */
-    if (sponsorships.length === 0 && account.financialHealth !== "INSOLVENT") {
+    if (sponsorships.length < 4 && account.financialHealth !== "INSOLVENT") {
       try {
         const offers = generateSponsorOffers(db, {
           clubId,

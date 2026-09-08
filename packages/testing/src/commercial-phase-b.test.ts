@@ -79,4 +79,72 @@ describe("commercial football world phase B", () => {
     expect(new ClubEconomyRepository(reloaded).mediaRights(season.id)[0]?.contractStatus).toBe("ACTIVE");
     reloaded.close();
   });
+
+  /**
+   * A club can hold up to four concurrent sponsors, one per exclusivity slot
+   * (shirt main, official partner, sleeve, local partner). `generateSponsorOffers`
+   * used to always fill index 0 as SHIRT_MAIN regardless of what the club
+   * already held, so once a club's real shirt sponsor was active, every
+   * subsequent generated offer collided with it (rejected by
+   * `acceptSponsorOffer`'s exclusivity check) and every OTHER slot stayed
+   * permanently empty — the commercial pipeline could never diversify past
+   * the club's first sponsor. Offers must now target only genuinely open
+   * slots, and never re-propose a slot that's already active.
+   */
+  it("only proposes sponsorship slots the club doesn't already hold", () => {
+    const db = openGameDatabase(savePath("sponsor-open-slots"));
+    initializeClubEconomyForSave({ db, worldDate: "2026-08-01", seed: "sponsor-open-slots" });
+    const club = db.prepare("SELECT id FROM clubs WHERE name = ?").get("Machhindra FC") as {
+      id: EntityId;
+    };
+    const economy = new ClubEconomyRepository(db);
+    // The world seeds every club with one baseline sponsor at creation — the
+    // fresh test club may already hold a slot before this test does anything.
+    const heldFromStart = new Set(
+      economy.sponsorships(club.id).filter((item) => item.status === "ACTIVE").map((item) => item.type),
+    );
+    const first = generateSponsorOffers(db, {
+      clubId: club.id,
+      date: "2026-08-01",
+      seed: "sponsor-open-slots",
+      count: 1,
+    })[0]!;
+    expect(heldFromStart.has(first.type)).toBe(false);
+    acceptSponsorOffer(db, first.id, "2026-08-01");
+
+    // With that slot now held too, a further offer must target yet another one.
+    const second = generateSponsorOffers(db, {
+      clubId: club.id,
+      date: "2026-08-02",
+      seed: "sponsor-open-slots",
+      count: 1,
+    })[0]!;
+    expect(second.type).not.toBe(first.type);
+    expect(heldFromStart.has(second.type)).toBe(false);
+
+    // Once every slot is genuinely filled, no further offer is proposed.
+    acceptSponsorOffer(db, second.id, "2026-08-02");
+    const filled = new Set([...heldFromStart, first.type, second.type]);
+    const remaining = (["SHIRT_MAIN", "OFFICIAL_PARTNER", "SLEEVE", "LOCAL_PARTNER"] as const).filter(
+      (type) => !filled.has(type),
+    );
+    for (const _ of remaining) {
+      const next = generateSponsorOffers(db, {
+        clubId: club.id,
+        date: "2026-08-03",
+        seed: "sponsor-open-slots",
+        count: 1,
+      })[0];
+      if (next) acceptSponsorOffer(db, next.id, "2026-08-03");
+    }
+    const fullyStocked = generateSponsorOffers(db, {
+      clubId: club.id,
+      date: "2026-08-04",
+      seed: "sponsor-open-slots",
+      count: 1,
+    });
+    expect(fullyStocked).toHaveLength(0);
+    expect(new Set(economy.sponsorships(club.id).filter((item) => item.status === "ACTIVE").map((item) => item.type)).size).toBe(4);
+    db.close();
+  });
 });

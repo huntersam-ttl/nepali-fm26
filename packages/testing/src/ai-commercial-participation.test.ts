@@ -127,10 +127,22 @@ describe("AI clubs participate in the commercial system", () => {
     }
   });
 
-  it("is idempotent — re-running the same planning date signs no duplicate deals", () => {
-    const before = clubIds().map((id) => activeSponsorships(id).length);
+  it("converges — repeated planning runs sign every club up to at most four distinct slots, never duplicating one", () => {
+    // A club can hold up to four concurrent sponsors (one per exclusivity
+    // slot), so re-running planning on the same date is expected to keep
+    // filling additional open slots, not stay flat after the very first
+    // signing — that would mean the pipeline could never diversify past one
+    // sponsor. What must hold is convergence (it eventually stops) and no
+    // club ever exceeding four, with no exclusivity-group duplicate.
+    for (let i = 0; i < 6; i += 1) runClubAiSeasonPlanning(db, { date, seed: "ai-commercial-run" });
+    const saturated = clubIds().map((id) => activeSponsorships(id).length);
     runClubAiSeasonPlanning(db, { date, seed: "ai-commercial-run" });
     const after = clubIds().map((id) => activeSponsorships(id).length);
-    expect(after).toEqual(before);
+    expect(after).toEqual(saturated);
+    for (const id of clubIds()) {
+      const active = activeSponsorships(id);
+      expect(active.length).toBeLessThanOrEqual(4);
+      expect(new Set(active.map((item) => item.exclusivityGroup)).size).toBe(active.length);
+    }
   });
 });

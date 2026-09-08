@@ -677,10 +677,30 @@ export const generateSponsorOffers = (
     : undefined;
   const rng = new SeededRandom(`${input.seed}:sponsor-offers:${input.clubId}:${input.date}`);
   const count = input.count ?? 3;
+  /*
+   * A club can hold up to four concurrent sponsors, one per exclusivity slot
+   * (shirt main, official partner, sleeve, local partner) — `acceptSponsorOffer`
+   * already refuses a second sponsor within the same slot. But every caller
+   * of this function requests `count: 1`, and offers used to always fill
+   * index 0 (SHIRT_MAIN) regardless of what the club already held. Once a
+   * club's real shirt sponsor was in place, generating another SHIRT_MAIN
+   * offer was pointless (rejected on accept) and every OTHER slot stayed
+   * permanently empty — the commercial pipeline could never diversify beyond
+   * the one baseline sponsor a club starts with. Offers are now built only
+   * for slots the club doesn't currently hold.
+   */
+  const slotOrder: SponsorshipType[] = ["SHIRT_MAIN", "OFFICIAL_PARTNER", "SLEEVE", "LOCAL_PARTNER"];
+  const heldSlots = new Set(
+    economy
+      .sponsorships(input.clubId)
+      .filter((item) => item.status === "ACTIVE" && item.endDate >= input.date)
+      .map((item) => item.type),
+  );
+  const openSlots = slotOrder.filter((type) => !heldSlots.has(type));
   return sponsors
     .filter((sponsor) => sponsor.status !== "UNKNOWN")
     .slice(0, Math.max(count, 1) * 4)
-    .slice(0, count)
+    .slice(0, Math.min(count, openSlots.length))
     .map((sponsor, index) => {
       const audience =
         (supporter?.coreSupporters ?? 800) +
@@ -702,25 +722,24 @@ export const generateSponsorOffers = (
         macro,
         "sponsorMarketStrength",
       );
-      const type = (
-        index === 0
-          ? "SHIRT_MAIN"
-          : index === 1
-            ? "OFFICIAL_PARTNER"
-            : index === 2
-              ? "SLEEVE"
-              : "LOCAL_PARTNER"
-      ) as SponsorshipType;
+      const type = openSlots[index] ?? "LOCAL_PARTNER";
       const contract: SponsorshipContract = {
+        // The id must be unique per SLOT, not just per club/sponsor/date: a
+        // repeat call for the same club on the same date (e.g. a second slot
+        // opened up the same day the first was filled) previously reused the
+        // exact same id whenever it landed on the same sponsor organisation,
+        // so `upsertSponsorship` silently overwrote the earlier contract
+        // instead of creating a second one — the club ended up with only
+        // one sponsorship row no matter how many slots were "filled".
         id: createStableEntityId(
           "sponsorship-contract",
-          `${input.clubId}:${sponsor.id}:${input.date}`,
+          `${input.clubId}:${sponsor.id}:${input.date}:${type}`,
         ),
         clubId: input.clubId,
         sponsorId: sponsor.id,
         type,
         startDate: input.date,
-        endDate: addYears(input.date, index === 0 ? 2 : 1),
+        endDate: addYears(input.date, type === "SHIRT_MAIN" ? 2 : 1),
         annualValue: Math.round(value),
         bonuses: { champion: Math.round(value * 0.12), promotion: Math.round(value * 0.08) },
         currency,
@@ -842,6 +861,9 @@ export const rejectSponsorOffer = (
   const economy = new ClubEconomyRepository(db);
   const contract = economy.sponsorships().find((item) => item.id === sponsorshipId);
   if (!contract) throw new Error(`Sponsorship offer ${sponsorshipId} not found`);
+  // Idempotent on a rejection already recorded — a double-click or a replayed
+  // command must not throw "not negotiable" on the offer it just rejected.
+  if (contract.status === "REJECTED") return contract;
   if (contract.status !== "OFFERED" && contract.status !== "COUNTERED")
     throw new Error(`Sponsorship ${sponsorshipId} is not negotiable`);
   economy.updateSponsorshipStatus(sponsorshipId, "REJECTED");
@@ -1708,16 +1730,30 @@ export const processClubEconomyMonth = (
         (item) =>
           item.status === "ACTIVE" && item.startDate <= input.date && item.endDate >= input.date,
       );
-    if (activeSponsorships.length === 0) {
-      const offer = generateSponsorOffers(db, {
+    /*
+     * A club is never left with zero commercial pipeline activity — but this
+     * runs for every club, including the human player's, and used to
+     * silently `acceptSponsorOffer` the generated deal on the spot. That
+     * skipped the negotiate/accept decision entirely: by the time the player
+     * opened Sponsorship, the deal was already ACTIVE with nothing to
+     * review. AI clubs get their own explicit accept in
+     * runClubAiSeasonPlanning (they have no meeting screen to negotiate
+     * through); this tick only needs to make sure a real, reviewable offer
+     * exists — it must not decide it on the player's behalf.
+     */
+    const pendingSponsorOffers = economy
+      .sponsorships(account.clubId)
+      .filter((item) => item.status === "OFFERED" || item.status === "COUNTERED");
+    // Never pile up a fresh offer every month on top of one already waiting
+    // for a decision — the player (or an AI club not yet processed this
+    // cycle) still has this one to act on.
+    if (activeSponsorships.length < 4 && pendingSponsorOffers.length === 0) {
+      generateSponsorOffers(db, {
         clubId: account.clubId,
         date: input.date,
         seed: input.seed,
         count: 1,
-      })[0];
-      if (offer) {
-        activeSponsorships.push(acceptSponsorOffer(db, offer.id, input.date));
-      }
+      });
     }
     for (const sponsorship of activeSponsorships) {
       postClubTransaction(db, {
