@@ -4961,8 +4961,12 @@ const facilityNarrative = (input: {
     sentences.push(
       "Financing with a loan adds to the club's debt rather than drawing down cash reserves.",
     );
-  if (input.fundingSource === "GOVERNMENT_GRANT")
+  if (input.fundingSource === "GOVERNMENT_GRANT" && input.mode === "NEW_SITE")
     sentences.push("Government co-funding is contingent on approval and is not guaranteed.");
+  else if (input.fundingSource === "GOVERNMENT_GRANT" || input.fundingSource === "MIXED")
+    sentences.push(
+      "This amount is a target only — open a government support request for this project once created; it becomes real club funding only after the institution approves it.",
+    );
   // Only claim this plan responds to a manager request when the request's
   // own text actually mentions this project type — never attach an
   // unrelated request just because one happens to exist.
@@ -5010,11 +5014,13 @@ const GovernmentSupportPanel = ({
   bridge,
   clubId,
   siteOptionId,
+  projectId,
   refresh: refreshPlanner,
 }: {
   bridge: DesktopRuntimeApi;
   clubId: EntityId;
-  siteOptionId: EntityId;
+  siteOptionId?: EntityId;
+  projectId?: EntityId;
   projectType: InfrastructureProjectType;
   planning: FacilityPlanningView;
   refresh: () => void;
@@ -5022,12 +5028,12 @@ const GovernmentSupportPanel = ({
   const [state, refresh] = useRuntimeData(
     () =>
       bridge.getGovernmentSupportMeeting
-        ? bridge.getGovernmentSupportMeeting({ clubId, siteOptionId })
+        ? bridge.getGovernmentSupportMeeting({ clubId, siteOptionId, projectId })
         : Promise.resolve({
             ok: false as const,
             error: { code: "RUNTIME_UNAVAILABLE" as const, message: "Government support meetings are unavailable right now." },
           }),
-    [clubId, siteOptionId],
+    [clubId, siteOptionId, projectId],
   );
   return (
     <AsyncPanel state={state}>
@@ -5037,6 +5043,7 @@ const GovernmentSupportPanel = ({
           bridge={bridge}
           clubId={clubId}
           siteOptionId={siteOptionId}
+          projectId={projectId}
           refresh={() => {
             refresh();
             refreshPlanner();
@@ -5060,39 +5067,58 @@ const GovernmentSupportMeetingView = ({
   bridge,
   clubId,
   siteOptionId,
+  projectId,
   refresh,
 }: {
   meeting: GovernmentSupportMeetingContext;
   bridge: DesktopRuntimeApi;
   clubId: EntityId;
-  siteOptionId: EntityId;
+  siteOptionId?: EntityId;
+  projectId?: EntityId;
   refresh: () => void;
 }): React.ReactElement => {
   const [fundingType, setFundingType] = useState<
     "INFRASTRUCTURE" | "REGIONAL_GROUND" | "MUNICIPAL_LAND_OR_VENUE"
-  >("MUNICIPAL_LAND_OR_VENUE");
+  >(projectId ? "INFRASTRUCTURE" : "MUNICIPAL_LAND_OR_VENUE");
   const [amount, setAmount] = useState("2000000");
   const [confirming, setConfirming] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [openOrgId, setOpenOrgId] = useState<{ entityType: ProfileEntityType; entityId: EntityId } | null>(null);
 
+  // An UPGRADE_EXISTING project (no siteOptionId) requests support against a
+  // real InfrastructureProject via openClubInfrastructureGovernmentRequest;
+  // a NEW_SITE plan requests it against the site via
+  // openFacilitySiteGovernmentRequest. Both route through the same canonical
+  // GovernmentFundingApplication review — this only picks which anchor id
+  // the request is opened against.
   const openRequest = async (): Promise<void> => {
     const requestedAmount = Number(amount);
     if (!Number.isFinite(requestedAmount) || requestedAmount <= 0) return;
     setBusyId("OPEN_REQUEST");
     setMessage(null);
-    if (!bridge.openFacilitySiteGovernmentRequest) {
+    const result = projectId
+      ? bridge.openClubInfrastructureGovernmentRequest && meeting.institution
+        ? await bridge.openClubInfrastructureGovernmentRequest({
+            projectId,
+            institutionId: meeting.institution.id,
+            fundingType,
+            requestedAmount,
+          })
+        : undefined
+      : bridge.openFacilitySiteGovernmentRequest && siteOptionId
+        ? await bridge.openFacilitySiteGovernmentRequest({
+            clubId,
+            siteOptionId,
+            fundingType,
+            requestedAmount,
+          })
+        : undefined;
+    if (!result) {
       setBusyId(null);
       setMessage("Government support requests are unavailable right now.");
       return;
     }
-    const result = await bridge.openFacilitySiteGovernmentRequest({
-      clubId,
-      siteOptionId,
-      fundingType,
-      requestedAmount,
-    });
     setBusyId(null);
     setConfirming(false);
     setMessage(
@@ -5413,7 +5439,7 @@ const FacilityPlannerView = ({
         </p>
       )}
 
-      <FacilityLifecycle planning={planning} />
+      <FacilityLifecycle planning={planning} bridge={bridge} clubId={clubId} refresh={refresh} />
 
       <ol className="setup-steps" aria-label="New project progress">
         <li className={preview ? "complete" : "active"}>Configure</li>
@@ -5772,8 +5798,14 @@ const FACILITY_TERMINAL_STATUSES = new Set(["COMPLETED", "CANCELLED"]);
 
 const FacilityLifecycle = ({
   planning,
+  bridge,
+  clubId,
+  refresh,
 }: {
   planning: FacilityPlanningView;
+  bridge: DesktopRuntimeApi;
+  clubId: EntityId;
+  refresh: () => void;
 }): React.ReactElement => {
   const { worldDate } = planning;
   if (planning.projects.length === 0) {
@@ -5837,6 +5869,22 @@ const FacilityLifecycle = ({
                 </p>
               )}
               {plan?.rationale && <p className="subtle">"{plan.rationale}"</p>}
+              {plan?.mode === "UPGRADE_EXISTING" &&
+                plan.fundingSource !== "CLUB_CASH" &&
+                project.fundingStatus !== "FUNDED" &&
+                !FACILITY_TERMINAL_STATUSES.has(project.status) && (
+                  <details className="facility-government-request">
+                    <summary>Government support for this project</summary>
+                    <GovernmentSupportPanel
+                      bridge={bridge}
+                      clubId={clubId}
+                      projectId={project.id}
+                      projectType={project.projectType}
+                      planning={planning}
+                      refresh={refresh}
+                    />
+                  </details>
+                )}
             </article>
           );
         })}

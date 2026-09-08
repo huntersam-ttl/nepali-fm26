@@ -483,7 +483,13 @@ export const buildGovernmentSupportMeeting = (
     totalProjectCost: project?.capital_cost,
     clubContribution: financing ? Object.values(financing).reduce((total, value) => total + Math.max(0, value), 0) : undefined,
     governmentContributionRequested: current?.requestedAmount,
-    financingSource: financing ? Object.keys(financing)[0] : undefined,
+    // camelCase financing keys (clubCash, governmentGrant, debt) must render
+    // through the same humanizer path as any other status/category token —
+    // insert the underscore camelCase itself omits so it never lowercases to
+    // a single run-together word like "governmentgrant".
+    financingSource: financing
+      ? Object.keys(financing)[0].replace(/([A-Z])/g, "_$1").toUpperCase()
+      : undefined,
     fundingSettled: Boolean(settlement?.id),
     nextAction,
     blockedReason: !institution

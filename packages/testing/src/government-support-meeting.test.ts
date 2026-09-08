@@ -118,4 +118,94 @@ describe("government support meeting read model", () => {
     expect(afterApproval.nextAction).toBe("START_PROJECT");
     db.close();
   });
+
+  /**
+   * An UPGRADE_EXISTING facility plan (no siteOptionId) records its funding
+   * as a camelCase `financing` key (e.g. "governmentGrant"). The meeting read
+   * model must present that through the same humanized-token path every other
+   * status/category renders through — never as the raw object key, which
+   * would otherwise lowercase to a single run-together word like
+   * "governmentgrant" once the UI's generic band() formatter reached it.
+   */
+  it("never leaks a raw camelCase financing key as the financing source", () => {
+    const db = openGameDatabase(makeSave("meeting-financing-source"));
+    initializeClubEconomyForSave({ db, worldDate: "2026-08-01", seed: "meeting-financing-source" });
+    const club = db.prepare("SELECT id FROM clubs WHERE name = ?").get("Machhindra FC") as {
+      id: EntityId;
+    };
+    const project = createInfrastructureProject(db, {
+      clubId: club.id,
+      projectType: "TRAINING_GROUND",
+      date: "2026-08-01",
+      seed: "meeting-financing-source",
+    });
+    db.prepare("UPDATE infrastructure_projects SET financing_json = ? WHERE id = ?").run(
+      JSON.stringify({ governmentGrant: 1_000_000 }),
+      project.id,
+    );
+    const meeting = buildGovernmentSupportMeeting(
+      db,
+      { clubId: club.id, projectId: project.id },
+      "CHAIRMAN_OWNER",
+    );
+    expect(meeting.financingSource).toBeDefined();
+    expect(meeting.financingSource).not.toBe("governmentgrant");
+    expect(meeting.financingSource).not.toMatch(/[a-z][A-Z]/);
+    expect(meeting.financingSource).toBe("GOVERNMENT_GRANT");
+    db.close();
+  });
+
+  /**
+   * `openClubInfrastructureGovernmentRequest` anchors a government support
+   * request on an existing InfrastructureProject (the UPGRADE_EXISTING path)
+   * rather than a site option. This was fully implemented on the backend but
+   * had no UI call site at all — an owner planning an upgrade-existing
+   * project with government co-funding had no way to ever open the real
+   * application. The read model must resolve identically whether reached via
+   * projectId or (as the NEW_SITE path already covered above) via the
+   * request that created the application.
+   */
+  it("resolves a project-anchored request the same way an owner's UI action would open it", () => {
+    const db = openGameDatabase(makeSave("meeting-project-anchor"));
+    initializeClubEconomyForSave({ db, worldDate: "2026-08-01", seed: "meeting-project-anchor" });
+    const club = db.prepare("SELECT id FROM clubs WHERE name = ?").get("Machhindra FC") as {
+      id: EntityId;
+    };
+    seedInstitution(db);
+    db.prepare(
+      "UPDATE clubs SET location_id = (SELECT location_id FROM clubs WHERE location_id IS NOT NULL LIMIT 1) WHERE id = ?",
+    ).run(club.id);
+    const project = createInfrastructureProject(db, {
+      clubId: club.id,
+      projectType: "TRAINING_GROUND",
+      date: "2026-08-01",
+      seed: "meeting-project-anchor",
+    });
+    const before = buildGovernmentSupportMeeting(
+      db,
+      { clubId: club.id, projectId: project.id },
+      "CHAIRMAN_OWNER",
+    );
+    expect(before.institution).toBeDefined();
+    expect(before.nextAction).toBe("OPEN_REQUEST");
+    expect(before.project?.entityType).toBe("INFRASTRUCTURE_PROJECT");
+
+    const institution = resolveGovernmentInstitutionForClub(db, club.id)!;
+    requestClubInfrastructureGovernmentSupport(db, {
+      clubId: club.id,
+      projectId: project.id,
+      institutionId: institution.id,
+      fundingType: "INFRASTRUCTURE",
+      requestedAmount: 1_500_000,
+      date: "2026-08-02",
+    });
+    const after = buildGovernmentSupportMeeting(
+      db,
+      { clubId: club.id, projectId: project.id },
+      "CHAIRMAN_OWNER",
+    );
+    expect(after.current?.status).toBe("PROPOSED");
+    expect(after.nextAction).toBe("SUBMIT_CASE");
+    db.close();
+  });
 });
