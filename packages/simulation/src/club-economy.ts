@@ -697,8 +697,21 @@ export const generateSponsorOffers = (
       .map((item) => item.type),
   );
   const openSlots = slotOrder.filter((type) => !heldSlots.has(type));
-  return sponsors
-    .filter((sponsor) => sponsor.status !== "UNKNOWN")
+  /*
+   * `economy.sponsors()` always returns the same sponsors in the same fixed
+   * (alphabetical) order — every club's candidate slice therefore started
+   * from the exact same sponsor organisation, so in a real multi-season
+   * world nearly every club ended up sponsored by whichever single sponsor
+   * happened to sort first. Rotating the candidate list by a deterministic,
+   * club-seeded offset spreads different clubs across different sponsors
+   * while staying fully reproducible for the same club/date.
+   */
+  const eligibleSponsors = sponsors.filter((sponsor) => sponsor.status !== "UNKNOWN");
+  const rotation = eligibleSponsors.length > 0 ? rng.integer(0, eligibleSponsors.length - 1) : 0;
+  const rotatedSponsors = eligibleSponsors.map(
+    (_, index) => eligibleSponsors[(index + rotation) % eligibleSponsors.length]!,
+  );
+  return rotatedSponsors
     .slice(0, Math.max(count, 1) * 4)
     .slice(0, Math.min(count, openSlots.length))
     .map((sponsor, index) => {

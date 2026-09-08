@@ -114,7 +114,20 @@ describe("women and youth international football", () => {
   it("uses canonical generated youth identities across age eligibility, senior priority, competition, history, and senior progression", () => {
     const { db, databasePath } = preparedDatabase("youth-e2e");
     const { federationId, seniorMenId, u17Id, u20Id, u23Id } = ids(db);
-    const source = db.prepare("SELECT t.id AS team_id, c.id AS club_id, c.country_id FROM teams t JOIN clubs c ON c.id=t.club_id WHERE t.level='senior' AND t.gender='men' ORDER BY t.id LIMIT 1").get() as { team_id: EntityId; club_id: EntityId; country_id: EntityId };
+    // Must be a real Nepal club — the dataset now also carries foreign
+    // clubs, and an unfiltered "first senior men's team by id" can land on
+    // one of those, generating the youth cohort under the wrong country and
+    // making every generated player ineligible for Nepal's own U17 team.
+    const source = db
+      .prepare(
+        `SELECT t.id AS team_id, c.id AS club_id, c.country_id
+         FROM teams t
+         JOIN clubs c ON c.id = t.club_id
+         JOIN countries co ON co.id = c.country_id
+         WHERE t.level = 'senior' AND t.gender = 'men' AND co.iso_code IN ('NPL', 'NP')
+         ORDER BY t.id LIMIT 1`,
+      )
+      .get() as { team_id: EntityId; club_id: EntityId; country_id: EntityId };
     generateYouthCohort({ db, countryId: source.country_id, clubId: source.club_id, teamId: source.team_id, date: "2027-06-01", seasonLabel: "2027", seed: "youth-e2e", count: 36, gender: "male", cohortKey: "international-proof" });
     const first = selectNationalTeamSquad(db, { federationId, nationalTeamId: u17Id, date: "2027-07-01", programme: "U17 window", seed: "youth-e2e", size: 23 });
     expect(first.length).toBeGreaterThan(2);

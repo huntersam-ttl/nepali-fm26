@@ -2,9 +2,14 @@ import {
   createStableEntityId,
   type ClubAiDecision,
   type ClubBoardPolicy,
+  type ClubFacilityProfile,
   type ClubStrategicIdentity,
   type EntityId,
+  type InfrastructureProjectType,
+  type SponsorOrganisation,
+  type SponsorshipContract,
 } from "@nepal-football-sim/shared-types";
+import { SeededRandom } from "./rng.js";
 import { ClubEconomyRepository, TransferMarketRepository, type GameDatabase } from "@nepal-football-sim/database";
 import {
   acceptSponsorOffer,
@@ -32,6 +37,83 @@ const candidateIdentity = (ownershipType: string, policy: ClubBoardPolicy, facil
   if (policy.transferPhilosophy === "AGGRESSIVE") return "AMBITIOUS_SPENDER";
   if (policy.transferPhilosophy === "CONSERVATIVE" || facilityQuality < 3 || reputation < 4) return "FINANCIALLY_CAUTIOUS";
   return "VETERAN_FOCUSED";
+};
+
+/**
+ * Which infrastructure project an AI club's board actually needs, not just
+ * "the one project type AI clubs ever build." Every AI club used to always
+ * start a TRAINING_GROUND regardless of its real facility gaps — a
+ * long-running world never saw an AI academy, medical centre or stadium.
+ * Candidates are tried in a fixed priority order and the first one that is
+ * both genuinely needed (a real quality gap or a real capacity signal) and
+ * affordable wins; TRAINING_GROUND remains the fallback, so it stays the
+ * common choice without being the only one. Every threshold here is a
+ * multiple of `projectBaseCost` so a poor club is never one bad guess away
+ * from a debt spiral, and prerequisite-gated types are only offered once the
+ * canonical prerequisite (checked again by createInfrastructureProject
+ * itself) is actually satisfied.
+ */
+const chooseInfrastructureProjectType = (input: {
+  facility: ClubFacilityProfile | undefined;
+  priorities: Record<string, number>;
+  reputation: number;
+  cashBalance: number;
+  completedTypes: ReadonlySet<InfrastructureProjectType>;
+}): InfrastructureProjectType | undefined => {
+  const training = input.facility?.trainingFacilityQuality ?? 3;
+  const youth = input.facility?.youthFacilityQuality ?? 3;
+  const medical = input.facility?.medicalFacilityQuality ?? 3;
+  const hasTrainingGround = input.completedTypes.has("TRAINING_GROUND");
+
+  // A genuinely well-established, well-supported club considering a stadium
+  // upgrade — the most expensive project, so it needs a large affordability
+  // margin over the base cost, not just "can technically afford it".
+  if (input.reputation >= 7 && input.cashBalance > 25_000_000 && !input.completedTypes.has("STADIUM")) {
+    return "STADIUM";
+  }
+  // A club actually pursuing a youth pathway with a real academy gap.
+  if (input.priorities.youth >= 0.6 && youth < 5 && input.cashBalance > 7_000_000) {
+    return "ACADEMY";
+  }
+  // Medical infrastructure requires a training ground first (canonical
+  // prerequisite) — only offered once that's genuinely in place.
+  if (hasTrainingGround && medical < 4 && input.cashBalance > 2_500_000) {
+    return "MEDICAL_ROOM";
+  }
+  // The default, most broadly useful upgrade — still the common outcome for
+  // a club with no sharper need.
+  if (training < 6 && input.cashBalance > 3_500_000) {
+    return "TRAINING_GROUND";
+  }
+  return undefined;
+};
+
+/**
+ * Ranks a set of real sponsor offers for an AI board's decision. Annual
+ * value is always the dominant factor — a materially better offer wins
+ * outright — but a small, deterministic (seeded, never Math.random) fit
+ * adjustment lets two offers that are close in value land differently for
+ * different clubs, instead of every AI club mechanically taking whichever
+ * offer happens to be highest by a few thousand rupees. The adjustment is
+ * bounded to roughly ±6%, so it can only flip a genuine near-tie — it can
+ * never make a club pick a decisively worse deal.
+ */
+const rankSponsorOffer = (
+  offer: SponsorshipContract,
+  sponsor: SponsorOrganisation | undefined,
+  clubId: EntityId,
+  seed: string,
+): number => {
+  const reputationFit = ((sponsor?.reputation ?? 5) - 5) * 0.01; // -0.05..+0.05
+  const termYears =
+    (Date.parse(offer.endDate) - Date.parse(offer.startDate)) / (365 * 24 * 60 * 60 * 1000);
+  // A shorter commitment is a mild positive (less lock-in risk); the
+  // baseline SHIRT_MAIN's longer term is otherwise still the highest-value
+  // slot most of the time, so this never dominates the value comparison.
+  const flexibilityFit = termYears <= 1 ? 0.015 : 0;
+  const jitter = (new SeededRandom(`${seed}:sponsor-fit:${clubId}:${offer.id}`).next() - 0.5) * 0.02;
+  const fit = Math.max(-0.06, Math.min(0.06, reputationFit + flexibilityFit + jitter));
+  return offer.annualValue * (1 + fit);
 };
 
 const stableIdentity = (candidate: ClubStrategicIdentity, previous: ClubAiDecision | undefined, crisis: boolean): ClubStrategicIdentity => {
@@ -200,9 +282,16 @@ export const runClubAiSeasonPlanning = (db: GameDatabase, input: { date: string;
           date: input.date,
           seed: `${input.seed}:sponsor:${clubId}`,
         });
-        // Highest annual value first — an AI board takes the best deal on the
-        // table; exclusivity conflicts are rejected by the canonical command.
-        const best = [...offers].sort((a, b) => b.annualValue - a.annualValue)[0];
+        // Value-led, fit-adjusted ranking — see rankSponsorOffer. A
+        // decisively better offer always wins; only genuine near-ties can be
+        // swayed by sponsor reputation/term. Exclusivity conflicts are
+        // rejected by the canonical accept command regardless.
+        const sponsorsById = new Map(economy.sponsors().map((sponsor) => [sponsor.id, sponsor]));
+        const best = [...offers].sort(
+          (a, b) =>
+            rankSponsorOffer(b, sponsorsById.get(b.sponsorId), clubId, input.seed) -
+            rankSponsorOffer(a, sponsorsById.get(a.sponsorId), clubId, input.seed),
+        )[0];
         if (best) {
           acceptSponsorOffer(db, best.id, input.date);
           actions.push("SIGN_COMMERCIAL_PARTNER");
@@ -230,10 +319,27 @@ export const runClubAiSeasonPlanning = (db: GameDatabase, input: { date: string;
         if (selected) { selectProcurementOffer(db, { offerId: selected.id, date: input.date }); actions.push("PROCURE_OPERATIONAL_EQUIPMENT"); }
       } catch { actions.push("DEFER_PROCUREMENT_FOR_AFFORDABILITY"); }
     }
-    if (priorities.infrastructure >= 0.5 && activeProjects.length === 0 && account.cashBalance > 3500000) {
+    const facilityProfile = economy.facilityProfile(clubId);
+    const completedProjectTypes = new Set(
+      economy
+        .infrastructureProjects(clubId)
+        .filter((project) => project.status === "COMPLETED")
+        .map((project) => project.projectType),
+    );
+    const chosenProjectType =
+      priorities.infrastructure >= 0.5 && activeProjects.length === 0
+        ? chooseInfrastructureProjectType({
+            facility: facilityProfile,
+            priorities,
+            reputation,
+            cashBalance: account.cashBalance,
+            completedTypes: completedProjectTypes,
+          })
+        : undefined;
+    if (chosenProjectType) {
       try {
-        createInfrastructureProject(db, { clubId, projectType: "TRAINING_GROUND", date: input.date, seed: `${input.seed}:ai:${clubId}` });
-        actions.push("START_TRAINING_GROUND_PROJECT");
+        createInfrastructureProject(db, { clubId, projectType: chosenProjectType, date: input.date, seed: `${input.seed}:ai:${clubId}` });
+        actions.push(`START_${chosenProjectType}_PROJECT`);
       } catch {
         actions.push("DEFER_INFRASTRUCTURE_FOR_AFFORDABILITY");
       }
