@@ -70,4 +70,37 @@ describe("Federation map read model", () => {
     expect(Array.isArray(detail!.districtProjects)).toBe(true);
     db.close();
   });
+
+  /**
+   * `registeredClubCount` on the district row was written once at world
+   * initialisation to a hardcoded 0, and nothing ever updated it afterward —
+   * so the map overview showed "0 clubs" for every district in every save,
+   * regardless of how many real clubs it had. `buildDistrictDetail`'s own
+   * drill-down already resolved real clubs correctly via the same location
+   * hierarchy; the overview summary must show the same count.
+   */
+  it("the map overview shows the same real club count the district detail drill-down resolves", () => {
+    const db = openGameDatabase(makeSave("map-club-counts"));
+    initializeFederationGovernanceForSave({ db, worldDate: "2026-08-01", seed: "map-club-counts" });
+    const federationId = (db.prepare("SELECT id FROM federations ORDER BY id LIMIT 1").get() as { id: EntityId }).id;
+    const map = buildFederationMap(db, federationId);
+    const totalFromOverview = map.provinces.reduce(
+      (total, province) => total + province.districts.reduce((sum, district) => sum + district.registeredClubCount, 0),
+      0,
+    );
+    // The dataset seeds real clubs with real locations, so the overview must
+    // not be stuck at zero across the whole map.
+    expect(totalFromOverview).toBeGreaterThan(0);
+
+    // Cross-check every district's overview count against the same
+    // resolution the detail drill-down performs directly.
+    for (const province of map.provinces) {
+      for (const summary of province.districts) {
+        const detail = buildDistrictDetail(db, federationId, summary.id, "FEDERATION_PRESIDENT");
+        expect(detail).toBeDefined();
+        expect(summary.registeredClubCount).toBe(detail!.clubs.length);
+      }
+    }
+    db.close();
+  });
 });

@@ -34,12 +34,13 @@ const buildDistrictSummary = (
   db: GameDatabase,
   district: ReturnType<TerritorialFootballRepository["districts"]>[number],
   activeProjectCount: number,
+  registeredClubCount: number,
 ): MapDistrictSummary => ({
   id: district.id,
   name: district.name,
   locationLabel: presentLocationById(db, district.locationId),
   developmentReputation: district.developmentReputation,
-  registeredClubCount: district.registeredClubCount,
+  registeredClubCount,
   girlsParticipation: district.girlsParticipation,
   youthParticipation: district.youthParticipation,
   coachSupply: district.coachSupply,
@@ -47,6 +48,27 @@ const buildDistrictSummary = (
   activeProjectCount,
   tone: districtTone(district),
 });
+
+/**
+ * A district's `registeredClubCount` column is written once, at world
+ * initialisation, to a hardcoded 0 — and nothing in the simulation ever
+ * updates it afterward, so the map's overview always showed "0 clubs" for
+ * every district in every save, no matter how many real clubs a district
+ * has. `buildDistrictDetail`'s drill-down already resolves real clubs
+ * correctly via this same location-hierarchy walk; this brings the overview
+ * badge in line with what clicking into a district actually shows.
+ */
+const registeredClubCountByDistrict = (db: GameDatabase): Map<EntityId, number> => {
+  const counts = new Map<EntityId, number>();
+  const clubRows = db
+    .prepare("SELECT location_id FROM clubs WHERE location_id IS NOT NULL")
+    .all() as Array<{ location_id: EntityId }>;
+  for (const row of clubRows) {
+    const districtId = districtIdForLocation(db, row.location_id);
+    if (districtId) counts.set(districtId, (counts.get(districtId) ?? 0) + 1);
+  }
+  return counts;
+};
 
 /**
  * A schematic Nepal-region map read model — grouped by real province and
@@ -72,12 +94,20 @@ export const buildFederationMap = (db: GameDatabase, federationId: EntityId): Fe
   for (const district of districts) {
     districtsByProvince.set(district.provinceId, [...(districtsByProvince.get(district.provinceId) ?? []), district]);
   }
+  const clubCounts = registeredClubCountByDistrict(db);
   return {
     provinces: provinces.map((province) => ({
       id: province.id,
       name: province.name,
       districts: (districtsByProvince.get(province.id) ?? [])
-        .map((district) => buildDistrictSummary(db, district, activeProjectCountByDistrict.get(district.id) ?? 0))
+        .map((district) =>
+          buildDistrictSummary(
+            db,
+            district,
+            activeProjectCountByDistrict.get(district.id) ?? 0,
+            clubCounts.get(district.id) ?? 0,
+          ),
+        )
         .sort((a, b) => a.name.localeCompare(b.name)),
     })),
     provenanceStatus: "SIMULATION_ONLY",
@@ -115,7 +145,7 @@ export const buildDistrictDetail = (
     .filter((row) => districtIdForLocation(db, row.location_id) === districtId)
     .map((row) => buildEntityReference(db, "CLUB", row.id, role));
   return {
-    district: buildDistrictSummary(db, district, activeProjectCount),
+    district: buildDistrictSummary(db, district, activeProjectCount, clubs.length),
     provinceName: province?.name ?? "Province not on record",
     clubs,
     federationProjects: federationProjects.map((project) => ({
