@@ -133,9 +133,13 @@ export const StaffScreen = ({ refreshKey }: { refreshKey: number }): React.React
                         <tr key={member.appointmentId}>
                           <td>{member.name}</td>
                           <td>{member.role.replace(/_/g, " ").toLowerCase()}</td>
-                          <td>{member.licence ?? "Unknown"}</td>
+                          {/* Most staff roles (admin, scouting, medical) carry
+                              no coaching licence at all — "Unknown" implied a
+                              gap in recorded data rather than a role that
+                              simply has nothing to show here. */}
+                          <td>{member.licence ?? "—"}</td>
                           <td>{money(member.salaryAmountMinor)}</td>
-                          <td>{member.contractEnd ?? "Unknown"}</td>
+                          <td>{member.contractEnd ?? "—"}</td>
                           <td>{member.lastPerformanceScore ?? "—"}</td>
                           <td>
                             <div className="button-row">
