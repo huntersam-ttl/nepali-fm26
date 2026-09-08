@@ -201,6 +201,8 @@ import {
   type StaffRowWithContract,
   type StaffSuccessionPlanView,
   type ExecutiveAuthorityDesktopView,
+  type ExecutiveRecruitmentDesk,
+  type SecretaryOperationsDesk,
   type ExecutiveRole,
   type StartMatchCommand,
   type StartingClubOption,
@@ -349,6 +351,8 @@ import {
   registerCompetitionPlayersForSecretary,
   setBudgetForExecutive,
 } from "./executive-authority.js";
+import { buildExecutiveRecruitmentDesk } from "./executive-recruitment.js";
+import { buildSecretaryOperationsDesk } from "./executive-secretary.js";
 import { backroomSummary } from "./career-market-deepening.js";
 import {
   createInvestorStakeOffer,
@@ -979,6 +983,29 @@ export class DesktopApplicationService {
           assignment.status === "FILLED" ? undefined : "This executive role is vacant.",
       };
     });
+  }
+
+  /**
+   * The recruitment desk a sporting director / director of football works
+   * from. Authority is resolved per-authority through the canonical
+   * delegation check inside the builder, so an executive with no recruitment
+   * authority gets an honest empty desk rather than a hidden screen.
+   */
+  getExecutiveRecruitmentDesk(clubId: EntityId): AppResult<ExecutiveRecruitmentDesk> {
+    return this.withSession((db, save) =>
+      buildExecutiveRecruitmentDesk(db, save, clubId, careerPersonId(db, save)),
+    );
+  }
+
+  /**
+   * The general secretary's administrative desk. Like the recruitment desk,
+   * authority is resolved per-section through the canonical delegation check,
+   * so a role without a given authority gets an honest empty section.
+   */
+  getSecretaryOperationsDesk(clubId: EntityId): AppResult<SecretaryOperationsDesk> {
+    return this.withSession((db, save) =>
+      buildSecretaryOperationsDesk(db, save, clubId, careerPersonId(db, save)),
+    );
   }
 
   acceptExecutiveSponsorOffer(

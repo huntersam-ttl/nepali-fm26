@@ -45,6 +45,106 @@ export type ExecutiveAuthorityDesktopView = {
   blockedReason?: string;
 };
 
+/**
+ * The recruitment desk a SPORTING_DIRECTOR / DIRECTOR_OF_FOOTBALL actually
+ * works from. It is a read model over the canonical transfer, loan and
+ * contract records — never a second transfer engine — so the desk shows the
+ * same offers the manager's Transfer Centre shows, from the club's side.
+ */
+export type ExecutiveRecruitmentRow = {
+  offerId: EntityId;
+  playerId: EntityId;
+  playerName: string;
+  direction: "IN" | "OUT";
+  otherClubName: string;
+  fee: number;
+  status: string;
+  expiresAt: ISODate;
+  /** True when this executive may open the negotiation, not merely read it. */
+  canNegotiate: boolean;
+};
+
+export type ExecutiveLoanRow = {
+  playerId: EntityId;
+  playerName: string;
+  direction: "IN" | "OUT";
+  otherClubName: string;
+  endDate: ISODate;
+};
+
+export type ExecutiveContractRow = {
+  playerId: EntityId;
+  playerName: string;
+  endDate: ISODate;
+  /** Monthly wage — the unit `player_contracts.salary` is expressed in. */
+  monthlyWage: number;
+};
+
+export type ExecutiveRecruitmentDesk = {
+  clubId: EntityId;
+  clubName: string;
+  /** Authorities that actually back the surfaces on this desk. */
+  authorities: ExecutiveAuthority[];
+  negotiations: ExecutiveRecruitmentRow[];
+  loans: ExecutiveLoanRow[];
+  expiringContracts: ExecutiveContractRow[];
+  squadSize: number;
+  blockedReason?: string;
+};
+
+/**
+ * The general secretary's operations desk — the administrative counterpart to
+ * the recruitment desk. Every row is a canonical licence case, competition
+ * registration, player contract or staff appointment.
+ */
+export type SecretaryContractRow = {
+  playerId: EntityId;
+  playerName: string;
+  endDate: ISODate;
+  contractType: string;
+};
+
+export type SecretaryLicensingCase = {
+  caseId: EntityId;
+  seasonLabel: string;
+  status: string;
+  outstanding: { requirement: string; deadline: ISODate }[];
+  sanctions: string[];
+  /** True while the licence cycle is still open and can be closed. */
+  canClose: boolean;
+};
+
+export type SecretaryRegistrationRow = {
+  teamId: EntityId;
+  teamName: string;
+  gender: string;
+  level: string;
+  squadSize: number;
+  registeredPlayers: number;
+  /** True when the secretary's registration command applies to this team. */
+  registrable: boolean;
+};
+
+export type SecretaryStaffRow = {
+  appointmentId: EntityId;
+  personId: EntityId;
+  personName: string;
+  role: string;
+  startDate?: ISODate;
+};
+
+export type SecretaryOperationsDesk = {
+  clubId: EntityId;
+  clubName: string;
+  authorities: ExecutiveAuthority[];
+  contracts: SecretaryContractRow[];
+  licensing: SecretaryLicensingCase[];
+  registrations: SecretaryRegistrationRow[];
+  staff: SecretaryStaffRow[];
+  openVacancies: number;
+  blockedReason?: string;
+};
+
 export type ExecutiveCandidateInput = {
   personId: EntityId;
   role: ExecutiveRole;

@@ -93,7 +93,7 @@ import {
   ownershipStage,
 } from "./ownershipNegotiationPresentation.js";
 import { campusBlockDescriptors, projectProgressPercent, projectStatusLabel } from "./clubWorldPresentation.js";
-import { humanizeToken } from "./storyHumanizer.js";
+import { humanizeEnum, humanizeToken } from "./storyHumanizer.js";
 
 export type ChairmanScreen =
   | "dashboard"
@@ -2720,7 +2720,7 @@ const Tenure = ({ dashboard }: { dashboard: FederationPresidentDashboard }): Rea
               ? `${dashboard.tenure.termStart} – ${dashboard.tenure.termEnd ?? "current"}`
               : "Not recorded",
           },
-          { label: "Status", value: dashboard.tenure?.status ?? "Unknown" },
+          { label: "Status", value: humanizeEnum(dashboard.tenure?.status, "Unknown") },
           { label: "Candidacy", value: "See ANFA Presidency Path on Home" },
         ]}
       />
@@ -5926,10 +5926,13 @@ export const PlayerContextPanel = ({
                       (data.contract.clubName ?? "Unattached")
                     ),
                   },
-                  { label: "Squad role", value: data.contract.contract?.squadRole ?? "—" },
+                  { label: "Squad role", value: humanizeEnum(data.contract.contract?.squadRole) },
                   {
                     label: "Contract status",
-                    value: data.contract.contract?.status ?? "No active contract",
+                    value: humanizeEnum(
+                      data.contract.contract?.status,
+                      "No active contract",
+                    ),
                   },
                 ]}
               />
@@ -5985,7 +5988,7 @@ export const PlayerContextPanel = ({
                     </p>
                     <p className="subtle">
                       Stage: {band(data.request.meeting.stage)}
-                      {data.request.meeting.outcome ? ` — ${data.request.meeting.outcome}` : ""}
+                      {data.request.meeting.outcome ? ` — ${humanizeEnum(data.request.meeting.outcome)}` : ""}
                     </p>
                   </div>
                 ) : (

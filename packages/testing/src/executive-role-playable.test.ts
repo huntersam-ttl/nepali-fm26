@@ -95,6 +95,13 @@ const makeManagerAlsoCeo = (filePath: string, clubId: EntityId, worldDate: strin
     "BUYABLE",
     "SIMULATION_ONLY",
   );
+  // Executive roles have no licence tier, so the staff market requires an
+  // exactly matching recorded specialisation (see `staffEligibility`).
+  db.prepare(
+    `INSERT INTO staff_profiles (id, person_id, preferred_role, reputation, availability, work_eligibility_status)
+     VALUES (?,?,?,?,?,?)
+     ON CONFLICT(id) DO UPDATE SET preferred_role = excluded.preferred_role`,
+  ).run(`${personId}:staff-profile`, personId, "CEO", "60", "AVAILABLE", "ELIGIBLE");
   const appointment = hireStaff(
     db,
     {

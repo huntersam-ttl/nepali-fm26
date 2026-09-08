@@ -53,7 +53,11 @@ import type {
   HistoricalEvent,
   StoryImportanceBand,
 } from "./domain.js";
-import type { ExecutiveAuthorityDesktopView } from "./executive-roles.js";
+import type {
+  ExecutiveAuthorityDesktopView,
+  ExecutiveRecruitmentDesk,
+  SecretaryOperationsDesk,
+} from "./executive-roles.js";
 import type { FederationDevelopmentSummary, NationDevelopmentScorecard } from "./federation-policy.js";
 import type { FederationRefereeContext } from "./referee-development.js";
 import type { DistrictDetail, FederationMap } from "./territorial-football.js";
@@ -927,6 +931,10 @@ export type DesktopRuntimeApi = {
   getExecutiveAuthority(
     clubId?: EntityId,
   ): Promise<AppResult<ExecutiveAuthorityDesktopView | undefined>>;
+  getExecutiveRecruitmentDesk(
+    clubId: EntityId,
+  ): Promise<AppResult<ExecutiveRecruitmentDesk>>;
+  getSecretaryOperationsDesk(clubId: EntityId): Promise<AppResult<SecretaryOperationsDesk>>;
   switchActiveCareerRole(targetRole: CareerRole): Promise<AppResult<CareerHeader>>;
   getChairmanDashboard(): Promise<AppResult<ChairmanDashboard>>;
   getOwnerMatchday(): Promise<AppResult<OwnerMatchdayView>>;

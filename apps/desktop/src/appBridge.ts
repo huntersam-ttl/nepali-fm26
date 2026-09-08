@@ -53,6 +53,8 @@ import type {
   DesktopRuntimeApi,
   EntityId,
   ExecutiveAuthorityDesktopView,
+  ExecutiveRecruitmentDesk,
+  SecretaryOperationsDesk,
   SaveCatalogEntry,
   SquadRow,
   StaffAppointment,
@@ -195,6 +197,10 @@ const bindCommands = (call: CommandCaller): DesktopRuntimeApi => ({
   getCareerRoles: () => call<CareerRoleState>("getCareerRoles"),
   getExecutiveAuthority: (clubId?: EntityId) =>
     call<ExecutiveAuthorityDesktopView | undefined>("getExecutiveAuthority", { clubId }),
+  getExecutiveRecruitmentDesk: (clubId: EntityId) =>
+    call<ExecutiveRecruitmentDesk>("getExecutiveRecruitmentDesk", { clubId }),
+  getSecretaryOperationsDesk: (clubId: EntityId) =>
+    call<SecretaryOperationsDesk>("getSecretaryOperationsDesk", { clubId }),
   switchActiveCareerRole: (targetRole: CareerRole) =>
     call<CareerHeader>("switchActiveCareerRole", { targetRole }),
   getChairmanDashboard: () => call<ChairmanDashboard>("getChairmanDashboard"),

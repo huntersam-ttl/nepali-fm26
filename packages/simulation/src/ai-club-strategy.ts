@@ -6,7 +6,11 @@ import {
   type EntityId,
 } from "@nepal-football-sim/shared-types";
 import { ClubEconomyRepository, TransferMarketRepository, type GameDatabase } from "@nepal-football-sim/database";
-import { createInfrastructureProject } from "./club-economy.js";
+import {
+  acceptSponsorOffer,
+  createInfrastructureProject,
+  generateSponsorOffers,
+} from "./club-economy.js";
 import { preferredForeignMarkets } from "./external-football-world.js";
 import { createProcurementRequest, selectProcurementOffer } from "./clubmart.js";
 import { analyzeSquadNeeds, positionGroupForPlayer, recallLoan } from "./transfer-market.js";
@@ -173,6 +177,33 @@ export const runClubAiSeasonPlanning = (db: GameDatabase, input: { date: string;
       priorities.youth >= priorities.squad ? "PROTECT_YOUTH_PATHWAY" : "RECRUIT_PUBLICLY_IDENTIFIED_SQUAD_NEEDS",
       sponsorships.length === 0 ? "REVIEW_COMMERCIAL_OFFERS" : "RETAIN_COMMERCIAL_PARTNERS",
     ];
+    /*
+     * Commercial AI. Until now "REVIEW_COMMERCIAL_OFFERS" was a label with
+     * nothing behind it: `generateSponsorOffers`/`acceptSponsorOffer` were
+     * only ever reached from the desktop service, so ONLY the human player's
+     * club ever signed a sponsorship and every AI club's commercial income
+     * stayed permanently at zero. An uncovered club now goes to market on the
+     * same canonical path a player-controlled club uses, and takes the best
+     * offer it is actually allowed to hold.
+     */
+    if (sponsorships.length === 0 && account.financialHealth !== "INSOLVENT") {
+      try {
+        const offers = generateSponsorOffers(db, {
+          clubId,
+          date: input.date,
+          seed: `${input.seed}:sponsor:${clubId}`,
+        });
+        // Highest annual value first — an AI board takes the best deal on the
+        // table; exclusivity conflicts are rejected by the canonical command.
+        const best = [...offers].sort((a, b) => b.annualValue - a.annualValue)[0];
+        if (best) {
+          acceptSponsorOffer(db, best.id, input.date);
+          actions.push("SIGN_COMMERCIAL_PARTNER");
+        }
+      } catch {
+        actions.push("DEFER_COMMERCIAL_PARTNERSHIP");
+      }
+    }
     if (insurance) actions.push(insurance.status === "ACTIVE" && insurance.startDate === input.date ? "ACTIVATE_INJURY_INSURANCE" : "RETAIN_INJURY_INSURANCE");
     if (trialReviews.length > 0) actions.push("REVIEW_INTERNATIONAL_TRIALS");
     if (loanRecall.activeLoansConsidered > 0) actions.push("REVIEW_ACTIVE_LOAN_RECALLS");

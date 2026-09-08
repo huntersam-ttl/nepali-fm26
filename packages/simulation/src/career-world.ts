@@ -53,6 +53,7 @@ import {
   type PreseasonContinuityReport,
 } from "./preseason-continuity.js";
 import { updatePlayerDevelopment } from "./player-development.js";
+import { rollTrainingInjury } from "./manager-desktop.js";
 import {
   computeDevelopmentEnvironment,
   ensureSensibleDevelopmentPlan,
@@ -1664,6 +1665,26 @@ function developPlayers(
     players.upsertDevelopmentState(updated.updatedState);
     for (const event of updated.historyEvents) {
       players.insertTrainingHistoryEvent({ ...event, teamId: stat.teamId });
+    }
+    /*
+     * Training carries the same injury consequence for every squad in the
+     * world, not only for the days a human manager opens the Training screen.
+     * The manager's own daily path rolls this itself; the
+     * `lastDevelopmentUpdate >= date` guard above means a player it already
+     * processed today never reaches here, so there is no double roll. Only a
+     * player fit enough to train can pick up a training injury.
+     */
+    if (availability === "FULL") {
+      rollTrainingInjury(
+        db,
+        players,
+        stat.personId,
+        stat.teamId,
+        updated.injuryRiskSignal.risk,
+        updated.updatedState.fitness,
+        date,
+        seed,
+      );
     }
     count += 1;
   }

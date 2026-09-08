@@ -38,6 +38,9 @@ export * from "./story-headline.js";
 export {
   buildPlayerProfile,
   managerProfileViewer,
+  // The season engine applies the same training-injury consequence the
+  // manager's own training day does, so this one is public too.
+  rollTrainingInjury,
   type PlayerProfileViewer,
 } from "./manager-desktop.js";
 export * from "./player-pathway.js";
@@ -59,6 +62,8 @@ export * from "./continental-coefficients.js";
 export * from "./career-market-deepening.js";
 export * from "./executive-roles.js";
 export * from "./executive-authority.js";
+export * from "./executive-recruitment.js";
+export * from "./executive-secretary.js";
 export * from "./agent-career.js";
 export * from "./clubmart.js";
 export * from "./club-finance-markets.js";

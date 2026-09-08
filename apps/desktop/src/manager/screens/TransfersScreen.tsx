@@ -11,6 +11,7 @@ import type { AppError } from "../../appBridge.js";
 import { EntityRefLink } from "../RoleDetailScreen.js";
 import { TransferNegotiationMeeting } from "./TransferNegotiationMeeting.js";
 import { daysUntilResponse, negotiationStage } from "../negotiationPresentation.js";
+import { humanizeEnum } from "../storyHumanizer.js";
 
 type Tab = "targets" | "offers" | "loans" | "free" | "expiring" | "requests" | "history";
 
@@ -466,7 +467,7 @@ export const TransfersScreen = ({
                               {contract.playerName}
                             </button>
                           </td>
-                          <td>{contract.squadRole}</td>
+                          <td>{humanizeEnum(contract.squadRole)}</td>
                           <td>{contract.endDate}</td>
                           <td>{contract.monthsRemaining}</td>
                         </tr>

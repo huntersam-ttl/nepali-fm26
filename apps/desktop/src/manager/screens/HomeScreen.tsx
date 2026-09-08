@@ -6,6 +6,7 @@ import { AsyncPanel, Badge, FormRun, Metrics, Panel, useRuntimeData } from "../u
 import { OwnerPlayerRequestInbox } from "./OwnerPlayerRequestInbox.js";
 import { InboxPanel } from "../RoleDetailScreen.js";
 import { TransferNegotiationLauncher } from "./TransferNegotiationMeeting.js";
+import { humanizeEnum, humanizeToken } from "../storyHumanizer.js";
 
 const concernLabel = (type: string): string => {
   switch (type) {
@@ -195,7 +196,7 @@ export const HomeScreen = ({
 
           {dashboard.employmentStatus === "UNEMPLOYED" && dashboard.jobCentre && (
             <Panel title="Job Centre">
-              <p className="subtle">Reputation: {dashboard.jobCentre.reputationProfile}</p>
+              <p className="subtle">Reputation: {humanizeToken(dashboard.jobCentre.reputationProfile)}</p>
               <h3>Open vacancies</h3>
               {dashboard.jobCentre.vacancies.length === 0 ? (
                 <p className="empty-state">No manager vacancies are open right now.</p>
@@ -595,7 +596,7 @@ export const HomeScreen = ({
                 <>
                   <p className="subtle">
                     {view.jobsHeld} job{view.jobsHeld === 1 ? "" : "s"} · reputation:{" "}
-                    {view.reputationProfile}
+                    {humanizeToken(view.reputationProfile)}
                   </p>
                   {view.history.length === 0 ? (
                     <p className="empty-state">No previous appointments yet.</p>
@@ -604,7 +605,7 @@ export const HomeScreen = ({
                       {view.history.map((entry) => (
                         <li key={entry.contractId}>
                           {entry.clubName ?? entry.teamName ?? "Unknown club"} · {entry.start} –{" "}
-                          {entry.end ?? "present"} · <Badge tone="info">{entry.outcome}</Badge>
+                          {entry.end ?? "present"} · <Badge tone="info">{humanizeEnum(entry.outcome)}</Badge>
                         </li>
                       ))}
                     </ul>

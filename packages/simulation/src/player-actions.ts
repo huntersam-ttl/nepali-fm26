@@ -86,7 +86,7 @@ export const buildActorPlayerActions = (
     : actorRole === "FEDERATION_PRESIDENT"
       ? "The President may view player context but cannot mutate club football decisions."
       : isDelegatedExecutive
-        ? "This delegated role does not carry direct control over players; football decisions remain with the Manager."
+        ? "On-pitch decisions for this player stay with the Manager. Recruitment, contract and loan business runs through your own recruitment desk."
         : "The active role does not control this player's club.";
   const reasonFor = (id: PlayerActionId): string | undefined => {
     if (actorRole !== "MANAGER") return reason;

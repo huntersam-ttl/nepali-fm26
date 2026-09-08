@@ -13,6 +13,7 @@ import type {
 import { managerBridge } from "../managerBridge.js";
 import { EntityRefLink, EntityStorylinePanel } from "../RoleDetailScreen.js";
 import { TransferNegotiationLauncher } from "./TransferNegotiationMeeting.js";
+import { humanizeEnum } from "../storyHumanizer.js";
 import {
   AsyncPanel,
   Badge,
@@ -658,7 +659,7 @@ export const PlayerProfileScreen = ({
               <Panel title="Development">
                 <Metrics
                   items={[
-                    { label: "Phase", value: player.development.phase.replace(/_/g, " ") },
+                    { label: "Phase", value: humanizeEnum(player.development.phase) },
                     { label: "Momentum", value: player.development.momentum.toFixed(2) },
                     { label: "Match sharpness", value: player.development.matchSharpness },
                     { label: "Fatigue", value: player.development.fatigue },

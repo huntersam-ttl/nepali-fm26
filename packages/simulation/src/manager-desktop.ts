@@ -2577,7 +2577,18 @@ const continueMessage = (reason: ContinueStopReason, opponent?: string): string 
 // ---------------------------------------------------------------------------
 
 /** Injury risk rolled from the same training-load signal the engine already computes — no new medical engine. */
-const rollTrainingInjury = (
+/**
+ * Converts a training-overload risk signal into a real injury.
+ *
+ * Exported because the canonical season engine develops every squad in the
+ * world through the same `updatePlayerDevelopment` engine and must apply the
+ * same consequence — otherwise training only ever injures players on the days
+ * the human manager happens to open the Training screen, and an AI club never
+ * loses a player to training at all. Double-rolling is prevented upstream by
+ * the development state's `lastDevelopmentUpdate` guard: a player the manager
+ * path already processed on this date is skipped by the season path.
+ */
+export const rollTrainingInjury = (
   db: GameDatabase,
   players: PlayerRepository,
   personId: EntityId,

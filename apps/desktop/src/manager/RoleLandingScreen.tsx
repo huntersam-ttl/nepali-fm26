@@ -23,6 +23,7 @@ import {
   FacilityPlanner,
   InboxPanel,
   OrganizationProfilePanel,
+  PlayerContextPanel,
   RoleDetailScreen,
   SponsorMeeting,
   type ChairmanScreen,
@@ -30,6 +31,7 @@ import {
   type ProfileEntityType,
 } from "./RoleDetailScreen.js";
 import { projectStatusLabel } from "./clubWorldPresentation.js";
+import { humanizeEnum, humanizeToken } from "./storyHumanizer.js";
 
 export const EXECUTIVE_ROLES = ["SPORTING_DIRECTOR", "DIRECTOR_OF_FOOTBALL", "CEO", "GENERAL_SECRETARY"];
 
@@ -129,6 +131,320 @@ const ExecutiveDashboardScreen = ({
   );
 };
 
+/**
+ * The recruitment surface for a sporting director / director of football.
+ * Their authorities (recruitment, transfer negotiation, loans, contracts,
+ * squad planning) previously had no rendered surface at all — the executive
+ * landing only showed CEO-shaped budget/sponsor/facility panels — so the
+ * roles listed powers they could never use. Every row here is a canonical
+ * transfer/loan/contract record, and each player opens the shared profile.
+ */
+const RecruitmentDesk = ({
+  bridge,
+  clubId,
+}: {
+  bridge: DesktopRuntimeApi;
+  clubId: EntityId;
+}): React.ReactElement => {
+  const [player, setPlayer] = useState<EntityId | null>(null);
+  const [desk] = useRuntimeData(async () => bridge.getExecutiveRecruitmentDesk(clubId), [clubId]);
+  if (player) return <PlayerContextPanel bridge={bridge} playerId={player} onClose={() => setPlayer(null)} />;
+  return (
+    <AsyncPanel state={desk}>
+      {(view) =>
+        view.blockedReason ? (
+          <Panel title="Recruitment desk">
+            <p className="empty-state">{view.blockedReason}</p>
+          </Panel>
+        ) : (
+          <>
+            <Panel title="Recruitment desk">
+              <Metrics
+                items={[
+                  { label: "Squad under contract", value: String(view.squadSize) },
+                  { label: "Live negotiations", value: String(view.negotiations.length) },
+                  { label: "Players on loan", value: String(view.loans.length) },
+                  { label: "Contracts expiring", value: String(view.expiringContracts.length) },
+                ]}
+              />
+              <p className="subtle">
+                {view.clubName} — these are the club's own canonical transfer, loan and contract
+                records. Your delegated authority decides which of them you may act on.
+              </p>
+            </Panel>
+            <Panel title="Live negotiations">
+              {view.negotiations.length === 0 ? (
+                <p className="empty-state">
+                  No transfer offer is open in either direction right now.
+                </p>
+              ) : (
+                <ul className="report-list">
+                  {view.negotiations.map((row) => (
+                    <li key={row.offerId}>
+                      <button className="link" onClick={() => setPlayer(row.playerId)}>
+                        {row.playerName}
+                      </button>{" "}
+                      <Badge tone={row.direction === "IN" ? "info" : "warn"}>
+                        {row.direction === "IN" ? "Incoming" : "Outgoing"}
+                      </Badge>{" "}
+                      <span className="subtle">
+                        {row.otherClubName} · {money(row.fee)} ·{" "}
+                        {humanizeToken(row.status)} · closes {row.expiresAt.slice(0, 10)}
+                      </span>
+                      {!row.canNegotiate && (
+                        <p className="subtle">
+                          You may follow this negotiation, but transfer negotiation is not
+                          delegated to your role.
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Panel>
+            {view.authorities.includes("LOAN_STRATEGY") && (
+              <Panel title="Loans in and out">
+                {view.loans.length === 0 ? (
+                  <p className="empty-state">No player is on loan in either direction.</p>
+                ) : (
+                  <ul className="report-list">
+                    {view.loans.map((row) => (
+                      <li key={`${row.playerId}-${row.endDate}`}>
+                        <button className="link" onClick={() => setPlayer(row.playerId)}>
+                          {row.playerName}
+                        </button>{" "}
+                        <span className="subtle">
+                          {row.direction === "IN" ? "on loan from" : "on loan at"}{" "}
+                          {row.otherClubName} · until {row.endDate.slice(0, 10)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Panel>
+            )}
+            {view.authorities.includes("SQUAD_PLANNING") && (
+              <Panel title="Contracts to resolve this cycle">
+                {view.expiringContracts.length === 0 ? (
+                  <p className="empty-state">
+                    No contract at the club expires within the next twelve months.
+                  </p>
+                ) : (
+                  <ul className="report-list">
+                    {view.expiringContracts.map((row) => (
+                      <li key={row.playerId}>
+                        <button className="link" onClick={() => setPlayer(row.playerId)}>
+                          {row.playerName}
+                        </button>{" "}
+                        <span className="subtle">
+                          expires {row.endDate.slice(0, 10)} · {money(row.monthlyWage)} per month
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Panel>
+            )}
+          </>
+        )
+      }
+    </AsyncPanel>
+  );
+};
+
+/**
+ * The general secretary's operations desk. Their four authorities all have
+ * canonical commands on the service already; what was missing was any surface
+ * telling them what needs administering. Each section renders only when the
+ * matching authority is genuinely delegated, and each action calls the same
+ * canonical command an owner-driven path would.
+ */
+const SecretaryDesk = ({
+  bridge,
+  clubId,
+}: {
+  bridge: DesktopRuntimeApi;
+  clubId: EntityId;
+}): React.ReactElement => {
+  const [player, setPlayer] = useState<EntityId | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<AppError | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [desk, refresh] = useRuntimeData(
+    async () => bridge.getSecretaryOperationsDesk(clubId),
+    [clubId],
+  );
+  const closeLicence = async (caseId: EntityId, seasonLabel: string): Promise<void> => {
+    if (busy) return;
+    setBusy(true);
+    const result = await bridge.closeExecutiveLicence(caseId);
+    setBusy(false);
+    if (result.ok) {
+      setError(null);
+      setMessage(`Licence cycle for ${seasonLabel} closed and filed with the federation.`);
+      refresh();
+    } else setError(result.error);
+  };
+  if (player)
+    return <PlayerContextPanel bridge={bridge} playerId={player} onClose={() => setPlayer(null)} />;
+  return (
+    <AsyncPanel state={desk}>
+      {(view) =>
+        view.blockedReason ? (
+          <Panel title="Club operations">
+            <p className="empty-state">{view.blockedReason}</p>
+          </Panel>
+        ) : (
+          <>
+            {error && <ErrorBanner error={error} />}
+            {message && (
+              <p className="notice" role="status">
+                {message}
+              </p>
+            )}
+            <Panel title="Club operations">
+              <Metrics
+                items={[
+                  { label: "Contracts to file", value: String(view.contracts.length) },
+                  {
+                    label: "Open licence cases",
+                    value: String(view.licensing.filter((item) => item.canClose).length),
+                  },
+                  {
+                    label: "Teams to register",
+                    value: String(view.registrations.filter((item) => item.registrable).length),
+                  },
+                  { label: "Staff vacancies", value: String(view.openVacancies) },
+                ]}
+              />
+              <p className="subtle">
+                {view.clubName} — the club's administrative workload: contract paperwork, the
+                federation licence cycle, competition registration and the staff roster.
+              </p>
+            </Panel>
+            {view.authorities.includes("LICENSING") && (
+              <Panel title="Federation licensing">
+                {view.licensing.length === 0 ? (
+                  <p className="empty-state">
+                    The federation has opened no licence case for this club.
+                  </p>
+                ) : (
+                  <ul className="report-list">
+                    {view.licensing.map((item) => (
+                      <li key={item.caseId}>
+                        <strong>{item.seasonLabel}</strong>{" "}
+                        <Badge tone={item.canClose ? "warn" : "ok"}>
+                          {humanizeToken(item.status)}
+                        </Badge>
+                        {item.outstanding.length === 0 ? (
+                          <p className="subtle">No outstanding requirement on this case.</p>
+                        ) : (
+                          <ul className="compact-list">
+                            {item.outstanding.map((task) => (
+                              <li key={task.requirement}>
+                                {task.requirement} — due {task.deadline.slice(0, 10)}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        {item.sanctions.length > 0 && (
+                          <p className="subtle">
+                            Sanctions: {item.sanctions.map(humanizeToken).join(", ")}
+                          </p>
+                        )}
+                        {item.canClose && (
+                          <button
+                            className="primary small"
+                            disabled={busy}
+                            onClick={() => void closeLicence(item.caseId, item.seasonLabel)}
+                          >
+                            {busy ? "Filing…" : "Close licence cycle"}
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Panel>
+            )}
+            {view.authorities.includes("COMPETITION_REGISTRATION") && (
+              <Panel title="Competition registration">
+                {view.registrations.length === 0 ? (
+                  <p className="empty-state">This club has no team on the register.</p>
+                ) : (
+                  <ul className="report-list">
+                    {view.registrations.map((row) => (
+                      <li key={row.teamId}>
+                        <strong>{row.teamName}</strong>{" "}
+                        <span className="subtle">
+                          {row.registeredPlayers} of {row.squadSize} players registered
+                        </span>
+                        {row.registrable && (
+                          <p className="subtle">
+                            This squad has players awaiting registration for the women's
+                            competition.
+                          </p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Panel>
+            )}
+            {view.authorities.includes("CONTRACT_ADMINISTRATION") && (
+              <Panel title="Contract paperwork">
+                {view.contracts.length === 0 ? (
+                  <p className="empty-state">
+                    No contract at the club runs out inside the next four months.
+                  </p>
+                ) : (
+                  <ul className="report-list">
+                    {view.contracts.map((row) => (
+                      <li key={row.playerId}>
+                        <button className="link" onClick={() => setPlayer(row.playerId)}>
+                          {row.playerName}
+                        </button>{" "}
+                        <span className="subtle">
+                          {humanizeToken(row.contractType)} · expires {row.endDate.slice(0, 10)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Panel>
+            )}
+            {view.authorities.includes("STAFF_RECRUITMENT") && (
+              <Panel title="Staff roster">
+                {view.staff.length === 0 ? (
+                  <p className="empty-state">The club has no active staff appointment on record.</p>
+                ) : (
+                  <ul className="report-list">
+                    {view.staff.map((row) => (
+                      <li key={row.appointmentId}>
+                        <strong>{row.personName}</strong>{" "}
+                        <span className="subtle">
+                          {humanizeToken(row.role)}
+                          {row.startDate ? ` · since ${row.startDate.slice(0, 10)}` : ""}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {view.openVacancies > 0 && (
+                  <p className="subtle">
+                    {view.openVacancies} staff{" "}
+                    {view.openVacancies === 1 ? "vacancy is" : "vacancies are"} open at the club.
+                  </p>
+                )}
+              </Panel>
+            )}
+          </>
+        )
+      }
+    </AsyncPanel>
+  );
+};
+
 const ExecutiveDashboardView = ({
   header,
   roles,
@@ -149,6 +465,20 @@ const ExecutiveDashboardView = ({
   const canSetBudget = authority.permittedActions.includes("BUDGET_ADMINISTRATION");
   const canManageCommercial = authority.permittedActions.includes("COMMERCIAL_OVERSIGHT");
   const canManageFacilities = authority.permittedActions.includes("FACILITY_OVERSIGHT");
+  // Recruitment-side authority — the sporting director / director of football half
+  // of the executive model, which previously had no rendered surface at all.
+  const canWorkRecruitment = (
+    ["RECRUITMENT_STRATEGY", "TRANSFER_NEGOTIATION", "LOAN_STRATEGY", "SQUAD_PLANNING"] as const
+  ).some((item) => authority.permittedActions.includes(item));
+  // Administrative authority — the general secretary / CEO half of the model.
+  const canAdminister = (
+    [
+      "CONTRACT_ADMINISTRATION",
+      "LICENSING",
+      "COMPETITION_REGISTRATION",
+      "STAFF_RECRUITMENT",
+    ] as const
+  ).some((item) => authority.permittedActions.includes(item));
   const setBudget = async (): Promise<void> => {
     if (busy) return;
     setBusy(true);
@@ -223,6 +553,8 @@ const ExecutiveDashboardView = ({
           </div>
         </Panel>
       )}
+      {canWorkRecruitment && <RecruitmentDesk bridge={bridge} clubId={authority.clubId} />}
+      {canAdminister && <SecretaryDesk bridge={bridge} clubId={authority.clubId} />}
       {canSetBudget && <BankMeeting bridge={bridge} role="CEO" clubId={authority.clubId} />}
       {canManageCommercial && <SponsorMeeting bridge={bridge} role="CEO" clubId={authority.clubId} />}
       {canManageFacilities && <FacilityPlanner bridge={bridge} clubId={authority.clubId} />}
@@ -675,7 +1007,7 @@ const FederationDashboardView = ({
             {dashboard.proposals.length ? (
               dashboard.proposals.map((item) => (
                 <li key={item.id}>
-                  {item.title} · {item.status}
+                  {item.title} · {humanizeEnum(item.status)}
                 </li>
               ))
             ) : (
