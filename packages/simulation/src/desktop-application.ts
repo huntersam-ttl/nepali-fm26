@@ -1177,6 +1177,12 @@ export class DesktopApplicationService {
       if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER") {
         throw appError("ROLE_NOT_AUTHORIZED", "You do not currently hold the Chairman role.");
       }
+      // Same backfill as getInvestorMeeting — the dashboard is the other
+      // common first stop for a returning owner from an older save.
+      const clubId = heldCareerRoles(db, personId).find(
+        (role) => role.role === "CHAIRMAN_OWNER",
+      )?.targetId;
+      if (clubId) ensureOwnerPersonalFinancialProfile(db, personId, clubId, save.worldDate);
       return buildChairmanDashboard(db, save);
     });
   }
@@ -2359,6 +2365,12 @@ export class DesktopApplicationService {
         (role) => role.role === "CHAIRMAN_OWNER",
       )?.targetId;
       if (!clubId) throw appError("ROLE_NOT_AUTHORIZED", "No controlled club is available.");
+      // Backfill for a save created before ensureOwnerPersonalFinancialProfile
+      // was wired into career creation — a no-op once the profile exists, so
+      // this is safe to call on every read. Without it, an owner from an
+      // older save reads a real (not a crash) but permanently stuck NPR 0
+      // personal balance, since nothing else ever creates the row for them.
+      ensureOwnerPersonalFinancialProfile(db, personId, clubId, save.worldDate);
       return investorMeetingOverview(db, clubId, personId, save.worldDate);
     });
   }

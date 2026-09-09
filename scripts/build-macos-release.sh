@@ -105,14 +105,25 @@ rustup target list --installed | rg -qx "$ARM_TRIPLE"
 if [[ "$MODE" == "signed" ]]; then
   pnpm typecheck
 fi
-pnpm --filter @nepal-football-sim/desktop exec tauri build --target "$X64_TRIPLE" --bundles app
-pnpm --filter @nepal-football-sim/desktop exec tauri build --target "$ARM_TRIPLE" --bundles app
+# NEPAL_RUNTIME_ARCH tells prepare-runtime.mjs (the beforeBuildCommand hook)
+# which Node.js architecture to fetch for the sidecar runtime, independent of
+# the host's own architecture — this is what makes a universal build
+# possible from a single-arch build machine (see prepare-runtime.mjs).
+NEPAL_RUNTIME_ARCH=x64 pnpm --filter @nepal-football-sim/desktop exec tauri build --target "$X64_TRIPLE" --bundles app
+NEPAL_RUNTIME_ARCH=arm64 pnpm --filter @nepal-football-sim/desktop exec tauri build --target "$ARM_TRIPLE" --bundles app
 
 WORK_DIR="$(mktemp -d /private/tmp/nepal-macos-release.XXXXXX)"
 trap 'rm -rf "$WORK_DIR"' EXIT
 UNIVERSAL_APP="$WORK_DIR/$APP_NAME"
 ditto "$ARM_APP" "$UNIVERSAL_APP"
 lipo -create "$X64_APP/$MAIN_REL" "$ARM_APP/$MAIN_REL" -output "$UNIVERSAL_APP/$MAIN_REL"
+# The Node sidecar must be launchable on either architecture too — each
+# per-target build produces its own single-arch runtime/node (see
+# apps/desktop/scripts/prepare-runtime.mjs), so it needs the same lipo
+# treatment as the main binary rather than being left as whichever single
+# arch happened to be ditto'd in as the base.
+NODE_REL="Contents/Resources/runtime/node"
+lipo -create "$X64_APP/$NODE_REL" "$ARM_APP/$NODE_REL" -output "$UNIVERSAL_APP/$NODE_REL"
 
 SIGNING_MANIFEST="$OUTPUT_DIR/SIGNING-MANIFEST.txt"
  : > "$SIGNING_MANIFEST"
@@ -123,7 +134,21 @@ while IFS= read -r candidate; do
 done < <(find "$UNIVERSAL_APP" -type f -print)
 sort -u "$SIGNING_MANIFEST" -o "$SIGNING_MANIFEST"
 EXPECTED_MANIFEST="$WORK_DIR/expected-signing-manifest.txt"
-printf '%s\n' "$MAIN_REL" 'Contents/Resources/runtime/node' | sort > "$EXPECTED_MANIFEST"
+# The Node sidecar (Contents/Resources/runtime/node) is dynamically linked
+# against libnode plus a dozen more Homebrew-provided dylibs (icu4c, openssl,
+# libuv, ...); prepare-runtime.mjs vendors that whole dependency graph into
+# runtime/lib so the sidecar doesn't abort at launch with "Library not
+# loaded". Anything prepare-runtime.mjs vendors there is expected by
+# definition — its exact contents legitimately vary with the Homebrew Node
+# build used at package time (see commit a98cd19). This check's real job is
+# to catch a Mach-O showing up ANYWHERE ELSE in the bundle (a stray dev
+# binary, an accidentally-included test fixture, ...), so only runtime/lib
+# is treated as an open set; the main binary and the sidecar itself stay
+# pinned to exact, single expected paths.
+{
+  printf '%s\n' "$MAIN_REL" 'Contents/Resources/runtime/node'
+  grep '^Contents/Resources/runtime/lib/' "$SIGNING_MANIFEST" || true
+} | sort > "$EXPECTED_MANIFEST"
 if ! diff -u "$EXPECTED_MANIFEST" "$SIGNING_MANIFEST"; then
   echo "PACKAGING_BLOCKED: unexpected Mach-O set; refusing to sign or package." >&2
   exit 4

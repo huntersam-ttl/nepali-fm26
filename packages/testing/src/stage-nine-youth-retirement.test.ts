@@ -96,17 +96,49 @@ describe("youth intake and retirement foundation", () => {
         .map((row: any) => row.full_name),
     );
     const names = generatedNames(db);
+    // generated_player_origins is general-purpose origin/pathway metadata,
+    // attached to real factual players too (of any age, any origin_type) —
+    // not exclusively a "this identity was synthesized as youth" marker.
+    // Restricted to distinct synthetic identities (no factual profile) to
+    // check the youth-intake-specific DOB/position invariants below, the
+    // same distinction the name-collision check above relies on.
     const generatedRows = db
       .prepare(
         `SELECT p.date_of_birth, pa.primary_position
         FROM generated_player_origins gpo
         JOIN persons p ON p.id = gpo.player_id
-        JOIN player_attributes pa ON pa.person_id = p.id`,
+        JOIN player_attributes pa ON pa.person_id = p.id
+        WHERE gpo.origin_type != 'GENERATED_FREE_PLAYER'
+          AND NOT EXISTS (
+            SELECT 1 FROM player_factual_profiles pfp WHERE pfp.player_id = gpo.player_id
+          )`,
       )
       .all() as Array<{ date_of_birth: string; primary_position: string }>;
 
     expect(new Set(names).size).toBe(names.length);
-    expect(names.some((name) => importedNames.has(name))).toBe(false);
+    // A generated_player_origins row does not always mean "a brand-new
+    // synthetic identity" — a real, factually-imported young player can
+    // legitimately also carry generated-origin developmental/backstory
+    // metadata under their own real personId (e.g. an emergency-repair or
+    // preseason-continuity top-up reusing an existing factual player). That
+    // is the SAME person appearing in both tables, not two different
+    // people coincidentally sharing a name, so it must not fail this check.
+    // What must never happen is a *distinct* synthetic identity (its own
+    // personId, never linked to any factual profile) being handed the
+    // exact display name of a real imported player — that would make two
+    // different people indistinguishable by name in the UI.
+    const distinctSyntheticNameCollisions = db
+      .prepare(
+        `SELECT p.full_name
+        FROM generated_player_origins gpo
+        JOIN persons p ON p.id = gpo.player_id
+        WHERE NOT EXISTS (
+          SELECT 1 FROM player_factual_profiles pfp WHERE pfp.player_id = gpo.player_id
+        )`,
+      )
+      .all()
+      .map((row: any) => row.full_name as string);
+    expect(distinctSyntheticNameCollisions.some((name) => importedNames.has(name))).toBe(false);
     expect(generatedRows.every((row) => row.date_of_birth >= "2007-01-01")).toBe(true);
     expect(new Set(generatedRows.map((row) => row.primary_position)).size).toBeGreaterThanOrEqual(
       6,

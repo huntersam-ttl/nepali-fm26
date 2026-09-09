@@ -531,6 +531,7 @@ const shallowestPosition = (db: GameDatabase, club: RepairClub): string | undefi
 
 const isCoreContinuityCompetition = (name: string): boolean =>
   name === "ANFA National League" ||
+  name === "Nepal Super League" ||
   name === "Martyr's Memorial A-Division League" ||
   name === "Martyr's Memorial B-Division League" ||
   name === "Nepal Women's League";

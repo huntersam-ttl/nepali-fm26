@@ -216,4 +216,115 @@ describe("a real owner career always gets a usable personal financial profile", 
     expect(activeStakes[0].percentage).toBeGreaterThan(75);
     db.close();
   });
+
+  /**
+   * Release-compatibility: a save created before
+   * ensureOwnerPersonalFinancialProfile existed (e.g. via the E2E role test
+   * fixture, or any save from before this fix landed) has a real controlling
+   * ownership stake but no personal_financial_profiles row at all. Opening
+   * the Investor meeting or Chairman dashboard must not crash, and must
+   * backfill a real usable balance rather than leaving the owner
+   * permanently stuck at an unexplained NPR 0.
+   */
+  it("backfills a usable personal balance for a legacy save that predates this fix", () => {
+    const dir = mkdtempSync(join(tmpdir(), "owner-finance-legacy-"));
+    dirs.push(dir);
+    const service = new DesktopApplicationService({
+      savesDirectory: dir,
+      worldDatasetPath: registryPath,
+    });
+    const listed = service.listStartingClubs();
+    if (!listed.ok) throw new Error(listed.error.message);
+    const club = listed.data.find((item) => item.division === "A");
+    if (!club?.teamId || !club.clubId) throw new Error("No A-Division club in the starting-club list");
+    const clubId = club.clubId;
+    const created = service.createCareer({
+      careerMode: "MANAGER",
+      saveName: "Owner Finance Legacy",
+      joinTeamId: club.teamId,
+      character,
+    });
+    if (!created.ok) throw new Error(created.error.message);
+    const filePath = created.data.catalogEntry.filePath;
+
+    // Reproduce the pre-fix state directly: a real controlling ownership
+    // stake with no personal financial profile at all — exactly what the
+    // E2E fixture (and any save from before ensureOwnerPersonalFinancialProfile
+    // existed) leaves behind.
+    const db = openGameDatabase(filePath);
+    const header = service.getCareerHeader();
+    if (!header.ok) throw new Error(header.error.message);
+    const person = db
+      .prepare(
+        `SELECT mc.person_id AS personId FROM manager_contracts mc
+         JOIN teams t ON t.id = mc.team_id WHERE t.club_id = ? AND mc.status = 'ACTIVE' LIMIT 1`,
+      )
+      .get(clubId) as { personId: EntityId };
+    db.prepare(
+      `INSERT INTO club_ownership_stakes
+       (id, club_id, holder_type, holder_id, holder_name, role, percentage, voting_percentage, start_date, status, ownership_model, provenance_status)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+    ).run(
+      `${clubId}:legacy-owner-stake`,
+      clubId,
+      "PERSON",
+      person.personId,
+      "Legacy Owner",
+      "MAJORITY_OWNER",
+      75,
+      75,
+      header.data.worldDate,
+      "ACTIVE",
+      "PARTIALLY_BUYABLE",
+      "SIMULATION_ONLY",
+    );
+    expect(new ClubEconomyRepository(db).personalFinancialProfile(person.personId)).toBeUndefined();
+    db.close();
+
+    const reopened = new DesktopApplicationService({
+      savesDirectory: dir,
+      worldDatasetPath: registryPath,
+    });
+    const loaded = reopened.listSaves();
+    if (!loaded.ok) throw new Error(loaded.error.message);
+    expect(reopened.loadCareer(loaded.data[0].saveId).ok).toBe(true);
+    expect(reopened.switchActiveCareerRole("CHAIRMAN_OWNER").ok).toBe(true);
+
+    // Opening the investor meeting must not crash, and must backfill a real
+    // usable balance rather than leaving the owner stuck at an
+    // indistinguishable-from-broken NPR 0.
+    const meeting = reopened.getInvestorMeeting();
+    expect(meeting.ok).toBe(true);
+    if (!meeting.ok) return;
+    expect(meeting.data.ownerPersonalCash).toBeGreaterThan(0);
+
+    // The backfill must be idempotent — re-opening again must not re-roll or
+    // change the balance.
+    const again = reopened.getInvestorMeeting();
+    expect(again.ok && again.data.ownerPersonalCash).toBe(meeting.data.ownerPersonalCash);
+
+    // The backfill must be a pure compatibility bridge, not a rewrite of
+    // historical save state: exactly one profile row ever created (no
+    // duplicate money-creation on repeated reads), and the pre-existing
+    // ownership stake must be untouched by it.
+    const verifyDb = openGameDatabase(filePath);
+    const profileCount = (
+      verifyDb
+        .prepare("SELECT COUNT(*) AS c FROM personal_financial_profiles WHERE person_id = ?")
+        .get(person.personId) as { c: number }
+    ).c;
+    expect(profileCount).toBe(1);
+    const stakes = verifyDb
+      .prepare(
+        `SELECT percentage, voting_percentage, status FROM club_ownership_stakes WHERE id = ?`,
+      )
+      .all(`${clubId}:legacy-owner-stake`) as Array<{
+      percentage: number;
+      voting_percentage: number;
+      status: string;
+    }>;
+    expect(stakes).toHaveLength(1);
+    expect(stakes[0]).toEqual({ percentage: 75, voting_percentage: 75, status: "ACTIVE" });
+    verifyDb.close();
+  });
 });
