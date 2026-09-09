@@ -4675,6 +4675,67 @@ export type SquadMeeting = {
   occurredOn: ISODate;
 };
 
+/**
+ * The real, derived reason a SQUAD_MEETING (team meeting) is currently
+ * warranted — never an arbitrary UI-side picker. Exactly one context is
+ * surfaced per evaluation (the single most urgent one), each backed by
+ * genuine simulation state (recent results, table position among however
+ * many teams the competition actually has, squad-dynamics cohesion/
+ * concerns/disputes, or the season calendar) — nothing here is
+ * Nepal-specific or hardcoded to a particular club's reputation.
+ */
+export type TeamMeetingContextType =
+  | "POOR_RUN"
+  | "TITLE_PUSH"
+  | "RELEGATION_PRESSURE"
+  | "BIG_MATCH"
+  | "DRESSING_ROOM_TENSION"
+  | "SEASON_OPENING"
+  | "SEASON_CLOSING";
+
+export type TeamMeetingMessageId =
+  | "CHALLENGE"
+  | "REASSURE"
+  | "DEMAND_FOCUS"
+  | "KEEP_PRESSURE_OFF"
+  | "EMBRACE_OPPORTUNITY"
+  | "DEMAND_STANDARDS"
+  | "RALLY_TOGETHER"
+  | "BE_DIRECT"
+  | "ONE_MATCH_AT_A_TIME"
+  | "INSPIRE"
+  | "CALM_NERVES"
+  | "DEMAND_DISCIPLINE"
+  | "CONFRONT_ISSUE"
+  | "BACK_LEADERSHIP"
+  | "RESET_EXPECTATIONS"
+  | "ESTABLISH_STANDARDS"
+  | "EMPHASIZE_UNITY"
+  | "SET_OBJECTIVES"
+  | "FINAL_PUSH"
+  | "PROTECT_CONFIDENCE"
+  | "DEMAND_PROFESSIONALISM";
+
+export type TeamMeetingMessage = {
+  id: TeamMeetingMessageId;
+  label: string;
+  description: string;
+  /** How well this message is understood to fit THIS context — informs the
+   * outcome roll, never guarantees it. "GOOD" is never a certain success;
+   * "POOR" is never an automatic failure — both still depend on manager
+   * reputation, relationships, and cohesion. */
+  fit: "GOOD" | "NEUTRAL" | "POOR";
+};
+
+/** One real, currently-warranted reason to hold a team meeting, with the evidence that justifies it. */
+export type TeamMeetingContext = {
+  type: TeamMeetingContextType;
+  /** 1-10: how urgently this context calls for a meeting. */
+  urgency: number;
+  evidence: string[];
+  messages: TeamMeetingMessage[];
+};
+
 // ---------------------------------------------------------------------------
 // Staff Market & Development — Phase A
 // ---------------------------------------------------------------------------

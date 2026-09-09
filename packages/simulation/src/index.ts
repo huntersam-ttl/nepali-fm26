@@ -86,6 +86,7 @@ export * from "./manager-matchday.js";
 export * from "./nepal-save.js";
 export * from "./preseason-continuity.js";
 export * from "./foreign-move-ambition.js";
+export * from "./team-meeting-context.js";
 export * from "./player-development.js";
 export * from "./dynamic-injury.js";
 export * from "./career-arcs.js";

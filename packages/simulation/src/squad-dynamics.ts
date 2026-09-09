@@ -6,6 +6,7 @@ import {
   type GameDatabase,
 } from "@nepal-football-sim/database";
 import { evaluateMoveAmbition } from "./foreign-move-ambition.js";
+import { evaluateTeamMeetingContext } from "./team-meeting-context.js";
 import { requestPlayerTransfer } from "./transfer-market.js";
 import {
   createEntityId,
@@ -40,6 +41,8 @@ import {
   type SquadMeetingType,
   type TeamCohesion,
   type TeamCohesionLevel,
+  type TeamMeetingContext,
+  type TeamMeetingMessageId,
 } from "@nepal-football-sim/shared-types";
 import { SeededRandom } from "./rng.js";
 
@@ -1314,7 +1317,15 @@ export const holdSquadMeeting = (
   save: SaveMetadata,
   managerProfileId: EntityId,
   teamId: EntityId,
-  command: { type: SquadMeetingType; personId?: EntityId; disputeId?: EntityId },
+  command: {
+    type: SquadMeetingType;
+    personId?: EntityId;
+    disputeId?: EntityId;
+    /** Only meaningful for SQUAD_MEETING — the manager's chosen message for
+     * the real, currently-warranted context (see evaluateTeamMeetingContext).
+     * Ignored for every other meeting type. */
+    messageId?: TeamMeetingMessageId;
+  },
 ): SquadMeeting => {
   const dynamics = new SquadDynamicsRepository(db);
   let personId = command.personId;
@@ -1345,15 +1356,14 @@ export const holdSquadMeeting = (
       throw new MeetingActionError("NO_CAPTAIN", "This squad has no captain to consult.");
   } else if (command.type === "ONE_TO_ONE" && !personId) {
     throw new MeetingActionError("NOTHING_TO_ADDRESS", "Select a player to meet.");
-  } else if (command.type === "SQUAD_MEETING") {
-    const cohesionRecord = dynamics.cohesion(teamId);
-    const meaningful =
-      cohesionRecord &&
-      (["SHAKY", "POOR", "CRITICAL"].includes(cohesionRecord.level) || cohesionRecord.topIssue);
-    if (!meaningful) {
+  }
+  let teamMeetingContext: TeamMeetingContext | undefined;
+  if (command.type === "SQUAD_MEETING") {
+    teamMeetingContext = evaluateTeamMeetingContext(db, save.worldDate, teamId);
+    if (!teamMeetingContext) {
       throw new MeetingActionError(
         "NOTHING_TO_ADDRESS",
-        "The dressing room is calm — there's nothing for a squad meeting to address right now.",
+        "Nothing currently calls for a team meeting — no poor run, table pressure, big match, or dressing-room tension right now.",
       );
     }
   }
@@ -1380,11 +1390,24 @@ export const holdSquadMeeting = (
     `squad-meeting:${command.type}:${personId ?? "team"}:${dispute?.id ?? "-"}:${save.worldDate}`,
   );
   const roll = (rng.next() - 0.5) * 20;
-  const score = cohesion + avgRelationship - influenceDrag + roll;
+  // Message-context fit only ever applies to a real, evaluated team-meeting
+  // context — a "GOOD" fit nudges the odds up, "POOR" nudges them down, but
+  // neither overrides the underlying relationship/cohesion/reputation state
+  // this score is already built from.
+  const chosenMessage = teamMeetingContext?.messages.find((m) => m.id === command.messageId);
+  const fitBonus = chosenMessage ? (chosenMessage.fit === "GOOD" ? 10 : chosenMessage.fit === "POOR" ? -10 : 0) : 0;
+  const score = cohesion + avgRelationship - influenceDrag + roll + fitBonus;
   const outcome: SquadMeetingOutcome =
     score >= 70 ? "POSITIVE" : score >= 40 ? "NEUTRAL" : "NEGATIVE";
-  const summary =
-    outcome === "POSITIVE"
+  const summary = teamMeetingContext
+    ? `${chosenMessage ? `"${chosenMessage.label}" — ` : ""}${
+        outcome === "POSITIVE"
+          ? "The message landed well and the squad responded."
+          : outcome === "NEUTRAL"
+            ? "The meeting was heard, but the underlying situation remains."
+            : "The message didn't land — the situation is unchanged or worse."
+      }`
+    : outcome === "POSITIVE"
       ? "The meeting brought clarity and steadied the dressing room."
       : outcome === "NEUTRAL"
         ? "The meeting was constructive, but tensions remain."
@@ -1407,6 +1430,25 @@ export const holdSquadMeeting = (
         : undefined,
     },
   );
+  if (teamMeetingContext) {
+    const club = db.prepare("SELECT club_id AS clubId FROM teams WHERE id = ?").get(teamId) as
+      { clubId?: EntityId } | undefined;
+    if (club?.clubId) {
+      const historyId = createStableEntityId("historical-event", `team-meeting:${meeting.id}`);
+      if (!db.prepare("SELECT 1 FROM historical_events WHERE id = ?").get(historyId)) {
+        new EventRepository(db).insertHistoricalEvent({
+          id: historyId,
+          occurredOn: save.worldDate,
+          eventType: "TEAM_MEETING_RESULT",
+          involvedEntities: [{ id: club.clubId, type: "club" }],
+          title: "Team meeting held",
+          data: { context: teamMeetingContext.type, messageId: command.messageId, outcome, teamId, managerProfileId },
+          importance: outcome === "NEGATIVE" ? "medium" : "low",
+          scope: "club",
+        });
+      }
+    }
+  }
   if (dispute) {
     const disputeStatus = outcome === "POSITIVE" ? "MEDIATED" : "UNRESOLVED";
     dynamics.updateDisputeStatus(dispute.id, disputeStatus, save.worldDate);
