@@ -5,6 +5,7 @@ import { managerBridge } from "./managerBridge.js";
 import { ErrorBanner } from "./ui.js";
 import { HomeScreen } from "./screens/HomeScreen.js";
 import { SquadScreen } from "./screens/SquadScreen.js";
+import { DressingRoomScreen } from "./screens/DressingRoomScreen.js";
 import { PlayerProfileScreen } from "./screens/PlayerProfileScreen.js";
 import { TacticsScreen } from "./screens/TacticsScreen.js";
 import { TrainingScreen } from "./screens/TrainingScreen.js";
@@ -39,6 +40,7 @@ const careerRoleLabel = (role: CareerRole): string =>
 const SCREENS = [
   "home",
   "squad",
+  "dressing-room",
   "tactics",
   "training",
   "fixtures",
@@ -52,7 +54,7 @@ const SCREENS = [
 ] as const;
 
 const NAV_GROUPS: Array<{ label: string; items: Screen[] }> = [
-  { label: "Team", items: ["home", "squad", "tactics", "training", "medical"] },
+  { label: "Team", items: ["home", "squad", "dressing-room", "tactics", "training", "medical"] },
   { label: "Competition", items: ["fixtures", "competition"] },
   { label: "Recruitment", items: ["scouting", "transfers", "contracts"] },
   { label: "Club", items: ["staff", "media"] },
@@ -85,6 +87,7 @@ const EXECUTIVE_NAV: Array<{ group: string; items: Array<{ id: PresidentScreen; 
 const LABELS: Record<Screen, string> = {
   home: "Home / Inbox",
   squad: "Squad",
+  "dressing-room": "Dressing Room",
   tactics: "Tactics",
   training: "Training",
   fixtures: "Fixtures",
@@ -100,6 +103,7 @@ const LABELS: Record<Screen, string> = {
 const SUBTITLES: Record<Screen, string> = {
   home: "Decisions, inbox updates, and the next match.",
   squad: "Review player availability, form, and contracts.",
+  "dressing-room": "Hierarchy, concerns, demands, promises, and squad mood.",
   tactics: "Set the shape and instructions for your team.",
   training: "Plan the week and monitor squad development.",
   fixtures: "Prepare for upcoming matches and review results.",
@@ -432,10 +436,15 @@ export const ManagerCareer = ({
               playerId={playerId}
               onClose={() => setPlayerId(null)}
               onOpenClub={setOpenClubId}
+              onOpenPlayer={setPlayerId}
+              bridge={bridge}
             />
           ) : (
             <SquadScreen onSelectPlayer={setPlayerId} />
           ))}
+        {header.activeRole === "MANAGER" && screen === "dressing-room" && (
+          <DressingRoomScreen onSelectPlayer={openPlayer} />
+        )}
         {header.activeRole === "MANAGER" && screen === "tactics" && <TacticsScreen />}
         {header.activeRole === "MANAGER" && screen === "training" && <TrainingScreen onSelectPlayer={openPlayer} />}
         {header.activeRole === "MANAGER" && screen === "fixtures" &&

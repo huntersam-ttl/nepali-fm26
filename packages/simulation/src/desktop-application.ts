@@ -4725,8 +4725,10 @@ const buildJobCentreView = (db: GameDatabase, managerProfile: ManagerProfile): J
   return { reputationProfile: managerProfile.reputationProfile, vacancies, applications };
 };
 
-const toPromiseView = (promise: ManagerPromise): SquadPromiseView => ({
+const toPromiseView = (db: GameDatabase, promise: ManagerPromise): SquadPromiseView => ({
   id: promise.id,
+  personId: promise.personId,
+  playerName: displayName(getPerson(db, promise.personId)),
   type: promise.type,
   description: promise.description,
   madeOn: promise.madeOn,
@@ -4959,7 +4961,7 @@ const buildSquadDynamicsView = (db: GameDatabase, teamId: EntityId): SquadDynami
       .filter((promise): promise is ManagerPromise & { concernId: EntityId } =>
         Boolean(promise.concernId),
       )
-      .map((promise) => [promise.concernId, toPromiseView(promise)]),
+      .map((promise) => [promise.concernId, toPromiseView(db, promise)]),
   );
 
   const concerns: SquadConcernView[] = dynamics
@@ -5034,7 +5036,7 @@ const buildSquadDynamicsView = (db: GameDatabase, teamId: EntityId): SquadDynami
   return {
     concerns,
     demands,
-    promises: activePromises.map(toPromiseView),
+    promises: activePromises.map((promise) => toPromiseView(db, promise)),
     cohesion,
     groups,
     disputes,

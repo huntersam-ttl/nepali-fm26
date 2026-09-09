@@ -11,7 +11,8 @@ import type {
   PlayerValuationSnapshot,
 } from "@nepal-football-sim/shared-types";
 import { managerBridge } from "../managerBridge.js";
-import { EntityRefLink, EntityStorylinePanel } from "../RoleDetailScreen.js";
+import { EntityRefLink, EntityStorylinePanel, OrganizationProfilePanel, type ProfileEntityType } from "../RoleDetailScreen.js";
+import type { DesktopRuntimeApi } from "../../appBridge.js";
 import { TransferNegotiationLauncher } from "./TransferNegotiationMeeting.js";
 import { humanizeEnum } from "../storyHumanizer.js";
 import {
@@ -481,10 +482,25 @@ export const PlayerProfileScreen = ({
   playerId,
   onClose,
   onOpenClub,
+  onOpenPlayer,
+  bridge,
 }: {
   playerId: EntityId;
   onClose: () => void;
   onOpenClub: (clubId: EntityId) => void;
+  /** Navigates this same screen to a different player — e.g. a teammate
+   * referenced from a storyline entry. Optional so existing callers that
+   * haven't wired player-to-player navigation yet keep compiling; without
+   * it, a PLAYER reference simply has no click handler (falls through to
+   * OrganizationProfilePanel's own PlayerContextPanel instead, which is a
+   * self-contained overlay rather than a navigation). */
+  onOpenPlayer?: (playerId: EntityId) => void;
+  /** The full DesktopRuntimeApi, passed down from the app root — used only
+   * for the generic OrganizationProfilePanel fallback below (COMPETITION,
+   * STAFF, INFRASTRUCTURE_PROJECT, a different PLAYER); every other command
+   * on this screen still goes through the narrower managerBridge. CLUB
+   * keeps its existing dedicated onOpenClub path unchanged. */
+  bridge: DesktopRuntimeApi;
 }): React.ReactElement => {
   const [state, refresh] = useRuntimeData(() => managerBridge.getPlayerProfile(playerId), [playerId]);
   const [salary, setSalary] = useState("");
@@ -493,17 +509,22 @@ export const PlayerProfileScreen = ({
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
   const [openTransferOfferId, setOpenTransferOfferId] = useState<EntityId | null>(null);
-  /** This screen only has a manager-scoped bridge, which doesn't
-   * structurally satisfy the full DesktopRuntimeApi OrganizationProfilePanel
-   * requires (confirmed by attempting it — TS rejects it as missing ~75
-   * unrelated methods) — so only CLUB references (routed through the
-   * club-profile callback this screen already receives) are openable here;
-   * anything else in a storyline stays a plain, honest label rather than a
-   * cast that could break at runtime. Widening managerBridge's own type (or
-   * OrganizationProfilePanel's prop type) to close this gap is real,
-   * scoped follow-up work, not something to force here. */
+  const [openProfileRef, setOpenProfileRef] = useState<{ entityType: ProfileEntityType; entityId: EntityId } | null>(null);
+  /** CLUB keeps its existing dedicated overlay (onOpenClub, from the
+   * caller); every other resolvable reference type (COMPETITION, STAFF,
+   * INFRASTRUCTURE_PROJECT, a different PLAYER, ...) opens through the
+   * same generic OrganizationProfilePanel every other screen already
+   * uses — using the full `bridge` prop passed down from the app root
+   * (not the narrower managerBridge, which doesn't structurally satisfy
+   * what that panel needs) — so a storyline entry never falls back to a
+   * plain, unclickable label just because it references something other
+   * than a club. */
   const openReference = (reference: EntityReference): void => {
-    if (reference.entityType === "CLUB") onOpenClub(reference.id);
+    if (reference.entityType === "CLUB") {
+      onOpenClub(reference.id);
+      return;
+    }
+    setOpenProfileRef({ entityType: reference.entityType as ProfileEntityType, entityId: reference.id });
   };
 
   return (
@@ -689,6 +710,22 @@ export const PlayerProfileScreen = ({
             />
             {openTransferOfferId && (
               <TransferNegotiationLauncher offerId={openTransferOfferId} onClose={() => setOpenTransferOfferId(null)} />
+            )}
+            {openProfileRef && (
+              <OrganizationProfilePanel
+                bridge={bridge}
+                entityType={openProfileRef.entityType}
+                entityId={openProfileRef.entityId}
+                onClose={() => setOpenProfileRef(null)}
+                onOpenPlayer={
+                  onOpenPlayer
+                    ? (nextPlayerId) => {
+                        setOpenProfileRef(null);
+                        onOpenPlayer(nextPlayerId);
+                      }
+                    : undefined
+                }
+              />
             )}
 
             <Panel title="Attributes">

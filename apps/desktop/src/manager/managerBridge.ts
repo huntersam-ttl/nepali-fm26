@@ -2,7 +2,15 @@ import type {
   AdvanceMatchCommand,
   AppResult,
   CalendarEntry,
+  ClubProfile,
+  CompetitionProfile,
   ConcernResponseAction,
+  EntityReference,
+  EntityReferenceType,
+  InfrastructureProjectProfile,
+  OrganizationProfile,
+  OrganizationProfileEntityType,
+  StaffProfileReadModel,
   ConcernResponseResult,
   ContractList,
   ContractRenewalCommand,
@@ -96,6 +104,25 @@ export const managerBridge = {
     runtimeCall<PlayerProfile>("getPlayerProfile", { playerId }),
   getPlayerPathway: (playerId: EntityId) =>
     runtimeCall<PlayerPathway>("getPlayerPathway", { playerId }),
+  // These backend commands were always role-agnostic reads (this.withSession,
+  // never this.managerCommand) — buildClubProfile/buildCompetitionProfile/
+  // etc. already scope their OWN returned data by activeCareerRole
+  // internally, so exposing them here is just closing an oversight, not
+  // opening a new authority surface. This is what lets a Manager-side
+  // storyline/inbox reference to a club, competition, staff member, or
+  // infrastructure project open the same generic OrganizationProfilePanel
+  // Owner/President already use, instead of silently staying plain text.
+  getEntityReference: (entityType: EntityReferenceType, entityId: EntityId) =>
+    runtimeCall<EntityReference>("getEntityReference", { entityType, entityId }),
+  getOrganizationProfile: (entityType: OrganizationProfileEntityType, entityId: EntityId) =>
+    runtimeCall<OrganizationProfile>("getOrganizationProfile", { entityType, entityId }),
+  getClubProfile: (clubId: EntityId) => runtimeCall<ClubProfile>("getClubProfile", { clubId }),
+  getStaffProfile: (personId: EntityId) =>
+    runtimeCall<StaffProfileReadModel>("getStaffProfile", { personId }),
+  getCompetitionProfile: (competitionId: EntityId) =>
+    runtimeCall<CompetitionProfile>("getCompetitionProfile", { competitionId }),
+  getInfrastructureProjectProfile: (projectId: EntityId) =>
+    runtimeCall<InfrastructureProjectProfile>("getInfrastructureProjectProfile", { projectId }),
   getStoryThreads: () => runtimeCall<StoryThread[]>("getStoryThreads"),
   getStoryDetail: (eventId: EntityId) => runtimeCall<StoryDetail>("getStoryDetail", { eventId }),
   getEntityStoryline: (entityId: EntityId) => runtimeCall<EntityStoryline>("getEntityStoryline", { entityId }),

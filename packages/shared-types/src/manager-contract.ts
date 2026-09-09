@@ -974,6 +974,8 @@ export type JobCentreView = {
 
 export type SquadPromiseView = {
   id: EntityId;
+  personId: EntityId;
+  playerName: string;
   type: ManagerPromiseType;
   description: string;
   madeOn: ISODate;
