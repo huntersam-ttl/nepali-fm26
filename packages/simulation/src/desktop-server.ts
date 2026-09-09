@@ -453,6 +453,8 @@ const dispatch = (
       return service.respondToConcern(
         body as { concernId: EntityId; action: ConcernResponseAction },
       );
+    case "getTeamMeetingContext":
+      return service.getTeamMeetingContext();
     case "holdSquadMeeting":
       return service.holdSquadMeeting(body.command as SquadMeetingCommand);
     case "respondToDemand":

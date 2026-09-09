@@ -38,6 +38,8 @@ import type {
   TacticalSetup,
   TeamCohesionLevel,
   TeamInstructions,
+  TeamMeetingContext,
+  TeamMeetingMessageId,
   GoalkeeperDistributionStyle,
   TrainingIntensity,
   TrainingPlan,
@@ -1056,6 +1058,10 @@ export type SquadMeetingCommand = {
   type: SquadMeetingType;
   personId?: EntityId;
   disputeId?: EntityId;
+  /** Only meaningful for SQUAD_MEETING — the manager's chosen message for the
+   * real, currently-warranted context (see getTeamMeetingContext). Ignored
+   * for every other meeting type. */
+  messageId?: TeamMeetingMessageId;
 };
 
 export type SquadMeetingResult = {
@@ -1374,6 +1380,7 @@ export type ManagerRuntimeApi = {
   // Squad Dynamics Phase B.
   getSquadConcerns(): Promise<unknown>;
   respondToConcern(concernId: EntityId, action: ConcernResponseAction): Promise<unknown>;
+  getTeamMeetingContext(): Promise<TeamMeetingContext | undefined>;
   holdSquadMeeting(command: SquadMeetingCommand): Promise<unknown>;
 };
 

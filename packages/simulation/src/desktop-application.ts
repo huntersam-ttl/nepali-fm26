@@ -182,6 +182,7 @@ import {
   type SquadMeetingResult,
   type SquadGroupMemberView,
   type SquadList,
+  type TeamMeetingContext,
   type MedicalCentreEntryView,
   type MedicalCentreView,
   type ReturnToPlayDecisionCommand,
@@ -275,6 +276,7 @@ import {
   respondToDemand as respondToDemandCommand,
   validActionsForConcern,
 } from "./squad-dynamics.js";
+import { evaluateTeamMeetingContext } from "./team-meeting-context.js";
 import {
   acceptStaffApplication,
   acceptStaffRenewalCounter,
@@ -3428,6 +3430,18 @@ export class DesktopApplicationService {
 
   getSquadConcerns(): AppResult<SquadDynamicsView> {
     return this.managerCommand((db, save, context) => buildSquadDynamicsView(db, context.team.id));
+  }
+
+  /**
+   * The real, currently-warranted reason (if any) a team meeting is called
+   * for — fetched by the UI before opening the Team Meeting panel so it can
+   * show genuine evidence and contextual message choices rather than an
+   * arbitrary picker. Returns undefined when nothing calls for one.
+   */
+  getTeamMeetingContext(): AppResult<TeamMeetingContext | undefined> {
+    return this.managerCommand((db, save, context) =>
+      evaluateTeamMeetingContext(db, save.worldDate, context.team.id),
+    );
   }
 
   respondToConcern(command: {

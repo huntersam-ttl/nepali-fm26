@@ -50,6 +50,7 @@ import type {
   SquadMeetingCommand,
   SquadMeetingResult,
   SquadList,
+  TeamMeetingContext,
   CreateDevelopmentPlanCommand,
   MedicalCentreView,
   PlayerDevelopmentView,
@@ -94,6 +95,7 @@ export const managerBridge = {
   getSquadConcerns: () => runtimeCall<SquadDynamicsView>("getSquadConcerns"),
   respondToConcern: (concernId: EntityId, action: ConcernResponseAction) =>
     runtimeCall<ConcernResponseResult>("respondToConcern", { concernId, action }),
+  getTeamMeetingContext: () => runtimeCall<TeamMeetingContext | undefined>("getTeamMeetingContext"),
   holdSquadMeeting: (command: SquadMeetingCommand) =>
     runtimeCall<SquadMeetingResult>("holdSquadMeeting", { command }),
   appointCaptaincy: (command: { captainPersonId?: EntityId | null; viceCaptainPersonId?: EntityId | null }) =>

@@ -4,11 +4,13 @@ import type {
   EntityId,
   SquadConcernView,
   SquadDemandView,
+  TeamMeetingContext,
 } from "@nepal-football-sim/shared-types";
 import { managerBridge } from "../managerBridge.js";
 import { AsyncPanel, Badge, EmptyState, Metrics, Panel, useRuntimeData } from "../ui.js";
 import { humanizeEnum } from "../storyHumanizer.js";
 import { PlayerMeetingPanel } from "./PlayerMeetingPanel.js";
+import { TeamMeetingPanel } from "./TeamMeetingPanel.js";
 
 const hierarchyLabelText = (label: DressingRoomHierarchyLabel): string => {
   switch (label) {
@@ -56,6 +58,8 @@ export const DressingRoomScreen = ({
   const [openMeeting, setOpenMeeting] = useState<
     { playerName: string; concern?: SquadConcernView; demand?: SquadDemandView } | null
   >(null);
+  const [teamMeetingContext, setTeamMeetingContext] = useState<TeamMeetingContext | null>(null);
+  const [checkingTeamMeeting, setCheckingTeamMeeting] = useState(false);
 
   const runAction = async (
     key: string,
@@ -70,6 +74,24 @@ export const DressingRoomScreen = ({
       return;
     }
     setRefreshKey((value) => value + 1);
+  };
+
+  const onHoldTeamMeeting = async (): Promise<void> => {
+    setActionError(null);
+    setCheckingTeamMeeting(true);
+    const result = await managerBridge.getTeamMeetingContext();
+    setCheckingTeamMeeting(false);
+    if (!result.ok) {
+      setActionError(result.error.message);
+      return;
+    }
+    if (!result.data) {
+      setActionError(
+        "Nothing currently calls for a team meeting — no poor run, table pressure, big match, or dressing-room tension right now.",
+      );
+      return;
+    }
+    setTeamMeetingContext(result.data);
   };
 
   const Link = ({ id, name }: { id: EntityId; name: string }): React.ReactElement => (
@@ -123,12 +145,10 @@ export const DressingRoomScreen = ({
               <div className="button-row">
                 <button
                   className="ghost"
-                  disabled={actionBusy !== null}
-                  onClick={() =>
-                    void runAction("team-meeting", () => managerBridge.holdSquadMeeting({ type: "SQUAD_MEETING" }))
-                  }
+                  disabled={actionBusy !== null || checkingTeamMeeting}
+                  onClick={() => void onHoldTeamMeeting()}
                 >
-                  {actionBusy === "team-meeting" ? "…" : "Hold team meeting"}
+                  {checkingTeamMeeting ? "…" : "Hold team meeting"}
                 </button>
                 <button
                   className="ghost"
@@ -369,6 +389,15 @@ export const DressingRoomScreen = ({
           concern={openMeeting.concern}
           demand={openMeeting.demand}
           onClose={() => setOpenMeeting(null)}
+          onUpdate={() => setRefreshKey((value) => value + 1)}
+        />
+      )}
+      {teamMeetingContext && (
+        <TeamMeetingPanel
+          managerName="You"
+          teamName="Your squad"
+          context={teamMeetingContext}
+          onClose={() => setTeamMeetingContext(null)}
           onUpdate={() => setRefreshKey((value) => value + 1)}
         />
       )}
