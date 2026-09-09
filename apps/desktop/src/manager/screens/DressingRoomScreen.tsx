@@ -1,13 +1,14 @@
 import React, { useState } from "react";
 import type {
-  DemandResponseCommand,
   DressingRoomHierarchyLabel,
   EntityId,
-  PlayerDemandManagerResponse,
+  SquadConcernView,
+  SquadDemandView,
 } from "@nepal-football-sim/shared-types";
 import { managerBridge } from "../managerBridge.js";
 import { AsyncPanel, Badge, EmptyState, Metrics, Panel, useRuntimeData } from "../ui.js";
 import { humanizeEnum } from "../storyHumanizer.js";
+import { PlayerMeetingPanel } from "./PlayerMeetingPanel.js";
 
 const hierarchyLabelText = (label: DressingRoomHierarchyLabel): string => {
   switch (label) {
@@ -52,6 +53,9 @@ export const DressingRoomScreen = ({
   const [roomState] = useRuntimeData(() => managerBridge.getDressingRoom(), [refreshKey]);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [openMeeting, setOpenMeeting] = useState<
+    { playerName: string; concern?: SquadConcernView; demand?: SquadDemandView } | null
+  >(null);
 
   const runAction = async (
     key: string,
@@ -149,18 +153,46 @@ export const DressingRoomScreen = ({
                     return (
                       <div key={label} className="dressing-room-tier">
                         <strong>{hierarchyLabelText(label)}</strong> ({members.length}):{" "}
-                        {members.map((member, index) => (
-                          <React.Fragment key={member.personId}>
-                            {index > 0 && ", "}
-                            <Link id={member.personId} name={member.playerName} />
-                            {view.cohesion.captainPersonId === member.personId && (
-                              <Badge tone="info"> C</Badge>
-                            )}
-                            {view.cohesion.viceCaptainPersonId === member.personId && (
-                              <Badge tone="info"> VC</Badge>
-                            )}
-                          </React.Fragment>
-                        ))}
+                        {members.map((member, index) => {
+                          const isCaptain = view.cohesion.captainPersonId === member.personId;
+                          const isVice = view.cohesion.viceCaptainPersonId === member.personId;
+                          return (
+                            <React.Fragment key={member.personId}>
+                              {index > 0 && ", "}
+                              <Link id={member.personId} name={member.playerName} />
+                              {isCaptain && <Badge tone="info"> C</Badge>}
+                              {isVice && <Badge tone="info"> VC</Badge>}
+                              {member.groupType === "CORE_LEADERS" && !isCaptain && (
+                                <button
+                                  className="ghost tiny"
+                                  disabled={actionBusy !== null}
+                                  title="Appoint as captain"
+                                  onClick={() =>
+                                    void runAction(`captain-${member.personId}`, () =>
+                                      managerBridge.appointCaptaincy({ captainPersonId: member.personId }),
+                                    )
+                                  }
+                                >
+                                  {actionBusy === `captain-${member.personId}` ? "…" : "Make captain"}
+                                </button>
+                              )}
+                              {member.groupType === "CORE_LEADERS" && !isCaptain && !isVice && (
+                                <button
+                                  className="ghost tiny"
+                                  disabled={actionBusy !== null}
+                                  title="Appoint as vice-captain"
+                                  onClick={() =>
+                                    void runAction(`vice-captain-${member.personId}`, () =>
+                                      managerBridge.appointCaptaincy({ viceCaptainPersonId: member.personId }),
+                                    )
+                                  }
+                                >
+                                  {actionBusy === `vice-captain-${member.personId}` ? "…" : "Make vice-captain"}
+                                </button>
+                              )}
+                            </React.Fragment>
+                          );
+                        })}
                       </div>
                     );
                   })}
@@ -222,9 +254,18 @@ export const DressingRoomScreen = ({
                         {humanizeEnum(concern.status)} · severity {concern.severity}
                       </span>
                       {concern.note && <div className="subtle">{concern.note}</div>}
-                      {concern.activePromise && (
+                      {concern.activePromise ? (
                         <div className="subtle">
                           Promise pending: {concern.activePromise.description} (due {concern.activePromise.dueOn})
+                        </div>
+                      ) : (
+                        <div className="button-row">
+                          <button
+                            className="ghost small"
+                            onClick={() => setOpenMeeting({ playerName: concern.playerName, concern })}
+                          >
+                            Open meeting
+                          </button>
                         </div>
                       )}
                     </li>
@@ -248,27 +289,12 @@ export const DressingRoomScreen = ({
                         {demand.reviewOn && ` · review by ${demand.reviewOn}`}
                       </div>
                       <div className="button-row">
-                        {(["ACCEPT", "DEFER", "REJECT"] as PlayerDemandManagerResponse[]).map((response) => (
-                          <button
-                            key={response}
-                            className="ghost small"
-                            disabled={actionBusy !== null}
-                            onClick={() =>
-                              void runAction(`demand-${demand.id}-${response}`, async () => {
-                                const command: DemandResponseCommand = { demandId: demand.id, response };
-                                return managerBridge.respondToDemand(command);
-                              })
-                            }
-                          >
-                            {actionBusy === `demand-${demand.id}-${response}`
-                              ? "…"
-                              : response === "ACCEPT"
-                                ? "Accept"
-                                : response === "DEFER"
-                                  ? "Defer"
-                                  : "Reject"}
-                          </button>
-                        ))}
+                        <button
+                          className="ghost small"
+                          onClick={() => setOpenMeeting({ playerName: demand.playerName, demand })}
+                        >
+                          Open meeting
+                        </button>
                       </div>
                     </li>
                   ))}
@@ -336,6 +362,16 @@ export const DressingRoomScreen = ({
           </>
         )}
       </AsyncPanel>
+      {openMeeting && (
+        <PlayerMeetingPanel
+          playerName={openMeeting.playerName}
+          managerName="You"
+          concern={openMeeting.concern}
+          demand={openMeeting.demand}
+          onClose={() => setOpenMeeting(null)}
+          onUpdate={() => setRefreshKey((value) => value + 1)}
+        />
+      )}
     </section>
   );
 };

@@ -1,11 +1,12 @@
 import React, { useState } from "react";
-import type { ConcernResponseAction, EntityId, FederationCandidacyAssessment } from "@nepal-football-sim/shared-types";
+import type { EntityId, FederationCandidacyAssessment, SquadConcernView } from "@nepal-football-sim/shared-types";
 import type { DesktopRuntimeApi } from "../../appBridge.js";
 import { managerBridge } from "../managerBridge.js";
 import { AsyncPanel, Badge, FormRun, Metrics, Panel, useRuntimeData } from "../ui.js";
 import { OwnerPlayerRequestInbox } from "./OwnerPlayerRequestInbox.js";
 import { InboxPanel } from "../RoleDetailScreen.js";
 import { TransferNegotiationLauncher } from "./TransferNegotiationMeeting.js";
+import { PlayerMeetingPanel } from "./PlayerMeetingPanel.js";
 import { humanizeEnum, humanizeToken } from "../storyHumanizer.js";
 
 const concernLabel = (type: string): string => {
@@ -20,29 +21,6 @@ const concernLabel = (type: string): string => {
       return "Transfer interest";
     default:
       return type;
-  }
-};
-
-const actionLabel = (action: ConcernResponseAction): string => {
-  switch (action) {
-    case "REASSURE":
-      return "Reassure";
-    case "PROMISE_PLAYING_TIME":
-      return "Promise more minutes";
-    case "PROMISE_CONTRACT_REVIEW":
-      return "Promise contract review";
-    case "PROMISE_SQUAD_ROLE":
-      return "Promise squad status review";
-    case "PROMISE_TRANSFER_STANCE":
-      return "Promise to keep them";
-    case "PROMISE_LOAN_CONSIDERATION":
-      return "Promise to consider a loan";
-    case "PROMISE_SQUAD_STRENGTHENING":
-      return "Promise to strengthen the squad";
-    case "DISMISS":
-      return "Dismiss";
-    default:
-      return action;
   }
 };
 
@@ -114,6 +92,7 @@ export const HomeScreen = ({
   const [actionBusy, setActionBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [openTransferOfferId, setOpenTransferOfferId] = useState<EntityId | null>(null);
+  const [openMeeting, setOpenMeeting] = useState<{ playerName: string; concern: SquadConcernView } | null>(null);
 
   const runAction = async (key: string, run: () => Promise<{ ok: boolean; error?: { message: string } }>) => {
     setActionBusy(key);
@@ -396,46 +375,11 @@ export const HomeScreen = ({
                                   <button className="link" onClick={() => onSelectPlayer(member.personId)}>
                                     {member.playerName}
                                   </button>
-                                  {groupType === "CORE_LEADERS" && member.hierarchyRole !== "CAPTAIN" && (
-                                    <button
-                                      className="ghost tiny"
-                                      disabled={actionBusy !== null}
-                                      title="Appoint as captain"
-                                      onClick={() =>
-                                        void runAction(`captain-${member.personId}`, async () => {
-                                          const result = await managerBridge.appointCaptaincy({
-                                            captainPersonId: member.personId,
-                                          });
-                                          if (result.ok) refreshConcerns();
-                                          return result;
-                                        })
-                                      }
-                                    >
-                                      {actionBusy === `captain-${member.personId}` ? "…" : "Make captain"}
-                                    </button>
-                                  )}
-                                  {groupType === "CORE_LEADERS" &&
-                                    member.hierarchyRole !== "VICE_CAPTAIN" &&
-                                    member.hierarchyRole !== "CAPTAIN" && (
-                                      <button
-                                        className="ghost tiny"
-                                        disabled={actionBusy !== null}
-                                        title="Appoint as vice-captain"
-                                        onClick={() =>
-                                          void runAction(`vice-captain-${member.personId}`, async () => {
-                                            const result = await managerBridge.appointCaptaincy({
-                                              viceCaptainPersonId: member.personId,
-                                            });
-                                            if (result.ok) refreshConcerns();
-                                            return result;
-                                          })
-                                        }
-                                      >
-                                        {actionBusy === `vice-captain-${member.personId}` ? "…" : "Make vice-captain"}
-                                      </button>
-                                    )}
                                 </React.Fragment>
                               ))}
+                              {/* Captaincy appointment now lives solely on the
+                                  dedicated Dressing Room screen — one control,
+                                  not two inconsistent copies. */}
                             </li>
                           );
                         })}
@@ -583,28 +527,13 @@ export const HomeScreen = ({
                               {concern.activePromise.dueOn})
                             </div>
                           ) : (
+                            // The actual response (accept/reassure/dismiss/etc.)
+                            // happens through the one shared Player Meeting —
+                            // not a second, inconsistent set of inline buttons.
                             <div className="button-row">
-                              {concern.validActions.map((action) => (
-                                <button
-                                  key={action}
-                                  className="ghost small"
-                                  disabled={actionBusy !== null}
-                                  onClick={() =>
-                                    void runAction(`concern-${concern.id}-${action}`, async () => {
-                                      const result = await managerBridge.respondToConcern(
-                                        concern.id,
-                                        action,
-                                      );
-                                      if (result.ok) refreshConcerns();
-                                      return result;
-                                    })
-                                  }
-                                >
-                                  {actionBusy === `concern-${concern.id}-${action}`
-                                    ? "…"
-                                    : actionLabel(action)}
-                                </button>
-                              ))}
+                              <button className="ghost small" onClick={() => setOpenMeeting({ playerName: concern.playerName, concern })}>
+                                Open meeting
+                              </button>
                             </div>
                           )}
                         </li>
@@ -643,6 +572,15 @@ export const HomeScreen = ({
           <InboxPanel inbox={dashboard.inbox} bridge={bridge} onOpenTransferNegotiation={setOpenTransferOfferId} />
           {openTransferOfferId && (
             <TransferNegotiationLauncher offerId={openTransferOfferId} onClose={() => setOpenTransferOfferId(null)} />
+          )}
+          {openMeeting && (
+            <PlayerMeetingPanel
+              playerName={openMeeting.playerName}
+              managerName="You"
+              concern={openMeeting.concern}
+              onClose={() => setOpenMeeting(null)}
+              onUpdate={refreshConcerns}
+            />
           )}
 
           {dashboard.employmentStatus === "EMPLOYED" && (
