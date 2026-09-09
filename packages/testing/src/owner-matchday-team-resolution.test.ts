@@ -178,14 +178,6 @@ describe("owner matchday fixture rows report the correct opponent and home/away 
            AND NOT EXISTS (
              SELECT 1 FROM teams w WHERE w.club_id = t.club_id AND w.level = 'senior' AND w.gender = 'women'
            )
-           -- A small number of clubs pick up a second senior-men team row from
-           -- the global dataset reconciliation (a real, separate data-integrity
-           -- issue, not something this test exists to cover) — excluded here so
-           -- the fixture stays genuinely unambiguous.
-           AND (
-             SELECT COUNT(*) FROM teams t2
-             WHERE t2.club_id = t.club_id AND t2.level = 'senior' AND t2.gender = 'men'
-           ) = 1
          ORDER BY f.id
          LIMIT 1`,
       )

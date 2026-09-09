@@ -65,11 +65,20 @@ const ownClubIdFor = (db: ReturnType<typeof openGameDatabase>, playerId: EntityI
   return row.clubId;
 };
 
-/** Any club other than the two given — used to stand in for a competing bidder. */
+/** A real Nepal club other than the two given — used to stand in for a
+ * competing bidder. Scoped away from CONTEXT_ONLY foreign clubs (the global
+ * dataset seed also populates `clubs` with those) — a foreign club has no
+ * manager/budget/contract state and was never meant to be usable as a
+ * domestic rival bidder. */
 const rivalClubIdExcluding = (db: ReturnType<typeof openGameDatabase>, ...excluded: EntityId[]): EntityId => {
   const placeholders = excluded.map(() => "?").join(",");
   const row = db
-    .prepare(`SELECT id FROM clubs WHERE id NOT IN (${placeholders}) ORDER BY id LIMIT 1`)
+    .prepare(
+      `SELECT c.id FROM clubs c
+       WHERE c.id NOT IN (${placeholders})
+         AND NOT EXISTS (SELECT 1 FROM external_club_context ecc WHERE ecc.club_id = c.id)
+       ORDER BY c.id LIMIT 1`,
+    )
     .get(...excluded) as { id: EntityId };
   return row.id;
 };

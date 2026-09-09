@@ -83,6 +83,50 @@ describe("createCareer applies the global (foreign-world) dataset seed", () => {
   });
 });
 
+describe("global import team reconciliation", () => {
+  it("never gives a Nepal club a second senior-men team when it also appears in the global dataset's own club list", () => {
+    const db = createRealCareer();
+    const duplicates = db
+      .prepare(
+        `SELECT club_id, COUNT(*) AS n FROM teams
+         WHERE level = 'senior' AND gender = 'men' AND club_id IS NOT NULL
+         GROUP BY club_id HAVING COUNT(*) > 1`,
+      )
+      .all() as Array<{ club_id: EntityId; n: number }>;
+    expect(duplicates).toEqual([]);
+    db.close();
+  });
+
+  it("still creates a real senior-men team for a genuine foreign club with no prior Nepal team", () => {
+    const db = createRealCareer();
+    const foreignClub = db
+      .prepare(`SELECT ecc.club_id AS id FROM external_club_context ecc LIMIT 1`)
+      .get() as { id: EntityId };
+    const teams = db
+      .prepare("SELECT id FROM teams WHERE club_id = ? AND level = 'senior' AND gender = 'men'")
+      .all(foreignClub.id) as Array<{ id: EntityId }>;
+    expect(teams).toHaveLength(1);
+    db.close();
+  });
+
+  it("a Nepal club with active club memberships (definitely domestic, playable) has exactly one senior-men team", () => {
+    const db = createRealCareer();
+    const club = db
+      .prepare(
+        `SELECT c.id FROM clubs c
+         JOIN club_memberships cm ON cm.club_id = c.id
+         WHERE NOT EXISTS (SELECT 1 FROM external_club_context ecc WHERE ecc.club_id = c.id)
+         LIMIT 1`,
+      )
+      .get() as { id: EntityId };
+    const teams = db
+      .prepare("SELECT id FROM teams WHERE club_id = ? AND level = 'senior' AND gender = 'men'")
+      .all(club.id) as Array<{ id: EntityId }>;
+    expect(teams).toHaveLength(1);
+    db.close();
+  });
+});
+
 describe("buildClubProfile never fabricates Nepal-club data for a CONTEXT_ONLY foreign club", () => {
   it("returns real foreign context (country/competition/reputation/financial band) and no Nepal-club-economy fields", () => {
     const db = createRealCareer();
