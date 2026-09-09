@@ -16,6 +16,7 @@ import {
   type ConcernResponseAction,
   type ConcernResponseOutcome,
   type EntityId,
+  type EntityRef,
   type ManagerConcernResponse,
   type ManagerPlayerRelationship,
   type ManagerPlayerRelationshipLevel,
@@ -653,10 +654,33 @@ export const evaluateSquadDynamics = (
       };
       dynamics.upsertConcern(updated);
       if (shouldEscalate) {
-        logEvent(db, personId, teamId, managerProfileId, "CONCERN_ESCALATED", worldDate, {
-          type: signal.type,
-          concernId: updated.id,
-        });
+        // A TRANSFER_INTEREST escalation is meaningfully about a specific
+        // real buying club (and its competition, when this engine tracks
+        // one for it) — the story is far more useful with those referenced
+        // directly than with just the player's own club.
+        let transferInterestEntities: EntityRef[] = [];
+        if (signal.type === "TRANSFER_INTEREST" && qualifyingOffer) {
+          transferInterestEntities = [{ id: qualifyingOffer.buyingClubId, type: "club" }];
+          const context = db
+            .prepare("SELECT league_id AS leagueId FROM external_club_context WHERE club_id = ?")
+            .get(qualifyingOffer.buyingClubId) as { leagueId?: EntityId } | undefined;
+          if (context?.leagueId) transferInterestEntities.push({ id: context.leagueId, type: "competition" });
+        }
+        logEvent(
+          db,
+          personId,
+          teamId,
+          managerProfileId,
+          "CONCERN_ESCALATED",
+          worldDate,
+          {
+            type: signal.type,
+            concernId: updated.id,
+            buyingClubId: signal.type === "TRANSFER_INTEREST" ? qualifyingOffer?.buyingClubId : undefined,
+            offerId: signal.type === "TRANSFER_INTEREST" ? qualifyingOffer?.id : undefined,
+          },
+          transferInterestEntities,
+        );
         outcome.escalatedConcerns.push(updated);
         relationshipDelta -= 10;
         const demand = openDemandFromConcern(db, worldDate, managerProfileId, updated);
@@ -1155,6 +1179,7 @@ const logEvent = (
     | "DEMAND_EXPIRED",
   worldDate: string,
   data: Record<string, unknown>,
+  extraEntities: EntityRef[] = [],
 ): void => {
   new SquadDynamicsRepository(db).insertHistoryEvent({
     id: createEntityId(),
@@ -1191,7 +1216,10 @@ const logEvent = (
         `${eventType.toLowerCase()}:${personId}:${teamId}:${worldDate}:${data.type ?? data.promiseId ?? "unknown"}`,
       );
       const title: Record<string, string> = {
-        CONCERN_ESCALATED: "Player concern escalates",
+        CONCERN_ESCALATED:
+          eventType === "CONCERN_ESCALATED" && data.type === "TRANSFER_INTEREST"
+            ? "Foreign interest is causing real concern"
+            : "Player concern escalates",
         PROMISE_KEPT: "Manager promise fulfilled",
         PROMISE_BROKEN: "Manager promise broken",
         DEMAND_OPENED: "Player makes a formal request",
@@ -1214,6 +1242,7 @@ const logEvent = (
           involvedEntities: [
             { id: personId, type: "person" },
             { id: club.clubId, type: "club" },
+            ...extraEntities,
           ],
           title: title[eventType] ?? eventType,
           data: { ...data, teamId, managerProfileId },

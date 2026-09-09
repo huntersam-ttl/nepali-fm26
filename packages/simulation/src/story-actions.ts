@@ -82,23 +82,31 @@ export const buildStoryActions = (
   // "TRANSFERRED", so without it an ownership hand-over would be probed as a
   // player transfer (harmless today only because the offer id never resolves).
   if (
-    /TRANSFER|LOAN|FREE_AGENT/.test(type) &&
-    !/OWNERSHIP|INVESTOR|TAKEOVER/.test(type) &&
-    typeof data?.offerId === "string" &&
-    (role === "MANAGER" || TRANSFER_EXECUTIVE_ROLES.includes(role))
+    (/TRANSFER|LOAN|FREE_AGENT/.test(type) && !/OWNERSHIP|INVESTOR|TAKEOVER/.test(type)) ||
+    // A player-relationship concern escalating over real, live foreign/
+    // domestic transfer interest is exactly a moment to open the same
+    // negotiation/transfer context — never a second, parallel transfer UI.
+    (type === "CONCERN_ESCALATED" && data?.type === "TRANSFER_INTEREST")
   ) {
-    const offer = new TransferMarketRepository(db).transferOffers().find((item) => item.id === data.offerId);
-    const authorized =
-      role === "MANAGER" ||
-      (offer !== undefined && hasDelegatedTransferAuthority(db, role, personId, [offer.buyingClubId, offer.sellingClubId]));
-    if (offer && authorized) {
-      const terminal = ["COMPLETED", "REJECTED", "WITHDRAWN", "EXPIRED"].includes(offer.status);
-      actions.push({
-        id: `open-transfer-negotiation:${offer.id}`,
-        label: terminal ? "View negotiation history" : "Open negotiation",
-        kind: "OPEN_TRANSFER_NEGOTIATION",
-        offerId: offer.id,
-      });
+    if (typeof data?.offerId === "string" && (role === "MANAGER" || TRANSFER_EXECUTIVE_ROLES.includes(role))) {
+      const offer = new TransferMarketRepository(db).transferOffers().find((item) => item.id === data.offerId);
+      const authorized =
+        role === "MANAGER" ||
+        (offer !== undefined && hasDelegatedTransferAuthority(db, role, personId, [offer.buyingClubId, offer.sellingClubId]));
+      if (offer && authorized) {
+        const terminal = ["COMPLETED", "REJECTED", "WITHDRAWN", "EXPIRED"].includes(offer.status);
+        const isConcernRoute = type === "CONCERN_ESCALATED";
+        actions.push({
+          id: `open-transfer-negotiation:${offer.id}`,
+          label: terminal
+            ? "View negotiation history"
+            : isConcernRoute
+              ? "Open transfer context"
+              : "Open negotiation",
+          kind: "OPEN_TRANSFER_NEGOTIATION",
+          offerId: offer.id,
+        });
+      }
     }
   }
 

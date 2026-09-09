@@ -12,6 +12,7 @@ import {
   WorldRepository,
   migrateDatabase,
   openGameDatabase,
+  type GameDatabase,
 } from "@nepal-football-sim/database";
 import {
   acceptSponsorOffer,
@@ -1089,6 +1090,55 @@ describe("player relationship story action routing", () => {
   it("never gives the Owner or President the Manager-only Dressing Room action", () => {
     const { db, club, personId } = setUp("dressing-room-denied");
     const event = relationshipEvent("TEAM_MEETING_RESULT", personId, club.id, {});
+    expect(buildStoryActions(db, event, "CHAIRMAN_OWNER")).toHaveLength(0);
+    expect(buildStoryActions(db, event, "FEDERATION_PRESIDENT")).toHaveLength(0);
+    db.close();
+  });
+
+  const insertBuyingClub = (db: GameDatabase, name: string): EntityId => {
+    const world = new WorldRepository(db);
+    const countryId = (db.prepare("SELECT id FROM countries LIMIT 1").get() as { id: EntityId }).id;
+    const buyingClub: Club = { id: createStableEntityId("club", name), name, countryId, ownershipType: "PRIVATE" };
+    world.insertClub(buyingClub);
+    return buyingClub.id;
+  };
+
+  it("gives the Manager an 'Open transfer context' action for a real TRANSFER_INTEREST concern escalation carrying a live offer", () => {
+    const { db, club, personId } = setUp("transfer-interest-concern");
+    const buyingClubId = insertBuyingClub(db, "transfer-interest-concern-buyer");
+    const offer = baseTransferOffer({ id: "transfer-interest-offer" as EntityId, buyingClubId, playerId: personId, status: "SUBMITTED" });
+    new TransferMarketRepository(db).insertTransferOffer(offer);
+    const event = relationshipEvent("CONCERN_ESCALATED", personId, club.id, {
+      type: "TRANSFER_INTEREST",
+      buyingClubId,
+      offerId: offer.id,
+    });
+    const actions = buildStoryActions(db, event, "MANAGER");
+    expect(actions).toHaveLength(1);
+    expect(actions[0]!.kind).toBe("OPEN_TRANSFER_NEGOTIATION");
+    expect(actions[0]!.label).toBe("Open transfer context");
+    db.close();
+  });
+
+  it("never fabricates a transfer-context action for a TRANSFER_INTEREST concern once the offer no longer resolves", () => {
+    const { db, club, personId } = setUp("transfer-interest-missing-offer");
+    const event = relationshipEvent("CONCERN_ESCALATED", personId, club.id, {
+      type: "TRANSFER_INTEREST",
+      offerId: "no-such-offer",
+    });
+    expect(buildStoryActions(db, event, "MANAGER")).toHaveLength(0);
+    db.close();
+  });
+
+  it("never gives the Owner or President the transfer-context action from a player-relationship concern", () => {
+    const { db, club, personId } = setUp("transfer-interest-denied");
+    const buyingClubId = insertBuyingClub(db, "transfer-interest-denied-buyer");
+    const offer = baseTransferOffer({ id: "transfer-interest-denied-offer" as EntityId, buyingClubId, playerId: personId, status: "SUBMITTED" });
+    new TransferMarketRepository(db).insertTransferOffer(offer);
+    const event = relationshipEvent("CONCERN_ESCALATED", personId, club.id, {
+      type: "TRANSFER_INTEREST",
+      offerId: offer.id,
+    });
     expect(buildStoryActions(db, event, "CHAIRMAN_OWNER")).toHaveLength(0);
     expect(buildStoryActions(db, event, "FEDERATION_PRESIDENT")).toHaveLength(0);
     db.close();
