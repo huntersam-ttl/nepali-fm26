@@ -7,7 +7,10 @@ import {
   CommercialRightsRepository,
   GovernmentRepository,
   OwnershipRepository,
+  SquadDynamicsRepository,
   TransferMarketRepository,
+  WorldRepository,
+  migrateDatabase,
   openGameDatabase,
 } from "@nepal-football-sim/database";
 import {
@@ -26,7 +29,15 @@ import {
   resolveGovernmentInstitutionForClub,
   runChairmanDemo,
 } from "@nepal-football-sim/simulation";
-import { createStableEntityId, type EntityId, type HistoricalEvent, type OwnershipAcquisitionOffer, type TransferOffer } from "@nepal-football-sim/shared-types";
+import {
+  createStableEntityId,
+  type Club,
+  type EntityId,
+  type HistoricalEvent,
+  type OwnershipAcquisitionOffer,
+  type Team,
+  type TransferOffer,
+} from "@nepal-football-sim/shared-types";
 
 const dirs: string[] = [];
 const registryPath = resolve(process.cwd(), "data/nepal/2026-08/club-registry.json");
@@ -937,6 +948,149 @@ describe("executive transfer authority", () => {
     const { db, person, event } = setUp("exec-authority-manager-unchanged", "SPORTING_DIRECTOR");
     expect(buildStoryActions(db, event, "MANAGER")).toHaveLength(1);
     expect(buildStoryActions(db, event, "MANAGER", person.id)).toHaveLength(1);
+    db.close();
+  });
+});
+
+describe("player relationship story action routing", () => {
+  const setUp = (name: string) => {
+    const dir = mkdtempSync(join(tmpdir(), "story-actions-relationship-"));
+    dirs.push(dir);
+    const db = openGameDatabase(join(dir, "career.sqlite"));
+    migrateDatabase(db);
+    const world = new WorldRepository(db);
+    const country = { id: createStableEntityId("country", `sar-${name}`), name: "Testland", isoCode: "TL" };
+    world.insertCountry(country);
+    const club: Club = {
+      id: createStableEntityId("club", `sar-${name}`),
+      name: "Story Actions FC",
+      countryId: country.id,
+      ownershipType: "PRIVATE",
+    };
+    const team: Team = {
+      id: createStableEntityId("team", `sar-${name}-senior`),
+      clubId: club.id,
+      name: "Story Actions FC",
+      level: "senior",
+      gender: "men",
+    };
+    world.insertClub(club);
+    world.insertTeam(team);
+    const personId = createStableEntityId("person", `sar-${name}-player`);
+    world.insertPerson({ id: personId, fullName: "Story Actions Player", nationalityCountryId: country.id, languages: ["en"] });
+    world.insertPersonRole({ id: createStableEntityId("role", `${personId}:player`), personId, role: "PLAYER", activeFrom: "2026-08-01" });
+    world.insertTeamPersonAssignment({ id: createStableEntityId("assignment", `${personId}:player`), personId, teamId: team.id, role: "PLAYER", startedOn: "2026-08-01" });
+    return { db, club, team, personId };
+  };
+
+  const relationshipEvent = (
+    eventType: string,
+    personId: EntityId,
+    clubId: EntityId,
+    data: Record<string, unknown>,
+  ): HistoricalEvent => ({
+    id: createStableEntityId("history", `story-actions-relationship:${eventType}:${personId}`),
+    occurredOn: "2026-08-08",
+    eventType,
+    involvedEntities: [
+      { id: personId, type: "person" },
+      { id: clubId, type: "club" },
+    ],
+    title: "A relationship event",
+    importance: "medium",
+    scope: "club",
+    data,
+  });
+
+  it("gives the Manager an 'Open meeting' action for a real, still-escalated concern", () => {
+    const { db, club, team, personId } = setUp("concern-open");
+    const dynamics = new SquadDynamicsRepository(db);
+    const concernId = createStableEntityId("concern", "sar-concern-open");
+    dynamics.upsertConcern({
+      id: concernId, personId, teamId: team.id, type: "PLAYING_TIME", status: "ESCALATED",
+      severity: 8, raisedOn: "2026-08-01", updatedOn: "2026-08-08",
+    });
+    const event = relationshipEvent("CONCERN_ESCALATED", personId, club.id, { type: "PLAYING_TIME", concernId });
+    const actions = buildStoryActions(db, event, "MANAGER");
+    expect(actions).toHaveLength(1);
+    expect(actions[0]!.kind).toBe("OPEN_PLAYER_MEETING");
+    expect(actions[0]).toMatchObject({ personId, concernId });
+    db.close();
+  });
+
+  it("never gives the Owner or President the Manager-only player-meeting action", () => {
+    const { db, club, team, personId } = setUp("concern-role-denied");
+    const dynamics = new SquadDynamicsRepository(db);
+    const concernId = createStableEntityId("concern", "sar-concern-denied");
+    dynamics.upsertConcern({
+      id: concernId, personId, teamId: team.id, type: "PLAYING_TIME", status: "ESCALATED",
+      severity: 8, raisedOn: "2026-08-01", updatedOn: "2026-08-08",
+    });
+    const event = relationshipEvent("CONCERN_ESCALATED", personId, club.id, { type: "PLAYING_TIME", concernId });
+    expect(buildStoryActions(db, event, "CHAIRMAN_OWNER")).toHaveLength(0);
+    expect(buildStoryActions(db, event, "FEDERATION_PRESIDENT")).toHaveLength(0);
+    db.close();
+  });
+
+  it("never fabricates a meeting action once the concern has already been resolved", () => {
+    const { db, club, team, personId } = setUp("concern-resolved");
+    const dynamics = new SquadDynamicsRepository(db);
+    const concernId = createStableEntityId("concern", "sar-concern-resolved");
+    dynamics.upsertConcern({
+      id: concernId, personId, teamId: team.id, type: "PLAYING_TIME", status: "RESOLVED",
+      severity: 8, raisedOn: "2026-08-01", updatedOn: "2026-08-08", resolvedOn: "2026-08-08",
+    });
+    const event = relationshipEvent("CONCERN_ESCALATED", personId, club.id, { type: "PLAYING_TIME", concernId });
+    expect(buildStoryActions(db, event, "MANAGER")).toHaveLength(0);
+    db.close();
+  });
+
+  it("gives the Manager an 'Open meeting' action for a real, still-open demand", () => {
+    const { db, club, team, personId } = setUp("demand-open");
+    const dynamics = new SquadDynamicsRepository(db);
+    const demandId = createStableEntityId("demand", "sar-demand-open");
+    dynamics.upsertDemand({
+      id: demandId, personId, teamId: team.id, type: "CONTRACT_REQUEST", status: "OPEN", severity: 6,
+      openedOn: "2026-08-01", updatedOn: "2026-08-08", trigger: "test", requestedOutcome: "A new deal",
+    });
+    const event = relationshipEvent("DEMAND_OPENED", personId, club.id, { type: "CONTRACT_REQUEST", demandId });
+    const actions = buildStoryActions(db, event, "MANAGER");
+    expect(actions).toHaveLength(1);
+    expect(actions[0]!.kind).toBe("OPEN_PLAYER_MEETING");
+    expect(actions[0]).toMatchObject({ personId, demandId });
+    db.close();
+  });
+
+  it("never fabricates a meeting action once the demand has already been decided", () => {
+    const { db, club, team, personId } = setUp("demand-decided");
+    const dynamics = new SquadDynamicsRepository(db);
+    const demandId = createStableEntityId("demand", "sar-demand-decided");
+    dynamics.upsertDemand({
+      id: demandId, personId, teamId: team.id, type: "CONTRACT_REQUEST", status: "REJECTED", severity: 6,
+      openedOn: "2026-08-01", updatedOn: "2026-08-08", trigger: "test", requestedOutcome: "A new deal",
+      resolvedOn: "2026-08-08", managerResponse: "REJECT",
+    });
+    const event = relationshipEvent("DEMAND_REJECTED", personId, club.id, { type: "CONTRACT_REQUEST", demandId, response: "REJECT" });
+    expect(buildStoryActions(db, event, "MANAGER")).toHaveLength(0);
+    db.close();
+  });
+
+  it("gives the Manager an 'Open Dressing Room' action for a captaincy reaction and a team meeting result", () => {
+    const { db, club, personId } = setUp("dressing-room-actions");
+    for (const eventType of ["CAPTAINCY_REACTION", "CAPTAINCY_CHANGE", "TEAM_MEETING_RESULT"]) {
+      const event = relationshipEvent(eventType, personId, club.id, {});
+      const actions = buildStoryActions(db, event, "MANAGER");
+      expect(actions).toHaveLength(1);
+      expect(actions[0]!.kind).toBe("OPEN_DRESSING_ROOM");
+    }
+    db.close();
+  });
+
+  it("never gives the Owner or President the Manager-only Dressing Room action", () => {
+    const { db, club, personId } = setUp("dressing-room-denied");
+    const event = relationshipEvent("TEAM_MEETING_RESULT", personId, club.id, {});
+    expect(buildStoryActions(db, event, "CHAIRMAN_OWNER")).toHaveLength(0);
+    expect(buildStoryActions(db, event, "FEDERATION_PRESIDENT")).toHaveLength(0);
     db.close();
   });
 });

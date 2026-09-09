@@ -739,7 +739,16 @@ export type StoryAction =
   | { id: string; label: string; kind: "OPEN_TRANSFER_NEGOTIATION"; offerId: EntityId }
   | { id: string; label: string; kind: "OPEN_GOVERNMENT_SUPPORT"; clubId: EntityId }
   | { id: string; label: string; kind: "OPEN_NATIONAL_TEAM"; teamId: EntityId }
-  | { id: string; label: string; kind: "OPEN_COMMERCIAL"; offerId: EntityId };
+  | { id: string; label: string; kind: "OPEN_COMMERCIAL"; offerId: EntityId }
+  | {
+      id: string;
+      label: string;
+      kind: "OPEN_PLAYER_MEETING";
+      personId: EntityId;
+      concernId?: EntityId;
+      demandId?: EntityId;
+    }
+  | { id: string; label: string; kind: "OPEN_DRESSING_ROOM" };
 
 export type StoryDetail = {
   header: {

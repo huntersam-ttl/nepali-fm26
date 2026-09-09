@@ -3,6 +3,7 @@ import {
   ClubEconomyRepository,
   GovernmentRepository,
   OwnershipRepository,
+  SquadDynamicsRepository,
   TransferMarketRepository,
   type GameDatabase,
 } from "@nepal-football-sim/database";
@@ -202,6 +203,46 @@ export const buildStoryActions = (
         teamId: data.teamId as EntityId,
       });
     }
+  }
+
+  // Player relationship — a concern escalating or a demand opening/being
+  // rejected is exactly the moment a manager would want to sit down with
+  // the player. Manager-only (the same authority holdSquadMeeting/
+  // respondToConcern/respondToDemand already require); only offered while
+  // the concern/demand still genuinely exists and hasn't already been
+  // settled — never a dead button pointing at a resolved record.
+  if (/CONCERN_ESCALATED|DEMAND_OPENED|DEMAND_REJECTED/.test(type) && role === "MANAGER") {
+    const dynamics = new SquadDynamicsRepository(db);
+    const concernId = typeof data?.concernId === "string" ? (data.concernId as EntityId) : undefined;
+    const demandId = typeof data?.demandId === "string" ? (data.demandId as EntityId) : undefined;
+    const concern = concernId ? dynamics.concernById(concernId) : undefined;
+    const demand = demandId ? dynamics.demandById(demandId) : undefined;
+    const personId = event.involvedEntities.find((entity) => entity.type === "person")?.id;
+    const stillOpen =
+      (concern && concern.status !== "RESOLVED") || (demand && demand.status === "OPEN");
+    if (personId && stillOpen) {
+      actions.push({
+        id: `open-player-meeting:${event.id}`,
+        label: "Open meeting",
+        kind: "OPEN_PLAYER_MEETING",
+        personId,
+        concernId: concern && concern.status !== "RESOLVED" ? concern.id : undefined,
+        demandId: demand && demand.status === "OPEN" ? demand.id : undefined,
+      });
+    }
+  }
+
+  // Captaincy reaction or a team meeting's result — both are dressing-room
+  // matters. Manager-only, matching holdSquadMeeting/appointCaptaincy's own
+  // authority; always offered when it applies since the Dressing Room
+  // screen itself is always reachable (never a dead end even once the
+  // underlying reaction/meeting has settled).
+  if (/CAPTAINCY_REACTION|CAPTAINCY_CHANGE|TEAM_MEETING_RESULT/.test(type) && role === "MANAGER") {
+    actions.push({
+      id: `open-dressing-room:${event.id}`,
+      label: "Open Dressing Room",
+      kind: "OPEN_DRESSING_ROOM",
+    });
   }
 
   return actions;

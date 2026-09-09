@@ -1,5 +1,10 @@
 import React, { useState } from "react";
-import type { EntityId, FederationCandidacyAssessment, SquadConcernView } from "@nepal-football-sim/shared-types";
+import type {
+  EntityId,
+  FederationCandidacyAssessment,
+  SquadConcernView,
+  SquadDemandView,
+} from "@nepal-football-sim/shared-types";
 import type { DesktopRuntimeApi } from "../../appBridge.js";
 import { managerBridge } from "../managerBridge.js";
 import { AsyncPanel, Badge, FormRun, Metrics, Panel, useRuntimeData } from "../ui.js";
@@ -79,7 +84,9 @@ export const HomeScreen = ({
   busy: boolean;
   refreshKey: number;
   onAction: () => Promise<void>;
-  onNavigate: (screen: "squad" | "tactics" | "fixtures" | "staff" | "contracts" | "competition") => void;
+  onNavigate: (
+    screen: "squad" | "tactics" | "fixtures" | "staff" | "contracts" | "competition" | "dressing-room",
+  ) => void;
   bridge: DesktopRuntimeApi;
   onSelectPlayer: (playerId: EntityId) => void;
 }): React.ReactElement => {
@@ -92,7 +99,28 @@ export const HomeScreen = ({
   const [actionBusy, setActionBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [openTransferOfferId, setOpenTransferOfferId] = useState<EntityId | null>(null);
-  const [openMeeting, setOpenMeeting] = useState<{ playerName: string; concern: SquadConcernView } | null>(null);
+  const [openMeeting, setOpenMeeting] = useState<
+    { playerName: string; concern?: SquadConcernView; demand?: SquadDemandView } | null
+  >(null);
+  /** Resolves a Story/Inbox "Open meeting" action's real concern/demand from
+   * the same SquadDynamicsView already fetched for the Squad concerns
+   * card — never a second read model. */
+  const openPlayerMeetingFromTarget = (target: {
+    personId: EntityId;
+    concernId?: EntityId;
+    demandId?: EntityId;
+  }): void => {
+    if (concerns.status !== "ready") return;
+    const concern = target.concernId
+      ? concerns.data.concerns.find((entry) => entry.id === target.concernId)
+      : undefined;
+    const demand = target.demandId
+      ? concerns.data.demands.find((entry) => entry.id === target.demandId)
+      : undefined;
+    const playerName = concern?.playerName ?? demand?.playerName;
+    if (!playerName) return;
+    setOpenMeeting({ playerName, concern, demand });
+  };
 
   const runAction = async (key: string, run: () => Promise<{ ok: boolean; error?: { message: string } }>) => {
     setActionBusy(key);
@@ -569,7 +597,13 @@ export const HomeScreen = ({
             </>
           )}
 
-          <InboxPanel inbox={dashboard.inbox} bridge={bridge} onOpenTransferNegotiation={setOpenTransferOfferId} />
+          <InboxPanel
+            inbox={dashboard.inbox}
+            bridge={bridge}
+            onOpenTransferNegotiation={setOpenTransferOfferId}
+            onOpenPlayerMeeting={openPlayerMeetingFromTarget}
+            onOpenDressingRoom={() => onNavigate("dressing-room")}
+          />
           {openTransferOfferId && (
             <TransferNegotiationLauncher offerId={openTransferOfferId} onClose={() => setOpenTransferOfferId(null)} />
           )}
@@ -578,6 +612,7 @@ export const HomeScreen = ({
               playerName={openMeeting.playerName}
               managerName="You"
               concern={openMeeting.concern}
+              demand={openMeeting.demand}
               onClose={() => setOpenMeeting(null)}
               onUpdate={refreshConcerns}
             />

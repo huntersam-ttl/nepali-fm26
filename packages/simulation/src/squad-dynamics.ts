@@ -655,6 +655,7 @@ export const evaluateSquadDynamics = (
       if (shouldEscalate) {
         logEvent(db, personId, teamId, managerProfileId, "CONCERN_ESCALATED", worldDate, {
           type: signal.type,
+          concernId: updated.id,
         });
         outcome.escalatedConcerns.push(updated);
         relationshipDelta -= 10;
@@ -1712,6 +1713,7 @@ const openDemandFromConcern = (
   dynamics.upsertDemand(demand);
   logEvent(db, concern.personId, concern.teamId, managerProfileId, "DEMAND_OPENED", worldDate, {
     type,
+    demandId: demand.id,
   });
   return demand;
 };
@@ -1803,6 +1805,7 @@ export const respondToDemand = (
   logEvent(db, demand.personId, demand.teamId, managerProfileId, eventType, worldDate, {
     type: demand.type,
     response,
+    demandId: demand.id,
   });
   return { demand: updated, promise };
 };

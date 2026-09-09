@@ -6297,6 +6297,8 @@ export const StoryDetailPanel = ({
   onOpenGovernmentSupport,
   onOpenNationalTeam,
   onOpenCommercial,
+  onOpenPlayerMeeting,
+  onOpenDressingRoom,
 }: {
   bridge: StoryBridge;
   eventId: EntityId;
@@ -6313,6 +6315,10 @@ export const StoryDetailPanel = ({
   onOpenNationalTeam?: (teamId: EntityId) => void;
   /** Present only where a full DesktopRuntimeApi is available to render PresidentCommercial. */
   onOpenCommercial?: () => void;
+  /** Manager-only — opens the Player Meeting for the real concern/demand this story references. */
+  onOpenPlayerMeeting?: (target: { personId: EntityId; concernId?: EntityId; demandId?: EntityId }) => void;
+  /** Manager-only — navigates to the Dressing Room screen. */
+  onOpenDressingRoom?: () => void;
 }): React.ReactElement => {
   const [state] = useRuntimeData<StoryDetail>(
     () => (bridge.getStoryDetail ? bridge.getStoryDetail(eventId) : Promise.resolve({ ok: false, error: { code: "RUNTIME_UNAVAILABLE", message: "Story detail is unavailable." } })),
@@ -6398,6 +6404,24 @@ export const StoryDetailPanel = ({
                     </button>
                   ) : action.kind === "OPEN_COMMERCIAL" && onOpenCommercial ? (
                     <button key={action.id} className="link" onClick={() => onOpenCommercial()}>
+                      {action.label}
+                    </button>
+                  ) : action.kind === "OPEN_PLAYER_MEETING" && onOpenPlayerMeeting ? (
+                    <button
+                      key={action.id}
+                      className="link"
+                      onClick={() =>
+                        onOpenPlayerMeeting({
+                          personId: action.personId,
+                          concernId: action.concernId,
+                          demandId: action.demandId,
+                        })
+                      }
+                    >
+                      {action.label}
+                    </button>
+                  ) : action.kind === "OPEN_DRESSING_ROOM" && onOpenDressingRoom ? (
+                    <button key={action.id} className="link" onClick={() => onOpenDressingRoom()}>
                       {action.label}
                     </button>
                   ) : (
@@ -6523,12 +6547,18 @@ export const InboxPanel = ({
   inbox,
   bridge,
   onOpenTransferNegotiation,
+  onOpenPlayerMeeting,
+  onOpenDressingRoom,
 }: {
   inbox: InboxItem[];
   bridge: DesktopRuntimeApi;
   /** Manager-only — Owner/President never receive a transfer action from
    * buildStoryActions, so this is simply unused (and safely omittable) there. */
   onOpenTransferNegotiation?: (offerId: EntityId) => void;
+  /** Manager-only — same authority gate as onOpenTransferNegotiation. */
+  onOpenPlayerMeeting?: (target: { personId: EntityId; concernId?: EntityId; demandId?: EntityId }) => void;
+  /** Manager-only — same authority gate as onOpenTransferNegotiation. */
+  onOpenDressingRoom?: () => void;
 }): React.ReactElement => {
   const [openReferenceTarget, setOpenReferenceTarget] = useState<{ entityType: ProfileEntityType; entityId: EntityId } | null>(null);
   const [openStoryEventId, setOpenStoryEventId] = useState<EntityId | null>(null);
@@ -6572,6 +6602,8 @@ export const InboxPanel = ({
           onOpenGovernmentSupport={setOpenGovernmentClubId}
           onOpenNationalTeam={setOpenNationalTeamId}
           onOpenCommercial={() => setShowCommercial(true)}
+          onOpenPlayerMeeting={onOpenPlayerMeeting}
+          onOpenDressingRoom={onOpenDressingRoom}
         />
       )}
       {showThreads && (
