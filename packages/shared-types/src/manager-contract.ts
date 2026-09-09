@@ -16,6 +16,7 @@ import type {
   MediaStory,
   KnowledgeConfidence,
   KnowledgeRange,
+  ManagerPlayerRelationshipLevel,
   PlayerAttributeSet,
   PlayerConcernStatus,
   PlayerConcernType,
@@ -40,6 +41,7 @@ import type {
   TeamInstructions,
   TeamMeetingContext,
   TeamMeetingMessageId,
+  TransferRequestStatus,
   GoalkeeperDistributionStyle,
   TrainingIntensity,
   TrainingPlan,
@@ -133,6 +135,40 @@ export type AttributeGroupView = {
   attributes: Array<{ key: string; label: string; value: number }>;
 };
 
+/**
+ * The real squad-dynamics state for one player, from the same repositories
+ * and view types the Dressing Room already uses (SquadConcernView/
+ * SquadDemandView/SquadPromiseView/SquadMeetingView) — filtered to this one
+ * person, never a second, UI-side relationship calculation. Present only
+ * when the viewer's own club actually has this player on its senior roster
+ * (ownSquad); a profile opened on someone else's player carries no
+ * relationship data, matching the existing scoutingSummary rule.
+ */
+export type PlayerRelationshipView = {
+  managerRelationship?: {
+    score: number;
+    level: ManagerPlayerRelationshipLevel;
+    updatedOn: ISODate;
+  };
+  hierarchy?: {
+    role: SquadHierarchyRole;
+    influence: number;
+    isCaptain: boolean;
+    isViceCaptain: boolean;
+  };
+  concerns: SquadConcernView[];
+  demands: SquadDemandView[];
+  promises: SquadPromiseView[];
+  transferRequests: Array<{
+    id: EntityId;
+    reason: string;
+    status: TransferRequestStatus;
+    requestedAt: ISODate;
+    decidedAt?: ISODate;
+  }>;
+  recentMeetings: SquadMeetingView[];
+};
+
 export type PlayerProfile = {
   personId: EntityId;
   name: string;
@@ -205,6 +241,8 @@ export type PlayerProfile = {
     role: CareerRole;
     canManagePlayer: boolean;
   };
+  /** Present only for a player on the viewer's own club roster. */
+  relationship?: PlayerRelationshipView;
 };
 
 // ---------------------------------------------------------------------------

@@ -47,6 +47,7 @@ import {
   type PlayerKnowledgeLevel,
   type PlayerPosition,
   type PlayerProfile,
+  type PlayerRelationshipView,
   type ProvenanceStatus,
   type QuickSimSummary,
   type RecruitmentRow,
@@ -61,6 +62,9 @@ import {
   type SquadSelectionValidation,
   type ShortlistEntry,
   type SlotRoleFit,
+  type SquadConcernView,
+  type SquadDemandView,
+  type SquadPromiseView,
   type SquadList,
   type SquadPlayerRow,
   type StaffList,
@@ -83,7 +87,7 @@ import {
 } from "@nepal-football-sim/shared-types";
 import { initializeClubEconomyForSave } from "./club-economy.js";
 import { buildEntityReference } from "./entity-reference.js";
-import { activeConcernCount } from "./squad-dynamics.js";
+import { activeConcernCount, validActionsForConcern } from "./squad-dynamics.js";
 import { medicalCentreReadModel } from "./medical.js";
 import {
   createDefaultTrainingPlan,
@@ -617,6 +621,133 @@ const teamOfPlayer = (db: GameDatabase, playerId: EntityId): EntityId | undefine
       .get(playerId) as { teamId?: EntityId } | undefined
   )?.teamId;
 
+/**
+ * The real squad-dynamics state for one player on their own club's roster —
+ * filtered straight from the same repository reads the Dressing Room
+ * dashboard uses, never a second calculation. managerProfileId is the
+ * TEAM's actual current manager (from its active contract), not necessarily
+ * the viewer — an Owner/CEO/SD opening a player profile on their own club
+ * sees the real relationship with whoever is actually managing that squad.
+ */
+const buildPlayerRelationshipView = (
+  db: GameDatabase,
+  teamId: EntityId,
+  playerId: EntityId,
+): PlayerRelationshipView => {
+  const dynamics = new SquadDynamicsRepository(db);
+  const managerContract = new ManagerRepository(db).activeContractForTeam(teamId);
+  const hierarchyEntry = dynamics
+    .hierarchyForTeam(teamId)
+    .find((entry) => entry.personId === playerId);
+  const relationshipRow = managerContract
+    ? dynamics.relationship(managerContract.managerProfileId, playerId)
+    : undefined;
+  const activePromiseByConcernId = new Map(
+    dynamics
+      .promisesForPerson(playerId, teamId)
+      .filter((promise) => promise.status === "ACTIVE" && promise.concernId)
+      .map((promise) => [promise.concernId as EntityId, promise]),
+  );
+
+  const concerns: SquadConcernView[] = dynamics
+    .concernsForPerson(playerId, teamId)
+    .filter((concern) => concern.status !== "RESOLVED")
+    .map((concern) => {
+      const activePromise = activePromiseByConcernId.get(concern.id);
+      return {
+        id: concern.id,
+        personId: concern.personId,
+        playerName: personName(db, concern.personId),
+        hierarchyRole: hierarchyEntry?.role,
+        type: concern.type,
+        status: concern.status,
+        severity: concern.severity,
+        raisedOn: concern.raisedOn,
+        updatedOn: concern.updatedOn,
+        note: concern.note,
+        validActions: validActionsForConcern(concern.type),
+        activePromise: activePromise
+          ? {
+              id: activePromise.id,
+              personId: activePromise.personId,
+              playerName: personName(db, activePromise.personId),
+              type: activePromise.type,
+              description: activePromise.description,
+              madeOn: activePromise.madeOn,
+              dueOn: activePromise.dueOn,
+              status: activePromise.status,
+              commitmentSource: activePromise.commitmentSource,
+              recipientType: activePromise.recipientType,
+            }
+          : undefined,
+      };
+    });
+
+  const demands: SquadDemandView[] = dynamics
+    .demandsForPerson(playerId, teamId)
+    .filter((demand) => demand.status === "OPEN")
+    .map((demand) => ({
+      id: demand.id,
+      personId: demand.personId,
+      playerName: personName(db, demand.personId),
+      type: demand.type,
+      status: demand.status,
+      severity: demand.severity,
+      openedOn: demand.openedOn,
+      reviewOn: demand.reviewOn,
+      trigger: demand.trigger,
+      requestedOutcome: demand.requestedOutcome,
+    }));
+
+  const promises: SquadPromiseView[] = dynamics
+    .promisesForPerson(playerId, teamId)
+    .filter((promise) => promise.status === "ACTIVE")
+    .map((promise) => ({
+      id: promise.id,
+      personId: promise.personId,
+      playerName: personName(db, promise.personId),
+      type: promise.type,
+      description: promise.description,
+      madeOn: promise.madeOn,
+      dueOn: promise.dueOn,
+      status: promise.status,
+      commitmentSource: promise.commitmentSource,
+      recipientType: promise.recipientType,
+    }));
+
+  const transferRequests = new TransferMarketRepository(db)
+    .transferRequests(playerId)
+    .map((request) => ({
+      id: request.id,
+      reason: request.reason,
+      status: request.status,
+      requestedAt: request.requestedAt,
+      decidedAt: request.decidedAt,
+    }));
+
+  return {
+    managerRelationship: relationshipRow
+      ? { score: relationshipRow.score, level: relationshipRow.level, updatedOn: relationshipRow.updatedOn }
+      : undefined,
+    hierarchy: hierarchyEntry
+      ? {
+          role: hierarchyEntry.role,
+          influence: hierarchyEntry.influence,
+          isCaptain: hierarchyEntry.role === "CAPTAIN",
+          isViceCaptain: hierarchyEntry.role === "VICE_CAPTAIN",
+        }
+      : undefined,
+    concerns,
+    demands,
+    promises,
+    transferRequests,
+    recentMeetings: dynamics
+      .meetingsForTeam(teamId)
+      .filter((meeting) => meeting.personId === playerId || meeting.withPersonId === playerId)
+      .slice(0, 10),
+  };
+};
+
 export const buildPlayerProfile = (
   db: GameDatabase,
   save: SaveMetadata,
@@ -765,6 +896,8 @@ export const buildPlayerProfile = (
     // manager appointment carries player-management authority today, so no
     // other role is offered controls that would be rejected on click.
     viewer: { role: viewer.role, canManagePlayer: Boolean(context) },
+    relationship:
+      ownSquad && playerTeamId ? buildPlayerRelationshipView(db, playerTeamId, playerId) : undefined,
   };
 };
 

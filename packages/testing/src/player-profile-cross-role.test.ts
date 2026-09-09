@@ -2,9 +2,10 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { loadSave, openGameDatabase, type GameDatabase } from "@nepal-football-sim/database";
+import { SquadDynamicsRepository, loadSave, openGameDatabase, type GameDatabase } from "@nepal-football-sim/database";
 import { buildPlayerProfile, createNepalSave, type PlayerProfileViewer } from "@nepal-football-sim/simulation";
 import type { CareerRole, EntityId, SaveMetadata } from "@nepal-football-sim/shared-types";
+import { createStableEntityId } from "@nepal-football-sim/shared-types";
 
 /**
  * The Player Profile is a shared world entity view: every legitimate role can
@@ -156,5 +157,57 @@ describe("player action authority is separate from profile access", () => {
     // ownSquad drives the manager's own-squad affordances; a non-manager
     // viewer must never be flagged as the player's manager.
     expect(profile.transferListStatus).toBeUndefined();
+  });
+});
+
+describe("player profile relationship section", () => {
+  it("is present (read-only) for any club role viewing their own player, and absent for someone else's player", () => {
+    const owner = buildPlayerProfile(db, save, clubViewer("CHAIRMAN_OWNER"), ownPlayer);
+    expect(owner.relationship).toBeDefined();
+    expect(owner.relationship?.concerns).toEqual([]);
+    expect(owner.relationship?.demands).toEqual([]);
+    expect(owner.relationship?.promises).toEqual([]);
+    // Read-only: this role has no manager authority over the player either way.
+    expect(owner.viewer.canManagePlayer).toBe(false);
+
+    const outsideView = buildPlayerProfile(db, save, clubViewer("CHAIRMAN_OWNER"), outsidePlayer);
+    expect(outsideView.relationship).toBeUndefined();
+  });
+
+  it("is absent for a viewer with no club of their own", () => {
+    const profile = buildPlayerProfile(db, save, federationViewer(), ownPlayer);
+    expect(profile.relationship).toBeUndefined();
+  });
+
+  it("surfaces a real, unresolved concern for the player — filtered from the same repository the Dressing Room reads, not recalculated", () => {
+    const dynamics = new SquadDynamicsRepository(db);
+    dynamics.upsertConcern({
+      id: createStableEntityId("concern", `${ownPlayer}:profile-test`),
+      personId: ownPlayer,
+      teamId,
+      type: "PLAYING_TIME",
+      status: "ACTIVE",
+      severity: 6,
+      raisedOn: save.worldDate,
+      updatedOn: save.worldDate,
+    });
+    const profile = buildPlayerProfile(db, save, clubViewer("CHAIRMAN_OWNER"), ownPlayer);
+    expect(profile.relationship?.concerns).toHaveLength(1);
+    expect(profile.relationship?.concerns[0]?.type).toBe("PLAYING_TIME");
+    expect(profile.relationship?.concerns[0]?.personId).toBe(ownPlayer);
+
+    // A concern for a DIFFERENT player on the same team never leaks in here.
+    dynamics.upsertConcern({
+      id: createStableEntityId("concern", `${outsidePlayer}:profile-test-other`),
+      personId: outsidePlayer,
+      teamId,
+      type: "CONTRACT",
+      status: "ACTIVE",
+      severity: 5,
+      raisedOn: save.worldDate,
+      updatedOn: save.worldDate,
+    });
+    const stillJustOne = buildPlayerProfile(db, save, clubViewer("CHAIRMAN_OWNER"), ownPlayer);
+    expect(stillJustOne.relationship?.concerns).toHaveLength(1);
   });
 });

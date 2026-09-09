@@ -437,6 +437,10 @@ export const ManagerCareer = ({
               onClose={() => setPlayerId(null)}
               onOpenClub={setOpenClubId}
               onOpenPlayer={setPlayerId}
+              onOpenDressingRoom={() => {
+                setScreen("dressing-room");
+                setPlayerId(null);
+              }}
               bridge={bridge}
             />
           ) : (

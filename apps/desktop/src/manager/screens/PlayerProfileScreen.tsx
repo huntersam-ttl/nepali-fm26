@@ -14,6 +14,7 @@ import { managerBridge } from "../managerBridge.js";
 import { EntityRefLink, EntityStorylinePanel, OrganizationProfilePanel, type ProfileEntityType } from "../RoleDetailScreen.js";
 import type { DesktopRuntimeApi } from "../../appBridge.js";
 import { TransferNegotiationLauncher } from "./TransferNegotiationMeeting.js";
+import { PlayerMeetingPanel } from "./PlayerMeetingPanel.js";
 import { humanizeEnum } from "../storyHumanizer.js";
 import {
   AsyncPanel,
@@ -346,12 +347,6 @@ const PlayerActionRail = ({
         </div>
       )}
 
-      <div className="action-group">
-        <h3>Discussion</h3>
-        <button className="ghost small" disabled title="Per-player promises/discussion is not yet available as a direct action.">
-          Discuss / promise
-        </button>
-      </div>
     </Panel>
   );
 };
@@ -450,6 +445,161 @@ const PlayerDressingRoomPanel = ({ playerId }: { playerId: EntityId }): React.Re
   );
 };
 
+const relationshipTone = (score: number): "ok" | "warn" | "bad" | "info" =>
+  score >= 30 ? "ok" : score <= -30 ? "bad" : score <= -10 ? "warn" : "info";
+
+const concernStatusTone = (status: string): "ok" | "warn" | "bad" | "info" =>
+  status === "ESCALATED" ? "bad" : status === "ACTIVE" ? "warn" : "info";
+
+/**
+ * The player-relationship/dynamics section — every field here comes straight
+ * from `player.relationship` (buildPlayerProfile's real, filtered
+ * squad-dynamics read), never a second calculation in this component. Only
+ * rendered when the backend actually returned relationship data (a player on
+ * the viewer's own club roster); actions (Open Meeting / Open Dressing Room)
+ * only appear when the viewer holds real manager authority.
+ */
+const PlayerRelationshipPanel = ({
+  player,
+  onOpenMeeting,
+  onOpenDressingRoom,
+}: {
+  player: PlayerProfile;
+  onOpenMeeting: (target: { concernId?: EntityId; demandId?: EntityId }) => void;
+  onOpenDressingRoom?: () => void;
+}): React.ReactElement | null => {
+  const relationship = player.relationship;
+  if (!relationship) return null;
+  const canAct = player.viewer.canManagePlayer;
+
+  return (
+    <Panel title="Relationship">
+      <Metrics
+        items={[
+          {
+            label: "Relationship with you",
+            value: relationship.managerRelationship ? (
+              <Badge tone={relationshipTone(relationship.managerRelationship.score)}>
+                {humanizeEnum(relationship.managerRelationship.level)} ({relationship.managerRelationship.score})
+              </Badge>
+            ) : (
+              "Neutral"
+            ),
+          },
+          {
+            label: "Hierarchy",
+            value: relationship.hierarchy ? (
+              <>
+                {humanizeEnum(relationship.hierarchy.role)}
+                {relationship.hierarchy.isCaptain && " (Captain)"}
+                {relationship.hierarchy.isViceCaptain && " (Vice-captain)"}
+                {" · influence "}
+                {relationship.hierarchy.influence}
+              </>
+            ) : (
+              "Unranked"
+            ),
+          },
+        ]}
+      />
+
+      {canAct && onOpenDressingRoom && (
+        <div className="button-row">
+          <button className="ghost small" onClick={onOpenDressingRoom}>
+            Open Dressing Room
+          </button>
+        </div>
+      )}
+
+      <h3>Concerns</h3>
+      {relationship.concerns.length === 0 ? (
+        <p className="empty-state">No active concerns.</p>
+      ) : (
+        <ul className="compact-list">
+          {relationship.concerns.map((concern) => (
+            <li key={concern.id}>
+              {humanizeEnum(concern.type)}{" "}
+              <Badge tone={concernStatusTone(concern.status)}>{humanizeEnum(concern.status)}</Badge>
+              {" · severity "}
+              {concern.severity}/10
+              {concern.note && <span className="subtle"> — {concern.note}</span>}
+              {concern.activePromise ? (
+                <span className="subtle">
+                  {" "}
+                  · promise pending: {concern.activePromise.description} (due {concern.activePromise.dueOn})
+                </span>
+              ) : (
+                canAct && (
+                  <button className="ghost small" onClick={() => onOpenMeeting({ concernId: concern.id })}>
+                    Open meeting
+                  </button>
+                )
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <h3>Requests</h3>
+      {relationship.demands.length === 0 && relationship.transferRequests.length === 0 ? (
+        <p className="empty-state">No open requests.</p>
+      ) : (
+        <ul className="compact-list">
+          {relationship.demands.map((demand) => (
+            <li key={demand.id}>
+              {humanizeEnum(demand.type)}: {demand.requestedOutcome}
+              {demand.reviewOn && <span className="subtle"> · review by {demand.reviewOn}</span>}
+              {canAct && (
+                <button className="ghost small" onClick={() => onOpenMeeting({ demandId: demand.id })}>
+                  Open meeting
+                </button>
+              )}
+            </li>
+          ))}
+          {relationship.transferRequests
+            .filter((request) => request.status === "PENDING")
+            .map((request) => (
+              <li key={request.id}>
+                Transfer request <Badge tone="warn">{humanizeEnum(request.status)}</Badge>
+                <span className="subtle"> — {request.reason}</span>
+              </li>
+            ))}
+        </ul>
+      )}
+
+      <h3>Promises</h3>
+      {relationship.promises.length === 0 ? (
+        <p className="empty-state">No active promises.</p>
+      ) : (
+        <ul className="compact-list">
+          {relationship.promises.map((promise) => (
+            <li key={promise.id}>
+              {promise.description} <span className="subtle">due {promise.dueOn}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <h3>Recent activity</h3>
+      {relationship.recentMeetings.length === 0 ? (
+        <p className="empty-state">No meetings on record with this player yet.</p>
+      ) : (
+        <ul className="compact-list">
+          {relationship.recentMeetings.map((meeting) => (
+            <li key={meeting.id}>
+              {meeting.occurredOn} · {humanizeEnum(meeting.type)}{" "}
+              <Badge tone={meeting.outcome === "POSITIVE" ? "ok" : meeting.outcome === "NEGATIVE" ? "bad" : "info"}>
+                {humanizeEnum(meeting.outcome)}
+              </Badge>
+              <div className="subtle">{meeting.summary}</div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Panel>
+  );
+};
+
 /** No call-up history is the common case for most players, not an error —
  * this quietly renders nothing rather than showing a warning banner for
  * every player who has simply never been capped. Women & Girls call-ups
@@ -483,6 +633,7 @@ export const PlayerProfileScreen = ({
   onClose,
   onOpenClub,
   onOpenPlayer,
+  onOpenDressingRoom,
   bridge,
 }: {
   playerId: EntityId;
@@ -495,6 +646,10 @@ export const PlayerProfileScreen = ({
    * OrganizationProfilePanel's own PlayerContextPanel instead, which is a
    * self-contained overlay rather than a navigation). */
   onOpenPlayer?: (playerId: EntityId) => void;
+  /** Navigates to the Dressing Room screen — optional for the same reason
+   * onOpenPlayer is; without it the relationship section's "Open Dressing
+   * Room" button simply doesn't render. */
+  onOpenDressingRoom?: () => void;
   /** The full DesktopRuntimeApi, passed down from the app root — used only
    * for the generic OrganizationProfilePanel fallback below (COMPETITION,
    * STAFF, INFRASTRUCTURE_PROJECT, a different PLAYER); every other command
@@ -508,6 +663,7 @@ export const PlayerProfileScreen = ({
   const [busy, setBusy] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
+  const [openMeeting, setOpenMeeting] = useState<{ concernId?: EntityId; demandId?: EntityId } | null>(null);
   const [openTransferOfferId, setOpenTransferOfferId] = useState<EntityId | null>(null);
   const [openProfileRef, setOpenProfileRef] = useState<{ entityType: ProfileEntityType; entityId: EntityId } | null>(null);
   /** CLUB keeps its existing dedicated overlay (onOpenClub, from the
@@ -638,6 +794,12 @@ export const PlayerProfileScreen = ({
                 ]}
               />
             </Panel>
+
+            <PlayerRelationshipPanel
+              player={player}
+              onOpenMeeting={setOpenMeeting}
+              onOpenDressingRoom={onOpenDressingRoom}
+            />
 
             {player.contract ? (
               <Panel title="Contract">
@@ -793,6 +955,20 @@ export const PlayerProfileScreen = ({
                   {player.scoutingSummary.weaknesses.join(", ") || "Not yet identified"}
                 </p>
               </Panel>
+            )}
+
+            {openMeeting && (
+              <PlayerMeetingPanel
+                playerName={player.name}
+                managerName="You"
+                concern={player.relationship?.concerns.find((c) => c.id === openMeeting.concernId)}
+                demand={player.relationship?.demands.find((d) => d.id === openMeeting.demandId)}
+                onClose={() => setOpenMeeting(null)}
+                onUpdate={() => {
+                  setOpenMeeting(null);
+                  refresh();
+                }}
+              />
             )}
           </>
         )}
