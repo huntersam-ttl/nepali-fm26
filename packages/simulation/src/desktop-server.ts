@@ -454,6 +454,10 @@ const dispatch = (
       );
     case "holdSquadMeeting":
       return service.holdSquadMeeting(body.command as SquadMeetingCommand);
+    case "appointCaptaincy":
+      return service.appointCaptaincy(
+        body.command as { captainPersonId?: EntityId | null; viceCaptainPersonId?: EntityId | null },
+      );
     case "getPlayerProfile":
       return service.getPlayerProfile(body.playerId as EntityId);
     case "getPlayerActions":

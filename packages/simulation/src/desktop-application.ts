@@ -261,6 +261,8 @@ import {
   FederationPersonnelError,
 } from "./national-team-management.js";
 import {
+  appointCaptaincy,
+  CaptaincyActionError,
   ConcernActionError,
   evaluateSquadDynamics,
   holdSquadMeeting,
@@ -3460,6 +3462,28 @@ export class DesktopApplicationService {
   }
 
   /**
+   * The manager's own captaincy call — never available to Owner/President/
+   * executive roles, since `managerCommand` only authorizes the active
+   * Manager. Either slot may be omitted (leave as-is) or set to `null`
+   * (clear the override, returning that role to influence-derived
+   * selection).
+   */
+  appointCaptaincy(command: {
+    captainPersonId?: EntityId | null;
+    viceCaptainPersonId?: EntityId | null;
+  }): AppResult<SquadDynamicsView> {
+    return this.managerCommand((db, save, context) => {
+      try {
+        appointCaptaincy(db, save.worldDate, context.manager.id, context.team.id, command);
+      } catch (error) {
+        if (error instanceof CaptaincyActionError) throw appError("INVALID_SELECTION", error.message);
+        throw error;
+      }
+      return buildSquadDynamicsView(db, context.team.id);
+    }, true);
+  }
+
+  /**
    * The Player Profile is a shared world entity view: any legitimate career
    * role may OPEN it, because every story surface can link to a player. What
    * it shows is still gated by the viewer's own club — scouting knowledge and
@@ -4945,10 +4969,16 @@ const buildSquadDynamicsView = (db: GameDatabase, teamId: EntityId): SquadDynami
 
   const cohesionRecord = dynamics.cohesion(teamId);
   const captainEntry = hierarchy.find((entry) => entry.role === "CAPTAIN");
+  const viceCaptainEntry = hierarchy.find((entry) => entry.role === "VICE_CAPTAIN");
   const cohesion: TeamCohesionView = {
     score: cohesionRecord?.score ?? 70,
     level: cohesionRecord?.level ?? "STABLE",
+    captainPersonId: captainEntry?.personId,
     captainName: captainEntry ? displayName(getPerson(db, captainEntry.personId)) : undefined,
+    viceCaptainPersonId: viceCaptainEntry?.personId,
+    viceCaptainName: viceCaptainEntry
+      ? displayName(getPerson(db, viceCaptainEntry.personId))
+      : undefined,
     captainInfluence: cohesionRecord?.captainInfluence ?? "NEUTRAL",
     topIssue: cohesionRecord?.topIssue,
   };

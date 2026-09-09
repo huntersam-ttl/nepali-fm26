@@ -74,7 +74,17 @@ const hierarchyRoleFor = (rank: number, squadSize: number): SquadHierarchyRole =
   return "FRINGE_PLAYER";
 };
 
-/** Recomputes captain/vice-captain/influence for a squad from real attributes. Idempotent. */
+/**
+ * Recomputes captain/vice-captain/influence for a squad from real attributes.
+ * Idempotent, and honours a manager's explicit captaincy override (see
+ * `SquadCaptaincyOverride`) instead of always handing the armband to whoever
+ * currently ranks highest by raw influence — the same real football
+ * situation as a manager deliberately captaining a trusted senior player
+ * over a marginally higher-influence teammate. An override for a player no
+ * longer in this squad is simply ignored (falls back to influence rank);
+ * it is not cleared here, since that is a save-mutation decision that
+ * belongs to whoever changes the squad, not to a read/recompute path.
+ */
 export const computeSquadHierarchy = (
   db: GameDatabase,
   teamId: EntityId,
@@ -84,20 +94,154 @@ export const computeSquadHierarchy = (
   const ranked = players
     .map((player) => ({ personId: player.personId, influence: influenceScore(player) }))
     .sort((a, b) => b.influence - a.influence);
+  const rosterIds = new Set(ranked.map((player) => player.personId));
 
   const dynamics = new SquadDynamicsRepository(db);
-  const entries = ranked.map((player, rank) => {
+  const override = dynamics.captaincyOverride(teamId);
+  const overrideCaptainId =
+    override?.captainPersonId && rosterIds.has(override.captainPersonId)
+      ? override.captainPersonId
+      : undefined;
+  const overrideViceId =
+    override?.viceCaptainPersonId &&
+    rosterIds.has(override.viceCaptainPersonId) &&
+    override.viceCaptainPersonId !== overrideCaptainId
+      ? override.viceCaptainPersonId
+      : undefined;
+
+  const roleFor = (personId: EntityId, rankAmongRemaining: number): SquadHierarchyRole => {
+    if (personId === overrideCaptainId) return "CAPTAIN";
+    if (personId === overrideViceId) return "VICE_CAPTAIN";
+    // Ranks 0/1 are reserved for captain/vice-captain in hierarchyRoleFor's
+    // thresholds; once either is pinned by override, the remaining players
+    // are ranked starting past those reserved slots so the senior/squad/
+    // fringe proportions stay based on the real squad size.
+    const reserved = (overrideCaptainId ? 1 : 0) + (overrideViceId ? 1 : 0);
+    return hierarchyRoleFor(rankAmongRemaining + reserved, ranked.length);
+  };
+
+  let remainingRank = 0;
+  const entries = ranked.map((player) => {
+    const isOverridden = player.personId === overrideCaptainId || player.personId === overrideViceId;
+    const role = roleFor(player.personId, isOverridden ? -1 : remainingRank);
+    if (!isOverridden) remainingRank += 1;
     const entry: SquadHierarchyEntry = {
       id: createEntityId(),
       teamId,
       personId: player.personId,
       influence: player.influence,
-      role: hierarchyRoleFor(rank, ranked.length),
+      role,
       updatedOn: worldDate,
     };
     dynamics.upsertHierarchyEntry(entry);
     return entry;
   });
+  return entries;
+};
+
+export class CaptaincyActionError extends Error {
+  constructor(
+    readonly code: "NOT_ON_SQUAD" | "SAME_PLAYER",
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+/**
+ * The manager's explicit captaincy appointment. Both slots are optional so a
+ * manager can set a captain without touching the vice-captain (or vice
+ * versa); passing `null` for a slot clears that override and returns it to
+ * influence-derived selection. Recomputes the hierarchy immediately so the
+ * change is visible without waiting for the next evaluation tick.
+ */
+export const appointCaptaincy = (
+  db: GameDatabase,
+  worldDate: string,
+  managerProfileId: EntityId,
+  teamId: EntityId,
+  command: {
+    captainPersonId?: EntityId | null;
+    viceCaptainPersonId?: EntityId | null;
+  },
+): SquadHierarchyEntry[] => {
+  const rosterIds = new Set(
+    new PlayerRepository(db).attributesForTeam(teamId).map((player) => player.personId),
+  );
+  for (const personId of [command.captainPersonId, command.viceCaptainPersonId]) {
+    if (personId && !rosterIds.has(personId)) {
+      throw new CaptaincyActionError("NOT_ON_SQUAD", "That player is not part of this squad.");
+    }
+  }
+
+  const dynamics = new SquadDynamicsRepository(db);
+  const existing = dynamics.captaincyOverride(teamId);
+  const wasCaptainId = existing?.captainPersonId;
+  // Merge against existing state before validating: an omitted slot keeps
+  // its prior value, so the collision check must run on the FINAL merged
+  // pair, not just whichever fields this particular call happened to pass —
+  // otherwise appointing only a new captain while an old vice-captain
+  // override silently survives could leave the same person in both roles.
+  const mergedCaptainId =
+    command.captainPersonId === undefined
+      ? existing?.captainPersonId
+      : (command.captainPersonId ?? undefined);
+  const mergedViceCaptainId =
+    command.viceCaptainPersonId === undefined
+      ? existing?.viceCaptainPersonId
+      : (command.viceCaptainPersonId ?? undefined);
+  if (mergedCaptainId && mergedViceCaptainId && mergedCaptainId === mergedViceCaptainId) {
+    throw new CaptaincyActionError(
+      "SAME_PLAYER",
+      "Captain and vice-captain must be different players.",
+    );
+  }
+  dynamics.upsertCaptaincyOverride({
+    teamId,
+    captainPersonId: mergedCaptainId,
+    viceCaptainPersonId: mergedViceCaptainId,
+    setOn: worldDate,
+    setByManagerProfileId: managerProfileId,
+  });
+  const entries = computeSquadHierarchy(db, teamId, worldDate);
+  const newCaptainId = entries.find((entry) => entry.role === "CAPTAIN")?.personId;
+  if (newCaptainId !== wasCaptainId) {
+    dynamics.insertHistoryEvent({
+      id: createEntityId(),
+      personId: newCaptainId ?? wasCaptainId ?? teamId,
+      teamId,
+      managerProfileId,
+      eventType: "CAPTAINCY_CHANGE",
+      occurredOn: worldDate,
+      data: { previousCaptainId: wasCaptainId, newCaptainId },
+    });
+    if (newCaptainId) {
+      const club = db.prepare("SELECT club_id AS clubId FROM teams WHERE id = ?").get(teamId) as
+        { clubId?: EntityId } | undefined;
+      if (club?.clubId) {
+        const historyId = createStableEntityId(
+          "historical-event",
+          `captaincy-change:${teamId}:${worldDate}:${newCaptainId}`,
+        );
+        if (!db.prepare("SELECT 1 FROM historical_events WHERE id = ?").get(historyId)) {
+          new EventRepository(db).insertHistoricalEvent({
+            id: historyId,
+            occurredOn: worldDate,
+            eventType: "CAPTAINCY_CHANGE",
+            involvedEntities: [
+              { id: newCaptainId, type: "person" },
+              ...(club.clubId ? [{ id: club.clubId, type: "club" as const }] : []),
+              ...(wasCaptainId ? [{ id: wasCaptainId, type: "person" as const }] : []),
+            ],
+            title: "New club captain appointed",
+            data: { previousCaptainId: wasCaptainId, teamId, managerProfileId },
+            importance: "medium",
+            scope: "club",
+          });
+        }
+      }
+    }
+  }
   return entries;
 };
 
@@ -862,14 +1006,26 @@ const logEvent = (
     occurredOn: worldDate,
     data,
   });
-  if (eventType === "PROMISE_KEPT" || eventType === "PROMISE_BROKEN") {
+  // Story Universe routing is deliberately narrow: a RAISED concern is
+  // common and often resolves itself within a tick or two (see
+  // CONCERN_ESCALATION_DAYS), so only an ESCALATED concern — genuinely
+  // unresolved for 30+ days with no active promise addressing it — is
+  // material enough to become a world story, alongside promise
+  // fulfilment/breakage which already routed here.
+  if (
+    eventType === "PROMISE_KEPT" ||
+    eventType === "PROMISE_BROKEN" ||
+    eventType === "CONCERN_ESCALATED"
+  ) {
     const club = db
       .prepare("SELECT club_id AS clubId FROM teams WHERE id = ? LIMIT 1")
       .get(teamId) as { clubId?: EntityId } | undefined;
     if (club?.clubId) {
       const historyId = createStableEntityId(
         "historical-event",
-        `promise:${data.promiseId ?? `${personId}:${teamId}:${eventType}:${worldDate}:${data.type ?? "unknown"}`}`,
+        eventType === "CONCERN_ESCALATED"
+          ? `concern-escalated:${personId}:${teamId}:${worldDate}:${data.type ?? "unknown"}`
+          : `promise:${data.promiseId ?? `${personId}:${teamId}:${eventType}:${worldDate}:${data.type ?? "unknown"}`}`,
       );
       if (!db.prepare("SELECT 1 FROM historical_events WHERE id = ?").get(historyId)) {
         new EventRepository(db).insertHistoricalEvent({
@@ -880,9 +1036,14 @@ const logEvent = (
             { id: personId, type: "person" },
             { id: club.clubId, type: "club" },
           ],
-          title: eventType === "PROMISE_KEPT" ? "Manager promise fulfilled" : "Manager promise broken",
+          title:
+            eventType === "CONCERN_ESCALATED"
+              ? "Player concern escalates"
+              : eventType === "PROMISE_KEPT"
+                ? "Manager promise fulfilled"
+                : "Manager promise broken",
           data: { ...data, teamId, managerProfileId },
-          importance: eventType === "PROMISE_BROKEN" ? "high" : "medium",
+          importance: eventType === "PROMISE_KEPT" ? "medium" : "high",
           scope: "club",
         });
       }

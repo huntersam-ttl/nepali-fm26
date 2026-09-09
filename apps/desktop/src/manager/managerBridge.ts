@@ -86,6 +86,8 @@ export const managerBridge = {
     runtimeCall<ConcernResponseResult>("respondToConcern", { concernId, action }),
   holdSquadMeeting: (command: SquadMeetingCommand) =>
     runtimeCall<SquadMeetingResult>("holdSquadMeeting", { command }),
+  appointCaptaincy: (command: { captainPersonId?: EntityId | null; viceCaptainPersonId?: EntityId | null }) =>
+    runtimeCall<SquadDynamicsView>("appointCaptaincy", { command }),
   getPlayerProfile: (playerId: EntityId) =>
     runtimeCall<PlayerProfile>("getPlayerProfile", { playerId }),
   getPlayerPathway: (playerId: EntityId) =>

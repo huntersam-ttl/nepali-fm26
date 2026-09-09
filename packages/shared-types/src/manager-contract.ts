@@ -1008,7 +1008,10 @@ export type SquadGroupMemberView = {
 export type TeamCohesionView = {
   score: number;
   level: TeamCohesionLevel;
+  captainPersonId?: EntityId;
   captainName?: string;
+  viceCaptainPersonId?: EntityId;
+  viceCaptainName?: string;
   captainInfluence: CaptainInfluence;
   topIssue?: string;
 };

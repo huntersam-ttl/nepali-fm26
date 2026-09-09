@@ -3783,6 +3783,18 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       ALTER TABLE ownership_acquisition_offers ADD COLUMN board_stance_tier TEXT;
     `,
   },
+  {
+    version: 96,
+    sql: `
+      CREATE TABLE IF NOT EXISTS squad_captaincy_overrides (
+        team_id TEXT PRIMARY KEY REFERENCES teams(id),
+        captain_person_id TEXT REFERENCES persons(id),
+        vice_captain_person_id TEXT REFERENCES persons(id),
+        set_on TEXT NOT NULL,
+        set_by_manager_profile_id TEXT NOT NULL REFERENCES manager_profiles(id)
+      );
+    `,
+  },
 ];
 
 export const migrateDatabase = (db: GameDatabase): number => {

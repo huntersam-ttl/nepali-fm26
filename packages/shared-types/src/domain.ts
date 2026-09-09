@@ -4411,6 +4411,23 @@ export type SquadHierarchyEntry = {
   updatedOn: ISODate;
 };
 
+/**
+ * A manager's explicit captain/vice-captain appointment, separate from the
+ * influence-derived hierarchy computed every evaluation tick. When set,
+ * `computeSquadHierarchy` honours it instead of the default influence rank
+ * for those two roles — a manager choosing to captain a respected senior
+ * player over the single highest-influence teammate is a real football
+ * decision, not something the auto-computed hierarchy should ever silently
+ * overwrite.
+ */
+export type SquadCaptaincyOverride = {
+  teamId: EntityId;
+  captainPersonId?: EntityId;
+  viceCaptainPersonId?: EntityId;
+  setOn: ISODate;
+  setByManagerProfileId: EntityId;
+};
+
 export type PlayerConcernType = "PLAYING_TIME" | "CONTRACT" | "ROLE_STATUS" | "TRANSFER_INTEREST";
 export type PlayerConcernStatus = "RAISED" | "ACTIVE" | "RESOLVED" | "ESCALATED";
 
@@ -4444,7 +4461,8 @@ export type RelationshipEventType =
   | "SPILLOVER_APPLIED"
   | "MEETING_HELD"
   | "DISPUTE_MEDIATED"
-  | "DISPUTE_UNRESOLVED";
+  | "DISPUTE_UNRESOLVED"
+  | "CAPTAINCY_CHANGE";
 
 /** Append-only log of relationship/concern state transitions, mirroring TransferHistoryEvent. */
 export type RelationshipHistoryEvent = {

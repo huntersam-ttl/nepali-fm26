@@ -116,6 +116,7 @@ import type {
   ManagerPlayerRelationship,
   PlayerClubSatisfaction,
   SquadHierarchyEntry,
+  SquadCaptaincyOverride,
   PlayerConcern,
   RelationshipHistoryEvent,
   ManagerConcernResponse,
@@ -1544,6 +1545,34 @@ export class SquadDynamicsRepository {
       .map(mapHierarchyEntry);
   }
 
+  captaincyOverride(teamId: EntityId): SquadCaptaincyOverride | undefined {
+    const row = this.db
+      .prepare("SELECT * FROM squad_captaincy_overrides WHERE team_id = ?")
+      .get(teamId) as any;
+    return row ? mapCaptaincyOverride(row) : undefined;
+  }
+
+  upsertCaptaincyOverride(override: SquadCaptaincyOverride): void {
+    this.db
+      .prepare(
+        `INSERT INTO squad_captaincy_overrides
+        (team_id, captain_person_id, vice_captain_person_id, set_on, set_by_manager_profile_id)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(team_id) DO UPDATE SET
+          captain_person_id = excluded.captain_person_id,
+          vice_captain_person_id = excluded.vice_captain_person_id,
+          set_on = excluded.set_on,
+          set_by_manager_profile_id = excluded.set_by_manager_profile_id`,
+      )
+      .run(
+        override.teamId,
+        override.captainPersonId ?? null,
+        override.viceCaptainPersonId ?? null,
+        override.setOn,
+        override.setByManagerProfileId,
+      );
+  }
+
   /** Inserts a concern the first time, and re-raises/updates it on later ticks. */
   upsertConcern(concern: PlayerConcern): void {
     this.db
@@ -1997,6 +2026,14 @@ const mapHierarchyEntry = (row: any): SquadHierarchyEntry => ({
   influence: row.influence,
   role: row.role,
   updatedOn: row.updated_on,
+});
+
+const mapCaptaincyOverride = (row: any): SquadCaptaincyOverride => ({
+  teamId: row.team_id,
+  captainPersonId: row.captain_person_id ?? undefined,
+  viceCaptainPersonId: row.vice_captain_person_id ?? undefined,
+  setOn: row.set_on,
+  setByManagerProfileId: row.set_by_manager_profile_id,
 });
 
 const mapConcern = (row: any): PlayerConcern => ({

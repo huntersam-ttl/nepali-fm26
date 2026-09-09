@@ -9,7 +9,14 @@ import {
   migrateDatabase,
   openGameDatabase,
 } from "@nepal-football-sim/database";
-import { activeConcernCount, createCareerCharacter, evaluateSquadDynamics, testLicence } from "@nepal-football-sim/simulation";
+import {
+  activeConcernCount,
+  appointCaptaincy,
+  CaptaincyActionError,
+  createCareerCharacter,
+  evaluateSquadDynamics,
+  testLicence,
+} from "@nepal-football-sim/simulation";
 import {
   createStableEntityId,
   type Club,
@@ -245,6 +252,7 @@ describe("squad dynamics: hierarchy, relationships, concerns and morale", () => 
     expect(captain?.personId).toBe(captainCandidateId);
   });
 
+
   it("raises playing-time and contract concerns from real state, and hits the manager's inbox count", () => {
     const dynamics = new SquadDynamicsRepository(db);
     const playingTime = dynamics.concern(keyPlayerId, team.id, "PLAYING_TIME");
@@ -350,5 +358,107 @@ describe("squad dynamics: hierarchy, relationships, concerns and morale", () => 
     for (const concern of concerns) {
       expect(concern.note).not.toMatch(/[A-Z]{2,}_[A-Z_]+/);
     }
+  });
+  describe("manual captaincy appointment", () => {
+    // These tests share one connection's persisted override sequentially
+    // (matching this file's existing fixture style), so each appointment
+    // explicitly sets both slots rather than relying on omission — that
+    // keeps every test's starting state unambiguous regardless of order.
+    it("lets the manager captain a player other than the highest-influence one, and it survives recomputation", () => {
+      const worldDate = "2026-10-16";
+      const entries = appointCaptaincy(db, worldDate, managerProfileId, team.id, {
+        captainPersonId: keyPlayerId,
+        viceCaptainPersonId: null,
+      });
+      expect(entries.find((entry) => entry.role === "CAPTAIN")?.personId).toBe(keyPlayerId);
+      // The previously auto-selected captain is demoted, not deleted.
+      expect(
+        entries.find((entry) => entry.personId === captainCandidateId)?.role,
+      ).not.toBe("CAPTAIN");
+
+      // A later, independent recompute (e.g. the next matchday tick) must
+      // keep honouring the override rather than reverting to raw influence.
+      evaluateSquadDynamics(db, saveAt("2026-10-20"), team.id, club.id, managerProfileId);
+      const hierarchy = new SquadDynamicsRepository(db).hierarchyForTeam(team.id);
+      expect(hierarchy.find((entry) => entry.role === "CAPTAIN")?.personId).toBe(keyPlayerId);
+    });
+
+    it("also supports appointing a vice-captain independently of the captain", () => {
+      appointCaptaincy(db, "2026-10-17", managerProfileId, team.id, {
+        captainPersonId: captainCandidateId,
+        viceCaptainPersonId: keyPlayerId,
+      });
+      const hierarchy = new SquadDynamicsRepository(db).hierarchyForTeam(team.id);
+      expect(hierarchy.find((entry) => entry.role === "CAPTAIN")?.personId).toBe(captainCandidateId);
+      expect(hierarchy.find((entry) => entry.role === "VICE_CAPTAIN")?.personId).toBe(keyPlayerId);
+    });
+
+    it("clearing an override with null returns that role to influence-derived selection", () => {
+      appointCaptaincy(db, "2026-10-18", managerProfileId, team.id, {
+        captainPersonId: keyPlayerId,
+        viceCaptainPersonId: null,
+      });
+      appointCaptaincy(db, "2026-10-19", managerProfileId, team.id, { captainPersonId: null });
+      const hierarchy = new SquadDynamicsRepository(db).hierarchyForTeam(team.id);
+      expect(hierarchy.find((entry) => entry.role === "CAPTAIN")?.personId).toBe(captainCandidateId);
+    });
+
+    it("rejects a player who is not part of this squad, and captain/vice-captain being the same person", () => {
+      const outsiderId = createStableEntityId("person", "sd-outsider");
+      expect(() =>
+        appointCaptaincy(db, "2026-10-16", managerProfileId, team.id, {
+          captainPersonId: outsiderId,
+        }),
+      ).toThrow(CaptaincyActionError);
+      expect(() =>
+        appointCaptaincy(db, "2026-10-16", managerProfileId, team.id, {
+          captainPersonId: keyPlayerId,
+          viceCaptainPersonId: keyPlayerId,
+        }),
+      ).toThrow(CaptaincyActionError);
+      // The merged-state check also fires when only one slot is passed but
+      // would collide with the OTHER slot's already-persisted value.
+      appointCaptaincy(db, "2026-10-16", managerProfileId, team.id, {
+        captainPersonId: captainCandidateId,
+        viceCaptainPersonId: keyPlayerId,
+      });
+      expect(() =>
+        appointCaptaincy(db, "2026-10-16", managerProfileId, team.id, {
+          captainPersonId: keyPlayerId,
+        }),
+      ).toThrow(CaptaincyActionError);
+    });
+
+    it("persists as exactly one real row, not a re-rolled or duplicated override", () => {
+      appointCaptaincy(db, "2026-10-21", managerProfileId, team.id, {
+        captainPersonId: keyPlayerId,
+        viceCaptainPersonId: backupId,
+      });
+      // A second, independent repository instance against the same
+      // connection reads the identical persisted row — proving this is
+      // real database state, not an in-memory field on the first instance.
+      const before = new SquadDynamicsRepository(db).captaincyOverride(team.id);
+      const after = new SquadDynamicsRepository(db).captaincyOverride(team.id);
+      expect(after).toEqual(before);
+      const rowCount = (
+        db
+          .prepare("SELECT COUNT(*) AS c FROM squad_captaincy_overrides WHERE team_id = ?")
+          .get(team.id) as { c: number }
+      ).c;
+      expect(rowCount).toBe(1);
+
+      // Appointing again (e.g. a later matchday) must update the same row,
+      // never insert a second one for this team.
+      appointCaptaincy(db, "2026-10-22", managerProfileId, team.id, {
+        captainPersonId: backupId,
+        viceCaptainPersonId: null,
+      });
+      const rowCountAfterSecondAppointment = (
+        db
+          .prepare("SELECT COUNT(*) AS c FROM squad_captaincy_overrides WHERE team_id = ?")
+          .get(team.id) as { c: number }
+      ).c;
+      expect(rowCountAfterSecondAppointment).toBe(1);
+    });
   });
 });

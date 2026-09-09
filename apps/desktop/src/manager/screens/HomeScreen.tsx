@@ -349,7 +349,32 @@ export const HomeScreen = ({
                         items={[
                           { label: "Atmosphere", value: view.cohesion.level },
                           { label: "Cohesion", value: view.cohesion.score },
-                          { label: "Captain", value: view.cohesion.captainName ?? "None" },
+                          {
+                            label: "Captain",
+                            value: view.cohesion.captainPersonId ? (
+                              <button
+                                className="link"
+                                onClick={() => onSelectPlayer(view.cohesion.captainPersonId!)}
+                              >
+                                {view.cohesion.captainName}
+                              </button>
+                            ) : (
+                              "None"
+                            ),
+                          },
+                          {
+                            label: "Vice-captain",
+                            value: view.cohesion.viceCaptainPersonId ? (
+                              <button
+                                className="link"
+                                onClick={() => onSelectPlayer(view.cohesion.viceCaptainPersonId!)}
+                              >
+                                {view.cohesion.viceCaptainName}
+                              </button>
+                            ) : (
+                              "None"
+                            ),
+                          },
                           { label: "Captain's influence", value: view.cohesion.captainInfluence },
                         ]}
                       />
@@ -371,6 +396,44 @@ export const HomeScreen = ({
                                   <button className="link" onClick={() => onSelectPlayer(member.personId)}>
                                     {member.playerName}
                                   </button>
+                                  {groupType === "CORE_LEADERS" && member.hierarchyRole !== "CAPTAIN" && (
+                                    <button
+                                      className="ghost tiny"
+                                      disabled={actionBusy !== null}
+                                      title="Appoint as captain"
+                                      onClick={() =>
+                                        void runAction(`captain-${member.personId}`, async () => {
+                                          const result = await managerBridge.appointCaptaincy({
+                                            captainPersonId: member.personId,
+                                          });
+                                          if (result.ok) refreshConcerns();
+                                          return result;
+                                        })
+                                      }
+                                    >
+                                      {actionBusy === `captain-${member.personId}` ? "…" : "Make captain"}
+                                    </button>
+                                  )}
+                                  {groupType === "CORE_LEADERS" &&
+                                    member.hierarchyRole !== "VICE_CAPTAIN" &&
+                                    member.hierarchyRole !== "CAPTAIN" && (
+                                      <button
+                                        className="ghost tiny"
+                                        disabled={actionBusy !== null}
+                                        title="Appoint as vice-captain"
+                                        onClick={() =>
+                                          void runAction(`vice-captain-${member.personId}`, async () => {
+                                            const result = await managerBridge.appointCaptaincy({
+                                              viceCaptainPersonId: member.personId,
+                                            });
+                                            if (result.ok) refreshConcerns();
+                                            return result;
+                                          })
+                                        }
+                                      >
+                                        {actionBusy === `vice-captain-${member.personId}` ? "…" : "Make vice-captain"}
+                                      </button>
+                                    )}
                                 </React.Fragment>
                               ))}
                             </li>
