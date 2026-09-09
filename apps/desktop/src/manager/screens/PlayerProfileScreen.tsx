@@ -493,10 +493,15 @@ export const PlayerProfileScreen = ({
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
   const [openTransferOfferId, setOpenTransferOfferId] = useState<EntityId | null>(null);
-  /** This screen only has a manager-scoped bridge, which has no general
-   * organization-profile lookup — so only CLUB references (routed through
-   * the club-profile callback this screen already receives) are openable
-   * here; anything else in a storyline stays a plain, honest label. */
+  /** This screen only has a manager-scoped bridge, which doesn't
+   * structurally satisfy the full DesktopRuntimeApi OrganizationProfilePanel
+   * requires (confirmed by attempting it — TS rejects it as missing ~75
+   * unrelated methods) — so only CLUB references (routed through the
+   * club-profile callback this screen already receives) are openable here;
+   * anything else in a storyline stays a plain, honest label rather than a
+   * cast that could break at runtime. Widening managerBridge's own type (or
+   * OrganizationProfilePanel's prop type) to close this gap is real,
+   * scoped follow-up work, not something to force here. */
   const openReference = (reference: EntityReference): void => {
     if (reference.entityType === "CLUB") onOpenClub(reference.id);
   };

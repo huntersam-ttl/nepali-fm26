@@ -7,6 +7,7 @@ import type {
   AdvanceMatchCommand,
   ConcernResponseAction,
   ContractRenewalCommand,
+  DemandResponseCommand,
   SquadMeetingCommand,
   EntityId,
   OrganizationProfileEntityType,
@@ -454,6 +455,8 @@ const dispatch = (
       );
     case "holdSquadMeeting":
       return service.holdSquadMeeting(body.command as SquadMeetingCommand);
+    case "respondToDemand":
+      return service.respondToDemand(body.command as DemandResponseCommand);
     case "appointCaptaincy":
       return service.appointCaptaincy(
         body.command as { captainPersonId?: EntityId | null; viceCaptainPersonId?: EntityId | null },

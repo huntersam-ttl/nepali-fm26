@@ -19,6 +19,9 @@ import type {
   PlayerAttributeSet,
   PlayerConcernStatus,
   PlayerConcernType,
+  PlayerDemandManagerResponse,
+  PlayerDemandStatus,
+  PlayerDemandType,
   PlayerDiscoveryStatus,
   PlayerKnowledgeLevel,
   PlayerPosition,
@@ -997,6 +1000,20 @@ export type SquadConcernView = {
   activePromise?: SquadPromiseView;
 };
 
+/** Human-readable, never a raw enum — matches the demand's actual requestedOutcome/trigger text. */
+export type SquadDemandView = {
+  id: EntityId;
+  personId: EntityId;
+  playerName: string;
+  type: PlayerDemandType;
+  status: PlayerDemandStatus;
+  severity: number;
+  openedOn: ISODate;
+  reviewOn?: ISODate;
+  trigger: string;
+  requestedOutcome: string;
+};
+
 export type SquadGroupMemberView = {
   personId: EntityId;
   playerName: string;
@@ -1025,6 +1042,7 @@ export type SquadMeetingView = SquadMeeting;
 
 export type SquadDynamicsView = {
   concerns: SquadConcernView[];
+  demands: SquadDemandView[];
   promises: SquadPromiseView[];
   cohesion: TeamCohesionView;
   groups: SquadGroupMemberView[];
@@ -1050,6 +1068,17 @@ export type ConcernResponseCommand = {
 
 export type ConcernResponseResult = {
   outcome: ConcernResponseOutcome;
+  squad: SquadDynamicsView;
+};
+
+export type DemandResponseCommand = {
+  demandId: EntityId;
+  response: PlayerDemandManagerResponse;
+  responseNote?: string;
+};
+
+export type DemandResponseResult = {
+  status: PlayerDemandStatus;
   squad: SquadDynamicsView;
 };
 

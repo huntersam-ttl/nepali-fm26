@@ -5,6 +5,8 @@ import {
   TransferMarketRepository,
   type GameDatabase,
 } from "@nepal-football-sim/database";
+import { evaluateMoveAmbition } from "./foreign-move-ambition.js";
+import { requestPlayerTransfer } from "./transfer-market.js";
 import {
   createEntityId,
   createStableEntityId,
@@ -547,13 +549,36 @@ export const evaluateSquadDynamics = (
     const personId = player.personId;
     const contract = clubId ? transfers.activeContract(personId, worldDate) : undefined;
     const transferStatus = transfers.transferStatus(personId);
-    const inboundInterest = offers.some(
-      (offer) =>
-        offer.playerId === personId &&
-        offer.sellingClubId === clubId &&
-        ["SUBMITTED", "NEGOTIATING", "ACCEPTED"].includes(offer.status),
-    );
-    const transferInterested = transferStatus?.status === "INTERESTED_IN_MOVE" || inboundInterest;
+    // A live, real bid — not a duplicate/unchanged offer, not mere scouting
+    // interest. The most recent qualifying offer is what the player is
+    // actually evaluating.
+    const qualifyingOffer = offers
+      .filter(
+        (offer) =>
+          offer.playerId === personId &&
+          offer.sellingClubId === clubId &&
+          ["SUBMITTED", "NEGOTIATING", "ACCEPTED"].includes(offer.status),
+      )
+      .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt))[0];
+    // A trivial bid or a clearly weaker destination never becomes a real
+    // concern signal — only a genuinely strong opportunity (as judged by
+    // evaluateMoveAmbition's global, destination-aware scoring) does. The
+    // manager's own explicit transfer-listing action (INTERESTED_IN_MOVE)
+    // is unrelated to ambition — that's a club decision, not the player's.
+    const ambition =
+      qualifyingOffer && clubId
+        ? evaluateMoveAmbition(db, {
+            personId,
+            currentClubId: clubId,
+            destinationClubId: qualifyingOffer.buyingClubId,
+            managerProfileId,
+            worldDate,
+          })
+        : undefined;
+    const transferInterested =
+      transferStatus?.status === "INTERESTED_IN_MOVE" ||
+      (ambition !== undefined &&
+        (ambition.classification === "STRONG_INTEREST" || ambition.classification === "DEMANDS_MOVE"));
 
     const signals = detectSignals({
       contract,
@@ -632,6 +657,37 @@ export const evaluateSquadDynamics = (
         relationshipDelta -= 10;
         const demand = openDemandFromConcern(db, worldDate, managerProfileId, updated);
         if (demand) outcome.openedDemands.push(demand);
+
+        // TRANSFER_INTEREST is the one concern type formalized through the
+        // EXISTING transfer-request pipeline (requestPlayerTransfer /
+        // player_transfer_requests) rather than the new player_demands
+        // table — see foreign-move-ambition.ts's module comment. A real,
+        // still-live, ambition-justified offer that has sat unresolved for
+        // 30+ days (the same escalation threshold every other concern
+        // uses) becomes a genuine transfer request — never duplicated
+        // while one is already PENDING for this player.
+        if (
+          signal.type === "TRANSFER_INTEREST" &&
+          qualifyingOffer &&
+          ambition &&
+          !transfers.transferRequests(personId).some((request) => request.status === "PENDING")
+        ) {
+          const isForeign = Boolean(
+            db
+              .prepare("SELECT 1 FROM external_club_context WHERE club_id = ?")
+              .get(qualifyingOffer.buyingClubId),
+          );
+          const satisfactionScore = dynamics
+            .satisfactionForTeam(teamId)
+            .find((entry) => entry.personId === personId)?.score;
+          requestPlayerTransfer(db, {
+            playerId: personId,
+            worldDate,
+            reason: `A ${isForeign ? "foreign" : "domestic"} move the player finds genuinely appealing has gone unresolved.`,
+            satisfaction: satisfactionScore,
+            foreignInterest: isForeign,
+          });
+        }
       }
     }
 

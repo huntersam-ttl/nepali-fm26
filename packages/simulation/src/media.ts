@@ -161,7 +161,7 @@ const ownerEvent = (event: HistoricalEvent): boolean =>
 
 const managerEvent = (event: HistoricalEvent): boolean =>
   numericImportance(event) >= 5 &&
-  /(PROMISE|TRANSFER|LOAN|INJURY|MANAGER|MATCH|PROMOTION|RELEGATION|TROPHY|CHAMPION|PROTEST|SUPPORTER)/i.test(
+  /(PROMISE|TRANSFER|LOAN|INJURY|MANAGER|MATCH|PROMOTION|RELEGATION|TROPHY|CHAMPION|PROTEST|SUPPORTER|CONCERN_ESCALATED|DEMAND|CAPTAINCY)/i.test(
     event.eventType,
   );
 

@@ -124,6 +124,8 @@ import {
   type CompetitionView,
   type ConcernResponseAction,
   type ConcernResponseResult,
+  type DemandResponseCommand,
+  type DemandResponseResult,
   type ContractList,
   type ContractRenewalCommand,
   type CreateDevelopmentPlanCommand,
@@ -174,6 +176,7 @@ import {
   type ScoutingDashboard,
   type ScoutingReportView,
   type SquadConcernView,
+  type SquadDemandView,
   type SquadDynamicsView,
   type SquadMeetingCommand,
   type SquadMeetingResult,
@@ -264,10 +267,12 @@ import {
   appointCaptaincy,
   CaptaincyActionError,
   ConcernActionError,
+  DemandActionError,
   evaluateSquadDynamics,
   holdSquadMeeting,
   MeetingActionError,
   respondToConcern as respondToConcernCommand,
+  respondToDemand as respondToDemandCommand,
   validActionsForConcern,
 } from "./squad-dynamics.js";
 import {
@@ -3449,6 +3454,26 @@ export class DesktopApplicationService {
     }, true);
   }
 
+  respondToDemand(command: DemandResponseCommand): AppResult<DemandResponseResult> {
+    return this.managerCommand((db, save, context) => {
+      let status: DemandResponseResult["status"];
+      try {
+        status = respondToDemandCommand(
+          db,
+          save,
+          context.manager.id,
+          command.demandId,
+          command.response,
+          command.responseNote,
+        ).demand.status;
+      } catch (error) {
+        if (error instanceof DemandActionError) throw appError("INVALID_SELECTION", error.message);
+        throw error;
+      }
+      return { status, squad: buildSquadDynamicsView(db, context.team.id) };
+    }, true);
+  }
+
   holdSquadMeeting(command: SquadMeetingCommand): AppResult<SquadMeetingResult> {
     return this.managerCommand((db, save, context) => {
       try {
@@ -4955,6 +4980,22 @@ const buildSquadDynamicsView = (db: GameDatabase, teamId: EntityId): SquadDynami
       activePromise: promiseByConcernId.get(concern.id),
     }));
 
+  const demands: SquadDemandView[] = dynamics
+    .demandsForTeam(teamId)
+    .filter((demand) => demand.status === "OPEN")
+    .map((demand) => ({
+      id: demand.id,
+      personId: demand.personId,
+      playerName: displayName(getPerson(db, demand.personId)),
+      type: demand.type,
+      status: demand.status,
+      severity: demand.severity,
+      openedOn: demand.openedOn,
+      reviewOn: demand.reviewOn,
+      trigger: demand.trigger,
+      requestedOutcome: demand.requestedOutcome,
+    }));
+
   const hierarchy = dynamics.hierarchyForTeam(teamId);
   const groupByPerson = new Map(
     dynamics.groupsForTeam(teamId).map((entry) => [entry.personId, entry.groupType]),
@@ -4992,6 +5033,7 @@ const buildSquadDynamicsView = (db: GameDatabase, teamId: EntityId): SquadDynami
   }));
   return {
     concerns,
+    demands,
     promises: activePromises.map(toPromiseView),
     cohesion,
     groups,

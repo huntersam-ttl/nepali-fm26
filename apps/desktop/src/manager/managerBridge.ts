@@ -6,6 +6,8 @@ import type {
   ConcernResponseResult,
   ContractList,
   ContractRenewalCommand,
+  DemandResponseCommand,
+  DemandResponseResult,
   DesktopApplicationState,
   EntityId,
   FixtureDetail,
@@ -88,6 +90,8 @@ export const managerBridge = {
     runtimeCall<SquadMeetingResult>("holdSquadMeeting", { command }),
   appointCaptaincy: (command: { captainPersonId?: EntityId | null; viceCaptainPersonId?: EntityId | null }) =>
     runtimeCall<SquadDynamicsView>("appointCaptaincy", { command }),
+  respondToDemand: (command: DemandResponseCommand) =>
+    runtimeCall<DemandResponseResult>("respondToDemand", { command }),
   getPlayerProfile: (playerId: EntityId) =>
     runtimeCall<PlayerProfile>("getPlayerProfile", { playerId }),
   getPlayerPathway: (playerId: EntityId) =>

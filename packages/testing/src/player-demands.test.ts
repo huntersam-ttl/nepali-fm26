@@ -15,7 +15,9 @@ import {
   createCareerCharacter,
   evaluateSquadDynamics,
   manageAiDemandsForTeam,
+  publishMediaForDate,
   respondToDemand,
+  roleInboxItems,
   testLicence,
 } from "@nepal-football-sim/simulation";
 import {
@@ -121,6 +123,18 @@ describe("player demands: opening, response, AI handling, and captaincy reaction
   world.insertPerson(character.person);
   new ManagerRepository(db).insertProfile(character.managerProfile);
   managerProfileId = character.managerProfile.id;
+  new ManagerRepository(db).insertContract({
+    id: createStableEntityId("manager-contract", "pd-manager"),
+    managerProfileId,
+    personId: character.person.id,
+    teamId: team.id,
+    clubId: club.id,
+    jobTitle: "Manager",
+    contractStart: "2026-08-01",
+    salaryAmountMinor: 1_000_000,
+    currency: "NPR",
+    status: "ACTIVE",
+  });
 
   const saveAt = (worldDate: string) => ({
     id: createStableEntityId("save", "pd-test"), name: "Demand Test", worldDate, databaseVersion: 97,
@@ -305,6 +319,40 @@ describe("player demands: opening, response, AI handling, and captaincy reaction
       // keyPlayerId moved from CAPTAIN to VICE_CAPTAIN — still a leadership
       // slot, so this must not count as a hard demotion reaction.
       expect(afterHistoryCount).toBe(beforeHistoryCount);
+    });
+  });
+
+  describe("demand/captaincy events reach the manager's real Inbox, fully clickable", () => {
+    it("a DEMAND_OPENED story routes to the manager's inbox with a resolved, clickable Player reference", () => {
+      const dynamics = new SquadDynamicsRepository(db);
+      dynamics.upsertConcern({
+        id: createStableEntityId("concern", "inbox-test"), personId: otherId, teamId: team.id,
+        type: "ROLE_STATUS", status: "ESCALATED", severity: 6, raisedOn: "2027-10-01", updatedOn: "2027-10-01",
+      });
+      const worldDate = "2027-10-01";
+      // Reuse the same production path a real escalation takes: log the
+      // event exactly as squad-dynamics.ts's logEvent/openDemandFromConcern
+      // would, by driving it through the real evaluateSquadDynamics tick —
+      // seed a fresh escalatable ROLE_STATUS scenario for otherId directly
+      // via a real hard captaincy demotion, which is already proven above
+      // to open a CAPTAINCY_CONCERN demand and log CAPTAINCY_REACTION.
+      appointCaptaincy(db, worldDate, managerProfileId, team.id, { captainPersonId: captainId, viceCaptainPersonId: undefined });
+      appointCaptaincy(db, worldDate, managerProfileId, team.id, {
+        captainPersonId: keyPlayerId,
+        viceCaptainPersonId: otherId,
+      });
+
+      publishMediaForDate(db, { date: worldDate });
+      const inbox = roleInboxItems(db, { personId: character.person.id, role: "MANAGER" });
+      const captaincyItem = inbox.find((item) =>
+        item.entityReferences?.some((ref) => ref.entityType === "PLAYER" && ref.id === captainId),
+      );
+      expect(captaincyItem).toBeDefined();
+      const playerRef = captaincyItem!.entityReferences!.find(
+        (ref) => ref.entityType === "PLAYER" && ref.id === captainId,
+      )!;
+      expect(playerRef.visible).toBe(true);
+      expect(playerRef.destination.length).toBeGreaterThan(0);
     });
   });
 });
