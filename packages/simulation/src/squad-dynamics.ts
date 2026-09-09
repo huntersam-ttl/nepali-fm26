@@ -1832,6 +1832,36 @@ export const manageAiDemandsForTeam = (
 };
 
 /**
+ * An AI manager's own, narrow entry point for the Team Meeting Context
+ * Engine — mirrors manageAiPromisesForTeam/manageAiDemandsForTeam. Only
+ * acts when evaluateTeamMeetingContext finds a genuine reason (the same
+ * real derivation a human manager sees), always picks the message with a
+ * GOOD fit for that context (falling back to the first offered message if
+ * none is marked GOOD), and silently does nothing when the meeting cooldown
+ * hasn't lifted yet — an AI team simply isn't due for a team talk that day,
+ * which is a real, expected outcome rather than a failure.
+ */
+export const manageAiTeamMeetingsForTeam = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  managerProfileId: EntityId,
+  teamId: EntityId,
+): SquadMeeting | undefined => {
+  const context = evaluateTeamMeetingContext(db, save.worldDate, teamId);
+  if (!context) return undefined;
+  const message = context.messages.find((m) => m.fit === "GOOD") ?? context.messages[0];
+  try {
+    return holdSquadMeeting(db, save, managerProfileId, teamId, {
+      type: "SQUAD_MEETING",
+      messageId: message?.id,
+    });
+  } catch (error) {
+    if (error instanceof MeetingActionError) return undefined;
+    throw error;
+  }
+};
+
+/**
  * The manager's response to one active concern. Outcome odds come from the
  * player's relationship with the manager, the concern's own severity, their
  * standing in the squad hierarchy (senior players see through empty

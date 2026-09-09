@@ -17,6 +17,7 @@ import {
   createCareerCharacter,
   evaluateTeamMeetingContext,
   holdSquadMeeting,
+  manageAiTeamMeetingsForTeam,
   testLicence,
 } from "@nepal-football-sim/simulation";
 import {
@@ -366,5 +367,35 @@ describe("holdSquadMeeting: contextual team meetings", () => {
       .prepare("SELECT * FROM historical_events WHERE event_type = 'TEAM_MEETING_RESULT'")
       .all() as Array<{ id: string }>;
     expect(rows.length).toBe(1);
+  });
+
+  it("AI: holds a real team meeting with a GOOD-fit message when a genuine context applies", () => {
+    dynamics().upsertCohesion({
+      teamId: team.id, score: 55, level: "POOR", captainInfluence: "NEUTRAL",
+      topIssue: "The dressing room is uneasy.", updatedOn: "2027-02-01",
+    });
+    const meeting = manageAiTeamMeetingsForTeam(db, saveAt("2027-02-01"), managerProfileId, team.id);
+    expect(meeting?.type).toBe("SQUAD_MEETING");
+    // CONFRONT_ISSUE is the GOOD-fit message for DRESSING_ROOM_TENSION.
+    expect(meeting?.summary).toContain("Confront the issue");
+  });
+
+  it("AI: does nothing (no throw) when no context applies", () => {
+    dynamics().upsertCohesion({
+      teamId: team.id, score: 90, level: "UNITED", captainInfluence: "STABILIZING", updatedOn: "2027-02-01",
+    });
+    expect(manageAiTeamMeetingsForTeam(db, saveAt("2027-02-01"), managerProfileId, team.id)).toBeUndefined();
+  });
+
+  it("AI: silently respects the meeting cooldown rather than throwing", () => {
+    dynamics().upsertCohesion({
+      teamId: team.id, score: 55, level: "POOR", captainInfluence: "NEUTRAL",
+      topIssue: "The dressing room is uneasy.", updatedOn: "2027-02-01",
+    });
+    const first = manageAiTeamMeetingsForTeam(db, saveAt("2027-02-01"), managerProfileId, team.id);
+    expect(first).toBeDefined();
+    // Same day, cohesion still poor: the cooldown should suppress a second meeting.
+    const second = manageAiTeamMeetingsForTeam(db, saveAt("2027-02-01"), managerProfileId, team.id);
+    expect(second).toBeUndefined();
   });
 });

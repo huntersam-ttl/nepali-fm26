@@ -68,7 +68,11 @@ import {
 import { calculateStandings, sortStandings, summarizePlayerStats } from "./standings.js";
 import { initializeTransferMarketForSave, simulateTransferWindow } from "./transfer-market.js";
 import { runClubAiSeasonPlanning } from "./ai-club-strategy.js";
-import { manageAiDemandsForTeam, manageAiPromisesForTeam } from "./squad-dynamics.js";
+import {
+  manageAiDemandsForTeam,
+  manageAiPromisesForTeam,
+  manageAiTeamMeetingsForTeam,
+} from "./squad-dynamics.js";
 import { ensureAiStaffAssigned, evaluateAllStaffContracts } from "./staff-market.js";
 import { settleFederationInjuryWelfare, settleMatchInjuryInsurance } from "./insurance.js";
 import { processInternationalTrials } from "./international-trials.js";
@@ -714,6 +718,12 @@ const simulateCompetitionSeason = (
         managerContract.managerProfileId,
       );
       manageAiDemandsForTeam(
+        db,
+        { ...input.save, worldDate: fixture.scheduledDate },
+        managerContract.managerProfileId,
+        teamId,
+      );
+      manageAiTeamMeetingsForTeam(
         db,
         { ...input.save, worldDate: fixture.scheduledDate },
         managerContract.managerProfileId,
