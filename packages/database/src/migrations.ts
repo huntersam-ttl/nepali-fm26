@@ -3795,6 +3795,31 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       );
     `,
   },
+  {
+    version: 97,
+    sql: `
+      CREATE TABLE IF NOT EXISTS player_demands (
+        id TEXT PRIMARY KEY,
+        person_id TEXT NOT NULL REFERENCES persons(id),
+        team_id TEXT NOT NULL REFERENCES teams(id),
+        type TEXT NOT NULL,
+        status TEXT NOT NULL,
+        severity INTEGER NOT NULL,
+        opened_on TEXT NOT NULL,
+        updated_on TEXT NOT NULL,
+        review_on TEXT,
+        trigger_reason TEXT NOT NULL,
+        requested_outcome TEXT NOT NULL,
+        concern_id TEXT REFERENCES player_concerns(id),
+        manager_response TEXT,
+        response_note TEXT,
+        promise_id TEXT REFERENCES manager_promises(id),
+        resolved_on TEXT,
+        UNIQUE(person_id, team_id, type)
+      );
+      CREATE INDEX IF NOT EXISTS idx_player_demands_team_status ON player_demands(team_id, status);
+    `,
+  },
 ];
 
 export const migrateDatabase = (db: GameDatabase): number => {

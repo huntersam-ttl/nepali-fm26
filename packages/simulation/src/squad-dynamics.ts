@@ -22,6 +22,10 @@ import {
   type PlayerConcern,
   type PlayerConcernType,
   type PlayerContractRecord,
+  type PlayerDemand,
+  type PlayerDemandManagerResponse,
+  type PlayerDemandStatus,
+  type PlayerDemandType,
   type PlayerSquadRole,
   type SaveMetadata,
   type SquadDispute,
@@ -241,8 +245,74 @@ export const appointCaptaincy = (
         }
       }
     }
+    if (wasCaptainId) {
+      reactToCaptaincyLoss(db, worldDate, managerProfileId, teamId, wasCaptainId, entries);
+    }
   }
   return entries;
+};
+
+/**
+ * A bounded human reaction to losing the captaincy — never a story for
+ * every appointment, only for the demoted PREVIOUS captain, and only
+ * escalating (a demand, wider spillover) when the demotion is severe: a
+ * genuinely influential player dropped all the way out of the leadership
+ * tier, not merely handed the armband to someone else while staying vice-
+ * captain or a senior player.
+ */
+const reactToCaptaincyLoss = (
+  db: GameDatabase,
+  worldDate: string,
+  managerProfileId: EntityId,
+  teamId: EntityId,
+  demotedPersonId: EntityId,
+  entries: SquadHierarchyEntry[],
+): void => {
+  const demoted = entries.find((entry) => entry.personId === demotedPersonId);
+  if (!demoted) return; // no longer on the squad at all
+  const dynamics = new SquadDynamicsRepository(db);
+  const hardDemotion = demoted.role === "SQUAD_PLAYER" || demoted.role === "FRINGE_PLAYER";
+  const relationshipDelta = hardDemotion ? -10 : -3;
+  adjustRelationship(db, managerProfileId, demotedPersonId, relationshipDelta, worldDate);
+
+  if (!hardDemotion || demoted.influence < 60) return;
+
+  logEvent(db, demotedPersonId, teamId, managerProfileId, "CAPTAINCY_REACTION", worldDate, {
+    newRole: demoted.role,
+    influence: demoted.influence,
+  });
+
+  // A genuinely influential player dropped entirely out of leadership can
+  // unsettle a few teammates too — the same bounded spillover mechanism
+  // already used for an escalated core-leader concern or broken promise.
+  nudgeSquadMorale(db, teamId, -4, worldDate, [demotedPersonId]);
+
+  // Very high influence + a hard demotion is a real grievance, not just a
+  // mood dip — but this still only ever opens ONE demand (guarded by
+  // openDemandFromConcern-style upsert semantics via the CAPTAINCY_CONCERN
+  // type's own uniqueness), never a cascade.
+  if (demoted.influence >= 75) {
+    const existing = dynamics.demand(demotedPersonId, teamId, "CAPTAINCY_CONCERN");
+    if (!existing || existing.status !== "OPEN") {
+      const demand: PlayerDemand = {
+        id: existing?.id ?? createEntityId(),
+        personId: demotedPersonId,
+        teamId,
+        type: "CAPTAINCY_CONCERN",
+        status: "OPEN",
+        severity: 7,
+        openedOn: worldDate,
+        updatedOn: worldDate,
+        reviewOn: addDays(worldDate, DEMAND_REVIEW_DAYS),
+        trigger: "Lost the captaincy despite a strong standing in the squad.",
+        requestedOutcome: requestedOutcomeFor("CAPTAINCY_CONCERN"),
+      };
+      dynamics.upsertDemand(demand);
+      logEvent(db, demotedPersonId, teamId, managerProfileId, "DEMAND_OPENED", worldDate, {
+        type: "CAPTAINCY_CONCERN",
+      });
+    }
+  }
 };
 
 // ---------------------------------------------------------------------------
@@ -424,6 +494,8 @@ export type SquadDynamicsOutcome = {
   atRiskPromises: ManagerPromise[];
   brokenPromises: ManagerPromise[];
   expiredPromises: ManagerPromise[];
+  openedDemands: PlayerDemand[];
+  expiredDemands: PlayerDemand[];
 };
 
 /**
@@ -467,6 +539,8 @@ export const evaluateSquadDynamics = (
     atRiskPromises: [],
     brokenPromises: [],
     expiredPromises: [],
+    openedDemands: [],
+    expiredDemands: [],
   };
 
   for (const player of players.attributesForTeam(teamId)) {
@@ -556,6 +630,8 @@ export const evaluateSquadDynamics = (
         });
         outcome.escalatedConcerns.push(updated);
         relationshipDelta -= 10;
+        const demand = openDemandFromConcern(db, worldDate, managerProfileId, updated);
+        if (demand) outcome.openedDemands.push(demand);
       }
     }
 
@@ -592,6 +668,21 @@ export const evaluateSquadDynamics = (
       type: promise.type,
     });
     outcome.expiredPromises.push(expired);
+  }
+
+  // Bounded, exactly like promises: a demand nobody ever answers must not
+  // accumulate forever, and a demand for a player no longer on this squad
+  // can never be meaningfully judged again.
+  for (const demand of dynamics.demandsForTeam(teamId)) {
+    if (demand.status !== "OPEN") continue;
+    const overdue = demand.reviewOn !== undefined && worldDate > demand.reviewOn;
+    if (rosterIds.has(demand.personId) && !overdue) continue;
+    const expired: PlayerDemand = { ...demand, status: "EXPIRED", updatedOn: worldDate, resolvedOn: worldDate };
+    dynamics.upsertDemand(expired);
+    logEvent(db, demand.personId, teamId, managerProfileId, "DEMAND_EXPIRED", worldDate, {
+      type: demand.type,
+    });
+    outcome.expiredDemands.push(expired);
   }
 
   evaluateTeamCohesion(db, save, teamId, managerProfileId, hierarchy, groupByPerson, outcome);
@@ -993,7 +1084,15 @@ const logEvent = (
     | "PROMISE_EXPIRED"
     | "MEETING_HELD"
     | "DISPUTE_MEDIATED"
-    | "DISPUTE_UNRESOLVED",
+    | "DISPUTE_UNRESOLVED"
+    | "CAPTAINCY_REACTION"
+    | "DEMAND_OPENED"
+    | "DEMAND_ACCEPTED"
+    | "DEMAND_REJECTED"
+    | "DEMAND_DEFERRED"
+    | "DEMAND_RESOLVED"
+    | "DEMAND_WITHDRAWN"
+    | "DEMAND_EXPIRED",
   worldDate: string,
   data: Record<string, unknown>,
 ): void => {
@@ -1008,25 +1107,45 @@ const logEvent = (
   });
   // Story Universe routing is deliberately narrow: a RAISED concern is
   // common and often resolves itself within a tick or two (see
-  // CONCERN_ESCALATION_DAYS), so only an ESCALATED concern — genuinely
-  // unresolved for 30+ days with no active promise addressing it — is
-  // material enough to become a world story, alongside promise
-  // fulfilment/breakage which already routed here.
-  if (
-    eventType === "PROMISE_KEPT" ||
-    eventType === "PROMISE_BROKEN" ||
-    eventType === "CONCERN_ESCALATED"
-  ) {
+  // CONCERN_ESCALATION_DAYS), so only an ESCALATED concern is material
+  // enough to become a world story — same reasoning for demands: opening
+  // one (a real formal ask reaching the manager) and an outright rejection
+  // are the newsworthy moments; acceptance is already covered by the
+  // resulting PROMISE_MADE/PROMISE_KEPT story, and deferral/withdrawal/
+  // expiry are administrative, not story material.
+  const STORY_ROUTED = new Set([
+    "PROMISE_KEPT",
+    "PROMISE_BROKEN",
+    "CONCERN_ESCALATED",
+    "DEMAND_OPENED",
+    "DEMAND_REJECTED",
+    "CAPTAINCY_REACTION",
+  ]);
+  if (STORY_ROUTED.has(eventType)) {
     const club = db
       .prepare("SELECT club_id AS clubId FROM teams WHERE id = ? LIMIT 1")
       .get(teamId) as { clubId?: EntityId } | undefined;
     if (club?.clubId) {
       const historyId = createStableEntityId(
         "historical-event",
-        eventType === "CONCERN_ESCALATED"
-          ? `concern-escalated:${personId}:${teamId}:${worldDate}:${data.type ?? "unknown"}`
-          : `promise:${data.promiseId ?? `${personId}:${teamId}:${eventType}:${worldDate}:${data.type ?? "unknown"}`}`,
+        `${eventType.toLowerCase()}:${personId}:${teamId}:${worldDate}:${data.type ?? data.promiseId ?? "unknown"}`,
       );
+      const title: Record<string, string> = {
+        CONCERN_ESCALATED: "Player concern escalates",
+        PROMISE_KEPT: "Manager promise fulfilled",
+        PROMISE_BROKEN: "Manager promise broken",
+        DEMAND_OPENED: "Player makes a formal request",
+        DEMAND_REJECTED: "Manager rejects player's request",
+        CAPTAINCY_REACTION: "Reaction to captaincy change",
+      };
+      const importance: Record<string, "medium" | "high"> = {
+        CONCERN_ESCALATED: "medium",
+        PROMISE_KEPT: "medium",
+        PROMISE_BROKEN: "high",
+        DEMAND_OPENED: "medium",
+        DEMAND_REJECTED: "high",
+        CAPTAINCY_REACTION: "medium",
+      };
       if (!db.prepare("SELECT 1 FROM historical_events WHERE id = ?").get(historyId)) {
         new EventRepository(db).insertHistoricalEvent({
           id: historyId,
@@ -1036,14 +1155,9 @@ const logEvent = (
             { id: personId, type: "person" },
             { id: club.clubId, type: "club" },
           ],
-          title:
-            eventType === "CONCERN_ESCALATED"
-              ? "Player concern escalates"
-              : eventType === "PROMISE_KEPT"
-                ? "Manager promise fulfilled"
-                : "Manager promise broken",
+          title: title[eventType] ?? eventType,
           data: { ...data, teamId, managerProfileId },
-          importance: eventType === "PROMISE_KEPT" ? "medium" : "high",
+          importance: importance[eventType] ?? "medium",
           scope: "club",
         });
       }
@@ -1433,6 +1547,190 @@ const createPromise = (
     type,
   });
   return promise;
+};
+
+// ---------------------------------------------------------------------------
+// Player demands — a formal, player-initiated request the manager must
+// actually answer, distinct from a concern (a system-detected unhappiness
+// signal). TRANSFER_REQUEST/LOAN_REQUEST are deliberately NOT represented
+// here — those already have a first-class mechanism in transfer-market.ts
+// (requestPlayerTransfer / player_transfer_requests); duplicating that would
+// create two competing transfer-request systems.
+// ---------------------------------------------------------------------------
+
+const DEMAND_TYPE_FOR_CONCERN: Partial<Record<PlayerConcernType, PlayerDemandType>> = {
+  PLAYING_TIME: "PLAYING_TIME_REQUEST",
+  CONTRACT: "CONTRACT_REQUEST",
+  ROLE_STATUS: "ROLE_REQUEST",
+};
+
+const DEMAND_REVIEW_DAYS = 21;
+
+const requestedOutcomeFor = (type: PlayerDemandType): string => {
+  switch (type) {
+    case "PLAYING_TIME_REQUEST":
+      return "More regular playing time.";
+    case "CONTRACT_REQUEST":
+      return "A new or improved contract.";
+    case "ROLE_REQUEST":
+      return "A clearer, more senior squad role.";
+    case "CAPTAINCY_CONCERN":
+      return "Recognition of their standing in the leadership group.";
+  }
+};
+
+/**
+ * Formalizes a genuinely escalated concern into a demand the manager must
+ * respond to — never invented from a merely RAISED/ACTIVE concern, and
+ * never duplicated while one of this type is already OPEN for this player.
+ * Concern types with no matching demand type (TRANSFER_INTEREST — handled
+ * by the real transfer-request pipeline) are silently skipped.
+ */
+const openDemandFromConcern = (
+  db: GameDatabase,
+  worldDate: string,
+  managerProfileId: EntityId,
+  concern: PlayerConcern,
+): PlayerDemand | undefined => {
+  const type = DEMAND_TYPE_FOR_CONCERN[concern.type];
+  if (!type) return undefined;
+  const dynamics = new SquadDynamicsRepository(db);
+  const existing = dynamics.demand(concern.personId, concern.teamId, type);
+  if (existing && existing.status === "OPEN") return undefined;
+  const demand: PlayerDemand = {
+    id: existing?.id ?? createEntityId(),
+    personId: concern.personId,
+    teamId: concern.teamId,
+    type,
+    status: "OPEN",
+    severity: concern.severity,
+    openedOn: worldDate,
+    updatedOn: worldDate,
+    reviewOn: addDays(worldDate, DEMAND_REVIEW_DAYS),
+    trigger: concern.note ?? `${band(concern.type)} concern escalated`,
+    requestedOutcome: requestedOutcomeFor(type),
+    concernId: concern.id,
+  };
+  dynamics.upsertDemand(demand);
+  logEvent(db, concern.personId, concern.teamId, managerProfileId, "DEMAND_OPENED", worldDate, {
+    type,
+  });
+  return demand;
+};
+
+export class DemandActionError extends Error {
+  constructor(
+    readonly code: "DEMAND_NOT_FOUND" | "DEMAND_NOT_OPEN",
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+const PROMISE_TYPE_FOR_DEMAND: Record<PlayerDemandType, ManagerPromiseType | undefined> = {
+  PLAYING_TIME_REQUEST: "PLAYING_TIME",
+  CONTRACT_REQUEST: "CONTRACT_REVIEW",
+  ROLE_REQUEST: "SQUAD_ROLE",
+  CAPTAINCY_CONCERN: undefined,
+};
+
+/**
+ * The manager's response to one OPEN demand. ACCEPT and ALTERNATIVE both
+ * create a real, measurable promise (via the same createPromise the concern
+ * pathway uses) rather than a fire-and-forget "yes" — so a manager who
+ * accepts and then does nothing still breaks a promise, exactly like the
+ * concern flow. REJECT and DEFER never fabricate a promise.
+ */
+export const respondToDemand = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  managerProfileId: EntityId,
+  demandId: EntityId,
+  response: PlayerDemandManagerResponse,
+  responseNote?: string,
+): { demand: PlayerDemand; promise?: ManagerPromise } => {
+  const dynamics = new SquadDynamicsRepository(db);
+  const demand = dynamics.demandById(demandId);
+  if (!demand) throw new DemandActionError("DEMAND_NOT_FOUND", "That request no longer exists.");
+  if (demand.status !== "OPEN") {
+    throw new DemandActionError("DEMAND_NOT_OPEN", "This request has already been answered.");
+  }
+  const worldDate = save.worldDate;
+  const concern = demand.concernId ? dynamics.concernById(demand.concernId) : undefined;
+
+  let promise: ManagerPromise | undefined;
+  let status: PlayerDemandStatus;
+  let relationshipDelta: number;
+  let eventType:
+    | "DEMAND_ACCEPTED"
+    | "DEMAND_REJECTED"
+    | "DEMAND_DEFERRED"
+    | "DEMAND_RESOLVED";
+
+  if (response === "DEFER") {
+    status = "DEFERRED";
+    relationshipDelta = -1;
+    eventType = "DEMAND_DEFERRED";
+  } else if (response === "REJECT") {
+    status = "REJECTED";
+    relationshipDelta = -8;
+    eventType = "DEMAND_REJECTED";
+    if (concern && concern.status !== "RESOLVED") {
+      dynamics.upsertConcern({ ...concern, status: "ESCALATED", updatedOn: worldDate });
+    }
+  } else {
+    // ACCEPT or ALTERNATIVE
+    const promiseType = PROMISE_TYPE_FOR_DEMAND[demand.type];
+    if (promiseType && concern) {
+      promise = createPromise(db, save, managerProfileId, concern, promiseType);
+    }
+    status = "ACCEPTED";
+    relationshipDelta = response === "ACCEPT" ? 6 : 3;
+    eventType = "DEMAND_ACCEPTED";
+  }
+
+  const updated: PlayerDemand = {
+    ...demand,
+    status,
+    updatedOn: worldDate,
+    managerResponse: response,
+    responseNote,
+    promiseId: promise?.id,
+    resolvedOn: status === "DEFERRED" ? undefined : worldDate,
+  };
+  dynamics.upsertDemand(updated);
+  if (relationshipDelta !== 0) {
+    adjustRelationship(db, managerProfileId, demand.personId, relationshipDelta, worldDate);
+  }
+  logEvent(db, demand.personId, demand.teamId, managerProfileId, eventType, worldDate, {
+    type: demand.type,
+    response,
+  });
+  return { demand: updated, promise };
+};
+
+/**
+ * The AI manager's own narrow demand-handling entry point — deterministic,
+ * driven by the real relationship score, never a flat always-accept or
+ * always-reject policy. Considers at most one, highest-severity OPEN
+ * demand per call, matching manageAiPromisesForTeam's event-driven shape.
+ */
+export const manageAiDemandsForTeam = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  managerProfileId: EntityId,
+  teamId: EntityId,
+): ReturnType<typeof respondToDemand> | undefined => {
+  const dynamics = new SquadDynamicsRepository(db);
+  const demand = dynamics
+    .demandsForTeam(teamId)
+    .filter((entry) => entry.status === "OPEN")
+    .sort((a, b) => b.severity - a.severity || a.id.localeCompare(b.id))[0];
+  if (!demand) return undefined;
+  const relationship = dynamics.relationship(managerProfileId, demand.personId)?.score ?? 0;
+  const response: PlayerDemandManagerResponse =
+    relationship >= 10 ? "ACCEPT" : relationship >= -20 ? "DEFER" : "REJECT";
+  return respondToDemand(db, save, managerProfileId, demand.id, response);
 };
 
 /**

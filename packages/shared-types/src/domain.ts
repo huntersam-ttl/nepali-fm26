@@ -4445,6 +4445,54 @@ export type PlayerConcern = {
   note?: string;
 };
 
+/**
+ * A demand types that already have a first-class, dedicated mechanism
+ * elsewhere (TRANSFER_REQUEST/LOAN_REQUEST — see `requestPlayerTransfer`
+ * and `player_transfer_requests`) are deliberately NOT represented here,
+ * to avoid a second, parallel transfer-request system. This type covers
+ * the demand categories that had no persistent player-initiated-request
+ * representation at all before this sprint.
+ */
+export type PlayerDemandType =
+  | "PLAYING_TIME_REQUEST"
+  | "CONTRACT_REQUEST"
+  | "ROLE_REQUEST"
+  | "CAPTAINCY_CONCERN";
+
+export type PlayerDemandStatus =
+  | "OPEN"
+  | "ACCEPTED"
+  | "REJECTED"
+  | "DEFERRED"
+  | "RESOLVED"
+  | "WITHDRAWN"
+  | "EXPIRED";
+
+export type PlayerDemandManagerResponse = "ACCEPT" | "REJECT" | "DEFER" | "ALTERNATIVE";
+
+/** One row per (person, team, demand type) — re-raised, not duplicated, mirroring PlayerConcern. */
+export type PlayerDemand = {
+  id: EntityId;
+  personId: EntityId;
+  teamId: EntityId;
+  type: PlayerDemandType;
+  status: PlayerDemandStatus;
+  severity: number;
+  openedOn: ISODate;
+  updatedOn: ISODate;
+  /** Deadline by which the manager is expected to respond before it lapses to EXPIRED. */
+  reviewOn?: ISODate;
+  trigger: string;
+  requestedOutcome: string;
+  /** The concern this demand formalized, if any — most demands escalate from one. */
+  concernId?: EntityId;
+  managerResponse?: PlayerDemandManagerResponse;
+  responseNote?: string;
+  /** The promise created if the response was ACCEPT or ALTERNATIVE. */
+  promiseId?: EntityId;
+  resolvedOn?: ISODate;
+};
+
 export type RelationshipEventType =
   | "CONCERN_RAISED"
   | "CONCERN_ESCALATED"
@@ -4462,7 +4510,15 @@ export type RelationshipEventType =
   | "MEETING_HELD"
   | "DISPUTE_MEDIATED"
   | "DISPUTE_UNRESOLVED"
-  | "CAPTAINCY_CHANGE";
+  | "CAPTAINCY_CHANGE"
+  | "CAPTAINCY_REACTION"
+  | "DEMAND_OPENED"
+  | "DEMAND_ACCEPTED"
+  | "DEMAND_REJECTED"
+  | "DEMAND_DEFERRED"
+  | "DEMAND_RESOLVED"
+  | "DEMAND_WITHDRAWN"
+  | "DEMAND_EXPIRED";
 
 /** Append-only log of relationship/concern state transitions, mirroring TransferHistoryEvent. */
 export type RelationshipHistoryEvent = {

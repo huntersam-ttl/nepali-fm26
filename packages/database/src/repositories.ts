@@ -118,6 +118,7 @@ import type {
   SquadHierarchyEntry,
   SquadCaptaincyOverride,
   PlayerConcern,
+  PlayerDemand,
   RelationshipHistoryEvent,
   ManagerConcernResponse,
   ManagerPromise,
@@ -1632,6 +1633,74 @@ export class SquadDynamicsRepository {
     return row ? mapConcern(row) : undefined;
   }
 
+  /** Inserts a demand the first time, and re-raises/updates it on later ticks — mirrors upsertConcern. */
+  upsertDemand(demand: PlayerDemand): void {
+    this.db
+      .prepare(
+        `INSERT INTO player_demands
+        (id, person_id, team_id, type, status, severity, opened_on, updated_on, review_on,
+         trigger_reason, requested_outcome, concern_id, manager_response, response_note, promise_id, resolved_on)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(person_id, team_id, type) DO UPDATE SET
+          status = excluded.status,
+          severity = excluded.severity,
+          opened_on = excluded.opened_on,
+          updated_on = excluded.updated_on,
+          review_on = excluded.review_on,
+          trigger_reason = excluded.trigger_reason,
+          requested_outcome = excluded.requested_outcome,
+          concern_id = excluded.concern_id,
+          manager_response = excluded.manager_response,
+          response_note = excluded.response_note,
+          promise_id = excluded.promise_id,
+          resolved_on = excluded.resolved_on`,
+      )
+      .run(
+        demand.id,
+        demand.personId,
+        demand.teamId,
+        demand.type,
+        demand.status,
+        demand.severity,
+        demand.openedOn,
+        demand.updatedOn,
+        demand.reviewOn ?? null,
+        demand.trigger,
+        demand.requestedOutcome,
+        demand.concernId ?? null,
+        demand.managerResponse ?? null,
+        demand.responseNote ?? null,
+        demand.promiseId ?? null,
+        demand.resolvedOn ?? null,
+      );
+  }
+
+  demand(personId: EntityId, teamId: EntityId, type: PlayerDemand["type"]): PlayerDemand | undefined {
+    const row = this.db
+      .prepare("SELECT * FROM player_demands WHERE person_id = ? AND team_id = ? AND type = ?")
+      .get(personId, teamId, type) as any;
+    return row ? mapDemand(row) : undefined;
+  }
+
+  demandsForTeam(teamId: EntityId): PlayerDemand[] {
+    return this.db
+      .prepare("SELECT * FROM player_demands WHERE team_id = ? ORDER BY updated_on DESC")
+      .all(teamId)
+      .map(mapDemand);
+  }
+
+  demandsForPerson(personId: EntityId, teamId: EntityId): PlayerDemand[] {
+    return this.db
+      .prepare("SELECT * FROM player_demands WHERE person_id = ? AND team_id = ?")
+      .all(personId, teamId)
+      .map(mapDemand);
+  }
+
+  demandById(id: EntityId): PlayerDemand | undefined {
+    const row = this.db.prepare("SELECT * FROM player_demands WHERE id = ?").get(id) as any;
+    return row ? mapDemand(row) : undefined;
+  }
+
   insertConcernResponse(response: ManagerConcernResponse): void {
     this.db
       .prepare(
@@ -2047,6 +2116,25 @@ const mapConcern = (row: any): PlayerConcern => ({
   updatedOn: row.updated_on,
   resolvedOn: row.resolved_on ?? undefined,
   note: row.note ?? undefined,
+});
+
+const mapDemand = (row: any): PlayerDemand => ({
+  id: row.id,
+  personId: row.person_id,
+  teamId: row.team_id,
+  type: row.type,
+  status: row.status,
+  severity: row.severity,
+  openedOn: row.opened_on,
+  updatedOn: row.updated_on,
+  reviewOn: row.review_on ?? undefined,
+  trigger: row.trigger_reason,
+  requestedOutcome: row.requested_outcome,
+  concernId: row.concern_id ?? undefined,
+  managerResponse: row.manager_response ?? undefined,
+  responseNote: row.response_note ?? undefined,
+  promiseId: row.promise_id ?? undefined,
+  resolvedOn: row.resolved_on ?? undefined,
 });
 
 const mapHistoryEvent = (row: any): RelationshipHistoryEvent => ({
