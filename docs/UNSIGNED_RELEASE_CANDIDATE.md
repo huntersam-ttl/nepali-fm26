@@ -2,7 +2,7 @@
 
 ## RC.3 release-hardening pass (current)
 
-**HEAD:** pending commit (this pass)
+**HEAD:** `04a89442595864584eda4e7f8d0c7bf5f6a24ff4`
 **Date:** 2026-09-09
 **Signing/notarization:** still OUT OF SCOPE; unsigned build only. Everything below this section is the RC.2 record and remains accurate for the fixes it documents — this section only adds what changed in the release-hardening pass that produced RC.3.
 
