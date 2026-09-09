@@ -95,6 +95,28 @@ const pickUnusedTarget = <T extends { playerId: EntityId }>(rows: T[]): T | unde
   return target;
 };
 
+/**
+ * `continueCareer()` is intentionally idempotent on a scheduled matchday —
+ * "the manager must choose a match action before the calendar can move
+ * again" (desktop-application.ts). A retry loop that just calls
+ * continueCareer() blindly can therefore stall forever once the shared
+ * career's world date lands on an unplayed fixture (exactly what happens
+ * deep into this file's shared 11-test sequence, once several earlier
+ * tests have each advanced the calendar). Quick-simming the pending match
+ * is the same thing a real manager would do to move past it, so this
+ * mirrors that rather than teaching the test to special-case MATCHDAY.
+ */
+const continueOrQuickSim = (): ReturnType<typeof service.continueCareer> => {
+  const before = service.getManagerDashboard();
+  const beforeDate = before.ok ? before.data.worldDate : undefined;
+  const advanced = service.continueCareer();
+  if (!advanced.ok || advanced.data.save.worldDate !== beforeDate) return advanced;
+  // World date didn't move — almost certainly a matchday block. Resolve it
+  // the same way a manager would (quick-sim), then try to continue again.
+  service.quickSimMatch();
+  return service.continueCareer();
+};
+
 const filePathFor = (): string => {
   const saves = service.listSaves();
   if (!saves.ok) throw new Error("listSaves failed");
@@ -146,7 +168,7 @@ describe("transfer negotiation depth", () => {
 
     // Advancing the career must not stop before the scheduled day, and the
     // stop reason must be the real transfer response, not a coincidence.
-    const advanced = service.continueCareer();
+    const advanced = continueOrQuickSim();
     expect(advanced.ok).toBe(true);
     if (!advanced.ok) return;
 
@@ -187,7 +209,7 @@ describe("transfer negotiation depth", () => {
     // evaluateTransferOffer accepts unconditionally — this exercises the
     // CLUB -> PLAYER phase handoff deterministically.
     for (let i = 0; i < 5 && persisted?.status !== "COMPLETED" && persisted?.status !== "REJECTED"; i++) {
-      const advanced = service.continueCareer();
+      const advanced = continueOrQuickSim();
       if (!advanced.ok) break;
       db = openGameDatabase(saveFilePath);
       market = new TransferMarketRepository(db);
@@ -245,7 +267,7 @@ describe("transfer negotiation depth", () => {
     db.close();
 
     for (let i = 0; i < 5 && offer?.status === "SUBMITTED"; i++) {
-      const advanced = service.continueCareer();
+      const advanced = continueOrQuickSim();
       if (!advanced.ok) break;
       db = openGameDatabase(saveFilePath);
       market = new TransferMarketRepository(db);
@@ -396,7 +418,7 @@ describe("transfer negotiation depth", () => {
     // Free-transfer club-side evaluation accepts unconditionally, so one
     // advance reliably lands the offer in the PLAYER phase.
     for (let i = 0; i < 3 && offer?.pendingDecisionBy !== "PLAYER"; i++) {
-      const advanced = service.continueCareer();
+      const advanced = continueOrQuickSim();
       if (!advanced.ok) break;
       db = openGameDatabase(saveFilePath);
       market = new TransferMarketRepository(db);
@@ -439,7 +461,7 @@ describe("transfer negotiation depth", () => {
     db.close();
 
     for (let i = 0; i < 5 && offer?.status === "SUBMITTED"; i++) {
-      const advanced = service.continueCareer();
+      const advanced = continueOrQuickSim();
       if (!advanced.ok) break;
       db = openGameDatabase(saveFilePath);
       market = new TransferMarketRepository(db);
@@ -508,7 +530,7 @@ describe("transfer negotiation depth", () => {
     db.close();
 
     for (let i = 0; i < 5 && offer?.status === "SUBMITTED"; i++) {
-      const advanced = service.continueCareer();
+      const advanced = continueOrQuickSim();
       if (!advanced.ok) break;
       db = openGameDatabase(saveFilePath);
       market = new TransferMarketRepository(db);

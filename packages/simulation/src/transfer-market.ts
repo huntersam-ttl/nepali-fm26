@@ -3814,12 +3814,31 @@ const activeSquadSizes = (db: GameDatabase): Map<EntityId, number> =>
     ).map((row) => [row.clubId, row.players]),
   );
 
-const teamIdForClub = (db: GameDatabase, clubId: EntityId): EntityId | undefined =>
-  (
+/**
+ * The men's first team, specifically — a club fielding both a senior men's
+ * and a senior women's side has always been ambiguous under an unscoped
+ * "any senior team" query (the same structural bug already root-caused for
+ * Owner Matchday), and every caller here (movePlayerAssignment, transfer
+ * eligibility) is squarely men's-transfer-market logic. Without this,
+ * completing a transfer/loan into such a club could silently register the
+ * player on the women's team — leaving current_club_id (correct) and the
+ * player's real squad/team assignment (wrong team) permanently diverged.
+ */
+const teamIdForClub = (db: GameDatabase, clubId: EntityId): EntityId | undefined => {
+  const mensTeam = db
+    .prepare("SELECT id FROM teams WHERE club_id = ? AND level = 'senior' AND gender = 'men' LIMIT 1")
+    .get(clubId) as { id: EntityId } | undefined;
+  if (mensTeam) return mensTeam.id;
+  // Only a club with no men's senior side at all (rare, but not assumed
+  // impossible) falls back to any senior team, matching the same
+  // men's-first/any-senior-fallback rule already established for Owner
+  // Matchday's identical ambiguity.
+  return (
     db
       .prepare("SELECT id FROM teams WHERE club_id = ? AND level = 'senior' ORDER BY id LIMIT 1")
       .get(clubId) as { id: EntityId } | undefined
   )?.id;
+};
 
 const totalWages = (db: GameDatabase, worldDate: string): number =>
   marketClubs(db).reduce(
