@@ -233,6 +233,7 @@ import {
 import { validateNepalWorldDataset, type NepalWorldDataset } from "@nepal-football-sim/data-import";
 import { generateLeagueFixtures } from "./fixture-generation.js";
 import { importNepalWorld } from "./nepal-save.js";
+import { applyCanonicalGlobalDatasetSeed } from "./global-football-seed.js";
 import { createCareerCharacter, createManagerContract, testLicence } from "./manager-career.js";
 import {
   acceptJobOffer as acceptJobOfferCommand,
@@ -889,6 +890,14 @@ export class DesktopApplicationService {
         db.exec("ROLLBACK;");
         throw error;
       }
+
+      // Global context (foreign clubs/competitions/players) is applied after
+      // the Nepal-only transaction commits, in its own transaction — the
+      // importer manages that itself and is idempotent by dataset version,
+      // so this can never duplicate world data. A world built without the
+      // committed dataset artifact present (e.g. a stripped-down test
+      // environment) simply stays Nepal-only rather than failing the career.
+      applyCanonicalGlobalDatasetSeed(db);
 
       const opened = loadSave(db);
       this.session = { saveId: opened.id, filePath, db };

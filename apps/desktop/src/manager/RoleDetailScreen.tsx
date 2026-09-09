@@ -7021,6 +7021,7 @@ const ClubProfileBody = ({
     <div className="button-row">
       <Badge tone="info">{band(profile.entityReference.entityType)}</Badge>
       {profile.division && <Badge tone="info">{band(profile.division)}</Badge>}
+      {profile.foreignContext && <Badge tone="info">Foreign club</Badge>}
       {profile.financialSummary && (
         <Badge tone={profile.financialSummary.financialHealth === "DISTRESSED" || profile.financialSummary.financialHealth === "INSOLVENT" ? "bad" : profile.financialSummary.financialHealth === "TIGHT" ? "warn" : "ok"}>
           {band(profile.financialSummary.financialHealth)}
@@ -7028,6 +7029,61 @@ const ClubProfileBody = ({
       )}
     </div>
     <p className="subtle">{profile.locationLabel ?? "Location not on record"}</p>
+    {/* A CONTEXT_ONLY foreign club never ran through Nepal's club-economy
+        simulation, so it has no real manager/owner/finances/facilities to
+        show — only the real global-dataset context that actually exists
+        for it. Showing the Nepal-club fields here would be presenting
+        another club's world as if it were this one's. */}
+    {profile.foreignContext ? (
+      <Panel title="Foreign club context">
+        <Metrics
+          items={[
+            { label: "Country", value: profile.foreignContext.country },
+            {
+              label: "Competition",
+              value: (
+                <EntityRefLink reference={profile.foreignContext.competition} onOpen={onOpenReference} />
+              ),
+            },
+            { label: "Reputation", value: `${Math.round(profile.foreignContext.reputation)}` },
+            { label: "Financial band", value: band(profile.foreignContext.financialBand) },
+          ]}
+        />
+        <EntityStorylinePanel bridge={bridge} entityId={profile.entityReference.id} onOpenReference={onOpenReference} />
+        <Panel title="Recent fixtures">
+          {profile.recentFixtures.length === 0 ? (
+            <p className="empty-state">No fixtures on record.</p>
+          ) : (
+            <ul className="compact-list">
+              {profile.recentFixtures.map((reference) => (
+                <li key={reference.id}>
+                  {reference.visible ? reference.label : "Unknown fixture"}
+                  {reference.subtitle ? ` · ${reference.subtitle}` : ""}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
+      </Panel>
+    ) : (
+      <FullClubProfileBody profile={profile} onOpenReference={onOpenReference} bridge={bridge} />
+    )}
+  </>
+);
+
+/** The domestic-club body — everything the Nepal club-economy/facility
+ * systems actually model. Split out from ClubProfileBody so a foreign
+ * (CONTEXT_ONLY) club never even reaches these Nepal-specific reads. */
+const FullClubProfileBody = ({
+  profile,
+  onOpenReference,
+  bridge,
+}: {
+  profile: ClubProfile;
+  onOpenReference: (reference: EntityReference) => void;
+  bridge: DesktopRuntimeApi;
+}): React.ReactElement => (
+  <>
     <Metrics
       items={[
         {

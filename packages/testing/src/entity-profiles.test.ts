@@ -20,7 +20,16 @@ afterEach(() => dirs.splice(0).forEach((dir) => rmSync(dir, { recursive: true, f
 describe("entity profile read models", () => {
   it("buildClubProfile resolves the controlling owner via holder_id/holder_type, not the nonexistent person_id/controlling_owner columns", () => {
     const db = openGameDatabase(makeSave("club-profile-owner"));
-    const club = db.prepare("SELECT id FROM clubs ORDER BY id LIMIT 1").get() as { id: EntityId };
+    // A genuine Nepal club — the global dataset seed (applied by
+    // createNepalSave by default) also populates foreign clubs into the
+    // same `clubs` table, so an unscoped "first club by id" could pick one
+    // of those instead, which never gets an `owner` (see buildClubProfile's
+    // CONTEXT_ONLY branch).
+    const club = db
+      .prepare(
+        "SELECT id FROM clubs c WHERE NOT EXISTS (SELECT 1 FROM external_club_context ecc WHERE ecc.club_id = c.id) ORDER BY id LIMIT 1",
+      )
+      .get() as { id: EntityId };
     const person = db.prepare("SELECT id FROM persons ORDER BY id LIMIT 1").get() as { id: EntityId };
     db.prepare(
       `INSERT INTO club_ownership_stakes

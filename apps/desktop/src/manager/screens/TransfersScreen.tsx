@@ -328,6 +328,7 @@ export const TransfersScreen = ({
                       worldDate={centre.worldDate}
                       onOpenClub={onOpenClub}
                       onOpenNegotiation={setOpenNegotiationId}
+                      onSelectPlayer={onSelectPlayer}
                       onRespondLoan={(offerId, action) =>
                         void act(() => managerBridge.respondLoanOffer({ offerId, action }))
                       }
@@ -343,6 +344,7 @@ export const TransfersScreen = ({
                       worldDate={centre.worldDate}
                       onOpenClub={onOpenClub}
                       onOpenNegotiation={setOpenNegotiationId}
+                      onSelectPlayer={onSelectPlayer}
                       onRespond={(offerId, action, transferFee) =>
                         void act(() =>
                           managerBridge.respondTransferOffer({
@@ -578,6 +580,7 @@ const OfferTable = ({
   onRespondLoan,
   onOpenClub,
   onOpenNegotiation,
+  onSelectPlayer,
   busy,
 }: {
   offers: TransferCentre["incoming"];
@@ -592,6 +595,9 @@ const OfferTable = ({
   onRespondLoan?: (offerId: EntityId, action: "ACCEPT" | "WITHDRAW") => void;
   onOpenClub: (clubId: EntityId) => void;
   onOpenNegotiation: (offerId: EntityId) => void;
+  /** Optional so a caller that hasn't wired player navigation yet still
+   * compiles — without it the player name simply isn't a link. */
+  onSelectPlayer?: (playerId: EntityId) => void;
   busy?: boolean;
 }): React.ReactElement => (
   <div className="table-scroll">
@@ -612,7 +618,15 @@ const OfferTable = ({
       <tbody>
         {offers.map((offer) => (
           <tr key={offer.id}>
-            <td>{offer.playerName}</td>
+            <td>
+              {onSelectPlayer ? (
+                <button className="link" onClick={() => onSelectPlayer(offer.playerId)}>
+                  {offer.playerName}
+                </button>
+              ) : (
+                offer.playerName
+              )}
+            </td>
             <td>
               {offer.otherClub ? (
                 <EntityRefLink reference={offer.otherClub} onOpen={(reference) => onOpenClub(reference.id)} />

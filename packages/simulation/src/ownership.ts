@@ -1484,7 +1484,14 @@ export const processOwnershipContinuity = (
   db: GameDatabase,
   input: { date: string; seed: string; allowGeneratedCandidate?: boolean },
 ): OwnershipSuccessionState[] => {
-  const clubs = db.prepare("SELECT id FROM clubs ORDER BY id").all() as Array<{ id: EntityId }>;
+  // Real Nepal clubs only — ownership succession is a domestic-club system;
+  // a CONTEXT_ONLY foreign club's real-world ownership is never modeled or
+  // succeeded by this engine.
+  const clubs = db
+    .prepare(
+      "SELECT c.id FROM clubs c WHERE NOT EXISTS (SELECT 1 FROM external_club_context ecc WHERE ecc.club_id = c.id) ORDER BY c.id",
+    )
+    .all() as Array<{ id: EntityId }>;
   const states: OwnershipSuccessionState[] = [];
   for (const club of clubs) {
     const current = successionState(db, club.id);

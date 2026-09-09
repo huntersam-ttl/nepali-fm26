@@ -2642,8 +2642,22 @@ const economyReport = (
   };
 };
 
+/**
+ * Every real Nepal club — deliberately excludes CONTEXT_ONLY foreign clubs
+ * (external_club_context). The whole Nepal club-economy simulation
+ * (financial accounts, facilities, sponsorships, board policy, valuations)
+ * only ever makes sense for a club this game actually simulates in depth;
+ * a foreign club is real-world context data, not a club whose finances this
+ * engine models — generating NPR-currency financial/facility/sponsorship
+ * rows for one would be fabricating facts about a real foreign club.
+ */
 const allClubs = (db: GameDatabase): Club[] =>
-  db.prepare("SELECT * FROM clubs ORDER BY name").all().map(mapClub);
+  db
+    .prepare(
+      "SELECT c.* FROM clubs c WHERE NOT EXISTS (SELECT 1 FROM external_club_context ecc WHERE ecc.club_id = c.id) ORDER BY c.name",
+    )
+    .all()
+    .map(mapClub);
 
 const clubById = (db: GameDatabase, clubId: EntityId): Club | undefined => {
   const row = db.prepare("SELECT * FROM clubs WHERE id = ?").get(clubId) as any;

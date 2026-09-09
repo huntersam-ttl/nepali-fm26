@@ -2684,9 +2684,15 @@ const projectLedgerCategory = (type: FederationProjectType): FederationLedgerCat
 const allFederations = (db: GameDatabase): Federation[] =>
   db.prepare("SELECT * FROM federations ORDER BY name").all().map(mapFederation);
 
+// Real Nepal clubs only — federation licensing/registration is a domestic
+// process; a CONTEXT_ONLY foreign club (external_club_context) was never
+// registered with this federation and must never be counted or assessed
+// as if it were.
 const allClubs = (db: GameDatabase): Club[] =>
   db
-    .prepare("SELECT * FROM clubs ORDER BY name")
+    .prepare(
+      "SELECT c.* FROM clubs c WHERE NOT EXISTS (SELECT 1 FROM external_club_context ecc WHERE ecc.club_id = c.id) ORDER BY c.name",
+    )
     .all()
     .map((row: any) => ({
       id: row.id,

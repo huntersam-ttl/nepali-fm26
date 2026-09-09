@@ -25,7 +25,14 @@ const prepare = (mode: "MANAGER" | "OWNER", reputation: number): { service: Desk
   new CareerIdentityRepository(db).upsert(identity);
   db.prepare("UPDATE saves SET world_date=? WHERE id=?").run("2029-08-01", saveId);
   initializeFederationGovernanceForSave({ db, worldDate: "2029-08-01", seed: "presidency-fixture" });
-  const federationId = (db.prepare("SELECT id FROM federations ORDER BY id LIMIT 1").get() as { id: EntityId }).id;
+  // Nepal's own federation — the global dataset seed also inserts real
+  // foreign federations into this same table (external_federation_context),
+  // so an unscoped "first federation by id" could pick one of those instead.
+  const federationId = (
+    db
+      .prepare("SELECT id FROM federations WHERE NOT EXISTS (SELECT 1 FROM external_federation_context efc WHERE efc.federation_id = federations.id) ORDER BY id LIMIT 1")
+      .get() as { id: EntityId }
+  ).id;
   const cycle = createFederationElectionCycle(db, { federationId, electionDate: "2029-09-01" });
   db.close();
   const loaded = service.loadCareer(saveId); if (!loaded.ok) throw new Error(loaded.error.message);

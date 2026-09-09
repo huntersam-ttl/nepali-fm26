@@ -70,10 +70,18 @@ afterAll(() => {
   dirs.splice(0).forEach((dir) => rmSync(dir, { recursive: true, force: true }));
 });
 
+// Nepal (playable) clubs only — the global dataset seed also populates this
+// same `clubs` table with CONTEXT_ONLY foreign clubs, which the AI season
+// planner never touches (it only runs commercial planning for real Nepal
+// clubs), so those must never leak into this fixture's club list.
 const clubIds = (): EntityId[] =>
-  (db.prepare("SELECT id FROM clubs ORDER BY id").all() as Array<{ id: EntityId }>).map(
-    (row) => row.id,
-  );
+  (
+    db
+      .prepare(
+        "SELECT c.id FROM clubs c WHERE NOT EXISTS (SELECT 1 FROM external_club_context ecc WHERE ecc.club_id = c.id) ORDER BY c.id",
+      )
+      .all() as Array<{ id: EntityId }>
+  ).map((row) => row.id);
 
 const activeSponsorships = (clubId: EntityId) =>
   economy.sponsorships(clubId).filter((item) => item.status === "ACTIVE");

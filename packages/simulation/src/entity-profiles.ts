@@ -14,9 +14,53 @@ import { buildEntityReference } from "./entity-reference.js";
 import { presentClubLocation, resolveClubStadium } from "./club-location.js";
 import { recentInfrastructureHistory } from "./infrastructure-story.js";
 
+/**
+ * A CONTEXT_ONLY foreign club (external_club_context) never ran through
+ * Nepal's club-economy/facility initialization for a real reason — those
+ * systems model a manager's own club in depth, which a foreign club never
+ * is here. Rows can still exist for one (shared generation code that
+ * doesn't yet exclude foreign clubs), but they'd be Nepali-currency
+ * fabrications if shown as fact, so the profile deliberately never reads
+ * them for a foreign club — it shows the real global-dataset context
+ * instead (country/competition/reputation/financial band).
+ */
+const foreignClubContext = (db: GameDatabase, clubId: EntityId, role: CareerRole): { country: string; competition: import("@nepal-football-sim/shared-types").EntityReference; reputation: number; financialBand: string } | undefined => {
+  const row = db
+    .prepare(
+      `SELECT ecc.league_id AS leagueId, ecc.reputation, ecc.financial_band AS financialBand, cty.name AS country
+       FROM external_club_context ecc JOIN countries cty ON cty.id = ecc.country_id
+       WHERE ecc.club_id = ?`,
+    )
+    .get(clubId) as { leagueId: EntityId; reputation: number; financialBand: string; country: string } | undefined;
+  if (!row) return undefined;
+  return {
+    country: row.country,
+    competition: buildEntityReference(db, "COMPETITION", row.leagueId, role),
+    reputation: row.reputation,
+    financialBand: row.financialBand,
+  };
+};
+
 export const buildClubProfile = (db: GameDatabase, clubId: EntityId, role: CareerRole): ClubProfile => {
   const club = db.prepare("SELECT id,name,location_id FROM clubs WHERE id=?").get(clubId) as { id: EntityId; name: string; location_id?: EntityId } | undefined;
   if (!club) throw new Error(`Unknown club ${clubId}`);
+  const foreignContext = foreignClubContext(db, clubId, role);
+  if (foreignContext) {
+    const team = db.prepare("SELECT id FROM teams WHERE club_id=? AND level='senior' ORDER BY id LIMIT 1").get(clubId) as { id: EntityId } | undefined;
+    const fixtures = team
+      ? (db.prepare("SELECT id FROM fixtures WHERE (home_team_id=? OR away_team_id=?) ORDER BY scheduled_date DESC,id DESC LIMIT 10").all(team.id, team.id) as Array<{ id: EntityId }>).map((row) => buildEntityReference(db, "FIXTURE", row.id, role))
+      : [];
+    return {
+      entityReference: buildEntityReference(db, "CLUB", clubId, role),
+      locationLabel: foreignContext.country,
+      recentFixtures: fixtures,
+      activeSponsors: [],
+      infrastructureProjects: [],
+      campusProjects: [],
+      infrastructureHistory: [],
+      foreignContext,
+    };
+  }
   const team = db.prepare("SELECT id,name,level FROM teams WHERE club_id=? AND level='senior' ORDER BY id LIMIT 1").get(clubId) as { id: EntityId; name: string; level: string } | undefined;
   const manager = db.prepare("SELECT p.id FROM persons p JOIN manager_contracts mc ON mc.person_id=p.id WHERE mc.club_id=? AND mc.status='ACTIVE' ORDER BY mc.contract_end DESC LIMIT 1").get(clubId) as { id: EntityId } | undefined;
   const owner = db.prepare("SELECT holder_id FROM club_ownership_stakes WHERE club_id=? AND holder_type='PERSON' AND status='ACTIVE' ORDER BY percentage DESC,holder_id LIMIT 1").get(clubId) as { holder_id: EntityId } | undefined;

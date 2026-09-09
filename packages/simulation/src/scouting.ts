@@ -1221,7 +1221,17 @@ const truePlayers = (db: GameDatabase, playerIds?: readonly EntityId[]): TruePla
   if (playerIds && ids.length === 0) {
     return [];
   }
-  const where = ids.length > 0 ? `WHERE p.id IN (${ids.map(() => "?").join(",")})` : "";
+  // The unfiltered "every player" case is the manager's own domestic
+  // recruitment search — a CONTEXT_ONLY foreign player (external_player_context)
+  // was never meant to be reachable through it (they're real-world context
+  // data, not a signable target of this club's scouting network). A lookup
+  // for specific, already-known ids is left unfiltered so a caller that
+  // genuinely needs one real foreign player's TruePlayer shape (rare, but
+  // never assumed here) is never silently denied.
+  const where =
+    ids.length > 0
+      ? `WHERE p.id IN (${ids.map(() => "?").join(",")})`
+      : "WHERE NOT EXISTS (SELECT 1 FROM external_player_context epc WHERE epc.player_id = p.id)";
   return db
     .prepare(
       `SELECT p.id AS player_id, p.full_name, p.date_of_birth, COALESCE(pfp.current_club_id, pc.club_id) AS current_club_id,

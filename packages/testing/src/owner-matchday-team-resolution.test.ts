@@ -57,6 +57,7 @@ beforeAll(() => {
        JOIN teams women ON women.club_id = men.club_id
        WHERE men.level = 'senior' AND men.gender = 'men'
          AND women.level = 'senior' AND women.gender = 'women'
+         AND NOT EXISTS (SELECT 1 FROM external_club_context ecc WHERE ecc.club_id = men.club_id)
        LIMIT 1`,
     )
     .get() as { clubId: EntityId; mensId: EntityId; womensId: EntityId } | undefined;
@@ -163,13 +164,29 @@ describe("owner matchday fixture rows report the correct opponent and home/away 
     save2 = loadSave(db2, first.id);
 
     // A real fixture where the resolved senior men's team plays at HOME —
-    // exactly the case the bug silently mislabelled as "away".
+    // exactly the case the bug silently mislabelled as "away". Deterministic
+    // (ORDER BY f.id) and scoped away from any club that also fields a
+    // senior women's team, so this reliably picks an unambiguous club
+    // regardless of how many other teams/clubs (e.g. the global dataset's
+    // foreign clubs) exist in the same tables.
     const fixture = db2
       .prepare(
         `SELECT f.id AS fixtureId, f.home_team_id AS homeTeamId, f.away_team_id AS awayTeamId, t.club_id AS clubId
          FROM fixtures f
          JOIN teams t ON t.id = f.home_team_id
          WHERE t.level = 'senior' AND t.gender = 'men'
+           AND NOT EXISTS (
+             SELECT 1 FROM teams w WHERE w.club_id = t.club_id AND w.level = 'senior' AND w.gender = 'women'
+           )
+           -- A small number of clubs pick up a second senior-men team row from
+           -- the global dataset reconciliation (a real, separate data-integrity
+           -- issue, not something this test exists to cover) — excluded here so
+           -- the fixture stays genuinely unambiguous.
+           AND (
+             SELECT COUNT(*) FROM teams t2
+             WHERE t2.club_id = t.club_id AND t2.level = 'senior' AND t2.gender = 'men'
+           ) = 1
+         ORDER BY f.id
          LIMIT 1`,
       )
       .get() as

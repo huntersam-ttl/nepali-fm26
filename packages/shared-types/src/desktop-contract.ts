@@ -573,6 +573,20 @@ export type ClubFacilitySnapshot = {
   academyCapacity: number;
 };
 
+/**
+ * Present only for a CONTEXT_ONLY foreign club (external_club_context) —
+ * the real global-dataset context for that club, never a Nepal-club-economy
+ * substitute. Its presence is what tells the UI this is a foreign club and
+ * to render this instead of the Nepal-specific financial/facility/sponsor
+ * fields, which describe systems that only ever run for Nepal clubs.
+ */
+export type ClubForeignContext = {
+  country: string;
+  competition: EntityReference;
+  reputation: number;
+  financialBand: string;
+};
+
 export type ClubProfile = {
   entityReference: EntityReference;
   locationLabel?: string;
@@ -588,6 +602,7 @@ export type ClubProfile = {
   facilitySnapshot?: ClubFacilitySnapshot;
   campusProjects: ClubCampusProject[];
   infrastructureHistory: InfrastructureStoryEntry[];
+  foreignContext?: ClubForeignContext;
 };
 
 /** Tone-only classification for a story card — never used as the sole
