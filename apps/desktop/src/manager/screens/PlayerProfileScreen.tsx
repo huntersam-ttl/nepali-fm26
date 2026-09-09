@@ -9,6 +9,7 @@ import type {
   PlayerMarketValueView,
   PlayerProfile,
   PlayerValuationSnapshot,
+  SquadConcernView,
 } from "@nepal-football-sim/shared-types";
 import { managerBridge } from "../managerBridge.js";
 import { EntityRefLink, EntityStorylinePanel, OrganizationProfilePanel, type ProfileEntityType } from "../RoleDetailScreen.js";
@@ -459,13 +460,91 @@ const concernStatusTone = (status: string): "ok" | "warn" | "bad" | "info" =>
  * the viewer's own club roster); actions (Open Meeting / Open Dressing Room)
  * only appear when the viewer holds real manager authority.
  */
+const offerStatusTone = (status: string): "ok" | "warn" | "bad" | "info" =>
+  ["COMPLETED", "ACCEPTED"].includes(status)
+    ? "ok"
+    : ["REJECTED", "WITHDRAWN", "EXPIRED"].includes(status)
+      ? "bad"
+      : "warn";
+
+/**
+ * The dedicated transfer-interest block for a TRANSFER_INTEREST concern —
+ * every field comes straight from concern.transferContext (buildPlayerRelationshipView's
+ * real, qualifying-offer read), never a second lookup from this component.
+ * Only rendered once a real, still-live buying interest actually resolves.
+ */
+const ConcernTransferBlock = ({
+  concern,
+  canAct,
+  onOpenReference,
+  onOpenTransferContext,
+}: {
+  concern: SquadConcernView;
+  canAct: boolean;
+  onOpenReference: (reference: EntityReference) => void;
+  onOpenTransferContext: (offerId: EntityId) => void;
+}): React.ReactElement | null => {
+  const context = concern.transferContext;
+  if (!context) return null;
+  return (
+    <div className="transfer-interest-block">
+      <p>
+        <strong>Transfer interest</strong> — a club is interested in a move.
+      </p>
+      <Metrics
+        items={[
+          {
+            label: "Interested club",
+            value: <EntityRefLink reference={context.interestedClub} onOpen={onOpenReference} />,
+          },
+          ...(context.competition
+            ? [
+                {
+                  label: "Competition",
+                  value: <EntityRefLink reference={context.competition!} onOpen={onOpenReference} />,
+                },
+              ]
+            : []),
+          ...(context.offerStatus
+            ? [
+                {
+                  label: "Offer",
+                  value: <Badge tone={offerStatusTone(context.offerStatus)}>{humanizeEnum(context.offerStatus)}</Badge>,
+                },
+              ]
+            : []),
+          ...(context.requestStatus
+            ? [
+                {
+                  label: "Player's request",
+                  value: <Badge tone="warn">{humanizeEnum(context.requestStatus)}</Badge>,
+                },
+              ]
+            : []),
+        ]}
+      />
+      {canAct && context.offerId && (
+        <div className="button-row">
+          <button className="ghost small" onClick={() => onOpenTransferContext(context.offerId!)}>
+            Open transfer context
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const PlayerRelationshipPanel = ({
   player,
   onOpenMeeting,
+  onOpenReference,
+  onOpenTransferContext,
   onOpenDressingRoom,
 }: {
   player: PlayerProfile;
   onOpenMeeting: (target: { concernId?: EntityId; demandId?: EntityId }) => void;
+  onOpenReference: (reference: EntityReference) => void;
+  onOpenTransferContext: (offerId: EntityId) => void;
   onOpenDressingRoom?: () => void;
 }): React.ReactElement | null => {
   const relationship = player.relationship;
@@ -535,6 +614,12 @@ const PlayerRelationshipPanel = ({
                   </button>
                 )
               )}
+              <ConcernTransferBlock
+                concern={concern}
+                canAct={canAct}
+                onOpenReference={onOpenReference}
+                onOpenTransferContext={onOpenTransferContext}
+              />
             </li>
           ))}
         </ul>
@@ -798,6 +883,8 @@ export const PlayerProfileScreen = ({
             <PlayerRelationshipPanel
               player={player}
               onOpenMeeting={setOpenMeeting}
+              onOpenReference={openReference}
+              onOpenTransferContext={setOpenTransferOfferId}
               onOpenDressingRoom={onOpenDressingRoom}
             />
 
@@ -963,6 +1050,7 @@ export const PlayerProfileScreen = ({
                 managerName="You"
                 concern={player.relationship?.concerns.find((c) => c.id === openMeeting.concernId)}
                 demand={player.relationship?.demands.find((d) => d.id === openMeeting.demandId)}
+                onOpenReference={openReference}
                 onClose={() => setOpenMeeting(null)}
                 onUpdate={() => {
                   setOpenMeeting(null);

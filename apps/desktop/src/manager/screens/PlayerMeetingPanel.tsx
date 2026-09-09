@@ -2,11 +2,13 @@ import React, { useState } from "react";
 import type {
   ConcernResponseAction,
   EntityId,
+  EntityReference,
   PlayerDemandManagerResponse,
   SquadConcernView,
   SquadDemandView,
 } from "@nepal-football-sim/shared-types";
 import { managerBridge } from "../managerBridge.js";
+import { EntityRefLink } from "../RoleDetailScreen.js";
 import {
   MeetingBrief,
   MeetingOptions,
@@ -67,6 +69,7 @@ export const PlayerMeetingPanel = ({
   managerName,
   concern,
   demand,
+  onOpenReference,
   onClose,
   onUpdate,
 }: {
@@ -74,6 +77,10 @@ export const PlayerMeetingPanel = ({
   managerName: string;
   concern?: SquadConcernView;
   demand?: SquadDemandView;
+  /** Present wherever the caller already has somewhere to route a clicked
+   * entity — without it, the transfer-context club/competition rows simply
+   * render as plain text instead of a link. */
+  onOpenReference?: (reference: EntityReference) => void;
   onClose: () => void;
   onUpdate: () => void;
 }): React.ReactElement => {
@@ -81,8 +88,12 @@ export const PlayerMeetingPanel = ({
   const [error, setError] = useState<string | null>(null);
   const [resolved, setResolved] = useState(false);
 
+  const transferContext = concern?.transferContext;
+
   const issue = concern
-    ? `${playerName} is unhappy about ${humanizeEnum(concern.type).toLowerCase()}.`
+    ? concern.type === "TRANSFER_INTEREST"
+      ? `${playerName} is unhappy about a blocked move${transferContext ? ` to ${transferContext.interestedClub.label}` : ""}.`
+      : `${playerName} is unhappy about ${humanizeEnum(concern.type).toLowerCase()}.`
     : demand
       ? `${playerName} has a request: ${demand.requestedOutcome}`
       : "";
@@ -94,6 +105,36 @@ export const PlayerMeetingPanel = ({
         { label: "Severity", value: `${concern.severity}/10` },
         { label: "Raised on", value: concern.raisedOn },
         ...(concern.note ? [{ label: "Evidence", value: concern.note }] : []),
+        ...(transferContext
+          ? [
+              {
+                label: "Interested club",
+                value: onOpenReference ? (
+                  <EntityRefLink reference={transferContext.interestedClub} onOpen={onOpenReference} />
+                ) : (
+                  transferContext.interestedClub.label
+                ),
+              },
+              ...(transferContext.competition
+                ? [
+                    {
+                      label: "Competition",
+                      value: onOpenReference ? (
+                        <EntityRefLink reference={transferContext.competition} onOpen={onOpenReference} />
+                      ) : (
+                        transferContext.competition.label
+                      ),
+                    },
+                  ]
+                : []),
+              ...(transferContext.offerStatus
+                ? [{ label: "Offer", value: humanizeEnum(transferContext.offerStatus), tone: "info" as const }]
+                : []),
+              ...(transferContext.requestStatus
+                ? [{ label: "Player's request", value: humanizeEnum(transferContext.requestStatus), tone: "warn" as const }]
+                : []),
+            ]
+          : []),
         ...(concern.activePromise
           ? [{ label: "Active promise", value: `${concern.activePromise.description} (due ${concern.activePromise.dueOn})`, tone: "info" as const }]
           : []),

@@ -1893,6 +1893,21 @@ export const manageAiTeamMeetingsForTeam = (
   }
 };
 
+const CONCERN_RESPONSE_MEETING_OUTCOME: Record<ConcernResponseOutcome, SquadMeetingOutcome> = {
+  ACCEPTED: "POSITIVE",
+  SKEPTICAL: "NEUTRAL",
+  REJECTED: "NEGATIVE",
+};
+
+const concernResponseSummary = (action: ConcernResponseAction, outcome: ConcernResponseOutcome): string => {
+  if (action === "DISMISS") return "The concern was dismissed outright.";
+  if (outcome === "REJECTED") return "The conversation did not land — the concern remains unresolved.";
+  if (action === "REASSURE") return "A reassuring conversation, without a firm commitment.";
+  return outcome === "SKEPTICAL"
+    ? "A real commitment was made, though it was received with some doubt."
+    : "A real, measurable commitment was made and well received.";
+};
+
 /**
  * The manager's response to one active concern. Outcome odds come from the
  * player's relationship with the manager, the concern's own severity, their
@@ -1999,6 +2014,23 @@ export const respondToConcern = (
   if (relationshipDelta !== 0) {
     adjustRelationship(db, managerProfileId, concern.personId, relationshipDelta, worldDate);
   }
+
+  // Responding to a concern IS a real one-to-one meeting with this player —
+  // recorded the same way holdSquadMeeting's own ONE_TO_ONE type is, so it
+  // (a) actually shows up in the player's meeting history (PlayerRelationshipView.recentMeetings),
+  // and (b) makes assertMeetingAllowed's shared ONE_TO_ONE cooldown above
+  // genuinely effective against a second response to the same concern in
+  // quick succession, not just against a separate generic check-in.
+  recordMeeting(
+    db,
+    concern.teamId,
+    managerProfileId,
+    "ONE_TO_ONE",
+    CONCERN_RESPONSE_MEETING_OUTCOME[outcome],
+    concernResponseSummary(action, outcome),
+    worldDate,
+    { personId: concern.personId, concernId: concern.id },
+  );
 
   const response: ManagerConcernResponse = {
     id: createEntityId(),

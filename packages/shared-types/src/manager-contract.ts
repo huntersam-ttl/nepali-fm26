@@ -42,6 +42,7 @@ import type {
   TeamMeetingContext,
   TeamMeetingMessageId,
   TransferRequestStatus,
+  TransferOfferStatus,
   GoalkeeperDistributionStyle,
   TrainingIntensity,
   TrainingPlan,
@@ -1027,6 +1028,24 @@ export type SquadPromiseView = {
   importance?: number;
 };
 
+/**
+ * Present only on a TRANSFER_INTEREST concern with a real, still-live
+ * buying interest — the same qualifying-offer state the squad-dynamics
+ * engine itself already uses to decide whether the concern is genuine
+ * (see evaluateSquadDynamics), never a second, UI-side recalculation.
+ * `competition` is present only when the buying club's own external
+ * context resolves one (a foreign club's league); a domestic buyer with
+ * no tracked competition leaves it undefined rather than guessing.
+ */
+export type ConcernTransferContext = {
+  interestedClub: EntityReference;
+  competition?: EntityReference;
+  offerId?: EntityId;
+  offerStatus?: TransferOfferStatus;
+  requestId?: EntityId;
+  requestStatus?: TransferRequestStatus;
+};
+
 export type SquadConcernView = {
   id: EntityId;
   personId: EntityId;
@@ -1040,6 +1059,7 @@ export type SquadConcernView = {
   note?: string;
   validActions: ConcernResponseAction[];
   activePromise?: SquadPromiseView;
+  transferContext?: ConcernTransferContext;
 };
 
 /** Human-readable, never a raw enum — matches the demand's actual requestedOutcome/trigger text. */

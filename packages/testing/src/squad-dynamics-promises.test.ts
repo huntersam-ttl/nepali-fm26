@@ -14,6 +14,7 @@ import {
 } from "@nepal-football-sim/database";
 import {
   ConcernActionError,
+  buildPlayerProfile,
   createCareerCharacter,
   evaluateSquadDynamics,
   manageAiPromisesForTeam,
@@ -27,6 +28,7 @@ import {
   type PlayerAttributeSet,
   type PlayerConcern,
   type Team,
+  type TransferOffer,
 } from "@nepal-football-sim/shared-types";
 
 const attributesFor = (personId: EntityId): PlayerAttributeSet => ({
@@ -620,5 +622,367 @@ describe("squad dynamics phase B: a broken promise", () => {
 
     const history = dynamics.historyForPerson(playerId);
     expect(history.some((event) => event.eventType === "PROMISE_BROKEN")).toBe(true);
+  });
+});
+
+/**
+ * Blocked (foreign) transfer — the player-facing relationship layer around a
+ * real TRANSFER_INTEREST concern: the Player Profile's own transfer-context
+ * DTO, and the DISMISS/REASSURE ends of the same respondToConcern pipeline
+ * every other concern type already uses. PROMISE_TRANSFER_STANCE/
+ * PROMISE_LOAN_CONSIDERATION's own measurable fulfil/break rules are covered
+ * in the next describe block, isolated from these two so a later
+ * evaluateSquadDynamics call here can never cross-contaminate them.
+ */
+describe("squad dynamics phase B: blocked-transfer (TRANSFER_INTEREST) reject/reassure and profile context", () => {
+  const db = openGameDatabase(":memory:");
+  migrateDatabase(db);
+
+  const country = { id: createStableEntityId("country", "btr"), name: "BTR Country", isoCode: "BR" };
+  const foreignCountry = { id: createStableEntityId("country", "btr-foreign"), name: "BTR Foreign Country", isoCode: "BF" };
+  const foreignFederation = { id: createStableEntityId("federation", "btr-foreign-fed"), countryId: foreignCountry.id, name: "BTR Foreign Federation" };
+  const club: Club = { id: createStableEntityId("club", "btr-club"), name: "Blocked Reject FC", countryId: country.id, ownershipType: "PRIVATE" };
+  const team: Team = { id: createStableEntityId("team", "btr-senior"), clubId: club.id, name: "Blocked Reject FC", level: "senior", gender: "men" };
+  const competitionId = createStableEntityId("competition", "btr-league");
+  const seasonId = createStableEntityId("season", "btr-league-2026");
+  const foreignClub: Club = { id: createStableEntityId("club", "btr-foreign-club"), name: "Overseas United", countryId: foreignCountry.id, ownershipType: "PRIVATE" };
+  const leagueId = createStableEntityId("competition", "btr-foreign-league");
+
+  const dismissPlayerId = createStableEntityId("person", "btr-dismiss");
+  const reassurePlayerId = createStableEntityId("person", "btr-reassure");
+  let managerProfileId: EntityId;
+
+  const saveAt = (worldDate: string) => ({
+    id: createStableEntityId("save", "btr-test"),
+    name: "BTR Test",
+    worldDate,
+    databaseVersion: 97,
+    gameVersion: "test",
+    randomSeed: "btr-test",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    lastSavedAt: "2026-01-01T00:00:00.000Z",
+  });
+
+  beforeAll(() => {
+    const world = new WorldRepository(db);
+    world.insertCountry(country);
+    world.insertCountry(foreignCountry);
+    world.insertFederation(foreignFederation);
+    world.insertClub(club);
+    world.insertTeam(team);
+    world.insertClub(foreignClub);
+    world.insertCompetition({ id: competitionId, name: "BTR League", scope: "domestic" });
+    world.insertCompetitionSeason({ id: seasonId, competitionId, name: "2026 BTR League", startDate: "2026-08-01", endDate: "2027-05-31" });
+    world.insertClubMembership({
+      id: createStableEntityId("membership", "btr-club"), clubId: club.id, teamId: team.id,
+      competitionId, competitionSeasonId: seasonId, membershipType: "LEAGUE_MEMBER", status: "ACTIVE",
+    });
+    world.insertCompetition({ id: leagueId, federationId: foreignFederation.id, name: "BTR Foreign League", scope: "domestic" });
+    db.prepare(
+      `INSERT INTO external_league_context (league_id, federation_id, country_id, tier, reputation, simulation_depth, continental_qualification)
+       VALUES (?, ?, ?, 1, 9, 'CONTEXT_ONLY', 1)`,
+    ).run(leagueId, foreignFederation.id, foreignCountry.id);
+    db.prepare(
+      `INSERT INTO external_club_context (club_id, league_id, federation_id, country_id, reputation, financial_band, academy_strength, scouting_reach, recruitment_regions_json, simulation_depth)
+       VALUES (?, ?, ?, ?, 9, 'HIGH', 9, 9, '[]', 'CONTEXT_ONLY')`,
+    ).run(foreignClub.id, leagueId, foreignFederation.id, foreignCountry.id);
+
+    for (const id of [dismissPlayerId, reassurePlayerId]) {
+      world.insertPerson({ id, fullName: `Player ${id}`, nationalityCountryId: country.id, languages: ["en"] });
+      world.insertPersonRole({ id: createStableEntityId("role", `${id}:player`), personId: id, role: "PLAYER", activeFrom: "2026-08-01" });
+      world.insertTeamPersonAssignment({ id: createStableEntityId("assignment", `${id}:player`), personId: id, teamId: team.id, role: "PLAYER", startedOn: "2026-08-01" });
+      new PlayerRepository(db).insertAttributes(attributesFor(id));
+    }
+    const transfers = new TransferMarketRepository(db);
+    for (const id of [dismissPlayerId, reassurePlayerId]) {
+      transfers.upsertPlayerContract({
+        id: createStableEntityId("contract", `btr-${id}`), playerId: id, clubId: club.id,
+        startDate: "2026-08-01", endDate: "2028-05-31", contractType: "PROFESSIONAL", salary: 150_000,
+        appearanceFee: 0, goalBonus: 0, cleanSheetBonus: 0, signingBonus: 0, loyaltyBonus: 0, currency: "NPR",
+        squadRole: "IMPORTANT_PLAYER", status: "ACTIVE", provenance: { sourceName: "test", confidence: 1, status: "SIMULATION_ONLY" },
+      });
+    }
+
+    const character = createCareerCharacter({
+      fullName: "BTR Test Manager", dateOfBirth: "1980-01-01", startingAge: 46, nationalityCountryId: country.id,
+      languages: ["en"], footballBackground: "LOCAL_FOOTBALL", education: "UNIVERSITY",
+      playingExperience: "PROFESSIONAL_PLAYER", coachingExperience: "SENIOR_COACH",
+      coachingLicences: [testLicence("Testing A Licence", 3)], businessBackground: "NONE",
+      startingReputationProfile: "FORMER_PLAYER", careerStartDate: "2026-08-01",
+    });
+    world.insertPerson(character.person);
+    new ManagerRepository(db).insertProfile(character.managerProfile);
+    managerProfileId = character.managerProfile.id;
+
+    const dynamics = new SquadDynamicsRepository(db);
+    for (const id of [dismissPlayerId, reassurePlayerId]) {
+      // A high, stable relationship so REASSURE's outcome is deterministic
+      // (well outside the random-roll band), matching the pattern the
+      // playing-time suite above already uses.
+      dynamics.upsertRelationship({
+        id: createStableEntityId("relationship", `${managerProfileId}:${id}`),
+        managerProfileId, personId: id, score: 90, level: "STRONG", updatedOn: "2026-08-01",
+      });
+      // A real, already-ACTIVE TRANSFER_INTEREST concern and a matching
+      // real, live buying offer — inserted directly rather than through the
+      // ambition-scoring pipeline (already covered end to end by
+      // blocked-transfer-chain.test.ts), so this suite isolates only the
+      // response/DTO behaviour.
+      dynamics.upsertConcern({
+        id: createStableEntityId("concern", `${id}:transfer-interest`),
+        personId: id, teamId: team.id, type: "TRANSFER_INTEREST", status: "ACTIVE",
+        severity: 6, raisedOn: "2026-09-01", updatedOn: "2026-09-01",
+      });
+      const offer: TransferOffer = {
+        id: createStableEntityId("transfer-offer", `${id}:offer`),
+        buyingClubId: foreignClub.id, sellingClubId: club.id, playerId: id,
+        offerType: "PERMANENT", transferFee: 1_500_000, installments: 0, addOns: 0, sellOnPercentage: 5,
+        submittedAt: "2026-09-01", expiresAt: "2027-06-01", status: "NEGOTIATING", currency: "NPR",
+        agentFee: 0, signingFee: 0,
+      };
+      transfers.insertTransferOffer(offer);
+    }
+  });
+
+  const clubViewer = () => ({ role: "CHAIRMAN_OWNER" as const, clubId: club.id, teamId: team.id });
+
+  it("Player Profile surfaces the real interested club, competition, and offer status", () => {
+    const profile = buildPlayerProfile(db, saveAt("2026-09-01"), clubViewer(), dismissPlayerId);
+    const concern = profile.relationship?.concerns.find((c) => c.type === "TRANSFER_INTEREST");
+    expect(concern?.transferContext?.interestedClub.id).toBe(foreignClub.id);
+    expect(concern?.transferContext?.interestedClub.label).toBe("Overseas United");
+    expect(concern?.transferContext?.competition?.id).toBe(leagueId);
+    expect(concern?.transferContext?.offerStatus).toBe("NEGOTIATING");
+  });
+
+  it("DISMISS ('too important to sell') rejects the concern, escalates it, and hurts the relationship", () => {
+    const dynamics = new SquadDynamicsRepository(db);
+    const concern = dynamics.concern(dismissPlayerId, team.id, "TRANSFER_INTEREST")!;
+    const before = dynamics.relationship(managerProfileId, dismissPlayerId)?.score ?? 0;
+    const response = respondToConcern(db, saveAt("2026-09-01"), managerProfileId, concern.id, "DISMISS");
+    expect(response.outcome).toBe("REJECTED");
+    const updated = dynamics.concernById(concern.id)!;
+    expect(updated.status).toBe("ESCALATED");
+    const after = dynamics.relationship(managerProfileId, dismissPlayerId)?.score ?? 0;
+    expect(after).toBeLessThan(before);
+
+    const history = dynamics.historyForPerson(dismissPlayerId);
+    expect(history.some((event) => event.eventType === "CONCERN_RESPONSE")).toBe(true);
+  });
+
+  it("REASSURE ('we'll revisit this'), accepted, eases the concern without creating a promise", () => {
+    const dynamics = new SquadDynamicsRepository(db);
+    const concern = dynamics.concern(reassurePlayerId, team.id, "TRANSFER_INTEREST")!;
+    const response = respondToConcern(db, saveAt("2026-09-01"), managerProfileId, concern.id, "REASSURE");
+    expect(response.outcome).toBe("ACCEPTED");
+    expect(response.promiseId).toBeUndefined();
+    const updated = dynamics.concernById(concern.id)!;
+    expect(updated.status).not.toBe("ESCALATED");
+    expect(updated.severity).toBeLessThan(concern.severity);
+  });
+
+  it("clears the Player Profile transfer context once the offer becomes terminal", () => {
+    const transfers = new TransferMarketRepository(db);
+    const offer = transfers.transferOffers().find((candidate) => candidate.playerId === dismissPlayerId)!;
+    transfers.insertTransferOffer({ ...offer, status: "REJECTED" });
+    const profile = buildPlayerProfile(db, saveAt("2026-09-16"), clubViewer(), dismissPlayerId);
+    const concern = profile.relationship?.concerns.find((c) => c.type === "TRANSFER_INTEREST");
+    expect(concern?.transferContext).toBeUndefined();
+  });
+
+  it("refuses a second meeting for the same concern within the meeting cooldown, preventing a duplicate response/promise", () => {
+    const dynamics = new SquadDynamicsRepository(db);
+    const concern = dynamics.concern(reassurePlayerId, team.id, "TRANSFER_INTEREST")!;
+    expect(() =>
+      respondToConcern(db, saveAt("2026-09-02"), managerProfileId, concern.id, "PROMISE_LOAN_CONSIDERATION"),
+    ).toThrow();
+    expect(dynamics.responsesForConcern(concern.id)).toHaveLength(1);
+  });
+});
+
+/**
+ * The PROMISE_TRANSFER_STANCE / PROMISE_LOAN_CONSIDERATION ends of the same
+ * pipeline — a real, measurable promise (dueOn a fixed window from the
+ * response), judged against real transfer-status/loan state at that
+ * deadline, never resolved from display text. Kept in its own fixture so
+ * the evaluateSquadDynamics calls at each promise's own deadline can never
+ * cross-contaminate the DISMISS/REASSURE assertions above.
+ */
+describe("squad dynamics phase B: blocked-transfer (TRANSFER_INTEREST) promise semantics", () => {
+  const db = openGameDatabase(":memory:");
+  migrateDatabase(db);
+
+  const country = { id: createStableEntityId("country", "btp"), name: "BTP Country", isoCode: "BP" };
+  const foreignCountry = { id: createStableEntityId("country", "btp-foreign"), name: "BTP Foreign Country", isoCode: "PF" };
+  const foreignFederation = { id: createStableEntityId("federation", "btp-foreign-fed"), countryId: foreignCountry.id, name: "BTP Foreign Federation" };
+  const club: Club = { id: createStableEntityId("club", "btp-club"), name: "Blocked Promise FC", countryId: country.id, ownershipType: "PRIVATE" };
+  const team: Team = { id: createStableEntityId("team", "btp-senior"), clubId: club.id, name: "Blocked Promise FC", level: "senior", gender: "men" };
+  const competitionId = createStableEntityId("competition", "btp-league");
+  const seasonId = createStableEntityId("season", "btp-league-2026");
+  const foreignClub: Club = { id: createStableEntityId("club", "btp-foreign-club"), name: "Promise Overseas FC", countryId: foreignCountry.id, ownershipType: "PRIVATE" };
+  const leagueId = createStableEntityId("competition", "btp-foreign-league");
+
+  const stanceKeptPlayerId = createStableEntityId("person", "btp-stance-kept");
+  const stanceBrokenPlayerId = createStableEntityId("person", "btp-stance-broken");
+  const loanKeptPlayerId = createStableEntityId("person", "btp-loan-kept");
+  const players = [stanceKeptPlayerId, stanceBrokenPlayerId, loanKeptPlayerId];
+  let managerProfileId: EntityId;
+
+  const saveAt = (worldDate: string) => ({
+    id: createStableEntityId("save", "btp-test"),
+    name: "BTP Test",
+    worldDate,
+    databaseVersion: 97,
+    gameVersion: "test",
+    randomSeed: "btp-test",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    lastSavedAt: "2026-01-01T00:00:00.000Z",
+  });
+
+  beforeAll(() => {
+    const world = new WorldRepository(db);
+    world.insertCountry(country);
+    world.insertCountry(foreignCountry);
+    world.insertFederation(foreignFederation);
+    world.insertClub(club);
+    world.insertTeam(team);
+    world.insertClub(foreignClub);
+    world.insertCompetition({ id: competitionId, name: "BTP League", scope: "domestic" });
+    world.insertCompetitionSeason({ id: seasonId, competitionId, name: "2026 BTP League", startDate: "2026-08-01", endDate: "2027-05-31" });
+    world.insertClubMembership({
+      id: createStableEntityId("membership", "btp-club"), clubId: club.id, teamId: team.id,
+      competitionId, competitionSeasonId: seasonId, membershipType: "LEAGUE_MEMBER", status: "ACTIVE",
+    });
+    world.insertCompetition({ id: leagueId, federationId: foreignFederation.id, name: "BTP Foreign League", scope: "domestic" });
+    db.prepare(
+      `INSERT INTO external_league_context (league_id, federation_id, country_id, tier, reputation, simulation_depth, continental_qualification)
+       VALUES (?, ?, ?, 1, 9, 'CONTEXT_ONLY', 1)`,
+    ).run(leagueId, foreignFederation.id, foreignCountry.id);
+    db.prepare(
+      `INSERT INTO external_club_context (club_id, league_id, federation_id, country_id, reputation, financial_band, academy_strength, scouting_reach, recruitment_regions_json, simulation_depth)
+       VALUES (?, ?, ?, ?, 9, 'HIGH', 9, 9, '[]', 'CONTEXT_ONLY')`,
+    ).run(foreignClub.id, leagueId, foreignFederation.id, foreignCountry.id);
+
+    for (const id of players) {
+      world.insertPerson({ id, fullName: `Player ${id}`, nationalityCountryId: country.id, languages: ["en"] });
+      world.insertPersonRole({ id: createStableEntityId("role", `${id}:player`), personId: id, role: "PLAYER", activeFrom: "2026-08-01" });
+      world.insertTeamPersonAssignment({ id: createStableEntityId("assignment", `${id}:player`), personId: id, teamId: team.id, role: "PLAYER", startedOn: "2026-08-01" });
+      new PlayerRepository(db).insertAttributes(attributesFor(id));
+    }
+    const transfers = new TransferMarketRepository(db);
+    for (const id of players) {
+      transfers.upsertPlayerContract({
+        id: createStableEntityId("contract", `btp-${id}`), playerId: id, clubId: club.id,
+        startDate: "2026-08-01", endDate: "2028-05-31", contractType: "PROFESSIONAL", salary: 150_000,
+        appearanceFee: 0, goalBonus: 0, cleanSheetBonus: 0, signingBonus: 0, loyaltyBonus: 0, currency: "NPR",
+        squadRole: "IMPORTANT_PLAYER", status: "ACTIVE", provenance: { sourceName: "test", confidence: 1, status: "SIMULATION_ONLY" },
+      });
+    }
+
+    const character = createCareerCharacter({
+      fullName: "BTP Test Manager", dateOfBirth: "1980-01-01", startingAge: 46, nationalityCountryId: country.id,
+      languages: ["en"], footballBackground: "LOCAL_FOOTBALL", education: "UNIVERSITY",
+      playingExperience: "PROFESSIONAL_PLAYER", coachingExperience: "SENIOR_COACH",
+      coachingLicences: [testLicence("Testing A Licence", 3)], businessBackground: "NONE",
+      startingReputationProfile: "FORMER_PLAYER", careerStartDate: "2026-08-01",
+    });
+    world.insertPerson(character.person);
+    new ManagerRepository(db).insertProfile(character.managerProfile);
+    managerProfileId = character.managerProfile.id;
+
+    const dynamics = new SquadDynamicsRepository(db);
+    for (const id of players) {
+      dynamics.upsertRelationship({
+        id: createStableEntityId("relationship", `${managerProfileId}:${id}`),
+        managerProfileId, personId: id, score: 90, level: "STRONG", updatedOn: "2026-08-01",
+      });
+      dynamics.upsertConcern({
+        id: createStableEntityId("concern", `${id}:transfer-interest`),
+        personId: id, teamId: team.id, type: "TRANSFER_INTEREST", status: "ACTIVE",
+        severity: 6, raisedOn: "2026-09-01", updatedOn: "2026-09-01",
+      });
+      const offer: TransferOffer = {
+        id: createStableEntityId("transfer-offer", `${id}:offer`),
+        buyingClubId: foreignClub.id, sellingClubId: club.id, playerId: id,
+        offerType: "PERMANENT", transferFee: 1_500_000, installments: 0, addOns: 0, sellOnPercentage: 5,
+        submittedAt: "2026-09-01", expiresAt: "2027-06-01", status: "NEGOTIATING", currency: "NPR",
+        agentFee: 0, signingFee: 0,
+      };
+      transfers.insertTransferOffer(offer);
+    }
+  });
+
+  it("PROMISE_TRANSFER_STANCE ('I will consider a suitable offer'/not sanction a move) is fulfilled when the player is never transfer-listed by the deadline", () => {
+    const dynamics = new SquadDynamicsRepository(db);
+    const concern = dynamics.concern(stanceKeptPlayerId, team.id, "TRANSFER_INTEREST")!;
+    const response = respondToConcern(db, saveAt("2026-09-01"), managerProfileId, concern.id, "PROMISE_TRANSFER_STANCE");
+    expect(response.outcome).not.toBe("REJECTED");
+    const promise = dynamics.promiseById(response.promiseId!)!;
+    expect(promise.type).toBe("TRANSFER_STANCE");
+    expect(promise.status).toBe("ACTIVE");
+    expect(promise.dueOn).not.toBe(promise.madeOn);
+
+    const before = dynamics.relationship(managerProfileId, stanceKeptPlayerId)?.score ?? 0;
+    evaluateSquadDynamics(db, saveAt(promise.dueOn), team.id, club.id, managerProfileId);
+    const resolved = dynamics.promiseById(promise.id)!;
+    expect(resolved.status).toBe("FULFILLED");
+    const resolvedConcern = dynamics.concernById(concern.id)!;
+    expect(resolvedConcern.status).toBe("RESOLVED");
+    const after = dynamics.relationship(managerProfileId, stanceKeptPlayerId)?.score ?? 0;
+    expect(after).toBeGreaterThan(before);
+
+    const history = dynamics.historyForPerson(stanceKeptPlayerId);
+    expect(history.some((event) => event.eventType === "PROMISE_KEPT")).toBe(true);
+  });
+
+  it("breaking a TRANSFER_STANCE promise (the club transfer-lists the player before the deadline) escalates the concern again", () => {
+    const dynamics = new SquadDynamicsRepository(db);
+    const concern = dynamics.concern(stanceBrokenPlayerId, team.id, "TRANSFER_INTEREST")!;
+    const response = respondToConcern(db, saveAt("2026-09-01"), managerProfileId, concern.id, "PROMISE_TRANSFER_STANCE");
+    const promise = dynamics.promiseById(response.promiseId!)!;
+
+    // The club itself decides to transfer-list the player — breaking the
+    // manager's own promise not to sanction a move.
+    new TransferMarketRepository(db).upsertTransferStatus({
+      id: createStableEntityId("player-transfer-status", stanceBrokenPlayerId),
+      playerId: stanceBrokenPlayerId, clubId: club.id, status: "TRANSFER_LISTED",
+      reason: "Club lists player", setBy: "CLUB", updatedAt: "2026-09-15",
+    });
+
+    const before = dynamics.relationship(managerProfileId, stanceBrokenPlayerId)?.score ?? 0;
+    evaluateSquadDynamics(db, saveAt(promise.dueOn), team.id, club.id, managerProfileId);
+    const resolved = dynamics.promiseById(promise.id)!;
+    expect(resolved.status).toBe("BROKEN");
+    const escalated = dynamics.concernById(concern.id)!;
+    expect(escalated.status).toBe("ESCALATED");
+    const after = dynamics.relationship(managerProfileId, stanceBrokenPlayerId)?.score ?? 0;
+    expect(after).toBeLessThan(before);
+
+    const history = dynamics.historyForPerson(stanceBrokenPlayerId);
+    expect(history.some((event) => event.eventType === "PROMISE_BROKEN")).toBe(true);
+  });
+
+  it("PROMISE_LOAN_CONSIDERATION is fulfilled once a real active loan exists by the deadline", () => {
+    const dynamics = new SquadDynamicsRepository(db);
+    const concern = dynamics.concern(loanKeptPlayerId, team.id, "TRANSFER_INTEREST")!;
+    const response = respondToConcern(db, saveAt("2026-09-01"), managerProfileId, concern.id, "PROMISE_LOAN_CONSIDERATION");
+    const promise = dynamics.promiseById(response.promiseId!)!;
+    expect(promise.type).toBe("LOAN_CONSIDERATION");
+
+    new TransferMarketRepository(db).upsertLoan({
+      id: createStableEntityId("loan", `${loanKeptPlayerId}:loan`),
+      parentClubId: club.id, loanClubId: foreignClub.id, playerId: loanKeptPlayerId,
+      startDate: "2026-09-10", endDate: promise.dueOn, wageContributionPercent: 50,
+      playingTimeExpectation: "FIRST_TEAM", recallAllowed: true, status: "ACTIVE",
+    });
+
+    evaluateSquadDynamics(db, saveAt(promise.dueOn), team.id, club.id, managerProfileId);
+    const resolved = dynamics.promiseById(promise.id)!;
+    expect(resolved.status).toBe("FULFILLED");
+    const resolvedConcern = dynamics.concernById(concern.id)!;
+    expect(resolvedConcern.status).toBe("RESOLVED");
+
+    const history = dynamics.historyForPerson(loanKeptPlayerId);
+    expect(history.some((event) => event.eventType === "PROMISE_KEPT")).toBe(true);
   });
 });

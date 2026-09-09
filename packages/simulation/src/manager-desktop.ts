@@ -63,6 +63,7 @@ import {
   type ShortlistEntry,
   type SlotRoleFit,
   type SquadConcernView,
+  type ConcernTransferContext,
   type SquadDemandView,
   type SquadPromiseView,
   type SquadList,
@@ -621,6 +622,63 @@ const teamOfPlayer = (db: GameDatabase, playerId: EntityId): EntityId | undefine
       .get(playerId) as { teamId?: EntityId } | undefined
   )?.teamId;
 
+/** A live, real bid — not a duplicate/unchanged offer, not mere scouting
+ * interest — mirroring the exact "qualifying offer" filter
+ * evaluateSquadDynamics itself uses to decide whether a TRANSFER_INTEREST
+ * concern is genuine (squad-dynamics.ts), so the profile can never show a
+ * different, UI-side notion of "still live" than the engine that raised
+ * the concern in the first place. */
+const TERMINAL_TRANSFER_OFFER_STATUSES: readonly string[] = [
+  "COMPLETED",
+  "REJECTED",
+  "WITHDRAWN",
+  "EXPIRED",
+];
+
+/**
+ * The real foreign/domestic buying interest behind a TRANSFER_INTEREST
+ * concern — the same buying club (and, when the engine tracks one, its
+ * competition via external_club_context) that squad-dynamics.ts already
+ * resolves to reference the concern's own historical event. Undefined
+ * whenever there is no still-live qualifying offer to point at, since a
+ * request with no live offer has no buying club on record to show.
+ */
+const concernTransferContext = (
+  db: GameDatabase,
+  personId: EntityId,
+  clubId: EntityId | undefined,
+  role: CareerRole,
+): ConcernTransferContext | undefined => {
+  if (!clubId) return undefined;
+  const market = new TransferMarketRepository(db);
+  const offer = market
+    .transferOffers()
+    .filter(
+      (candidate) =>
+        candidate.playerId === personId &&
+        candidate.sellingClubId === clubId &&
+        !TERMINAL_TRANSFER_OFFER_STATUSES.includes(candidate.status),
+    )
+    .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt))[0];
+  if (!offer) return undefined;
+  const leagueRow = db
+    .prepare("SELECT league_id AS leagueId FROM external_club_context WHERE club_id = ?")
+    .get(offer.buyingClubId) as { leagueId?: EntityId } | undefined;
+  const pendingRequest = market
+    .transferRequests(personId)
+    .find((request) => request.status === "PENDING");
+  return {
+    interestedClub: buildEntityReference(db, "CLUB", offer.buyingClubId, role),
+    competition: leagueRow?.leagueId
+      ? buildEntityReference(db, "COMPETITION", leagueRow.leagueId, role)
+      : undefined,
+    offerId: offer.id,
+    offerStatus: offer.status,
+    requestId: pendingRequest?.id,
+    requestStatus: pendingRequest?.status,
+  };
+};
+
 /**
  * The real squad-dynamics state for one player on their own club's roster —
  * filtered straight from the same repository reads the Dressing Room
@@ -633,9 +691,14 @@ const buildPlayerRelationshipView = (
   db: GameDatabase,
   teamId: EntityId,
   playerId: EntityId,
+  viewerRole: CareerRole,
 ): PlayerRelationshipView => {
   const dynamics = new SquadDynamicsRepository(db);
   const managerContract = new ManagerRepository(db).activeContractForTeam(teamId);
+  const clubId = (
+    db.prepare("SELECT club_id AS clubId FROM teams WHERE id = ?").get(teamId) as
+      { clubId?: EntityId } | undefined
+  )?.clubId;
   const hierarchyEntry = dynamics
     .hierarchyForTeam(teamId)
     .find((entry) => entry.personId === playerId);
@@ -666,6 +729,10 @@ const buildPlayerRelationshipView = (
         updatedOn: concern.updatedOn,
         note: concern.note,
         validActions: validActionsForConcern(concern.type),
+        transferContext:
+          concern.type === "TRANSFER_INTEREST"
+            ? concernTransferContext(db, concern.personId, clubId, viewerRole)
+            : undefined,
         activePromise: activePromise
           ? {
               id: activePromise.id,
@@ -897,7 +964,9 @@ export const buildPlayerProfile = (
     // other role is offered controls that would be rejected on click.
     viewer: { role: viewer.role, canManagePlayer: Boolean(context) },
     relationship:
-      ownSquad && playerTeamId ? buildPlayerRelationshipView(db, playerTeamId, playerId) : undefined,
+      ownSquad && playerTeamId
+        ? buildPlayerRelationshipView(db, playerTeamId, playerId, viewer.role)
+        : undefined,
   };
 };
 
