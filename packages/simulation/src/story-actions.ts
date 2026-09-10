@@ -8,31 +8,20 @@ import {
   type GameDatabase,
 } from "@nepal-football-sim/database";
 import { buildEntityReference } from "./entity-reference.js";
-import { executiveHasAuthority } from "./executive-roles.js";
 
 const FACILITY_AUTHORITY_ROLES: readonly CareerRole[] = ["CHAIRMAN_OWNER", "CEO", "GENERAL_SECRETARY"];
 
-/** Club executive roles whose canonical authority set (executiveAuthorities,
- * shared-types/src/executive-roles.ts) includes TRANSFER_NEGOTIATION. Holding
- * the role is never enough on its own — the appointment itself must still be
- * genuinely filled at the club the negotiation involves, which is exactly what
- * executiveHasAuthority checks. */
-const TRANSFER_EXECUTIVE_ROLES: readonly CareerRole[] = ["SPORTING_DIRECTOR", "DIRECTOR_OF_FOOTBALL"];
-
-/** True when this person really holds delegated transfer-negotiation authority
- * at one of the clubs actually involved in the offer — never by role name
- * alone, and never for a club the executive is not appointed to. */
-const hasDelegatedTransferAuthority = (
-  db: GameDatabase,
-  role: CareerRole,
-  personId: EntityId | undefined,
-  clubIds: readonly (EntityId | undefined)[],
-): boolean => {
-  if (!personId || !TRANSFER_EXECUTIVE_ROLES.includes(role)) return false;
-  return clubIds.some(
-    (clubId) => clubId !== undefined && executiveHasAuthority(db, clubId, personId, "TRANSFER_NEGOTIATION"),
-  );
-};
+/* Delegated transfer negotiation (Sporting Director / Director of Football)
+ * deliberately gets NO OPEN_TRANSFER_NEGOTIATION story action. The canonical
+ * model does grant those roles TRANSFER_NEGOTIATION authority, but the only
+ * mutation surface that action can route to — TransferNegotiationMeeting /
+ * getTransferCentre / respondTransferOffer — is hard-gated to the Manager role
+ * in desktop-application.ts, and no executive transfer-mutation command exists.
+ * An action that would reach ROLE_NOT_AUTHORIZED through ordinary UI is worse
+ * than no action, so this branch stays Manager-only. An SD/DoF still has a
+ * real, working read-only view of their club's negotiations via
+ * getExecutiveRecruitmentDesk, reached from the executive landing screen —
+ * not from a Story Detail button that cannot act. */
 
 /**
  * The single, central place that decides what a Story Detail can actually
@@ -46,10 +35,10 @@ export const buildStoryActions = (
   db: GameDatabase,
   event: HistoricalEvent,
   role: CareerRole,
-  /** The acting career person, when the caller knows it. Required only for
-   * branches whose authority is delegated per-appointment rather than implied
-   * by the role itself (see hasDelegatedTransferAuthority) — omitting it can
-   * only ever withhold an action, never grant one. */
+  /** The acting career person, when the caller knows it. Currently only used
+   * to keep the signature stable for callers; every branch here derives its
+   * own authority from `role` plus ids on the event. Passing it can only ever
+   * withhold an action, never grant one. */
   personId?: EntityId,
 ): StoryAction[] => {
   const actions: StoryAction[] = [];
@@ -72,12 +61,12 @@ export const buildStoryActions = (
     }
   }
 
-  // Transfer/loan negotiation — the manager's own workflow authority, plus
-  // any club executive who genuinely holds delegated TRANSFER_NEGOTIATION
-  // authority at a club in this negotiation (Sporting Director / Director of
-  // Football). Never the owner's or president's. TransferNegotiationMeeting
-  // itself already renders a settled offer read-only (no Accept/Counter), so
-  // the SAME action reaches both an active and a terminal negotiation honestly.
+  // Transfer/loan negotiation — the manager's own workflow authority only.
+  // TransferNegotiationMeeting itself already renders a settled offer read-only
+  // (no Accept/Counter), so the SAME action reaches both an active and a
+  // terminal negotiation honestly. Never the owner's, president's, or a
+  // delegated executive's (see the delegated-transfer note at the top of this
+  // file — that action has no working destination for those roles).
   // The ownership exclusion matters: CLUB_OWNERSHIP_TRANSFERRED contains
   // "TRANSFERRED", so without it an ownership hand-over would be probed as a
   // player transfer (harmless today only because the offer id never resolves).
@@ -88,12 +77,9 @@ export const buildStoryActions = (
     // negotiation/transfer context — never a second, parallel transfer UI.
     (type === "CONCERN_ESCALATED" && data?.type === "TRANSFER_INTEREST")
   ) {
-    if (typeof data?.offerId === "string" && (role === "MANAGER" || TRANSFER_EXECUTIVE_ROLES.includes(role))) {
+    if (typeof data?.offerId === "string" && role === "MANAGER") {
       const offer = new TransferMarketRepository(db).transferOffers().find((item) => item.id === data.offerId);
-      const authorized =
-        role === "MANAGER" ||
-        (offer !== undefined && hasDelegatedTransferAuthority(db, role, personId, [offer.buyingClubId, offer.sellingClubId]));
-      if (offer && authorized) {
+      if (offer) {
         const terminal = ["COMPLETED", "REJECTED", "WITHDRAWN", "EXPIRED"].includes(offer.status);
         const isConcernRoute = type === "CONCERN_ESCALATED";
         actions.push({

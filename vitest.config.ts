@@ -2,6 +2,11 @@ import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
+  // React component tests (.test.tsx) are transformed by esbuild's automatic
+  // JSX runtime — no @vitejs/plugin-react, which double-transformed the JSX
+  // under Vitest and broke element identity. Components still `import React`
+  // for their type annotations; the unused-value import is harmless.
+  esbuild: { jsx: "automatic", jsxImportSource: "react" },
   ssr: {
     external: ["node:sqlite"],
   },
@@ -25,11 +30,11 @@ export default defineConfig({
     },
   },
   test: {
-    // apps/desktop's negotiationPresentation.test.ts covers pure
-    // (non-React, non-DOM) presentation logic — the app has no
-    // React/jsdom test harness, so only type-erased-import-safe,
-    // DOM-free modules belong here.
-    include: ["packages/**/*.test.ts", "apps/desktop/src/**/*.test.ts"],
+    // .test.ts files run in the default node environment (pure presentation
+    // logic, simulation, DB). .test.tsx files are React component tests — each
+    // opts into a DOM via a `// @vitest-environment happy-dom` docblock and is
+    // the minimal accessibility harness for the relationship UI.
+    include: ["packages/**/*.test.ts", "apps/desktop/src/**/*.test.{ts,tsx}"],
     pool: "forks",
   },
 });

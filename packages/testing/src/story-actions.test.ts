@@ -625,7 +625,9 @@ describe("federation commercial story action routing", () => {
  * Every mutation-capable branch must deny every role NOT in its authorized
  * set — this is the exhaustive complement of each individual "denies X"
  * test above, covering the two executive roles (SPORTING_DIRECTOR,
- * DIRECTOR_OF_FOOTBALL) those tests never touched.
+ * DIRECTOR_OF_FOOTBALL) those tests never touched. Transfer negotiation is
+ * Manager-only: its story action routes to a Manager-gated command, so a
+ * delegated executive gets no action rather than one that dead-ends.
  */
 const ALL_CAREER_ROLES = [
   "MANAGER",
@@ -707,9 +709,9 @@ describe("role action safety — full executive matrix", () => {
   });
 
   it(
-    "transfer negotiation: MANAGER gets the action by role, and no other role gets it without a real appointment — " +
-      "SPORTING_DIRECTOR/DIRECTOR_OF_FOOTBALL only qualify through executiveHasAuthority (covered in the " +
-      "'executive transfer authority' suite), never from the role name alone",
+    "transfer negotiation: MANAGER gets the action, every other role is denied — including a delegated " +
+      "SPORTING_DIRECTOR/DIRECTOR_OF_FOOTBALL, because the action's only destination is Manager-gated " +
+      "(covered end to end in the 'executive transfer authority' suite)",
     () => {
       const db = openGameDatabase(makeSave("matrix-transfer"));
       const club = db.prepare("SELECT id FROM clubs WHERE name = 'Machhindra FC'").get() as { id: EntityId };
@@ -857,10 +859,15 @@ describe("terminal action safety — full status matrix", () => {
 
 /**
  * Delegated transfer authority. The canonical model (executiveAuthorities,
- * shared-types/src/executive-roles.ts) gives SPORTING_DIRECTOR and
- * DIRECTOR_OF_FOOTBALL real TRANSFER_NEGOTIATION authority, so a story action
- * must reach them — but only through executiveHasAuthority, i.e. only when the
- * appointment is genuinely filled at a club actually in the negotiation.
+ * shared-types/src/executive-roles.ts) does give SPORTING_DIRECTOR and
+ * DIRECTOR_OF_FOOTBALL a TRANSFER_NEGOTIATION authority — but the ONLY
+ * destination the OPEN_TRANSFER_NEGOTIATION story action can route to
+ * (TransferNegotiationMeeting → getTransferCentre / respondTransferOffer) is
+ * hard-gated to the Manager role, and no executive transfer-mutation command
+ * exists. So the story action is Manager-only: a genuinely-appointed SD/DoF
+ * gets NO action here rather than one that dead-ends at ROLE_NOT_AUTHORIZED.
+ * Their real, working view of club negotiations is getExecutiveRecruitmentDesk,
+ * reached from the executive landing screen — not a Story Detail button.
  */
 describe("executive transfer authority", () => {
   const setUp = (name: string, role: "SPORTING_DIRECTOR" | "DIRECTOR_OF_FOOTBALL") => {
@@ -908,50 +915,41 @@ describe("executive transfer authority", () => {
   };
 
   it.each(["SPORTING_DIRECTOR", "DIRECTOR_OF_FOOTBALL"] as const)(
-    "%s with a genuinely filled appointment at the buying club gets the same transfer action a Manager gets",
+    "%s with a genuinely filled appointment at the buying club still gets NO transfer story action — the action's only destination is Manager-gated",
     (role) => {
       const { db, person, event } = setUp(`exec-authority-${role.toLowerCase()}`, role);
-      const actions = buildStoryActions(db, event, role, person.id);
-      expect(actions).toHaveLength(1);
-      expect(actions[0]!.kind).toBe("OPEN_TRANSFER_NEGOTIATION");
-      expect(actions[0]!.label).toBe("Open negotiation");
+      // personId supplied, appointment genuinely filled, offer at their own club:
+      // every condition the old delegated-authority branch checked is satisfied.
+      expect(buildStoryActions(db, event, role, person.id)).toHaveLength(0);
       db.close();
     },
   );
 
-  it("denies the same executive role when no personId is supplied — authority is never inferred from the role name", () => {
-    const { db, event } = setUp("exec-authority-no-person", "SPORTING_DIRECTOR");
-    expect(buildStoryActions(db, event, "SPORTING_DIRECTOR")).toHaveLength(0);
+  it("still gives the Manager the working action for the exact same event and offer", () => {
+    const { db, person, event } = setUp("exec-authority-manager-unchanged", "SPORTING_DIRECTOR");
+    const asManager = buildStoryActions(db, event, "MANAGER", person.id);
+    expect(asManager).toHaveLength(1);
+    expect(asManager[0]!.kind).toBe("OPEN_TRANSFER_NEGOTIATION");
+    expect(asManager[0]!.label).toBe("Open negotiation");
+    // ...and with or without a personId, exactly as before.
+    expect(buildStoryActions(db, event, "MANAGER")).toHaveLength(1);
     db.close();
   });
 
-  it("denies a person holding no executive appointment at all, even under the authorized role", () => {
-    const { db, event } = setUp("exec-authority-unappointed", "SPORTING_DIRECTOR");
-    const stranger = db.prepare("SELECT id FROM persons ORDER BY id DESC LIMIT 1").get() as { id: EntityId };
-    expect(buildStoryActions(db, event, "SPORTING_DIRECTOR", stranger.id)).toHaveLength(0);
-    db.close();
-  });
-
-  it("denies an appointed executive when the negotiation involves no club they are appointed to", () => {
-    const { db, person, other } = setUp("exec-authority-other-club", "SPORTING_DIRECTOR");
-    const elsewhere = baseTransferOffer({ id: "exec-elsewhere-offer" as EntityId, playerId: person.id, buyingClubId: other.id });
-    new TransferMarketRepository(db).insertTransferOffer(elsewhere);
-    const event = transferEvent("exec-elsewhere-offer", person.id, other.id);
-    expect(buildStoryActions(db, event, "SPORTING_DIRECTOR", person.id)).toHaveLength(0);
-    db.close();
-  });
-
-  it("never lets the Owner or President gain transfer mutation authority through the same delegated path", () => {
+  it("never lets the Owner or President gain a transfer action either", () => {
     const { db, person, event } = setUp("exec-authority-owner-president", "SPORTING_DIRECTOR");
     expect(buildStoryActions(db, event, "CHAIRMAN_OWNER", person.id)).toHaveLength(0);
     expect(buildStoryActions(db, event, "FEDERATION_PRESIDENT", person.id)).toHaveLength(0);
     db.close();
   });
 
-  it("keeps the Manager's own transfer action working exactly as before, with or without a personId", () => {
-    const { db, person, event } = setUp("exec-authority-manager-unchanged", "SPORTING_DIRECTOR");
-    expect(buildStoryActions(db, event, "MANAGER")).toHaveLength(1);
-    expect(buildStoryActions(db, event, "MANAGER", person.id)).toHaveLength(1);
+  it("viewing the players/clubs on the story is unaffected — only the mutation action is withheld", () => {
+    const { db, person, event } = setUp("exec-authority-view-unaffected", "SPORTING_DIRECTOR");
+    // buildStoryActions is only the action list; the Story Detail context rail
+    // (entities) is built separately and always carries the involved player and
+    // club regardless of role. Assert the action list alone is empty for SD.
+    expect(buildStoryActions(db, event, "SPORTING_DIRECTOR", person.id)).toEqual([]);
+    expect(buildStoryActions(db, event, "MANAGER", person.id)).not.toEqual([]);
     db.close();
   });
 });
