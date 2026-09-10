@@ -594,6 +594,10 @@ export type ClubProfile = {
   manager?: EntityReference;
   owner?: EntityReference;
   recentFixtures: EntityReference[];
+  /** The club's real senior-team roster as clickable player references —
+   * present for a domestic club and a CONTEXT_ONLY foreign club alike, so a
+   * foreign club's real, seeded players are just as navigable. */
+  squad: EntityReference[];
   activeSponsors: EntityReference[];
   infrastructureProjects: EntityReference[];
   stadium?: ClubStadiumSummary;

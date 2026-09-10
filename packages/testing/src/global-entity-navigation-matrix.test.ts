@@ -2,12 +2,13 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { openGameDatabase, migrateDatabase } from "@nepal-football-sim/database";
+import { loadSave, openGameDatabase, migrateDatabase } from "@nepal-football-sim/database";
 import {
   DesktopApplicationService,
   buildClubProfile,
   buildCompetitionProfile,
   buildEntityReference,
+  buildPlayerProfile,
 } from "@nepal-football-sim/simulation";
 import type { CareerRole, EntityId } from "@nepal-football-sim/shared-types";
 
@@ -108,6 +109,75 @@ describe("global entity navigation matrix", () => {
     expect(profile.entityReference.id).toBe(foreignClub.id);
     expect(profile.foreignContext).toBeDefined();
     expect(profile.foreignContext?.competition.visible).toBe(true);
+    db.close();
+  });
+
+  it("CLUB squad exposure: a domestic club's real squad opens to a visible, correctly-scoped player profile", () => {
+    const db = createRealCareer();
+    const club = db
+      .prepare(
+        `SELECT c.id, c.name FROM clubs c
+         JOIN teams t ON t.club_id = c.id
+         JOIN team_person_assignments tpa ON tpa.team_id = t.id AND tpa.role = 'PLAYER' AND tpa.ended_on IS NULL
+         JOIN player_attributes pa ON pa.person_id = tpa.person_id
+         WHERE NOT EXISTS (SELECT 1 FROM external_club_context ecc WHERE ecc.club_id = c.id)
+         GROUP BY c.id HAVING COUNT(*) > 0 ORDER BY c.id LIMIT 1`,
+      )
+      .get() as { id: EntityId; name: string };
+    const profile = buildClubProfile(db, club.id, ROLE);
+    expect(profile.squad.length).toBeGreaterThan(0);
+    const squadEntry = profile.squad[0]!;
+    expect(squadEntry.entityType).toBe("PLAYER");
+    expect(squadEntry.visible).toBe(true);
+
+    const saveRow = db.prepare("SELECT id FROM saves LIMIT 1").get() as { id: EntityId };
+    const save = loadSave(db, saveRow.id);
+    const playerProfile = buildPlayerProfile(db, save, { role: ROLE }, squadEntry.id);
+    expect(playerProfile.personId).toBe(squadEntry.id);
+    expect(playerProfile.club?.id).toBe(club.id);
+    expect(playerProfile.club?.label).toBe(club.name);
+    // Opened as a shared world entity, not this viewer's own squad — no
+    // Nepal-manager relationship data borrowed for someone else's player.
+    expect(playerProfile.ownSquad).toBe(false);
+    expect(playerProfile.relationship).toBeUndefined();
+    db.close();
+  });
+
+  /**
+   * A genuine, confirmed data gap in the current global-football-import: it
+   * links every squad member it can to a foreign club's team_person_assignments,
+   * but only ever creates a real player_attributes row for a player it has
+   * separate evidence for — leaving most CONTEXT_ONLY foreign squads with NO
+   * attribute-backed member at all in today's seeded dataset. buildClubProfile's
+   * squad field is joined to player_attributes specifically so this never
+   * surfaces as a dead link (a roster entry that 500s when opened) — verified
+   * here directly: whatever a foreign club's squad DOES contain must actually
+   * open, never fabricating attribute coverage that doesn't exist to force
+   * more entries in. Extending real attribute coverage to more foreign
+   * players is future Global Football Market Engine work, not this pass.
+   */
+  it("CLUB (foreign, CONTEXT_ONLY) squad exposure never surfaces a player profile that would fail to open", () => {
+    const db = createRealCareer();
+    const foreignClubIds = (
+      db.prepare(`SELECT club_id AS id FROM external_club_context`).all() as Array<{ id: EntityId }>
+    ).map((row) => row.id);
+    expect(foreignClubIds.length).toBeGreaterThan(0);
+    const saveRow = db.prepare("SELECT id FROM saves LIMIT 1").get() as { id: EntityId };
+    const save = loadSave(db, saveRow.id);
+    let checkedAtLeastOneSquadEntry = false;
+    for (const clubId of foreignClubIds) {
+      const profile = buildClubProfile(db, clubId, ROLE);
+      for (const entry of profile.squad) {
+        checkedAtLeastOneSquadEntry = true;
+        expect(entry.entityType).toBe("PLAYER");
+        expect(entry.visible).toBe(true);
+        expect(() => buildPlayerProfile(db, save, { role: ROLE }, entry.id)).not.toThrow();
+      }
+    }
+    // Not asserted as >0: today's seeded dataset may have zero attribute-
+    // backed foreign squad members at all (a real, documented data gap) —
+    // this test's job is that IF any exist, they are genuinely navigable.
+    void checkedAtLeastOneSquadEntry;
     db.close();
   });
 

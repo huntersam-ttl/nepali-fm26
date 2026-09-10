@@ -489,6 +489,15 @@ export const ManagerCareer = ({
           entityType="CLUB"
           entityId={openClubId}
           onClose={() => setOpenClubId(null)}
+          onOpenPlayer={(id) => {
+            // Close this club overlay and navigate to the real Player
+            // Profile underneath — the same pattern PlayerProfileScreen's
+            // own nested OrganizationProfilePanel already uses, so a
+            // squad chip (domestic or a real CONTEXT_ONLY foreign player)
+            // is just as navigable from here.
+            setOpenClubId(null);
+            openPlayer(id);
+          }}
         />
       )}
     </main>

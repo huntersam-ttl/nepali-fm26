@@ -2672,6 +2672,10 @@ const NationalTeamSquadPanel = ({
           entityType="CLUB"
           entityId={openClubId}
           onClose={() => setOpenClubId(undefined)}
+          onOpenPlayer={(id) => {
+            setOpenClubId(undefined);
+            setOpenPlayerId(id);
+          }}
         />
       )}
       {openStaffId && (
@@ -7050,6 +7054,7 @@ const ClubProfileBody = ({
           ]}
         />
         <EntityStorylinePanel bridge={bridge} entityId={profile.entityReference.id} onOpenReference={onOpenReference} />
+        <ClubSquadPanel squad={profile.squad} onOpenReference={onOpenReference} />
         <Panel title="Recent fixtures">
           {profile.recentFixtures.length === 0 ? (
             <p className="empty-state">No fixtures on record.</p>
@@ -7069,6 +7074,29 @@ const ClubProfileBody = ({
       <FullClubProfileBody profile={profile} onOpenReference={onOpenReference} bridge={bridge} />
     )}
   </>
+);
+
+/** A club's real senior-team roster as clickable player references — shared
+ * between a domestic and a CONTEXT_ONLY foreign club's profile, so a foreign
+ * club's real, seeded players are just as reachable as a Nepal squad. */
+const ClubSquadPanel = ({
+  squad,
+  onOpenReference,
+}: {
+  squad: EntityReference[];
+  onOpenReference: (reference: EntityReference) => void;
+}): React.ReactElement => (
+  <Panel title="Squad">
+    {squad.length === 0 ? (
+      <p className="empty-state">No players on record for this club.</p>
+    ) : (
+      <div className="button-row">
+        {squad.map((reference) => (
+          <EntityRefChip key={reference.id} reference={reference} onOpen={onOpenReference} />
+        ))}
+      </div>
+    )}
+  </Panel>
 );
 
 /** The domestic-club body — everything the Nepal club-economy/facility
@@ -7111,6 +7139,7 @@ const FullClubProfileBody = ({
       ]}
     />
     <EntityStorylinePanel bridge={bridge} entityId={profile.entityReference.id} onOpenReference={onOpenReference} />
+    <ClubSquadPanel squad={profile.squad} onOpenReference={onOpenReference} />
     <Panel title="Club world">
       <ClubWorldCampus
         facilitySnapshot={profile.facilitySnapshot}

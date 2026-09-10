@@ -29,8 +29,10 @@ import {
 import {
   ClubNetworkRepository,
   EventRepository,
+  ManagerRepository,
   PlayerRepository,
   RecruitmentRepository,
+  SquadDynamicsRepository,
   TransferMarketRepository,
   PeopleFoundationRepository,
   type GameDatabase,
@@ -54,6 +56,7 @@ import {
 } from "./agent-career.js";
 import { evaluateRelatedPartyTransfer } from "./club-networks.js";
 import { upsertPersonRelationship } from "./people-foundation.js";
+import { adjustRelationship, logEvent as logRelationshipEvent } from "./squad-dynamics.js";
 import { SeededRandom } from "./rng.js";
 import {
   initializeRecruitmentForSave,
@@ -2128,6 +2131,72 @@ const emitTransferPublicEvent = (
   }
 };
 
+/**
+ * A completed permanent transfer would otherwise orphan the departing
+ * player's old-club squad-dynamics state forever: evaluateSquadDynamics only
+ * ever walks a team's CURRENT roster (team_person_assignments), and this
+ * player has just left it, so a still-ACTIVE TRANSFER_INTEREST concern or
+ * TRANSFER_STANCE promise would never be revisited again. Resolved here,
+ * once, through the exact same historical-event vocabulary squad-dynamics.ts
+ * itself uses (CONCERN_RESOLVED / PROMISE_BROKEN) — never a second, parallel
+ * resolution or story path. Scoped to the OLD club only; a free-agent
+ * signing (no sellingClubId) has no prior club relationship to resolve.
+ */
+const resolveSquadDynamicsOnTransferCompletion = (
+  db: GameDatabase,
+  offer: TransferOffer,
+  worldDate: string,
+): void => {
+  const oldClubId = offer.sellingClubId;
+  if (!oldClubId) return;
+  const teamId = teamIdForClub(db, oldClubId);
+  if (!teamId) return;
+  const managerProfileId = new ManagerRepository(db).activeContractForTeam(teamId)?.managerProfileId;
+  if (!managerProfileId) return;
+
+  const market = new TransferMarketRepository(db);
+  const pendingRequest = market
+    .transferRequests(offer.playerId)
+    .find((request) => request.status === "PENDING" && request.clubId === oldClubId);
+  if (pendingRequest) {
+    // The move the player formally asked for has genuinely happened.
+    market.upsertTransferRequest({ ...pendingRequest, status: "ACCEPTED", decidedAt: worldDate });
+  }
+
+  const dynamics = new SquadDynamicsRepository(db);
+  const concern = dynamics.concern(offer.playerId, teamId, "TRANSFER_INTEREST");
+  if (concern && concern.status !== "RESOLVED") {
+    dynamics.upsertConcern({
+      ...concern,
+      status: "RESOLVED",
+      updatedOn: worldDate,
+      resolvedOn: worldDate,
+    });
+    logRelationshipEvent(db, offer.playerId, teamId, managerProfileId, "CONCERN_RESOLVED", worldDate, {
+      type: "TRANSFER_INTEREST",
+      reason: "transfer_completed",
+    });
+  }
+
+  // A still-ACTIVE promise not to sanction a move (TRANSFER_STANCE) is
+  // broken by this exact transfer completing — the same real, measurable
+  // rule resolvePromisesForPlayer already judges it by, just triggered by
+  // the completion itself rather than waiting for the promise's own
+  // deadline (which, once the player has left, would never fire again).
+  const stancePromise = dynamics
+    .promisesForPerson(offer.playerId, teamId)
+    .find((promise) => promise.type === "TRANSFER_STANCE" && promise.status === "ACTIVE");
+  if (stancePromise) {
+    dynamics.upsertPromise({ ...stancePromise, status: "BROKEN", resolvedOn: worldDate });
+    // Matches resolvePromisesForPlayer's own broken-promise magnitude exactly.
+    adjustRelationship(db, managerProfileId, offer.playerId, -18, worldDate);
+    logRelationshipEvent(db, offer.playerId, teamId, managerProfileId, "PROMISE_BROKEN", worldDate, {
+      type: "TRANSFER_STANCE",
+      promiseId: stancePromise.id,
+    });
+  }
+};
+
 export const completePermanentTransfer = (
   db: GameDatabase,
   offer: TransferOffer,
@@ -2275,6 +2344,7 @@ export const completePermanentTransfer = (
     data: { transferHistoryId, offerId: offer.id, transferFee: offer.transferFee, currency: offer.currency },
     importance: offer.transferFee >= 1_000_000 ? "high" : "medium",
   });
+  resolveSquadDynamicsOnTransferCompletion(db, offer, worldDate);
   recordTransferEconomy(db, offer, worldDate);
   settleAgentFee(db, {
     playerId: offer.playerId,

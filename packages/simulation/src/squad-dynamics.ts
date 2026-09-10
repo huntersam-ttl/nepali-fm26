@@ -366,7 +366,8 @@ const relationshipLevelFor = (score: number): ManagerPlayerRelationshipLevel => 
   return "STRONG";
 };
 
-const adjustRelationship = (
+/** Exported alongside logEvent for transfer-market.ts's completion-resolution use. */
+export const adjustRelationship = (
   db: GameDatabase,
   managerProfileId: EntityId,
   personId: EntityId,
@@ -1152,7 +1153,14 @@ const seasonStatsFor = (
     ).map((row) => [row.person_id as EntityId, { appearances: row.appearances as number }]),
   );
 
-const logEvent = (
+/**
+ * Exported so transfer-market.ts's completePermanentTransfer can resolve a
+ * departing player's squad-dynamics state (their old club's TRANSFER_INTEREST
+ * concern/TRANSFER_STANCE promise) through the exact same historical-event
+ * vocabulary and Story-routing rules as every other relationship event —
+ * never a second, parallel resolution/story path for the same concept.
+ */
+export const logEvent = (
   db: GameDatabase,
   personId: EntityId,
   teamId: EntityId,

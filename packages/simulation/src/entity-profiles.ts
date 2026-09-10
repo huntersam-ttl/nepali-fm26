@@ -41,6 +41,41 @@ const foreignClubContext = (db: GameDatabase, clubId: EntityId, role: CareerRole
   };
 };
 
+/**
+ * A club's real senior-team roster as clickable player references — the same
+ * team_person_assignments rows the Squad screen and PlayerRepository already
+ * read, never a second roster model. Used for both a manager's own club and
+ * any other club opened as a shared world entity (including a CONTEXT_ONLY
+ * foreign club), so a foreign club's real, seeded players are just as
+ * navigable as a domestic squad — no Nepal-specific fallback.
+ *
+ * Requires a real player_attributes row: the global football import
+ * deliberately never fabricates a gameplay attribute set for every squad
+ * member it links to a foreign club (only for players it has real evidence
+ * for), so a roster entry with none would otherwise open to a hard
+ * "Unknown player" failure in buildPlayerProfile — this join keeps the
+ * squad list itself honest about which entries are actually viewable,
+ * rather than surfacing a dead link. A future Global Football Market
+ * pass may extend attribute coverage; this is not that pass.
+ */
+const clubSquadReferences = (
+  db: GameDatabase,
+  teamId: EntityId | undefined,
+  role: CareerRole,
+): import("@nepal-football-sim/shared-types").EntityReference[] =>
+  teamId
+    ? (
+        db
+          .prepare(
+            `SELECT tpa.person_id AS id FROM team_person_assignments tpa
+             JOIN player_attributes pa ON pa.person_id = tpa.person_id
+             WHERE tpa.team_id = ? AND tpa.role = 'PLAYER' AND tpa.ended_on IS NULL
+             ORDER BY tpa.person_id`,
+          )
+          .all(teamId) as Array<{ id: EntityId }>
+      ).map((row) => buildEntityReference(db, "PLAYER", row.id, role))
+    : [];
+
 export const buildClubProfile = (db: GameDatabase, clubId: EntityId, role: CareerRole): ClubProfile => {
   const club = db.prepare("SELECT id,name,location_id FROM clubs WHERE id=?").get(clubId) as { id: EntityId; name: string; location_id?: EntityId } | undefined;
   if (!club) throw new Error(`Unknown club ${clubId}`);
@@ -54,6 +89,7 @@ export const buildClubProfile = (db: GameDatabase, clubId: EntityId, role: Caree
       entityReference: buildEntityReference(db, "CLUB", clubId, role),
       locationLabel: foreignContext.country,
       recentFixtures: fixtures,
+      squad: clubSquadReferences(db, team?.id, role),
       activeSponsors: [],
       infrastructureProjects: [],
       campusProjects: [],
@@ -90,6 +126,7 @@ export const buildClubProfile = (db: GameDatabase, clubId: EntityId, role: Caree
     manager: manager ? buildEntityReference(db, "STAFF", manager.id, role) : undefined,
     owner: owner ? buildEntityReference(db, "INVESTOR", owner.holder_id, role) : undefined,
     recentFixtures: fixtures,
+    squad: clubSquadReferences(db, team?.id, role),
     activeSponsors: sponsors,
     infrastructureProjects: projects,
     campusProjects,

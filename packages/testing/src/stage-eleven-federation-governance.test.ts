@@ -6,12 +6,15 @@ import {
   ClubEconomyRepository,
   CompetitionRepository,
   FederationGovernanceRepository,
+  TransferMarketRepository,
   WorldRepository,
   openGameDatabase,
 } from "@nepal-football-sim/database";
-import type { CompetitionRuleSet, EntityId } from "@nepal-football-sim/shared-types";
+import type { CompetitionRuleSet, EntityId, TransferOffer } from "@nepal-football-sim/shared-types";
+import { createStableEntityId } from "@nepal-football-sim/shared-types";
 import {
   applyCompetitionReform,
+  completePermanentTransfer,
   createNepalSave,
   distributeClubGrant,
   distributeEligibleClubGrants,
@@ -270,6 +273,94 @@ describe("federation governance foundation", () => {
     expect(repo.nationalTeamAppearances(teamId).length).toBeGreaterThan(10);
     expect(repo.internationalEligibilities(federationId).length).toBeGreaterThan(100);
     reloaded.close();
+  });
+
+  /**
+   * A Nepali player who moves abroad must not vanish from Nepal's own
+   * national-team pipeline just because they no longer play for a domestic
+   * club — eligiblePlayerAttributes (the private candidate query behind
+   * selectNationalTeamSquad) filters purely by nationality/gender/fitness/
+   * availability, with no club/team-membership join at all, so this is a
+   * structural guarantee to protect, not a new mechanism to build.
+   */
+  it("keeps a Nepali player structurally eligible for the national team after they transfer to a real foreign club", () => {
+    const path = createSave("nt-abroad");
+    const db = openGameDatabase(path);
+    initializeFederationGovernanceForSave({ db, worldDate: "2026-08-01", seed: "nt-abroad" });
+    const federationId = firstFederationId(db);
+    const teamId = seniorMenTeamId(db, federationId);
+    selectNationalTeamSquad(db, {
+      federationId,
+      nationalTeamId: teamId,
+      date: "2026-09-01",
+      programme: "Friendly test",
+      seed: "nt-abroad",
+    });
+    const repo = new FederationGovernanceRepository(db);
+    const eligibleBefore = repo
+      .internationalEligibilities(federationId)
+      .filter((entry) => entry.status === "ELIGIBLE");
+    expect(eligibleBefore.length).toBeGreaterThan(0);
+
+    const transfers = new TransferMarketRepository(db);
+    // Not every eligible candidate has a real domestic contract (some are
+    // youth/academy prospects) — pick one who genuinely does, since a
+    // transfer needs a real selling club.
+    let player: (typeof eligibleBefore)[number] | undefined;
+    let contract: ReturnType<TransferMarketRepository["activeContract"]> | undefined;
+    for (const candidate of eligibleBefore) {
+      const found = transfers.activeContract(candidate.playerId, "2026-09-05");
+      if (found) {
+        player = candidate;
+        contract = found;
+        break;
+      }
+    }
+    expect(player).toBeDefined();
+    expect(contract).toBeDefined();
+    if (!player || !contract) throw new Error("no eligible player with a domestic contract found");
+    const playerId = player.playerId;
+    const foreignClub = db
+      .prepare(`SELECT club_id AS id FROM external_club_context LIMIT 1`)
+      .get() as { id: EntityId } | undefined;
+    expect(foreignClub).toBeDefined();
+
+    const offer: TransferOffer = {
+      id: createStableEntityId("transfer-offer", `nt-abroad:${playerId}`),
+      buyingClubId: foreignClub!.id,
+      sellingClubId: contract.clubId,
+      playerId,
+      offerType: "PERMANENT",
+      transferFee: 500_000,
+      installments: 0,
+      addOns: 0,
+      sellOnPercentage: 0,
+      submittedAt: "2026-09-05",
+      expiresAt: "2027-06-01",
+      status: "ACCEPTED",
+      currency: "NPR",
+      agentFee: 0,
+      signingFee: 0,
+    };
+    transfers.insertTransferOffer(offer);
+    completePermanentTransfer(db, offer, "2026-09-05", "nt-abroad-seed");
+    expect(transfers.activeContract(playerId, "2026-09-06")?.clubId).toBe(foreignClub!.id);
+
+    // Re-running the same real selection/eligibility pass after the move —
+    // the player's nationality never changed, so their eligibility must not
+    // have been silently revoked just because they now play abroad.
+    selectNationalTeamSquad(db, {
+      federationId,
+      nationalTeamId: teamId,
+      date: "2026-10-01",
+      programme: "Friendly test",
+      seed: "nt-abroad",
+    });
+    const after = repo
+      .internationalEligibilities(federationId)
+      .find((entry) => entry.playerId === playerId);
+    expect(after?.status).toBe("ELIGIBLE");
+    db.close();
   });
 
   it("is deterministic for same-seed federation diagnostics", () => {
