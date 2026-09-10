@@ -38,6 +38,7 @@ import {
   type SimulateMatchInput,
 } from "./match-engine.js";
 import { calculateStandings, summarizePlayerStats, summarizeTeamStats } from "./standings.js";
+import { progressFamiliarity } from "./tactics.js";
 import {
   applyMatchSupporterOutcome,
   initializeSupporterCultureForSave,
@@ -316,6 +317,25 @@ export const finalizeMatch = (
 
     persistMatchRatings(db, state);
     persistPlayerOutcomes(db, players, state, context);
+
+    // A competitive match in the current shape nudges tactical familiarity for
+    // any side running a genuinely persisted tactical setup (today: the human
+    // manager's own team). Bounded and deterministic — see progressFamiliarity.
+    for (const teamId of [context.fixture.homeTeamId, context.fixture.awayTeamId]) {
+      const setup = managers.tacticalSetups(teamId)[0];
+      if (!setup) continue;
+      const managerProfile = setup.managerProfileId
+        ? managers.getProfile(setup.managerProfileId)
+        : undefined;
+      const next = progressFamiliarity(setup.familiarity, {
+        days: 0,
+        tacticalTrainingDays: 0,
+        matchesPlayed: 1,
+        managerTacticalKnowledge: managerProfile?.attributes.tactical.tacticalKnowledge,
+      });
+      if ((["formation", "style", "roles", "instructions"] as const).some((k) => next[k] !== setup.familiarity[k]))
+        managers.insertTacticalSetup({ ...setup, familiarity: next });
+    }
 
     for (const item of context.inboxItems ?? []) managers.insertInboxItem(item);
     competition.markFixturePlayed(state.fixtureId);

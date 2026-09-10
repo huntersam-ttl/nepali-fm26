@@ -559,6 +559,153 @@ export const prepareTacticalSetup = (
   };
 };
 
+// ---------------------------------------------------------------------------
+// Living tactical familiarity
+// ---------------------------------------------------------------------------
+//
+// `TacticalFamiliarity` has always been persisted and consumed by the match
+// engine, but nothing in the career loop ever moved it: a squad drilled in a
+// 4-3-3 for three seasons kept the same numbers the instant they switched to
+// a back three. These two pure functions close that gap.
+//
+//  - familiarityAfterTacticChange: applied when the manager saves a real
+//    tactical change. Each dimension that materially moved drops toward a
+//    floor (a squad never forgets the fundamentals entirely); dimensions that
+//    did not change are untouched.
+//  - progressFamiliarity: applied once per manager advancement window. Worked
+//    dimensions (time on the grass, tactical training days, matches in the
+//    shape) rise; idle dimensions decay slowly back toward a neutral baseline.
+
+/** A squad never drops below this on a familiar sport's fundamentals. */
+export const FAMILIARITY_FLOOR = 32;
+export const FAMILIARITY_CAP = 100;
+/** Idle familiarity drifts toward here rather than to zero. */
+const FAMILIARITY_NEUTRAL = 55;
+
+const roleSignature = (assignments: readonly TacticalAssignment[]): string =>
+  assignments
+    .map((assignment) => `${assignment.slotId}:${assignment.roleId}`)
+    .sort()
+    .join("|");
+
+/** Fraction of role slots whose player-or-role assignment changed, 0..1. */
+const roleChurn = (
+  previous: readonly TacticalAssignment[],
+  next: readonly TacticalAssignment[],
+): number => {
+  const before = new Map(previous.map((a) => [a.slotId, `${a.roleId}:${a.playerId ?? ""}`]));
+  if (next.length === 0) return 0;
+  let changed = 0;
+  for (const assignment of next) {
+    if (before.get(assignment.slotId) !== `${assignment.roleId}:${assignment.playerId ?? ""}`)
+      changed += 1;
+  }
+  return changed / next.length;
+};
+
+/** How far two instruction sets diverge on the numeric dials, 0..1. */
+const instructionDivergence = (a: TeamInstructions, b: TeamInstructions): number => {
+  const mentalityGap = a.mentality === b.mentality ? 0 : 1;
+  const dial = (x: number, y: number): number => Math.abs(x - y) / 100;
+  const dials = [
+    dial(a.inPossession.tempo, b.inPossession.tempo),
+    dial(a.inPossession.passingLength, b.inPossession.passingLength),
+    dial(a.inPossession.width, b.inPossession.width),
+    dial(a.inPossession.buildUpRisk, b.inPossession.buildUpRisk),
+    dial(a.outOfPossession.pressingIntensity, b.outOfPossession.pressingIntensity),
+    dial(a.outOfPossession.defensiveLine, b.outOfPossession.defensiveLine),
+    dial(a.outOfPossession.engagementLine, b.outOfPossession.engagementLine),
+  ];
+  return clamp(mentalityGap * 0.4 + (dials.reduce((t, v) => t + v, 0) / dials.length) * 0.9, 0, 1);
+};
+
+/** Drop a dimension toward the floor in proportion to how much it changed. */
+const dropToward = (current: number, magnitude: number): number =>
+  clamp(
+    Math.round(current - (current - FAMILIARITY_FLOOR) * clamp(magnitude, 0, 1)),
+    FAMILIARITY_FLOOR,
+    FAMILIARITY_CAP,
+  );
+
+export const familiarityAfterTacticChange = (
+  previous: TacticalSetup,
+  next: Pick<TacticalSetup, "formation" | "style" | "instructions" | "assignments">,
+): TacticalFamiliarity => {
+  const formationChanged = previous.formation.id !== next.formation.id;
+  const styleChanged = previous.style !== next.style;
+  const churn = roleChurn(previous.assignments, next.assignments);
+  const rolesReshuffled = roleSignature(previous.assignments) !== roleSignature(next.assignments);
+  const instructionMove = instructionDivergence(previous.instructions, next.instructions);
+
+  return {
+    // A whole new shape is the sharpest reset; keeping the shape keeps its drill.
+    formation: formationChanged
+      ? dropToward(previous.familiarity.formation, 0.85)
+      : previous.familiarity.formation,
+    style: styleChanged
+      ? dropToward(previous.familiarity.style, 0.7)
+      : previous.familiarity.style,
+    roles: rolesReshuffled
+      ? dropToward(previous.familiarity.roles, 0.25 + churn * 0.6)
+      : previous.familiarity.roles,
+    instructions:
+      instructionMove > 0.05
+        ? dropToward(previous.familiarity.instructions, instructionMove)
+        : previous.familiarity.instructions,
+  };
+};
+
+export type FamiliarityProgressInput = {
+  /** Days elapsed in this advancement window. */
+  days: number;
+  /** Of those, how many ran a tactical-emphasis session (TACTICAL_GENERAL /
+   * MATCH_PREPARATION / SET_PIECES). Accelerates every dimension. */
+  tacticalTrainingDays: number;
+  /** Competitive matches the team played in this window in the current shape. */
+  matchesPlayed: number;
+  /** Manager tactical knowledge, 1-20 (higher = faster coaching). */
+  managerTacticalKnowledge?: number;
+};
+
+/**
+ * Deterministic, bounded familiarity progression for one advancement window.
+ * Every dimension gains from time + training + matches; a window with no
+ * tactical work still lets a settled system drift very slightly back toward a
+ * neutral baseline (never a hard reset).
+ */
+export const progressFamiliarity = (
+  current: TacticalFamiliarity,
+  input: FamiliarityProgressInput,
+): TacticalFamiliarity => {
+  const days = clamp(input.days, 0, 60);
+  const drillDays = clamp(input.tacticalTrainingDays, 0, days);
+  const matches = clamp(input.matchesPlayed, 0, 12);
+  const coaching = clamp((input.managerTacticalKnowledge ?? 10) / 20, 0.2, 1);
+
+  // Base repetition gain: time on the training ground plus dedicated drills.
+  const baseGain = days * 0.18 + drillDays * 0.55 + matches * 1.4;
+
+  const advance = (value: number, weight: number): number => {
+    const gain = baseGain * weight * coaching;
+    // Gains slow as a dimension approaches mastery.
+    const headroom = (FAMILIARITY_CAP - value) / (FAMILIARITY_CAP - FAMILIARITY_FLOOR);
+    const raised = value + gain * clamp(headroom, 0.15, 1);
+    // A quiet window (no drills, no matches) lets it drift toward neutral.
+    const idleDrift =
+      drillDays === 0 && matches === 0
+        ? (FAMILIARITY_NEUTRAL - value) * Math.min(1, days / 45) * 0.12
+        : 0;
+    return clamp(Math.round(raised + idleDrift), FAMILIARITY_FLOOR, FAMILIARITY_CAP);
+  };
+
+  return {
+    formation: advance(current.formation, 1),
+    style: advance(current.style, 0.9),
+    roles: advance(current.roles, 0.85),
+    instructions: advance(current.instructions, 0.8),
+  };
+};
+
 export const validateFormation = (slots: readonly TacticalSlot[]): void => {
   const ids = new Set<string>();
   for (const candidate of slots) {

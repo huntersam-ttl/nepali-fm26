@@ -343,6 +343,85 @@ describe("manager gameplay", () => {
     expect(after.data.upcoming.some((row) => row.id === target.id)).toBe(false);
   }, 120_000);
 
+  it("tactical familiarity: drops on a real switch, recovers through training/time/matches, and persists", () => {
+    // 1. A genuine formation + style switch costs familiarity.
+    const start = service.getTactics();
+    expect(start.ok).toBe(true);
+    if (!start.ok) return;
+    const squad = service.getSquad();
+    if (!squad.ok) return;
+    const eleven = squad.data.players.slice(0, 11);
+    const targetFormation =
+      start.data.formations.find((f) => f.name !== start.data.setup.formation.name) ??
+      start.data.formations[0]!;
+
+    const switched = service.updateTactics({
+      formationId: targetFormation.id,
+      name: "Familiarity Probe",
+      style: start.data.setup.style === "GEGENPRESS" ? "LOW_BLOCK" : "GEGENPRESS",
+      assignments: targetFormation.slots.map((slot, index) => ({
+        slotId: slot.id,
+        playerId: eleven[index]!.personId,
+        roleId: slot.position === "GK" ? "GOALKEEPER" : "CENTRAL_MIDFIELDER",
+      })),
+      bench: squad.data.players.slice(11, 18).map((player) => player.personId),
+    });
+    expect(switched.ok).toBe(true);
+    if (!switched.ok) return;
+    expect(switched.data.familiarity.formation).toBeLessThan(start.data.familiarity.formation);
+    expect(switched.data.familiarity.style).toBeLessThan(start.data.familiarity.style);
+    const afterSwitch = switched.data.familiarity;
+
+    // 2. A tactical-emphasis training plan + advancing the world raises it.
+    const training = service.getTraining();
+    if (!training.ok) return;
+    service.updateTraining({
+      name: "Shape work",
+      intensity: "NORMAL",
+      sessions: training.data.plan.sessions.map((session) => ({
+        day: session.day,
+        slot: session.slot,
+        category: "TACTICAL_GENERAL",
+        intensity: "NORMAL",
+        targetGroup: "FULL_SQUAD",
+      })),
+    });
+    const advanced = service.continueCareer();
+    expect(advanced.ok).toBe(true);
+    const afterTraining = service.getTactics();
+    if (!afterTraining.ok) return;
+    expect(afterTraining.data.familiarity.formation).toBeGreaterThan(afterSwitch.formation);
+
+    // 3. Persists across a real reload.
+    const reloadValue = { ...afterTraining.data.familiarity };
+    reopen();
+    const afterReload = service.getTactics();
+    if (!afterReload.ok) return;
+    expect(afterReload.data.familiarity).toEqual(reloadValue);
+
+    // 4. Playing the match nudges it further (match practice contributes).
+    const fixtures = service.getFixtures();
+    if (!fixtures.ok || fixtures.data.upcoming.length === 0) return;
+    const next = fixtures.data.upcoming[0]!;
+    const before = afterReload.data.familiarity.formation;
+    // Advance up to the fixture, then play it.
+    for (let i = 0; i < 4 && service.getFixtures().ok; i += 1) {
+      const upcoming = service.getFixtures();
+      if (!upcoming.ok) break;
+      if (!upcoming.data.upcoming.some((row) => row.id === next.id)) break;
+      const played = service.quickSimMatch(next.id);
+      if (played.ok) break;
+      service.continueCareer();
+    }
+    const afterMatch = service.getTactics();
+    if (!afterMatch.ok) return;
+    expect(afterMatch.data.familiarity.formation).toBeGreaterThanOrEqual(before);
+    for (const value of Object.values(afterMatch.data.familiarity)) {
+      expect(value).toBeGreaterThanOrEqual(32);
+      expect(value).toBeLessThanOrEqual(100);
+    }
+  }, 120_000);
+
   it("scouts without ever leaking exact hidden ability", () => {
     const dashboard = service.getScoutingDashboard();
     expect(dashboard.ok).toBe(true);

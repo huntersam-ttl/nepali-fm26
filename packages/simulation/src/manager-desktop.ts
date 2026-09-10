@@ -122,6 +122,8 @@ import {
   ROLE_DEFINITIONS,
   TACTICAL_STYLE_PRESETS,
   calculateRoleFit,
+  familiarityAfterTacticChange,
+  progressFamiliarity,
   roleById,
   validateSelection,
 } from "./tactics.js";
@@ -1132,6 +1134,11 @@ export const applyTacticsUpdate = (
     setPieces: command.setPieces ?? current.setPieces,
     updatedOn: save.worldDate,
   };
+
+  // A real tactical change costs familiarity — the squad has to re-learn what
+  // materially moved. Pure setup edits (renaming, set-piece takers only) leave
+  // every dimension where it was.
+  next.familiarity = familiarityAfterTacticChange(current, next);
 
   const players = new PlayerRepository(db).attributesForTeam(context.team.id);
   const validation = validateSelection({ setup: next, players });
@@ -2669,10 +2676,13 @@ export const advanceManagerCareer = (
   let date = save.worldDate;
   let days = 0;
   let stopReason: ContinueStopReason = "SEASON_COMPLETE";
+  let tacticalTrainingDays = 0;
 
   while (days < maxDays) {
     date = addDays(date, 1);
     days += 1;
+
+    if (trainingPlanHasTacticalWork(trainingPlan, date)) tacticalTrainingDays += 1;
 
     simulateScoutingDay({ db, worldDate: date, seed: `${save.randomSeed}:scouting:${date}` });
     applyDailyTraining(db, save, context, players, trainingPlan, date);
@@ -2742,6 +2752,11 @@ export const advanceManagerCareer = (
     }
   }
 
+  // Living tactical familiarity: the training-ground time in this window (plus
+  // any dedicated tactical/set-piece sessions) moves the manager's own team's
+  // familiarity. Matches contribute at finalization, not here.
+  advanceTeamTacticalFamiliarity(db, context, { days, tacticalTrainingDays, matchesPlayed: 0 });
+
   void recruitment;
   return {
     worldDate: date as ISODate,
@@ -2752,6 +2767,60 @@ export const advanceManagerCareer = (
       nextFixture ? teamName(db, oppositionOf(nextFixture, context)) : undefined,
     ),
   };
+};
+
+const TACTICAL_TRAINING_CATEGORIES = new Set([
+  "TACTICAL_GENERAL",
+  "ATTACKING_SHAPE",
+  "DEFENSIVE_SHAPE",
+  "PRESSING",
+  "TRANSITION",
+  "POSSESSION",
+  "COUNTER_ATTACK",
+  "SET_PIECES_ATTACK",
+  "SET_PIECES_DEFENCE",
+  "MATCH_PREPARATION",
+  "VIDEO_ANALYSIS",
+]);
+
+const WEEKDAYS = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
+
+const trainingPlanHasTacticalWork = (
+  plan: TrainingView["plan"] | undefined,
+  date: string,
+): boolean => {
+  if (!plan) return false;
+  const weekday = WEEKDAYS[new Date(`${date}T00:00:00Z`).getUTCDay()];
+  return plan.sessions.some(
+    (session) => session.day === weekday && TACTICAL_TRAINING_CATEGORIES.has(session.category),
+  );
+};
+
+/**
+ * Move one team's persisted tactical familiarity forward for an advancement or
+ * post-match window. Only teams with a genuinely saved tactical setup (today
+ * that is the human manager's own team) are touched — AI opponents run on the
+ * derived default setup and carry their own baseline familiarity.
+ */
+export const advanceTeamTacticalFamiliarity = (
+  db: GameDatabase,
+  context: Pick<ManagerContext, "team" | "manager">,
+  window: { days: number; tacticalTrainingDays: number; matchesPlayed: number },
+): void => {
+  const managers = new ManagerRepository(db);
+  const setup = managers.tacticalSetups(context.team.id)[0];
+  if (!setup) return;
+  const nextFamiliarity = progressFamiliarity(setup.familiarity, {
+    days: window.days,
+    tacticalTrainingDays: window.tacticalTrainingDays,
+    matchesPlayed: window.matchesPlayed,
+    managerTacticalKnowledge: context.manager?.attributes.tactical.tacticalKnowledge,
+  });
+  const changed = (["formation", "style", "roles", "instructions"] as const).some(
+    (key) => nextFamiliarity[key] !== setup.familiarity[key],
+  );
+  if (!changed) return;
+  managers.insertTacticalSetup({ ...setup, familiarity: nextFamiliarity });
 };
 
 const oppositionOf = (

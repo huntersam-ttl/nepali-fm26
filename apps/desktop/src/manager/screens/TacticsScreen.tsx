@@ -4,6 +4,18 @@ import { managerBridge } from "../managerBridge.js";
 import { AsyncPanel, Badge, ErrorBanner, Panel, useRuntimeData } from "../ui.js";
 import type { AppError } from "../../appBridge.js";
 
+/** Plain-language band for a familiarity value — text, never colour alone. */
+const familiarityBand = (value: number): string =>
+  value >= 85
+    ? "fluent"
+    : value >= 70
+      ? "comfortable"
+      : value >= 55
+        ? "still settling"
+        : value >= 40
+          ? "unfamiliar"
+          : "learning from scratch";
+
 const CORNER_ROUTINES = ["NEAR_POST", "FAR_POST", "SHORT_CORNER", "CROWD_KEEPER"] as const;
 const CORNER_ZONES = ["NEAR_POST", "FAR_POST", "CENTRE", "EDGE"] as const;
 const DEFENSIVE_CORNER_SCHEMES = ["ZONAL", "MAN_ORIENTED", "MIXED"] as const;
@@ -250,10 +262,29 @@ const TacticsBoard = ({
             );
           })}
         </div>
-        <p className="subtle">
-          Familiarity — formation {view.familiarity.formation}%, style {view.familiarity.style}%,
-          roles {view.familiarity.roles}%, instructions {view.familiarity.instructions}%
-        </p>
+        <div className="tactics-familiarity">
+          <h3>Familiarity</h3>
+          <ul className="report-list">
+            {(
+              [
+                ["Formation", view.familiarity.formation],
+                ["Style", view.familiarity.style],
+                ["Roles", view.familiarity.roles],
+                ["Instructions", view.familiarity.instructions],
+              ] as const
+            ).map(([label, value]) => (
+              <li key={label}>
+                {label}: <strong>{value}%</strong> — {familiarityBand(value)}
+              </li>
+            ))}
+          </ul>
+          <p className="subtle">
+            Familiarity grows with training-ground time, dedicated tactical sessions and matches
+            played in this setup. A radical change — a new shape or a very different style —
+            temporarily lowers it and, with it, how sharply the squad executes until they re-learn
+            the system.
+          </p>
+        </div>
       </div>
 
       <Panel title={selectedSlot ? `Position ${selectedSlot}` : "Selection"}>
