@@ -1,3 +1,6 @@
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 import {
   CompetitionRepository,
@@ -460,5 +463,170 @@ describe("squad dynamics: hierarchy, relationships, concerns and morale", () => 
       ).c;
       expect(rowCountAfterSecondAppointment).toBe(1);
     });
+  });
+});
+
+/**
+ * A genuine, un-forced former-captain reaction — real influence-based
+ * hierarchy recomputation, not a manually-inserted terminal state. A
+ * high-influence captain is demoted to a genuinely low hierarchy tier
+ * (real attribute-derived FRINGE_PLAYER rank, not a fabricated one) by
+ * appointing a different, even-higher-influence captain — reactToCaptaincyLoss
+ * fires only from that real recomputation.
+ */
+describe("captaincy: a genuine former-captain reaction, real threshold", () => {
+  const dir = mkdtempSync(join(tmpdir(), "captaincy-reaction-"));
+  const dbPath = join(dir, "career.sqlite");
+  let db = openGameDatabase(dbPath);
+  migrateDatabase(db);
+
+  const mentalAttributesFor = (
+    personId: EntityId,
+    leadership: number,
+    professionalism: number,
+    determination: number,
+  ): PlayerAttributeSet => ({
+    id: createStableEntityId("attributes", personId),
+    personId,
+    primaryPosition: "CM",
+    secondaryPositions: [],
+    technical: { firstTouch: 10, passing: 10, crossing: 10, dribbling: 10, finishing: 10, heading: 10, tackling: 10, technique: 10, longShots: 10, setPieces: 10 },
+    mental: { decisions: 10, vision: 10, composure: 10, positioning: 10, anticipation: 10, workRate: 10, teamwork: 10, leadership, aggression: 10, determination, professionalism },
+    physical: { pace: 10, acceleration: 10, strength: 10, stamina: 10, agility: 10, balance: 10, jumping: 10, naturalFitness: 10 },
+    goalkeeping: { handling: 1, reflexes: 1, oneOnOnes: 1, aerialReach: 1, kicking: 1, distribution: 1, commandOfArea: 1 },
+  });
+
+  const country = { id: createStableEntityId("country", "cap-real"), name: "Cap Real Country", isoCode: "CR" };
+  const club: Club = { id: createStableEntityId("club", "cap-real"), name: "Cap Real FC", countryId: country.id, ownershipType: "PRIVATE" };
+  const team: Team = { id: createStableEntityId("team", "cap-real-senior"), clubId: club.id, name: "Cap Real FC", level: "senior", gender: "men" };
+
+  // A: the eventual demoted former captain — high influence (76, clears the
+  // >=75 threshold for a demand too), but ranks below 6 even-higher-influence
+  // teammates once no longer reserved as captain.
+  const playerAId = createStableEntityId("person", "cap-real-a");
+  // B..G: deliberately higher influence than A, so A ranks into the bottom
+  // quartile (FRINGE_PLAYER) of an 8-player squad once demoted.
+  const highInfluenceIds = ["b", "c", "d", "e", "f", "g"].map((letter) =>
+    createStableEntityId("person", `cap-real-${letter}`),
+  );
+  const playerHId = createStableEntityId("person", "cap-real-h");
+  const allPlayerIds = [playerAId, ...highInfluenceIds, playerHId];
+
+  let managerProfileId: EntityId;
+  const saveAt = (worldDate: string) => ({
+    id: createStableEntityId("save", "cap-real-test"), name: "Cap Real Test", worldDate, databaseVersion: 97,
+    gameVersion: "test", randomSeed: "cap-real-test", createdAt: "2026-01-01T00:00:00.000Z", lastSavedAt: "2026-01-01T00:00:00.000Z",
+  });
+
+  beforeAll(() => {
+    const world = new WorldRepository(db);
+    world.insertCountry(country);
+    world.insertClub(club);
+    world.insertTeam(team);
+    for (const id of allPlayerIds) {
+      world.insertPerson({ id, fullName: `Player ${id}`, nationalityCountryId: country.id, languages: ["en"] });
+      world.insertPersonRole({ id: createStableEntityId("role", `${id}:player`), personId: id, role: "PLAYER", activeFrom: "2026-08-01" });
+      world.insertTeamPersonAssignment({ id: createStableEntityId("assignment", `${id}:player`), personId: id, teamId: team.id, role: "PLAYER", startedOn: "2026-08-01" });
+    }
+    const players = new PlayerRepository(db);
+    players.insertAttributes(mentalAttributesFor(playerAId, 15, 16, 15)); // influence ≈ 76
+    for (const id of highInfluenceIds) players.insertAttributes(mentalAttributesFor(id, 20, 20, 20)); // influence = 100
+    players.insertAttributes(mentalAttributesFor(playerHId, 1, 1, 1)); // influence ≈ 6
+
+    const character = createCareerCharacter({
+      fullName: "Cap Real Manager", dateOfBirth: "1980-01-01", startingAge: 46, nationalityCountryId: country.id,
+      languages: ["en"], footballBackground: "LOCAL_FOOTBALL", education: "UNIVERSITY",
+      playingExperience: "PROFESSIONAL_PLAYER", coachingExperience: "SENIOR_COACH",
+      coachingLicences: [testLicence("Testing A Licence", 3)], businessBackground: "NONE",
+      startingReputationProfile: "FORMER_PLAYER", careerStartDate: "2026-08-01",
+    });
+    world.insertPerson(character.person);
+    new ManagerRepository(db).insertProfile(character.managerProfile);
+    managerProfileId = character.managerProfile.id;
+  });
+
+  it("appointing A captain despite lower raw influence, then demoting A for a higher-influence player, triggers a real reaction + demand", () => {
+    appointCaptaincy(db, "2026-09-01", managerProfileId, team.id, { captainPersonId: playerAId, viceCaptainPersonId: null });
+    const afterFirst = new SquadDynamicsRepository(db).hierarchyForTeam(team.id);
+    expect(afterFirst.find((entry) => entry.personId === playerAId)?.role).toBe("CAPTAIN");
+
+    // Demote A by appointing a genuinely higher-influence teammate captain —
+    // A's own real rank (once no longer reserved) determines their new role,
+    // never a directly-assigned demotion.
+    appointCaptaincy(db, "2026-09-02", managerProfileId, team.id, {
+      captainPersonId: highInfluenceIds[0]!,
+      viceCaptainPersonId: null,
+    });
+    const dynamics = new SquadDynamicsRepository(db);
+    const hierarchy = dynamics.hierarchyForTeam(team.id);
+    const demotedEntry = hierarchy.find((entry) => entry.personId === playerAId);
+    expect(demotedEntry?.role).toBe("FRINGE_PLAYER");
+    expect(demotedEntry!.influence).toBeGreaterThanOrEqual(75);
+
+    // The reaction is a real, un-forced consequence of that recomputation.
+    const history = dynamics.historyForPerson(playerAId);
+    expect(history.some((event) => event.eventType === "CAPTAINCY_REACTION")).toBe(true);
+
+    const demand = dynamics.demand(playerAId, team.id, "CAPTAINCY_CONCERN");
+    expect(demand?.status).toBe("OPEN");
+    expect(demand?.trigger).toBe("Lost the captaincy despite a strong standing in the squad.");
+
+    const relationship = dynamics.relationship(managerProfileId, playerAId);
+    expect(relationship!.score).toBeLessThan(0);
+
+    // A real historical_events row exists for the reaction, with the
+    // demoted player and their club as clickable involved entities (a real
+    // Story Universe entry, exact-once — deterministic id, so a second
+    // recompute below cannot duplicate it).
+    const historicalEvent = db
+      .prepare("SELECT * FROM historical_events WHERE event_type = 'CAPTAINCY_REACTION'")
+      .get() as { involved_entities_json: string } | undefined;
+    expect(historicalEvent).toBeDefined();
+    const involvedIds = JSON.parse(historicalEvent!.involved_entities_json).map((entity: { id: string }) => entity.id);
+    expect(involvedIds).toContain(playerAId);
+    expect(involvedIds).toContain(club.id);
+
+    // buildStoryActions gives the Manager a real "Open meeting" action for
+    // this now-formal demand, reachable from the Story Universe.
+    // (Story routing/action-building itself is exercised end-to-end in
+    // story-actions.test.ts; this proves the real state it depends on exists.)
+    expect(dynamics.demandById(demand!.id)?.status).toBe("OPEN");
+  });
+
+  it("never duplicates the reaction/demand on a later, unrelated recompute (evaluateSquadDynamics)", () => {
+    const dynamics = new SquadDynamicsRepository(db);
+    const before = dynamics.historyForPerson(playerAId).filter((event) => event.eventType === "CAPTAINCY_REACTION").length;
+    evaluateSquadDynamics(db, saveAt("2026-09-05"), team.id, club.id, managerProfileId);
+    const after = dynamics.historyForPerson(playerAId).filter((event) => event.eventType === "CAPTAINCY_REACTION").length;
+    expect(after).toBe(before);
+    expect(dynamics.demand(playerAId, team.id, "CAPTAINCY_CONCERN")?.status).toBe("OPEN");
+  });
+
+  it("persists identically across a real file reload — same override, same hierarchy, same reaction, same demand, same relationship", () => {
+    const dynamics = new SquadDynamicsRepository(db);
+    const beforeOverride = dynamics.captaincyOverride(team.id);
+    const beforeHierarchy = dynamics.hierarchyForTeam(team.id).find((entry) => entry.personId === playerAId);
+    const beforeDemand = dynamics.demand(playerAId, team.id, "CAPTAINCY_CONCERN");
+    const beforeReactionCount = dynamics
+      .historyForPerson(playerAId)
+      .filter((event) => event.eventType === "CAPTAINCY_REACTION").length;
+    const beforeRelationship = dynamics.relationship(managerProfileId, playerAId);
+
+    db.close();
+    db = openGameDatabase(dbPath);
+    const reloaded = new SquadDynamicsRepository(db);
+
+    expect(reloaded.captaincyOverride(team.id)).toEqual(beforeOverride);
+    const afterHierarchy = reloaded.hierarchyForTeam(team.id).find((entry) => entry.personId === playerAId);
+    expect(afterHierarchy?.role).toBe(beforeHierarchy?.role);
+    expect(afterHierarchy?.influence).toBe(beforeHierarchy?.influence);
+    const afterDemand = reloaded.demand(playerAId, team.id, "CAPTAINCY_CONCERN");
+    expect(afterDemand?.id).toBe(beforeDemand?.id);
+    expect(afterDemand?.status).toBe(beforeDemand?.status);
+    const afterReactionCount = reloaded
+      .historyForPerson(playerAId)
+      .filter((event) => event.eventType === "CAPTAINCY_REACTION").length;
+    expect(afterReactionCount).toBe(beforeReactionCount);
+    expect(reloaded.relationship(managerProfileId, playerAId)?.score).toBe(beforeRelationship?.score);
   });
 });

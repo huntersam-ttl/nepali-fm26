@@ -6,6 +6,7 @@ import {
   ClubEconomyRepository,
   CommercialRightsRepository,
   GovernmentRepository,
+  ManagerRepository,
   OwnershipRepository,
   SquadDynamicsRepository,
   TransferMarketRepository,
@@ -20,6 +21,7 @@ import {
   awardCommercialRightsForPresident,
   buildStoryActions,
   calculateCommercialRightsOffer,
+  createCareerCharacter,
   createInfrastructureProject,
   createNepalSave,
   ensureFederationMainPartnerPackage,
@@ -29,6 +31,7 @@ import {
   requestClubInfrastructureGovernmentSupport,
   resolveGovernmentInstitutionForClub,
   runChairmanDemo,
+  testLicence,
 } from "@nepal-football-sim/simulation";
 import {
   createStableEntityId,
@@ -981,7 +984,16 @@ describe("player relationship story action routing", () => {
     world.insertPerson({ id: personId, fullName: "Story Actions Player", nationalityCountryId: country.id, languages: ["en"] });
     world.insertPersonRole({ id: createStableEntityId("role", `${personId}:player`), personId, role: "PLAYER", activeFrom: "2026-08-01" });
     world.insertTeamPersonAssignment({ id: createStableEntityId("assignment", `${personId}:player`), personId, teamId: team.id, role: "PLAYER", startedOn: "2026-08-01" });
-    return { db, club, team, personId };
+    const character = createCareerCharacter({
+      fullName: "Story Actions Manager", dateOfBirth: "1980-01-01", startingAge: 46, nationalityCountryId: country.id,
+      languages: ["en"], footballBackground: "LOCAL_FOOTBALL", education: "UNIVERSITY",
+      playingExperience: "PROFESSIONAL_PLAYER", coachingExperience: "SENIOR_COACH",
+      coachingLicences: [testLicence("Testing A Licence", 3)], businessBackground: "NONE",
+      startingReputationProfile: "FORMER_PLAYER", careerStartDate: "2026-08-01",
+    });
+    world.insertPerson(character.person);
+    new ManagerRepository(db).insertProfile(character.managerProfile);
+    return { db, club, team, personId, managerProfileId: character.managerProfile.id };
   };
 
   const relationshipEvent = (
@@ -1141,6 +1153,50 @@ describe("player relationship story action routing", () => {
     });
     expect(buildStoryActions(db, event, "CHAIRMAN_OWNER")).toHaveLength(0);
     expect(buildStoryActions(db, event, "FEDERATION_PRESIDENT")).toHaveLength(0);
+    db.close();
+  });
+
+  it("gives the Manager an 'Open meeting' action for a broken promise that reopened its originating concern", () => {
+    const { db, club, team, personId, managerProfileId } = setUp("promise-broken-reopens-concern");
+    const dynamics = new SquadDynamicsRepository(db);
+    const concernId = createStableEntityId("concern", "sar-promise-broken-concern");
+    dynamics.upsertConcern({
+      id: concernId, personId, teamId: team.id, type: "PLAYING_TIME", status: "ESCALATED",
+      severity: 7, raisedOn: "2026-08-01", updatedOn: "2026-08-08",
+    });
+    const promiseId = createStableEntityId("promise", "sar-promise-broken");
+    dynamics.upsertPromise({
+      id: promiseId, managerProfileId,
+      personId, teamId: team.id, concernId, type: "PLAYING_TIME", description: "Promised more minutes.",
+      madeOn: "2026-08-01", dueOn: "2026-08-08", status: "BROKEN", resolvedOn: "2026-08-08",
+    });
+    const event = relationshipEvent("PROMISE_BROKEN", personId, club.id, { type: "PLAYING_TIME", promiseId });
+    const actions = buildStoryActions(db, event, "MANAGER");
+    expect(actions).toHaveLength(1);
+    expect(actions[0]!.kind).toBe("OPEN_PLAYER_MEETING");
+    expect(actions[0]).toMatchObject({ personId, concernId });
+    db.close();
+  });
+
+  it("never gives a Player Meeting action once the player has left this team's roster, even with a still-open concern", () => {
+    const { db, club, team, personId } = setUp("concern-player-departed");
+    const dynamics = new SquadDynamicsRepository(db);
+    const concernId = createStableEntityId("concern", "sar-concern-departed");
+    dynamics.upsertConcern({
+      id: concernId, personId, teamId: team.id, type: "PLAYING_TIME", status: "ESCALATED",
+      severity: 8, raisedOn: "2026-08-01", updatedOn: "2026-08-08",
+    });
+    // The player has since left this team's roster (e.g. transferred away
+    // through some path that didn't itself resolve this concern type) — the
+    // structural backstop in buildStoryActions must still withhold the
+    // action, never relying solely on the concern's own status field.
+    db.prepare("UPDATE team_person_assignments SET ended_on = ? WHERE person_id = ? AND team_id = ?").run(
+      "2026-08-09",
+      personId,
+      team.id,
+    );
+    const event = relationshipEvent("CONCERN_ESCALATED", personId, club.id, { type: "PLAYING_TIME", concernId });
+    expect(buildStoryActions(db, event, "MANAGER")).toHaveLength(0);
     db.close();
   });
 });

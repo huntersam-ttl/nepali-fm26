@@ -2164,8 +2164,14 @@ const resolveSquadDynamicsOnTransferCompletion = (
   }
 
   const dynamics = new SquadDynamicsRepository(db);
-  const concern = dynamics.concern(offer.playerId, teamId, "TRANSFER_INTEREST");
-  if (concern && concern.status !== "RESOLVED") {
+  // Every still-open concern at the OLD club is resolved, not just
+  // TRANSFER_INTEREST — a departed player's PLAYING_TIME/CONTRACT/
+  // ROLE_STATUS concern would otherwise stay ACTIVE forever (this team's
+  // roster no longer includes them, so evaluateSquadDynamics never revisits
+  // it), and buildStoryActions' "Open meeting" action has no other way to
+  // know the issue is moot.
+  for (const concern of dynamics.concernsForPerson(offer.playerId, teamId)) {
+    if (concern.status === "RESOLVED") continue;
     dynamics.upsertConcern({
       ...concern,
       status: "RESOLVED",
@@ -2173,7 +2179,23 @@ const resolveSquadDynamicsOnTransferCompletion = (
       resolvedOn: worldDate,
     });
     logRelationshipEvent(db, offer.playerId, teamId, managerProfileId, "CONCERN_RESOLVED", worldDate, {
-      type: "TRANSFER_INTEREST",
+      type: concern.type,
+      reason: "transfer_completed",
+    });
+  }
+  // Same reasoning for a still-OPEN formal demand — WITHDRAWN, not
+  // REJECTED/RESOLVED, since the player leaving is what mooted it, not a
+  // decision either side made about the demand itself.
+  for (const demand of dynamics.demandsForPerson(offer.playerId, teamId)) {
+    if (demand.status !== "OPEN") continue;
+    dynamics.upsertDemand({
+      ...demand,
+      status: "WITHDRAWN",
+      updatedOn: worldDate,
+      resolvedOn: worldDate,
+    });
+    logRelationshipEvent(db, offer.playerId, teamId, managerProfileId, "DEMAND_WITHDRAWN", worldDate, {
+      type: demand.type,
       reason: "transfer_completed",
     });
   }

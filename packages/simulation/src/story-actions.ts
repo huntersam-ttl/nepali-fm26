@@ -213,22 +213,42 @@ export const buildStoryActions = (
     }
   }
 
-  // Player relationship — a concern escalating or a demand opening/being
-  // rejected is exactly the moment a manager would want to sit down with
+  // Player relationship — a concern escalating, a demand opening/being
+  // rejected, or a broken promise reopening/re-escalating its originating
+  // concern, is exactly the moment a manager would want to sit down with
   // the player. Manager-only (the same authority holdSquadMeeting/
   // respondToConcern/respondToDemand already require); only offered while
-  // the concern/demand still genuinely exists and hasn't already been
-  // settled — never a dead button pointing at a resolved record.
-  if (/CONCERN_ESCALATED|DEMAND_OPENED|DEMAND_REJECTED/.test(type) && role === "MANAGER") {
+  // the concern/demand still genuinely exists, hasn't already been settled,
+  // and the player is STILL on this team's roster — a completed transfer
+  // resolves every concern/demand for the departing player (see
+  // resolveSquadDynamicsOnTransferCompletion), but this membership check is
+  // the real, structural backstop: no former-manager Player Meeting action
+  // ever survives a player leaving the club, even if some future concern
+  // type were added without updating that resolution path.
+  if (/CONCERN_ESCALATED|DEMAND_OPENED|DEMAND_REJECTED|PROMISE_BROKEN/.test(type) && role === "MANAGER") {
     const dynamics = new SquadDynamicsRepository(db);
     const concernId = typeof data?.concernId === "string" ? (data.concernId as EntityId) : undefined;
     const demandId = typeof data?.demandId === "string" ? (data.demandId as EntityId) : undefined;
-    const concern = concernId ? dynamics.concernById(concernId) : undefined;
+    const promiseId = typeof data?.promiseId === "string" ? (data.promiseId as EntityId) : undefined;
+    const brokenPromise = promiseId ? dynamics.promiseById(promiseId) : undefined;
+    const concern = (concernId ? dynamics.concernById(concernId) : undefined) ??
+      (brokenPromise?.concernId ? dynamics.concernById(brokenPromise.concernId) : undefined);
     const demand = demandId ? dynamics.demandById(demandId) : undefined;
     const personId = event.involvedEntities.find((entity) => entity.type === "person")?.id;
+    const teamId = concern?.teamId ?? demand?.teamId ?? brokenPromise?.teamId;
+    const stillOnRoster =
+      teamId !== undefined &&
+      personId !== undefined &&
+      Boolean(
+        db
+          .prepare(
+            "SELECT 1 FROM team_person_assignments WHERE person_id = ? AND team_id = ? AND role = 'PLAYER' AND ended_on IS NULL",
+          )
+          .get(personId, teamId),
+      );
     const stillOpen =
       (concern && concern.status !== "RESOLVED") || (demand && demand.status === "OPEN");
-    if (personId && stillOpen) {
+    if (personId && stillOpen && stillOnRoster) {
       actions.push({
         id: `open-player-meeting:${event.id}`,
         label: "Open meeting",
