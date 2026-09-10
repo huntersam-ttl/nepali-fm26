@@ -3560,15 +3560,25 @@ export class DesktopApplicationService {
   ): { clubId?: EntityId; teamId?: EntityId } {
     const held = heldCareerRoles(db, personId).find((entry) => entry.role === role);
     if (!held?.targetId) return {};
-    // CHAIRMAN_OWNER/CEO/GENERAL_SECRETARY/DoF hold a club; the team is that
-    // club's senior side when one exists.
+    // CHAIRMAN_OWNER/CEO/GENERAL_SECRETARY/SPORTING_DIRECTOR/DoF hold a
+    // club; the team is that club's senior side when one exists. A club
+    // fielding both a senior men's and women's team is common in this
+    // dataset (see teamIdForClub in transfer-market.ts, root-caused from
+    // the exact same ambiguity) — the senior men's first team is the
+    // club's flagship; fall back to any senior team only if the club
+    // genuinely has no men's side, never an unfiltered/youth pick.
     const clubRow = db.prepare("SELECT id FROM clubs WHERE id=?").get(held.targetId) as
       | { id?: EntityId }
       | undefined;
     if (!clubRow?.id) return {};
-    const team = db
-      .prepare("SELECT id FROM teams WHERE club_id=? ORDER BY id LIMIT 1")
+    const mensTeam = db
+      .prepare("SELECT id FROM teams WHERE club_id = ? AND level = 'senior' AND gender = 'men' LIMIT 1")
       .get(clubRow.id) as { id?: EntityId } | undefined;
+    const team =
+      mensTeam ??
+      (db
+        .prepare("SELECT id FROM teams WHERE club_id = ? AND level = 'senior' ORDER BY id LIMIT 1")
+        .get(clubRow.id) as { id?: EntityId } | undefined);
     return { clubId: clubRow.id, teamId: team?.id };
   }
 

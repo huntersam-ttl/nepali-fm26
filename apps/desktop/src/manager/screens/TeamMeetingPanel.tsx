@@ -6,6 +6,7 @@ import type {
   TeamMeetingMessageId,
 } from "@nepal-football-sim/shared-types";
 import { managerBridge } from "../managerBridge.js";
+import { useDialogFocus } from "../useDialogFocus.js";
 import {
   MeetingBrief,
   MeetingOptions,
@@ -46,6 +47,7 @@ export const TeamMeetingPanel = ({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [meeting, setMeeting] = useState<SquadMeeting | null>(null);
+  const dialogRef = useDialogFocus<HTMLDivElement>(onClose);
 
   const contextItems: MeetingContextItem[] = [
     { label: "Situation", value: humanizeEnum(context.type), tone: context.urgency >= 7 ? "bad" : context.urgency >= 5 ? "warn" : "info" },
@@ -71,7 +73,7 @@ export const TeamMeetingPanel = ({
   };
 
   return (
-    <div className="meeting-overlay" role="dialog" aria-modal="true" aria-label="Team meeting">
+    <div ref={dialogRef} className="meeting-overlay" role="dialog" aria-modal="true" aria-label="Team meeting">
       <MeetingShell
         title={`Team meeting — ${teamName}`}
         meetingType={humanizeEnum(context.type)}

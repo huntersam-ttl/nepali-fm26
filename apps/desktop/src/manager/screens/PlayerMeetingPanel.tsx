@@ -9,6 +9,7 @@ import type {
 } from "@nepal-football-sim/shared-types";
 import { managerBridge } from "../managerBridge.js";
 import { EntityRefLink } from "../RoleDetailScreen.js";
+import { useDialogFocus } from "../useDialogFocus.js";
 import {
   MeetingBrief,
   MeetingOptions,
@@ -87,6 +88,7 @@ export const PlayerMeetingPanel = ({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [resolved, setResolved] = useState(false);
+  const dialogRef = useDialogFocus<HTMLDivElement>(onClose);
 
   const transferContext = concern?.transferContext;
 
@@ -175,7 +177,7 @@ export const PlayerMeetingPanel = ({
   };
 
   return (
-    <div className="meeting-overlay" role="dialog" aria-modal="true" aria-label="Player meeting">
+    <div ref={dialogRef} className="meeting-overlay" role="dialog" aria-modal="true" aria-label="Player meeting">
       <MeetingShell
         title={`Meeting with ${playerName}`}
         meetingType={concern ? "Player concern" : "Player request"}

@@ -6746,6 +6746,15 @@ export const OrganizationProfilePanel = ({
 }): React.ReactElement => {
   const [target, setTarget] = useState<ProfileTarget>({ entityType, entityId });
   const [history, setHistory] = useState<ProfileTarget[]>([]);
+  // Callers routinely keep this panel mounted while changing which entity it
+  // points at — e.g. clicking a second entity chip in the same Story Detail
+  // without closing the panel first. useState only seeds `target` on mount, so
+  // without this the panel would keep showing the first entity. Re-seed from
+  // the incoming props (and drop the in-panel back-stack) whenever they change.
+  useEffect(() => {
+    setTarget({ entityType, entityId });
+    setHistory([]);
+  }, [entityType, entityId]);
   // A PLAYER reference is not an organization/world profile — it has its own
   // shared, role-aware surface. Without this it fell through to the project
   // fetcher and failed outright for every non-manager role.
