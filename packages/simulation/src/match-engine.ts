@@ -526,19 +526,33 @@ const simulateMinute = (state: LiveMatchState, rng: SeededRandom, minute: number
       attacking.stats.corners += 1;
       const setPieces = attacking.setup?.setPieces;
       const routine = setPieces?.cornerRoutine ?? "NEAR_POST";
-      const target = resolveCornerTarget(attacking, setPieces);
+      const deliveryZone =
+        setPieces?.cornerDeliveryZone ??
+        (routine === "NEAR_POST" || routine === "FAR_POST" ? routine : "CENTRE");
+      const target = resolveCornerTarget(attacking, setPieces, deliveryZone);
       const defensive = resolveCornerDefence(defending);
       const familiarity = attacking.setup
         ? (attacking.setup.familiarity.instructions + attacking.setup.familiarity.roles) / 2
         : 50;
       const routineQuality = clamp(
-        0.88 + (familiarity - 50) / 500 + attacking.strength.setPieces / 500,
-        0.88,
-        1.18,
+        (0.88 + (familiarity - 50) / 500 + attacking.strength.setPieces / 500) *
+          CORNER_ROUTINE_QUALITY[routine],
+        0.72,
+        1.35,
+      );
+      const { outcome, scored } = resolveCornerOutcome(
+        state,
+        minute,
+        attacking,
+        defending,
+        target,
+        routineQuality,
+        CORNER_ROUTINE_CONTEST[routine],
+        cornerDefensiveBoost(defending, defensive, target),
       );
       pushEvent(state, minute, "CORNER", attacking.teamId, undefined, undefined, {
         routine,
-        deliveryZone: setPieces?.cornerDeliveryZone ?? routine,
+        deliveryZone,
         targetPlayerId: target?.player.personId,
         targetRole: target?.role,
         fallbackUsed: target?.fallbackUsed ?? false,
@@ -546,9 +560,12 @@ const simulateMinute = (state: LiveMatchState, rng: SeededRandom, minute: number
         defensiveScheme: defensive.scheme,
         defensiveAssignmentIds: defensive.assignmentIds,
         aerialPriorityIds: defensive.aerialPriorityIds,
-        outcome: resolveCornerOutcome(state, minute, attacking, defending, target, routineQuality),
+        outcome,
         routineQuality: Number(routineQuality.toFixed(3)),
       });
+      if (scored && target) {
+        recordSetPieceGoal(state, minute, attacking, target.player, "CORNER");
+      }
     }
   }
 
@@ -586,9 +603,20 @@ const simulateMinute = (state: LiveMatchState, rng: SeededRandom, minute: number
         ? (attacking.setup.familiarity.instructions + attacking.setup.familiarity.roles) / 2
         : 50;
       const routineQuality = clamp(
-        0.86 + (familiarity - 50) / 500 + attacking.strength.setPieces / 500,
-        0.86,
-        1.16,
+        (0.86 + (familiarity - 50) / 500 + attacking.strength.setPieces / 500) *
+          FREE_KICK_ROUTINE_QUALITY[routine],
+        0.7,
+        1.3,
+      );
+      const result = resolveFreeKickOutcome(
+        state,
+        minute,
+        attacking,
+        defending,
+        routine,
+        taker,
+        target,
+        routineQuality,
       );
       pushEvent(state, minute, "FREE_KICK", attacking.teamId, taker?.personId, undefined, {
         routine,
@@ -596,9 +624,12 @@ const simulateMinute = (state: LiveMatchState, rng: SeededRandom, minute: number
           routine === "DIRECT" ? "SHOT" : routine === "INDIRECT" ? "DELIVERY" : "CROSS",
         targetPlayerId: target?.player.personId,
         fallbackUsed: target?.fallbackUsed ?? false,
-        outcome: target ? "TARGET_AVAILABLE" : "RECYCLE",
+        outcome: result.outcome,
         routineQuality: Number(routineQuality.toFixed(3)),
       });
+      if (result.scored && result.scorer) {
+        recordSetPieceGoal(state, minute, attacking, result.scorer, "FREE_KICK");
+      }
     }
     if (rng.next() < 0.105 * fouling.tactical.discipline) {
       bookPlayer(state, fouling, fouler.personId, minute);
@@ -684,15 +715,24 @@ const resolveTarget = (
   return fallback ? { player: fallback, role: "FALLBACK", fallbackUsed: true } : undefined;
 };
 
+/** The configured delivery zone shifts which named target the ball is actually
+ * aimed at first — an EDGE delivery looks for the edge-of-box target before
+ * falling back to the primary/secondary pair; NEAR_POST/FAR_POST/CENTRE keep
+ * the usual primary-first order. Missing/illegal/off-pitch targets still fall
+ * through to the next priority, and ultimately to the deterministic aerial-
+ * threat fallback in resolveTarget — a delivery zone never leaves the corner
+ * with no target. */
 const resolveCornerTarget = (
   team: RuntimeTeam,
   setPieces?: TacticalSetup["setPieces"],
+  deliveryZone?: TacticalSetup["setPieces"]["cornerDeliveryZone"],
 ): SetPieceTarget | undefined =>
-  resolveTarget(team, [
-    setPieces?.cornerPrimaryTarget,
-    setPieces?.cornerSecondaryTarget,
-    setPieces?.cornerEdgeTarget,
-  ]);
+  resolveTarget(
+    team,
+    deliveryZone === "EDGE"
+      ? [setPieces?.cornerEdgeTarget, setPieces?.cornerPrimaryTarget, setPieces?.cornerSecondaryTarget]
+      : [setPieces?.cornerPrimaryTarget, setPieces?.cornerSecondaryTarget, setPieces?.cornerEdgeTarget],
+  );
 
 const resolveCornerDefence = (
   team: RuntimeTeam,
@@ -723,6 +763,111 @@ const resolveCornerDefence = (
   };
 };
 
+/** Bounded, routine-aware corner-quality multipliers. A short corner trades
+ * direct aerial threat for a controlled build-up; crowding the keeper raises
+ * the chance of a scramble; near/far post are the balanced middle ground.
+ * None of these guarantee a better outcome on their own — they only reshape
+ * the odds within a modest band, and interact with personnel via
+ * cornerDefensiveBoost below. */
+const CORNER_ROUTINE_QUALITY: Record<
+  NonNullable<TacticalSetup["setPieces"]["cornerRoutine"]>,
+  number
+> = {
+  NEAR_POST: 1.04,
+  FAR_POST: 1.0,
+  SHORT_CORNER: 0.9,
+  CROWD_KEEPER: 1.1,
+};
+
+const CORNER_ROUTINE_CONTEST: Record<
+  NonNullable<TacticalSetup["setPieces"]["cornerRoutine"]>,
+  number
+> = {
+  NEAR_POST: 1.05,
+  FAR_POST: 1.0,
+  SHORT_CORNER: 0.72,
+  CROWD_KEEPER: 1.16,
+};
+
+/** ZONAL organises around space and gives a flat, personnel-independent
+ * defensive contribution. MAN_ORIENTED lives and dies by the matchup: a
+ * strong named marker against a weak aerial target beats zonal coverage, but
+ * a weak or absent assignment against a genuine aerial threat is worse than
+ * zonal — so neither scheme is universally best. MIXED averages the two. */
+const cornerDefensiveBoost = (
+  defending: RuntimeTeam,
+  defensive: ReturnType<typeof resolveCornerDefence>,
+  target: SetPieceTarget | undefined,
+): number => {
+  const ZONAL_BASELINE = 12;
+  if (defensive.scheme === "ZONAL") return ZONAL_BASELINE;
+  const marker = defensive.aerialPriorityIds
+    .map((id) => defending.selection.find((candidate) => candidate.personId === id))
+    .filter((candidate): candidate is SelectedPlayer => Boolean(candidate))
+    .sort(
+      (a, b) =>
+        b.attributes.technical.heading +
+        b.attributes.physical.jumping -
+        (a.attributes.technical.heading + a.attributes.physical.jumping),
+    )[0];
+  const markerAerial = marker
+    ? marker.attributes.technical.heading + marker.attributes.physical.jumping
+    : 22;
+  const targetAerial = target
+    ? target.player.attributes.technical.heading + target.player.attributes.physical.jumping
+    : 22;
+  const manOriented = clamp(markerAerial - targetAerial + ZONAL_BASELINE, -8, 30);
+  return defensive.scheme === "MAN_ORIENTED" ? manOriented : (ZONAL_BASELINE + manOriented) / 2;
+};
+
+/** Bounded, routine-aware conversion once a target genuinely gets on the
+ * ball. Never a guaranteed goal — a clean TARGETED header converts more
+ * often than a scrappy AERIAL_CONTEST, and both are damped by the
+ * defending goalkeeper. */
+const attemptSetPieceGoal = (
+  local: SeededRandom,
+  target: SelectedPlayer,
+  defending: RuntimeTeam,
+  routineQuality: number,
+  contestStrength: number,
+): boolean => {
+  const finishing = (target.attributes.technical.heading + target.attributes.mental.composure) / 2;
+  const chance = clamp(
+    0.1 * contestStrength * routineQuality +
+      finishing / 700 -
+      defending.strength.goalkeeping / 1200,
+    0.015,
+    0.3,
+  );
+  return local.next() < chance;
+};
+
+/** Records a goal scored directly off a set-piece delivery — a corner header
+ * or a converted free kick. Mirrors the open-play GOAL bookkeeping so
+ * downstream stats/ratings/VAR handling stay consistent either way. */
+const recordSetPieceGoal = (
+  state: LiveMatchState,
+  minute: number,
+  attacking: RuntimeTeam,
+  scorer: SelectedPlayer,
+  origin: "CORNER" | "FREE_KICK",
+): void => {
+  if (attacking === state.home) {
+    state.homeGoals += 1;
+  } else {
+    state.awayGoals += 1;
+  }
+  const scorerState = playerState(attacking, scorer.personId);
+  scorerState.goals += 1;
+  scorerState.rating += 0.5;
+  attacking.stats.shots += 1;
+  attacking.stats.shotsOnTarget += 1;
+  pushEvent(state, minute, "GOAL", attacking.teamId, scorer.personId, undefined, {
+    fromSetPiece: origin,
+  });
+  reviewGoalWithVar(state, minute, attacking, scorer.personId, undefined);
+};
+
 const resolveCornerOutcome = (
   state: LiveMatchState,
   minute: number,
@@ -730,21 +875,113 @@ const resolveCornerOutcome = (
   defending: RuntimeTeam,
   target: SetPieceTarget | undefined,
   routineQuality: number,
-): "TARGETED" | "AERIAL_CONTEST" | "CLEARED" | "RECYCLED" => {
-  if (!target) return "RECYCLED";
+  contestMultiplier: number,
+  defensiveBoost: number,
+): { outcome: "TARGETED" | "AERIAL_CONTEST" | "CLEARED" | "RECYCLED"; scored: boolean } => {
+  if (!target) return { outcome: "RECYCLED", scored: false };
   const local = new SeededRandom(
     `${state.seed}:corner:${state.matchId}:${minute}:${attacking.teamId}:${state.eventSequence}`,
   );
   const aerial =
     target.player.attributes.physical.jumping + target.player.attributes.mental.positioning;
+  const defence = defending.strength.defense + defending.tactical.defense * 10 + defensiveBoost;
+  const contestChance = clamp(
+    (0.34 + routineQuality * 0.24 + aerial / 260 - defence / 500) * contestMultiplier,
+    0.12,
+    0.82,
+  );
+  if (local.next() > contestChance) return { outcome: "CLEARED", scored: false };
+  const outcome = local.next() < 0.42 + routineQuality / 8 ? "AERIAL_CONTEST" : "TARGETED";
+  const scored = attemptSetPieceGoal(
+    local,
+    target.player,
+    defending,
+    routineQuality,
+    outcome === "TARGETED" ? 1 : 0.55,
+  );
+  return { outcome, scored };
+};
+
+/** Bounded, routine-aware free-kick quality multipliers. DIRECT is the
+ * baseline (its own shot mechanics carry the routine's identity); CROSS
+ * favours a clean aerial delivery; INDIRECT trades some of that quality for
+ * a slower, short build-up phase. */
+const FREE_KICK_ROUTINE_QUALITY: Record<
+  NonNullable<TacticalSetup["setPieces"]["freeKickRoutine"]>,
+  number
+> = {
+  DIRECT: 1.0,
+  CROSS: 1.05,
+  INDIRECT: 0.9,
+};
+
+const FREE_KICK_ROUTINE_CONTEST: Record<"CROSS" | "INDIRECT", number> = {
+  CROSS: 1.08,
+  INDIRECT: 0.82,
+};
+
+type FreeKickResolution = {
+  outcome: "GOAL" | "SAVED" | "OFF_TARGET" | "TARGETED" | "AERIAL_CONTEST" | "CLEARED" | "RECYCLE";
+  scored: boolean;
+  scorer?: SelectedPlayer;
+};
+
+/** DIRECT resolves as a genuine shot off the taker's own set-piece/long-shot
+ * ability against the defending goalkeeper — never a guaranteed goal, and
+ * bounded well below an open-play close-range chance. CROSS/INDIRECT reuse
+ * the same aerial-contest shape as a corner (own routine multipliers), so a
+ * crossed free kick behaves like a corner delivered from open play, and an
+ * indirect one behaves like a slower, more easily defended build-up. */
+const resolveFreeKickOutcome = (
+  state: LiveMatchState,
+  minute: number,
+  attacking: RuntimeTeam,
+  defending: RuntimeTeam,
+  routine: NonNullable<TacticalSetup["setPieces"]["freeKickRoutine"]>,
+  taker: SelectedPlayer | undefined,
+  target: SetPieceTarget | undefined,
+  routineQuality: number,
+): FreeKickResolution => {
+  const local = new SeededRandom(
+    `${state.seed}:freekick:${state.matchId}:${minute}:${attacking.teamId}:${state.eventSequence}`,
+  );
+  if (routine === "DIRECT") {
+    if (!taker) return { outcome: "RECYCLE", scored: false };
+    const strikePower =
+      (taker.attributes.technical.setPieces +
+        taker.attributes.technical.longShots +
+        taker.attributes.mental.composure) /
+      3;
+    const onTargetChance = clamp(0.3 * routineQuality + strikePower / 260, 0.12, 0.6);
+    if (local.next() > onTargetChance) return { outcome: "OFF_TARGET", scored: false };
+    const goalChance = clamp(
+      0.15 * routineQuality + strikePower / 500 - defending.strength.goalkeeping / 700,
+      0.02,
+      0.3,
+    );
+    const scored = local.next() < goalChance;
+    return { outcome: scored ? "GOAL" : "SAVED", scored, scorer: scored ? taker : undefined };
+  }
+  if (!target) return { outcome: "RECYCLE", scored: false };
+  const aerial =
+    target.player.attributes.physical.jumping + target.player.attributes.mental.positioning;
   const defence = defending.strength.defense + defending.tactical.defense * 10;
   const contestChance = clamp(
-    0.34 + routineQuality * 0.24 + aerial / 260 - defence / 500,
-    0.18,
-    0.78,
+    (0.3 + routineQuality * 0.22 + aerial / 260 - defence / 500) *
+      FREE_KICK_ROUTINE_CONTEST[routine],
+    0.1,
+    0.75,
   );
-  if (local.next() > contestChance) return "CLEARED";
-  return local.next() < 0.42 + routineQuality / 8 ? "AERIAL_CONTEST" : "TARGETED";
+  if (local.next() > contestChance) return { outcome: "CLEARED", scored: false };
+  const outcome = local.next() < 0.45 + routineQuality / 8 ? "AERIAL_CONTEST" : "TARGETED";
+  const scored = attemptSetPieceGoal(
+    local,
+    target.player,
+    defending,
+    routineQuality,
+    outcome === "TARGETED" ? 0.9 : 0.5,
+  );
+  return { outcome, scored, scorer: scored ? target.player : undefined };
 };
 
 const updateMomentum = (state: LiveMatchState): void => {
