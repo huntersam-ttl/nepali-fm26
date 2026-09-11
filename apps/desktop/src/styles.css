@@ -498,6 +498,53 @@ tbody tr:hover {
   gap: 12px;
 }
 
+.instructions-fieldset {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.instructions-fieldset legend {
+  padding: 0 4px;
+  font-weight: 600;
+}
+
+.instructions-group {
+  display: grid;
+  gap: 4px;
+}
+
+.instructions-group-label {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.instructions-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+}
+
+.instruction-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.set-piece-subgroup-label {
+  margin: 4px 0 -4px;
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .pitch {
   position: relative;
   min-height: 640px;

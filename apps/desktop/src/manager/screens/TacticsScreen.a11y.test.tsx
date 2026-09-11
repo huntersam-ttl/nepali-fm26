@@ -195,6 +195,33 @@ describe("Tactics screen — accessibility", () => {
     expect(document.activeElement).toBe(checkbox);
   });
 
+  it("groups player instructions by football concept (Movement, Crossing, ...)", async () => {
+    render(<TacticsScreen />);
+    await screen.findByRole("combobox", { name: /formation/i });
+    fireEvent.click(screen.getByRole("button", { name: /STC/ }));
+    await screen.findByRole("checkbox", { name: /get further forward/i });
+    expect(screen.getByText("Movement")).toBeTruthy();
+    expect(screen.getByText("Crossing")).toBeTruthy();
+  });
+
+  it("exposes the expanded team-instruction toggles (build-up, transition, GK distribution) as labelled controls", async () => {
+    render(<TacticsScreen />);
+    await screen.findByRole("combobox", { name: /formation/i });
+    expect(screen.getByRole("checkbox", { name: /play from the back/i })).toBeTruthy();
+    expect(screen.getByRole("checkbox", { name: /counter-press/i })).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: /goalkeeper distribution/i })).toBeTruthy();
+  });
+
+  it("links a selected slot's player to their Player Profile when onSelectPlayer is provided", async () => {
+    const onSelectPlayer = vi.fn();
+    render(<TacticsScreen onSelectPlayer={onSelectPlayer} />);
+    await screen.findByRole("combobox", { name: /formation/i });
+    fireEvent.click(screen.getByRole("button", { name: /STC/ }));
+    const profileLink = await screen.findByRole("button", { name: /profile/i });
+    fireEvent.click(profileLink);
+    expect(onSelectPlayer).toHaveBeenCalledWith("p-st");
+  });
+
   it("has a logical heading outline and no serious/critical axe violations", async () => {
     const { container } = render(<TacticsScreen />);
     await screen.findByRole("combobox", { name: /formation/i });

@@ -449,7 +449,9 @@ export const ManagerCareer = ({
         {header.activeRole === "MANAGER" && screen === "dressing-room" && (
           <DressingRoomScreen onSelectPlayer={openPlayer} />
         )}
-        {header.activeRole === "MANAGER" && screen === "tactics" && <TacticsScreen />}
+        {header.activeRole === "MANAGER" && screen === "tactics" && (
+          <TacticsScreen onSelectPlayer={openPlayer} />
+        )}
         {header.activeRole === "MANAGER" && screen === "training" && <TrainingScreen onSelectPlayer={openPlayer} />}
         {header.activeRole === "MANAGER" && screen === "fixtures" &&
           (matchFixtureId ? (

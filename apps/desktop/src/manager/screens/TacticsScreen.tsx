@@ -35,13 +35,47 @@ const CORNER_ZONES = ["NEAR_POST", "FAR_POST", "CENTRE", "EDGE"] as const;
 const DEFENSIVE_CORNER_SCHEMES = ["ZONAL", "MAN_ORIENTED", "MIXED"] as const;
 const FREE_KICK_ROUTINES = ["DIRECT", "INDIRECT", "CROSS"] as const;
 
+/** Same options the in-match Tactics drawer offers — kept identical so a
+ * manager reads the same vocabulary before and during a match. */
+const GK_DISTRIBUTION_OPTIONS = [
+  "SHORT",
+  "CENTRE_BACKS",
+  "FULLBACKS",
+  "TARGET_FORWARD",
+  "MIXED",
+] as const;
+
+/** Player instructions grouped by football concept, in the same pair order
+ * the backend validates — never hard-code the instruction list itself, only
+ * which concept-group label a given value belongs under. */
+const INSTRUCTION_GROUP_LABELS: Record<string, string> = {
+  GET_FURTHER_FORWARD: "Movement",
+  HOLD_POSITION: "Movement",
+  STAY_WIDER: "Width",
+  SIT_NARROWER: "Width",
+  TAKE_MORE_RISKS: "Risk",
+  TAKE_FEWER_RISKS: "Risk",
+  SHORTER_PASSING: "Passing",
+  MORE_DIRECT_PASSING: "Passing",
+  CROSS_MORE: "Crossing",
+  CROSS_LESS: "Crossing",
+  PRESS_MORE: "Pressing",
+  PRESS_LESS: "Pressing",
+  SHOOT_MORE: "Shooting",
+  SHOOT_LESS: "Shooting",
+};
+
 const gridStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
   gap: "12px",
 };
 
-export const TacticsScreen = (): React.ReactElement => {
+export const TacticsScreen = ({
+  onSelectPlayer,
+}: {
+  onSelectPlayer?: (playerId: EntityId) => void;
+}): React.ReactElement => {
   const [state, , replace] = useRuntimeData(() => managerBridge.getTactics());
   const [error, setError] = useState<AppError | null>(null);
   const [busy, setBusy] = useState(false);
@@ -67,7 +101,9 @@ export const TacticsScreen = (): React.ReactElement => {
     <>
       {error && <ErrorBanner error={error} />}
       <AsyncPanel state={state}>
-        {(view) => <TacticsBoard view={view} busy={busy} onApply={apply} />}
+        {(view) => (
+          <TacticsBoard view={view} busy={busy} onApply={apply} onSelectPlayer={onSelectPlayer} />
+        )}
       </AsyncPanel>
     </>
   );
@@ -77,10 +113,12 @@ const TacticsBoard = ({
   view,
   busy,
   onApply,
+  onSelectPlayer,
 }: {
   view: TacticsView;
   busy: boolean;
   onApply: (command: Parameters<typeof managerBridge.updateTactics>[0]) => Promise<void>;
+  onSelectPlayer?: (playerId: EntityId) => void;
 }): React.ReactElement => {
   const [name, setName] = useState(view.setup.name);
   const [formationId, setFormationId] = useState(view.setup.formation.id);
@@ -172,74 +210,85 @@ const TacticsBoard = ({
           </label>
         </div>
 
-        <h3>In possession</h3>
-        <Slider
-          label="Tempo"
-          value={view.setup.instructions.inPossession.tempo}
-          onCommit={(value) =>
-            void applyCommand({
-              instructions: {
-                ...view.setup.instructions,
-                inPossession: { ...view.setup.instructions.inPossession, tempo: value },
-              },
-            })
-          }
-        />
-        <Slider
-          label="Passing length"
-          value={view.setup.instructions.inPossession.passingLength}
-          onCommit={(value) =>
-            void applyCommand({
-              instructions: {
-                ...view.setup.instructions,
-                inPossession: { ...view.setup.instructions.inPossession, passingLength: value },
-              },
-            })
-          }
-        />
-        <Slider
-          label="Width"
-          value={view.setup.instructions.inPossession.width}
-          onCommit={(value) =>
-            void applyCommand({
-              instructions: {
-                ...view.setup.instructions,
-                inPossession: { ...view.setup.instructions.inPossession, width: value },
-              },
-            })
-          }
-        />
-        <h3>Out of possession</h3>
-        <Slider
-          label="Pressing intensity"
-          value={view.setup.instructions.outOfPossession.pressingIntensity}
-          onCommit={(value) =>
-            void applyCommand({
-              instructions: {
-                ...view.setup.instructions,
-                outOfPossession: {
-                  ...view.setup.instructions.outOfPossession,
-                  pressingIntensity: value,
-                },
-              },
-            })
-          }
-        />
-        <Slider
-          label="Defensive line"
-          value={view.setup.instructions.outOfPossession.defensiveLine}
-          onCommit={(value) =>
-            void applyCommand({
-              instructions: {
-                ...view.setup.instructions,
-                outOfPossession: {
-                  ...view.setup.instructions.outOfPossession,
-                  defensiveLine: value,
-                },
-              },
-            })
-          }
-        />
+        {(() => {
+          const instructions = view.setup.instructions;
+          const updateIn = (patch: Partial<typeof instructions.inPossession>) =>
+            applyCommand({
+              instructions: { ...instructions, inPossession: { ...instructions.inPossession, ...patch } },
+            });
+          const updateTransition = (patch: Partial<typeof instructions.transition>) =>
+            applyCommand({
+              instructions: { ...instructions, transition: { ...instructions.transition, ...patch } },
+            });
+          const updateOut = (patch: Partial<typeof instructions.outOfPossession>) =>
+            applyCommand({
+              instructions: { ...instructions, outOfPossession: { ...instructions.outOfPossession, ...patch } },
+            });
+          return (
+            <>
+              <h3>In possession</h3>
+              <Slider label="Tempo" value={instructions.inPossession.tempo} onCommit={(value) => void updateIn({ tempo: value })} />
+              <Slider label="Passing length" value={instructions.inPossession.passingLength} onCommit={(value) => void updateIn({ passingLength: value })} />
+              <Slider label="Width" value={instructions.inPossession.width} onCommit={(value) => void updateIn({ width: value })} />
+              <Slider label="Build-up risk" value={instructions.inPossession.buildUpRisk} onCommit={(value) => void updateIn({ buildUpRisk: value })} />
+              <label>
+                <input type="checkbox" checked={instructions.inPossession.playFromBack} disabled={busy} onChange={(event) => void updateIn({ playFromBack: event.target.checked })} />{" "}
+                Play from the back
+              </label>
+              <label>
+                <input type="checkbox" checked={instructions.inPossession.workBallIntoBox} disabled={busy} onChange={(event) => void updateIn({ workBallIntoBox: event.target.checked })} />{" "}
+                Work ball into box
+              </label>
+              <label>
+                <input type="checkbox" checked={instructions.inPossession.earlyCrosses} disabled={busy} onChange={(event) => void updateIn({ earlyCrosses: event.target.checked })} />{" "}
+                Early crosses
+              </label>
+
+              <h3>Transition</h3>
+              <label>
+                <input type="checkbox" checked={instructions.transition.counterPress} disabled={busy} onChange={(event) => void updateTransition({ counterPress: event.target.checked })} />{" "}
+                Counter-press
+              </label>
+              <label>
+                <input type="checkbox" checked={instructions.transition.regroup} disabled={busy} onChange={(event) => void updateTransition({ regroup: event.target.checked })} />{" "}
+                Regroup
+              </label>
+              <label>
+                <input type="checkbox" checked={instructions.transition.counter} disabled={busy} onChange={(event) => void updateTransition({ counter: event.target.checked })} />{" "}
+                Counter
+              </label>
+              <label>
+                <input type="checkbox" checked={instructions.transition.holdShape} disabled={busy} onChange={(event) => void updateTransition({ holdShape: event.target.checked })} />{" "}
+                Hold shape
+              </label>
+              <label>
+                Goalkeeper distribution
+                <select
+                  value={instructions.transition.goalkeeperDistributionStyle}
+                  disabled={busy}
+                  onChange={(event) =>
+                    void updateTransition({
+                      goalkeeperDistributionStyle: event.target
+                        .value as typeof instructions.transition.goalkeeperDistributionStyle,
+                    })
+                  }
+                >
+                  {GK_DISTRIBUTION_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option.replace(/_/g, " ")}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <h3>Out of possession</h3>
+              <Slider label="Pressing intensity" value={instructions.outOfPossession.pressingIntensity} onCommit={(value) => void updateOut({ pressingIntensity: value })} />
+              <Slider label="Defensive line" value={instructions.outOfPossession.defensiveLine} onCommit={(value) => void updateOut({ defensiveLine: value })} />
+              <Slider label="Engagement line" value={instructions.outOfPossession.engagementLine} onCommit={(value) => void updateOut({ engagementLine: value })} />
+              <Slider label="Tackling intensity" value={instructions.outOfPossession.tacklingIntensity} onCommit={(value) => void updateOut({ tacklingIntensity: value })} />
+            </>
+          );
+        })()}
       </Panel>
 
       <SetPiecesPanel
@@ -379,30 +428,44 @@ const TacticsBoard = ({
                   ),
                 });
               };
+              // Group by football concept (Movement, Width, Risk, Passing,
+              // Crossing, Pressing, Shooting) so a contradictory pair is
+              // visually one choice, not two independent checkboxes.
+              const groups = new Map<string, typeof legalOptions>();
+              for (const option of legalOptions) {
+                const groupLabel = INSTRUCTION_GROUP_LABELS[option.value] ?? "Other";
+                groups.set(groupLabel, [...(groups.get(groupLabel) ?? []), option]);
+              }
               return (
                 <fieldset className="instructions-fieldset">
                   <legend>Player instructions</legend>
-                  <div className="instructions-grid">
-                    {legalOptions.map((option) => {
-                      const checked = currentInstructions.includes(option.value);
-                      const atLimit = currentInstructions.length >= view.maxInstructionsPerPlayer;
-                      return (
-                        <label key={option.value} className="instruction-checkbox">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            disabled={busy || (!checked && atLimit)}
-                            onChange={() => toggleInstruction(option.value)}
-                          />
-                          {option.label}
-                        </label>
-                      );
-                    })}
-                  </div>
+                  {[...groups.entries()].map(([groupLabel, options]) => (
+                    <div key={groupLabel} className="instructions-group">
+                      <p className="instructions-group-label">{groupLabel}</p>
+                      <div className="instructions-grid">
+                        {options.map((option) => {
+                          const checked = currentInstructions.includes(option.value);
+                          const atLimit = currentInstructions.length >= view.maxInstructionsPerPlayer;
+                          return (
+                            <label key={option.value} className="instruction-checkbox">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                disabled={busy || (!checked && atLimit)}
+                                onChange={() => toggleInstruction(option.value)}
+                              />
+                              {option.label}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
                   <p className="subtle">
                     Up to {view.maxInstructionsPerPlayer} at once. These nudge how this player
                     plays within their role and duty — they never guarantee a specific outcome,
-                    and a contradictory pair (e.g. Cross More and Cross Less) is rejected.
+                    and a contradictory pair within the same group (e.g. Cross More and Cross
+                    Less) is rejected.
                   </p>
                 </fieldset>
               );
@@ -434,6 +497,14 @@ const TacticsBoard = ({
                 ))}
               </select>
             </label>
+            {onSelectPlayer && assignment(selectedSlot)?.playerId && (
+              <button
+                className="link"
+                onClick={() => onSelectPlayer(assignment(selectedSlot)!.playerId!)}
+              >
+                Open {fitFor(selectedSlot)?.playerName ?? "player"}&rsquo;s profile
+              </button>
+            )}
             {/* Fit scores are derived ratings, so they are read as whole numbers
                 rather than to two decimal places. */}
             {fitFor(selectedSlot) && fitFor(selectedSlot)!.overall > 0 && (
@@ -596,6 +667,7 @@ const SetPiecesPanel = ({
       </div>
 
       <h3>Corners — attacking</h3>
+      <p className="set-piece-subgroup-label">Takers</p>
       <div style={gridStyle}>
         <PlayerSelect
           label="Left corner taker"
@@ -607,6 +679,9 @@ const SetPiecesPanel = ({
           value={setPieces.rightCornerTaker}
           onChange={(value) => set("rightCornerTaker", value)}
         />
+      </div>
+      <p className="set-piece-subgroup-label">Routine</p>
+      <div style={gridStyle}>
         <label>
           Routine
           <select
@@ -647,6 +722,9 @@ const SetPiecesPanel = ({
             ))}
           </select>
         </label>
+      </div>
+      <p className="set-piece-subgroup-label">Targets</p>
+      <div style={gridStyle}>
         <PlayerSelect
           label="Primary target"
           value={setPieces.cornerPrimaryTarget}
@@ -703,7 +781,8 @@ const SetPiecesPanel = ({
         />
       </div>
 
-      <h3>Free kicks</h3>
+      <h3>Free kicks — attacking</h3>
+      <p className="set-piece-subgroup-label">Routine</p>
       <div style={gridStyle}>
         <label>
           Routine
@@ -725,6 +804,9 @@ const SetPiecesPanel = ({
             ))}
           </select>
         </label>
+      </div>
+      <p className="set-piece-subgroup-label">Takers</p>
+      <div style={gridStyle}>
         <PlayerSelect
           label="Direct taker"
           value={setPieces.directFreeKickTaker}
@@ -735,6 +817,9 @@ const SetPiecesPanel = ({
           value={setPieces.indirectFreeKickTaker}
           onChange={(value) => set("indirectFreeKickTaker", value)}
         />
+      </div>
+      <p className="set-piece-subgroup-label">Targets</p>
+      <div style={gridStyle}>
         <PlayerSelect
           label="Target"
           value={setPieces.freeKickTarget}
