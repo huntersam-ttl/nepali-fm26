@@ -48,6 +48,7 @@ import {
 } from "./international-football.js";
 import { simulateMatch } from "./match-engine.js";
 import { resolveTeamTacticalSetup } from "./ai-tactics.js";
+import { progressFamiliarity } from "./tactics.js";
 import { requireFixtureOfficials } from "./referee-assignment.js";
 import {
   repairPreseasonContinuity,
@@ -665,6 +666,27 @@ const simulateCompetitionSeason = (
     tacticByTeam.set(teamId, setup);
     return setup;
   };
+  // AI/background teams previously never progressed tactical familiarity —
+  // only a human manager's own advanceManagerCareer/match-session flow did.
+  // Every fixture a team plays now advances its cached setup's familiarity
+  // in memory (bounded, deterministic, same formula a human's own matches
+  // use); the updated values are persisted once per touched team at the end
+  // of this run, not per match, so this stays a single cheap write per team
+  // rather than one per fixture.
+  const familiarityTouched = new Set<EntityId>();
+  const progressTacticFamiliarityFromMatch = (teamId: EntityId): void => {
+    const setup = tacticByTeam.get(teamId);
+    if (!setup) return;
+    tacticByTeam.set(teamId, {
+      ...setup,
+      familiarity: progressFamiliarity(setup.familiarity, {
+        days: 7,
+        tacticalTrainingDays: 0,
+        matchesPlayed: 1,
+      }),
+    });
+    familiarityTouched.add(teamId);
+  };
   // A fixture's match row is immutable once written. Load the existing
   // fixture IDs once, then update this set as the current pass persists
   // results instead of issuing one existence query per fixture twice.
@@ -713,6 +735,8 @@ const simulateCompetitionSeason = (
       aggregateFirstLeg: firstLegScoreFor(db, fixture),
     });
     allResults.push(result);
+    progressTacticFamiliarityFromMatch(fixture.homeTeamId);
+    progressTacticFamiliarityFromMatch(fixture.awayTeamId);
     persistMatchResult(db, result, input.season.id, fixture.scheduledDate, input.ruleSet, fixture);
     completedFixtureIds.add(fixture.id);
     recordFootballMatchHistory(db, fixture, result, fixture.scheduledDate);
@@ -746,6 +770,10 @@ const simulateCompetitionSeason = (
       );
     }
     playedThisRun += 1;
+  }
+  for (const teamId of familiarityTouched) {
+    const setup = tacticByTeam.get(teamId);
+    if (setup) managers.insertTacticalSetup(setup);
   }
 
   const results = matchResultsForStandings(db, input.season.id);
