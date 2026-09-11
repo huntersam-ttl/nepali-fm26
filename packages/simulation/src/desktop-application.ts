@@ -4053,6 +4053,18 @@ export class DesktopApplicationService {
   /** Finishes an interactive match from where it stands, never from kickoff. */
   quickSimCurrentMatch(fixtureId?: EntityId): AppResult<LiveMatchView> {
     return this.matchCommand((db, save, context, helpers) => {
+      // A fixture that already finished (a previous quick sim, or a live
+      // match played to full time) is no longer "the current matchday" per
+      // requireSession/managerFixture, since there is nothing left to
+      // action. Repeating the call is meant to be a safe no-op that reports
+      // the persisted result, so check for that case directly before
+      // requiring an actionable session.
+      if (fixtureId) {
+        const existing = loadMatchSession(db, fixtureId);
+        if (existing && existing.state.period === "FULL_TIME") {
+          return helpers.view(existing.state, existing.record.viewMode ?? "QUICK_SIM", undefined, true);
+        }
+      }
       const { state, record } = helpers.requireSession(fixtureId);
       const fixture = helpers.resolveFixture(state.fixtureId);
       quickSimFromCurrentState(db, state, helpers.finalizationContext(fixture));
