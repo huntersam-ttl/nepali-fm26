@@ -47,6 +47,7 @@ import {
   processInternationalForSeasonPeriod,
 } from "./international-football.js";
 import { simulateMatch } from "./match-engine.js";
+import { resolveTeamTacticalSetup } from "./ai-tactics.js";
 import { requireFixtureOfficials } from "./referee-assignment.js";
 import {
   repairPreseasonContinuity,
@@ -652,6 +653,18 @@ const simulateCompetitionSeason = (
     attributesByTeam.set(teamId, attributes);
     return attributes;
   };
+  // Every background fixture now plays with each side's real tactical
+  // identity — resolved (and persisted, once, by resolveTeamTacticalSetup)
+  // the first time this run sees the team, then reused for the rest of the
+  // pass instead of a DB round-trip per fixture.
+  const tacticByTeam = new Map<EntityId, ReturnType<typeof resolveTeamTacticalSetup>>();
+  const tacticForMatch = (teamId: EntityId): ReturnType<typeof resolveTeamTacticalSetup> => {
+    const cached = tacticByTeam.get(teamId);
+    if (cached) return cached;
+    const setup = resolveTeamTacticalSetup(db, teamId, attributesForMatch(teamId));
+    tacticByTeam.set(teamId, setup);
+    return setup;
+  };
   // A fixture's match row is immutable once written. Load the existing
   // fixture IDs once, then update this set as the current pass persists
   // results instead of issuing one existence query per fixture twice.
@@ -679,6 +692,8 @@ const simulateCompetitionSeason = (
     recordSquadHealth(squadHealth, attributesForMatch(fixture.awayTeamId), unavailable);
     const result = simulateMatch({
       fixture,
+      homeTacticalSetup: tacticForMatch(fixture.homeTeamId),
+      awayTacticalSetup: tacticForMatch(fixture.awayTeamId),
       refereeAssignment: requireFixtureOfficials(db, fixture, {
         seed: `${input.seed}:officials:${fixture.id}`,
         competitionLevel: input.ruleSet.competitionType,
