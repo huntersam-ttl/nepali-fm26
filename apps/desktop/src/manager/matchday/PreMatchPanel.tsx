@@ -35,6 +35,11 @@ export const PreMatchPanel = ({
   const [detail] = useRuntimeData(() => managerBridge.getFixture(fixtureId), [fixtureId]);
   const [tactics] = useRuntimeData(() => managerBridge.getTactics(), [fixtureId]);
   const [viewMode, setViewMode] = useState<MatchViewMode>("TEXT_LIVE");
+  // The single natural pre-match press entry point: evaluated once when this
+  // screen opens for a fixture. Creates a real PRE_MATCH interview only when
+  // the fixture is genuinely material — the resulting Inbox item (if any) is
+  // how the manager actually opens it, not a button here.
+  useRuntimeData(() => managerBridge.evaluatePreMatchPress(fixtureId), [fixtureId]);
 
   return (
     <section className="dashboard">

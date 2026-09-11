@@ -24,7 +24,7 @@ import {
   resolvePressConference,
   type PressConferenceReadModel,
 } from "./press-social-lifestyle.js";
-import { answerPressQuestion, startPressConference } from "./press-interviews.js";
+import { answerPressQuestion, shouldCreatePreMatchPress, startPressConference } from "./press-interviews.js";
 import { buildEntityReference } from "./entity-reference.js";
 import { commitmentFromPressResponse } from "./commitments.js";
 import { supporterReadModel } from "./supporter-culture.js";
@@ -374,4 +374,33 @@ export const structuredPressInboxItems = (
       entityReferences: [journalist, outlet, ...subjectRefs],
     } satisfies InboxItem;
   });
+};
+
+/**
+ * The single canonical production point for a natural pre-match press
+ * conference: called once when the manager opens the pre-match screen for a
+ * fixture. Creates the interview only when shouldCreatePreMatchPress finds a
+ * genuine reason (never every mundane fixture); if one is already open or
+ * already exists for this exact fixture, this simply resolves it again —
+ * startPressConference's own existing-open check and this interview's
+ * stable, fixture-derived id both make repeated calls exact-once for free.
+ * Returns undefined (no interview) when the fixture isn't material enough.
+ */
+export const evaluateManagerPreMatchPress = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  context: ManagerContext,
+  fixtureId: EntityId,
+): StructuredPressConferenceView | undefined => {
+  const { trigger } = shouldCreatePreMatchPress(db, { teamId: context.team.id, fixtureId });
+  if (!trigger) return undefined;
+  const interview = startPressConference(db, {
+    context: "PRE_MATCH",
+    managerPersonId: context.character.personId,
+    teamId: context.team.id,
+    date: save.worldDate,
+    fixtureId,
+  });
+  if (!interview.structuredQuestions || interview.structuredQuestions.length === 0) return undefined;
+  return buildStructuredPressConferenceView(db, interview);
 };

@@ -162,6 +162,8 @@ export const managerBridge = {
     runtimeCall<StructuredPressConferenceView>("answerStructuredPressQuestion", { input }),
   getStructuredPressConference: (interviewId: EntityId) =>
     runtimeCall<StructuredPressConferenceView>("getStructuredPressConference", { interviewId }),
+  evaluatePreMatchPress: (fixtureId: EntityId) =>
+    runtimeCall<StructuredPressConferenceView | undefined>("evaluatePreMatchPress", { fixtureId }),
   getSupporterOverview: () =>
     runtimeCall<SupporterReadModel | undefined>("getSupporterOverview"),
   getDressingRoom: () => runtimeCall<DressingRoomView>("getDressingRoom"),

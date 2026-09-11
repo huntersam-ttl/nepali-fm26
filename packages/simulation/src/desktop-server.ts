@@ -687,6 +687,8 @@ const dispatch = (
       );
     case "getStructuredPressConference":
       return service.getStructuredPressConference(body.interviewId as EntityId);
+    case "evaluatePreMatchPress":
+      return service.evaluatePreMatchPress(body.fixtureId as EntityId);
     case "getSupporterOverview":
       return service.getSupporterOverview();
     case "getDressingRoom":

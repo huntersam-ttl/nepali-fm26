@@ -492,6 +492,7 @@ import {
   answerManagerStructuredPressQuestion,
   buildMediaCentreView,
   buildSupporterOverview,
+  evaluateManagerPreMatchPress,
   getManagerStructuredPressConference,
   requestManagerPressConference,
   requestManagerStructuredPressConference,
@@ -3463,6 +3464,18 @@ export class DesktopApplicationService {
     return this.managerCommand(
       (db, _save, context) => getManagerStructuredPressConference(db, context, interviewId),
       false,
+    );
+  }
+
+  /** The single natural pre-match press entry point — called once when the
+   * manager opens the pre-match screen for a fixture. Creates a PRE_MATCH
+   * interview only when the fixture is genuinely material (real table
+   * stakes, an active player concern/demand, or active transfer interest);
+   * returns undefined for an ordinary fixture. Idempotent per fixture. */
+  evaluatePreMatchPress(fixtureId: EntityId): AppResult<StructuredPressConferenceView | undefined> {
+    return this.managerCommand(
+      (db, save, context) => evaluateManagerPreMatchPress(db, save, context, fixtureId),
+      true,
     );
   }
 
