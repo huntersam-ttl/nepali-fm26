@@ -35,6 +35,7 @@ import {
   postFederationTransaction,
   selectNationalTeamSquad,
 } from "./federation-governance.js";
+import { buildAiTacticalSetup, resolveTeamTacticalSetup } from "./ai-tactics.js";
 import { simulateMatch } from "./match-engine.js";
 import { ensureNationalTeamStaffStructure } from "./national-team-management.js";
 import { SeededRandom } from "./rng.js";
@@ -1374,18 +1375,29 @@ const simulateNepalInternationalMatch = (
         : player,
     );
   const nepalIsHome = home.nationalTeamId === nationalTeamId;
+  const opponentTeamId = nepalIsHome ? syntheticTeamId(away) : syntheticTeamId(home);
+  const opponentPlayers = nepalIsHome ? syntheticPlayers(away, seed) : syntheticPlayers(home, seed);
+  // The Nepal national team is a real teams row, so it gets the same
+  // persisted, manager-aware resolver every club uses. The foreign opponent
+  // has no real team row to persist a setup against, so it gets a
+  // deterministic, unpersisted identity from the same AI tactics module
+  // instead of no tactical context at all.
+  const nepalTacticalSetup = resolveTeamTacticalSetup(db, nationalTeamId, nepalPlayers);
+  const opponentTacticalSetup = buildAiTacticalSetup(opponentTeamId, opponentPlayers);
   const result = simulateMatch({
     fixture: {
       id: createStableEntityId("fixture", `international:${match.id}`),
       competitionSeasonId: undefined,
-      homeTeamId: nepalIsHome ? nationalTeamId : syntheticTeamId(home),
-      awayTeamId: nepalIsHome ? syntheticTeamId(away) : nationalTeamId,
+      homeTeamId: nepalIsHome ? nationalTeamId : opponentTeamId,
+      awayTeamId: nepalIsHome ? opponentTeamId : nationalTeamId,
       scheduledDate: match.matchDate,
       status: "scheduled",
       round: 1,
     },
-    homePlayers: nepalIsHome ? nepalPlayers : syntheticPlayers(home, seed),
-    awayPlayers: nepalIsHome ? syntheticPlayers(away, seed) : nepalPlayers,
+    homePlayers: nepalIsHome ? nepalPlayers : opponentPlayers,
+    awayPlayers: nepalIsHome ? opponentPlayers : nepalPlayers,
+    homeTacticalSetup: nepalIsHome ? nepalTacticalSetup : opponentTacticalSetup,
+    awayTacticalSetup: nepalIsHome ? opponentTacticalSetup : nepalTacticalSetup,
     seed: `${seed}:nepal-match:${match.id}`,
   });
   const homeGoals = result.match.homeGoals ?? 0;

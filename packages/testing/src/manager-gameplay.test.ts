@@ -177,6 +177,48 @@ describe("manager gameplay", () => {
     expect(after.data.setup.bench).toHaveLength(7);
   });
 
+  it("persists player instructions (with role, duty, slot/player) across reload", () => {
+    const before = service.getTactics();
+    expect(before.ok).toBe(true);
+    if (!before.ok) return;
+    const midfieldSlotId = before.data.setup.formation.slots.find((s) => s.zone === "midfield")!.id;
+    const target = before.data.setup.assignments.find(
+      (a) => a.slotId === midfieldSlotId && a.playerId,
+    )!;
+    // Instruction options are grouped by mutually-exclusive pair (index 0/1
+    // are a pair, 2/3 are the next pair, etc.) — pick one from each of two
+    // different pairs so the selection itself is legal.
+    const legalOptions = before.data.instructionOptions.filter((option) => option.goalkeeperLegal);
+    const legal = [legalOptions[0]!.value, legalOptions[2]!.value];
+    expect(legal.length).toBeGreaterThanOrEqual(2);
+
+    const updated = service.updateTactics({
+      assignments: before.data.setup.assignments.map((a) =>
+        a.slotId === target.slotId
+          ? { ...a, roleId: "CENTRAL_MIDFIELDER", duty: "ATTACK" as const, instructions: legal }
+          : a,
+      ),
+    });
+    expect(updated.ok).toBe(true);
+    if (!updated.ok) return;
+    const savedAssignment = updated.data.setup.assignments.find((a) => a.slotId === target.slotId);
+    expect(savedAssignment?.instructions).toEqual(legal);
+
+    reopen();
+    const after = service.getTactics();
+    expect(after.ok).toBe(true);
+    if (!after.ok) return;
+    const reloadedAssignment = after.data.setup.assignments.find((a) => a.slotId === target.slotId);
+    expect(reloadedAssignment?.playerId).toBe(target.playerId);
+    expect(reloadedAssignment?.roleId).toBe("CENTRAL_MIDFIELDER");
+    expect(reloadedAssignment?.duty).toBe("ATTACK");
+    expect(reloadedAssignment?.instructions).toEqual(legal);
+    // Every other assignment's instructions are untouched (empty), not a
+    // side-effect rewrite of unrelated slots.
+    const others = after.data.setup.assignments.filter((a) => a.slotId !== target.slotId);
+    expect(others.every((a) => (a.instructions ?? []).length === 0)).toBe(true);
+  });
+
   it("persists set-piece assignments across reload (desktop bridge for the completed set-piece domain)", () => {
     const before = service.getTactics();
     expect(before.ok).toBe(true);

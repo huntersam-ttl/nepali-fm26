@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   FederationGovernanceRepository,
   InternationalFootballRepository,
+  ManagerRepository,
   openGameDatabase,
 } from "@nepal-football-sim/database";
 import {
@@ -95,6 +96,18 @@ describe("international football foundation", () => {
     expect(history.matches.length).toBeGreaterThan(0);
     expect(history.capsLeaders.length).toBeGreaterThan(0);
     expect(history.topScorers.some((row) => row.goals > 0)).toBe(true);
+
+    // Nepal's SAFF matches route through simulateNepalInternationalMatch,
+    // which now resolves (and persists) a real tactical setup for the
+    // national team via the same resolver every club uses — never
+    // tactics-blind, and never a fixed default when manager/team context
+    // exists.
+    const nepal = new InternationalFootballRepository(db)
+      .teamProfiles()
+      .find((team) => team.name === "Nepal Senior Men")!;
+    const setups = new ManagerRepository(db).tacticalSetups(nepal.nationalTeamId!);
+    expect(setups.length).toBeGreaterThan(0);
+    expect(setups[0]!.assignments.length).toBeGreaterThan(0);
     db.close();
   });
 
