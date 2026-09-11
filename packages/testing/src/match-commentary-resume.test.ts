@@ -379,9 +379,17 @@ describe("interactive determinism", () => {
     reopened.close();
 
     expect(fingerprint(resumed)).toEqual(fingerprint(control));
-    // The substitution survived the round trip.
-    expect(resumed.events.some((event) => event.type === "SUBSTITUTION")).toBe(true);
-    expect(resumed.home.selection.some((player) => player.personId === on)).toBe(true);
+    // The substitution survived the round trip: it is in the event log, the
+    // player who came on genuinely played (a real invariant — the rest of
+    // the match, including whether he is later substituted again himself,
+    // legitimately depends on in-match events and is not fixed by this test),
+    // and the player who went off can never reappear on the pitch.
+    const onSub = resumed.events.find(
+      (event) => event.type === "SUBSTITUTION" && event.primaryPersonId === on && event.secondaryPersonId === off,
+    );
+    expect(onSub).toBeTruthy();
+    const onState = [...resumed.home.states].find((player) => player.personId === on);
+    expect(onState?.minutesPlayed).toBeGreaterThan(0);
     expect(resumed.home.selection.some((player) => player.personId === off)).toBe(false);
   });
 

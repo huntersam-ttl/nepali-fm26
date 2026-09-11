@@ -4,9 +4,18 @@ import type {
   PlayerAvailability,
   PlayerMatchState,
   PlayerPosition,
+  PlayerTacticalBehavior,
   TacticalSetup,
 } from "@nepal-football-sim/shared-types";
-import { calculateRoleFit, roleById, tacticalPositionToPlayerPosition } from "./tactics.js";
+import {
+  NEUTRAL_PLAYER_BEHAVIOR,
+  calculateRoleFit,
+  defaultDutyForRole,
+  derivePlayerTacticalBehavior,
+  dutyIsLegalForRole,
+  roleById,
+  tacticalPositionToPlayerPosition,
+} from "./tactics.js";
 
 export const DEFAULT_SHAPE: readonly PlayerPosition[] = [
   "GK",
@@ -29,8 +38,12 @@ export type SelectedPlayer = {
   attributes: PlayerAttributeSet;
   availability: PlayerAvailability;
   role?: string;
+  duty?: string;
   roleFit?: number;
   tacticalSlotId?: string;
+  /** Derived once per selection / tactical change / substitution and read by
+   * the match engine to weight who creates, scores, presses and defends. */
+  behavior?: PlayerTacticalBehavior;
 };
 
 export const selectTeam = (input: {
@@ -61,6 +74,9 @@ export const selectTeam = (input: {
         moraleModifier: 0,
         formModifier: 0,
       },
+      // No tactical setup here — a neutral behaviour profile so the engine's
+      // per-player weighting still has a value to read.
+      behavior: NEUTRAL_PLAYER_BEHAVIOR,
     };
   });
 };
@@ -95,6 +111,10 @@ export const selectTeamFromTacticalSetup = (input: {
         )[0] ??
       createReplacementPlayer(input.teamId, tacticalPositionToPlayerPosition(slot.position), index);
     const role = roleById(assignment?.roleId ?? "CENTRAL_MIDFIELDER");
+    const duty =
+      assignment?.duty && dutyIsLegalForRole(role.id, assignment.duty)
+        ? assignment.duty
+        : defaultDutyForRole(role.id);
     const roleFit = calculateRoleFit({
       player: chosen,
       slot,
@@ -113,8 +133,18 @@ export const selectTeamFromTacticalSetup = (input: {
         formModifier: 0,
       },
       role: role.id,
+      duty,
       roleFit: roleFit.overall,
       tacticalSlotId: slot.id,
+      behavior: derivePlayerTacticalBehavior({
+        attributes: chosen,
+        roleId: role.id,
+        duty,
+        roleFit: roleFit.overall,
+        familiarity: input.setup.familiarity,
+        mentality: input.setup.instructions.mentality,
+        instructions: input.setup.instructions,
+      }),
     };
   });
 };

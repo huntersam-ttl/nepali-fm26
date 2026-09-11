@@ -20,7 +20,13 @@ import {
   selectTeamFromTacticalSetup,
   type SelectedPlayer,
 } from "./team-selection.js";
-import { calculateTacticalModifiers, type TacticalMatchModifiers } from "./tactics.js";
+import {
+  NEUTRAL_PLAYER_BEHAVIOR,
+  calculateTacticalModifiers,
+  derivePlayerTacticalBehavior,
+  type TacticalMatchModifiers,
+} from "./tactics.js";
+import type { PlayerDuty, PlayerTacticalBehavior } from "@nepal-football-sim/shared-types";
 
 export type SimulateMatchInput = {
   fixture: FixtureRecord;
@@ -493,9 +499,12 @@ const simulateMinute = (state: LiveMatchState, rng: SeededRandom, minute: number
         }
         pushEvent(state, minute, "GOAL", attacking.teamId, shooter.personId, assister?.personId, {
           xg,
+          ...(assistDeliveredByCross(assister) ? { deliveredByCross: true } : {}),
         });
         if (assister) {
-          pushEvent(state, minute, "ASSIST", attacking.teamId, assister.personId, shooter.personId);
+          pushEvent(state, minute, "ASSIST", attacking.teamId, assister.personId, shooter.personId, {
+            ...(assistDeliveredByCross(assister) ? { deliveredByCross: true } : {}),
+          });
         }
         reviewGoalWithVar(state, minute, attacking, shooter.personId, assister?.personId);
       } else {
@@ -540,7 +549,15 @@ const simulateMinute = (state: LiveMatchState, rng: SeededRandom, minute: number
 
   if (rng.next() < foulChance(home, away, environment)) {
     const fouling = rng.next() < 0.5 ? home : away;
-    const fouler = rng.pick(fouling.selection);
+    // Single draw, weighted: pressing/ball-winning players and higher-aggression
+    // players commit more of a side's fouls than a deep-lying playmaker.
+    const fouler = rng.pickWeighted(fouling.selection, (player) => {
+      const b = behaviorOf(player);
+      return (
+        b.pressingContribution * (0.6 + player.attributes.mental.aggression / 20) +
+        b.defensiveContribution * 0.3
+      );
+    });
     fouling.stats.fouls += 1;
     pushEvent(state, minute, "FOUL", fouling.teamId, fouler.personId);
     // A foul can create a set piece for the opponent. Record the routine and
@@ -647,7 +664,18 @@ const resolveTarget = (
     const player = active(priorities[index]);
     if (player) return { player, role: roles[index] ?? "FALLBACK", fallbackUsed: index > 0 };
   }
-  const fallback = team.selection.find((player) => player.position !== "GK");
+  // No explicit target set — deterministically pick the best aerial threat on
+  // the pitch (role/duty aerialTargetWeight + heading/jumping) rather than the
+  // first outfield player. No RNG, no change to the explicit-priority path.
+  const outfield = team.selection.filter((player) => player.position !== "GK");
+  const fallback = outfield
+    .map((player) => ({
+      player,
+      score:
+        behaviorOf(player).aerialTargetWeight *
+        (player.attributes.technical.heading + player.attributes.physical.jumping),
+    }))
+    .sort((a, b) => b.score - a.score)[0]?.player;
   return fallback ? { player: fallback, role: "FALLBACK", fallbackUsed: true } : undefined;
 };
 
@@ -905,6 +933,30 @@ export const applyTacticalChange = (
 ): void => {
   const previous = team.setup;
   team.setup = setup;
+  // Re-derive each on-pitch player's behaviour from their slot's (possibly
+  // changed) role + duty. The XI itself is untouched — a live tactical change
+  // never silently swaps players — only how they now play.
+  team.selection = team.selection.map((player) => {
+    const assignment = player.tacticalSlotId
+      ? setup.assignments.find((candidate) => candidate.slotId === player.tacticalSlotId)
+      : undefined;
+    if (!assignment) return player;
+    const duty = (assignment.duty as PlayerDuty | undefined) ?? "SUPPORT";
+    return {
+      ...player,
+      role: assignment.roleId,
+      duty,
+      behavior: derivePlayerTacticalBehavior({
+        attributes: player.attributes,
+        roleId: assignment.roleId,
+        duty,
+        roleFit: player.roleFit,
+        familiarity: setup.familiarity,
+        mentality: setup.instructions.mentality,
+        instructions: setup.instructions,
+      }),
+    };
+  });
   team.tactical = calculateTacticalModifiers({
     setup,
     averageRoleFit: average(team.selection.map((player) => player.roleFit ?? 70)),
@@ -1118,13 +1170,49 @@ const calculateShotXg = (
   );
 };
 
+const behaviorOf = (player: SelectedPlayer): PlayerTacticalBehavior =>
+  player.behavior ?? NEUTRAL_PLAYER_BEHAVIOR;
+
+const WIDE_ROLES = new Set([
+  "WINGER",
+  "INSIDE_FORWARD",
+  "WIDE_PLAYMAKER",
+  "WING_BACK",
+  "FULL_BACK",
+  "INVERTED_FULL_BACK",
+  "WIDE_CENTRE_BACK",
+]);
+
+/** A player who operates in wide channels, by selected position or by role. */
+const isWide = (player: SelectedPlayer): boolean =>
+  ["LW", "RW", "LB", "RB"].includes(player.position) ||
+  (player.role !== undefined && WIDE_ROLES.has(player.role));
+
+/**
+ * Who gets the shot. Still a single RNG draw (the match-minute draw order is
+ * load-bearing), now a weighted one: role/duty box presence and attacking
+ * involvement combine with the player's own finishing so a Poacher/Advanced
+ * Forward on an ATTACK duty is materially more likely to be the shooter than
+ * a wide SUPPORT player, without ever guaranteeing it.
+ */
 const chooseShooter = (rng: SeededRandom, players: readonly SelectedPlayer[]): SelectedPlayer => {
   const attackers = players.filter((player) =>
     ["ST", "LW", "RW", "AM", "CM"].includes(player.position),
   );
-  return rng.pick(attackers.length > 0 ? attackers : players);
+  const pool = attackers.length > 0 ? attackers : players;
+  return rng.pickWeighted(pool, (player) => {
+    const b = behaviorOf(player);
+    const finishing = (player.attributes.technical.finishing + player.attributes.mental.composure) / 2;
+    return b.boxPresence * b.attackingInvolvement * (0.55 + finishing / 22);
+  });
 };
 
+/**
+ * Who gets the assist / key pass. Same two draws as before (the 0.64 gate,
+ * then the pick), the pick now weighted by creative + progression involvement,
+ * the player's vision/passing, plus a wide crossing contribution so a Winger
+ * on ATTACK feeds more chances than an Inside Forward in the same slot.
+ */
 const chooseAssister = (
   rng: SeededRandom,
   players: readonly SelectedPlayer[],
@@ -1136,8 +1224,21 @@ const chooseAssister = (
   const creators = players.filter(
     (player) => player.personId !== shooterId && player.position !== "GK",
   );
-  return rng.pick(creators);
+  if (creators.length === 0) return undefined;
+  return rng.pickWeighted(creators, (player) => {
+    const b = behaviorOf(player);
+    const vision = (player.attributes.mental.vision + player.attributes.technical.passing) / 2;
+    const wide = isWide(player) ? b.crossingTendency : 1;
+    return b.creativeInvolvement * b.progressionInvolvement * wide * (0.5 + vision / 24);
+  });
 };
+
+/** True when an assist plausibly came from a wide delivery — recorded on the
+ * event so the wide/crossing role effect is observable without a new event. */
+const assistDeliveredByCross = (assister: SelectedPlayer | undefined): boolean =>
+  Boolean(
+    assister && isWide(assister) && behaviorOf(assister).crossingTendency >= 1.25,
+  );
 
 /**
  * AI substitution. The window still costs the same single random draw as before
@@ -1252,15 +1353,26 @@ export const applySubstitution = (
   outgoingState.subbedOffMinute = minute;
   outgoingState.minutesPlayed = minute;
 
-  // The replacement inherits the vacated tactical slot so shape is preserved.
+  // The replacement inherits the vacated tactical slot so shape is preserved,
+  // but its behaviour is re-derived from the incoming player's own attributes
+  // in that role + duty — a like-for-like swap into a poor-fit role is blunted.
   const vacated = team.selection[outgoingIndex]!;
   const replacement: SelectedPlayer = {
     ...incoming,
     teamId: team.teamId,
     position: vacated.position,
     role: vacated.role,
+    duty: vacated.duty,
     roleFit: vacated.roleFit,
     tacticalSlotId: vacated.tacticalSlotId,
+    behavior: vacated.role
+      ? derivePlayerTacticalBehavior({
+          attributes: incoming.attributes,
+          roleId: vacated.role,
+          duty: (vacated.duty as PlayerDuty | undefined) ?? "SUPPORT",
+          roleFit: vacated.roleFit,
+        })
+      : (vacated.behavior ?? NEUTRAL_PLAYER_BEHAVIOR),
   };
   team.selection[outgoingIndex] = replacement;
   team.benchPlayers = team.benchPlayers.filter((player) => player.personId !== incomingId);
@@ -1286,16 +1398,23 @@ const playerState = (team: RuntimeTeam, personId: EntityId): PlayerMatchState =>
 };
 
 const addPassingStats = (rng: SeededRandom, team: RuntimeTeam): void => {
+  const behaviorByPerson = new Map(
+    team.selection.map((player) => [player.personId, behaviorOf(player)] as const),
+  );
   for (const player of team.states) {
+    const b = behaviorByPerson.get(player.personId) ?? NEUTRAL_PLAYER_BEHAVIOR;
+    // Same three draws in the same order — role/duty only reshapes the odds.
     const attempted = rng.integer(0, 2);
-    player.passesAttempted += attempted;
+    const progression = clamp(b.progressionInvolvement, 0.4, 1.75);
+    player.passesAttempted += Math.round(attempted * clamp(0.7 + progression * 0.3, 0.6, 1.3));
     player.passesCompleted += Math.round(
       attempted * clamp(0.62 + team.strength.midfield / 70, 0.55, 0.9),
     );
-    if (rng.next() < 0.035) {
+    const defensive = clamp(b.defensiveContribution, 0.4, 1.75);
+    if (rng.next() < 0.035 * defensive) {
       player.tackles += 1;
     }
-    if (rng.next() < 0.025) {
+    if (rng.next() < 0.025 * clamp((defensive + b.defensivePositioning) / 2, 0.4, 1.75)) {
       player.interceptions += 1;
     }
   }
