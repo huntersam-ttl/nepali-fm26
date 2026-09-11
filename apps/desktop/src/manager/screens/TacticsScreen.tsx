@@ -1,8 +1,16 @@
 import React, { useRef, useState } from "react";
-import type { EntityId, SetPieceAssignments, TacticsView } from "@nepal-football-sim/shared-types";
+import type { EntityId, PlayerDuty, SetPieceAssignments, TacticsView } from "@nepal-football-sim/shared-types";
 import { managerBridge } from "../managerBridge.js";
 import { AsyncPanel, Badge, ErrorBanner, Panel, useRuntimeData } from "../ui.js";
 import type { AppError } from "../../appBridge.js";
+
+/** Humanised label + one-line behaviour explanation per duty — the same
+ * three values the backend enforces, never a UI-only concept. */
+const DUTY_OPTIONS: ReadonlyArray<{ value: PlayerDuty; label: string; explainer: string }> = [
+  { value: "DEFEND", label: "Defend", explainer: "Defend — holds position and prioritizes defensive work." },
+  { value: "SUPPORT", label: "Support", explainer: "Support — links phases and balances risk." },
+  { value: "ATTACK", label: "Attack", explainer: "Attack — pushes higher and takes more risks." },
+];
 
 /** Plain-language band for a familiarity value — text, never colour alone. */
 const familiarityBand = (value: number): string =>
@@ -310,6 +318,42 @@ const TacticsBoard = ({
                 ))}
               </select>
             </label>
+            {(() => {
+              const currentRoleId = assignment(selectedSlot)?.roleId ?? "";
+              const role = view.roles.find((candidate) => candidate.id === currentRoleId);
+              const legalDuties = role?.allowedDuties?.length ? role.allowedDuties : DUTY_OPTIONS.map((d) => d.value);
+              const currentDuty = assignment(selectedSlot)?.duty ?? "SUPPORT";
+              return (
+                <>
+                  <label>
+                    Duty
+                    <select
+                      value={currentDuty}
+                      disabled={busy}
+                      aria-describedby={`duty-explainer-${selectedSlot}`}
+                      onChange={(event) =>
+                        void onApply({
+                          assignments: view.setup.assignments.map((item) =>
+                            item.slotId === selectedSlot
+                              ? { ...item, duty: event.target.value as (typeof DUTY_OPTIONS)[number]["value"] }
+                              : item,
+                          ),
+                        })
+                      }
+                    >
+                      {DUTY_OPTIONS.filter((option) => legalDuties.includes(option.value)).map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <p className="subtle duty-explainer" id={`duty-explainer-${selectedSlot}`}>
+                    {DUTY_OPTIONS.find((option) => option.value === currentDuty)?.explainer}
+                  </p>
+                </>
+              );
+            })()}
             <label>
               Player
               <select

@@ -269,6 +269,9 @@ export type RoleOption = {
   name: string;
   family: string;
   zones: string[];
+  /** Duties this role can legally take; absent/empty means all three (see
+   * shared-types PlayerDuty) are legal — the UI should treat it that way. */
+  allowedDuties?: PlayerDuty[];
 };
 
 export type SlotRoleFit = {

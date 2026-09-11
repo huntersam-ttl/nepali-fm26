@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  allowedDutiesForRole,
   createTacticalSetup,
+  defaultDutyForRole,
   derivePlayerTacticalBehavior,
+  dutyIsLegalForRole,
+  normalizeTacticalSetup,
   simulateMatch,
+  validateSelection,
 } from "@nepal-football-sim/simulation";
 import { FORMATION_PRESETS } from "@nepal-football-sim/simulation";
 import type {
@@ -245,4 +250,56 @@ describe("role/duty change match-engine event involvement", () => {
     const dlp = aggregate(setupWith("home", players, { MCL: { roleId: "DEEP_LYING_PLAYMAKER", duty: "SUPPORT" } }), players, midId);
     expect(bwm.fouls + bwm.tackles).toBeGreaterThan(dlp.fouls + dlp.tackles);
   }, 60_000);
+});
+
+describe("role × duty legality", () => {
+  it("a deeply defensive role cannot take ATTACK; a pure poacher cannot take DEFEND", () => {
+    expect(dutyIsLegalForRole("ANCHOR", "ATTACK")).toBe(false);
+    expect(dutyIsLegalForRole("ANCHOR", "DEFEND")).toBe(true);
+    expect(dutyIsLegalForRole("POACHER", "DEFEND")).toBe(false);
+    expect(dutyIsLegalForRole("POACHER", "ATTACK")).toBe(true);
+    expect(allowedDutiesForRole("CENTRAL_MIDFIELDER")).toEqual(["DEFEND", "SUPPORT", "ATTACK"]);
+  });
+
+  it("the backend rejects an illegal role/duty pairing as a blocking error, not just a UI hint", () => {
+    const players = squad("home");
+    const setup = setupWith("home", players, { STC: { roleId: "POACHER", duty: "DEFEND" } });
+    const validation = validateSelection({ setup, players });
+    expect(validation.isValid).toBe(false);
+    expect(validation.blockingErrors.some((message) => /duty/i.test(message))).toBe(true);
+  });
+
+  it("a legal role/duty pairing validates cleanly", () => {
+    const players = squad("home");
+    const setup = setupWith("home", players, { STC: { roleId: "POACHER", duty: "ATTACK" } });
+    expect(validateSelection({ setup, players }).isValid).toBe(true);
+  });
+});
+
+describe("old-save / missing-duty compatibility", () => {
+  it("backfills a legal, deterministic duty for an assignment saved before duties existed", () => {
+    const players = squad("home");
+    const setup = setupWith("home", players, {});
+    // Simulate a pre-duty save: strip duty entirely.
+    const preDuty = {
+      ...setup,
+      assignments: setup.assignments.map(({ duty: _duty, ...rest }) => rest),
+    };
+    const normalized = normalizeTacticalSetup(preDuty as never);
+    for (const assignment of normalized.assignments) {
+      expect(assignment.duty).toBeDefined();
+      expect(dutyIsLegalForRole(assignment.roleId, assignment.duty!)).toBe(true);
+      expect(assignment.duty).toBe(defaultDutyForRole(assignment.roleId));
+    }
+    // Normalizing twice is idempotent.
+    expect(normalizeTacticalSetup(normalized)).toEqual(normalized);
+  });
+
+  it("clamps an illegal duty carried over from a role change to the new role's default", () => {
+    const players = squad("home");
+    const setup = setupWith("home", players, { STC: { roleId: "POACHER", duty: "DEFEND" as never } });
+    const normalized = normalizeTacticalSetup(setup);
+    const stc = normalized.assignments.find((a) => a.slotId === "STC")!;
+    expect(stc.duty).toBe("ATTACK");
+  });
 });

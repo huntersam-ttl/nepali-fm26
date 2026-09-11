@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import axe from "axe-core";
 import type { EntityId, TacticalSlot, TacticsView } from "@nepal-football-sim/shared-types";
 
@@ -50,9 +50,9 @@ const view: TacticsView = {
     },
     familiarity: { formation: 88, style: 72, roles: 61, instructions: 44 },
     assignments: [
-      { slotId: "GK", playerId: eid("p-gk"), roleId: "GOALKEEPER" },
-      { slotId: "MC", playerId: eid("p-mc"), roleId: "CENTRAL_MIDFIELDER" },
-      { slotId: "STC", playerId: eid("p-st"), roleId: "ADVANCED_FORWARD" },
+      { slotId: "GK", playerId: eid("p-gk"), roleId: "GOALKEEPER", duty: "DEFEND" },
+      { slotId: "MC", playerId: eid("p-mc"), roleId: "CENTRAL_MIDFIELDER", duty: "SUPPORT" },
+      { slotId: "STC", playerId: eid("p-st"), roleId: "ADVANCED_FORWARD", duty: "ATTACK" },
     ],
     bench: [eid("p-b1")],
     setPieces: {},
@@ -64,9 +64,9 @@ const view: TacticsView = {
     { id: "4-4-2", name: "4-4-2", slots: [slot("GK", "GK", "goalkeeper"), slot("MC", "MC", "midfield"), slot("STC", "STC", "forward")] },
   ],
   roles: [
-    { id: "GOALKEEPER", name: "Goalkeeper", family: "GOALKEEPER", zones: ["goalkeeper"] },
+    { id: "GOALKEEPER", name: "Goalkeeper", family: "GOALKEEPER", zones: ["goalkeeper"], allowedDuties: ["DEFEND", "SUPPORT"] },
     { id: "CENTRAL_MIDFIELDER", name: "Central Midfielder", family: "MIDFIELD", zones: ["midfield"] },
-    { id: "ADVANCED_FORWARD", name: "Advanced Forward", family: "FORWARD", zones: ["forward"] },
+    { id: "ADVANCED_FORWARD", name: "Advanced Forward", family: "FORWARD", zones: ["forward"], allowedDuties: ["SUPPORT", "ATTACK"] },
   ],
   styles: ["BALANCED", "GEGENPRESS", "LOW_BLOCK"],
   mentalities: ["DEFENSIVE", "BALANCED", "ATTACKING"],
@@ -136,9 +136,33 @@ describe("Tactics screen — accessibility", () => {
     expect(container.querySelectorAll("span[onclick], div[onclick]").length).toBe(0);
   });
 
+  it("selecting a slot exposes a labelled, legality-filtered duty selector with a text explanation", async () => {
+    render(<TacticsScreen />);
+    await screen.findByRole("combobox", { name: /formation/i });
+    fireEvent.click(screen.getByRole("button", { name: /GK/ }));
+    const duty = await screen.findByRole("combobox", { name: /duty/i });
+    // Goalkeeper's allowedDuties excludes ATTACK.
+    const options = [...duty.querySelectorAll("option")].map((o) => o.textContent);
+    expect(options).toEqual(["Defend", "Support"]);
+    expect((duty as HTMLSelectElement).value).toBe("DEFEND");
+    expect(screen.getByText(/holds position and prioritizes defensive work/i)).toBeTruthy();
+  });
+
+  it("the duty explanation is programmatically associated with the selector (aria-describedby)", async () => {
+    render(<TacticsScreen />);
+    await screen.findByRole("combobox", { name: /formation/i });
+    fireEvent.click(screen.getByRole("button", { name: /STC/ }));
+    const duty = await screen.findByRole("combobox", { name: /duty/i });
+    const describedBy = duty.getAttribute("aria-describedby");
+    expect(describedBy).toBeTruthy();
+    expect(document.getElementById(describedBy!)?.textContent).toMatch(/pushes higher and takes more risks/i);
+  });
+
   it("has a logical heading outline and no serious/critical axe violations", async () => {
     const { container } = render(<TacticsScreen />);
     await screen.findByRole("combobox", { name: /formation/i });
+    fireEvent.click(screen.getByRole("button", { name: /MC/ }));
+    await screen.findByRole("combobox", { name: /duty/i });
     const levels = [...container.querySelectorAll("h1,h2,h3,h4,h5,h6")].map((h) => +h.tagName[1]);
     for (let i = 1; i < levels.length; i += 1) expect(levels[i] - levels[i - 1]).toBeLessThanOrEqual(1);
     const results = await axe.run(container, {

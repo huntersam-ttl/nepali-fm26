@@ -1078,6 +1078,7 @@ export const buildTacticsView = (
       name: role.name,
       family: role.family,
       zones: [...role.preferredZones],
+      allowedDuties: role.allowedDuties ? [...role.allowedDuties] : undefined,
     })),
     styles: Object.keys(TACTICAL_STYLE_PRESETS),
     mentalities: [
