@@ -158,8 +158,10 @@ import {
   type MatchSessionRecord,
   type MatchViewMode,
   type MediaCentreView,
+  type MediaInterview,
   type MediaResponseStance,
   type PressConferenceView,
+  type PressResponseStance,
   type SupporterReadModel,
   type DressingRoomView,
   type Person,
@@ -486,9 +488,11 @@ import {
 } from "./manager-desktop.js";
 import {
   answerManagerPressConference,
+  answerManagerStructuredPressQuestion,
   buildMediaCentreView,
   buildSupporterOverview,
   requestManagerPressConference,
+  requestManagerStructuredPressConference,
 } from "./manager-media-desktop.js";
 import { buildDressingRoomView } from "./manager-people-desktop.js";
 import {
@@ -3423,6 +3427,29 @@ export class DesktopApplicationService {
   }): AppResult<PressConferenceView> {
     return this.managerCommand(
       (db, _save, context) => answerManagerPressConference(db, context, input),
+      true,
+    );
+  }
+
+  /** Opens (or returns the already-open) structured, multi-question press
+   * conference for the manager's own team — the richer sibling of
+   * requestPressConference above, sharing the same MediaInterview pipeline. */
+  requestStructuredPressConference(input: {
+    context: "PRE_MATCH" | "POST_MATCH" | "TRANSFER" | "PLAYER_ISSUE";
+    fixtureId?: EntityId;
+  }): AppResult<MediaInterview> {
+    return this.managerCommand(
+      (db, save, context) => requestManagerStructuredPressConference(db, save, context, input),
+      true,
+    );
+  }
+
+  answerStructuredPressQuestion(input: {
+    interviewId: EntityId;
+    stance: PressResponseStance;
+  }): AppResult<MediaInterview> {
+    return this.managerCommand(
+      (db, save, context) => answerManagerStructuredPressQuestion(db, save, context, input),
       true,
     );
   }

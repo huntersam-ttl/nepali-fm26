@@ -10,6 +10,7 @@ import type {
   MediaSection,
   MediaStory,
   PressConferenceView,
+  PressResponseStance,
   SaveMetadata,
   SupporterReadModel,
 } from "@nepal-football-sim/shared-types";
@@ -20,6 +21,7 @@ import {
   resolvePressConference,
   type PressConferenceReadModel,
 } from "./press-social-lifestyle.js";
+import { answerPressQuestion, startPressConference } from "./press-interviews.js";
 import { commitmentFromPressResponse } from "./commitments.js";
 import { supporterReadModel } from "./supporter-culture.js";
 import { resolveStoryEntityReference, storyImportanceBand } from "./story-entities.js";
@@ -209,3 +211,44 @@ export const buildSupporterOverview = (
   context: ManagerContext,
 ): SupporterReadModel | undefined =>
   context.club ? supporterReadModel(db, context.club.id, clubGender(context)) : undefined;
+
+// ---------------------------------------------------------------------------
+// Structured, multi-question press conferences (press-interviews.ts). These
+// are reached only through the manager desktop command layer below, so — the
+// same way requestManagerPressConference/answerManagerPressConference above
+// are implicitly manager-scoped — a role other than MANAGER can never reach
+// this flow. It is a second entry point into the SAME MediaInterview/
+// journalist/outlet pipeline above, not a second press system.
+// ---------------------------------------------------------------------------
+
+export const requestManagerStructuredPressConference = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  context: ManagerContext,
+  input: { context: "PRE_MATCH" | "POST_MATCH" | "TRANSFER" | "PLAYER_ISSUE"; fixtureId?: EntityId },
+): MediaInterview =>
+  startPressConference(db, {
+    context: input.context,
+    managerPersonId: context.character.personId,
+    teamId: context.team.id,
+    date: save.worldDate,
+    fixtureId: input.fixtureId,
+  });
+
+export const answerManagerStructuredPressQuestion = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  context: ManagerContext,
+  input: { interviewId: EntityId; stance: PressResponseStance },
+): MediaInterview => {
+  const interview = new MediaPhaseBRepository(db)
+    .interviews(context.character.personId)
+    .find((item) => item.id === input.interviewId);
+  if (!interview) throw new Error("Press conference not found");
+  return answerPressQuestion(db, {
+    interviewId: input.interviewId,
+    stance: input.stance,
+    teamId: context.team.id,
+    date: save.worldDate,
+  });
+};
