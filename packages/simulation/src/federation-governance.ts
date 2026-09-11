@@ -53,6 +53,7 @@ import {
   type GameDatabase,
 } from "@nepal-football-sim/database";
 import { postClubTransaction } from "./club-economy.js";
+import { buildAiTacticalSetup, resolveTeamTacticalSetup } from "./ai-tactics.js";
 import { simulateMatch } from "./match-engine.js";
 import { PLAYABLE_CLUB_PREDICATE } from "./playable-world.js";
 import { SeededRandom } from "./rng.js";
@@ -867,18 +868,28 @@ export const playNationalTeamFixture = (
     callups.some((callup) => callup.playerId === player.personId),
   );
   const opponent = generatedOpponentPlayers(fixture, seed);
+  const opponentTeamId = createStableEntityId("team", `opponent:${fixture.opponentName}`);
+  // National teams are real `teams` rows (national_team_id references teams),
+  // so the home side gets the same persisted, manager-aware tactical resolver
+  // every club uses. The generated opponent has no real team row to persist
+  // against, so it gets a deterministic, unpersisted identity from the same
+  // AI tactics module instead of a fixed default — never tactics-blind.
+  const homeTacticalSetup = resolveTeamTacticalSetup(db, fixture.nationalTeamId, players);
+  const awayTacticalSetup = buildAiTacticalSetup(opponentTeamId, opponent);
   const result = simulateMatch({
     fixture: {
       id: createStableEntityId("fixture", `national:${fixture.id}`),
       competitionSeasonId: undefined,
       homeTeamId: fixture.nationalTeamId,
-      awayTeamId: createStableEntityId("team", `opponent:${fixture.opponentName}`),
+      awayTeamId: opponentTeamId,
       scheduledDate: fixture.fixtureDate,
       status: "scheduled",
       round: 1,
     },
     homePlayers: players,
     awayPlayers: opponent,
+    homeTacticalSetup,
+    awayTacticalSetup,
     seed: `${seed}:national-match:${fixture.id}`,
   });
   const played: NationalTeamFixture = {

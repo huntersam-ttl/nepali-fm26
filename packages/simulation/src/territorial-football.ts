@@ -23,6 +23,7 @@ import {
 } from "@nepal-football-sim/database";
 import { generateKnockoutFixtures, generateLeagueFixtures } from "./fixture-generation.js";
 import { requireFixtureOfficials } from "./referee-assignment.js";
+import { buildAiTacticalSetup } from "./ai-tactics.js";
 import { simulateMatch } from "./match-engine.js";
 import {
   persistPyramidProgression,
@@ -947,11 +948,23 @@ export const simulateTerritorialFixture = (
     away = repo.team(fixture.awayTeamId);
   if (!home || !away) throw new Error("Territorial representative team missing");
   const assignment = requireFixtureOfficials(db, fixture, { seed: input.seed });
+  const homePlayers = new PlayerRepository(db).attributesForPlayers(repo.squad(input.seasonId, home.id));
+  const awayPlayers = new PlayerRepository(db).attributesForPlayers(repo.squad(input.seasonId, away.id));
+  // Territorial representative teams live in a separate id space
+  // (territorial_representative_teams, not teams) and have no manager, so
+  // resolveTeamTacticalSetup's persisted FK to teams doesn't apply here.
+  // Each side still gets a deterministic, non-default tactical identity from
+  // the same AI tactics module the rest of the AI world uses, keyed to its
+  // own team entity — never one universal fixed default.
+  const homeTacticalSetup = buildAiTacticalSetup(home.id, homePlayers);
+  const awayTacticalSetup = buildAiTacticalSetup(away.id, awayPlayers);
   const result = simulateMatch({
     fixture,
     refereeAssignment: assignment,
-    homePlayers: new PlayerRepository(db).attributesForPlayers(repo.squad(input.seasonId, home.id)),
-    awayPlayers: new PlayerRepository(db).attributesForPlayers(repo.squad(input.seasonId, away.id)),
+    homePlayers,
+    awayPlayers,
+    homeTacticalSetup,
+    awayTacticalSetup,
     seed: input.seed,
     requiresWinner: season.config.winnerRequired,
     winnerResolution: "EXTRA_TIME_THEN_PENALTIES",
