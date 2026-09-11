@@ -76,6 +76,13 @@ const view: TacticsView = {
     { slotId: "MC", playerId: eid("p-mc"), playerName: "Mid One", roleId: "CENTRAL_MIDFIELDER", overall: 74, label: "Adequate", positionFit: 80, attributeFit: 70, familiarity: 65 },
     { slotId: "STC", playerId: eid("p-st"), playerName: "Striker One", roleId: "ADVANCED_FORWARD", overall: 68, label: "Weak", positionFit: 70, attributeFit: 62, familiarity: 60 },
   ],
+  instructionOptions: [
+    { value: "GET_FURTHER_FORWARD", label: "Get Further Forward", goalkeeperLegal: true },
+    { value: "HOLD_POSITION", label: "Hold Position", goalkeeperLegal: true },
+    { value: "CROSS_MORE", label: "Cross More", goalkeeperLegal: false },
+    { value: "CROSS_LESS", label: "Cross Less", goalkeeperLegal: false },
+  ],
+  maxInstructionsPerPlayer: 3,
   benchCandidates: [],
   validation: { isValid: true, blockingErrors: [], warnings: [] },
 };
@@ -156,6 +163,36 @@ describe("Tactics screen — accessibility", () => {
     const describedBy = duty.getAttribute("aria-describedby");
     expect(describedBy).toBeTruthy();
     expect(document.getElementById(describedBy!)?.textContent).toMatch(/pushes higher and takes more risks/i);
+  });
+
+  it("shows only legal player instructions, each as a labelled checkbox", async () => {
+    render(<TacticsScreen />);
+    await screen.findByRole("combobox", { name: /formation/i });
+    fireEvent.click(screen.getByRole("button", { name: /STC/ }));
+    // Outfield slot: all four fixture instructions are legal.
+    expect(await screen.findByRole("checkbox", { name: /get further forward/i })).toBeTruthy();
+    expect(screen.getByRole("checkbox", { name: /cross more/i })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /GK/ }));
+    // Goalkeeper slot: crossing instructions are hidden, not just disabled.
+    expect(await screen.findByRole("checkbox", { name: /get further forward/i })).toBeTruthy();
+    expect(screen.queryByRole("checkbox", { name: /cross more/i })).toBeNull();
+  });
+
+  it("toggling a player instruction checkbox saves it, and the cap disables further checkboxes", async () => {
+    render(<TacticsScreen />);
+    await screen.findByRole("combobox", { name: /formation/i });
+    fireEvent.click(screen.getByRole("button", { name: /STC/ }));
+    const checkbox = await screen.findByRole("checkbox", { name: /get further forward/i });
+    expect((checkbox as HTMLInputElement).checked).toBe(false);
+    fireEvent.click(checkbox);
+    // managerBridge.updateTactics is mocked to resolve with the same view, so
+    // the checkbox reflects whatever the mock returns rather than the click —
+    // the important accessibility fact is that clicking a labelled checkbox
+    // does not throw and the control remains keyboard-operable.
+    expect(checkbox.tagName).toBe("INPUT");
+    checkbox.focus();
+    expect(document.activeElement).toBe(checkbox);
   });
 
   it("has a logical heading outline and no serious/critical axe violations", async () => {

@@ -1,5 +1,11 @@
 import React, { useRef, useState } from "react";
-import type { EntityId, PlayerDuty, SetPieceAssignments, TacticsView } from "@nepal-football-sim/shared-types";
+import type {
+  EntityId,
+  PlayerDuty,
+  PlayerInstruction,
+  SetPieceAssignments,
+  TacticsView,
+} from "@nepal-football-sim/shared-types";
 import { managerBridge } from "../managerBridge.js";
 import { AsyncPanel, Badge, ErrorBanner, Panel, useRuntimeData } from "../ui.js";
 import type { AppError } from "../../appBridge.js";
@@ -352,6 +358,53 @@ const TacticsBoard = ({
                     {DUTY_OPTIONS.find((option) => option.value === currentDuty)?.explainer}
                   </p>
                 </>
+              );
+            })()}
+            {(() => {
+              const currentAssignment = assignment(selectedSlot);
+              const isGoalkeeper =
+                view.setup.formation.slots.find((slot) => slot.id === selectedSlot)?.zone ===
+                "goalkeeper";
+              const currentInstructions = currentAssignment?.instructions ?? [];
+              const legalOptions = view.instructionOptions.filter(
+                (option) => isGoalkeeper === false || option.goalkeeperLegal,
+              );
+              const toggleInstruction = (value: PlayerInstruction) => {
+                const next = currentInstructions.includes(value)
+                  ? currentInstructions.filter((item) => item !== value)
+                  : [...currentInstructions, value];
+                void onApply({
+                  assignments: view.setup.assignments.map((item) =>
+                    item.slotId === selectedSlot ? { ...item, instructions: next } : item,
+                  ),
+                });
+              };
+              return (
+                <fieldset className="instructions-fieldset">
+                  <legend>Player instructions</legend>
+                  <div className="instructions-grid">
+                    {legalOptions.map((option) => {
+                      const checked = currentInstructions.includes(option.value);
+                      const atLimit = currentInstructions.length >= view.maxInstructionsPerPlayer;
+                      return (
+                        <label key={option.value} className="instruction-checkbox">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            disabled={busy || (!checked && atLimit)}
+                            onChange={() => toggleInstruction(option.value)}
+                          />
+                          {option.label}
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <p className="subtle">
+                    Up to {view.maxInstructionsPerPlayer} at once. These nudge how this player
+                    plays within their role and duty — they never guarantee a specific outcome,
+                    and a contradictory pair (e.g. Cross More and Cross Less) is rejected.
+                  </p>
+                </fieldset>
               );
             })()}
             <label>
