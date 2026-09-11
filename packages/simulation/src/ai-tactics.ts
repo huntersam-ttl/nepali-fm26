@@ -332,7 +332,13 @@ export const buildAiTacticalSetup = (
           : "CENTRE",
       freeKickTarget: target,
       freeKickRoutine: FREE_KICK_ROUTINE_BY_STYLE[style],
-      defensiveCornerScheme: STYLE_AGGRESSION[style] <= 2 ? "MAN_ORIENTED" : "ZONAL",
+      // Cautious/deep-block identities mark tightly (MAN_ORIENTED); the most
+      // aggressive, highest-line identities trust organised zonal coverage
+      // instead of getting dragged out of shape (ZONAL); the mid-aggression
+      // middle ground — a genuinely balanced approach, not a forced third
+      // option — gets MIXED.
+      defensiveCornerScheme:
+        STYLE_AGGRESSION[style] <= 2 ? "MAN_ORIENTED" : STYLE_AGGRESSION[style] === 3 ? "MIXED" : "ZONAL",
       defensiveAerialPriority: target ? [target] : [],
     },
   };
