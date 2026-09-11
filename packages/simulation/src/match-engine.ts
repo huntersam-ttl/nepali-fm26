@@ -6,6 +6,7 @@ import {
   type InjuryRecord,
   type MatchEvent,
   type MatchResult,
+  type MatchTacticalSnapshot,
   type PlayerAttributeSet,
   type PlayerMatchState,
   type TacticalSetup,
@@ -154,6 +155,11 @@ export type LiveMatchState = {
   winnerResolution: WinnerResolution;
   allowExtraTime: boolean;
   allowPenalties: boolean;
+  /** Captured once at kickoff from each side's starting tactical setup, if
+   * any was supplied. Never rewritten by a live in-match tactical change —
+   * that is what makes it a genuine historical snapshot rather than a live
+   * mirror of the club's current tactic. */
+  tacticalSnapshot?: MatchTacticalSnapshot;
 };
 
 export type PenaltyKick = {
@@ -244,6 +250,21 @@ export const createMatchState = (input: SimulateMatchInput): LiveMatchState => {
     allowExtraTime: input.allowExtraTime ?? input.winnerResolution !== "DIRECT_PENALTIES",
     allowPenalties: input.allowPenalties ?? true,
     aggregateFirstLeg: input.aggregateFirstLeg,
+    tacticalSnapshot:
+      input.homeTacticalSetup && input.awayTacticalSetup
+        ? {
+            home: {
+              formationId: input.homeTacticalSetup.formation.id,
+              formationName: input.homeTacticalSetup.formation.name,
+              mentality: input.homeTacticalSetup.instructions.mentality,
+            },
+            away: {
+              formationId: input.awayTacticalSetup.formation.id,
+              formationName: input.awayTacticalSetup.formation.name,
+              mentality: input.awayTacticalSetup.instructions.mentality,
+            },
+          }
+        : undefined,
   };
   // Bench membership drives substitutions; it is not part of the pitch selection.
   state.home.benchIds = [...(input.homeTacticalSetup?.bench ?? [])];
@@ -373,6 +394,7 @@ export const toMatchResult = (state: LiveMatchState): MatchResult => ({
     wentToExtraTime: state.extraTime,
     shootoutHomeGoals: state.shootoutHomeGoals,
     shootoutAwayGoals: state.shootoutAwayGoals,
+    tacticalSnapshot: state.tacticalSnapshot,
   },
   events: orderedEvents(state),
   homeStats: roundStats(state.home.stats),

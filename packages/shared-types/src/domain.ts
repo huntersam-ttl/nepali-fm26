@@ -995,6 +995,22 @@ export type FixtureRecord = Fixture & {
   leg?: 1 | 2;
 };
 
+/** One side's immutable starting tactical identity for a single match — the
+ * minimum needed to reconstruct what was actually used later, without
+ * storing the full tactical setup. Recorded once, at kickoff; a live
+ * in-match tactical change never rewrites it (those are separately visible
+ * as TACTICAL_CHANGE match events). */
+export type MatchTacticalSummary = {
+  formationId: string;
+  formationName: string;
+  mentality: Mentality;
+};
+
+export type MatchTacticalSnapshot = {
+  home: MatchTacticalSummary;
+  away: MatchTacticalSummary;
+};
+
 export type Match = {
   id: EntityId;
   fixtureId: EntityId;
@@ -1006,6 +1022,10 @@ export type Match = {
   wentToExtraTime?: boolean;
   shootoutHomeGoals?: number;
   shootoutAwayGoals?: number;
+  /** Absent for a match played before this was tracked, or for a path that
+   * has not been wired to record it — a historical report must show
+   * "unavailable" in that case, never the club's current live tactic. */
+  tacticalSnapshot?: MatchTacticalSnapshot;
 };
 
 export type MatchEventType =

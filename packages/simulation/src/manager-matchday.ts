@@ -11,6 +11,7 @@ import type {
   LiveTeamView,
   MatchCommentaryLine,
   MatchRatingRow,
+  MatchTacticalSnapshot,
   MatchViewMode,
   PlayerMatchState,
   PostMatchReport,
@@ -377,6 +378,21 @@ export const buildPostMatchReport = (
   const awayTeamId = fixture.away_team_id as EntityId;
   const homeName = teamName(db, homeTeamId);
   const awayName = teamName(db, awayTeamId);
+  const tacticalSnapshot = match.tactical_snapshot_json
+    ? (JSON.parse(match.tactical_snapshot_json as string) as MatchTacticalSnapshot)
+    : undefined;
+  const startingTactics: PostMatchReport["startingTactics"] = tacticalSnapshot
+    ? {
+        home: {
+          formationName: tacticalSnapshot.home.formationName,
+          mentality: tacticalSnapshot.home.mentality,
+        },
+        away: {
+          formationName: tacticalSnapshot.away.formationName,
+          mentality: tacticalSnapshot.away.mentality,
+        },
+      }
+    : "UNAVAILABLE";
   const nameOf = (id?: EntityId) => (id ? personName(db, id) : "Unknown player");
   const teamNameFor = (id?: EntityId) => (String(id) === String(homeTeamId) ? homeName : awayName);
 
@@ -463,6 +479,7 @@ export const buildPostMatchReport = (
     date: (match.played_date ?? fixture.scheduled_date) as string,
     homeTeamName: homeName,
     awayTeamName: awayName,
+    startingTactics,
     homeGoals,
     awayGoals,
     result: winnerTeamId

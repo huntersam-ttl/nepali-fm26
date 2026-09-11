@@ -327,7 +327,7 @@ export type TacticsUpdateCommand = {
     playerId?: EntityId;
     roleId: string;
     duty?: PlayerDuty;
-    instructions?: PlayerInstruction[];
+    instructions?: readonly PlayerInstruction[];
   }>;
   bench?: EntityId[];
   setPieces?: SetPieceAssignments;
@@ -1679,6 +1679,12 @@ export type PostMatchReport = {
   date: ISODate;
   homeTeamName: string;
   awayTeamName: string;
+  /** Each side's starting formation/mentality as actually played, from the
+   * immutable snapshot recorded at kickoff — never the club's current live
+   * tactic. "unavailable" for a match played before this was tracked. */
+  startingTactics:
+    | { home: { formationName: string; mentality: string }; away: { formationName: string; mentality: string } }
+    | "UNAVAILABLE";
   homeGoals: number;
   awayGoals: number;
   result: "W" | "D" | "L";

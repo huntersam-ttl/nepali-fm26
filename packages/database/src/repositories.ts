@@ -3216,9 +3216,10 @@ export class CompetitionRepository {
       .prepare(
         `INSERT INTO matches (
            id, fixture_id, played_date, home_goals, away_goals, attendance,
-           winner_team_id, went_to_extra_time, shootout_home_goals, shootout_away_goals
+           winner_team_id, went_to_extra_time, shootout_home_goals, shootout_away_goals,
+           tactical_snapshot_json
          )
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO NOTHING`,
       )
       .run(
@@ -3232,6 +3233,7 @@ export class CompetitionRepository {
         match.wentToExtraTime ? 1 : null,
         match.shootoutHomeGoals ?? null,
         match.shootoutAwayGoals ?? null,
+        match.tacticalSnapshot ? JSON.stringify(match.tacticalSnapshot) : null,
       );
   }
 

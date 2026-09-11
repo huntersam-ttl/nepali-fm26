@@ -3820,6 +3820,18 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       CREATE INDEX IF NOT EXISTS idx_player_demands_team_status ON player_demands(team_id, status);
     `,
   },
+  {
+    version: 98,
+    sql: `
+      -- Minimum-viable immutable tactical summary for a completed match: the
+      -- starting formation/mentality each side actually used, so a historical
+      -- match report can reconstruct what was played without ever quoting a
+      -- club's current live tactic. NULL for any match played before this
+      -- column existed — the UI shows "unavailable", never today's tactic
+      -- pretending to be historical.
+      ALTER TABLE matches ADD COLUMN tactical_snapshot_json TEXT;
+    `,
+  },
 ];
 
 export const migrateDatabase = (db: GameDatabase): number => {

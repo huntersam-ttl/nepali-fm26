@@ -69,6 +69,27 @@ export const PostMatchReportScreen = ({
                     },
                   ]}
                 />
+                <Metrics
+                  items={
+                    report.startingTactics === "UNAVAILABLE"
+                      ? [
+                          {
+                            label: "Starting tactics",
+                            value: <span className="unknown">Unavailable</span>,
+                          },
+                        ]
+                      : [
+                          {
+                            label: `${report.homeTeamName} started`,
+                            value: `${report.startingTactics.home.formationName}, ${formatMentality(report.startingTactics.home.mentality)}`,
+                          },
+                          {
+                            label: `${report.awayTeamName} started`,
+                            value: `${report.startingTactics.away.formationName}, ${formatMentality(report.startingTactics.away.mentality)}`,
+                          },
+                        ]
+                  }
+                />
                 {report.scorers.length === 0 ? (
                   <p className="empty-state">No goals.</p>
                 ) : (
@@ -256,6 +277,13 @@ export const PostMatchReportScreen = ({
 
 const resultLabel = (result: "W" | "D" | "L"): string =>
   result === "W" ? "Win" : result === "D" ? "Draw" : "Defeat";
+
+const formatMentality = (mentality: string): string =>
+  mentality
+    .toLowerCase()
+    .split("_")
+    .map((word) => word[0]!.toUpperCase() + word.slice(1))
+    .join(" ");
 
 const RatingsTable = ({
   ratings,
