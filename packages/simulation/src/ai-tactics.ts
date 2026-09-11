@@ -59,6 +59,34 @@ const STYLE_AGGRESSION: Record<TacticalStyleId, number> = {
   GEGENPRESS: 5,
 };
 
+/** A style-consistent set-piece routine identity — never one universal
+ * default. A high-pressing side crowds the keeper and delivers crosses; a
+ * possession side is happy to recycle a short corner or work an indirect
+ * free kick; a direct/counter side goes straight for goal. */
+const CORNER_ROUTINE_BY_STYLE: Record<TacticalStyleId, "NEAR_POST" | "FAR_POST" | "SHORT_CORNER" | "CROWD_KEEPER"> = {
+  LOW_BLOCK: "FAR_POST",
+  COUNTER_ATTACK: "NEAR_POST",
+  BALANCED: "NEAR_POST",
+  POSSESSION: "SHORT_CORNER",
+  WING_PLAY: "FAR_POST",
+  DIRECT: "NEAR_POST",
+  VERTICAL: "NEAR_POST",
+  HIGH_PRESS: "CROWD_KEEPER",
+  GEGENPRESS: "CROWD_KEEPER",
+};
+
+const FREE_KICK_ROUTINE_BY_STYLE: Record<TacticalStyleId, "DIRECT" | "INDIRECT" | "CROSS"> = {
+  LOW_BLOCK: "CROSS",
+  COUNTER_ATTACK: "DIRECT",
+  BALANCED: "CROSS",
+  POSSESSION: "INDIRECT",
+  WING_PLAY: "CROSS",
+  DIRECT: "DIRECT",
+  VERTICAL: "DIRECT",
+  HIGH_PRESS: "CROSS",
+  GEGENPRESS: "CROSS",
+};
+
 /** Preferred formations for a style, first choice first. Every formation can
  * always field a legal XI (replacement players fill any gap), so this is a
  * preference order, never a validity search. */
@@ -297,7 +325,13 @@ export const buildAiTacticalSetup = (
       rightCornerTaker: taker,
       cornerPrimaryTarget: target,
       cornerSecondaryTarget: secondaryTarget,
+      cornerRoutine: CORNER_ROUTINE_BY_STYLE[style],
+      cornerDeliveryZone:
+        CORNER_ROUTINE_BY_STYLE[style] === "NEAR_POST" || CORNER_ROUTINE_BY_STYLE[style] === "FAR_POST"
+          ? CORNER_ROUTINE_BY_STYLE[style]
+          : "CENTRE",
       freeKickTarget: target,
+      freeKickRoutine: FREE_KICK_ROUTINE_BY_STYLE[style],
       defensiveCornerScheme: STYLE_AGGRESSION[style] <= 2 ? "MAN_ORIENTED" : "ZONAL",
       defensiveAerialPriority: target ? [target] : [],
     },
