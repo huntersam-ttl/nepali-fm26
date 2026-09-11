@@ -25,6 +25,7 @@ import type {
   PlayerDemandType,
   PlayerDiscoveryStatus,
   PlayerKnowledgeLevel,
+  PlayerDuty,
   PlayerPosition,
   PlayerSquadRole,
   SquadGroupType,
@@ -305,7 +306,7 @@ export type TacticsUpdateCommand = {
   name?: string;
   style?: string;
   instructions?: TeamInstructions;
-  assignments?: Array<{ slotId: string; playerId?: EntityId; roleId: string }>;
+  assignments?: Array<{ slotId: string; playerId?: EntityId; roleId: string; duty?: PlayerDuty }>;
   bench?: EntityId[];
   setPieces?: SetPieceAssignments;
 };

@@ -1107,6 +1107,10 @@ export type PlayerRoleDefinition = {
   family: RoleFamily;
   weightedAttributes: Record<string, number>;
   preferredZones: TacticalSlot["zone"][];
+  /** Duties this role can legally take. Undefined = all three are legal. */
+  allowedDuties?: readonly PlayerDuty[];
+  /** The role's natural duty when none is chosen. */
+  defaultDuty?: PlayerDuty;
   notes?: string;
 };
 
@@ -1211,10 +1215,35 @@ export type SetPieceAssignments = {
   freeKickSecondaryTarget?: EntityId;
 };
 
+/** How aggressively an individual player interprets their role. */
+export type PlayerDuty = "DEFEND" | "SUPPORT" | "ATTACK";
+
 export type TacticalAssignment = {
   slotId: string;
   playerId?: EntityId;
   roleId: string;
+  /** Optional so pre-duty saves still load; a deterministic default is
+   * backfilled from the role on read (see normalizeAssignments). */
+  duty?: PlayerDuty;
+};
+
+/**
+ * Bounded, engine-facing per-player tactical tendencies derived once from
+ * role + duty + team instructions + role fit + familiarity. Never UI state.
+ * Every value is a multiplier centred near 1 (≈0.5–1.6) unless noted.
+ */
+export type PlayerTacticalBehavior = {
+  attackingInvolvement: number;
+  creativeInvolvement: number;
+  progressionInvolvement: number;
+  boxPresence: number;
+  crossingTendency: number;
+  pressingContribution: number;
+  defensiveContribution: number;
+  defensivePositioning: number;
+  aerialTargetWeight: number;
+  riskTaking: number;
+  supportAvailability: number;
 };
 
 export type TacticalSetup = {

@@ -122,7 +122,10 @@ import {
   ROLE_DEFINITIONS,
   TACTICAL_STYLE_PRESETS,
   calculateRoleFit,
+  defaultDutyForRole,
+  dutyIsLegalForRole,
   familiarityAfterTacticChange,
+  normalizeTacticalSetup,
   progressFamiliarity,
   roleById,
   validateSelection,
@@ -982,7 +985,9 @@ const activeSetup = (db: GameDatabase, context: ManagerContext): TacticalSetup =
   if (!setup) {
     throw new ManagerCommandError("INVALID_SELECTION", "No tactical setup exists for this team.");
   }
-  return setup;
+  // Every read path backfills a legal per-slot duty, so pre-duty saves and
+  // any hand-built setup always reach the engine and UI normalized.
+  return normalizeTacticalSetup(setup);
 };
 
 const roleFits = (
@@ -1109,15 +1114,28 @@ export const applyTacticsUpdate = (
       : undefined;
 
   // Changing formation remaps by slot order so the manager keeps their XI.
-  const assignments =
+  const assignments = (
     command.assignments ??
     (formation
-      ? formation.slots.map((slot, index) => ({
-          slotId: slot.id,
-          playerId: current.assignments[index]?.playerId,
-          roleId: defaultRoleForSlot(slot.position, slot.zone),
-        }))
-      : current.assignments);
+      ? formation.slots.map((slot, index) => {
+          const roleId = defaultRoleForSlot(slot.position, slot.zone);
+          return {
+            slotId: slot.id,
+            playerId: current.assignments[index]?.playerId,
+            roleId,
+            duty: defaultDutyForRole(roleId),
+          };
+        })
+      : current.assignments)
+  ).map((assignment) => ({
+    ...assignment,
+    // Backfill a missing duty from the role, and clamp an illegal duty
+    // (e.g. after a role change the caller did not re-pick) to the role default.
+    duty:
+      assignment.duty && dutyIsLegalForRole(assignment.roleId, assignment.duty)
+        ? assignment.duty
+        : defaultDutyForRole(assignment.roleId),
+  }));
 
   const next: TacticalSetup = {
     ...current,

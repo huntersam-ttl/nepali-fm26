@@ -4,9 +4,12 @@ import {
   type EntityId,
   type FormationDefinition,
   type ManagerAttributeSet,
+  type Mentality,
   type PlayerAttributeSet,
+  type PlayerDuty,
   type PlayerPosition,
   type PlayerRoleDefinition,
+  type PlayerTacticalBehavior,
   type RoleFit,
   type TacticalAssignment,
   type TacticalFamiliarity,
@@ -161,6 +164,48 @@ export const TACTICAL_STYLE_PRESETS: Record<TacticalStyleId, TeamInstructions> =
     transition: { counter: true },
     outOfPossession: { engagementLine: 60 },
   }),
+};
+
+/**
+ * Duty legality and natural duty per role. Only roles with a real behavioural
+ * restriction appear here; every other role accepts all three duties and
+ * defaults to SUPPORT (the connector interpretation).
+ *
+ *  - `allowed` omitted  → all of DEFEND / SUPPORT / ATTACK are legal.
+ *  - `default` omitted   → SUPPORT.
+ */
+const ROLE_DUTY_META: Record<string, { allowed?: readonly PlayerDuty[]; default?: PlayerDuty }> = {
+  GOALKEEPER: { allowed: ["DEFEND", "SUPPORT"], default: "DEFEND" },
+  SWEEPER_KEEPER: { allowed: ["DEFEND", "SUPPORT"], default: "SUPPORT" },
+  NO_NONSENSE_DEFENDER: { allowed: ["DEFEND"], default: "DEFEND" },
+  BALL_PLAYING_DEFENDER: { allowed: ["DEFEND", "SUPPORT"], default: "DEFEND" },
+  STOPPER: { allowed: ["DEFEND", "SUPPORT"], default: "DEFEND" },
+  COVER: { allowed: ["DEFEND"], default: "DEFEND" },
+  LIBERO: { allowed: ["DEFEND", "SUPPORT"], default: "SUPPORT" },
+  WIDE_CENTRE_BACK: { allowed: ["DEFEND", "SUPPORT"], default: "DEFEND" },
+  FULL_BACK: { allowed: ["DEFEND", "SUPPORT"], default: "SUPPORT" },
+  WING_BACK: { default: "SUPPORT" },
+  INVERTED_FULL_BACK: { allowed: ["DEFEND", "SUPPORT"], default: "DEFEND" },
+  ANCHOR: { allowed: ["DEFEND"], default: "DEFEND" },
+  DEFENSIVE_MIDFIELDER: { allowed: ["DEFEND", "SUPPORT"], default: "DEFEND" },
+  DEEP_LYING_PLAYMAKER: { allowed: ["DEFEND", "SUPPORT"], default: "SUPPORT" },
+  BOX_TO_BOX_MIDFIELDER: { default: "SUPPORT" },
+  CENTRAL_MIDFIELDER: { default: "SUPPORT" },
+  MEZZALA: { allowed: ["SUPPORT", "ATTACK"], default: "SUPPORT" },
+  ADVANCED_PLAYMAKER: { default: "SUPPORT" },
+  WINGER: { default: "SUPPORT" },
+  INSIDE_FORWARD: { allowed: ["SUPPORT", "ATTACK"], default: "ATTACK" },
+  WIDE_PLAYMAKER: { allowed: ["SUPPORT", "ATTACK"], default: "SUPPORT" },
+  POACHER: { allowed: ["ATTACK"], default: "ATTACK" },
+  TARGET_FORWARD: { allowed: ["SUPPORT", "ATTACK"], default: "ATTACK" },
+  PRESSING_FORWARD: { allowed: ["SUPPORT", "ATTACK"], default: "SUPPORT" },
+  ADVANCED_FORWARD: { allowed: ["SUPPORT", "ATTACK"], default: "ATTACK" },
+  COMPLETE_FORWARD: { default: "ATTACK" },
+};
+
+const withDutyMeta = (definition: PlayerRoleDefinition): PlayerRoleDefinition => {
+  const meta = ROLE_DUTY_META[definition.id];
+  return { ...definition, allowedDuties: meta?.allowed, defaultDuty: meta?.default ?? "SUPPORT" };
 };
 
 export const ROLE_DEFINITIONS: readonly PlayerRoleDefinition[] = [
@@ -342,7 +387,37 @@ export const ROLE_DEFINITIONS: readonly PlayerRoleDefinition[] = [
     "mental.composure": 1,
     "physical.strength": 1,
   }),
-];
+].map(withDutyMeta);
+
+export const DUTY_VALUES: readonly PlayerDuty[] = ["DEFEND", "SUPPORT", "ATTACK"];
+
+/** The legal duties for a role id (every duty when the role sets no restriction). */
+export const allowedDutiesForRole = (roleId: string): readonly PlayerDuty[] =>
+  roleById(roleId).allowedDuties ?? DUTY_VALUES;
+
+export const dutyIsLegalForRole = (roleId: string, duty: PlayerDuty): boolean =>
+  allowedDutiesForRole(roleId).includes(duty);
+
+/** The role's natural duty when the manager has not chosen one. */
+export const defaultDutyForRole = (roleId: string): PlayerDuty =>
+  roleById(roleId).defaultDuty ?? "SUPPORT";
+
+/**
+ * Backfill a missing/illegal duty on every assignment deterministically from
+ * its role. Used on every read path so pre-duty saves and hand-built setups
+ * always reach the engine and UI with a legal duty.
+ */
+export const normalizeAssignments = <T extends { setup: TacticalSetup }>(input: T): T => {
+  const assignments = input.setup.assignments.map((assignment) => {
+    if (assignment.duty && dutyIsLegalForRole(assignment.roleId, assignment.duty)) return assignment;
+    return { ...assignment, duty: defaultDutyForRole(assignment.roleId) };
+  });
+  return { ...input, setup: { ...input.setup, assignments } };
+};
+
+/** Convenience: normalize a bare setup. */
+export const normalizeTacticalSetup = (setup: TacticalSetup): TacticalSetup =>
+  normalizeAssignments({ setup }).setup;
 
 export const FORMATION_PRESETS: readonly FormationDefinition[] = [
   formation("4-3-3", [
@@ -461,7 +536,13 @@ export const createTacticalSetup = (input: {
     instructions: TACTICAL_STYLE_PRESETS[style],
     familiarity: input.familiarity ?? DEFAULT_FAMILIARITY,
     assignments: input.assignments
-      ? [...input.assignments]
+      ? input.assignments.map((assignment) => ({
+          ...assignment,
+          duty:
+            assignment.duty && dutyIsLegalForRole(assignment.roleId, assignment.duty)
+              ? assignment.duty
+              : defaultDutyForRole(assignment.roleId),
+        }))
       : defaultAssignments(formationDefinition),
     bench: input.bench ? [...input.bench] : [],
     setPieces: {},
@@ -741,9 +822,15 @@ export const validateSelection = (input: {
     );
     return slot?.position === "GK" && assignment.playerId;
   });
+  const illegalDuty = input.setup.assignments.find(
+    (assignment) => assignment.duty && !dutyIsLegalForRole(assignment.roleId, assignment.duty),
+  );
   const errors = [
     assigned.length !== 11 ? "Starting XI must contain exactly 11 players." : undefined,
     duplicateStarters.length ? "A player cannot occupy two tactical slots." : undefined,
+    illegalDuty
+      ? `The ${roleById(illegalDuty.roleId).name} role cannot take a ${illegalDuty.duty?.toLowerCase()} duty.`
+      : undefined,
     duplicateBench.length ? "Bench cannot contain duplicate players." : undefined,
     benchStarterOverlap.length ? "Bench cannot include starting players." : undefined,
     unavailableAssigned.length
@@ -905,11 +992,197 @@ export const tacticalPositionToPlayerPosition = (
 export const roleById = (roleId: string): PlayerRoleDefinition =>
   ROLE_DEFINITIONS.find((candidate) => candidate.id === roleId) ?? ROLE_DEFINITIONS[0]!;
 
+// ---------------------------------------------------------------------------
+// Per-player tactical behaviour — the layer that makes role + duty decide
+// WHICH player creates, carries, presses, scores and defends, instead of the
+// engine collapsing every role to one team-average role fit.
+// ---------------------------------------------------------------------------
+
+const NEUTRAL_BEHAVIOR: PlayerTacticalBehavior = {
+  attackingInvolvement: 1,
+  creativeInvolvement: 1,
+  progressionInvolvement: 1,
+  boxPresence: 1,
+  crossingTendency: 1,
+  pressingContribution: 1,
+  defensiveContribution: 1,
+  defensivePositioning: 1,
+  aerialTargetWeight: 1,
+  riskTaking: 1,
+  supportAvailability: 1,
+};
+
+/** Per-role deltas from NEUTRAL_BEHAVIOR. Only the dimensions a role actually
+ * shifts are listed; everything else stays 1. Values are chosen so no single
+ * role/duty pairing leaves the [0.45, 1.7] envelope after duty + fit. */
+const ROLE_BEHAVIOR: Record<string, Partial<PlayerTacticalBehavior>> = {
+  GOALKEEPER: { attackingInvolvement: 0.15, boxPresence: 0.1, creativeInvolvement: 0.3, progressionInvolvement: 0.4, defensiveContribution: 0.5, defensivePositioning: 1.5, crossingTendency: 0.1, pressingContribution: 0.2, aerialTargetWeight: 0.2 },
+  SWEEPER_KEEPER: { attackingInvolvement: 0.2, boxPresence: 0.1, creativeInvolvement: 0.5, progressionInvolvement: 0.65, defensivePositioning: 1.35, crossingTendency: 0.1, pressingContribution: 0.25, aerialTargetWeight: 0.2 },
+  NO_NONSENSE_DEFENDER: { attackingInvolvement: 0.45, boxPresence: 0.55, creativeInvolvement: 0.4, progressionInvolvement: 0.5, defensiveContribution: 1.5, defensivePositioning: 1.4, aerialTargetWeight: 1.35, crossingTendency: 0.3, riskTaking: 0.6 },
+  BALL_PLAYING_DEFENDER: { attackingInvolvement: 0.55, boxPresence: 0.55, creativeInvolvement: 0.95, progressionInvolvement: 1.15, defensiveContribution: 1.35, defensivePositioning: 1.3, aerialTargetWeight: 1.25, riskTaking: 1.05 },
+  STOPPER: { attackingInvolvement: 0.6, boxPresence: 0.75, defensiveContribution: 1.45, defensivePositioning: 1.1, pressingContribution: 1.2, aerialTargetWeight: 1.3, riskTaking: 1.1 },
+  COVER: { attackingInvolvement: 0.4, boxPresence: 0.5, defensiveContribution: 1.35, defensivePositioning: 1.5, pressingContribution: 0.85, aerialTargetWeight: 1.1 },
+  LIBERO: { attackingInvolvement: 0.8, boxPresence: 0.6, creativeInvolvement: 1.15, progressionInvolvement: 1.3, defensiveContribution: 1.25, defensivePositioning: 1.15, riskTaking: 1.15 },
+  WIDE_CENTRE_BACK: { attackingInvolvement: 0.75, boxPresence: 0.6, progressionInvolvement: 1.05, crossingTendency: 1.05, defensiveContribution: 1.3, defensivePositioning: 1.15 },
+  FULL_BACK: { attackingInvolvement: 0.85, boxPresence: 0.55, crossingTendency: 1.2, progressionInvolvement: 1.0, defensiveContribution: 1.25, defensivePositioning: 1.2 },
+  WING_BACK: { attackingInvolvement: 1.2, boxPresence: 0.7, crossingTendency: 1.55, progressionInvolvement: 1.3, defensiveContribution: 1.0, defensivePositioning: 0.85, pressingContribution: 1.15 },
+  INVERTED_FULL_BACK: { attackingInvolvement: 0.8, boxPresence: 0.5, creativeInvolvement: 1.2, progressionInvolvement: 1.25, crossingTendency: 0.6, defensiveContribution: 1.25, defensivePositioning: 1.2 },
+  ANCHOR: { attackingInvolvement: 0.5, boxPresence: 0.45, creativeInvolvement: 0.7, progressionInvolvement: 0.8, defensiveContribution: 1.55, defensivePositioning: 1.4, pressingContribution: 0.9, riskTaking: 0.6 },
+  DEFENSIVE_MIDFIELDER: { attackingInvolvement: 0.65, boxPresence: 0.5, creativeInvolvement: 0.85, progressionInvolvement: 0.95, defensiveContribution: 1.45, defensivePositioning: 1.3, pressingContribution: 1.1, riskTaking: 0.75 },
+  DEEP_LYING_PLAYMAKER: { attackingInvolvement: 0.85, boxPresence: 0.45, creativeInvolvement: 1.55, progressionInvolvement: 1.5, defensiveContribution: 1.1, defensivePositioning: 1.1, pressingContribution: 0.8, riskTaking: 1.15 },
+  BOX_TO_BOX_MIDFIELDER: { attackingInvolvement: 1.2, boxPresence: 1.1, creativeInvolvement: 1.0, progressionInvolvement: 1.2, defensiveContribution: 1.2, defensivePositioning: 1.0, pressingContribution: 1.35, supportAvailability: 1.2 },
+  CENTRAL_MIDFIELDER: { attackingInvolvement: 1.0, boxPresence: 0.85, creativeInvolvement: 1.1, progressionInvolvement: 1.1, defensiveContribution: 1.1, defensivePositioning: 1.0, supportAvailability: 1.25 },
+  MEZZALA: { attackingInvolvement: 1.25, boxPresence: 1.05, creativeInvolvement: 1.25, progressionInvolvement: 1.3, defensiveContribution: 0.85, defensivePositioning: 0.85, riskTaking: 1.2 },
+  ADVANCED_PLAYMAKER: { attackingInvolvement: 1.25, boxPresence: 0.9, creativeInvolvement: 1.65, progressionInvolvement: 1.45, defensiveContribution: 0.7, defensivePositioning: 0.75, riskTaking: 1.2, supportAvailability: 1.2 },
+  WINGER: { attackingInvolvement: 1.3, boxPresence: 0.8, creativeInvolvement: 1.2, progressionInvolvement: 1.25, crossingTendency: 1.75, defensiveContribution: 0.75, defensivePositioning: 0.7, pressingContribution: 1.0 },
+  INSIDE_FORWARD: { attackingInvolvement: 1.45, boxPresence: 1.4, creativeInvolvement: 1.05, progressionInvolvement: 1.15, crossingTendency: 0.6, defensiveContribution: 0.6, defensivePositioning: 0.65, riskTaking: 1.2 },
+  WIDE_PLAYMAKER: { attackingInvolvement: 1.15, boxPresence: 0.75, creativeInvolvement: 1.55, progressionInvolvement: 1.35, crossingTendency: 1.15, defensiveContribution: 0.7, defensivePositioning: 0.75 },
+  POACHER: { attackingInvolvement: 1.55, boxPresence: 1.75, creativeInvolvement: 0.55, progressionInvolvement: 0.55, crossingTendency: 0.35, defensiveContribution: 0.35, defensivePositioning: 0.4, pressingContribution: 0.7, aerialTargetWeight: 1.2 },
+  TARGET_FORWARD: { attackingInvolvement: 1.35, boxPresence: 1.4, creativeInvolvement: 0.85, progressionInvolvement: 0.75, crossingTendency: 0.35, defensiveContribution: 0.5, aerialTargetWeight: 1.85, supportAvailability: 1.15 },
+  PRESSING_FORWARD: { attackingInvolvement: 1.2, boxPresence: 1.15, creativeInvolvement: 0.85, progressionInvolvement: 0.85, defensiveContribution: 0.9, pressingContribution: 1.8, supportAvailability: 1.1 },
+  ADVANCED_FORWARD: { attackingInvolvement: 1.55, boxPresence: 1.6, creativeInvolvement: 0.8, progressionInvolvement: 0.85, crossingTendency: 0.4, defensiveContribution: 0.4, defensivePositioning: 0.45, riskTaking: 1.15 },
+  COMPLETE_FORWARD: { attackingInvolvement: 1.4, boxPresence: 1.35, creativeInvolvement: 1.15, progressionInvolvement: 1.05, crossingTendency: 0.6, defensiveContribution: 0.6, aerialTargetWeight: 1.35 },
+};
+
+/** Duty shifts, multiplicative on top of the role base. */
+const DUTY_BEHAVIOR: Record<PlayerDuty, Partial<PlayerTacticalBehavior>> = {
+  DEFEND: {
+    attackingInvolvement: 0.72,
+    boxPresence: 0.65,
+    creativeInvolvement: 0.85,
+    progressionInvolvement: 0.85,
+    crossingTendency: 0.8,
+    defensiveContribution: 1.3,
+    defensivePositioning: 1.3,
+    pressingContribution: 0.95,
+    riskTaking: 0.75,
+    supportAvailability: 1.1,
+  },
+  SUPPORT: {},
+  ATTACK: {
+    attackingInvolvement: 1.32,
+    boxPresence: 1.35,
+    creativeInvolvement: 1.12,
+    progressionInvolvement: 1.15,
+    crossingTendency: 1.2,
+    defensiveContribution: 0.72,
+    defensivePositioning: 0.72,
+    pressingContribution: 1.1,
+    riskTaking: 1.35,
+    supportAvailability: 0.9,
+  },
+};
+
+const behaviorAttributeFor = (
+  attributes: PlayerAttributeSet,
+  dimension: keyof PlayerTacticalBehavior,
+): number => {
+  const t = attributes.technical;
+  const m = attributes.mental;
+  const p = attributes.physical;
+  switch (dimension) {
+    case "attackingInvolvement":
+      return (t.finishing + m.anticipation + p.acceleration) / 3;
+    case "boxPresence":
+      return (m.anticipation + m.positioning + t.finishing) / 3;
+    case "creativeInvolvement":
+      return (m.vision + t.passing + t.technique) / 3;
+    case "progressionInvolvement":
+      return (t.passing + t.dribbling + m.decisions) / 3;
+    case "crossingTendency":
+      return (t.crossing + p.stamina + p.pace) / 3;
+    case "pressingContribution":
+      return (m.workRate + p.stamina + m.aggression) / 3;
+    case "defensiveContribution":
+      return (t.tackling + m.positioning + m.anticipation) / 3;
+    case "defensivePositioning":
+      return (m.positioning + m.decisions + m.anticipation) / 3;
+    case "aerialTargetWeight":
+      return (t.heading + p.jumping + p.strength) / 3;
+    case "riskTaking":
+      return (m.decisions + m.composure + t.technique) / 3;
+    case "supportAvailability":
+      return (m.teamwork + m.workRate + m.decisions) / 3;
+  }
+};
+
+/**
+ * One pure, bounded derivation. Role archetype + duty set the intent; the
+ * player's own attributes, their role fit and the team's familiarity decide
+ * how effectively that intent is expressed (a poor player in an ideal
+ * attacking role does not dominate; a strong player in a poor-fit role stays
+ * useful but blunted). Team instructions nudge the two width/press dimensions
+ * so player behaviour interacts with — never overrides — the team shape.
+ */
+export const derivePlayerTacticalBehavior = (input: {
+  attributes: PlayerAttributeSet;
+  roleId: string;
+  duty: PlayerDuty;
+  roleFit?: number;
+  familiarity?: TacticalFamiliarity;
+  mentality?: Mentality;
+  instructions?: TeamInstructions;
+}): PlayerTacticalBehavior => {
+  const roleBase = ROLE_BEHAVIOR[input.roleId] ?? {};
+  const dutyBase = DUTY_BEHAVIOR[input.duty] ?? {};
+  const fit = clamp(input.roleFit ?? 70, 30, 100);
+  const familiarity = input.familiarity
+    ? average([input.familiarity.roles, input.familiarity.instructions])
+    : 65;
+  // A poor fit / low familiarity pulls every intent back toward neutral.
+  const executionScale = clamp(
+    0.7 + (fit - 60) / 220 + (familiarity - 60) / 260,
+    0.62,
+    1.12,
+  );
+  const mentalityPush =
+    input.mentality === "ATTACKING" || input.mentality === "VERY_ATTACKING"
+      ? 1.06
+      : input.mentality === "DEFENSIVE" || input.mentality === "VERY_DEFENSIVE"
+        ? 0.94
+        : 1;
+  const width = input.instructions ? (input.instructions.inPossession.width - 50) / 100 : 0;
+  const press = input.instructions
+    ? (input.instructions.outOfPossession.pressingIntensity - 50) / 100
+    : 0;
+
+  const build = (dimension: keyof PlayerTacticalBehavior): number => {
+    const roleValue = roleBase[dimension] ?? 1;
+    const dutyValue = dutyBase[dimension] ?? 1;
+    const attribute = clamp(behaviorAttributeFor(input.attributes, dimension), 1, 20);
+    const attributeScale = 0.78 + (attribute / 20) * 0.44; // 0.78..1.22
+    let value = 1 + (roleValue * dutyValue - 1) * executionScale;
+    value *= 0.85 + attributeScale * 0.15;
+    if (dimension === "attackingInvolvement" || dimension === "boxPresence") value *= mentalityPush;
+    if (dimension === "defensiveContribution" || dimension === "defensivePositioning")
+      value *= 2 - mentalityPush;
+    if (dimension === "crossingTendency") value *= 1 + width * 0.4;
+    if (dimension === "pressingContribution") value *= 1 + press * 0.5;
+    return clamp(value, 0.4, 1.75);
+  };
+
+  return {
+    attackingInvolvement: build("attackingInvolvement"),
+    creativeInvolvement: build("creativeInvolvement"),
+    progressionInvolvement: build("progressionInvolvement"),
+    boxPresence: build("boxPresence"),
+    crossingTendency: build("crossingTendency"),
+    pressingContribution: build("pressingContribution"),
+    defensiveContribution: build("defensiveContribution"),
+    defensivePositioning: build("defensivePositioning"),
+    aerialTargetWeight: build("aerialTargetWeight"),
+    riskTaking: build("riskTaking"),
+    supportAvailability: build("supportAvailability"),
+  };
+};
+
+export const NEUTRAL_PLAYER_BEHAVIOR: PlayerTacticalBehavior = NEUTRAL_BEHAVIOR;
+
 const defaultAssignments = (formationDefinition: FormationDefinition): TacticalAssignment[] =>
-  formationDefinition.slots.map((candidate) => ({
-    slotId: candidate.id,
-    roleId: defaultRoleForSlot(candidate),
-  }));
+  formationDefinition.slots.map((candidate) => {
+    const roleId = defaultRoleForSlot(candidate);
+    return { slotId: candidate.id, roleId, duty: defaultDutyForRole(roleId) };
+  });
 
 const defaultRoleForSlot = (slotDefinition: TacticalSlot): string => {
   if (slotDefinition.position === "GK") return "GOALKEEPER";
@@ -944,8 +1217,17 @@ function role(
   family: PlayerRoleDefinition["family"],
   preferredZones: TacticalSlot["zone"][],
   weightedAttributes: Record<string, number>,
+  dutyOptions?: { allowed?: readonly PlayerDuty[]; default?: PlayerDuty },
 ): PlayerRoleDefinition {
-  return { id, name, family, preferredZones, weightedAttributes };
+  return {
+    id,
+    name,
+    family,
+    preferredZones,
+    weightedAttributes,
+    allowedDuties: dutyOptions?.allowed,
+    defaultDuty: dutyOptions?.default,
+  };
 }
 
 function formation(name: string, slots: readonly TacticalSlot[]): FormationDefinition {
