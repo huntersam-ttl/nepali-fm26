@@ -3,6 +3,7 @@ import { EventRepository, MediaPhaseBRepository, MediaRepository } from "@nepal-
 import type {
   EntityId,
   HistoricalEvent,
+  InboxItem,
   MediaCentreView,
   MediaFeedItem,
   MediaInterview,
@@ -15,6 +16,7 @@ import type {
   StructuredPressConferenceView,
   SupporterReadModel,
 } from "@nepal-football-sim/shared-types";
+import { createStableEntityId } from "@nepal-football-sim/shared-types";
 import type { ManagerContext } from "./desktop-application.js";
 import {
   deriveSocialReaction,
@@ -316,4 +318,60 @@ export const getManagerStructuredPressConference = (
     .find((item) => item.id === interviewId);
   if (!interview) throw new Error("Press conference not found");
   return buildStructuredPressConferenceView(db, interview);
+};
+
+const PRESS_CONTEXT_TITLE: Record<MediaInterview["context"], string> = {
+  PRE_MATCH: "Pre-match press conference",
+  POST_MATCH: "Post-match press conference",
+  TRANSFER: "Transfer interview",
+  PLAYER_ISSUE: "Player issue interview",
+  EVENT: "Press conference",
+};
+
+/**
+ * The canonical, exact-once Inbox delivery for a manager's own pending
+ * structured press interviews — computed fresh from the real MediaInterview
+ * rows each call (never a second persisted delivery record), so there is
+ * never more than one Inbox item per open interview, it updates itself from
+ * PENDING to PARTIALLY-ANSWERED automatically, and disappears the moment the
+ * interview completes (a completed interview is reviewed from Media's own
+ * "Past interviews" instead — no stale "Open Press Conference" action).
+ * Skips an interview with zero grounded questions: there is genuinely
+ * nothing to notify the manager about yet.
+ */
+export const structuredPressInboxItems = (
+  db: GameDatabase,
+  managerPersonId: EntityId,
+): InboxItem[] => {
+  const open = new MediaPhaseBRepository(db)
+    .interviews(managerPersonId)
+    .filter(
+      (interview) =>
+        interview.status === "OPEN" &&
+        interview.structuredQuestions &&
+        interview.structuredQuestions.length > 0,
+    );
+  return open.map((interview) => {
+    const index = interview.currentQuestionIndex ?? 0;
+    const question = interview.structuredQuestions![index];
+    const journalist = buildEntityReference(db, "JOURNALIST", interview.journalistId, "MANAGER");
+    const outlet = buildEntityReference(db, "MEDIA_OUTLET", interview.outletId, "MANAGER");
+    const subjectRefs = question
+      ? question.subjectEntities
+          .map((ref) => resolveStoryEntityReference(db, ref, "MANAGER"))
+          .filter((ref): ref is NonNullable<typeof ref> => Boolean(ref))
+      : [];
+    const answered = interview.structuredAnswers?.length ?? 0;
+    const contextLabel = PRESS_CONTEXT_TITLE[interview.context];
+    return {
+      id: createStableEntityId("press-inbox", interview.id),
+      createdOn: interview.interviewDate,
+      type: "PRESS_INTERVIEW",
+      title: answered > 0 ? `Continuing: ${contextLabel}` : `${contextLabel} available`,
+      body: question?.prompt ?? "The press would like to speak with you.",
+      relatedEntity: { id: interview.id, type: "mediaInterview" },
+      read: false,
+      entityReferences: [journalist, outlet, ...subjectRefs],
+    } satisfies InboxItem;
+  });
 };

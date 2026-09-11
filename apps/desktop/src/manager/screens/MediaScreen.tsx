@@ -21,13 +21,13 @@ import { TransferNegotiationLauncher } from "./TransferNegotiationMeeting.js";
 /**
  * OrganizationProfilePanel's `bridge` prop is typed as the full
  * DesktopRuntimeApi because it also serves Owner/President screens, but for
- * the two entity types this panel ever opens from a press conference —
- * JOURNALIST and MEDIA_OUTLET (and, incidentally, CLUB) — it only ever calls
+ * the entity types this panel ever opens from a press conference —
+ * JOURNALIST, MEDIA_OUTLET, and CLUB — it only ever calls
  * bridge.getOrganizationProfile / bridge.getClubProfile, both of which
- * managerBridge genuinely implements. A PLAYER reference is deliberately
- * never routed here (managerBridge lacks the owner-request/contract-context
- * calls PlayerContextPanel needs), so this narrowing is safe in practice,
- * not just suppressed.
+ * managerBridge genuinely implements. A PLAYER reference never goes through
+ * this panel — it routes through the caller's own onSelectPlayer instead,
+ * the same canonical Player Profile navigation every other manager screen
+ * uses — so this narrowing is safe in practice, not just suppressed.
  */
 const organizationBridge = managerBridge as unknown as DesktopRuntimeApi;
 
@@ -51,6 +51,7 @@ export const StructuredPressConferencePanel = ({
   trigger,
   interviewId,
   onClose,
+  onSelectPlayer,
 }: {
   /** Opens a new-or-resumed conference of this type. */
   trigger?: {
@@ -60,6 +61,10 @@ export const StructuredPressConferencePanel = ({
   /** Resumes/reviews an already-known interview instead of opening one. */
   interviewId?: EntityId;
   onClose: () => void;
+  /** Present wherever the caller already has a Player Profile surface to
+   * route a question's subject player into — the same canonical navigation
+   * every other manager screen uses, not a second bridge/panel. */
+  onSelectPlayer?: (playerId: EntityId) => void;
 }): React.ReactElement => {
   const [state, setState] = useState<AppResult<StructuredPressConferenceView> | null>(null);
   const [busy, setBusy] = useState(false);
@@ -136,11 +141,18 @@ export const StructuredPressConferencePanel = ({
           {view.currentQuestion.subjectEntities.length > 0 && (
             <div className="button-row">
               {view.currentQuestion.subjectEntities.map((reference) =>
-                // A player subject isn't opened from here — managerBridge
-                // doesn't carry the contract/transfer-context calls the
-                // shared Player profile panel needs — but the resolved,
-                // real player name still reads correctly (never a raw id).
-                reference.entityType === "PLAYER" ? (
+                // A player subject routes through the same canonical Player
+                // Profile every other manager screen uses (onSelectPlayer),
+                // not a second bridge/panel — see the file-level bridge note.
+                reference.entityType === "PLAYER" && onSelectPlayer ? (
+                  <button
+                    key={`${reference.entityType}:${reference.id}`}
+                    className="link"
+                    onClick={() => onSelectPlayer(reference.id)}
+                  >
+                    {reference.label}
+                  </button>
+                ) : reference.entityType === "PLAYER" ? (
                   <Badge key={`${reference.entityType}:${reference.id}`} tone="info">
                     {reference.label}
                   </Badge>
@@ -292,7 +304,14 @@ const reactionTone = (state?: SupporterReactionState): "ok" | "warn" | "bad" | "
 const framingTone = (framing: "POSITIVE" | "NEUTRAL" | "CRITICAL" | "SENSATIONAL"): "ok" | "warn" | "bad" | "info" =>
   framing === "POSITIVE" ? "ok" : framing === "CRITICAL" ? "bad" : framing === "SENSATIONAL" ? "warn" : "info";
 
-export const MediaScreen = (): React.ReactElement => {
+export const MediaScreen = ({
+  onSelectPlayer,
+}: {
+  /** Present wherever the caller already has a Player Profile surface
+   * (ManagerCareer's `openPlayer`) to route a press question's subject
+   * player into. */
+  onSelectPlayer?: (playerId: EntityId) => void;
+} = {}): React.ReactElement => {
   const [mediaState, refreshMedia] = useRuntimeData(() => managerBridge.getMediaCentre());
   const [supporterState] = useRuntimeData(() => managerBridge.getSupporterOverview());
   const [stance, setStance] = useState<MediaResponseStance>("CALM");
@@ -567,6 +586,7 @@ export const MediaScreen = (): React.ReactElement => {
               <StructuredPressConferencePanel
                 trigger={structuredTrigger ?? undefined}
                 interviewId={structuredReviewId ?? undefined}
+                onSelectPlayer={onSelectPlayer}
                 onClose={() => {
                   setStructuredTrigger(null);
                   setStructuredReviewId(null);

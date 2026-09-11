@@ -88,6 +88,7 @@ import {
 } from "@nepal-football-sim/shared-types";
 import { initializeClubEconomyForSave } from "./club-economy.js";
 import { buildEntityReference } from "./entity-reference.js";
+import { structuredPressInboxItems } from "./manager-media-desktop.js";
 import { activeConcernCount, validActionsForConcern } from "./squad-dynamics.js";
 import { medicalCentreReadModel } from "./medical.js";
 import {
@@ -2594,11 +2595,16 @@ export const buildManagerDashboard = (
     transferActivity,
     contractIssues: contracts,
     staffIssues,
-    inbox: roleInboxItems(db, {
-      personId: context.managerPerson.id,
-      role: "MANAGER",
-      legacyItems: new ManagerRepository(db).inboxItems(),
-    }).slice(0, 12),
+    inbox: [
+      ...structuredPressInboxItems(db, context.managerPerson.id),
+      ...roleInboxItems(db, {
+        personId: context.managerPerson.id,
+        role: "MANAGER",
+        legacyItems: new ManagerRepository(db).inboxItems(),
+      }),
+    ]
+      .sort((a, b) => b.createdOn.localeCompare(a.createdOn) || b.id.localeCompare(a.id))
+      .slice(0, 12),
     medicalCentre: clubId
       ? medicalCentreReadModel(db, { clubId, date: save.worldDate }).map((entry) => ({
           ...entry,

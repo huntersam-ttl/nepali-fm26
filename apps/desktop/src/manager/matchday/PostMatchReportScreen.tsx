@@ -279,6 +279,7 @@ export const PostMatchReportScreen = ({
                 <StructuredPressConferencePanel
                   trigger={{ context: "POST_MATCH", fixtureId }}
                   onClose={() => setShowPressConference(false)}
+                  onSelectPlayer={onSelectPlayer}
                 />
               )}
             </>

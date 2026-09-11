@@ -6504,10 +6504,15 @@ const InboxStoryCard = ({
   item,
   onOpenReference,
   onOpenStory,
+  onOpenPressConference,
 }: {
   item: InboxItem;
   onOpenReference: (reference: EntityReference) => void;
   onOpenStory: (eventId: EntityId) => void;
+  /** Manager-only — same authority gate as the other Manager-only Inbox
+   * actions below (Owner/President never receive a PRESS_INTERVIEW item in
+   * the first place, so this is simply unused/omittable there). */
+  onOpenPressConference?: (interviewId: EntityId) => void;
 }): React.ReactElement => {
   const [expanded, setExpanded] = useState(false);
   const entities = item.entityReferences ?? [];
@@ -6525,6 +6530,13 @@ const InboxStoryCard = ({
       </div>
       {item.body !== item.title && <span>{item.body}</span>}
       <span className="subtle">{item.createdOn}</span>
+      {item.type === "PRESS_INTERVIEW" && item.relatedEntity && onOpenPressConference && (
+        <div className="button-row">
+          <button className="ghost small" onClick={() => onOpenPressConference(item.relatedEntity!.id)}>
+            {item.title.startsWith("Continuing:") ? "Continue Press Conference" : "Open Press Conference"}
+          </button>
+        </div>
+      )}
       {entities.length > 0 && (
         <div className="button-row">
           {(expanded ? entities : entities.slice(0, 2)).map((reference) => (
@@ -6553,6 +6565,7 @@ export const InboxPanel = ({
   onOpenTransferNegotiation,
   onOpenPlayerMeeting,
   onOpenDressingRoom,
+  onOpenPressConference,
 }: {
   inbox: InboxItem[];
   bridge: DesktopRuntimeApi;
@@ -6563,6 +6576,8 @@ export const InboxPanel = ({
   onOpenPlayerMeeting?: (target: { personId: EntityId; concernId?: EntityId; demandId?: EntityId }) => void;
   /** Manager-only — same authority gate as onOpenTransferNegotiation. */
   onOpenDressingRoom?: () => void;
+  /** Manager-only — Owner/President never receive a PRESS_INTERVIEW item. */
+  onOpenPressConference?: (interviewId: EntityId) => void;
 }): React.ReactElement => {
   const [openReferenceTarget, setOpenReferenceTarget] = useState<{ entityType: ProfileEntityType; entityId: EntityId } | null>(null);
   const [openStoryEventId, setOpenStoryEventId] = useState<EntityId | null>(null);
@@ -6584,7 +6599,13 @@ export const InboxPanel = ({
         <p className="empty-state">Your inbox is empty.</p>
       ) : (
         inbox.map((item) => (
-          <InboxStoryCard key={item.id} item={item} onOpenReference={openReference} onOpenStory={setOpenStoryEventId} />
+          <InboxStoryCard
+            key={item.id}
+            item={item}
+            onOpenReference={openReference}
+            onOpenStory={setOpenStoryEventId}
+            onOpenPressConference={onOpenPressConference}
+          />
         ))
       )}
       {openReferenceTarget && (
@@ -6889,27 +6910,34 @@ const OrganizationProfileBody = ({
       <p className="subtle">{profile.relationshipClues.join(" · ")}</p>
     )}
 
-    <OrganizationDealSection
-      title="Active relationships"
-      deals={profile.activeDeals}
-      onOpenReference={onOpenReference}
-      empty="No active commercial relationships."
-    />
-    <OrganizationDealSection
-      title="Current negotiations"
-      deals={profile.currentNegotiations}
-      onOpenReference={onOpenReference}
-      empty="No open negotiations."
-    />
-    <OrganizationDealSection
-      title="Partnership history"
-      deals={profile.dealHistory}
-      onOpenReference={onOpenReference}
-      empty="No historical deals recorded."
-    />
+    {/* Journalists and outlets have no commercial deals at all — the
+       sponsor/lender/investor-shaped sections below never apply to them and
+       would only ever show as three empty, off-topic headings. */}
+    {profile.entityReference.entityType !== "JOURNALIST" && profile.entityReference.entityType !== "MEDIA_OUTLET" && (
+      <>
+        <OrganizationDealSection
+          title="Active relationships"
+          deals={profile.activeDeals}
+          onOpenReference={onOpenReference}
+          empty="No active commercial relationships."
+        />
+        <OrganizationDealSection
+          title="Current negotiations"
+          deals={profile.currentNegotiations}
+          onOpenReference={onOpenReference}
+          empty="No open negotiations."
+        />
+        <OrganizationDealSection
+          title="Partnership history"
+          deals={profile.dealHistory}
+          onOpenReference={onOpenReference}
+          empty="No historical deals recorded."
+        />
+      </>
+    )}
 
     {profile.involvedEntities.length > 0 && (
-      <Panel title="Involved entities">
+      <Panel title={profile.entityReference.entityType === "JOURNALIST" ? "Outlet" : profile.entityReference.entityType === "MEDIA_OUTLET" ? "Journalists" : "Involved entities"}>
         <div className="button-row">
           {profile.involvedEntities.map((reference) => (
             <EntityRefChip

@@ -11,6 +11,7 @@ import { AsyncPanel, Badge, FormRun, Metrics, Panel, useRuntimeData } from "../u
 import { OwnerPlayerRequestInbox } from "./OwnerPlayerRequestInbox.js";
 import { InboxPanel } from "../RoleDetailScreen.js";
 import { TransferNegotiationLauncher } from "./TransferNegotiationMeeting.js";
+import { StructuredPressConferencePanel } from "./MediaScreen.js";
 import { PlayerMeetingPanel } from "./PlayerMeetingPanel.js";
 import { humanizeEnum, humanizeToken } from "../storyHumanizer.js";
 
@@ -99,6 +100,7 @@ export const HomeScreen = ({
   const [actionBusy, setActionBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [openTransferOfferId, setOpenTransferOfferId] = useState<EntityId | null>(null);
+  const [openPressConferenceId, setOpenPressConferenceId] = useState<EntityId | null>(null);
   const [openMeeting, setOpenMeeting] = useState<
     { playerName: string; concern?: SquadConcernView; demand?: SquadDemandView } | null
   >(null);
@@ -603,9 +605,20 @@ export const HomeScreen = ({
             onOpenTransferNegotiation={setOpenTransferOfferId}
             onOpenPlayerMeeting={openPlayerMeetingFromTarget}
             onOpenDressingRoom={() => onNavigate("dressing-room")}
+            onOpenPressConference={setOpenPressConferenceId}
           />
           {openTransferOfferId && (
             <TransferNegotiationLauncher offerId={openTransferOfferId} onClose={() => setOpenTransferOfferId(null)} />
+          )}
+          {openPressConferenceId && (
+            <StructuredPressConferencePanel
+              interviewId={openPressConferenceId}
+              onClose={() => {
+                setOpenPressConferenceId(null);
+                refreshDashboard();
+              }}
+              onSelectPlayer={onSelectPlayer}
+            />
           )}
           {openMeeting && (
             <PlayerMeetingPanel

@@ -11,11 +11,11 @@ import { buildEntityReference } from "./entity-reference.js";
 
 type Row = Record<string, any>;
 
-/** Cold/Neutral/Positive text band for a 0..1 journalist trust score — never
- * shown as a raw number, matching how relationship state reads everywhere
- * else in the game. */
-const relationshipBand = (trust: number): "Cold" | "Neutral" | "Positive" =>
-  trust < 0.4 ? "Cold" : trust > 0.6 ? "Positive" : "Neutral";
+/** Cold/Wary/Neutral/Positive/Warm text band for a 0..1 journalist trust
+ * score — never shown as a raw number, matching how relationship state reads
+ * everywhere else in the game. */
+const relationshipBand = (trust: number): "Cold" | "Wary" | "Neutral" | "Positive" | "Warm" =>
+  trust < 0.2 ? "Cold" : trust < 0.4 ? "Wary" : trust < 0.6 ? "Neutral" : trust < 0.8 ? "Positive" : "Warm";
 
 /** Journalist and Media Outlet profiles reuse the generic OrganizationProfile
  * shape (relationshipClues doubles as a small facts list; there are no
@@ -62,6 +62,8 @@ const buildMediaEntityProfile = (
       clues.push(
         outlet.reputation >= 70 ? "Highly regarded" : outlet.reputation >= 40 ? "Respected" : "Emerging outlet",
       );
+      const interviewCount = phaseB.interviews().filter((item) => item.outletId === outlet.id).length;
+      if (interviewCount > 0) clues.push(`${interviewCount} interview${interviewCount === 1 ? "" : "s"} on record`);
     }
     involvedEntities = phaseB
       .journalists(id)
@@ -70,7 +72,10 @@ const buildMediaEntityProfile = (
 
   return {
     entityReference,
-    sector: type === "JOURNALIST" ? "Journalist" : "Media outlet",
+    // No separate sector badge here — the entityType badge already reads
+    // "Journalist"/"Media Outlet"; a duplicate sector badge saying the same
+    // word twice was the whole prior bug.
+    sector: undefined,
     organizationContext: "NEPAL",
     provenanceStatus: entityReference.provenanceStatus,
     relationshipClues: clues,

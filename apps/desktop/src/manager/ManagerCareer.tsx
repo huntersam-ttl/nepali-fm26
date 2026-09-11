@@ -483,7 +483,7 @@ export const ManagerCareer = ({
           <StaffScreen refreshKey={refreshKey} />
         )}
         {header.activeRole === "MANAGER" && screen === "medical" && <MedicalScreen onSelectPlayer={openPlayer} />}
-        {header.activeRole === "MANAGER" && screen === "media" && <MediaScreen />}
+        {header.activeRole === "MANAGER" && screen === "media" && <MediaScreen onSelectPlayer={openPlayer} />}
       </section>
       {openClubId && (
         <OrganizationProfilePanel
