@@ -13,6 +13,8 @@ import {
   answerPressQuestionAsAi,
   createNepalSave,
   generatePressQuestions,
+  resolveStoryEntityReference,
+  shouldCreatePreMatchPress,
   startPressConference,
 } from "@nepal-football-sim/simulation";
 import type { EntityId } from "@nepal-football-sim/shared-types";
@@ -50,14 +52,25 @@ const insertPlayedMatch = (
     homeGoals: number;
     awayGoals: number;
     events?: Array<{ type: string; teamId?: EntityId; personId?: EntityId; minute?: number; data?: Record<string, unknown> }>;
+    tacticalSnapshot?: {
+      home: { formationId: string; formationName: string; mentality: string };
+      away: { formationId: string; formationName: string; mentality: string };
+    };
   },
 ): void => {
   db.prepare(
     "INSERT INTO fixtures (id, competition_season_id, home_team_id, away_team_id, scheduled_date, status) VALUES (?, NULL, ?, ?, ?, 'played')",
   ).run(input.fixtureId, input.homeTeamId, input.awayTeamId, input.date);
   db.prepare(
-    "INSERT INTO matches (id, fixture_id, played_date, home_goals, away_goals) VALUES (?, ?, ?, ?, ?)",
-  ).run(input.matchId, input.fixtureId, input.date, input.homeGoals, input.awayGoals);
+    "INSERT INTO matches (id, fixture_id, played_date, home_goals, away_goals, tactical_snapshot_json) VALUES (?, ?, ?, ?, ?, ?)",
+  ).run(
+    input.matchId,
+    input.fixtureId,
+    input.date,
+    input.homeGoals,
+    input.awayGoals,
+    input.tacticalSnapshot ? JSON.stringify(input.tacticalSnapshot) : null,
+  );
   for (const [index, event] of (input.events ?? []).entries()) {
     db.prepare(
       "INSERT INTO match_events (id, match_id, minute, type, team_id, primary_person_id, data_json) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -179,6 +192,35 @@ describe("press interviews — structured, context-grounded flow", () => {
     });
     expect(questions.some((q) => q.topic === "RED_CARD")).toBe(false);
     expect(questions.some((q) => q.topic === "MATCH_RESULT")).toBe(true);
+    // The opponent subject on MATCH_RESULT must resolve to a real, visible
+    // club — not "Unknown entity". A club EntityRef needs a real clubs.id,
+    // never the away team's own id (they are different tables).
+    const matchResultQuestion = questions.find((q) => q.topic === "MATCH_RESULT")!;
+    const opponentRef = matchResultQuestion.subjectEntities[0];
+    expect(opponentRef).toBeTruthy();
+    const resolved = resolveStoryEntityReference(db, opponentRef!, "MANAGER");
+    expect(resolved).toBeTruthy();
+    expect(resolved!.visible).toBe(true);
+    expect(resolved!.label).not.toBe("Unknown entity");
+    db.close();
+  });
+
+  it("resolves the pre-match opponent-preview subject to a real, clickable club — not the opponent's team id", () => {
+    const db = openGameDatabase(makeSave("pre-match-opponent-ref"));
+    const [home, away] = twoManagedTeams(db);
+    db.prepare(
+      "INSERT INTO fixtures (id, competition_season_id, home_team_id, away_team_id, scheduled_date, status) VALUES (?, NULL, ?, ?, ?, 'scheduled')",
+    ).run("fx-opponent-ref", home, away, "2026-09-05");
+    const questions = generatePressQuestions(db, { context: "PRE_MATCH", teamId: home, fixtureId: "fx-opponent-ref" as EntityId });
+    const opponentPreview = questions.find((q) => q.topic === "OPPONENT_PREVIEW");
+    expect(opponentPreview).toBeTruthy();
+    const opponentRef = opponentPreview!.subjectEntities[0];
+    expect(opponentRef).toBeTruthy();
+    expect(opponentRef!.id).not.toBe(away); // must be the away CLUB id, not the away TEAM id
+    const resolved = resolveStoryEntityReference(db, opponentRef!, "MANAGER");
+    expect(resolved).toBeTruthy();
+    expect(resolved!.visible).toBe(true);
+    expect(resolved!.label).not.toBe("Unknown entity");
     db.close();
   });
 
@@ -413,6 +455,298 @@ describe("press interviews — structured, context-grounded flow", () => {
     // Re-derive the same decision function independently for the same
     // question/seed and confirm it agrees (determinism, not just "ran once").
     expect(resultA.structuredAnswers![0]!.stance).toBeTruthy();
+    db.close();
+  });
+});
+
+describe("press interviews — tactical questions grounded in the real kickoff snapshot", () => {
+  it("asks about a starting-formation change only when it genuinely differs from the team's recent setup", () => {
+    const db = openGameDatabase(makeSave("tactical-formation-change"));
+    const [home, away] = twoManagedTeams(db);
+    // Three recent matches, all started in a stable 4-4-2.
+    for (let i = 0; i < 3; i += 1) {
+      insertPlayedMatch(db, {
+        fixtureId: `fx-recent-${i}` as EntityId,
+        matchId: `m-recent-${i}` as EntityId,
+        homeTeamId: home,
+        awayTeamId: away,
+        date: `2026-08-0${i + 1}`,
+        homeGoals: 1,
+        awayGoals: 1,
+        tacticalSnapshot: {
+          home: { formationId: "4-4-2", formationName: "4-4-2", mentality: "BALANCED" },
+          away: { formationId: "4-3-3", formationName: "4-3-3", mentality: "BALANCED" },
+        },
+      });
+    }
+    // Today's match: a real, different formation.
+    insertPlayedMatch(db, {
+      fixtureId: "fx-today" as EntityId,
+      matchId: "m-today" as EntityId,
+      homeTeamId: home,
+      awayTeamId: away,
+      date: "2026-09-05",
+      homeGoals: 2,
+      awayGoals: 0,
+      tacticalSnapshot: {
+        home: { formationId: "3-5-2", formationName: "3-5-2", mentality: "BALANCED" },
+        away: { formationId: "4-3-3", formationName: "4-3-3", mentality: "BALANCED" },
+      },
+    });
+    const questions = generatePressQuestions(db, { context: "POST_MATCH", teamId: home, fixtureId: "fx-today" as EntityId });
+    const formationQuestion = questions.find((q) => q.topic === "STARTING_FORMATION");
+    expect(formationQuestion).toBeTruthy();
+    expect(formationQuestion!.prompt).toContain("3-5-2");
+    db.close();
+  });
+
+  it("never asks about a formation switch when today's shape matches the team's recent norm", () => {
+    const db = openGameDatabase(makeSave("tactical-no-change"));
+    const [home, away] = twoManagedTeams(db);
+    for (let i = 0; i < 3; i += 1) {
+      insertPlayedMatch(db, {
+        fixtureId: `fx-recent-${i}` as EntityId,
+        matchId: `m-recent-${i}` as EntityId,
+        homeTeamId: home,
+        awayTeamId: away,
+        date: `2026-08-0${i + 1}`,
+        homeGoals: 1,
+        awayGoals: 1,
+        tacticalSnapshot: {
+          home: { formationId: "4-4-2", formationName: "4-4-2", mentality: "BALANCED" },
+          away: { formationId: "4-3-3", formationName: "4-3-3", mentality: "BALANCED" },
+        },
+      });
+    }
+    // Today: the SAME 4-4-2 — no genuine change.
+    insertPlayedMatch(db, {
+      fixtureId: "fx-today" as EntityId,
+      matchId: "m-today" as EntityId,
+      homeTeamId: home,
+      awayTeamId: away,
+      date: "2026-09-05",
+      homeGoals: 2,
+      awayGoals: 0,
+      tacticalSnapshot: {
+        home: { formationId: "4-4-2", formationName: "4-4-2", mentality: "BALANCED" },
+        away: { formationId: "4-3-3", formationName: "4-3-3", mentality: "BALANCED" },
+      },
+    });
+    const questions = generatePressQuestions(db, { context: "POST_MATCH", teamId: home, fixtureId: "fx-today" as EntityId });
+    expect(questions.some((q) => q.topic === "STARTING_FORMATION")).toBe(false);
+    db.close();
+  });
+
+  it("never claims a historical tactical fact when the match has no stored tactical snapshot", () => {
+    const db = openGameDatabase(makeSave("tactical-no-snapshot"));
+    const [home, away] = twoManagedTeams(db);
+    // A match predating snapshot tracking — no tacticalSnapshot at all.
+    insertPlayedMatch(db, {
+      fixtureId: "fx-legacy" as EntityId,
+      matchId: "m-legacy" as EntityId,
+      homeTeamId: home,
+      awayTeamId: away,
+      date: "2026-09-05",
+      homeGoals: 1,
+      awayGoals: 0,
+    });
+    const questions = generatePressQuestions(db, { context: "POST_MATCH", teamId: home, fixtureId: "fx-legacy" as EntityId });
+    expect(questions.some((q) => q.topic === "STARTING_FORMATION" || q.topic === "MENTALITY_CHOICE")).toBe(false);
+    db.close();
+  });
+
+  it("asks about mentality only when the real kickoff mentality was genuinely attacking or defensive, never for a balanced setup", () => {
+    const db = openGameDatabase(makeSave("tactical-mentality"));
+    const [home, away] = twoManagedTeams(db);
+    insertPlayedMatch(db, {
+      fixtureId: "fx-attacking" as EntityId,
+      matchId: "m-attacking" as EntityId,
+      homeTeamId: home,
+      awayTeamId: away,
+      date: "2026-09-05",
+      homeGoals: 2,
+      awayGoals: 1,
+      tacticalSnapshot: {
+        home: { formationId: "4-3-3", formationName: "4-3-3", mentality: "VERY_ATTACKING" },
+        away: { formationId: "4-4-2", formationName: "4-4-2", mentality: "BALANCED" },
+      },
+    });
+    const attackingQuestions = generatePressQuestions(db, {
+      context: "POST_MATCH",
+      teamId: home,
+      fixtureId: "fx-attacking" as EntityId,
+    });
+    expect(attackingQuestions.some((q) => q.topic === "MENTALITY_CHOICE")).toBe(true);
+
+    insertPlayedMatch(db, {
+      fixtureId: "fx-balanced" as EntityId,
+      matchId: "m-balanced" as EntityId,
+      homeTeamId: home,
+      awayTeamId: away,
+      date: "2026-09-12",
+      homeGoals: 1,
+      awayGoals: 1,
+      tacticalSnapshot: {
+        home: { formationId: "4-3-3", formationName: "4-3-3", mentality: "BALANCED" },
+        away: { formationId: "4-4-2", formationName: "4-4-2", mentality: "BALANCED" },
+      },
+    });
+    const balancedQuestions = generatePressQuestions(db, {
+      context: "POST_MATCH",
+      teamId: home,
+      fixtureId: "fx-balanced" as EntityId,
+    });
+    expect(balancedQuestions.some((q) => q.topic === "MENTALITY_CHOICE")).toBe(false);
+    db.close();
+  });
+
+  it("keeps tactical response consequences media-only — no tactical familiarity, tactic, or attribute mutation", () => {
+    const db = openGameDatabase(makeSave("tactical-consequence-bounded"));
+    const [home, away] = twoManagedTeams(db);
+    insertPlayedMatch(db, {
+      fixtureId: "fx-tactic" as EntityId,
+      matchId: "m-tactic" as EntityId,
+      homeTeamId: home,
+      awayTeamId: away,
+      date: "2026-09-05",
+      homeGoals: 2,
+      awayGoals: 0,
+      tacticalSnapshot: {
+        home: { formationId: "4-3-3", formationName: "4-3-3", mentality: "VERY_ATTACKING" },
+        away: { formationId: "4-4-2", formationName: "4-4-2", mentality: "BALANCED" },
+      },
+    });
+    const managerPersonId = managerPersonForTeam(db, home);
+    const beforeTactic = db.prepare("SELECT * FROM tactical_setups WHERE team_id = ?").all(home) as unknown[];
+    const beforeAttributes = db.prepare("SELECT technical_json FROM player_attributes LIMIT 5").all() as unknown[];
+
+    const interview = startPressConference(db, {
+      context: "POST_MATCH",
+      managerPersonId,
+      teamId: home,
+      date: "2026-09-05",
+      fixtureId: "fx-tactic" as EntityId,
+    });
+    const mentalityQuestion = interview.structuredQuestions!.find((q) => q.topic === "MENTALITY_CHOICE");
+    expect(mentalityQuestion).toBeTruthy();
+    let current = interview;
+    while (current.structuredQuestions![current.currentQuestionIndex!]!.topic !== "MENTALITY_CHOICE") {
+      current = answerPressQuestion(db, {
+        interviewId: interview.id,
+        stance: current.structuredQuestions![current.currentQuestionIndex!]!.options[0]!.stance,
+        teamId: home,
+        date: "2026-09-05",
+      });
+    }
+    answerPressQuestion(db, { interviewId: interview.id, stance: "ASSERTIVE", teamId: home, date: "2026-09-05" });
+
+    // No tactical setup or player attribute row was touched by a press answer.
+    expect(db.prepare("SELECT * FROM tactical_setups WHERE team_id = ?").all(home)).toEqual(beforeTactic);
+    expect(db.prepare("SELECT technical_json FROM player_attributes LIMIT 5").all()).toEqual(beforeAttributes);
+    db.close();
+  });
+});
+
+/** Seeds real league_standings rows for `teams`, in order (first = top of
+ * table), against a real competition_seasons id already in the fresh save —
+ * never a fabricated season. */
+const seedStandings = (
+  db: ReturnType<typeof openGameDatabase>,
+  teamsInOrder: EntityId[],
+): EntityId => {
+  const seasonId = (db.prepare("SELECT id FROM competition_seasons LIMIT 1").get() as { id: EntityId }).id;
+  teamsInOrder.forEach((teamId, index) => {
+    const points = (teamsInOrder.length - index) * 3;
+    db.prepare(
+      `INSERT INTO league_standings
+       (competition_season_id, team_id, played, won, drawn, lost, goals_for, goals_against, goal_difference, points)
+       VALUES (?, ?, ?, ?, 0, 0, ?, 0, ?, ?)`,
+    ).run(seasonId, teamId, index + 1, index + 1, index + 1, index + 1, points);
+  });
+  return seasonId;
+};
+
+describe("shouldCreatePreMatchPress — bounded, deterministic trigger", () => {
+  it("never triggers for an ordinary mid-table fixture with no other material context", () => {
+    const db = openGameDatabase(makeSave("pre-match-trigger-none"));
+    // 8 teams so a genuinely mid position (4th of 8) sits outside both the
+    // top-3 and bottom-3 bands.
+    const teams = (db.prepare("SELECT id FROM teams LIMIT 8").all() as Array<{ id: EntityId }>).map((r) => r.id);
+    const seasonId = seedStandings(db, teams);
+    const midTeam = teams[3]!;
+    db.prepare(
+      "INSERT INTO fixtures (id, competition_season_id, home_team_id, away_team_id, scheduled_date, status) VALUES (?, ?, ?, ?, ?, 'scheduled')",
+    ).run("fx-mundane", seasonId, midTeam, teams[4], "2026-09-05");
+    const result = shouldCreatePreMatchPress(db, { teamId: midTeam, fixtureId: "fx-mundane" as EntityId });
+    expect(result.trigger).toBe(false);
+    expect(result.reasons).toHaveLength(0);
+    db.close();
+  });
+
+  it("triggers for genuine title-race table stakes", () => {
+    const db = openGameDatabase(makeSave("pre-match-trigger-stakes"));
+    const teams = (db.prepare("SELECT id FROM teams LIMIT 6").all() as Array<{ id: EntityId }>).map((r) => r.id);
+    const seasonId = seedStandings(db, teams);
+    const leader = teams[0]!;
+    db.prepare(
+      "INSERT INTO fixtures (id, competition_season_id, home_team_id, away_team_id, scheduled_date, status) VALUES (?, ?, ?, ?, ?, 'scheduled')",
+    ).run("fx-title-race", seasonId, leader, teams[1], "2026-09-05");
+    const result = shouldCreatePreMatchPress(db, { teamId: leader, fixtureId: "fx-title-race" as EntityId });
+    expect(result.trigger).toBe(true);
+    expect(result.reasons).toContain("title-race table stakes");
+    db.close();
+  });
+
+  it("triggers for a real active player concern, independent of table position", () => {
+    const db = openGameDatabase(makeSave("pre-match-trigger-concern"));
+    const teams = (db.prepare("SELECT id FROM teams LIMIT 8").all() as Array<{ id: EntityId }>).map((r) => r.id);
+    const seasonId = seedStandings(db, teams);
+    const midTeam = teams[3]!;
+    const player = playerOnTeam(db, midTeam);
+    db.prepare(
+      "INSERT INTO fixtures (id, competition_season_id, home_team_id, away_team_id, scheduled_date, status) VALUES (?, ?, ?, ?, ?, 'scheduled')",
+    ).run("fx-concern", seasonId, midTeam, teams[4], "2026-09-05");
+    new SquadDynamicsRepository(db).upsertConcern({
+      id: "pre-match-concern" as EntityId,
+      personId: player,
+      teamId: midTeam,
+      type: "PLAYING_TIME",
+      status: "ACTIVE",
+      severity: 4,
+      raisedOn: "2026-09-01",
+      updatedOn: "2026-09-01",
+    });
+    const result = shouldCreatePreMatchPress(db, { teamId: midTeam, fixtureId: "fx-concern" as EntityId });
+    expect(result.trigger).toBe(true);
+    expect(result.reasons).toContain("active player concern");
+    db.close();
+  });
+
+  it("is exact-once for the same fixture: repeated evaluation resolves the identical interview, never a duplicate", () => {
+    const db = openGameDatabase(makeSave("pre-match-exact-once"));
+    const teams = (db.prepare("SELECT id FROM teams LIMIT 6").all() as Array<{ id: EntityId }>).map((r) => r.id);
+    const seasonId = seedStandings(db, teams);
+    const leader = teams[0]!;
+    const managerPersonId = managerPersonForTeam(db, leader);
+    db.prepare(
+      "INSERT INTO fixtures (id, competition_season_id, home_team_id, away_team_id, scheduled_date, status) VALUES (?, ?, ?, ?, ?, 'scheduled')",
+    ).run("fx-repeat", seasonId, leader, teams[1], "2026-09-05");
+    const first = startPressConference(db, {
+      context: "PRE_MATCH",
+      managerPersonId,
+      teamId: leader,
+      date: "2026-09-01",
+      fixtureId: "fx-repeat" as EntityId,
+    });
+    const second = startPressConference(db, {
+      context: "PRE_MATCH",
+      managerPersonId,
+      teamId: leader,
+      date: "2026-09-01",
+      fixtureId: "fx-repeat" as EntityId,
+    });
+    expect(second.id).toBe(first.id);
+    expect(new MediaPhaseBRepository(db).interviews(managerPersonId).filter((item) => item.sourceEntityId === "fx-repeat")).toHaveLength(1);
     db.close();
   });
 });

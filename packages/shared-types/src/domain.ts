@@ -4203,7 +4203,9 @@ export type PressQuestionTopic =
   | "TRANSFER_COMPLETED"
   | "PLAYING_TIME_CONCERN"
   | "CAPTAINCY_REACTION"
-  | "ROLE_CONCERN";
+  | "ROLE_CONCERN"
+  | "STARTING_FORMATION"
+  | "MENTALITY_CHOICE";
 
 /** Reusable response archetypes. A question only ever offers the stances
  * that make sense for its topic — never four differently-worded options

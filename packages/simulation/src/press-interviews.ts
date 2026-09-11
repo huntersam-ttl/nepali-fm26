@@ -44,6 +44,18 @@ const teamName = (db: GameDatabase, id: EntityId): string => {
   return (row?.name as string) ?? "the opponent";
 };
 
+/** A "club" EntityRef must carry a real clubs.id, never a teams.id — teams
+ * and clubs are different tables/ids, and resolving a team id against
+ * "club" silently produced "Unknown entity" for every opponent reference
+ * until this was caught live. Returns undefined (never fabricates a ref)
+ * when the team has no club on record. */
+const clubIdForTeam = (db: GameDatabase, teamId: EntityId): EntityId | undefined => {
+  const row = db.prepare("SELECT club_id FROM teams WHERE id = ?").get(teamId) as
+    | { club_id?: EntityId }
+    | undefined;
+  return row?.club_id;
+};
+
 const managerProfileIdForPerson = (db: GameDatabase, personId: EntityId): EntityId | undefined => {
   const row = db
     .prepare("SELECT id FROM manager_profiles WHERE person_id = ?")
@@ -63,6 +75,58 @@ type Candidate = {
   priority: number; // higher = asked first when a conference is capped
 };
 
+/**
+ * Bounded, deterministic decision for whether an upcoming fixture is
+ * material enough to naturally offer a pre-match press conference — never
+ * every mundane fixture. Reuses the exact same real-context checks
+ * preMatchCandidates already performs (never a second data source), so a
+ * fixture is only ever offered a conference when it would genuinely produce
+ * at least one grounded question beyond the always-present opponent
+ * preview: real title/relegation table stakes, a real active player
+ * concern/demand, or a real active transfer interest on a squad player.
+ */
+export const shouldCreatePreMatchPress = (
+  db: GameDatabase,
+  input: { teamId: EntityId; fixtureId: EntityId },
+): { trigger: boolean; reasons: string[] } => {
+  const reasons: string[] = [];
+  const fixture = db.prepare("SELECT * FROM fixtures WHERE id = ?").get(input.fixtureId) as SqlRow | undefined;
+  if (!fixture) return { trigger: false, reasons };
+
+  const standings = new CompetitionRepository(db).standings(fixture.competition_season_id as EntityId);
+  if (standings.length > 0) {
+    const position = standings.findIndex((row) => row.teamId === input.teamId) + 1;
+    const total = standings.length;
+    if (position > 0 && (position <= 3 || position > total - 3)) {
+      reasons.push(position <= 3 ? "title-race table stakes" : "relegation table stakes");
+    }
+  }
+
+  const dynamics = new SquadDynamicsRepository(db);
+  if (dynamics.concernsForTeam(input.teamId).some((concern) => concern.status !== "RESOLVED")) {
+    reasons.push("active player concern");
+  }
+  if (dynamics.demandsForTeam(input.teamId).some((demand) => demand.status === "OPEN")) {
+    reasons.push("active player demand");
+  }
+
+  const clubRow = db.prepare("SELECT club_id FROM teams WHERE id = ?").get(input.teamId) as
+    | { club_id?: EntityId }
+    | undefined;
+  if (clubRow?.club_id) {
+    const activeStatuses = new Set(["SUBMITTED", "NEGOTIATING", "COUNTERED", "PLAYER_NEGOTIATING", "COMPETING_OFFER"]);
+    if (
+      new TransferMarketRepository(db)
+        .transferOffers()
+        .some((offer) => offer.sellingClubId === clubRow.club_id && activeStatuses.has(offer.status))
+    ) {
+      reasons.push("active transfer interest");
+    }
+  }
+
+  return { trigger: reasons.length > 0, reasons };
+};
+
 const preMatchCandidates = (
   db: GameDatabase,
   input: { teamId: EntityId; fixtureId: EntityId },
@@ -73,11 +137,12 @@ const preMatchCandidates = (
   if (!fixture) return [];
   const opponentId = (fixture.home_team_id === input.teamId ? fixture.away_team_id : fixture.home_team_id) as EntityId;
   const isHome = fixture.home_team_id === input.teamId;
+  const opponentClubId = clubIdForTeam(db, opponentId);
   const candidates: Candidate[] = [
     {
       topic: "OPPONENT_PREVIEW",
       prompt: `What do you expect from ${teamName(db, opponentId)} ${isHome ? "at home" : "away"}?`,
-      subjectEntities: [{ id: opponentId, type: "club" }],
+      subjectEntities: opponentClubId ? [{ id: opponentClubId, type: "club" }] : [],
       priority: 5,
     },
   ];
@@ -117,6 +182,42 @@ const preMatchCandidates = (
   return candidates;
 };
 
+/** The formation this team started most often across its last few played
+ * matches before the given date (bounded — at most 5 rows, never a full
+ * match-history scan), used only as a comparison baseline for "that's a
+ * change from your recent setup" — never treated as fact on its own. */
+const recentStableFormation = (
+  db: GameDatabase,
+  teamId: EntityId,
+  beforeDate: string,
+  excludeMatchId: EntityId,
+): string | undefined => {
+  const rows = db
+    .prepare(
+      `SELECT m.tactical_snapshot_json, f.home_team_id, f.away_team_id
+       FROM matches m JOIN fixtures f ON f.id = m.fixture_id
+       WHERE (f.home_team_id = ? OR f.away_team_id = ?)
+         AND m.played_date IS NOT NULL AND m.played_date < ? AND m.id != ?
+       ORDER BY m.played_date DESC LIMIT 5`,
+    )
+    .all(teamId, teamId, beforeDate, excludeMatchId) as SqlRow[];
+  const formations = rows
+    .map((row) => {
+      if (!row.tactical_snapshot_json) return undefined;
+      const snapshot = JSON.parse(row.tactical_snapshot_json as string) as {
+        home?: { formationId?: string };
+        away?: { formationId?: string };
+      };
+      const side = row.home_team_id === teamId ? snapshot.home : snapshot.away;
+      return side?.formationId;
+    })
+    .filter((id): id is string => Boolean(id));
+  if (formations.length === 0) return undefined;
+  const counts = new Map<string, number>();
+  for (const formation of formations) counts.set(formation, (counts.get(formation) ?? 0) + 1);
+  return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]![0];
+};
+
 const postMatchCandidates = (
   db: GameDatabase,
   input: { teamId: EntityId; fixtureId: EntityId },
@@ -129,6 +230,7 @@ const postMatchCandidates = (
     : undefined;
   if (!fixture || !match) return [];
   const opponentId = (fixture.home_team_id === input.teamId ? fixture.away_team_id : fixture.home_team_id) as EntityId;
+  const opponentClubId = clubIdForTeam(db, opponentId);
   const homeGoals = Number(match.home_goals ?? 0);
   const awayGoals = Number(match.away_goals ?? 0);
   const managedIsHome = fixture.home_team_id === input.teamId;
@@ -144,7 +246,7 @@ const postMatchCandidates = (
           : own === other
             ? `Is a ${own}-${other} draw a fair result?`
             : `What went wrong in the ${own}-${other} defeat?`,
-      subjectEntities: [{ id: opponentId, type: "club" }],
+      subjectEntities: opponentClubId ? [{ id: opponentClubId, type: "club" }] : [],
       priority: 7,
     },
   ];
@@ -201,6 +303,43 @@ const postMatchCandidates = (
       subjectEntities: [],
       priority: 6,
     });
+  }
+
+  // Starting formation/mentality questions — only from the match's own
+  // immutable kickoff tacticalSnapshot (never today's current tactic, and
+  // never fabricated when a match predates snapshot tracking).
+  if (match.tactical_snapshot_json) {
+    const snapshot = JSON.parse(match.tactical_snapshot_json as string) as {
+      home?: { formationId: string; formationName: string; mentality: string };
+      away?: { formationId: string; formationName: string; mentality: string };
+    };
+    const mySide = managedIsHome ? snapshot.home : snapshot.away;
+    if (mySide) {
+      const stableFormation = recentStableFormation(db, input.teamId, fixture.scheduled_date as string, match.id as EntityId);
+      if (stableFormation && stableFormation !== mySide.formationId) {
+        candidates.push({
+          topic: "STARTING_FORMATION",
+          prompt: `You started in a ${mySide.formationName} today, a change from your recent setup. What was behind that?`,
+          subjectEntities: [{ id: input.fixtureId, type: "fixture" }],
+          priority: 6,
+        });
+      }
+      if (mySide.mentality === "VERY_ATTACKING" || mySide.mentality === "ATTACKING") {
+        candidates.push({
+          topic: "MENTALITY_CHOICE",
+          prompt: "You set up on the front foot today. Were you looking to take control early?",
+          subjectEntities: [{ id: input.fixtureId, type: "fixture" }],
+          priority: 3,
+        });
+      } else if (mySide.mentality === "VERY_DEFENSIVE" || mySide.mentality === "DEFENSIVE") {
+        candidates.push({
+          topic: "MENTALITY_CHOICE",
+          prompt: "You set up cautiously today. Was that a reaction to the opposition?",
+          subjectEntities: [{ id: input.fixtureId, type: "fixture" }],
+          priority: 3,
+        });
+      }
+    }
   }
 
   const topScorer = [...goals]
@@ -343,6 +482,16 @@ const OPTION_TEXT: Partial<Record<PressQuestionTopic, Partial<Record<PressRespon
     ASSERTIVE: "It changed the game, and I'll make that call again if it's needed.",
     DEFLECT: "I'm not going to give away our thinking in detail.",
     CALM: "It was a reaction to what we were seeing on the pitch.",
+  },
+  STARTING_FORMATION: {
+    ASSERTIVE: "It was the right setup for this opponent, and I'd make the same call again.",
+    DEFLECT: "I'm not going to break down the thinking behind every team sheet.",
+    CALM: "It was simply the shape that suited the players available today.",
+  },
+  MENTALITY_CHOICE: {
+    ASSERTIVE: "We set out to impose ourselves from the first minute.",
+    CALM: "It was a considered response to how we expected the game to go.",
+    DEFLECT: "That's something I'd rather keep between the group and myself.",
   },
   PLAYER_PERFORMANCE: {
     PRAISE: "He's trained well and deserves the opportunity he's getting.",

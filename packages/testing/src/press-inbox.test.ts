@@ -168,4 +168,113 @@ describe("structured press interviews — Inbox delivery", () => {
     expect(structuredPressInboxItems(db, managerPersonId)).toHaveLength(0);
     db.close();
   });
+
+  it("resolves the same interview id whether reached via a fresh POST_MATCH request (Post Match Report's path) or the Inbox delivery", () => {
+    const db = openGameDatabase(makeSave("press-inbox-post-match-same-id"));
+    const teamId = (db.prepare("SELECT id FROM teams LIMIT 1").get() as { id: EntityId }).id;
+    const awayTeamId = (db.prepare("SELECT id FROM teams WHERE id != ?").get(teamId) as { id: EntityId }).id;
+    const managerPersonId = ensureManagerFor(db, teamId);
+    const scorer = playerOnTeam(db, teamId);
+    db.prepare(
+      "INSERT INTO fixtures (id, competition_season_id, home_team_id, away_team_id, scheduled_date, status) VALUES (?, NULL, ?, ?, ?, 'played')",
+    ).run("fx-post-match-same-id", teamId, awayTeamId, "2026-09-05");
+    db.prepare(
+      "INSERT INTO matches (id, fixture_id, played_date, home_goals, away_goals) VALUES (?, ?, ?, ?, ?)",
+    ).run("m-post-match-same-id", "fx-post-match-same-id", "2026-09-05", 2, 0);
+    db.prepare(
+      "INSERT INTO match_events (id, match_id, minute, type, team_id, primary_person_id) VALUES (?, ?, ?, 'GOAL', ?, ?)",
+    ).run("m-post-match-same-id-event-0", "m-post-match-same-id", 30, teamId, scorer);
+
+    // "Post Match Report" opens it first.
+    const fromReport = startPressConference(db, {
+      context: "POST_MATCH",
+      managerPersonId,
+      teamId,
+      date: "2026-09-05",
+      fixtureId: "fx-post-match-same-id" as EntityId,
+    });
+    expect(fromReport.structuredQuestions!.length).toBeGreaterThan(0);
+
+    // The Inbox delivery for this manager must point at the exact same
+    // interview id, journalist, and question set — never a second row.
+    const pending = structuredPressInboxItems(db, managerPersonId);
+    expect(pending).toHaveLength(1);
+    expect(pending[0]!.relatedEntity).toEqual({ id: fromReport.id, type: "mediaInterview" });
+
+    // Re-requesting POST_MATCH for the same fixture (as re-opening the report
+    // screen would) resolves the identical interview, never a duplicate.
+    const fromReportAgain = startPressConference(db, {
+      context: "POST_MATCH",
+      managerPersonId,
+      teamId,
+      date: "2026-09-05",
+      fixtureId: "fx-post-match-same-id" as EntityId,
+    });
+    expect(fromReportAgain.id).toBe(fromReport.id);
+    expect(fromReportAgain.journalistId).toBe(fromReport.journalistId);
+    expect(fromReportAgain.structuredQuestions).toEqual(fromReport.structuredQuestions);
+
+    // Completing it clears the Inbox item but the interview stays reviewable.
+    let current = fromReport;
+    while (current.status === "OPEN") {
+      current = answerPressQuestion(db, {
+        interviewId: fromReport.id,
+        stance: current.structuredQuestions![current.currentQuestionIndex!]!.options[0]!.stance,
+        teamId,
+        date: "2026-09-05",
+      });
+    }
+    expect(structuredPressInboxItems(db, managerPersonId)).toHaveLength(0);
+    db.close();
+  });
+
+  it("attaches a resolvable fixture reference to a tactical question, so the Inbox/press panel can link back to the match", () => {
+    const db = openGameDatabase(makeSave("press-inbox-tactical-ref"));
+    const teamId = (db.prepare("SELECT id FROM teams LIMIT 1").get() as { id: EntityId }).id;
+    const awayTeamId = (db.prepare("SELECT id FROM teams WHERE id != ?").get(teamId) as { id: EntityId }).id;
+    const managerPersonId = ensureManagerFor(db, teamId);
+    db.prepare(
+      "INSERT INTO fixtures (id, competition_season_id, home_team_id, away_team_id, scheduled_date, status) VALUES (?, NULL, ?, ?, ?, 'played')",
+    ).run("fx-tactical-ref", teamId, awayTeamId, "2026-09-05");
+    db.prepare(
+      "INSERT INTO matches (id, fixture_id, played_date, home_goals, away_goals, tactical_snapshot_json) VALUES (?, ?, ?, ?, ?, ?)",
+    ).run(
+      "m-tactical-ref",
+      "fx-tactical-ref",
+      "2026-09-05",
+      1,
+      0,
+      JSON.stringify({
+        home: { formationId: "4-3-3", formationName: "4-3-3", mentality: "VERY_ATTACKING" },
+        away: { formationId: "4-4-2", formationName: "4-4-2", mentality: "BALANCED" },
+      }),
+    );
+    const interview = startPressConference(db, {
+      context: "POST_MATCH",
+      managerPersonId,
+      teamId,
+      date: "2026-09-05",
+      fixtureId: "fx-tactical-ref" as EntityId,
+    });
+    const tacticalQuestion = interview.structuredQuestions!.find((q) => q.topic === "MENTALITY_CHOICE");
+    expect(tacticalQuestion).toBeTruthy();
+    expect(tacticalQuestion!.subjectEntities).toContainEqual({ id: "fx-tactical-ref", type: "fixture" });
+
+    // Answer forward until the tactical question is actually current, then
+    // confirm the Inbox item for it carries the same real, clickable fixture
+    // reference.
+    let current = interview;
+    while (current.structuredQuestions![current.currentQuestionIndex!]!.id !== tacticalQuestion!.id) {
+      current = answerPressQuestion(db, {
+        interviewId: interview.id,
+        stance: current.structuredQuestions![current.currentQuestionIndex!]!.options[0]!.stance,
+        teamId,
+        date: "2026-09-05",
+      });
+    }
+    const pending = structuredPressInboxItems(db, managerPersonId);
+    expect(pending).toHaveLength(1);
+    expect(pending[0]!.entityReferences!.some((ref) => ref.entityType === "FIXTURE" && ref.visible)).toBe(true);
+    db.close();
+  });
 });
