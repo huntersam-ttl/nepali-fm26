@@ -11,7 +11,9 @@ export type EntityReferenceType =
   | "INVESTOR"
   | "GOVERNMENT_INSTITUTION"
   | "INFRASTRUCTURE_PROJECT"
-  | "NATIONAL_TEAM";
+  | "NATIONAL_TEAM"
+  | "JOURNALIST"
+  | "MEDIA_OUTLET";
 
 export type EntityReference = {
   entityType: EntityReferenceType;

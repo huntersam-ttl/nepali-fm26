@@ -13,6 +13,7 @@ import type {
   OrganizationProfileEntityType,
   LiveTacticsCommand,
   MediaResponseStance,
+  PressResponseStance,
   RecruitmentSearchCommand,
   ScoutingAssignmentCommand,
   CreateDevelopmentPlanCommand,
@@ -676,6 +677,16 @@ const dispatch = (
       return service.answerPressConference(
         body.input as { interviewId: EntityId; stance: MediaResponseStance; response: string },
       );
+    case "requestStructuredPressConference":
+      return service.requestStructuredPressConference(
+        body.input as { context: "PRE_MATCH" | "POST_MATCH" | "TRANSFER" | "PLAYER_ISSUE"; fixtureId?: EntityId },
+      );
+    case "answerStructuredPressQuestion":
+      return service.answerStructuredPressQuestion(
+        body.input as { interviewId: EntityId; stance: PressResponseStance },
+      );
+    case "getStructuredPressConference":
+      return service.getStructuredPressConference(body.interviewId as EntityId);
     case "getSupporterOverview":
       return service.getSupporterOverview();
     case "getDressingRoom":

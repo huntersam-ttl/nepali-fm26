@@ -32,5 +32,5 @@ export type OrganizationCommercialDeal = {
 
 export type OrganizationProfileEntityType = Extract<
   EntityReferenceType,
-  "SPONSOR" | "LENDER" | "INVESTOR"
+  "SPONSOR" | "LENDER" | "INVESTOR" | "JOURNALIST" | "MEDIA_OUTLET"
 >;

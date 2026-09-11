@@ -162,6 +162,7 @@ import {
   type MediaResponseStance,
   type PressConferenceView,
   type PressResponseStance,
+  type StructuredPressConferenceView,
   type SupporterReadModel,
   type DressingRoomView,
   type Person,
@@ -491,6 +492,7 @@ import {
   answerManagerStructuredPressQuestion,
   buildMediaCentreView,
   buildSupporterOverview,
+  getManagerStructuredPressConference,
   requestManagerPressConference,
   requestManagerStructuredPressConference,
 } from "./manager-media-desktop.js";
@@ -3437,7 +3439,7 @@ export class DesktopApplicationService {
   requestStructuredPressConference(input: {
     context: "PRE_MATCH" | "POST_MATCH" | "TRANSFER" | "PLAYER_ISSUE";
     fixtureId?: EntityId;
-  }): AppResult<MediaInterview> {
+  }): AppResult<StructuredPressConferenceView> {
     return this.managerCommand(
       (db, save, context) => requestManagerStructuredPressConference(db, save, context, input),
       true,
@@ -3447,10 +3449,20 @@ export class DesktopApplicationService {
   answerStructuredPressQuestion(input: {
     interviewId: EntityId;
     stance: PressResponseStance;
-  }): AppResult<MediaInterview> {
+  }): AppResult<StructuredPressConferenceView> {
     return this.managerCommand(
       (db, save, context) => answerManagerStructuredPressQuestion(db, save, context, input),
       true,
+    );
+  }
+
+  /** Re-fetches the current view of an already-open/completed structured
+   * interview — used to resume mid-conference after a reload and to open a
+   * completed one from history, without answering anything. */
+  getStructuredPressConference(interviewId: EntityId): AppResult<StructuredPressConferenceView> {
+    return this.managerCommand(
+      (db, _save, context) => getManagerStructuredPressConference(db, context, interviewId),
+      false,
     );
   }
 
@@ -3747,7 +3759,7 @@ export class DesktopApplicationService {
     return this.withSession((db, save) => {
       const personId = careerPersonId(db, save);
       try {
-        return buildOrganizationProfile(db, entityType, entityId, activeCareerRole(db, personId));
+        return buildOrganizationProfile(db, entityType, entityId, activeCareerRole(db, personId), personId);
       } catch (error) {
         throw appError(
           "INVALID_SELECTION",

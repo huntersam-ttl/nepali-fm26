@@ -78,15 +78,22 @@ describe("structured press conference — desktop command layer", () => {
     expect(opened.ok).toBe(true);
     if (!opened.ok) return;
     expect(opened.data.status).toBe("OPEN");
-    expect(opened.data.structuredQuestions!.length).toBeGreaterThan(0);
-    const transferQuestion = opened.data.structuredQuestions!.find((q) => q.topic === "TRANSFER_REQUEST");
-    expect(transferQuestion).toBeTruthy();
-    expect(transferQuestion!.subjectEntities).toContainEqual({ id: player!.personId, type: "person" });
+    expect(opened.data.totalQuestions).toBeGreaterThan(0);
+    expect(opened.data.journalist.visible).toBe(true);
+    expect(opened.data.journalist.entityType).toBe("JOURNALIST");
+    expect(opened.data.outlet.visible).toBe(true);
+    expect(opened.data.outlet.entityType).toBe("MEDIA_OUTLET");
+    const question = opened.data.currentQuestion;
+    expect(question).toBeTruthy();
+    // The subject player is already a real, resolved, clickable reference —
+    // never a raw EntityRef — and the response options carry only real text.
+    expect(question!.subjectEntities.some((ref) => ref.id === player!.personId && ref.visible)).toBe(true);
+    expect(question!.options.every((option) => option.text.length > 0)).toBe(true);
 
     // Re-requesting while one is open returns the SAME interview, not a new one.
     const reopened = service.requestStructuredPressConference({ context: "TRANSFER" });
     expect(reopened.ok).toBe(true);
-    if (reopened.ok) expect(reopened.data.id).toBe(opened.data.id);
+    if (reopened.ok) expect(reopened.data.interviewId).toBe(opened.data.interviewId);
 
     // Answering an interview id that doesn't belong to this manager is rejected.
     const bogus = service.answerStructuredPressQuestion({
@@ -96,13 +103,17 @@ describe("structured press conference — desktop command layer", () => {
     expect(bogus.ok).toBe(false);
 
     // Answer the real current question and confirm the persisted advance.
-    const currentTopic =
-      opened.data.structuredQuestions![opened.data.currentQuestionIndex ?? 0]!.topic;
-    const stance = currentTopic === "TRANSFER_REQUEST" ? "COMMIT" : opened.data.structuredQuestions![0]!.options[0]!.stance;
-    const answered = service.answerStructuredPressQuestion({ interviewId: opened.data.id, stance });
+    const stance = question!.options.find((option) => option.stance === "COMMIT")?.stance ?? question!.options[0]!.stance;
+    const answered = service.answerStructuredPressQuestion({ interviewId: opened.data.interviewId, stance });
     expect(answered.ok).toBe(true);
     if (!answered.ok) return;
-    expect(answered.data.structuredAnswers!.length).toBe(1);
+    expect(answered.data.priorAnswers.length).toBe(1);
+    expect(answered.data.priorAnswers[0]!.responseText.length).toBeGreaterThan(0);
+
+    // Re-fetching the view (as a reload/resume would) reproduces it identically.
+    const refetched = service.getStructuredPressConference(opened.data.interviewId);
+    expect(refetched.ok).toBe(true);
+    if (refetched.ok) expect(refetched.data).toEqual(answered.data);
 
     service.closeCareer();
   });

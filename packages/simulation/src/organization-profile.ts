@@ -1,3 +1,4 @@
+import { MediaPhaseBRepository, MediaRepository } from "@nepal-football-sim/database";
 import type { GameDatabase } from "@nepal-football-sim/database";
 import type {
   EntityId,
@@ -9,6 +10,76 @@ import type {
 import { buildEntityReference } from "./entity-reference.js";
 
 type Row = Record<string, any>;
+
+/** Cold/Neutral/Positive text band for a 0..1 journalist trust score — never
+ * shown as a raw number, matching how relationship state reads everywhere
+ * else in the game. */
+const relationshipBand = (trust: number): "Cold" | "Neutral" | "Positive" =>
+  trust < 0.4 ? "Cold" : trust > 0.6 ? "Positive" : "Neutral";
+
+/** Journalist and Media Outlet profiles reuse the generic OrganizationProfile
+ * shape (relationshipClues doubles as a small facts list; there are no
+ * commercial deals) rather than a parallel profile type/panel — the existing
+ * Organization Profile UI already renders this shape everywhere else. */
+const buildMediaEntityProfile = (
+  db: GameDatabase,
+  type: "JOURNALIST" | "MEDIA_OUTLET",
+  id: EntityId,
+  role: Parameters<typeof buildEntityReference>[3],
+  managerPersonId?: EntityId,
+): OrganizationProfile => {
+  const entityReference = buildEntityReference(db, type, id, role);
+  if (!entityReference.visible) throw new Error("Organization not found");
+  const mediaRepo = new MediaRepository(db);
+  const phaseB = new MediaPhaseBRepository(db);
+  const clues: string[] = [];
+  let involvedEntities: EntityReference[] = [];
+
+  if (type === "JOURNALIST") {
+    const journalist = phaseB.journalists().find((item) => item.id === id);
+    const outlet = journalist ? mediaRepo.outlets().find((item) => item.id === journalist.outletId) : undefined;
+    if (journalist) {
+      clues.push(`Beat: ${journalist.beat.replace(/_/g, " ").toLowerCase()}`);
+      clues.push(`Style: ${journalist.temperament.replace(/_/g, " ").toLowerCase()}`);
+      clues.push(
+        journalist.reputation >= 70 ? "Widely read" : journalist.reputation >= 40 ? "Established voice" : "Local byline",
+      );
+      const relationship = managerPersonId
+        ? phaseB.relationships(journalist.id).find((item) => item.managerPersonId === managerPersonId)
+        : undefined;
+      if (relationship) clues.push(`Relationship: ${relationshipBand(relationship.trust)}`);
+      const interviewCount = phaseB.interviews().filter((item) => item.journalistId === journalist.id).length;
+      if (interviewCount > 0) clues.push(`${interviewCount} interview${interviewCount === 1 ? "" : "s"} on record`);
+    }
+    involvedEntities = outlet ? [buildEntityReference(db, "MEDIA_OUTLET", outlet.id, role)] : [];
+  } else {
+    const outlet = mediaRepo.outlets().find((item) => item.id === id);
+    if (outlet) {
+      clues.push(`Scope: ${outlet.scope.replace(/_/g, " ").toLowerCase()}`);
+      clues.push(
+        outlet.reach >= 70 ? "Wide reach" : outlet.reach >= 40 ? "Regional reach" : "Local reach",
+      );
+      clues.push(
+        outlet.reputation >= 70 ? "Highly regarded" : outlet.reputation >= 40 ? "Respected" : "Emerging outlet",
+      );
+    }
+    involvedEntities = phaseB
+      .journalists(id)
+      .map((journalist) => buildEntityReference(db, "JOURNALIST", journalist.id, role));
+  }
+
+  return {
+    entityReference,
+    sector: type === "JOURNALIST" ? "Journalist" : "Media outlet",
+    organizationContext: "NEPAL",
+    provenanceStatus: entityReference.provenanceStatus,
+    relationshipClues: clues,
+    activeDeals: [],
+    dealHistory: [],
+    currentNegotiations: [],
+    involvedEntities,
+  };
+};
 
 const sponsorProfile = (db: GameDatabase, id: EntityId): Row | undefined =>
   (db.prepare("SELECT * FROM commercial_sponsor_profiles WHERE id=?").get(id) as Row | undefined) ??
@@ -236,7 +307,10 @@ export const buildOrganizationProfile = (
   type: OrganizationProfileEntityType,
   organizationId: EntityId,
   role: Parameters<typeof buildEntityReference>[3],
+  managerPersonId?: EntityId,
 ): OrganizationProfile => {
+  if (type === "JOURNALIST" || type === "MEDIA_OUTLET")
+    return buildMediaEntityProfile(db, type, organizationId, role, managerPersonId);
   const entityReference = buildEntityReference(db, type, organizationId, role);
   if (!entityReference.visible) throw new Error("Organization not found");
   const sponsor = type === "SPONSOR" ? sponsorProfile(db, organizationId) : undefined;

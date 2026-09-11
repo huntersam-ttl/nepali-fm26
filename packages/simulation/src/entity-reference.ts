@@ -37,6 +37,8 @@ const descriptors: Record<
     subtitle: "status",
   },
   NATIONAL_TEAM: { table: "teams", destination: "national-team", label: "name" },
+  JOURNALIST: { table: "media_journalists", destination: "journalist", label: "name", subtitle: "beat" },
+  MEDIA_OUTLET: { table: "media_outlets", destination: "media-outlet", label: "name", subtitle: "scope" },
 };
 
 /** Human-readable label for a SCREAMING_SNAKE_CASE enum value, used only as

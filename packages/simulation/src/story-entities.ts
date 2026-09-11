@@ -14,6 +14,8 @@ const REF_TYPE_MAP: Partial<Record<HistoricalEvent["involvedEntities"][number]["
   // National teams are a real, permanently resolvable profile entity, so a
   // call-up story's team chip is clickable rather than silently dropped.
   team: "NATIONAL_TEAM",
+  journalist: "JOURNALIST",
+  mediaOutlet: "MEDIA_OUTLET",
 };
 
 /**

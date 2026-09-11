@@ -42,7 +42,10 @@ export type EntityRef = {
     | "generatedPlayerOrigin"
     | "retirementState"
     | "governmentInstitution"
-    | "infrastructureProject";
+    | "infrastructureProject"
+    | "journalist"
+    | "mediaOutlet"
+    | "mediaInterview";
 };
 
 export type RiskLevel = "LOW" | "MEDIUM" | "HIGH" | "UNKNOWN";
@@ -3159,7 +3162,7 @@ export type StoryImportanceBand = "BREAKING" | "MAJOR" | "IMPORTANT" | "ROUTINE"
 export type InboxItem = {
   id: EntityId;
   createdOn: ISODate;
-  type: "FIXTURE_UPCOMING" | "MATCH_RESULT" | "INJURY" | "SUSPENSION" | "COMPETITION_UPDATE";
+  type: "FIXTURE_UPCOMING" | "MATCH_RESULT" | "INJURY" | "SUSPENSION" | "COMPETITION_UPDATE" | "PRESS_INTERVIEW";
   title: string;
   body: string;
   relatedEntity?: EntityRef;
@@ -4265,6 +4268,42 @@ export type MediaInterview = {
   structuredQuestions?: PressQuestion[];
   structuredAnswers?: PressAnswer[];
   currentQuestionIndex?: number;
+};
+
+/** One resolved, UI-ready question in a structured press conference — the
+ * subject player/club is already a clickable EntityReference, and response
+ * options carry only their real, football-natural text. Never raw JSON. */
+export type PressConferenceQuestionView = {
+  prompt: string;
+  subjectEntities: import("./entity-reference.js").EntityReference[];
+  options: PressQuestionOption[];
+};
+
+export type PressConferenceAnswerView = {
+  prompt: string;
+  responseText: string;
+  consequenceSummary?: string;
+};
+
+/**
+ * The one canonical desktop view of a structured press conference — built
+ * from a real MediaInterview (never a second data source), with journalist/
+ * outlet/subject entities already resolved to clickable EntityReferences.
+ * Reload always reconstructs the identical view from the same persisted
+ * MediaInterview row.
+ */
+export type StructuredPressConferenceView = {
+  interviewId: EntityId;
+  context: MediaInterview["context"];
+  status: MediaInterview["status"];
+  journalist: import("./entity-reference.js").EntityReference;
+  outlet: import("./entity-reference.js").EntityReference;
+  totalQuestions: number;
+  currentQuestionIndex: number;
+  currentQuestion?: PressConferenceQuestionView;
+  priorAnswers: PressConferenceAnswerView[];
+  completedSummary?: string;
+  createdOn: ISODate;
 };
 
 export type InternationalRetirementStatus = "ACTIVE" | "CONSIDERING" | "RETIRED_INTERNATIONAL";

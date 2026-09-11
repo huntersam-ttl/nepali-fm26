@@ -12,6 +12,7 @@ import type {
   PressConferenceView,
   PressResponseStance,
   SaveMetadata,
+  StructuredPressConferenceView,
   SupporterReadModel,
 } from "@nepal-football-sim/shared-types";
 import type { ManagerContext } from "./desktop-application.js";
@@ -22,6 +23,7 @@ import {
   type PressConferenceReadModel,
 } from "./press-social-lifestyle.js";
 import { answerPressQuestion, startPressConference } from "./press-interviews.js";
+import { buildEntityReference } from "./entity-reference.js";
 import { commitmentFromPressResponse } from "./commitments.js";
 import { supporterReadModel } from "./supporter-culture.js";
 import { resolveStoryEntityReference, storyImportanceBand } from "./story-entities.js";
@@ -221,34 +223,97 @@ export const buildSupporterOverview = (
 // journalist/outlet pipeline above, not a second press system.
 // ---------------------------------------------------------------------------
 
+/** Turns a real, persisted MediaInterview into the one canonical, UI-ready
+ * structured-press view — journalist/outlet/subject entities already
+ * resolved to clickable EntityReferences, response options carrying only
+ * their real text. Never a second data source: rebuilding this view from
+ * the same interview row after a reload always reproduces it identically. */
+const buildStructuredPressConferenceView = (
+  db: GameDatabase,
+  interview: MediaInterview,
+): StructuredPressConferenceView => {
+  const journalist = buildEntityReference(db, "JOURNALIST", interview.journalistId, "MANAGER");
+  const outlet = buildEntityReference(db, "MEDIA_OUTLET", interview.outletId, "MANAGER");
+  const questions = interview.structuredQuestions ?? [];
+  const answers = interview.structuredAnswers ?? [];
+  const index = interview.currentQuestionIndex ?? 0;
+  const question = questions[index];
+  const priorAnswers: import("@nepal-football-sim/shared-types").PressConferenceAnswerView[] = answers.map(
+    (answer) => ({
+      prompt: questions.find((item) => item.id === answer.questionId)?.prompt ?? "",
+      responseText: answer.text,
+      consequenceSummary: answer.consequenceSummary,
+    }),
+  );
+  return {
+    interviewId: interview.id,
+    context: interview.context,
+    status: interview.status,
+    journalist,
+    outlet,
+    totalQuestions: questions.length,
+    currentQuestionIndex: index,
+    currentQuestion: question
+      ? {
+          prompt: question.prompt,
+          subjectEntities: question.subjectEntities
+            .map((ref) => resolveStoryEntityReference(db, ref, "MANAGER"))
+            .filter((ref): ref is NonNullable<typeof ref> => Boolean(ref)),
+          options: question.options,
+        }
+      : undefined,
+    priorAnswers,
+    completedSummary: interview.status === "COMPLETED" ? interview.summary : undefined,
+    createdOn: interview.interviewDate,
+  };
+};
+
 export const requestManagerStructuredPressConference = (
   db: GameDatabase,
   save: SaveMetadata,
   context: ManagerContext,
   input: { context: "PRE_MATCH" | "POST_MATCH" | "TRANSFER" | "PLAYER_ISSUE"; fixtureId?: EntityId },
-): MediaInterview =>
-  startPressConference(db, {
+): StructuredPressConferenceView => {
+  const interview = startPressConference(db, {
     context: input.context,
     managerPersonId: context.character.personId,
     teamId: context.team.id,
     date: save.worldDate,
     fixtureId: input.fixtureId,
   });
+  return buildStructuredPressConferenceView(db, interview);
+};
 
 export const answerManagerStructuredPressQuestion = (
   db: GameDatabase,
   save: SaveMetadata,
   context: ManagerContext,
   input: { interviewId: EntityId; stance: PressResponseStance },
-): MediaInterview => {
+): StructuredPressConferenceView => {
   const interview = new MediaPhaseBRepository(db)
     .interviews(context.character.personId)
     .find((item) => item.id === input.interviewId);
   if (!interview) throw new Error("Press conference not found");
-  return answerPressQuestion(db, {
+  const answered = answerPressQuestion(db, {
     interviewId: input.interviewId,
     stance: input.stance,
     teamId: context.team.id,
     date: save.worldDate,
   });
+  return buildStructuredPressConferenceView(db, answered);
+};
+
+/** Re-fetches the current view of an already-open/completed structured
+ * interview without answering anything — used to resume mid-conference
+ * after a reload, and to review a completed interview from history. */
+export const getManagerStructuredPressConference = (
+  db: GameDatabase,
+  context: ManagerContext,
+  interviewId: EntityId,
+): StructuredPressConferenceView => {
+  const interview = new MediaPhaseBRepository(db)
+    .interviews(context.character.personId)
+    .find((item) => item.id === interviewId);
+  if (!interview) throw new Error("Press conference not found");
+  return buildStructuredPressConferenceView(db, interview);
 };
