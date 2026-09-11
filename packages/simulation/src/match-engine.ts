@@ -24,9 +24,14 @@ import {
   NEUTRAL_PLAYER_BEHAVIOR,
   calculateTacticalModifiers,
   derivePlayerTacticalBehavior,
+  dutyIsLegalForRole,
   type TacticalMatchModifiers,
 } from "./tactics.js";
-import type { PlayerDuty, PlayerTacticalBehavior } from "@nepal-football-sim/shared-types";
+import type {
+  PlayerDuty,
+  PlayerTacticalBehavior,
+  TacticalAssignment,
+} from "@nepal-football-sim/shared-types";
 
 export type SimulateMatchInput = {
   fixture: FixtureRecord;
@@ -1007,6 +1012,47 @@ export const applyTacticalChange = (
  * Lightweight deterministic AI reactions. Consumes no randomness, so it shifts
  * how a side plays without perturbing the match's random stream.
  */
+/**
+ * Bounded duty redistribution for a mentality swing — never every outfield
+ * player, never a defensive slot pushed forward, never an illegal duty. At
+ * most two attacking-zone assignments move one step; the rest of the shape
+ * (and every defensive slot) is untouched, so the team's identity stays
+ * recognisable through the adjustment. This is match-session state only —
+ * applyTacticalChange never writes back to the persisted baseline setup, so
+ * the AI manager's own tactic is exactly what it was before kickoff once the
+ * match ends.
+ */
+const redistributeDuties = (
+  setup: TacticalSetup,
+  direction: "ATTACKING" | "CAUTIOUS",
+): TacticalAssignment[] => {
+  const attackingZones = new Set(["forward", "attackingMidfield", "wingback"]);
+  const slotZone = new Map(setup.formation.slots.map((slot) => [slot.id, slot.zone] as const));
+  let moved = 0;
+  return setup.assignments.map((assignment) => {
+    if (moved >= 2 || !assignment.playerId) return assignment;
+    const zone = slotZone.get(assignment.slotId);
+    if (!zone || !attackingZones.has(zone)) return assignment;
+    if (
+      direction === "ATTACKING" &&
+      assignment.duty === "SUPPORT" &&
+      dutyIsLegalForRole(assignment.roleId, "ATTACK")
+    ) {
+      moved += 1;
+      return { ...assignment, duty: "ATTACK" };
+    }
+    if (
+      direction === "CAUTIOUS" &&
+      assignment.duty === "ATTACK" &&
+      dutyIsLegalForRole(assignment.roleId, "SUPPORT")
+    ) {
+      moved += 1;
+      return { ...assignment, duty: "SUPPORT" };
+    }
+    return assignment;
+  });
+};
+
 const aiTacticalReaction = (state: LiveMatchState, team: RuntimeTeam, minute: number): void => {
   if (!team.setup || minute < 60 || minute % 15 !== 0) return;
   const deficit = trailingBy(state, team);
@@ -1023,12 +1069,22 @@ const aiTacticalReaction = (state: LiveMatchState, team: RuntimeTeam, minute: nu
   }
   if (!target) return;
 
+  // A red card gets the defensive mentality shift only — reshaping duties on
+  // top of playing a player short is exactly the invasive change this pass
+  // avoids; the reduced XI and its unchanged roles/duties already carry the
+  // defensive intent.
+  const assignments =
+    !shortHanded && (target === "ATTACKING" || target === "CAUTIOUS")
+      ? redistributeDuties(team.setup, target)
+      : team.setup.assignments;
+
   applyTacticalChange(
     state,
     team,
     {
       ...team.setup,
       instructions: { ...team.setup.instructions, mentality: target },
+      assignments,
     },
     minute,
     "AI",
