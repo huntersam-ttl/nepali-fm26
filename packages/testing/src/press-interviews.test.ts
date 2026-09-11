@@ -457,6 +457,114 @@ describe("press interviews — structured, context-grounded flow", () => {
     expect(resultA.structuredAnswers![0]!.stance).toBeTruthy();
     db.close();
   });
+
+  it("never rerolls a completed interview back to OPEN when the same topic is requested again the same day", () => {
+    const db = openGameDatabase(makeSave("no-reroll-same-topic"));
+    const [home] = twoManagedTeams(db);
+    const player = playerOnTeam(db, home);
+    const managerPersonId = managerPersonForTeam(db, home);
+    new SquadDynamicsRepository(db).upsertConcern({
+      id: "no-reroll-concern" as EntityId,
+      personId: player,
+      teamId: home,
+      type: "TRANSFER_INTEREST",
+      status: "ACTIVE",
+      severity: 5,
+      raisedOn: "2026-09-05",
+      updatedOn: "2026-09-05",
+    });
+    const interview = startPressConference(db, { context: "TRANSFER", managerPersonId, teamId: home, date: "2026-09-05" });
+    let current = interview;
+    while (current.status === "OPEN") {
+      current = answerPressQuestion(db, {
+        interviewId: interview.id,
+        stance: current.structuredQuestions![current.currentQuestionIndex!]!.options[0]!.stance,
+        teamId: home,
+        date: "2026-09-05",
+      });
+    }
+    expect(current.status).toBe("COMPLETED");
+    const answeredCount = current.structuredAnswers!.length;
+
+    // Same manager, same context, same date — the concern is still ACTIVE
+    // and unchanged. Requesting again must resolve the identical, still-
+    // COMPLETED interview, never reset it back to OPEN with answers wiped.
+    const requestedAgain = startPressConference(db, { context: "TRANSFER", managerPersonId, teamId: home, date: "2026-09-05" });
+    expect(requestedAgain.id).toBe(interview.id);
+    expect(requestedAgain.status).toBe("COMPLETED");
+    expect(requestedAgain.structuredAnswers!.length).toBe(answeredCount);
+    db.close();
+  });
+});
+
+describe("press interview frequency control — TRANSFER/PLAYER_ISSUE cooldown", () => {
+  it("suppresses a new interview of the same manually-requestable context within the cooldown window", () => {
+    const db = openGameDatabase(makeSave("press-cooldown-within"));
+    const [home] = twoManagedTeams(db);
+    const player = playerOnTeam(db, home);
+    const managerPersonId = managerPersonForTeam(db, home);
+    new SquadDynamicsRepository(db).upsertConcern({
+      id: "cooldown-concern" as EntityId,
+      personId: player,
+      teamId: home,
+      type: "TRANSFER_INTEREST",
+      status: "ACTIVE",
+      severity: 5,
+      raisedOn: "2026-09-05",
+      updatedOn: "2026-09-05",
+    });
+    const first = startPressConference(db, { context: "TRANSFER", managerPersonId, teamId: home, date: "2026-09-05" });
+    let current = first;
+    while (current.status === "OPEN") {
+      current = answerPressQuestion(db, {
+        interviewId: first.id,
+        stance: current.structuredQuestions![current.currentQuestionIndex!]!.options[0]!.stance,
+        teamId: home,
+        date: "2026-09-05",
+      });
+    }
+    expect(current.status).toBe("COMPLETED");
+
+    // The very next day — still well inside the cooldown, and nothing about
+    // the concern has materially changed — must not produce a new interview.
+    const nextDay = startPressConference(db, { context: "TRANSFER", managerPersonId, teamId: home, date: "2026-09-06" });
+    expect(nextDay.id).toBe(first.id);
+    expect(nextDay.status).toBe("COMPLETED");
+    db.close();
+  });
+
+  it("allows a new interview of the same context once the cooldown has genuinely elapsed", () => {
+    const db = openGameDatabase(makeSave("press-cooldown-elapsed"));
+    const [home] = twoManagedTeams(db);
+    const player = playerOnTeam(db, home);
+    const managerPersonId = managerPersonForTeam(db, home);
+    new SquadDynamicsRepository(db).upsertConcern({
+      id: "cooldown-elapsed-concern" as EntityId,
+      personId: player,
+      teamId: home,
+      type: "TRANSFER_INTEREST",
+      status: "ACTIVE",
+      severity: 5,
+      raisedOn: "2026-09-05",
+      updatedOn: "2026-09-05",
+    });
+    const first = startPressConference(db, { context: "TRANSFER", managerPersonId, teamId: home, date: "2026-09-05" });
+    let current = first;
+    while (current.status === "OPEN") {
+      current = answerPressQuestion(db, {
+        interviewId: first.id,
+        stance: current.structuredQuestions![current.currentQuestionIndex!]!.options[0]!.stance,
+        teamId: home,
+        date: "2026-09-05",
+      });
+    }
+
+    // Well beyond the cooldown window: a genuinely new interview is created.
+    const later = startPressConference(db, { context: "TRANSFER", managerPersonId, teamId: home, date: "2026-09-20" });
+    expect(later.id).not.toBe(first.id);
+    expect(later.status).toBe("OPEN");
+    db.close();
+  });
 });
 
 describe("press interviews — tactical questions grounded in the real kickoff snapshot", () => {

@@ -561,6 +561,11 @@ const optionsFor = (topic: PressQuestionTopic): PressQuestionOption[] =>
 
 const MAX_QUESTIONS = 4;
 
+/** Minimum days between two manually-requested TRANSFER/PLAYER_ISSUE
+ * interviews for the same manager before a new one is genuinely offered
+ * again — a bounded frequency control, not a hardcoded calendar rule. */
+const PRESS_COOLDOWN_DAYS = 3;
+
 export const generatePressQuestions = (
   db: GameDatabase,
   input: {
@@ -677,6 +682,33 @@ export const startPressConference = (
   const existingOpen = repo.interviews(input.managerPersonId).find((item) => item.status === "OPEN");
   if (existingOpen) return existingOpen;
 
+  // The exact same subject/context/date has already produced an interview —
+  // whether still open or already completed — so resolve that one instead
+  // of regenerating. Without this, re-requesting the same topic after
+  // completing it earlier the same day would silently reroll a COMPLETED
+  // interview back to OPEN with its answers discarded.
+  const sourceEntityId = input.fixtureId ?? input.teamId;
+  const stableId = createStableEntityId("media-interview", `${sourceEntityId}:${input.context}:${input.date}`);
+  const existingSameTopic = repo.interviews(input.managerPersonId).find((item) => item.id === stableId);
+  if (existingSameTopic) return existingSameTopic;
+
+  // Frequency control for the two manually-requestable, non-fixture-bound
+  // contexts (TRANSFER/PLAYER_ISSUE): without a real new fixture to key off,
+  // a manager could otherwise re-request the same still-unresolved subject
+  // every day. A short cooldown after the most recent COMPLETED interview of
+  // the same context avoids that spam without inventing a second frequency
+  // system — PRE_MATCH/POST_MATCH are already naturally bounded by real
+  // fixture occurrence and the pre-match trigger's own materiality check.
+  if (input.context === "TRANSFER" || input.context === "PLAYER_ISSUE") {
+    const recentCompleted = repo
+      .interviews(input.managerPersonId)
+      .filter((item) => item.context === input.context && item.status === "COMPLETED")
+      .sort((a, b) => (a.interviewDate < b.interviewDate ? 1 : a.interviewDate > b.interviewDate ? -1 : 0))[0];
+    if (recentCompleted && addDays(recentCompleted.interviewDate, PRESS_COOLDOWN_DAYS) > input.date) {
+      return recentCompleted;
+    }
+  }
+
   initializeMediaForSave(db);
   initializeMediaJournalists(db);
   const questions = generatePressQuestions(db, {
@@ -691,9 +723,8 @@ export const startPressConference = (
       .find((candidate) => candidate.scope !== "REGIONAL_INTERNATIONAL") ?? new MediaRepository(db).outlets()[0]!;
   const journalist =
     new MediaPhaseBRepository(db).journalists(outlet.id)[0] ?? new MediaPhaseBRepository(db).journalists()[0]!;
-  const sourceEntityId = input.fixtureId ?? input.teamId;
   const interview: MediaInterview = {
-    id: createStableEntityId("media-interview", `${sourceEntityId}:${input.context}:${input.date}`),
+    id: stableId,
     outletId: outlet.id,
     journalistId: journalist.id,
     sourceEntityId,

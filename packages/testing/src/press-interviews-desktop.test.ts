@@ -117,4 +117,122 @@ describe("structured press conference — desktop command layer", () => {
 
     service.closeCareer();
   });
+
+  it("rejects a Manager-owned press command from any other held role, and the pending item reappears when switching back to Manager", () => {
+    const savesDirectory = mkdtempSync(join(tmpdir(), "press-desktop-guard-"));
+    tempDirs.push(savesDirectory);
+    const service = new DesktopApplicationService({ savesDirectory, worldDatasetPath: WORLD_DATASET });
+    const created = service.createCareer({
+      saveName: "Press Guard",
+      character: {
+        fullName: "Sita Thapa",
+        preferredDisplayName: "Sita",
+        dateOfBirth: "1988-03-01",
+        startingAge: 38,
+        languages: ["ne", "en"],
+        footballBackground: "COMMUNITY_COACHING",
+        education: "SPORTS_RELATED_DEGREE",
+        playingExperience: "AMATEUR_PLAYER",
+        coachingExperience: "YOUTH_COACH",
+        businessBackground: "SMALL_BUSINESS",
+        startingReputationProfile: "LOCAL_RESPECTED",
+      },
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const worldDate = created.data.save.worldDate;
+    service.closeCareer();
+
+    // Grant this same person a second held role (Owner) and a real transfer
+    // concern to ground a Manager press interview, exactly as
+    // career-role-switching.test.ts does.
+    const db = openGameDatabase(created.data.catalogEntry.filePath);
+    migrateDatabase(db);
+    const personId = (
+      db.prepare("SELECT person_id FROM career_characters WHERE id = ?").get(created.data.save.playerCharacterId!) as {
+        person_id: EntityId;
+      }
+    ).person_id;
+    const managerClub = db
+      .prepare("SELECT team_id, club_id FROM manager_contracts WHERE person_id = ? AND status = 'ACTIVE'")
+      .get(personId) as { team_id: EntityId; club_id: EntityId };
+    db.prepare(`INSERT INTO club_ownership_stakes
+      (id,club_id,holder_type,holder_id,holder_name,role,percentage,voting_percentage,start_date,end_date,status,ownership_model,provenance_status)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+      "press-guard-owner" as EntityId, managerClub.club_id, "PERSON", personId, "Sita Thapa",
+      "MAJORITY_OWNER", 75, 75, worldDate, null, "ACTIVE", "PARTIALLY_BUYABLE", "SIMULATION_ONLY",
+    );
+    const player = db
+      .prepare(
+        `SELECT player_id AS personId FROM player_contracts
+         WHERE club_id = ? AND status = 'ACTIVE' AND start_date <= ? AND end_date >= ? LIMIT 1`,
+      )
+      .get(managerClub.club_id, worldDate, worldDate) as { personId: EntityId };
+    new SquadDynamicsRepository(db).upsertConcern({
+      id: "press-guard-concern" as EntityId,
+      personId: player.personId,
+      teamId: managerClub.team_id,
+      type: "TRANSFER_INTEREST",
+      status: "ACTIVE",
+      severity: 5,
+      raisedOn: worldDate,
+      updatedOn: worldDate,
+    });
+    db.close();
+
+    expect(service.loadCareer(created.data.save.id).ok).toBe(true);
+
+    // As Manager: open a real, pending press interview.
+    const opened = service.requestStructuredPressConference({ context: "TRANSFER" });
+    expect(opened.ok).toBe(true);
+    if (!opened.ok) return;
+    const beforeSwitch = service.getManagerDashboard();
+    expect(beforeSwitch.ok).toBe(true);
+    if (beforeSwitch.ok) {
+      expect(beforeSwitch.data.inbox.some((item) => item.type === "PRESS_INTERVIEW")).toBe(true);
+    }
+
+    // Switch to the Owner role — the exact same Manager-owned interview must
+    // now be completely unreachable through the command layer, not merely
+    // hidden by client-side routing.
+    expect(service.switchActiveCareerRole("CHAIRMAN_OWNER")).toMatchObject({ ok: true, data: { activeRole: "CHAIRMAN_OWNER" } });
+
+    const rejectedAnswer = service.answerStructuredPressQuestion({
+      interviewId: opened.data.interviewId,
+      stance: opened.data.currentQuestion!.options[0]!.stance,
+    });
+    expect(rejectedAnswer).toMatchObject({ ok: false, error: { code: "ROLE_NOT_AUTHORIZED" } });
+
+    const rejectedRequest = service.requestStructuredPressConference({ context: "TRANSFER" });
+    expect(rejectedRequest).toMatchObject({ ok: false, error: { code: "ROLE_NOT_AUTHORIZED" } });
+
+    const rejectedGet = service.getStructuredPressConference(opened.data.interviewId);
+    expect(rejectedGet).toMatchObject({ ok: false, error: { code: "ROLE_NOT_AUTHORIZED" } });
+
+    // Note: getManagerDashboard() itself is a read-only query gated by
+    // tryManagerContext (soft — it falls back rather than rejecting), not by
+    // managerCommand's strict active-role check the way every *mutating* or
+    // interview-scoped press command above is. So this call alone does not
+    // reject while active role is Owner — that's pre-existing, press-
+    // unrelated dashboard-access behavior. What actually matters for press
+    // authority is already proven above: no press command that reads or
+    // answers a *specific* Manager-owned interview is reachable as Owner,
+    // and the real Owner-facing UI never calls this Manager-only bridge
+    // method in the first place.
+
+    // Switching back to Manager: the exact same pending interview is
+    // reachable again, unchanged and unanswered.
+    expect(service.switchActiveCareerRole("MANAGER")).toMatchObject({ ok: true, data: { activeRole: "MANAGER" } });
+    const afterSwitchBack = service.getManagerDashboard();
+    expect(afterSwitchBack.ok).toBe(true);
+    if (afterSwitchBack.ok) {
+      const item = afterSwitchBack.data.inbox.find((entry) => entry.type === "PRESS_INTERVIEW");
+      expect(item).toBeTruthy();
+      expect(item!.relatedEntity).toEqual({ id: opened.data.interviewId, type: "mediaInterview" });
+    }
+    const resumed = service.getStructuredPressConference(opened.data.interviewId);
+    expect(resumed).toMatchObject({ ok: true, data: { status: "OPEN", priorAnswers: [] } });
+
+    service.closeCareer();
+  });
 });
