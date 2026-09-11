@@ -4176,6 +4176,72 @@ export type MediaJournalistRelationship = {
   lastInteraction?: ISODate;
   status: "SIMULATION_ONLY";
 };
+/** A focused, bounded topic set — never one type per sentence. Each topic
+ * only ever appears when the real world state it names actually exists (see
+ * generatePressQuestions in the simulation package): a RED_CARD question is
+ * impossible without a real dismissal in the match, a TRANSFER_BID question
+ * without a real pending offer, and so on. */
+export type PressQuestionTopic =
+  | "MATCH_RESULT"
+  | "RED_CARD"
+  | "PENALTY"
+  | "SET_PIECE_GOAL"
+  | "LATE_WINNER"
+  | "UPSET"
+  | "PLAYER_PERFORMANCE"
+  | "TACTICAL_SWITCH_REVIEW"
+  | "OPPONENT_PREVIEW"
+  | "TABLE_STAKES"
+  | "TACTICAL_CHANGE_PREVIEW"
+  | "SELECTION_ISSUE"
+  | "RIVALRY_PREVIEW"
+  | "TRANSFER_BID"
+  | "TRANSFER_REQUEST"
+  | "TRANSFER_COMPLETED"
+  | "PLAYING_TIME_CONCERN"
+  | "CAPTAINCY_REACTION"
+  | "ROLE_CONCERN";
+
+/** Reusable response archetypes. A question only ever offers the stances
+ * that make sense for its topic — never four differently-worded options
+ * with an identical consequence. */
+export type PressResponseStance =
+  | "PRAISE"
+  | "CALM"
+  | "DEFLECT"
+  | "ASSERTIVE"
+  | "CRITICAL"
+  | "PROTECT_PLAYER"
+  | "CHALLENGE_PLAYER"
+  | "COMMIT"
+  | "NON_COMMITTAL";
+
+export type PressQuestionOption = {
+  stance: PressResponseStance;
+  /** Football-natural response copy, not an enum label. */
+  text: string;
+};
+
+export type PressQuestion = {
+  id: EntityId;
+  topic: PressQuestionTopic;
+  prompt: string;
+  /** Real entities this question is actually about — a player, match,
+   * opponent club, etc. — so the UI can render them as clickable chips. */
+  subjectEntities: EntityRef[];
+  options: PressQuestionOption[];
+};
+
+export type PressAnswer = {
+  questionId: EntityId;
+  stance: PressResponseStance;
+  text: string;
+  /** One short, human-readable line of what changed — never a raw number
+   * dump — set once and never regenerated on later reads. */
+  consequenceSummary?: string;
+  answeredOn: ISODate;
+};
+
 export type MediaInterview = {
   id: EntityId;
   outletId: EntityId;
@@ -4183,7 +4249,7 @@ export type MediaInterview = {
   sourceEntityId: EntityId;
   managerPersonId?: EntityId;
   interviewDate: ISODate;
-  context: "PRE_MATCH" | "POST_MATCH" | "EVENT";
+  context: "PRE_MATCH" | "POST_MATCH" | "EVENT" | "TRANSFER" | "PLAYER_ISSUE";
   importance: number;
   questions: string[];
   responses: string[];
@@ -4192,6 +4258,13 @@ export type MediaInterview = {
   clubSupportEffect: number;
   status: "OPEN" | "COMPLETED";
   provenanceStatus: "SIMULATION_ONLY";
+  /** The richer multi-question flow. Absent on interviews created before
+   * this existed, and on the still-supported single-generic-question path
+   * (createMediaInterview/answerMediaInterview) — those keep working exactly
+   * as before, reading/writing only the plain string arrays above. */
+  structuredQuestions?: PressQuestion[];
+  structuredAnswers?: PressAnswer[];
+  currentQuestionIndex?: number;
 };
 
 export type InternationalRetirementStatus = "ACTIVE" | "CONSIDERING" | "RETIRED_INTERNATIONAL";

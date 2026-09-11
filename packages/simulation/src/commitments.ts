@@ -18,7 +18,11 @@ export type CommitmentType =
   | "FINANCIAL_DISCIPLINE"
   | "SQUAD_STRENGTHENING"
   | "FACILITY_PROJECT"
-  | "TACTICAL_STYLE";
+  | "TACTICAL_STYLE"
+  /** A press-made "we won't sell him" style commitment — targetCriteria
+   * carries the player's personId, evaluated against whether they are still
+   * contracted to the club by the due date. */
+  | "TRANSFER_STANCE";
 
 export type CommitmentInput = {
   source: CommitmentSource;
@@ -41,6 +45,7 @@ const measurableTypes = new Set<CommitmentType>([
   "SQUAD_STRENGTHENING",
   "FACILITY_PROJECT",
   "TACTICAL_STYLE",
+  "TRANSFER_STANCE",
 ]);
 
 /** Creates a canonical manager promise only for structured, measurable commitments. */
@@ -208,6 +213,18 @@ export const evaluateStructuredCommitments = (
       );
       evaluable = true;
       fulfilled = youthAppearances > 0;
+    } else if (promise.type === "TRANSFER_STANCE" && promise.targetCriteria) {
+      // targetCriteria carries the player's personId — "kept" means still
+      // under an active contract at this club on the due date.
+      const stillHere = db
+        .prepare(
+          `SELECT 1 FROM player_contracts pc
+           WHERE pc.player_id = ? AND pc.club_id = (SELECT club_id FROM teams WHERE id = ?)
+             AND pc.status = 'ACTIVE' AND pc.start_date <= ? AND (pc.end_date IS NULL OR pc.end_date >= ?)`,
+        )
+        .get(promise.targetCriteria, teamId, save.worldDate, save.worldDate);
+      evaluable = true;
+      fulfilled = Boolean(stillHere);
     } else {
       // Unsupported prose or unmodeled targets are never silently fulfilled.
       evaluable = false;

@@ -3832,6 +3832,19 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       ALTER TABLE matches ADD COLUMN tactical_snapshot_json TEXT;
     `,
   },
+  {
+    version: 99,
+    sql: `
+      -- Structured multi-question press interviews. NULL for any interview
+      -- created before this existed, and for the still-supported single-
+      -- generic-question interview path — the read mapper treats a NULL
+      -- structured_questions_json exactly like "no structured flow" rather
+      -- than inventing one.
+      ALTER TABLE media_interviews ADD COLUMN structured_questions_json TEXT;
+      ALTER TABLE media_interviews ADD COLUMN structured_answers_json TEXT;
+      ALTER TABLE media_interviews ADD COLUMN current_question_index INTEGER;
+    `,
+  },
 ];
 
 export const migrateDatabase = (db: GameDatabase): number => {
