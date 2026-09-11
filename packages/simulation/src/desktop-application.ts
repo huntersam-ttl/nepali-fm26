@@ -342,6 +342,7 @@ import {
   createTacticalSetup,
   tacticalPositionToPlayerPosition,
 } from "./tactics.js";
+import { resolveTeamTacticalSetup } from "./ai-tactics.js";
 import { suitability } from "./team-selection.js";
 import { activeCareerRole, heldCareerRoles, switchActiveCareerRole } from "./career-control.js";
 import {
@@ -2795,7 +2796,8 @@ export class DesktopApplicationService {
         throw appError("INVALID_SELECTION", "No saved tactic exists for your team.");
       }
       const managerIsHome = fixture.homeTeamId === context.team.id;
-      const opponentTactic = defaultSetup(
+      const opponentTactic = resolveTeamTacticalSetup(
+        db,
         managerIsHome ? fixture.awayTeamId : fixture.homeTeamId,
         managerIsHome ? awayPlayers : homePlayers,
       );
@@ -5659,11 +5661,8 @@ const ownerMatchInput = (
   if (!ruleSet) throw appError("SAVE_CORRUPT", "Competition rules are missing for this fixture.");
   const homePlayers = new PlayerRepository(db).attributesForTeam(fixture.homeTeamId);
   const awayPlayers = new PlayerRepository(db).attributesForTeam(fixture.awayTeamId);
-  const managers = new ManagerRepository(db);
-  const homeTactic =
-    managers.tacticalSetups(fixture.homeTeamId)[0] ?? defaultSetup(fixture.homeTeamId, homePlayers);
-  const awayTactic =
-    managers.tacticalSetups(fixture.awayTeamId)[0] ?? defaultSetup(fixture.awayTeamId, awayPlayers);
+  const homeTactic = resolveTeamTacticalSetup(db, fixture.homeTeamId, homePlayers);
+  const awayTactic = resolveTeamTacticalSetup(db, fixture.awayTeamId, awayPlayers);
   return {
     fixture,
     refereeAssignment: requireFixtureOfficials(db, fixture, {
@@ -5754,7 +5753,8 @@ const matchHelpers = (
     const tactic = new ManagerRepository(db).tacticalSetups(context.team.id)[0];
     if (!tactic) throw appError("INVALID_SELECTION", "No saved tactic exists for your team.");
     const managerIsHome = fixture.homeTeamId === context.team.id;
-    const opponentTactic = defaultSetup(
+    const opponentTactic = resolveTeamTacticalSetup(
+      db,
       managerIsHome ? fixture.awayTeamId : fixture.homeTeamId,
       managerIsHome ? awayPlayers : homePlayers,
     );

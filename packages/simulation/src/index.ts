@@ -121,6 +121,7 @@ export * from "./owner-meeting-suggestion.js";
 export * from "./strength.js";
 export * from "./team-selection.js";
 export * from "./tactics.js";
+export * from "./ai-tactics.js";
 export * from "./transfer-market.js";
 export * from "./player-market-value.js";
 export * from "./analytics.js";
