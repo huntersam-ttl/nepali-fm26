@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import type { EntityId, MatchRatingRow } from "@nepal-football-sim/shared-types";
 import { managerBridge } from "../managerBridge.js";
 import { AsyncPanel, Badge, Metrics, Panel, money, useRuntimeData } from "../ui.js";
+import { StructuredPressConferencePanel } from "../screens/MediaScreen.js";
 
 type TimelineFilter = "all" | "goals" | "chances" | "cards" | "subs" | "injuries" | "tactics";
 
@@ -26,6 +27,7 @@ export const PostMatchReportScreen = ({
 }): React.ReactElement => {
   const [state] = useRuntimeData(() => managerBridge.getPostMatchReport(fixtureId), [fixtureId]);
   const [filter, setFilter] = useState<TimelineFilter>("all");
+  const [showPressConference, setShowPressConference] = useState(false);
 
   return (
     <section className="dashboard">
@@ -43,9 +45,14 @@ export const PostMatchReportScreen = ({
               <Panel
                 title="Full time"
                 actions={
-                  <button className="primary" onClick={onReturn}>
-                    Return to career
-                  </button>
+                  <div className="button-row">
+                    <button className="ghost" onClick={() => setShowPressConference(true)}>
+                      Press conference
+                    </button>
+                    <button className="primary" onClick={onReturn}>
+                      Return to career
+                    </button>
+                  </div>
                 }
               >
                 <h2 className="report-score">
@@ -267,6 +274,13 @@ export const PostMatchReportScreen = ({
                   </ul>
                 )}
               </Panel>
+
+              {showPressConference && (
+                <StructuredPressConferencePanel
+                  trigger={{ context: "POST_MATCH", fixtureId }}
+                  onClose={() => setShowPressConference(false)}
+                />
+              )}
             </>
           );
         }}

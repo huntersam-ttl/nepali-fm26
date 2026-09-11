@@ -30,6 +30,8 @@ import type {
   MediaCentreView,
   MediaResponseStance,
   PressConferenceView,
+  PressResponseStance,
+  StructuredPressConferenceView,
   SupporterReadModel,
   PostMatchReport,
   PlayerProfile,
@@ -152,6 +154,14 @@ export const managerBridge = {
     stance: MediaResponseStance;
     response: string;
   }) => runtimeCall<PressConferenceView>("answerPressConference", { input }),
+  requestStructuredPressConference: (input: {
+    context: "PRE_MATCH" | "POST_MATCH" | "TRANSFER" | "PLAYER_ISSUE";
+    fixtureId?: EntityId;
+  }) => runtimeCall<StructuredPressConferenceView>("requestStructuredPressConference", { input }),
+  answerStructuredPressQuestion: (input: { interviewId: EntityId; stance: PressResponseStance }) =>
+    runtimeCall<StructuredPressConferenceView>("answerStructuredPressQuestion", { input }),
+  getStructuredPressConference: (interviewId: EntityId) =>
+    runtimeCall<StructuredPressConferenceView>("getStructuredPressConference", { interviewId }),
   getSupporterOverview: () =>
     runtimeCall<SupporterReadModel | undefined>("getSupporterOverview"),
   getDressingRoom: () => runtimeCall<DressingRoomView>("getDressingRoom"),

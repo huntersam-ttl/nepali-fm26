@@ -6103,7 +6103,7 @@ export const PlayerContextPanel = ({
 // "COMMERCIAL_BANK"). Only reformat the latter shape so we never mangle real text.
 const formatSector = (value: string): string => (/^[A-Z0-9_]+$/.test(value) ? band(value) : value);
 
-const ORGANIZATION_ENTITY_TYPES = new Set(["SPONSOR", "LENDER", "INVESTOR"]);
+const ORGANIZATION_ENTITY_TYPES = new Set(["SPONSOR", "LENDER", "INVESTOR", "JOURNALIST", "MEDIA_OUTLET"]);
 /** Club/Staff/Competition profiles (b0d0871) render through the same host as
  * organizations — see OrganizationProfilePanel below, which now covers both. */
 const WORLD_PROFILE_ENTITY_TYPES = new Set(["CLUB", "STAFF", "COMPETITION", "INFRASTRUCTURE_PROJECT"]);

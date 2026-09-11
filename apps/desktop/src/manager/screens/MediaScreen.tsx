@@ -1,17 +1,193 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import type {
+  AppResult,
+  DesktopRuntimeApi,
   EntityId,
+  EntityReference,
   MediaFeedItem,
   MediaResponseStance,
   MediaSection,
+  PressResponseStance,
   StoryImportanceBand,
+  StructuredPressConferenceView,
   SupporterReactionState,
   SupporterUnrestState,
 } from "@nepal-football-sim/shared-types";
 import { managerBridge } from "../managerBridge.js";
 import { AsyncPanel, Badge, EmptyState, Metrics, Panel, useRuntimeData } from "../ui.js";
-import { StoryDetailPanel } from "../RoleDetailScreen.js";
+import { EntityRefLink, OrganizationProfilePanel, StoryDetailPanel, type ProfileEntityType } from "../RoleDetailScreen.js";
 import { TransferNegotiationLauncher } from "./TransferNegotiationMeeting.js";
+
+/**
+ * OrganizationProfilePanel's `bridge` prop is typed as the full
+ * DesktopRuntimeApi because it also serves Owner/President screens, but for
+ * the two entity types this panel ever opens from a press conference —
+ * JOURNALIST and MEDIA_OUTLET (and, incidentally, CLUB) — it only ever calls
+ * bridge.getOrganizationProfile / bridge.getClubProfile, both of which
+ * managerBridge genuinely implements. A PLAYER reference is deliberately
+ * never routed here (managerBridge lacks the owner-request/contract-context
+ * calls PlayerContextPanel needs), so this narrowing is safe in practice,
+ * not just suppressed.
+ */
+const organizationBridge = managerBridge as unknown as DesktopRuntimeApi;
+
+const PRESS_CONTEXT_LABEL: Record<StructuredPressConferenceView["context"], string> = {
+  PRE_MATCH: "Pre-match press conference",
+  POST_MATCH: "Post-match press conference",
+  TRANSFER: "Transfer interview",
+  PLAYER_ISSUE: "Player issue interview",
+  EVENT: "Press conference",
+};
+
+/**
+ * The player-visible, question-by-question structured press conference —
+ * one canonical view (StructuredPressConferenceView) resolved server-side,
+ * never raw JSON. Opens (or resumes) an interview on mount, answers one
+ * question at a time, and shows the completion summary once COMPLETED.
+ * Reload-safe: re-mounting with the same interviewId reproduces the exact
+ * same state from the persisted interview.
+ */
+export const StructuredPressConferencePanel = ({
+  trigger,
+  interviewId,
+  onClose,
+}: {
+  /** Opens a new-or-resumed conference of this type. */
+  trigger?: {
+    context: "PRE_MATCH" | "POST_MATCH" | "TRANSFER" | "PLAYER_ISSUE";
+    fixtureId?: EntityId;
+  };
+  /** Resumes/reviews an already-known interview instead of opening one. */
+  interviewId?: EntityId;
+  onClose: () => void;
+}): React.ReactElement => {
+  const [state, setState] = useState<AppResult<StructuredPressConferenceView> | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [openReferenceTarget, setOpenReferenceTarget] = useState<EntityReference | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      const result =
+        interviewId !== undefined
+          ? await managerBridge.getStructuredPressConference(interviewId)
+          : trigger
+            ? await managerBridge.requestStructuredPressConference(trigger)
+            : null;
+      if (!cancelled && result) setState(result);
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [interviewId, trigger?.context, trigger?.fixtureId]);
+
+  const answer = async (stance: PressResponseStance) => {
+    if (!state?.ok) return;
+    setBusy(true);
+    const result = await managerBridge.answerStructuredPressQuestion({
+      interviewId: state.data.interviewId,
+      stance,
+    });
+    setBusy(false);
+    setState(result);
+  };
+
+  if (!state) return <Panel title="Press conference">{<EmptyState>Opening…</EmptyState>}</Panel>;
+  if (!state.ok)
+    return (
+      <Panel title="Press conference" actions={<button onClick={onClose}>Close</button>}>
+        <p className="warning" role="alert">
+          {state.error?.message ?? "Could not open this press conference."}
+        </p>
+      </Panel>
+    );
+
+  const view = state.data;
+  return (
+    <Panel
+      title={PRESS_CONTEXT_LABEL[view.context]}
+      actions={<button onClick={onClose}>Close</button>}
+    >
+      <p className="subtle">
+        Interview with <EntityRefLink reference={view.journalist} onOpen={setOpenReferenceTarget} /> ·{" "}
+        <EntityRefLink reference={view.outlet} onOpen={setOpenReferenceTarget} />
+      </p>
+
+      {view.priorAnswers.length > 0 && (
+        <ul className="report-list">
+          {view.priorAnswers.map((answered, index) => (
+            <li key={index}>
+              <strong>{answered.prompt}</strong>
+              <br />
+              {answered.responseText}
+              {answered.consequenceSummary && <p className="subtle">{answered.consequenceSummary}</p>}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {view.status === "OPEN" && view.currentQuestion ? (
+        <>
+          <p className="subtle">
+            Question {view.currentQuestionIndex + 1} of {view.totalQuestions}
+          </p>
+          {view.currentQuestion.subjectEntities.length > 0 && (
+            <div className="button-row">
+              {view.currentQuestion.subjectEntities.map((reference) =>
+                // A player subject isn't opened from here — managerBridge
+                // doesn't carry the contract/transfer-context calls the
+                // shared Player profile panel needs — but the resolved,
+                // real player name still reads correctly (never a raw id).
+                reference.entityType === "PLAYER" ? (
+                  <Badge key={`${reference.entityType}:${reference.id}`} tone="info">
+                    {reference.label}
+                  </Badge>
+                ) : (
+                  <EntityRefLink
+                    key={`${reference.entityType}:${reference.id}`}
+                    reference={reference}
+                    onOpen={setOpenReferenceTarget}
+                  />
+                ),
+              )}
+            </div>
+          )}
+          <h3>{view.currentQuestion.prompt}</h3>
+          <div className="controls">
+            {view.currentQuestion.options.map((option) => (
+              <button
+                key={option.stance}
+                className="ghost"
+                disabled={busy}
+                onClick={() => void answer(option.stance)}
+              >
+                {option.text}
+              </button>
+            ))}
+          </div>
+        </>
+      ) : (
+        <EmptyState>
+          {view.completedSummary ??
+            (view.totalQuestions === 0
+              ? "The press has nothing pressing to ask about right now."
+              : "This interview has concluded.")}
+        </EmptyState>
+      )}
+
+      {openReferenceTarget && (
+        <OrganizationProfilePanel
+          bridge={organizationBridge}
+          entityType={openReferenceTarget.entityType as ProfileEntityType}
+          entityId={openReferenceTarget.id}
+          onClose={() => setOpenReferenceTarget(null)}
+        />
+      )}
+    </Panel>
+  );
+};
 
 const IMPORTANCE_TONE: Record<StoryImportanceBand, "bad" | "warn" | "info" | "ok"> = {
   BREAKING: "bad",
@@ -125,6 +301,10 @@ export const MediaScreen = (): React.ReactElement => {
   const [actionError, setActionError] = useState<string | null>(null);
   const [openStoryEventId, setOpenStoryEventId] = useState<EntityId | null>(null);
   const [openTransferOfferId, setOpenTransferOfferId] = useState<EntityId | null>(null);
+  const [structuredTrigger, setStructuredTrigger] = useState<{
+    context: "TRANSFER" | "PLAYER_ISSUE";
+  } | null>(null);
+  const [structuredReviewId, setStructuredReviewId] = useState<EntityId | null>(null);
 
   const requestConference = async (storyId: EntityId) => {
     setBusy(true);
@@ -300,6 +480,30 @@ export const MediaScreen = (): React.ReactElement => {
               )}
             </Panel>
 
+            <Panel title="Interviews">
+              <p className="subtle">Speak to the press about a squad or transfer matter directly.</p>
+              <div className="button-row">
+                <button
+                  className="ghost small"
+                  onClick={() => {
+                    setStructuredReviewId(null);
+                    setStructuredTrigger({ context: "TRANSFER" });
+                  }}
+                >
+                  Transfer interview
+                </button>
+                <button
+                  className="ghost small"
+                  onClick={() => {
+                    setStructuredReviewId(null);
+                    setStructuredTrigger({ context: "PLAYER_ISSUE" });
+                  }}
+                >
+                  Player issue interview
+                </button>
+              </div>
+            </Panel>
+
             {media.feed.length === 0 ? (
               <Panel title="Media">
                 <EmptyState>No media coverage yet.</EmptyState>
@@ -340,10 +544,35 @@ export const MediaScreen = (): React.ReactElement => {
                   {media.completedInterviews.map((interview) => (
                     <li key={interview.id}>
                       {interview.summary} <span className="subtle">{interview.interviewDate}</span>
+                      {interview.structuredQuestions && (
+                        <div className="button-row">
+                          <button
+                            className="link"
+                            onClick={() => {
+                              setStructuredTrigger(null);
+                              setStructuredReviewId(interview.id);
+                            }}
+                          >
+                            View interview
+                          </button>
+                        </div>
+                      )}
                     </li>
                   ))}
                 </ul>
               </Panel>
+            )}
+
+            {(structuredTrigger || structuredReviewId) && (
+              <StructuredPressConferencePanel
+                trigger={structuredTrigger ?? undefined}
+                interviewId={structuredReviewId ?? undefined}
+                onClose={() => {
+                  setStructuredTrigger(null);
+                  setStructuredReviewId(null);
+                  refreshMedia();
+                }}
+              />
             )}
           </>
         )}
