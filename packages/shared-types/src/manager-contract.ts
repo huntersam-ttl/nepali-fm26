@@ -26,6 +26,7 @@ import type {
   PlayerDiscoveryStatus,
   PlayerKnowledgeLevel,
   PlayerDuty,
+  PlayerInstruction,
   PlayerPosition,
   PlayerSquadRole,
   SquadGroupType,
@@ -286,6 +287,14 @@ export type SlotRoleFit = {
   familiarity: number;
 };
 
+export type InstructionOption = {
+  value: PlayerInstruction;
+  label: string;
+  /** A goalkeeper slot cannot legally hold this instruction (e.g. shooting or
+   * crossing instructions) — the UI should hide it for goalkeeper slots. */
+  goalkeeperLegal: boolean;
+};
+
 export type TacticsView = {
   setup: TacticalSetup;
   formations: FormationOption[];
@@ -294,6 +303,10 @@ export type TacticsView = {
   mentalities: string[];
   familiarity: TacticalFamiliarity;
   roleFits: SlotRoleFit[];
+  /** Every player instruction, in display-grouped order, for building the
+   * per-slot checkbox control — never hard-code this list in the UI. */
+  instructionOptions: InstructionOption[];
+  maxInstructionsPerPlayer: number;
   benchCandidates: SquadPlayerRow[];
   validation: SquadSelectionValidation;
 };
@@ -309,7 +322,13 @@ export type TacticsUpdateCommand = {
   name?: string;
   style?: string;
   instructions?: TeamInstructions;
-  assignments?: Array<{ slotId: string; playerId?: EntityId; roleId: string; duty?: PlayerDuty }>;
+  assignments?: Array<{
+    slotId: string;
+    playerId?: EntityId;
+    roleId: string;
+    duty?: PlayerDuty;
+    instructions?: PlayerInstruction[];
+  }>;
   bench?: EntityId[];
   setPieces?: SetPieceAssignments;
 };

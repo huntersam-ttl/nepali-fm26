@@ -119,12 +119,16 @@ import {
 } from "./scouting.js";
 import {
   FORMATION_PRESETS,
+  MAX_INSTRUCTIONS_PER_PLAYER,
+  PLAYER_INSTRUCTION_GROUPS,
   ROLE_DEFINITIONS,
   TACTICAL_STYLE_PRESETS,
   calculateRoleFit,
   defaultDutyForRole,
   dutyIsLegalForRole,
   familiarityAfterTacticChange,
+  humanizeInstruction,
+  legalInstructionsFor,
   normalizeTacticalSetup,
   progressFamiliarity,
   roleById,
@@ -1092,6 +1096,12 @@ export const buildTacticsView = (
     ],
     familiarity: setup.familiarity,
     roleFits: roleFits(db, setup, players),
+    instructionOptions: PLAYER_INSTRUCTION_GROUPS.flat().map((instruction) => ({
+      value: instruction,
+      label: humanizeInstruction(instruction),
+      goalkeeperLegal: legalInstructionsFor(true).includes(instruction),
+    })),
+    maxInstructionsPerPlayer: MAX_INSTRUCTIONS_PER_PLAYER,
     benchCandidates: squad.players.filter((player) => !starters.has(player.personId)),
     validation: {
       isValid: validation.isValid,

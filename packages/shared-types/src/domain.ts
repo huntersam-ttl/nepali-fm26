@@ -1218,6 +1218,27 @@ export type SetPieceAssignments = {
 /** How aggressively an individual player interprets their role. */
 export type PlayerDuty = "DEFEND" | "SUPPORT" | "ATTACK";
 
+/**
+ * A focused, engine-consumed subset of per-player instructions — not an
+ * FM-style wall of toggles. Each pair below is mutually exclusive; the
+ * backend rejects holding both members of a pair on the same assignment.
+ */
+export type PlayerInstruction =
+  | "GET_FURTHER_FORWARD"
+  | "HOLD_POSITION"
+  | "STAY_WIDER"
+  | "SIT_NARROWER"
+  | "TAKE_MORE_RISKS"
+  | "TAKE_FEWER_RISKS"
+  | "SHORTER_PASSING"
+  | "MORE_DIRECT_PASSING"
+  | "CROSS_MORE"
+  | "CROSS_LESS"
+  | "PRESS_MORE"
+  | "PRESS_LESS"
+  | "SHOOT_MORE"
+  | "SHOOT_LESS";
+
 export type TacticalAssignment = {
   slotId: string;
   playerId?: EntityId;
@@ -1225,6 +1246,9 @@ export type TacticalAssignment = {
   /** Optional so pre-duty saves still load; a deterministic default is
    * backfilled from the role on read (see normalizeAssignments). */
   duty?: PlayerDuty;
+  /** Optional so pre-instruction saves still load safely as an empty set. A
+   * short, bounded list — never a wall of simultaneous toggles. */
+  instructions?: readonly PlayerInstruction[];
 };
 
 /**

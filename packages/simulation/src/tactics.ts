@@ -7,6 +7,7 @@ import {
   type Mentality,
   type PlayerAttributeSet,
   type PlayerDuty,
+  type PlayerInstruction,
   type PlayerPosition,
   type PlayerRoleDefinition,
   type PlayerTacticalBehavior,
@@ -800,6 +801,78 @@ export const validateFormation = (slots: readonly TacticalSlot[]): void => {
   }
 };
 
+/** Mutually exclusive pairs — holding both on one assignment is rejected.
+ * Exported so the UI can group instruction checkboxes by category and enforce
+ * "picking one clears the other" without duplicating this list. */
+export const INSTRUCTION_CONTRADICTIONS: readonly (readonly [PlayerInstruction, PlayerInstruction])[] = [
+  ["GET_FURTHER_FORWARD", "HOLD_POSITION"],
+  ["STAY_WIDER", "SIT_NARROWER"],
+  ["TAKE_MORE_RISKS", "TAKE_FEWER_RISKS"],
+  ["SHORTER_PASSING", "MORE_DIRECT_PASSING"],
+  ["CROSS_MORE", "CROSS_LESS"],
+  ["PRESS_MORE", "PRESS_LESS"],
+  ["SHOOT_MORE", "SHOOT_LESS"],
+];
+
+/** Instructions that are meaningless for a goalkeeper — the engine has no
+ * shot/cross-recipient behaviour a keeper could sensibly take on. Every
+ * outfield position keeps the full set; a wide instruction on a central
+ * defender or a shooting instruction on a defensive midfielder are still
+ * genuinely meaningful (an overlapping centre-back, a shot-hungry destroyer),
+ * so nothing outfield is restricted beyond the contradiction pairs. */
+const GK_ILLEGAL_INSTRUCTIONS = new Set<PlayerInstruction>([
+  "SHOOT_MORE",
+  "SHOOT_LESS",
+  "CROSS_MORE",
+  "CROSS_LESS",
+]);
+
+export const MAX_INSTRUCTIONS_PER_PLAYER = 3;
+
+/** Every legal instruction pair, in display order — the canonical source the
+ * UI reads to render grouped checkboxes instead of hard-coding the list. */
+export const PLAYER_INSTRUCTION_GROUPS = INSTRUCTION_CONTRADICTIONS;
+
+/** Legal instructions for a slot given whether it is a goalkeeper slot. */
+export const legalInstructionsFor = (isGoalkeeper: boolean): PlayerInstruction[] =>
+  INSTRUCTION_CONTRADICTIONS.flat().filter(
+    (instruction) => !isGoalkeeper || !GK_ILLEGAL_INSTRUCTIONS.has(instruction),
+  );
+
+/** Blocking-error strings for one assignment's instruction list — contradiction
+ * pairs, goalkeeper-illegal instructions, and the compact-by-design cap. */
+const instructionIssues = (
+  assignment: TacticalAssignment,
+  isGoalkeeper: boolean,
+): string[] => {
+  const instructions = assignment.instructions ?? [];
+  if (instructions.length === 0) return [];
+  const issues: string[] = [];
+  if (instructions.length > MAX_INSTRUCTIONS_PER_PLAYER) {
+    issues.push(`A player can hold at most ${MAX_INSTRUCTIONS_PER_PLAYER} instructions at once.`);
+  }
+  for (const [a, b] of INSTRUCTION_CONTRADICTIONS) {
+    if (instructions.includes(a) && instructions.includes(b)) {
+      issues.push(`${humanizeInstruction(a)} and ${humanizeInstruction(b)} cannot both be set.`);
+    }
+  }
+  if (isGoalkeeper) {
+    for (const instruction of instructions) {
+      if (GK_ILLEGAL_INSTRUCTIONS.has(instruction)) {
+        issues.push(`A goalkeeper cannot be given "${humanizeInstruction(instruction)}".`);
+      }
+    }
+  }
+  return issues;
+};
+
+export const humanizeInstruction = (instruction: PlayerInstruction): string =>
+  instruction
+    .toLowerCase()
+    .split("_")
+    .map((word) => word[0]!.toUpperCase() + word.slice(1))
+    .join(" ");
+
 export const validateSelection = (input: {
   setup: TacticalSetup;
   players: readonly PlayerAttributeSet[];
@@ -825,6 +898,10 @@ export const validateSelection = (input: {
   const illegalDuty = input.setup.assignments.find(
     (assignment) => assignment.duty && !dutyIsLegalForRole(assignment.roleId, assignment.duty),
   );
+  const instructionErrors = input.setup.assignments.flatMap((assignment) => {
+    const slot = input.setup.formation.slots.find((candidate) => candidate.id === assignment.slotId);
+    return instructionIssues(assignment, slot?.zone === "goalkeeper");
+  });
   const errors = [
     assigned.length !== 11 ? "Starting XI must contain exactly 11 players." : undefined,
     duplicateStarters.length ? "A player cannot occupy two tactical slots." : undefined,
@@ -839,6 +916,7 @@ export const validateSelection = (input: {
     input.benchLimit !== undefined && input.setup.bench.length > input.benchLimit
       ? `Bench exceeds competition limit of ${input.benchLimit}.`
       : undefined,
+    ...instructionErrors,
   ].filter((value): value is string => Boolean(value));
   const warnings = [
     goalkeeperSlots.length === 0 ? "No recognised goalkeeper has been assigned." : undefined,
@@ -1114,6 +1192,30 @@ const behaviorAttributeFor = (
  * useful but blunted). Team instructions nudge the two width/press dimensions
  * so player behaviour interacts with — never overrides — the team shape.
  */
+/**
+ * Bounded per-instruction multipliers, applied on top of the already role +
+ * duty + team-instruction + attribute derived value. Each entry only lists
+ * the dimensions it actually moves; everything else is untouched. Kept small
+ * (max ±25%) so no player instruction alone can dominate role/duty identity —
+ * it nudges an already-formed behaviour, it does not replace it.
+ */
+const PLAYER_INSTRUCTION_EFFECTS: Record<PlayerInstruction, Partial<Record<keyof PlayerTacticalBehavior, number>>> = {
+  GET_FURTHER_FORWARD: { attackingInvolvement: 1.14, boxPresence: 1.1, defensivePositioning: 0.9 },
+  HOLD_POSITION: { attackingInvolvement: 0.86, boxPresence: 0.9, defensivePositioning: 1.12 },
+  STAY_WIDER: { crossingTendency: 1.18, boxPresence: 0.94 },
+  SIT_NARROWER: { boxPresence: 1.1, crossingTendency: 0.82 },
+  TAKE_MORE_RISKS: { riskTaking: 1.16, creativeInvolvement: 1.08 },
+  TAKE_FEWER_RISKS: { riskTaking: 0.84, supportAvailability: 1.08 },
+  SHORTER_PASSING: { supportAvailability: 1.1, progressionInvolvement: 0.94, riskTaking: 0.92 },
+  MORE_DIRECT_PASSING: { progressionInvolvement: 1.15, riskTaking: 1.08 },
+  CROSS_MORE: { crossingTendency: 1.25 },
+  CROSS_LESS: { crossingTendency: 0.75 },
+  PRESS_MORE: { pressingContribution: 1.2 },
+  PRESS_LESS: { pressingContribution: 0.8 },
+  SHOOT_MORE: { attackingInvolvement: 1.14, boxPresence: 1.1 },
+  SHOOT_LESS: { attackingInvolvement: 0.86, creativeInvolvement: 1.08 },
+};
+
 export const derivePlayerTacticalBehavior = (input: {
   attributes: PlayerAttributeSet;
   roleId: string;
@@ -1121,7 +1223,10 @@ export const derivePlayerTacticalBehavior = (input: {
   roleFit?: number;
   familiarity?: TacticalFamiliarity;
   mentality?: Mentality;
-  instructions?: TeamInstructions;
+  teamInstructions?: TeamInstructions;
+  /** Per-player instructions — validated/contradiction-free by the time they
+   * reach here (see validateSelection); this derivation trusts the input. */
+  playerInstructions?: readonly PlayerInstruction[];
 }): PlayerTacticalBehavior => {
   const roleBase = ROLE_BEHAVIOR[input.roleId] ?? {};
   const dutyBase = DUTY_BEHAVIOR[input.duty] ?? {};
@@ -1141,10 +1246,11 @@ export const derivePlayerTacticalBehavior = (input: {
       : input.mentality === "DEFENSIVE" || input.mentality === "VERY_DEFENSIVE"
         ? 0.94
         : 1;
-  const width = input.instructions ? (input.instructions.inPossession.width - 50) / 100 : 0;
-  const press = input.instructions
-    ? (input.instructions.outOfPossession.pressingIntensity - 50) / 100
+  const width = input.teamInstructions ? (input.teamInstructions.inPossession.width - 50) / 100 : 0;
+  const press = input.teamInstructions
+    ? (input.teamInstructions.outOfPossession.pressingIntensity - 50) / 100
     : 0;
+  const playerInstructions = input.playerInstructions ?? [];
 
   const build = (dimension: keyof PlayerTacticalBehavior): number => {
     const roleValue = roleBase[dimension] ?? 1;
@@ -1158,6 +1264,13 @@ export const derivePlayerTacticalBehavior = (input: {
       value *= 2 - mentalityPush;
     if (dimension === "crossingTendency") value *= 1 + width * 0.4;
     if (dimension === "pressingContribution") value *= 1 + press * 0.5;
+    // Player instructions nudge the already-formed value — scaled by the same
+    // fit/familiarity execution factor, so a player who has not yet mastered
+    // the system executes an instruction closer to their natural tendency.
+    for (const instruction of playerInstructions) {
+      const raw = PLAYER_INSTRUCTION_EFFECTS[instruction]?.[dimension];
+      if (raw !== undefined) value *= 1 + (raw - 1) * executionScale;
+    }
     return clamp(value, 0.4, 1.75);
   };
 

@@ -2,6 +2,7 @@ import type {
   EntityId,
   PlayerAttributeSet,
   PlayerAvailability,
+  PlayerInstruction,
   PlayerMatchState,
   PlayerPosition,
   PlayerTacticalBehavior,
@@ -39,6 +40,7 @@ export type SelectedPlayer = {
   availability: PlayerAvailability;
   role?: string;
   duty?: string;
+  instructions?: readonly PlayerInstruction[];
   roleFit?: number;
   tacticalSlotId?: string;
   /** Derived once per selection / tactical change / substitution and read by
@@ -134,6 +136,7 @@ export const selectTeamFromTacticalSetup = (input: {
       },
       role: role.id,
       duty,
+      instructions: assignment?.instructions,
       roleFit: roleFit.overall,
       tacticalSlotId: slot.id,
       behavior: derivePlayerTacticalBehavior({
@@ -143,7 +146,8 @@ export const selectTeamFromTacticalSetup = (input: {
         roleFit: roleFit.overall,
         familiarity: input.setup.familiarity,
         mentality: input.setup.instructions.mentality,
-        instructions: input.setup.instructions,
+        teamInstructions: input.setup.instructions,
+        playerInstructions: assignment?.instructions,
       }),
     };
   });

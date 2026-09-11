@@ -951,6 +951,7 @@ export const applyTacticalChange = (
       ...player,
       role: assignment.roleId,
       duty,
+      instructions: assignment.instructions,
       behavior: derivePlayerTacticalBehavior({
         attributes: player.attributes,
         roleId: assignment.roleId,
@@ -958,7 +959,8 @@ export const applyTacticalChange = (
         roleFit: player.roleFit,
         familiarity: setup.familiarity,
         mentality: setup.instructions.mentality,
-        instructions: setup.instructions,
+        teamInstructions: setup.instructions,
+        playerInstructions: assignment.instructions,
       }),
     };
   });
@@ -1053,7 +1055,7 @@ const redistributeDuties = (
   });
 };
 
-const aiTacticalReaction = (state: LiveMatchState, team: RuntimeTeam, minute: number): void => {
+export const aiTacticalReaction = (state: LiveMatchState, team: RuntimeTeam, minute: number): void => {
   if (!team.setup || minute < 60 || minute % 15 !== 0) return;
   const deficit = trailingBy(state, team);
   const shortHanded = team.selection.length < 11;
@@ -1409,9 +1411,11 @@ export const applySubstitution = (
   outgoingState.subbedOffMinute = minute;
   outgoingState.minutesPlayed = minute;
 
-  // The replacement inherits the vacated tactical slot so shape is preserved,
-  // but its behaviour is re-derived from the incoming player's own attributes
-  // in that role + duty — a like-for-like swap into a poor-fit role is blunted.
+  // The replacement inherits the vacated tactical slot — including any player
+  // instructions, which belong to the slot, not the departing player — so
+  // shape and intent are preserved, but behaviour is re-derived from the
+  // incoming player's own attributes in that role + duty: a like-for-like
+  // swap into a poor-fit role is blunted.
   const vacated = team.selection[outgoingIndex]!;
   const replacement: SelectedPlayer = {
     ...incoming,
@@ -1419,6 +1423,7 @@ export const applySubstitution = (
     position: vacated.position,
     role: vacated.role,
     duty: vacated.duty,
+    instructions: vacated.instructions,
     roleFit: vacated.roleFit,
     tacticalSlotId: vacated.tacticalSlotId,
     behavior: vacated.role
@@ -1427,6 +1432,10 @@ export const applySubstitution = (
           roleId: vacated.role,
           duty: (vacated.duty as PlayerDuty | undefined) ?? "SUPPORT",
           roleFit: vacated.roleFit,
+          familiarity: team.setup?.familiarity,
+          mentality: team.setup?.instructions.mentality,
+          teamInstructions: team.setup?.instructions,
+          playerInstructions: vacated.instructions,
         })
       : (vacated.behavior ?? NEUTRAL_PLAYER_BEHAVIOR),
   };
