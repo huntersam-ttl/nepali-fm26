@@ -2660,3 +2660,87 @@ button.map-region-block:focus-visible {
   border-radius: 4px 4px 0 0;
   min-height: 2px;
 }
+
+/* --- 3D presentation layer -------------------------------------------
+   The scene host sizes itself to the panel, never the other way round, so
+   a club panel keeps its information density with or without 3D. */
+.club-scene {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.scene-host {
+  position: relative;
+  width: 100%;
+  /* A wide band by default; max-height caps it on very wide windows, and the
+     camera aspect is recomputed from the real canvas size each frame, so a
+     wider window shows more of the site rather than stretching it. */
+  aspect-ratio: 16 / 7;
+  min-height: 180px;
+  max-height: 340px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #101a2e 0%, #0b1020 100%);
+}
+.scene-host-canvas {
+  position: absolute;
+  inset: 0;
+}
+.scene-host-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+.club-scene-fallback {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  background: var(--surface-2);
+}
+.club-scene-readout {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.club-scene-readout h4 {
+  margin: 0;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Belt and braces: the scene already drops camera drift itself, this
+     stops any CSS-side motion on the host too. */
+  .scene-host,
+  .scene-host * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+.settings-group {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 0 0 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.settings-group legend {
+  padding: 0 6px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.settings-group label {
+  display: block;
+  font-size: 13px;
+}
