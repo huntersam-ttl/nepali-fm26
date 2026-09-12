@@ -93,6 +93,7 @@ import {
   ownershipStage,
 } from "./ownershipNegotiationPresentation.js";
 import { campusBlockDescriptors, projectProgressPercent, projectStatusLabel } from "./clubWorldPresentation.js";
+import { ClubEnvironmentScene } from "../presentation/ClubEnvironmentScene.js";
 import { humanizeEnum, humanizeToken } from "./storyHumanizer.js";
 
 export type ChairmanScreen =
@@ -7178,6 +7179,19 @@ const FullClubProfileBody = ({
     <EntityStorylinePanel bridge={bridge} entityId={profile.entityReference.id} onOpenReference={onOpenReference} />
     <ClubSquadPanel squad={profile.squad} onOpenReference={onOpenReference} />
     <Panel title="Club world">
+      {/* The 3D hero is additive: the campus grid below it remains the full,
+          always-present, keyboard-navigable source of the same facts. */}
+      <ClubEnvironmentScene
+        profile={profile}
+        onOpenReference={onOpenReference}
+        fallback={
+          profile.stadium ? (
+            <StadiumVisual stadium={profile.stadium} />
+          ) : (
+            <p className="empty-state">No home ground on record for this club.</p>
+          )
+        }
+      />
       <ClubWorldCampus
         facilitySnapshot={profile.facilitySnapshot}
         campusProjects={profile.campusProjects}
