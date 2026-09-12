@@ -14,6 +14,7 @@ import {
   type FounderLocationOption,
 } from "./appBridge.js";
 import { ManagerCareer } from "./manager/ManagerCareer.js";
+import { PresentationSettingsPanel } from "./presentation/PresentationSettingsPanel.js";
 import "./styles.css";
 
 type Entry = "start" | "new" | "load" | "career";
@@ -395,6 +396,7 @@ const StartShell = (props: {
   error?: AppError | null;
 }): React.ReactElement => {
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [presentationOpen, setPresentationOpen] = useState(false);
   return (
     <main className="career-shell">
       {props.error && <ErrorBanner error={props.error} />}
@@ -403,8 +405,13 @@ const StartShell = (props: {
         <button className="link" onClick={() => setAboutOpen(true)}>
           About &amp; Data Attribution
         </button>
+        {" · "}
+        <button className="link" onClick={() => setPresentationOpen(true)}>
+          Presentation settings
+        </button>
       </p>
       {aboutOpen && <AboutPanel onClose={() => setAboutOpen(false)} />}
+      {presentationOpen && <PresentationSettingsPanel onClose={() => setPresentationOpen(false)} />}
     </main>
   );
 };
