@@ -94,6 +94,7 @@ import {
 } from "./ownershipNegotiationPresentation.js";
 import { campusBlockDescriptors, projectProgressPercent, projectStatusLabel } from "./clubWorldPresentation.js";
 import { ClubEnvironmentScene } from "../presentation/ClubEnvironmentScene.js";
+import { useNewlyArrived } from "../presentation/MotionPrimitives.js";
 import { humanizeEnum, humanizeToken } from "./storyHumanizer.js";
 
 export type ChairmanScreen =
@@ -6506,6 +6507,7 @@ const InboxStoryCard = ({
   onOpenReference,
   onOpenStory,
   onOpenPressConference,
+  justArrived,
 }: {
   item: InboxItem;
   onOpenReference: (reference: EntityReference) => void;
@@ -6514,11 +6516,13 @@ const InboxStoryCard = ({
    * actions below (Owner/President never receive a PRESS_INTERVIEW item in
    * the first place, so this is simply unused/omittable there). */
   onOpenPressConference?: (interviewId: EntityId) => void;
+  /** True only for an item that landed since the last render — see useNewlyArrived. */
+  justArrived?: boolean;
 }): React.ReactElement => {
   const [expanded, setExpanded] = useState(false);
   const entities = item.entityReferences ?? [];
   return (
-    <div className="inbox-item" key={item.id}>
+    <div className={justArrived ? "inbox-item inbox-item-new" : "inbox-item"} key={item.id}>
       <div className="button-row">
         {item.importanceBand && <Badge tone={IMPORTANCE_TONE[item.importanceBand]}>{item.importanceBand}</Badge>}
         {item.sourceEventId ? (
@@ -6587,6 +6591,10 @@ export const InboxPanel = ({
   const [openNationalTeamId, setOpenNationalTeamId] = useState<EntityId | null>(null);
   const [showCommercial, setShowCommercial] = useState(false);
   const [showThreads, setShowThreads] = useState(false);
+  // Marks only the items that arrived since the last render — typically after
+  // the player advances the day — so a new story is noticeable without the
+  // whole list flashing every time the panel mounts.
+  const newlyArrived = useNewlyArrived(inbox.map((item) => String(item.id)));
   const openReference = (reference: EntityReference): void =>
     setOpenReferenceTarget({ entityType: reference.entityType as ProfileEntityType, entityId: reference.id });
   return (
@@ -6603,6 +6611,7 @@ export const InboxPanel = ({
           <InboxStoryCard
             key={item.id}
             item={item}
+            justArrived={newlyArrived.has(String(item.id))}
             onOpenReference={openReference}
             onOpenStory={setOpenStoryEventId}
             onOpenPressConference={onOpenPressConference}

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import type { SceneMotion, SceneQualitySettings } from "./scenePreferences.js";
+import { effectivePixelRatio, type SceneMotion, type SceneQualitySettings } from "./scenePreferences.js";
 
 /**
  * The reusable 3D scene host every presentation scene mounts through.
@@ -83,7 +83,7 @@ export const SceneCanvas = ({
           alpha: false,
           powerPreference: "default",
         });
-        renderer.setPixelRatio(Math.min(quality.pixelRatio, globalThis.devicePixelRatio ?? 1));
+        renderer.setPixelRatio(effectivePixelRatio(quality.pixelRatio, globalThis.devicePixelRatio));
         renderer.shadowMap.enabled = quality.shadows;
         canvas = renderer.domElement;
         canvas.setAttribute("role", "img");
@@ -208,8 +208,12 @@ export const SceneCanvas = ({
       renderer?.forceContextLoss?.();
       if (canvas?.parentNode) canvas.parentNode.removeChild(canvas);
     };
-    // A quality/motion change rebuilds the scene deliberately.
-  }, [factory, quality, motion, ariaLabel, onPick]);
+    // A quality/motion/scene change rebuilds deliberately. onPick is read
+    // through pickRef instead of being a dependency on purpose: callers
+    // routinely pass a fresh arrow function on every render, and depending on
+    // it tore down and rebuilt the whole three.js scene (and reset the camera)
+    // on every re-render of the surrounding panel.
+  }, [factory, quality, motion, ariaLabel]);
 
   if (status === "failed") return <>{fallback}</>;
 

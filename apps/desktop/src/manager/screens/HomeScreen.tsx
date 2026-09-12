@@ -14,6 +14,7 @@ import { TransferNegotiationLauncher } from "./TransferNegotiationMeeting.js";
 import { StructuredPressConferencePanel } from "./MediaScreen.js";
 import { PlayerMeetingPanel } from "./PlayerMeetingPanel.js";
 import { humanizeEnum, humanizeToken } from "../storyHumanizer.js";
+import { MotionValue } from "../../presentation/MotionPrimitives.js";
 
 const concernLabel = (type: string): string => {
   switch (type) {
@@ -311,9 +312,22 @@ export const HomeScreen = ({
                 <Metrics
                   items={[
                     { label: "Squad", value: dashboard.squadAvailability.total },
-                    { label: "Available", value: dashboard.squadAvailability.available },
-                    { label: "Injured", value: dashboard.squadAvailability.injured },
-                    { label: "Suspended", value: dashboard.squadAvailability.suspended },
+                    // These three are what actually move when the player
+                    // advances the day, and they are the ones a manager must
+                    // not miss — so a change is marked here, and stated as
+                    // text for assistive technology, never colour alone.
+                    {
+                      label: "Available",
+                      value: <MotionValue value={dashboard.squadAvailability.available} label="available players" />,
+                    },
+                    {
+                      label: "Injured",
+                      value: <MotionValue value={dashboard.squadAvailability.injured} label="injured players" />,
+                    },
+                    {
+                      label: "Suspended",
+                      value: <MotionValue value={dashboard.squadAvailability.suspended} label="suspended players" />,
+                    },
                     { label: "Other", value: dashboard.squadAvailability.unavailable },
                   ]}
                 />

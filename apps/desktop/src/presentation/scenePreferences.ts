@@ -96,6 +96,19 @@ export const qualitySettings = (quality: SceneQuality): SceneQualitySettings => 
 };
 
 /**
+ * The pixel ratio actually used for rendering: the display's own ratio, capped
+ * by the quality tier. Rendering a Retina display at its native 2x (or a 3x
+ * panel at 3x) multiplies fragment cost by 4x/9x for a scene that is a
+ * background band, so the cap is what keeps a high-DPI machine from paying
+ * more than a low-DPI one for the same picture. Never below 1, since a ratio
+ * under 1 would render below the displayed size and look soft.
+ */
+export const effectivePixelRatio = (qualityCap: number, deviceRatio: number | undefined): number => {
+  const ratio = deviceRatio && deviceRatio > 0 ? deviceRatio : 1;
+  return Math.max(1, Math.min(qualityCap, ratio));
+};
+
+/**
  * Whether this runtime can actually present a WebGL scene. Probed once with a
  * throwaway context: a machine without WebGL, a locked-down WebView, or a
  * driver that refuses the context all land on the 2D fallback instead of a
@@ -131,3 +144,17 @@ export const resetWebglSupportCache = (): void => {
 /** The single decision every scene host asks: do we draw 3D at all? */
 export const shouldRender3d = (preferences: ScenePreferences): boolean =>
   preferences.enabled3d && supportsWebgl();
+
+/**
+ * One short, honest line about what this machine will actually render, for the
+ * start menu. Distinguishes "this machine cannot" from "you turned it off",
+ * because those need very different responses from the player.
+ */
+export const presentationCapabilityLabel = (
+  preferences: ScenePreferences = readScenePreferences(),
+  webgl: boolean = supportsWebgl(),
+): string => {
+  if (!webgl) return "3D presentation: unavailable on this machine — using 2D views";
+  if (!preferences.enabled3d) return "3D presentation: turned off — using 2D views";
+  return `3D presentation: on (${preferences.quality.toLowerCase()} quality)`;
+};

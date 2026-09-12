@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_SCENE_PREFERENCES,
   effectiveMotion,
+  effectivePixelRatio,
   qualitySettings,
   readScenePreferences,
   resetWebglSupportCache,
@@ -69,6 +70,25 @@ describe("quality settings", () => {
     const medium = qualitySettings("MEDIUM");
     expect(medium.pixelRatio).toBeGreaterThan(qualitySettings("LOW").pixelRatio);
     expect(medium.pixelRatio).toBeLessThan(qualitySettings("HIGH").pixelRatio);
+  });
+});
+
+describe("device pixel ratio", () => {
+  it("caps a high-DPI display at the quality tier rather than paying 4x fragment cost", () => {
+    // A Retina panel on Low renders at 1x, not 2x.
+    expect(effectivePixelRatio(qualitySettings("LOW").pixelRatio, 2)).toBe(1);
+    expect(effectivePixelRatio(qualitySettings("MEDIUM").pixelRatio, 2)).toBe(1.5);
+    expect(effectivePixelRatio(qualitySettings("HIGH").pixelRatio, 2)).toBe(2);
+    // A 3x panel is still capped by the tier.
+    expect(effectivePixelRatio(qualitySettings("HIGH").pixelRatio, 3)).toBe(2);
+  });
+
+  it("never renders below the displayed size on a low-DPI or unknown display", () => {
+    expect(effectivePixelRatio(2, 1)).toBe(1);
+    expect(effectivePixelRatio(2, undefined)).toBe(1);
+    // A browser reporting a nonsensical sub-1 ratio must not soften the scene.
+    expect(effectivePixelRatio(2, 0.5)).toBe(1);
+    expect(effectivePixelRatio(2, 0)).toBe(1);
   });
 });
 

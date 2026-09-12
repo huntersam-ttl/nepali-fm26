@@ -15,6 +15,7 @@ import {
 } from "./appBridge.js";
 import { ManagerCareer } from "./manager/ManagerCareer.js";
 import { PresentationSettingsPanel } from "./presentation/PresentationSettingsPanel.js";
+import { presentationCapabilityLabel } from "./presentation/scenePreferences.js";
 import "./styles.css";
 
 type Entry = "start" | "new" | "load" | "career";
@@ -409,6 +410,11 @@ const StartShell = (props: {
         <button className="link" onClick={() => setPresentationOpen(true)}>
           Presentation settings
         </button>
+        {" · "}
+        {/* Stated up front rather than only behind the settings panel: a player
+            whose machine falls back to the 2D views should be able to see why
+            without hunting for it. */}
+        <span>{presentationCapabilityLabel()}</span>
       </p>
       {aboutOpen && <AboutPanel onClose={() => setAboutOpen(false)} />}
       {presentationOpen && <PresentationSettingsPanel onClose={() => setPresentationOpen(false)} />}

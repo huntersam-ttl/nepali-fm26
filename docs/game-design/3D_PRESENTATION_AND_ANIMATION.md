@@ -125,8 +125,56 @@ meaningful". Expected work per system:
 | Weather/travel | scene atmosphere by time of day and climate, where the model holds it |
 | Awards/competitions | original trophy/podium presentation, bracket and title moments |
 
+## UI motion (the non-3D interface)
+
+The same preference governs ordinary UI motion, because a player who asks for
+less motion means it everywhere, not only in the 3D band.
+
+- `motion.ts` holds the tokens — three durations, three easings — so screens
+  cannot drift into their own inconsistent motion. It is CSS-only on purpose:
+  entrances, tab changes and value updates are all things CSS transitions
+  express directly, and an animation runtime would mean a second animation
+  system plus real bundle cost for effects the platform already does well.
+- `MotionPrimitives.tsx` holds the components screens opt into.
+- **Full** plays everything. **Reduced** shortens functional transitions and
+  skips decorative entrances outright — a shorter entrance is still an
+  entrance, and an entrance carries no information. **Off** removes motion
+  entirely. A system `prefers-reduced-motion` request is honoured on top.
+- Wired at choke points rather than per screen: `Panel` (every panel in the
+  game is built from it) and the single shared `InboxPanel`. New arrivals are
+  marked by `useNewlyArrived`, which reports nothing on first mount — on open
+  every item is "new", and animating the whole list is noise, not information.
+- Any change a player is meant to notice is also stated as text. Colour and
+  movement are never the only signal.
+
+## How this layer is verified
+
+Scene correctness is unit-tested without a GPU: three's scene and camera maths
+run fine in Node, so the animation contract, the state-driven geometry and
+disposal are all asserted directly rather than eyeballed in a screenshot.
+
+Two things are worth recording for whoever verifies this next:
+
+- **Screenshot diffing does not prove animation here.** An occluded window
+  stops updating its backing store, so repeated `screencapture` calls return
+  byte-identical images and a diff of them means nothing either way.
+- **`requestAnimationFrame` is suspended for a non-foreground window.** A
+  WKWebView harness measured `rafFps: 0` with `occlusionState` reporting the
+  window as occluded, even after `makeKeyAndOrderFront` plus
+  `activate(ignoringOtherApps:)`. Frame-rate and on-screen motion checks
+  therefore need a genuinely foreground window and cannot be automated in a
+  background session. This is a property of the platform, not of the code.
+
+What a headless harness *can* prove, and does: WebGL availability, that the
+real three chunk dynamic-imports and renders, that the drawing buffer tracks
+the element size at every window width, and that repeatedly opening and
+closing a scene releases its GPU context (25 open/close cycles produced 25
+distinct canvases, every context live, every one torn down — without working
+disposal a driver refuses new contexts well before 25).
+
 ## Status
 
 Foundation and the first vertical slice (Club Environment on Club Profile) are
-implemented. Everything in the matrix above is still to do, and each should be
-built on this foundation rather than beside it.
+implemented, along with the UI motion foundation above. Everything in the
+matrix is still to do, and each should be built on this foundation rather than
+beside it.

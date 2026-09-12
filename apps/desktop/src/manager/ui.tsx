@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import type { AppResult, Fact } from "@nepal-football-sim/shared-types";
 import type { AppError } from "../appBridge.js";
+import { useEntranceClass } from "../presentation/MotionPrimitives.js";
 
 /**
  * Every save-backed screen goes through this: one place that handles the
@@ -77,15 +78,23 @@ export const Panel = ({
   /** Lets a panel opt out of the dashboard's auto-fit column, e.g. a wide table. */
   className?: string;
   children: React.ReactNode;
-}): React.ReactElement => (
-  <article className={className ? `panel ${className}` : "panel"}>
-    <header className="panel-head">
-      <h2>{title}</h2>
-      {actions}
-    </header>
-    {children}
-  </article>
-);
+}): React.ReactElement => {
+  // Every panel in the game is built from this one component, so the entrance
+  // is wired here rather than repeated per screen. Panels remount when the
+  // player changes section, which is what makes a section change read as a
+  // change rather than an instant swap. Reduced/Off get no transition at all.
+  const entrance = useEntranceClass();
+  const classes = ["panel", className, entrance].filter(Boolean).join(" ");
+  return (
+    <article className={classes}>
+      <header className="panel-head">
+        <h2>{title}</h2>
+        {actions}
+      </header>
+      {children}
+    </article>
+  );
+};
 
 /** Renders an unknown fact honestly instead of inventing a value. */
 export const FactValue = <T,>({
