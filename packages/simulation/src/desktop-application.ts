@@ -2790,6 +2790,11 @@ export class DesktopApplicationService {
       if (!fixture) {
         throw appError("FIXTURE_MISSING", "No upcoming fixture is available.");
       }
+      // A played fixture is never the current matchday, so report the real
+      // reason before the matchday gate can mask it.
+      if (fixture.status === "played") {
+        throw appError("MATCH_ALREADY_PLAYED", "That fixture has already been played.");
+      }
       const current = userMatchRequiresAction(context.fixtures, context.team.id, save.worldDate);
       if (!current || fixture.id !== current.id) {
         throw appError("MATCHDAY_REQUIRED", "This fixture is not yet playable.");
@@ -5802,6 +5807,9 @@ const matchHelpers = (
     // Authority: the manager may only control their own team's matches.
     if (fixture.homeTeamId !== context.team.id && fixture.awayTeamId !== context.team.id) {
       throw appError("ROLE_NOT_AUTHORIZED", "That match does not involve your team.");
+    }
+    if (fixture.status === "played") {
+      throw appError("MATCH_ALREADY_PLAYED", "That fixture has already been played.");
     }
     const current = userMatchRequiresAction(context.fixtures, context.team.id, save.worldDate);
     if (!current || fixture.id !== current.id) {
