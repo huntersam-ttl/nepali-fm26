@@ -5649,9 +5649,17 @@ const ownerMatchdayContext = (
     (role) => role.role === "CHAIRMAN_OWNER",
   )?.targetId;
   if (!clubId) throw appError("ROLE_NOT_AUTHORIZED", "No controlled club is available.");
-  const team = db
-    .prepare("SELECT id FROM teams WHERE club_id=? ORDER BY id LIMIT 1")
-    .get(clubId) as { id?: EntityId } | undefined;
+  // Same resolution as buildOwnerMatchday: the senior men's first team, then
+  // any senior team. Bare id order could land on a women's or youth team, so
+  // watching a fixture the matchday view listed failed with FIXTURE_MISSING.
+  const team = (db
+    .prepare(
+      "SELECT id FROM teams WHERE club_id=? AND level='senior' AND gender='men' ORDER BY id LIMIT 1",
+    )
+    .get(clubId) ??
+    db
+      .prepare("SELECT id FROM teams WHERE club_id=? AND level='senior' ORDER BY id LIMIT 1")
+      .get(clubId)) as { id?: EntityId } | undefined;
   if (!team?.id) throw appError("FIXTURE_MISSING", "The controlled club has no senior team.");
   return { clubId, teamId: team.id };
 };
