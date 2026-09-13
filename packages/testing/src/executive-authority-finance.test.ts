@@ -35,6 +35,7 @@ import {
   createStableEntityId,
   type Club,
   type EntityId,
+  type FootballStaffRole,
   type Team,
 } from "@nepal-football-sim/shared-types";
 
@@ -137,6 +138,21 @@ const buildFixture = (
   return { db, club, team, ownerId };
 };
 
+/** The staff market requires a recorded specialisation matching an unlicensed role. */
+const recordSpecialisation = (db: GameDatabase, personId: EntityId, role: FootballStaffRole) => {
+  new WorldRepository(db).insertStaffProfile({
+    id: createStableEntityId("staff-profile", personId),
+    personId,
+    preferredRole: role,
+    salaryExpectation: "MEDIUM",
+    reputation: "MEDIUM",
+    countryKnowledge: [country.id],
+    clubKnowledge: [],
+    availability: "AVAILABLE",
+    workEligibilityStatus: "ELIGIBLE",
+  });
+};
+
 const hireCeo = (db: GameDatabase, club: Club, team: Team, ownerId: EntityId): EntityId => {
   const ceoId = createStableEntityId("person", "eaf-ceo");
   new WorldRepository(db).insertPerson({
@@ -145,6 +161,7 @@ const hireCeo = (db: GameDatabase, club: Club, team: Team, ownerId: EntityId): E
     nationalityCountryId: country.id,
     languages: ["ne"],
   });
+  recordSpecialisation(db, ceoId, "CEO");
   const appointment = hireStaff(
     db,
     saveAt("2026-08-01"),
@@ -373,6 +390,7 @@ describe("executive authority: club finance commands", () => {
       nationalityCountryId: country.id,
       languages: ["ne"],
     });
+    recordSpecialisation(db, secretaryId, "GENERAL_SECRETARY");
     const appointment = hireStaff(
       db,
       saveAt("2026-08-01"),
@@ -440,6 +458,7 @@ describe("executive authority: club finance commands", () => {
       nationalityCountryId: country.id,
       languages: ["ne"],
     });
+    recordSpecialisation(db, secretaryId, "GENERAL_SECRETARY");
     const appointment = hireStaff(db, saveAt("2026-08-01"), club.id, team.id, secretaryId, "GENERAL_SECRETARY", 450_000, 24);
     assignExecutiveRole(db, { clubId: club.id, ownerPersonId: ownerId, role: "GENERAL_SECRETARY", appointment, date: "2026-08-01" });
     const lender = new ClubEconomyRepository(db).lenders()[0]!;
@@ -587,6 +606,7 @@ describe("executive authority: commercial and staff-recruitment adapters", () =>
       nationalityCountryId: country.id,
       languages: ["ne"],
     });
+    recordSpecialisation(db, scoutId, "SCOUT");
     const appointment = hireStaffForExecutive(db, saveAt("2026-08-06"), {
       clubId: club.id,
       teamId: team.id,
@@ -656,6 +676,7 @@ describe("executive authority: commercial and staff-recruitment adapters", () =>
     const { db, club, team, ownerId } = buildFixture(join(dir, "career.sqlite"));
     const secretaryId = createStableEntityId("person", "eaf-sponsor-secretary");
     new WorldRepository(db).insertPerson({ id: secretaryId, fullName: "General Secretary", nationalityCountryId: country.id, languages: ["ne"] });
+    recordSpecialisation(db, secretaryId, "GENERAL_SECRETARY");
     const appointment = hireStaff(db, saveAt("2026-08-01"), club.id, team.id, secretaryId, "GENERAL_SECRETARY", 450_000, 24);
     assignExecutiveRole(db, { clubId: club.id, ownerPersonId: ownerId, role: "GENERAL_SECRETARY", appointment, date: "2026-08-01" });
     const economy = new ClubEconomyRepository(db);
