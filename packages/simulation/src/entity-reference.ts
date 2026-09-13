@@ -36,6 +36,12 @@ const descriptors: Record<
     label: "id",
     subtitle: "status",
   },
+  FEDERATION_PROJECT: {
+    table: "federation_projects",
+    destination: "federation-project",
+    label: "name",
+    subtitle: "status",
+  },
   NATIONAL_TEAM: { table: "teams", destination: "national-team", label: "name" },
   JOURNALIST: { table: "media_journalists", destination: "journalist", label: "name", subtitle: "beat" },
   MEDIA_OUTLET: { table: "media_outlets", destination: "media-outlet", label: "name", subtitle: "scope" },
@@ -65,6 +71,8 @@ const roleActions = (type: EntityReferenceType, role: CareerRole): string[] => {
   if (type === "FIXTURE" && role === "CHAIRMAN_OWNER")
     return ["OPEN_FIXTURE", "WATCH", "QUICK_SIM"];
   if (type === "INFRASTRUCTURE_PROJECT" && ["CHAIRMAN_OWNER", "CEO"].includes(role))
+    return ["OPEN_PROJECT", "VIEW_PROGRESS"];
+  if (type === "FEDERATION_PROJECT" && role === "FEDERATION_PRESIDENT")
     return ["OPEN_PROJECT", "VIEW_PROGRESS"];
   return ["OPEN_PROFILE"];
 };

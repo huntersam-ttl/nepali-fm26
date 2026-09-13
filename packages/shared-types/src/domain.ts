@@ -43,6 +43,7 @@ export type EntityRef = {
     | "retirementState"
     | "governmentInstitution"
     | "infrastructureProject"
+    | "federationProject"
     | "sponsor"
     | "journalist"
     | "mediaOutlet"
@@ -4208,7 +4209,9 @@ export type PressQuestionTopic =
   | "STARTING_FORMATION"
   | "MENTALITY_CHOICE"
   | "INFRASTRUCTURE_PROJECT"
-  | "SPONSORSHIP_SIGNED";
+  | "SPONSORSHIP_SIGNED"
+  | "COMPETITION_REFORM"
+  | "COACH_APPOINTMENT";
 
 /** Reusable response archetypes. A question only ever offers the stances
  * that make sense for its topic — never four differently-worded options
@@ -4257,7 +4260,14 @@ export type MediaInterview = {
   sourceEntityId: EntityId;
   managerPersonId?: EntityId;
   interviewDate: ISODate;
-  context: "PRE_MATCH" | "POST_MATCH" | "EVENT" | "TRANSFER" | "PLAYER_ISSUE" | "OWNER_BUSINESS";
+  context:
+    | "PRE_MATCH"
+    | "POST_MATCH"
+    | "EVENT"
+    | "TRANSFER"
+    | "PLAYER_ISSUE"
+    | "OWNER_BUSINESS"
+    | "FEDERATION_GOVERNANCE";
   importance: number;
   questions: string[];
   responses: string[];

@@ -103,11 +103,26 @@ const ownerOpenView: StructuredPressConferenceView = {
   },
 };
 
+const presidentOpenView: StructuredPressConferenceView = {
+  ...openView,
+  context: "FEDERATION_GOVERNANCE",
+  currentQuestion: {
+    prompt: "Why is the National Training Centre a priority for the federation right now?",
+    subjectEntities: [],
+    options: [
+      { stance: "ASSERTIVE", text: "This is exactly the kind of investment that shows real ambition." },
+      { stance: "CALM", text: "It's one step in a longer-term plan." },
+    ],
+  },
+};
+
 const requestStructuredPressConference = vi.fn(() => ok(openView));
 const answerStructuredPressQuestion = vi.fn(() => ok(answeredView));
 const getStructuredPressConference = vi.fn(() => ok(completedView));
 const getOwnerStructuredPressConference = vi.fn(() => ok(ownerOpenView));
 const answerOwnerStructuredPressQuestion = vi.fn(() => ok(answeredView));
+const getPresidentStructuredPressConference = vi.fn(() => ok(presidentOpenView));
+const answerPresidentStructuredPressQuestion = vi.fn(() => ok(answeredView));
 const getOrganizationProfile = vi.fn(() =>
   ok({
     entityReference: journalist,
@@ -128,6 +143,8 @@ vi.mock("../managerBridge.js", () => ({
     getStructuredPressConference,
     getOwnerStructuredPressConference,
     answerOwnerStructuredPressQuestion,
+    getPresidentStructuredPressConference,
+    answerPresidentStructuredPressQuestion,
     getOrganizationProfile,
     getClubProfile: vi.fn(() => ok(undefined)),
   },
@@ -141,6 +158,8 @@ beforeEach(async () => {
   getStructuredPressConference.mockImplementation(() => ok(completedView));
   getOwnerStructuredPressConference.mockImplementation(() => ok(ownerOpenView));
   answerOwnerStructuredPressQuestion.mockImplementation(() => ok(answeredView));
+  getPresidentStructuredPressConference.mockImplementation(() => ok(presidentOpenView));
+  answerPresidentStructuredPressQuestion.mockImplementation(() => ok(answeredView));
   ({ StructuredPressConferencePanel } = await import("./MediaScreen.js"));
 });
 afterEach(() => cleanup());
@@ -262,6 +281,42 @@ describe("StructuredPressConferencePanel — accessibility", () => {
       stance: "ASSERTIVE",
     });
     expect(answerStructuredPressQuestion).not.toHaveBeenCalled();
+
+    const results = await axe.run(container, {
+      rules: {
+        region: { enabled: false },
+        "page-has-heading-one": { enabled: false },
+        "landmark-one-main": { enabled: false },
+      },
+    });
+    expect(
+      results.violations
+        .filter((v) => v.impact === "serious" || v.impact === "critical")
+        .map((v) => `${v.id} (${v.impact})`),
+    ).toEqual([]);
+  });
+
+  it("president context: resolves via the President bridge commands, titled as a Federation Press Conference, with no serious or critical axe violations", async () => {
+    const onClose = vi.fn();
+    const { container } = render(
+      <StructuredPressConferencePanel interviewId={eid("interview-1")} presidentContext onClose={onClose} />,
+    );
+    expect(await screen.findByRole("heading", { name: /federation press conference/i })).toBeTruthy();
+    expect(getPresidentStructuredPressConference).toHaveBeenCalledWith(eid("interview-1"));
+    expect(getStructuredPressConference).not.toHaveBeenCalled();
+    expect(getOwnerStructuredPressConference).not.toHaveBeenCalled();
+
+    const stanceButton = await screen.findByRole("button", {
+      name: "This is exactly the kind of investment that shows real ambition.",
+    });
+    fireEvent.click(stanceButton);
+    expect(await screen.findByText(/relationship with the manager improved slightly/i)).toBeTruthy();
+    expect(answerPresidentStructuredPressQuestion).toHaveBeenCalledWith({
+      interviewId: presidentOpenView.interviewId,
+      stance: "ASSERTIVE",
+    });
+    expect(answerStructuredPressQuestion).not.toHaveBeenCalled();
+    expect(answerOwnerStructuredPressQuestion).not.toHaveBeenCalled();
 
     const results = await axe.run(container, {
       rules: {

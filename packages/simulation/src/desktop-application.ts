@@ -395,6 +395,11 @@ import {
   evaluateOwnerBusinessPress,
   getOwnerStructuredPressConference,
 } from "./owner-media-desktop.js";
+import {
+  answerPresidentStructuredPressQuestion,
+  evaluatePresidentPress,
+  getPresidentStructuredPressConference,
+} from "./federation-media-desktop.js";
 import { buildOwnerMatchday, type OwnerMatchdayView } from "./owner-matchday.js";
 import { buildActorPlayerActions, type ActorPlayerActions } from "./player-actions.js";
 import { buildEntityReference } from "./entity-reference.js";
@@ -1261,6 +1266,43 @@ export class DesktopApplicationService {
         throw appError("ROLE_NOT_AUTHORIZED", "You do not currently hold the Chairman role.");
       }
       return getOwnerStructuredPressConference(db, { ownerPersonId: personId, interviewId });
+    });
+  }
+
+  /** The single natural Federation President press entry point — called
+   * once when the President opens their federation dashboard. Creates a
+   * FEDERATION_GOVERNANCE interview only from a genuinely new, real
+   * federation-governance fact (never a recurring schedule); returns
+   * undefined when there is nothing new to ask about. Idempotent per
+   * fact. */
+  evaluatePresidentPress(): AppResult<StructuredPressConferenceView | undefined> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      const federationId = this.currentFederationId(db, personId);
+      return evaluatePresidentPress(db, save, { federationId, presidentPersonId: personId });
+    });
+  }
+
+  answerPresidentStructuredPressQuestion(input: {
+    interviewId: EntityId;
+    stance: PressResponseStance;
+  }): AppResult<StructuredPressConferenceView> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      this.currentFederationId(db, personId);
+      return answerPresidentStructuredPressQuestion(db, save, {
+        presidentPersonId: personId,
+        interviewId: input.interviewId,
+        stance: input.stance,
+      });
+    });
+  }
+
+  getPresidentStructuredPressConference(interviewId: EntityId): AppResult<StructuredPressConferenceView> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      this.currentFederationId(db, personId);
+      return getPresidentStructuredPressConference(db, { presidentPersonId: personId, interviewId });
     });
   }
 

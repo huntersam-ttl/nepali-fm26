@@ -697,6 +697,14 @@ const dispatch = (
       );
     case "getOwnerStructuredPressConference":
       return service.getOwnerStructuredPressConference(body.interviewId as EntityId);
+    case "evaluatePresidentPress":
+      return service.evaluatePresidentPress();
+    case "answerPresidentStructuredPressQuestion":
+      return service.answerPresidentStructuredPressQuestion(
+        body.input as { interviewId: EntityId; stance: PressResponseStance },
+      );
+    case "getPresidentStructuredPressConference":
+      return service.getPresidentStructuredPressConference(body.interviewId as EntityId);
     case "getSupporterOverview":
       return service.getSupporterOverview();
     case "getDressingRoom":
