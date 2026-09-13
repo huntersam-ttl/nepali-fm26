@@ -58,9 +58,12 @@ describe("full Nepal career season simulation", () => {
 
     expect(report.worldDate).toBe("2029-07-31");
     expect(report.runnableCompetitions).toContain("ANFA National League");
-    expect(report.skippedCompetitions.map((item) => item.seasonName)).toContain(
+    // NSL clubs now start with bootstrapped playable squads (4fd68ff), so the
+    // league runs instead of being skipped for "fewer than two playable squads".
+    expect(report.skippedCompetitions.map((item) => item.seasonName)).not.toContain(
       "Nepal Super League 2026",
     );
+    expect(report.runnableCompetitions.some((name) => /Nepal Super League/.test(name))).toBe(true);
     expect(report.seasons.length).toBeGreaterThanOrEqual(3);
     expect(
       report.seasons.every((season) => season.fixturesGenerated === season.matchesPlayed),
@@ -168,8 +171,12 @@ describe("full Nepal career season simulation", () => {
   });
 });
 
-function stripPath<T extends { savePath?: string }>(report: T): Omit<T, "savePath"> {
-  const { savePath, ...rest } = report;
+/** Drops the per-run save path and wall-clock phase timings; everything simulated stays compared. */
+function stripPath<T extends { savePath?: string; phaseTimings?: unknown }>(
+  report: T,
+): Omit<T, "savePath" | "phaseTimings"> {
+  const { savePath, phaseTimings, ...rest } = report;
   void savePath;
+  void phaseTimings;
   return rest;
 }

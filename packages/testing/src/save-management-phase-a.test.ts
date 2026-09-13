@@ -64,6 +64,19 @@ const startCareer = (runtime: DesktopApplicationService, saveName: string) => {
   return created;
 };
 
+/**
+ * Continue is idempotent on matchday — the manager must play the due match
+ * before the calendar moves — so play it first when one is due, exactly as a
+ * player would, then continue.
+ */
+const advanceCareer = (runtime: DesktopApplicationService) => {
+  const played = runtime.quickSimMatch();
+  if (!played.ok && played.error.code !== "MATCHDAY_REQUIRED") {
+    throw new Error(`Failed to play the due match: ${played.error.message}`);
+  }
+  return runtime.continueCareer();
+};
+
 describe("save management phase A — pure decision helpers", () => {
   it("is due after enough in-game days have passed, and not before", () => {
     expect(
@@ -211,13 +224,13 @@ describe("save management phase A — desktop service integration", () => {
     const runtime = service({ autosaveIntervalDays: 1 });
     const created = startCareer(runtime, "Autosave Trigger");
 
-    let advanced = runtime.continueCareer();
+    let advanced = advanceCareer(runtime);
     expect(advanced.ok).toBe(true);
     // Keep advancing until at least one autosave has happened, bounded to avoid an infinite loop.
     for (let i = 0; i < 30 && advanced.ok; i += 1) {
       const status = runtime.getAutosaveStatus();
       if (status.ok && status.data.slots.length > 0) break;
-      advanced = runtime.continueCareer();
+      advanced = advanceCareer(runtime);
     }
     const status = runtime.getAutosaveStatus();
     expect(status.ok).toBe(true);
@@ -231,7 +244,7 @@ describe("save management phase A — desktop service integration", () => {
   it("does not autosave when disabled", () => {
     const runtime = service({ autosaveIntervalDays: 1, autosaveEnabled: false });
     startCareer(runtime, "Autosave Disabled");
-    for (let i = 0; i < 10; i += 1) runtime.continueCareer();
+    for (let i = 0; i < 10; i += 1) advanceCareer(runtime);
     const status = runtime.getAutosaveStatus();
     expect(status.ok).toBe(true);
     if (status.ok) expect(status.data.slots).toHaveLength(0);
@@ -240,11 +253,11 @@ describe("save management phase A — desktop service integration", () => {
   it("restores an autosave slot as the active session without deleting the slot itself", () => {
     const runtime = service({ autosaveIntervalDays: 1 });
     startCareer(runtime, "Restore Test");
-    let advanced = runtime.continueCareer();
+    let advanced = advanceCareer(runtime);
     for (let i = 0; i < 30; i += 1) {
       const status = runtime.getAutosaveStatus();
       if (status.ok && status.data.slots.length > 0) break;
-      advanced = runtime.continueCareer();
+      advanced = advanceCareer(runtime);
     }
     void advanced;
     const status = runtime.getAutosaveStatus();

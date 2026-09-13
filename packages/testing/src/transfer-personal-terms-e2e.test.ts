@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { ClubEconomyRepository, MediaRepository, TransferMarketRepository, openGameDatabase } from "@nepal-football-sim/database";
-import type { EntityId } from "@nepal-football-sim/shared-types";
+import { createStableEntityId, type EntityId } from "@nepal-football-sim/shared-types";
 import {
   completePermanentTransfer,
   createNepalSave,
@@ -11,6 +11,7 @@ import {
   evaluateTransferOffer,
   initializeForeignFootballWorldForSave,
   initializeTransferMarketForSave,
+  publishMediaForDate,
   runTransferDiagnostic,
   simulateTransferWindow,
 } from "@nepal-football-sim/simulation";
@@ -109,10 +110,22 @@ describe("AI personal-terms negotiation", () => {
     });
     expect(evaluateTransferOffer(db, first, WORLD_DATE, "sell-on-first").accepted).toBe(true);
     completePermanentTransfer(db, first, WORLD_DATE, "sell-on-first", { prefersOverseas: true, expectedPlayingTime: "FIRST_TEAM" }, { salary: 500_000, squadRole: "FIRST_TEAM", contractLengthMonths: 24 });
-    const transferStories = new MediaRepository(db).stories().filter((story) => story.eventType === "TRANSFER");
-    expect(transferStories).toHaveLength(1);
+    // Completion records a public event; media publishes on the world's date
+    // tick (bf3f700 moved it off the transfer path), so run that tick here.
+    // The offer's "open talks" event is also a TRANSFER story now, so count
+    // only stories sourced from this player's completed-transfer events.
+    const completedTransferStories = () => {
+      const sources = new Set(
+        (db.prepare("SELECT id FROM transfer_history_events WHERE player_id = ?").all(target.player_id) as Array<{ id: string }>)
+          .map((row) => createStableEntityId("history", `TRANSFER_PUBLIC:${row.id}`)),
+      );
+      return new MediaRepository(db).stories().filter((story) => story.eventType === "TRANSFER" && sources.has(story.sourceEntityId));
+    };
+    publishMediaForDate(db, { date: WORLD_DATE });
+    expect(completedTransferStories()).toHaveLength(1);
     completePermanentTransfer(db, first, WORLD_DATE, "sell-on-first", { prefersOverseas: true, expectedPlayingTime: "FIRST_TEAM" }, { salary: 500_000, squadRole: "FIRST_TEAM", contractLengthMonths: 24 });
-    expect(new MediaRepository(db).stories().filter((story) => story.eventType === "TRANSFER")).toHaveLength(1);
+    publishMediaForDate(db, { date: WORLD_DATE });
+    expect(completedTransferStories()).toHaveLength(1);
     expect(market.sellOnEntitlements(target.player_id)).toMatchObject([{ entitledClubId: target.club_id, percentage: 20, basis: "TOTAL_RESALE_FEE", status: "ACTIVE" }]);
     db.close();
 
@@ -120,6 +133,9 @@ describe("AI personal-terms negotiation", () => {
     try {
       const reloadedMarket = new TransferMarketRepository(reloaded);
       expect(reloadedMarket.sellOnEntitlements(target.player_id)).toHaveLength(1);
+      const transferStoryCount = () =>
+        new MediaRepository(reloaded).stories().filter((story) => story.eventType === "TRANSFER").length;
+      const storiesBeforeResale = transferStoryCount();
       const resale = createTransferOffer(reloaded, {
         buyingClubId: foreignC!.id,
         sellingClubId: foreignB!.id,
@@ -131,7 +147,11 @@ describe("AI personal-terms negotiation", () => {
       expect(evaluateTransferOffer(reloaded, resale, "2027-01-01", "sell-on-resale").accepted).toBe(true);
       completePermanentTransfer(reloaded, resale, "2027-01-01", "sell-on-resale", { prefersOverseas: true, expectedPlayingTime: "FIRST_TEAM" }, { salary: 500_000, squadRole: "FIRST_TEAM", contractLengthMonths: 24 });
       completePermanentTransfer(reloaded, resale, "2027-01-01", "sell-on-resale", { prefersOverseas: true, expectedPlayingTime: "FIRST_TEAM" }, { salary: 500_000, squadRole: "FIRST_TEAM", contractLengthMonths: 24 });
-      expect(new MediaRepository(reloaded).stories().filter((story) => story.eventType === "TRANSFER")).toHaveLength(1);
+      // A foreign-to-foreign resale is outside Nepal's public event stream, so
+      // even after that date's media tick it adds no story, however often it
+      // is completed.
+      publishMediaForDate(reloaded, { date: "2027-01-01" });
+      expect(transferStoryCount()).toBe(storiesBeforeResale);
       const entitlement = reloadedMarket.sellOnEntitlements(target.player_id)[0]!;
       expect(entitlement.status).toBe("SETTLED");
       expect(entitlement.settledTransferId).toBe(resale.id);
