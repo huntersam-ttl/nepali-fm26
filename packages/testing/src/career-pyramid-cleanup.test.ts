@@ -152,12 +152,29 @@ describe("career pyramid and new-save balancing", () => {
               .get(club!.teamId) as { n: number }
           ).n,
         );
+        // squadSize counts the Nepal registry only; a real career's global seed
+        // may also place genuine foreign players (PLY-* imports) at the club.
+        const registryPlayers = Number(
+          (
+            db
+              .prepare(
+                `SELECT COUNT(*) AS n FROM team_person_assignments tpa
+                 LEFT JOIN generated_player_origins gpo ON gpo.player_id=tpa.person_id
+                 WHERE tpa.team_id=? AND tpa.role='PLAYER' AND tpa.ended_on IS NULL AND gpo.player_id IS NULL
+                   AND NOT EXISTS (
+                     SELECT 1 FROM player_factual_profiles f
+                     WHERE f.player_id=tpa.person_id AND f.canonical_external_id LIKE 'PLY-%'
+                   )`,
+              )
+              .get(club!.teamId) as { n: number }
+          ).n,
+        );
         expect(squad).toBeGreaterThanOrEqual(11);
         if (club!.clubName === "Khumaltar Youth Club" || club!.clubName === "Three Star Club") {
           expect(realPlayers).toBe(0);
         } else {
           expect(realPlayers).toBeGreaterThan(0);
-          expect(realPlayers).toBeLessThanOrEqual(club!.squadSize);
+          expect(registryPlayers).toBeLessThanOrEqual(club!.squadSize);
         }
       } finally {
         db.close();

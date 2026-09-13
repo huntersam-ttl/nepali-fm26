@@ -192,7 +192,23 @@ describe("canonical global dataset seed", () => {
     const db = openGameDatabase(databasePath);
     try {
       expect(scalar(db, "SELECT COUNT(*) n FROM global_dataset_imports")).toBe(0);
-      expect(scalar(db, "SELECT COUNT(*) n FROM player_factual_profiles")).toBe(573);
+      // The 573 imported Nepal players, and no global ones. Save creation also
+      // gives every generated lower-league player a `bootstrap:` gameplay
+      // profile; those must all belong to generated players, never imports.
+      expect(
+        scalar(
+          db,
+          "SELECT COUNT(*) n FROM player_factual_profiles WHERE canonical_external_id NOT LIKE 'bootstrap:%'",
+        ),
+      ).toBe(573);
+      expect(
+        scalar(
+          db,
+          `SELECT COUNT(*) n FROM player_factual_profiles
+           WHERE canonical_external_id LIKE 'bootstrap:%'
+             AND player_id NOT IN (SELECT player_id FROM generated_player_origins)`,
+        ),
+      ).toBe(0);
     } finally {
       db.close();
     }

@@ -22,7 +22,8 @@ describe("commercial football world phase C", () => {
     const expensive = openGameDatabase(makeSave("ticket-expensive"));
     initializeClubEconomyForSave({ db: cheap, worldDate: "2026-08-01", seed: "ticket" });
     initializeClubEconomyForSave({ db: expensive, worldDate: "2026-08-01", seed: "ticket" });
-    const teams = cheap.prepare("SELECT id FROM teams WHERE level = 'senior' ORDER BY id LIMIT 2").all() as Array<{ id: EntityId }>;
+    // Real Nepal clubs only: the global seed adds CONTEXT_ONLY foreign clubs with no supporter profile.
+    const teams = cheap.prepare("SELECT t.id FROM teams t WHERE t.level = 'senior' AND NOT EXISTS (SELECT 1 FROM external_club_context e WHERE e.club_id = t.club_id) ORDER BY t.id LIMIT 2").all() as Array<{ id: EntityId }>;
     const fixture: FixtureRecord = { id: "fixture:commercial-price" as EntityId, homeTeamId: teams[0]!.id, awayTeamId: teams[1]!.id, scheduledDate: "2026-08-02", status: "scheduled", round: 1 };
     const club = cheap.prepare("SELECT club_id FROM teams WHERE id = ?").get(fixture.homeTeamId) as { club_id: EntityId };
     setClubTicketPrice(cheap, club.club_id, 150); setClubTicketPrice(expensive, club.club_id, 600);

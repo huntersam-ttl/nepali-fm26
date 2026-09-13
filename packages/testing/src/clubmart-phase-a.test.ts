@@ -22,7 +22,8 @@ describe("ClubMart procurement phase A", () => {
     const second = openGameDatabase(makeSave("clubmart-deterministic"));
     initializeClubEconomyForSave({ db: first, worldDate: "2026-08-01", seed: "clubmart-deterministic" });
     initializeClubEconomyForSave({ db: second, worldDate: "2026-08-01", seed: "clubmart-deterministic" });
-    const clubId = (first.prepare("SELECT id FROM clubs ORDER BY id LIMIT 1").get() as { id: EntityId }).id;
+    // Real Nepal clubs only: the global seed adds CONTEXT_ONLY foreign clubs with no club economy.
+    const clubId = (first.prepare("SELECT id FROM clubs c WHERE NOT EXISTS (SELECT 1 FROM external_club_context e WHERE e.club_id = c.id) ORDER BY id LIMIT 1").get() as { id: EntityId }).id;
     const run = (db: typeof first) => {
       const request = createProcurementRequest(db, { clubId, category: "MEDICAL_SUPPLIES", quantity: 4, date: "2026-08-28", seed: "clubmart-deterministic" });
       expect(request.offers.some((offer) => offer.shippingCost > 0)).toBe(true);
