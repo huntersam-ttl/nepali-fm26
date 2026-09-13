@@ -4211,7 +4211,10 @@ export type PressQuestionTopic =
   | "INFRASTRUCTURE_PROJECT"
   | "SPONSORSHIP_SIGNED"
   | "COMPETITION_REFORM"
-  | "COACH_APPOINTMENT";
+  | "COACH_APPOINTMENT"
+  | "INCOMING_TRANSFER"
+  | "OUTGOING_TRANSFER"
+  | "FAILED_TRANSFER";
 
 /** Reusable response archetypes. A question only ever offers the stances
  * that make sense for its topic — never four differently-worded options
@@ -4267,7 +4270,8 @@ export type MediaInterview = {
     | "TRANSFER"
     | "PLAYER_ISSUE"
     | "OWNER_BUSINESS"
-    | "FEDERATION_GOVERNANCE";
+    | "FEDERATION_GOVERNANCE"
+    | "RECRUITMENT";
   importance: number;
   questions: string[];
   responses: string[];

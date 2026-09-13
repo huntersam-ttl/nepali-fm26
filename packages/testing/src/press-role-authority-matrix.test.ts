@@ -7,13 +7,14 @@ import { DesktopApplicationService } from "@nepal-football-sim/simulation";
 import type { EntityId } from "@nepal-football-sim/shared-types";
 
 /*
- * Backend authority for the three press pipelines that exist so far
- * (Manager, Owner, Federation President) — proven as real command
- * rejections, never inferred from what the UI happens to show. Sporting
- * Director/CEO/General Secretary press features do not exist yet, but this
- * career already grants those as real CareerRoles (career-control.ts), so
- * their commands against these existing press endpoints must still be
- * rejected today.
+ * Backend authority for the four press pipelines that exist so far
+ * (Manager, Owner, Federation President, Sporting Director) — proven as
+ * real command rejections, never inferred from what the UI happens to
+ * show. CEO/General Secretary press does not exist (see the CEO/GS audit:
+ * both are delegated views into Owner-owned domains, never a distinct
+ * event-producing authority of their own), but this career already grants
+ * those as real CareerRoles (career-control.ts), so their commands against
+ * every existing press endpoint must still be rejected today.
  */
 
 const registryPath = resolve("data/nepal/2026-08/club-registry.json");
@@ -88,10 +89,15 @@ describe("press role authority matrix (Manager, Owner, President)", () => {
     const presidentAttempt = service.evaluatePresidentPress();
     expect(presidentAttempt.ok).toBe(false);
     if (!presidentAttempt.ok) expect(presidentAttempt.error.code).toBe("ROLE_NOT_AUTHORIZED");
+
+    // SD press is rejected outright: no recruitment-authority role held.
+    const sdAttempt = service.evaluateSportingDirectorPress();
+    expect(sdAttempt.ok).toBe(false);
+    if (!sdAttempt.ok) expect(sdAttempt.error.code).toBe("ROLE_NOT_AUTHORIZED");
     service.closeCareer();
   });
 
-  it("OWNER press: Owner allowed, Manager/President rejected", () => {
+  it("OWNER press: Owner allowed, Manager/President/SD rejected", () => {
     const directory = mkdtempSync(join(tmpdir(), "matrix-owner-"));
     dirs.push(directory);
     const service = new DesktopApplicationService({ savesDirectory: directory, worldDatasetPath: registryPath });
@@ -118,10 +124,14 @@ describe("press role authority matrix (Manager, Owner, President)", () => {
     const presidentAttempt = service.evaluatePresidentPress();
     expect(presidentAttempt.ok).toBe(false);
     if (!presidentAttempt.ok) expect(presidentAttempt.error.code).toBe("ROLE_NOT_AUTHORIZED");
+
+    const sdAttempt = service.evaluateSportingDirectorPress();
+    expect(sdAttempt.ok).toBe(false);
+    if (!sdAttempt.ok) expect(sdAttempt.error.code).toBe("ROLE_NOT_AUTHORIZED");
     service.closeCareer();
   });
 
-  it("PRESIDENT press: President allowed, Manager/Owner rejected", () => {
+  it("PRESIDENT press: President allowed, Manager/Owner/SD rejected", () => {
     const directory = mkdtempSync(join(tmpdir(), "matrix-president-"));
     dirs.push(directory);
     const service = new DesktopApplicationService({ savesDirectory: directory, worldDatasetPath: registryPath });
@@ -167,6 +177,48 @@ describe("press role authority matrix (Manager, Owner, President)", () => {
     const ownerAttempt = service.evaluateOwnerBusinessPress();
     expect(ownerAttempt.ok).toBe(false);
     if (!ownerAttempt.ok) expect(ownerAttempt.error.code).toBe("ROLE_NOT_AUTHORIZED");
+
+    const sdAttempt = service.evaluateSportingDirectorPress();
+    expect(sdAttempt.ok).toBe(false);
+    if (!sdAttempt.ok) expect(sdAttempt.error.code).toBe("ROLE_NOT_AUTHORIZED");
+    service.closeCareer();
+  });
+
+  it("SD press: SD allowed, Manager/Owner/President rejected", () => {
+    const directory = mkdtempSync(join(tmpdir(), "matrix-sd-"));
+    dirs.push(directory);
+    const service = new DesktopApplicationService({ savesDirectory: directory, worldDatasetPath: registryPath });
+    const created = service.createCareer({ saveName: "Matrix SD", character });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const savePath = created.data.catalogEntry.filePath;
+    service.closeCareer();
+
+    grantExecutiveRole(service, savePath, "SPORTING_DIRECTOR");
+
+    expect(service.loadCareerByPath(savePath).ok).toBe(true);
+    expect(service.switchActiveCareerRole("SPORTING_DIRECTOR")).toMatchObject({
+      ok: true,
+      data: { activeRole: "SPORTING_DIRECTOR" },
+    });
+
+    // SD press itself returns ok:true even with nothing new to ask about
+    // (evaluatePresidentPress/evaluateOwnerBusinessPress behave the same
+    // way) — the authority check passing is what this test proves.
+    const sdAttempt = service.evaluateSportingDirectorPress();
+    expect(sdAttempt.ok).toBe(true);
+
+    const managerAttempt = service.requestStructuredPressConference({ context: "TRANSFER" });
+    expect(managerAttempt.ok).toBe(false);
+    if (!managerAttempt.ok) expect(managerAttempt.error.code).toBe("ROLE_NOT_AUTHORIZED");
+
+    const ownerAttempt = service.evaluateOwnerBusinessPress();
+    expect(ownerAttempt.ok).toBe(false);
+    if (!ownerAttempt.ok) expect(ownerAttempt.error.code).toBe("ROLE_NOT_AUTHORIZED");
+
+    const presidentAttempt = service.evaluatePresidentPress();
+    expect(presidentAttempt.ok).toBe(false);
+    if (!presidentAttempt.ok) expect(presidentAttempt.error.code).toBe("ROLE_NOT_AUTHORIZED");
     service.closeCareer();
   });
 
@@ -192,6 +244,15 @@ describe("press role authority matrix (Manager, Owner, President)", () => {
       const presidentAttempt = service.evaluatePresidentPress();
       expect(presidentAttempt.ok).toBe(false);
       if (!presidentAttempt.ok) expect(presidentAttempt.error.code).toBe("ROLE_NOT_AUTHORIZED");
+
+      // CEO/GENERAL_SECRETARY must also be rejected from SD press; a real
+      // SD career role rejecting itself here would be a bug, so this loop
+      // only asserts rejection for the two roles that are not SD.
+      if (role !== "SPORTING_DIRECTOR") {
+        const sdAttempt = service.evaluateSportingDirectorPress();
+        expect(sdAttempt.ok).toBe(false);
+        if (!sdAttempt.ok) expect(sdAttempt.error.code).toBe("ROLE_NOT_AUTHORIZED");
+      }
 
       service.closeCareer();
     }

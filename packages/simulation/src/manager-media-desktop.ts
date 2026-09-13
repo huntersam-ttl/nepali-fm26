@@ -132,15 +132,17 @@ export const buildMediaCentreView = (
     .filter((story) => story.subjectIds.some((id) => subjects.has(id)))
     .sort((a, b) => (a.publishedOn < b.publishedOn ? 1 : a.publishedOn > b.publishedOn ? -1 : 0))
     .slice(0, 12);
-  // Excludes OWNER_BUSINESS/FEDERATION_GOVERNANCE: the same physical person
-  // may also hold a press-producing role like Owner or President, whose
-  // interviews belong to their own dashboard, never the Manager's Media
-  // Centre.
+  // Excludes OWNER_BUSINESS/FEDERATION_GOVERNANCE/RECRUITMENT: the same
+  // physical person may also hold a press-producing role like Owner,
+  // President or Sporting Director, whose interviews belong to their own
+  // dashboard, never the Manager's Media Centre.
   const interviews = new MediaPhaseBRepository(db)
     .interviews(context.character.personId)
     .filter(
       (interview) =>
-        interview.context !== "OWNER_BUSINESS" && interview.context !== "FEDERATION_GOVERNANCE",
+        interview.context !== "OWNER_BUSINESS" &&
+        interview.context !== "FEDERATION_GOVERNANCE" &&
+        interview.context !== "RECRUITMENT",
     );
   const openInterview = interviews.find((item) => item.status === "OPEN");
   const answeredSourceIds = new Set(interviews.map((item) => item.sourceEntityId));
@@ -337,6 +339,7 @@ const PRESS_CONTEXT_TITLE: Record<MediaInterview["context"], string> = {
   EVENT: "Press conference",
   OWNER_BUSINESS: "Owner interview",
   FEDERATION_GOVERNANCE: "Federation press conference",
+  RECRUITMENT: "Recruitment interview",
 };
 
 /**
@@ -359,12 +362,14 @@ export const structuredPressInboxItems = (
     .filter(
       (interview) =>
         interview.status === "OPEN" &&
-        // The same physical person may also hold a press-producing role like
-        // Owner or President, whose OWNER_BUSINESS/FEDERATION_GOVERNANCE
-        // interviews route through their own dashboard (ownerPressInboxItems/
-        // presidentPressInboxItems) — never delivered here too.
+        // The same physical person may also hold a press-producing role
+        // like Owner, President or Sporting Director, whose OWNER_BUSINESS/
+        // FEDERATION_GOVERNANCE/RECRUITMENT interviews route through their
+        // own dashboard (ownerPressInboxItems/presidentPressInboxItems/
+        // sportingDirectorPressInboxItems) — never delivered here too.
         interview.context !== "OWNER_BUSINESS" &&
         interview.context !== "FEDERATION_GOVERNANCE" &&
+        interview.context !== "RECRUITMENT" &&
         interview.structuredQuestions &&
         interview.structuredQuestions.length > 0,
     );

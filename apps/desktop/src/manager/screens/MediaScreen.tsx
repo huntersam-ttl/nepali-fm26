@@ -39,6 +39,7 @@ const PRESS_CONTEXT_LABEL: Record<StructuredPressConferenceView["context"], stri
   EVENT: "Press conference",
   OWNER_BUSINESS: "Owner interview",
   FEDERATION_GOVERNANCE: "Federation Press Conference",
+  RECRUITMENT: "Recruitment Interview",
 };
 
 /**
@@ -54,6 +55,7 @@ export const StructuredPressConferencePanel = ({
   interviewId,
   ownerContext,
   presidentContext,
+  sportingDirectorContext,
   onClose,
   onSelectPlayer,
 }: {
@@ -76,6 +78,11 @@ export const StructuredPressConferencePanel = ({
    * opened by evaluatePresidentPress (called from the Federation
    * dashboard), never by this panel's own trigger. */
   presidentContext?: boolean;
+  /** Same pattern again, for the Sporting Director / Director of Football
+   * recruitment interview — routes answer/resume calls to the executive's
+   * own commands. Always opened by evaluateSportingDirectorPress (called
+   * from the executive dashboard), never by this panel's own trigger. */
+  sportingDirectorContext?: boolean;
   onClose: () => void;
   /** Present wherever the caller already has a Player Profile surface to
    * route a question's subject player into — the same canonical navigation
@@ -95,7 +102,9 @@ export const StructuredPressConferencePanel = ({
             ? await managerBridge.getPresidentStructuredPressConference(interviewId)
             : ownerContext
               ? await managerBridge.getOwnerStructuredPressConference(interviewId)
-              : await managerBridge.getStructuredPressConference(interviewId)
+              : sportingDirectorContext
+                ? await managerBridge.getSportingDirectorStructuredPressConference(interviewId)
+                : await managerBridge.getStructuredPressConference(interviewId)
           : trigger
             ? await managerBridge.requestStructuredPressConference(trigger)
             : null;
@@ -106,7 +115,7 @@ export const StructuredPressConferencePanel = ({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [interviewId, ownerContext, presidentContext, trigger?.context, trigger?.fixtureId]);
+  }, [interviewId, ownerContext, presidentContext, sportingDirectorContext, trigger?.context, trigger?.fixtureId]);
 
   const answer = async (stance: PressResponseStance) => {
     if (!state?.ok) return;
@@ -121,10 +130,15 @@ export const StructuredPressConferencePanel = ({
             interviewId: state.data.interviewId,
             stance,
           })
-        : await managerBridge.answerStructuredPressQuestion({
-            interviewId: state.data.interviewId,
-            stance,
-          });
+        : sportingDirectorContext
+          ? await managerBridge.answerSportingDirectorStructuredPressQuestion({
+              interviewId: state.data.interviewId,
+              stance,
+            })
+          : await managerBridge.answerStructuredPressQuestion({
+              interviewId: state.data.interviewId,
+              stance,
+            });
     setBusy(false);
     setState(result);
   };

@@ -400,6 +400,12 @@ import {
   evaluatePresidentPress,
   getPresidentStructuredPressConference,
 } from "./federation-media-desktop.js";
+import {
+  answerSportingDirectorStructuredPressQuestion,
+  evaluateSportingDirectorPress,
+  getSportingDirectorStructuredPressConference,
+  sportingDirectorPressInboxItems,
+} from "./sporting-director-media-desktop.js";
 import { buildOwnerMatchday, type OwnerMatchdayView } from "./owner-matchday.js";
 import { buildActorPlayerActions, type ActorPlayerActions } from "./player-actions.js";
 import { buildEntityReference } from "./entity-reference.js";
@@ -1012,6 +1018,7 @@ export class DesktopApplicationService {
         heldCareerRoles(db, actorPersonId).find((item) => item.role === actorRole)?.targetId;
       if (!targetClubId) return undefined;
       const assignment = executiveRoleReadModel(db, targetClubId, actorRole as ExecutiveRole);
+      const isRecruitmentExecutive = actorRole === "SPORTING_DIRECTOR" || actorRole === "DIRECTOR_OF_FOOTBALL";
       return {
         actorPersonId,
         actorRole,
@@ -1020,6 +1027,12 @@ export class DesktopApplicationService {
         permittedActions: assignment.status === "FILLED" ? assignment.authorities : [],
         blockedReason:
           assignment.status === "FILLED" ? undefined : "This executive role is vacant.",
+        // CEO/General Secretary own no distinct press-worthy authority of
+        // their own (see the CEO/GS audit) — always empty for them.
+        inbox:
+          isRecruitmentExecutive && assignment.status === "FILLED"
+            ? sportingDirectorPressInboxItems(db, actorPersonId, actorRole)
+            : [],
       };
     });
   }
@@ -1303,6 +1316,66 @@ export class DesktopApplicationService {
       const personId = careerPersonId(db, save);
       this.currentFederationId(db, personId);
       return getPresidentStructuredPressConference(db, { presidentPersonId: personId, interviewId });
+    });
+  }
+
+  /** Authority gate shared by the three Sporting Director / Director of
+   * Football press commands below — mirrors currentFederationId(). Both
+   * roles carry identical recruitment authority (executiveAuthorities), so
+   * either is accepted; heldCareerRoles already only returns a role backed
+   * by a genuinely FILLED, ACTIVE executive assignment. */
+  private currentRecruitmentActor(
+    db: GameDatabase,
+    personId: EntityId,
+  ): { clubId: EntityId; actorRole: CareerRole } {
+    const actorRole = activeCareerRole(db, personId);
+    if (actorRole !== "SPORTING_DIRECTOR" && actorRole !== "DIRECTOR_OF_FOOTBALL") {
+      throw appError(
+        "ROLE_NOT_AUTHORIZED",
+        "You do not currently hold recruitment authority at a club.",
+      );
+    }
+    const clubId = heldCareerRoles(db, personId).find((role) => role.role === actorRole)?.targetId;
+    if (!clubId) throw appError("ROLE_NOT_AUTHORIZED", "No controlled club is available.");
+    return { clubId, actorRole };
+  }
+
+  /** The single natural Sporting Director / Director of Football press
+   * entry point — called once when the executive dashboard opens. Creates
+   * a RECRUITMENT interview only from a genuinely new, real transfer-
+   * business fact (never a recurring schedule), and only once the club has
+   * actually delegated the TRANSFERS domain away from its Manager; returns
+   * undefined when there is nothing new to ask about. Idempotent per
+   * fact. */
+  evaluateSportingDirectorPress(): AppResult<StructuredPressConferenceView | undefined> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      const { clubId, actorRole } = this.currentRecruitmentActor(db, personId);
+      return evaluateSportingDirectorPress(db, save, { clubId, sdPersonId: personId, actorRole });
+    });
+  }
+
+  answerSportingDirectorStructuredPressQuestion(input: {
+    interviewId: EntityId;
+    stance: PressResponseStance;
+  }): AppResult<StructuredPressConferenceView> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      const { actorRole } = this.currentRecruitmentActor(db, personId);
+      return answerSportingDirectorStructuredPressQuestion(db, save, {
+        sdPersonId: personId,
+        actorRole,
+        interviewId: input.interviewId,
+        stance: input.stance,
+      });
+    });
+  }
+
+  getSportingDirectorStructuredPressConference(interviewId: EntityId): AppResult<StructuredPressConferenceView> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      const { actorRole } = this.currentRecruitmentActor(db, personId);
+      return getSportingDirectorStructuredPressConference(db, { sdPersonId: personId, actorRole, interviewId });
     });
   }
 

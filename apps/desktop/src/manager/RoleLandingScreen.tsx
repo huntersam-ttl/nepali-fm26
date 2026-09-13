@@ -104,6 +104,30 @@ const ExecutiveDashboardScreen = ({
   bridge: DesktopRuntimeApi;
 }): React.ReactElement => {
   const [state, refresh] = useRuntimeData(() => bridge.getExecutiveAuthority());
+  // The single natural Sporting Director / Director of Football press entry
+  // point — evaluated once when this dashboard opens, mirroring the Owner
+  // and President dashboards' own natural-trigger pattern exactly:
+  // deliberately placed at this outer Screen level (not inside
+  // ExecutiveDashboardView, AsyncPanel's inner render-prop child) with an
+  // empty dependency array, so it fires exactly once per mount of this
+  // Screen component — which a later refresh() never itself remounts, only
+  // its AsyncPanel-wrapped inner child does. A mount-effect living in that
+  // inner child would re-fire on every one of those remounts, and since
+  // evaluate*Press keeps resolving the same still-OPEN interview until it's
+  // answered, that would loop forever. The backend command itself already
+  // enforces SD/DoF authority (currentRecruitmentActor) and CEO/General
+  // Secretary — who own no distinct press-worthy authority of their own,
+  // see the CEO/GS audit — simply get ROLE_NOT_AUTHORIZED and no-op here.
+  useEffect(() => {
+    let cancelled = false;
+    void managerBridge.evaluateSportingDirectorPress().then((result) => {
+      if (!cancelled && result.ok && result.data) refresh();
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   return (
     <AsyncPanel state={state}>
       {(authority) =>
@@ -464,6 +488,7 @@ const ExecutiveDashboardView = ({
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<AppError | null>(null);
   const [busy, setBusy] = useState(false);
+  const [openPressInterviewId, setOpenPressInterviewId] = useState<EntityId | null>(null);
   const canSetBudget = authority.permittedActions.includes("BUDGET_ADMINISTRATION");
   const canManageCommercial = authority.permittedActions.includes("COMMERCIAL_OVERSIGHT");
   const canManageFacilities = authority.permittedActions.includes("FACILITY_OVERSIGHT");
@@ -556,10 +581,27 @@ const ExecutiveDashboardView = ({
         </Panel>
       )}
       {canWorkRecruitment && <RecruitmentDesk bridge={bridge} clubId={authority.clubId} />}
+      {canWorkRecruitment && (
+        <InboxPanel
+          inbox={authority.inbox}
+          bridge={bridge}
+          onOpenPressConference={(interviewId) => setOpenPressInterviewId(interviewId)}
+        />
+      )}
       {canAdminister && <SecretaryDesk bridge={bridge} clubId={authority.clubId} />}
       {canSetBudget && <BankMeeting bridge={bridge} role="CEO" clubId={authority.clubId} />}
       {canManageCommercial && <SponsorMeeting bridge={bridge} role="CEO" clubId={authority.clubId} />}
       {canManageFacilities && <FacilityPlanner bridge={bridge} clubId={authority.clubId} />}
+      {openPressInterviewId && (
+        <StructuredPressConferencePanel
+          interviewId={openPressInterviewId}
+          sportingDirectorContext
+          onClose={() => {
+            setOpenPressInterviewId(null);
+            refresh();
+          }}
+        />
+      )}
     </section>
   );
 };

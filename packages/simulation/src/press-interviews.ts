@@ -25,6 +25,7 @@ import {
 import { initializeMediaForSave, initializeMediaJournalists } from "./media.js";
 import { adjustRelationship } from "./squad-dynamics.js";
 import { createStructuredCommitment } from "./commitments.js";
+import { responsibilityOwner } from "./staff-market.js";
 
 /**
  * The structured, context-grounded press-interview flow. This extends the
@@ -370,32 +371,41 @@ const transferCandidates = (db: GameDatabase, input: { teamId: EntityId }): Cand
     | undefined;
   const clubId = clubRow?.club_id;
   if (!clubId) return [];
-  const offers = new TransferMarketRepository(db).transferOffers();
   const candidates: Candidate[] = [];
+  // Transfer business (an active bid, a completed sale) is press-worthy for
+  // the Manager only while the Manager actually owns the TRANSFERS domain.
+  // Once a club delegates it to a Sporting Director/Director of Football,
+  // the same facts belong to that executive's own Recruitment Interview
+  // (sdCandidates below) — never both. Squad-morale fallout from a transfer
+  // request stays the Manager's own concern regardless of who owns
+  // recruitment, so it is intentionally outside this guard.
+  if (responsibilityOwner(db, clubId, "TRANSFERS").ownerType === "MANAGER") {
+    const offers = new TransferMarketRepository(db).transferOffers();
 
-  const activeStatuses = new Set(["SUBMITTED", "NEGOTIATING", "COUNTERED", "PLAYER_NEGOTIATING", "COMPETING_OFFER"]);
-  const activeBid = offers.find(
-    (offer) => offer.sellingClubId === clubId && activeStatuses.has(offer.status),
-  );
-  if (activeBid) {
-    candidates.push({
-      topic: "TRANSFER_BID",
-      prompt: `There's a bid on the table for ${personName(db, activeBid.playerId)} — what's your stance?`,
-      subjectEntities: [{ id: activeBid.playerId, type: "person" }],
-      priority: 6,
-    });
-  }
+    const activeStatuses = new Set(["SUBMITTED", "NEGOTIATING", "COUNTERED", "PLAYER_NEGOTIATING", "COMPETING_OFFER"]);
+    const activeBid = offers.find(
+      (offer) => offer.sellingClubId === clubId && activeStatuses.has(offer.status),
+    );
+    if (activeBid) {
+      candidates.push({
+        topic: "TRANSFER_BID",
+        prompt: `There's a bid on the table for ${personName(db, activeBid.playerId)} — what's your stance?`,
+        subjectEntities: [{ id: activeBid.playerId, type: "person" }],
+        priority: 6,
+      });
+    }
 
-  const completed = offers.find(
-    (offer) => offer.sellingClubId === clubId && offer.status === "COMPLETED",
-  );
-  if (completed && !activeBid) {
-    candidates.push({
-      topic: "TRANSFER_COMPLETED",
-      prompt: `What does letting ${personName(db, completed.playerId)} leave mean for the squad?`,
-      subjectEntities: [{ id: completed.playerId, type: "person" }],
-      priority: 5,
-    });
+    const completed = offers.find(
+      (offer) => offer.sellingClubId === clubId && offer.status === "COMPLETED",
+    );
+    if (completed && !activeBid) {
+      candidates.push({
+        topic: "TRANSFER_COMPLETED",
+        prompt: `What does letting ${personName(db, completed.playerId)} leave mean for the squad?`,
+        subjectEntities: [{ id: completed.playerId, type: "person" }],
+        priority: 5,
+      });
+    }
   }
 
   const concerns = new SquadDynamicsRepository(db)
@@ -581,6 +591,64 @@ const presidentCandidates = (db: GameDatabase, input: { federationId: EntityId }
   return candidates;
 };
 
+/**
+ * Sporting Director / Director of Football press candidates — real
+ * completed/failed transfer business only, and only for a club whose
+ * TRANSFERS domain is actually delegated away from the Manager (see the
+ * guard in transferCandidates above; a club still running transfers through
+ * its Manager has nothing for this executive to be asked about). Sourced
+ * from the exact same TransferMarketRepository rows the Manager's own
+ * Transfer Centre and the executive Recruitment Desk already read — never a
+ * second transfer engine.
+ */
+const sdCandidates = (db: GameDatabase, input: { clubId: EntityId }): Candidate[] => {
+  const candidates: Candidate[] = [];
+  if (responsibilityOwner(db, input.clubId, "TRANSFERS").ownerType !== "STAFF") return candidates;
+
+  const offers = new TransferMarketRepository(db)
+    .transferOffers()
+    .filter((offer) => offer.buyingClubId === input.clubId || offer.sellingClubId === input.clubId);
+
+  const latestIncoming = offers
+    .filter((offer) => offer.buyingClubId === input.clubId && offer.status === "COMPLETED")
+    .sort((a, b) => (a.submittedAt < b.submittedAt ? 1 : a.submittedAt > b.submittedAt ? -1 : 0))[0];
+  if (latestIncoming) {
+    candidates.push({
+      topic: "INCOMING_TRANSFER",
+      prompt: `What convinced you ${personName(db, latestIncoming.playerId)} was the right player to bring in?`,
+      subjectEntities: [{ id: latestIncoming.playerId, type: "person" }],
+      priority: 6,
+    });
+  }
+
+  const latestOutgoing = offers
+    .filter((offer) => offer.sellingClubId === input.clubId && offer.status === "COMPLETED")
+    .sort((a, b) => (a.submittedAt < b.submittedAt ? 1 : a.submittedAt > b.submittedAt ? -1 : 0))[0];
+  if (latestOutgoing) {
+    candidates.push({
+      topic: "OUTGOING_TRANSFER",
+      prompt: `Why did the club decide to let ${personName(db, latestOutgoing.playerId)} leave?`,
+      subjectEntities: [{ id: latestOutgoing.playerId, type: "person" }],
+      priority: 5,
+    });
+  }
+
+  const failedStatuses = new Set(["REJECTED", "WITHDRAWN", "PLAYER_REJECTED", "EXPIRED"]);
+  const latestFailed = offers
+    .filter((offer) => failedStatuses.has(offer.status))
+    .sort((a, b) => (a.submittedAt < b.submittedAt ? 1 : a.submittedAt > b.submittedAt ? -1 : 0))[0];
+  if (latestFailed) {
+    candidates.push({
+      topic: "FAILED_TRANSFER",
+      prompt: `Why was the club unable to complete the move for ${personName(db, latestFailed.playerId)}?`,
+      subjectEntities: [{ id: latestFailed.playerId, type: "person" }],
+      priority: 4,
+    });
+  }
+
+  return candidates;
+};
+
 // ---------------------------------------------------------------------------
 // Response options per topic — only the stances that make sense, each with
 // distinct, bounded consequences (see applyConsequence below).
@@ -635,6 +703,21 @@ const OPTION_TEXT: Partial<Record<PressQuestionTopic, Partial<Record<PressRespon
     PRAISE: "Their record and their plan for the squad convinced the committee.",
     CALM: "It was a thorough process, and we're confident in the outcome.",
     NON_COMMITTAL: "I'll let their work on the training pitch do the talking.",
+  },
+  INCOMING_TRANSFER: {
+    ASSERTIVE: "He was exactly the profile we identified and went out to get.",
+    PRAISE: "Everything about his character and ability fit what we needed.",
+    CALM: "It's the result of a long process, not a reaction to one gap in the squad.",
+  },
+  OUTGOING_TRANSFER: {
+    PRAISE: "We wish him well — it was the right move for player and club alike.",
+    CALM: "Football moves on, and this business made sense for both sides.",
+    DEFLECT: "The details of the negotiation stay between the clubs.",
+  },
+  FAILED_TRANSFER: {
+    CALM: "These things don't always come together, and we move on to the next priority.",
+    DEFLECT: "I'm not going to discuss the specifics of a deal that didn't happen.",
+    NON_COMMITTAL: "It's not the end of the story — we'll keep working on the squad.",
   },
   MENTALITY_CHOICE: {
     ASSERTIVE: "We set out to impose ourselves from the first minute.",
@@ -746,7 +829,9 @@ export const generatePressQuestions = (
               ? ownerCandidates(db, { clubId: input.clubId })
               : input.context === "FEDERATION_GOVERNANCE" && input.federationId
                 ? presidentCandidates(db, { federationId: input.federationId })
-                : [];
+                : input.context === "RECRUITMENT" && input.clubId
+                  ? sdCandidates(db, { clubId: input.clubId })
+                  : [];
   const sourceEntityId = input.fixtureId ?? input.clubId ?? input.federationId ?? input.teamId;
   const excluded = input.excludeTopicSubjectKeys;
   return candidates
@@ -841,8 +926,14 @@ const addDays = (date: string, days: number): string => {
  * protagonist holding two press-producing roles (e.g. Manager of one club
  * and Owner of another) never has one role's open interview block the
  * other's. */
-const contextRole = (context: MediaInterview["context"]): "MANAGER" | "OWNER" | "PRESIDENT" =>
-  context === "OWNER_BUSINESS" ? "OWNER" : context === "FEDERATION_GOVERNANCE" ? "PRESIDENT" : "MANAGER";
+const contextRole = (context: MediaInterview["context"]): "MANAGER" | "OWNER" | "PRESIDENT" | "SPORTING_DIRECTOR" =>
+  context === "OWNER_BUSINESS"
+    ? "OWNER"
+    : context === "FEDERATION_GOVERNANCE"
+      ? "PRESIDENT"
+      : context === "RECRUITMENT"
+        ? "SPORTING_DIRECTOR"
+        : "MANAGER";
 
 /** Opens (or returns the already-open) structured press conference for this
  * exact context — one open conference per manager at a time, matching the
@@ -944,7 +1035,7 @@ export const startPressConference = (
     importance: input.importance ?? (questions.length > 0 ? 6 : 3),
     questions: questions.map((question) => question.prompt),
     responses: [],
-    summary: `${input.context === "PRE_MATCH" ? "Pre-match" : input.context === "POST_MATCH" ? "Post-match" : input.context === "TRANSFER" ? "Transfer" : input.context === "OWNER_BUSINESS" ? "Owner" : input.context === "FEDERATION_GOVERNANCE" ? "Federation" : "Player issue"} interview opened.`,
+    summary: `${input.context === "PRE_MATCH" ? "Pre-match" : input.context === "POST_MATCH" ? "Post-match" : input.context === "TRANSFER" ? "Transfer" : input.context === "OWNER_BUSINESS" ? "Owner" : input.context === "FEDERATION_GOVERNANCE" ? "Federation" : input.context === "RECRUITMENT" ? "Recruitment" : "Player issue"} interview opened.`,
     managerReputationEffect: 0,
     clubSupportEffect: 0,
     status: "OPEN",
@@ -1039,13 +1130,14 @@ export const answerPressQuestion = (
 /** A press conference publishes a real historical event only when a material
  * (non-neutral) stance was actually taken — never for every routine answer. */
 const publishMaterialPressEvent = (db: GameDatabase, interview: MediaInterview, answers: PressAnswer[]): void => {
-  // FEDERATION_GOVERNANCE has no COMMIT/PROTECT_PLAYER/CHALLENGE_PLAYER/
-  // CRITICAL stances of its own (a President is never asked to commit to
-  // keeping a player) — ASSERTIVE is its equivalent "took a real position"
-  // stance, scoped to this context only so it never changes what counts as
-  // material for the existing Manager/Owner topics.
+  // FEDERATION_GOVERNANCE and RECRUITMENT have no COMMIT/PROTECT_PLAYER/
+  // CHALLENGE_PLAYER/CRITICAL stances of their own (a President is never
+  // asked to commit to keeping a player, and neither is a Sporting
+  // Director) — ASSERTIVE is their equivalent "took a real position"
+  // stance, scoped to these contexts only so it never changes what counts
+  // as material for the existing Manager/Owner topics.
   const material =
-    interview.context === "FEDERATION_GOVERNANCE"
+    interview.context === "FEDERATION_GOVERNANCE" || interview.context === "RECRUITMENT"
       ? answers.find((answer) => answer.stance === "ASSERTIVE")
       : answers.find(
           (answer) =>
@@ -1065,13 +1157,15 @@ const publishMaterialPressEvent = (db: GameDatabase, interview: MediaInterview, 
     eventType:
       interview.context === "FEDERATION_GOVERNANCE"
         ? "PRESIDENT_PRESS_STATEMENT"
-        : material.stance === "COMMIT"
-          ? "MANAGER_PRESS_COMMITMENT"
-          : material.stance === "PROTECT_PLAYER"
-            ? "MANAGER_PRESS_SUPPORT"
-            : material.stance === "CHALLENGE_PLAYER"
-              ? "MANAGER_PRESS_CHALLENGE"
-              : "MANAGER_PRESS_CRITICISM",
+        : interview.context === "RECRUITMENT"
+          ? "SPORTING_DIRECTOR_PRESS_STATEMENT"
+          : material.stance === "COMMIT"
+            ? "MANAGER_PRESS_COMMITMENT"
+            : material.stance === "PROTECT_PLAYER"
+              ? "MANAGER_PRESS_SUPPORT"
+              : material.stance === "CHALLENGE_PLAYER"
+                ? "MANAGER_PRESS_CHALLENGE"
+                : "MANAGER_PRESS_CRITICISM",
     involvedEntities: [
       { id: interview.managerPersonId, type: "person" },
       ...(question?.subjectEntities ?? []),
