@@ -705,6 +705,14 @@ const dispatch = (
       );
     case "getPresidentStructuredPressConference":
       return service.getPresidentStructuredPressConference(body.interviewId as EntityId);
+    case "evaluateSportingDirectorPress":
+      return service.evaluateSportingDirectorPress();
+    case "answerSportingDirectorStructuredPressQuestion":
+      return service.answerSportingDirectorStructuredPressQuestion(
+        body.input as { interviewId: EntityId; stance: PressResponseStance },
+      );
+    case "getSportingDirectorStructuredPressConference":
+      return service.getSportingDirectorStructuredPressConference(body.interviewId as EntityId);
     case "getSupporterOverview":
       return service.getSupporterOverview();
     case "getDressingRoom":

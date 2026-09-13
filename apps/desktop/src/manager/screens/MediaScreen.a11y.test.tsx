@@ -116,6 +116,19 @@ const presidentOpenView: StructuredPressConferenceView = {
   },
 };
 
+const sdOpenView: StructuredPressConferenceView = {
+  ...openView,
+  context: "RECRUITMENT",
+  currentQuestion: {
+    prompt: "What convinced you Aayush Shrestha was the right player to bring in?",
+    subjectEntities: [playerRef],
+    options: [
+      { stance: "ASSERTIVE", text: "He was exactly the profile we identified and went out to get." },
+      { stance: "PRAISE", text: "Everything about his character and ability fit what we needed." },
+    ],
+  },
+};
+
 const requestStructuredPressConference = vi.fn(() => ok(openView));
 const answerStructuredPressQuestion = vi.fn(() => ok(answeredView));
 const getStructuredPressConference = vi.fn(() => ok(completedView));
@@ -123,6 +136,8 @@ const getOwnerStructuredPressConference = vi.fn(() => ok(ownerOpenView));
 const answerOwnerStructuredPressQuestion = vi.fn(() => ok(answeredView));
 const getPresidentStructuredPressConference = vi.fn(() => ok(presidentOpenView));
 const answerPresidentStructuredPressQuestion = vi.fn(() => ok(answeredView));
+const getSportingDirectorStructuredPressConference = vi.fn(() => ok(sdOpenView));
+const answerSportingDirectorStructuredPressQuestion = vi.fn(() => ok(answeredView));
 const getOrganizationProfile = vi.fn(() =>
   ok({
     entityReference: journalist,
@@ -145,6 +160,8 @@ vi.mock("../managerBridge.js", () => ({
     answerOwnerStructuredPressQuestion,
     getPresidentStructuredPressConference,
     answerPresidentStructuredPressQuestion,
+    getSportingDirectorStructuredPressConference,
+    answerSportingDirectorStructuredPressQuestion,
     getOrganizationProfile,
     getClubProfile: vi.fn(() => ok(undefined)),
   },
@@ -160,6 +177,8 @@ beforeEach(async () => {
   answerOwnerStructuredPressQuestion.mockImplementation(() => ok(answeredView));
   getPresidentStructuredPressConference.mockImplementation(() => ok(presidentOpenView));
   answerPresidentStructuredPressQuestion.mockImplementation(() => ok(answeredView));
+  getSportingDirectorStructuredPressConference.mockImplementation(() => ok(sdOpenView));
+  answerSportingDirectorStructuredPressQuestion.mockImplementation(() => ok(answeredView));
   ({ StructuredPressConferencePanel } = await import("./MediaScreen.js"));
 });
 afterEach(() => cleanup());
@@ -317,6 +336,53 @@ describe("StructuredPressConferencePanel — accessibility", () => {
     });
     expect(answerStructuredPressQuestion).not.toHaveBeenCalled();
     expect(answerOwnerStructuredPressQuestion).not.toHaveBeenCalled();
+
+    const results = await axe.run(container, {
+      rules: {
+        region: { enabled: false },
+        "page-has-heading-one": { enabled: false },
+        "landmark-one-main": { enabled: false },
+      },
+    });
+    expect(
+      results.violations
+        .filter((v) => v.impact === "serious" || v.impact === "critical")
+        .map((v) => `${v.id} (${v.impact})`),
+    ).toEqual([]);
+  });
+
+  it("sporting director context: resolves via the SD bridge commands, titled as a Recruitment Interview, with a named player link and no serious or critical axe violations", async () => {
+    const onSelectPlayer = vi.fn();
+    const { container } = render(
+      <StructuredPressConferencePanel
+        interviewId={eid("interview-1")}
+        sportingDirectorContext
+        onClose={vi.fn()}
+        onSelectPlayer={onSelectPlayer}
+      />,
+    );
+    expect(await screen.findByRole("heading", { name: /recruitment interview/i })).toBeTruthy();
+    expect(getSportingDirectorStructuredPressConference).toHaveBeenCalledWith(eid("interview-1"));
+    expect(getStructuredPressConference).not.toHaveBeenCalled();
+    expect(getOwnerStructuredPressConference).not.toHaveBeenCalled();
+    expect(getPresidentStructuredPressConference).not.toHaveBeenCalled();
+
+    const playerButton = await screen.findByRole("button", { name: "Aayush Shrestha" });
+    fireEvent.click(playerButton);
+    expect(onSelectPlayer).toHaveBeenCalledWith(playerRef.id);
+
+    const stanceButton = await screen.findByRole("button", {
+      name: "He was exactly the profile we identified and went out to get.",
+    });
+    fireEvent.click(stanceButton);
+    expect(await screen.findByText(/relationship with the manager improved slightly/i)).toBeTruthy();
+    expect(answerSportingDirectorStructuredPressQuestion).toHaveBeenCalledWith({
+      interviewId: sdOpenView.interviewId,
+      stance: "ASSERTIVE",
+    });
+    expect(answerStructuredPressQuestion).not.toHaveBeenCalled();
+    expect(answerOwnerStructuredPressQuestion).not.toHaveBeenCalled();
+    expect(answerPresidentStructuredPressQuestion).not.toHaveBeenCalled();
 
     const results = await axe.run(container, {
       rules: {

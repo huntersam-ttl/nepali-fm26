@@ -1,6 +1,6 @@
 import type { EntityId } from "./ids.js";
 import type { CareerRole } from "./desktop-contract.js";
-import type { ISODate, StaffAppointment, StaffVacancy } from "./domain.js";
+import type { InboxItem, ISODate, StaffAppointment, StaffVacancy } from "./domain.js";
 
 export type ExecutiveRole =
   "SPORTING_DIRECTOR" | "DIRECTOR_OF_FOOTBALL" | "CEO" | "GENERAL_SECRETARY";
@@ -43,6 +43,10 @@ export type ExecutiveAuthorityDesktopView = {
   assignment: ExecutiveRoleReadModel;
   permittedActions: ExecutiveAuthority[];
   blockedReason?: string;
+  /** Sporting Director / Director of Football recruitment press only —
+   * always empty for CEO/General Secretary, which own no distinct
+   * press-worthy authority of their own (see the CEO/GS audit). */
+  inbox: InboxItem[];
 };
 
 /**
