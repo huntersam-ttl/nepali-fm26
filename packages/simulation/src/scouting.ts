@@ -570,6 +570,27 @@ const searchRegionalCandidatesForClubWithPlayers = (
     .slice(0, Math.max(1, Math.min(limit, 24)));
 };
 
+/**
+ * The general player pool excludes CONTEXT_ONLY foreign players (they are
+ * real-world context, not open domestic-search targets). The bounded
+ * regional corridor still reaches the ones this club has actually scouted, so
+ * they are added back per club — never into the shared, club-agnostic cache.
+ */
+const scoutedContextPlayers = (db: GameDatabase, clubId: EntityId): TruePlayer[] => {
+  const ids = (
+    db
+      .prepare(
+        `SELECT DISTINCT pk.player_id FROM player_knowledge pk
+         JOIN external_player_context epc ON epc.player_id = pk.player_id
+         WHERE pk.observer_type = 'CLUB' AND pk.observer_organisation_id = ?
+           AND pk.discovery_status = 'SCOUTED'
+         ORDER BY pk.player_id`,
+      )
+      .all(clubId) as Array<{ player_id: EntityId }>
+  ).map((row) => row.player_id);
+  return ids.length > 0 ? truePlayers(db, ids) : [];
+};
+
 export const searchRegionalCandidatesForClub = (
   db: GameDatabase,
   clubId: EntityId,
@@ -577,14 +598,10 @@ export const searchRegionalCandidatesForClub = (
   worldDate = "2026-08-01",
   limit = 12,
 ): RecruitmentSearchResult[] =>
-  searchRegionalCandidatesForClubWithPlayers(
-    db,
-    clubId,
-    filters,
-    worldDate,
-    limit,
-    allTruePlayers(db),
-  );
+  searchRegionalCandidatesForClubWithPlayers(db, clubId, filters, worldDate, limit, [
+    ...allTruePlayers(db),
+    ...scoutedContextPlayers(db, clubId),
+  ]);
 
 export const searchRegionalCandidatesForClubCached = (
   db: GameDatabase,
@@ -606,7 +623,10 @@ export const searchRegionalCandidatesForClubCached = (
       : allTruePlayers(db);
   if (!cached || cached.worldDate !== worldDate || cached.personCount !== personCount)
     regionalSearchPlayerCache.set(db, { worldDate, personCount, players });
-  return searchRegionalCandidatesForClubWithPlayers(db, clubId, filters, worldDate, limit, players);
+  return searchRegionalCandidatesForClubWithPlayers(db, clubId, filters, worldDate, limit, [
+    ...players,
+    ...scoutedContextPlayers(db, clubId),
+  ]);
 };
 
 /** Derived, minimal candidate access for an active preferred-transfer source. */
