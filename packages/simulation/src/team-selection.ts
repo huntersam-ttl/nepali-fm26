@@ -90,9 +90,26 @@ export const selectTeamFromTacticalSetup = (input: {
   availability?: ReadonlyMap<EntityId, PlayerAvailability>;
 }): SelectedPlayer[] => {
   const byPerson = new Map(input.players.map((player) => [player.personId, player]));
+  // A persisted tactical setup's per-slot assignments go stale as a squad
+  // turns over a long career (transfers, retirements): a slot's assigned
+  // player may no longer be on the roster at all. Every such slot falls
+  // through to this same fallback pool, and with nothing tracking who this
+  // selection has already picked for an earlier slot, two or more slots
+  // could independently choose the SAME best-remaining player — the
+  // opposite of selectTeam's `selected` Set, which prevents exactly this.
+  // A shared player later sent off is removed from every slot holding them
+  // at once (dismissPlayer filters by personId), which can collapse a
+  // side's selection far faster than one dismissal should. Track chosen
+  // ids across the whole selection so every slot gets a distinct player.
+  const chosenIds = new Set<EntityId>();
   return input.setup.formation.slots.map((slot, index) => {
     const assignment = input.setup.assignments.find((candidate) => candidate.slotId === slot.id);
-    const assigned = assignment?.playerId ? byPerson.get(assignment.playerId) : undefined;
+    const rawAssigned = assignment?.playerId ? byPerson.get(assignment.playerId) : undefined;
+    // Even a directly assigned player must still be unique within this
+    // selection: if corrupted/duplicated assignment data ever pointed two
+    // slots at the same player, this falls through to the same guarded
+    // fallback below rather than silently fielding them twice.
+    const assigned = rawAssigned && !chosenIds.has(rawAssigned.personId) ? rawAssigned : undefined;
     const chosen =
       assigned ??
       input.players
@@ -100,6 +117,7 @@ export const selectTeamFromTacticalSetup = (input: {
           const state = input.availability?.get(player.personId);
           return !state?.injury && !state?.suspension && (state?.fitness ?? 100) >= 35;
         })
+        .filter((player) => !chosenIds.has(player.personId))
         .filter(
           (player) =>
             !input.setup.assignments.some(
@@ -112,6 +130,7 @@ export const selectTeamFromTacticalSetup = (input: {
             suitability(a, tacticalPositionToPlayerPosition(slot.position)),
         )[0] ??
       createReplacementPlayer(input.teamId, tacticalPositionToPlayerPosition(slot.position), index);
+    chosenIds.add(chosen.personId);
     const role = roleById(assignment?.roleId ?? "CENTRAL_MIDFIELDER");
     const duty =
       assignment?.duty && dutyIsLegalForRole(role.id, assignment.duty)
