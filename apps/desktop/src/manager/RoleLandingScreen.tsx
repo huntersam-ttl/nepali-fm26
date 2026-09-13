@@ -926,6 +926,23 @@ const FederationDashboardScreen = ({
   onNavigate: (screen: ChairmanScreen | PresidentScreen) => void;
 }): React.ReactElement => {
   const [state, refresh] = useRuntimeData(() => bridge.getFederationPresidentDashboard());
+  // The single natural President press entry point — evaluated once when
+  // the federation dashboard opens, mirroring evaluateOwnerBusinessPress's
+  // own natural-trigger pattern. Creates an interview only from a
+  // genuinely new real federation-governance fact (never a recurring
+  // schedule); a no-op refresh when there is nothing new. The created
+  // interview then surfaces through the dashboard's own Inbox
+  // (presidentPressInboxItems), never a second UI.
+  useEffect(() => {
+    let cancelled = false;
+    void managerBridge.evaluatePresidentPress().then((result) => {
+      if (!cancelled && result.ok && result.data) refresh();
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   return (
     <AsyncPanel state={state}>
       {(dashboard) => (
@@ -959,6 +976,7 @@ const FederationDashboardView = ({
 }): React.ReactElement => {
   const [message, setMessage] = useState<string | null>(null);
   const [openReferenceTarget, setOpenReferenceTarget] = useState<{ entityType: ProfileEntityType; entityId: EntityId } | null>(null);
+  const [openPressInterviewId, setOpenPressInterviewId] = useState<EntityId | null>(null);
   const openReference = (reference: EntityReference): void =>
     setOpenReferenceTarget({ entityType: reference.entityType as ProfileEntityType, entityId: reference.id });
   const approved = dashboard.proposals.find((item) => item.status === "APPROVED");
@@ -1095,7 +1113,11 @@ const FederationDashboardView = ({
           </button>
         </div>
       </Panel>
-      <InboxPanel inbox={dashboard.inbox} bridge={bridge} />
+      <InboxPanel
+        inbox={dashboard.inbox}
+        bridge={bridge}
+        onOpenPressConference={(interviewId) => setOpenPressInterviewId(interviewId)}
+      />
       <EntityStorylinePanel bridge={bridge} entityId={dashboard.federation.id} onOpenReference={openReference} />
       {openReferenceTarget && (
         <OrganizationProfilePanel
@@ -1103,6 +1125,16 @@ const FederationDashboardView = ({
           entityType={openReferenceTarget.entityType}
           entityId={openReferenceTarget.entityId}
           onClose={() => setOpenReferenceTarget(null)}
+        />
+      )}
+      {openPressInterviewId && (
+        <StructuredPressConferencePanel
+          interviewId={openPressInterviewId}
+          presidentContext
+          onClose={() => {
+            setOpenPressInterviewId(null);
+            refresh();
+          }}
         />
       )}
     </section>

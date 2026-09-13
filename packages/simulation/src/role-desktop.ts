@@ -18,6 +18,7 @@ import { heldCareerRoles } from "./career-control.js";
 import { buildOwnershipInvestorMarket } from "./ownership.js";
 import { roleInboxItems } from "./media.js";
 import { ownerPressInboxItems } from "./owner-media-desktop.js";
+import { presidentPressInboxItems } from "./federation-media-desktop.js";
 import { buildNationDevelopmentScorecard } from "./federation-scorecard.js";
 import { latestFederationStory } from "./infrastructure-story.js";
 import { latestInfrastructureUpdate } from "./infrastructure-story.js";
@@ -135,11 +136,14 @@ export const buildFederationPresidentDashboard = (db: GameDatabase, save: SaveMe
     proposals: phaseB.proposals(federationId),
     projects: overview.projects,
     nationalTeams,
-    inbox: roleInboxItems(db, {
-      personId: careerPersonId(db, save),
-      role: "PRESIDENT",
-      legacyItems: new ManagerRepository(db).inboxItems(),
-    }).slice(0, 12),
+    inbox: [
+      ...presidentPressInboxItems(db, careerPersonId(db, save)),
+      ...roleInboxItems(db, {
+        personId: careerPersonId(db, save),
+        role: "PRESIDENT",
+        legacyItems: new ManagerRepository(db).inboxItems(),
+      }),
+    ].slice(0, 12),
     developmentScorecard: buildNationDevelopmentScorecard(db, federationId, save.worldDate),
     latestStory: latestFederationStory(db, federationId, "FEDERATION_PRESIDENT"),
   };

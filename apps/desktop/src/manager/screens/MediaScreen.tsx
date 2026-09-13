@@ -38,6 +38,7 @@ const PRESS_CONTEXT_LABEL: Record<StructuredPressConferenceView["context"], stri
   PLAYER_ISSUE: "Player issue interview",
   EVENT: "Press conference",
   OWNER_BUSINESS: "Owner interview",
+  FEDERATION_GOVERNANCE: "Federation Press Conference",
 };
 
 /**
@@ -52,6 +53,7 @@ export const StructuredPressConferencePanel = ({
   trigger,
   interviewId,
   ownerContext,
+  presidentContext,
   onClose,
   onSelectPlayer,
 }: {
@@ -68,6 +70,12 @@ export const StructuredPressConferencePanel = ({
    * way. Owner interviews are always opened by evaluateOwnerBusinessPress
    * (called from the Owner dashboard), never by this panel's own trigger. */
   ownerContext?: boolean;
+  /** Same as ownerContext, one role over: present when this panel is
+   * showing a Federation President interview — routes answer/resume calls
+   * to the President's own commands. President interviews are always
+   * opened by evaluatePresidentPress (called from the Federation
+   * dashboard), never by this panel's own trigger. */
+  presidentContext?: boolean;
   onClose: () => void;
   /** Present wherever the caller already has a Player Profile surface to
    * route a question's subject player into — the same canonical navigation
@@ -83,9 +91,11 @@ export const StructuredPressConferencePanel = ({
     const load = async () => {
       const result =
         interviewId !== undefined
-          ? ownerContext
-            ? await managerBridge.getOwnerStructuredPressConference(interviewId)
-            : await managerBridge.getStructuredPressConference(interviewId)
+          ? presidentContext
+            ? await managerBridge.getPresidentStructuredPressConference(interviewId)
+            : ownerContext
+              ? await managerBridge.getOwnerStructuredPressConference(interviewId)
+              : await managerBridge.getStructuredPressConference(interviewId)
           : trigger
             ? await managerBridge.requestStructuredPressConference(trigger)
             : null;
@@ -96,20 +106,25 @@ export const StructuredPressConferencePanel = ({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [interviewId, ownerContext, trigger?.context, trigger?.fixtureId]);
+  }, [interviewId, ownerContext, presidentContext, trigger?.context, trigger?.fixtureId]);
 
   const answer = async (stance: PressResponseStance) => {
     if (!state?.ok) return;
     setBusy(true);
-    const result = ownerContext
-      ? await managerBridge.answerOwnerStructuredPressQuestion({
+    const result = presidentContext
+      ? await managerBridge.answerPresidentStructuredPressQuestion({
           interviewId: state.data.interviewId,
           stance,
         })
-      : await managerBridge.answerStructuredPressQuestion({
-          interviewId: state.data.interviewId,
-          stance,
-        });
+      : ownerContext
+        ? await managerBridge.answerOwnerStructuredPressQuestion({
+            interviewId: state.data.interviewId,
+            stance,
+          })
+        : await managerBridge.answerStructuredPressQuestion({
+            interviewId: state.data.interviewId,
+            stance,
+          });
     setBusy(false);
     setState(result);
   };

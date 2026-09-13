@@ -2,6 +2,7 @@ import {
   ClubEconomyRepository,
   CompetitionRepository,
   EventRepository,
+  FederationGovernanceRepository,
   MediaPhaseBRepository,
   MediaRepository,
   SquadDynamicsRepository,
@@ -513,6 +514,73 @@ const ownerCandidates = (db: GameDatabase, input: { clubId: EntityId }): Candida
   return candidates;
 };
 
+/**
+ * Federation President press candidates — real federation-governance events
+ * only, sourced from FederationGovernanceRepository/staff_appointments,
+ * never invented. Only three topics have a genuinely unambiguous single
+ * milestone to ground a question in: a federation infrastructure project
+ * reaching a real construction/completion milestone, a competition reform
+ * actually decided (IMPLEMENTED, never a still-PROPOSED one), and a national
+ * team head coach appointment. Other plausible-sounding topics (routine
+ * funding/grant activity, open-ended "national team strategy") were left out
+ * because the federation model has no single bounded fact to key them on —
+ * adding them would mean inventing materiality thresholds rather than
+ * reading one.
+ */
+const presidentCandidates = (db: GameDatabase, input: { federationId: EntityId }): Candidate[] => {
+  const governance = new FederationGovernanceRepository(db);
+  const candidates: Candidate[] = [];
+
+  const latestProject = governance
+    .projects(input.federationId)
+    .filter((project) => ["CONSTRUCTION", "IMPLEMENTATION", "COMPLETED"].includes(project.status))
+    .sort((a, b) => (a.startDate < b.startDate ? 1 : a.startDate > b.startDate ? -1 : 0))[0];
+  if (latestProject) {
+    candidates.push({
+      topic: "INFRASTRUCTURE_PROJECT",
+      prompt:
+        latestProject.status === "COMPLETED"
+          ? `The ${latestProject.name} is complete — what does it mean for the federation's long-term ambitions?`
+          : `Why is the ${latestProject.name} a priority for the federation right now?`,
+      subjectEntities: [{ id: latestProject.id, type: "federationProject" }],
+      priority: 6,
+    });
+  }
+
+  const latestReform = governance
+    .competitionReforms(input.federationId)
+    .filter((reform) => reform.status === "IMPLEMENTED")
+    .sort((a, b) => ((a.decidedAt ?? "") < (b.decidedAt ?? "") ? 1 : (a.decidedAt ?? "") > (b.decidedAt ?? "") ? -1 : 0))[0];
+  if (latestReform) {
+    candidates.push({
+      topic: "COMPETITION_REFORM",
+      prompt: "What do you expect this competition reform to change for domestic football?",
+      subjectEntities: [{ id: latestReform.competitionId, type: "competition" }],
+      priority: 5,
+    });
+  }
+
+  const latestCoach = db
+    .prepare(
+      `SELECT sa.person_id AS personId, sa.team_id AS teamId, sa.start_date AS startDate
+       FROM staff_appointments sa
+       JOIN teams t ON t.id = sa.team_id
+       WHERE t.federation_id = ? AND sa.role = 'NATIONAL_TEAM_HEAD_COACH' AND sa.employment_status = 'ACTIVE'
+       ORDER BY sa.start_date DESC LIMIT 1`,
+    )
+    .get(input.federationId) as { personId?: EntityId; teamId?: EntityId; startDate?: string } | undefined;
+  if (latestCoach?.personId) {
+    candidates.push({
+      topic: "COACH_APPOINTMENT",
+      prompt: "What convinced the federation this was the right appointment?",
+      subjectEntities: [{ id: latestCoach.personId, type: "person" }],
+      priority: 4,
+    });
+  }
+
+  return candidates;
+};
+
 // ---------------------------------------------------------------------------
 // Response options per topic — only the stances that make sense, each with
 // distinct, bounded consequences (see applyConsequence below).
@@ -549,13 +617,24 @@ const OPTION_TEXT: Partial<Record<PressQuestionTopic, Partial<Record<PressRespon
   },
   INFRASTRUCTURE_PROJECT: {
     ASSERTIVE: "This is exactly the kind of investment that shows real ambition.",
-    CALM: "It's one step in a longer-term plan for the club.",
+    CALM: "It's one step in a longer-term plan.",
     NON_COMMITTAL: "There's more still to come, but I won't get ahead of things.",
   },
   SPONSORSHIP_SIGNED: {
     PRAISE: "It's a real vote of confidence in where this club is heading.",
     CALM: "It strengthens the club financially, which matters as much as anything on the pitch.",
     DEFLECT: "The commercial side isn't something I discuss in detail.",
+  },
+  COMPETITION_REFORM: {
+    ASSERTIVE: "This is a change domestic football genuinely needed.",
+    CALM: "It's a considered adjustment, not a reaction to any one result.",
+    NON_COMMITTAL: "We'll review how it plays out before considering anything further.",
+  },
+  COACH_APPOINTMENT: {
+    ASSERTIVE: "This is exactly the appointment the national team needed at this moment.",
+    PRAISE: "Their record and their plan for the squad convinced the committee.",
+    CALM: "It was a thorough process, and we're confident in the outcome.",
+    NON_COMMITTAL: "I'll let their work on the training pitch do the talking.",
   },
   MENTALITY_CHOICE: {
     ASSERTIVE: "We set out to impose ourselves from the first minute.",
@@ -643,6 +722,8 @@ export const generatePressQuestions = (
     fixtureId?: EntityId;
     /** OWNER_BUSINESS is club-scoped, not team-scoped — an owner has no team. */
     clubId?: EntityId;
+    /** FEDERATION_GOVERNANCE is federation-scoped — a President has no club or team. */
+    federationId?: EntityId;
     /** Candidates whose topic + every subject id already appears in this set
      * (as "topic:subjectId") are dropped before the MAX_QUESTIONS cap, not
      * after — otherwise a genuinely new fact could be crowded out of the cap
@@ -663,8 +744,10 @@ export const generatePressQuestions = (
             ? playerIssueCandidates(db, { teamId: input.teamId })
             : input.context === "OWNER_BUSINESS" && input.clubId
               ? ownerCandidates(db, { clubId: input.clubId })
-              : [];
-  const sourceEntityId = input.fixtureId ?? input.clubId ?? input.teamId;
+              : input.context === "FEDERATION_GOVERNANCE" && input.federationId
+                ? presidentCandidates(db, { federationId: input.federationId })
+                : [];
+  const sourceEntityId = input.fixtureId ?? input.clubId ?? input.federationId ?? input.teamId;
   const excluded = input.excludeTopicSubjectKeys;
   return candidates
     .filter(
@@ -758,8 +841,8 @@ const addDays = (date: string, days: number): string => {
  * protagonist holding two press-producing roles (e.g. Manager of one club
  * and Owner of another) never has one role's open interview block the
  * other's. */
-const contextRole = (context: MediaInterview["context"]): "MANAGER" | "OWNER" =>
-  context === "OWNER_BUSINESS" ? "OWNER" : "MANAGER";
+const contextRole = (context: MediaInterview["context"]): "MANAGER" | "OWNER" | "PRESIDENT" =>
+  context === "OWNER_BUSINESS" ? "OWNER" : context === "FEDERATION_GOVERNANCE" ? "PRESIDENT" : "MANAGER";
 
 /** Opens (or returns the already-open) structured press conference for this
  * exact context — one open conference per manager at a time, matching the
@@ -772,6 +855,8 @@ export const startPressConference = (
     teamId?: EntityId;
     /** OWNER_BUSINESS is club-scoped, not team-scoped — an owner has no team. */
     clubId?: EntityId;
+    /** FEDERATION_GOVERNANCE is federation-scoped — a President has no club or team. */
+    federationId?: EntityId;
     date: string;
     fixtureId?: EntityId;
     importance?: number;
@@ -805,7 +890,8 @@ export const startPressConference = (
   // of regenerating. Without this, re-requesting the same topic after
   // completing it earlier the same day would silently reroll a COMPLETED
   // interview back to OPEN with its answers discarded.
-  const sourceEntityId = input.fixtureId ?? input.clubId ?? input.teamId ?? input.managerPersonId;
+  const sourceEntityId =
+    input.fixtureId ?? input.clubId ?? input.federationId ?? input.teamId ?? input.managerPersonId;
   const stableId = createStableEntityId(
     "media-interview",
     `${input.dedupeKey ?? sourceEntityId}:${input.context}:${input.date}`,
@@ -837,6 +923,7 @@ export const startPressConference = (
     teamId: input.teamId,
     fixtureId: input.fixtureId,
     clubId: input.clubId,
+    federationId: input.federationId,
     excludeTopicSubjectKeys: input.excludeTopicSubjectKeys,
   });
   const outlet =
@@ -857,7 +944,7 @@ export const startPressConference = (
     importance: input.importance ?? (questions.length > 0 ? 6 : 3),
     questions: questions.map((question) => question.prompt),
     responses: [],
-    summary: `${input.context === "PRE_MATCH" ? "Pre-match" : input.context === "POST_MATCH" ? "Post-match" : input.context === "TRANSFER" ? "Transfer" : input.context === "OWNER_BUSINESS" ? "Owner" : "Player issue"} interview opened.`,
+    summary: `${input.context === "PRE_MATCH" ? "Pre-match" : input.context === "POST_MATCH" ? "Post-match" : input.context === "TRANSFER" ? "Transfer" : input.context === "OWNER_BUSINESS" ? "Owner" : input.context === "FEDERATION_GOVERNANCE" ? "Federation" : "Player issue"} interview opened.`,
     managerReputationEffect: 0,
     clubSupportEffect: 0,
     status: "OPEN",
@@ -952,13 +1039,21 @@ export const answerPressQuestion = (
 /** A press conference publishes a real historical event only when a material
  * (non-neutral) stance was actually taken — never for every routine answer. */
 const publishMaterialPressEvent = (db: GameDatabase, interview: MediaInterview, answers: PressAnswer[]): void => {
-  const material = answers.find(
-    (answer) =>
-      answer.stance === "COMMIT" ||
-      answer.stance === "PROTECT_PLAYER" ||
-      answer.stance === "CHALLENGE_PLAYER" ||
-      answer.stance === "CRITICAL",
-  );
+  // FEDERATION_GOVERNANCE has no COMMIT/PROTECT_PLAYER/CHALLENGE_PLAYER/
+  // CRITICAL stances of its own (a President is never asked to commit to
+  // keeping a player) — ASSERTIVE is its equivalent "took a real position"
+  // stance, scoped to this context only so it never changes what counts as
+  // material for the existing Manager/Owner topics.
+  const material =
+    interview.context === "FEDERATION_GOVERNANCE"
+      ? answers.find((answer) => answer.stance === "ASSERTIVE")
+      : answers.find(
+          (answer) =>
+            answer.stance === "COMMIT" ||
+            answer.stance === "PROTECT_PLAYER" ||
+            answer.stance === "CHALLENGE_PLAYER" ||
+            answer.stance === "CRITICAL",
+        );
   if (!material || !interview.managerPersonId) return;
   const question = interview.structuredQuestions?.find((item) => item.id === material.questionId);
   const eventId = createStableEntityId("historical-event", `press-conference:${interview.id}:${material.questionId}`);
@@ -968,20 +1063,22 @@ const publishMaterialPressEvent = (db: GameDatabase, interview: MediaInterview, 
     id: eventId,
     occurredOn: interview.interviewDate,
     eventType:
-      material.stance === "COMMIT"
-        ? "MANAGER_PRESS_COMMITMENT"
-        : material.stance === "PROTECT_PLAYER"
-          ? "MANAGER_PRESS_SUPPORT"
-          : material.stance === "CHALLENGE_PLAYER"
-            ? "MANAGER_PRESS_CHALLENGE"
-            : "MANAGER_PRESS_CRITICISM",
+      interview.context === "FEDERATION_GOVERNANCE"
+        ? "PRESIDENT_PRESS_STATEMENT"
+        : material.stance === "COMMIT"
+          ? "MANAGER_PRESS_COMMITMENT"
+          : material.stance === "PROTECT_PLAYER"
+            ? "MANAGER_PRESS_SUPPORT"
+            : material.stance === "CHALLENGE_PLAYER"
+              ? "MANAGER_PRESS_CHALLENGE"
+              : "MANAGER_PRESS_CRITICISM",
     involvedEntities: [
       { id: interview.managerPersonId, type: "person" },
       ...(question?.subjectEntities ?? []),
     ],
     title: material.text,
     importance: "medium",
-    scope: "club",
+    scope: interview.context === "FEDERATION_GOVERNANCE" ? "federation" : "club",
   });
 };
 

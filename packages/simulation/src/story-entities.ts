@@ -11,6 +11,7 @@ const REF_TYPE_MAP: Partial<Record<HistoricalEvent["involvedEntities"][number]["
   fixture: "FIXTURE",
   governmentInstitution: "GOVERNMENT_INSTITUTION",
   infrastructureProject: "INFRASTRUCTURE_PROJECT",
+  federationProject: "FEDERATION_PROJECT",
   sponsor: "SPONSOR",
   // National teams are a real, permanently resolvable profile entity, so a
   // call-up story's team chip is clickable rather than silently dropped.
