@@ -90,9 +90,24 @@ const completedView: StructuredPressConferenceView = {
 
 const ok = <T,>(data: T) => Promise.resolve({ ok: true as const, data });
 
+const ownerOpenView: StructuredPressConferenceView = {
+  ...openView,
+  context: "OWNER_BUSINESS",
+  currentQuestion: {
+    prompt: "Investment has been approved for a new stand — what does this mean for the club's long-term ambitions?",
+    subjectEntities: [],
+    options: [
+      { stance: "ASSERTIVE", text: "This is exactly the kind of investment that shows real ambition." },
+      { stance: "CALM", text: "It's one step in a longer-term plan for the club." },
+    ],
+  },
+};
+
 const requestStructuredPressConference = vi.fn(() => ok(openView));
 const answerStructuredPressQuestion = vi.fn(() => ok(answeredView));
 const getStructuredPressConference = vi.fn(() => ok(completedView));
+const getOwnerStructuredPressConference = vi.fn(() => ok(ownerOpenView));
+const answerOwnerStructuredPressQuestion = vi.fn(() => ok(answeredView));
 const getOrganizationProfile = vi.fn(() =>
   ok({
     entityReference: journalist,
@@ -111,6 +126,8 @@ vi.mock("../managerBridge.js", () => ({
     requestStructuredPressConference,
     answerStructuredPressQuestion,
     getStructuredPressConference,
+    getOwnerStructuredPressConference,
+    answerOwnerStructuredPressQuestion,
     getOrganizationProfile,
     getClubProfile: vi.fn(() => ok(undefined)),
   },
@@ -122,6 +139,8 @@ beforeEach(async () => {
   requestStructuredPressConference.mockImplementation(() => ok(openView));
   answerStructuredPressQuestion.mockImplementation(() => ok(answeredView));
   getStructuredPressConference.mockImplementation(() => ok(completedView));
+  getOwnerStructuredPressConference.mockImplementation(() => ok(ownerOpenView));
+  answerOwnerStructuredPressQuestion.mockImplementation(() => ok(answeredView));
   ({ StructuredPressConferencePanel } = await import("./MediaScreen.js"));
 });
 afterEach(() => cleanup());
@@ -210,6 +229,40 @@ describe("StructuredPressConferencePanel — accessibility", () => {
       <StructuredPressConferencePanel trigger={{ context: "TRANSFER" }} onClose={vi.fn()} />,
     );
     await screen.findByRole("heading", { name: openView.currentQuestion!.prompt });
+    const results = await axe.run(container, {
+      rules: {
+        region: { enabled: false },
+        "page-has-heading-one": { enabled: false },
+        "landmark-one-main": { enabled: false },
+      },
+    });
+    expect(
+      results.violations
+        .filter((v) => v.impact === "serious" || v.impact === "critical")
+        .map((v) => `${v.id} (${v.impact})`),
+    ).toEqual([]);
+  });
+
+  it("owner context: resolves via the Owner bridge commands, titled as an Owner interview, with no serious or critical axe violations", async () => {
+    const onClose = vi.fn();
+    const { container } = render(
+      <StructuredPressConferencePanel interviewId={eid("interview-1")} ownerContext onClose={onClose} />,
+    );
+    expect(await screen.findByRole("heading", { name: /owner interview/i })).toBeTruthy();
+    expect(getOwnerStructuredPressConference).toHaveBeenCalledWith(eid("interview-1"));
+    expect(getStructuredPressConference).not.toHaveBeenCalled();
+
+    const stanceButton = await screen.findByRole("button", {
+      name: "This is exactly the kind of investment that shows real ambition.",
+    });
+    fireEvent.click(stanceButton);
+    expect(await screen.findByText(/relationship with the manager improved slightly/i)).toBeTruthy();
+    expect(answerOwnerStructuredPressQuestion).toHaveBeenCalledWith({
+      interviewId: ownerOpenView.interviewId,
+      stance: "ASSERTIVE",
+    });
+    expect(answerStructuredPressQuestion).not.toHaveBeenCalled();
+
     const results = await axe.run(container, {
       rules: {
         region: { enabled: false },

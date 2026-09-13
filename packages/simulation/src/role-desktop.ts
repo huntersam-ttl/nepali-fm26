@@ -17,6 +17,7 @@ import { getFederationFinances, getFederationOverview } from "./federation-gover
 import { heldCareerRoles } from "./career-control.js";
 import { buildOwnershipInvestorMarket } from "./ownership.js";
 import { roleInboxItems } from "./media.js";
+import { ownerPressInboxItems } from "./owner-media-desktop.js";
 import { buildNationDevelopmentScorecard } from "./federation-scorecard.js";
 import { latestFederationStory } from "./infrastructure-story.js";
 import { latestInfrastructureUpdate } from "./infrastructure-story.js";
@@ -75,11 +76,14 @@ export const buildChairmanDashboard = (db: GameDatabase, save: SaveMetadata): Ch
     equipment: new ClubEconomyRepository(db).assets(clubId).filter((asset) => asset.assetType === "EQUIPMENT"),
     sponsorships: new ClubEconomyRepository(db).sponsorships(clubId),
     manager: manager ? { name: personName(db, manager.personId), contract: manager } : undefined,
-    inbox: roleInboxItems(db, {
-      personId,
-      role: "OWNER",
-      legacyItems: new ManagerRepository(db).inboxItems(),
-    }).slice(0, 12),
+    inbox: [
+      ...ownerPressInboxItems(db, personId),
+      ...roleInboxItems(db, {
+        personId,
+        role: "OWNER",
+        legacyItems: new ManagerRepository(db).inboxItems(),
+      }),
+    ].slice(0, 12),
     latestInfrastructureUpdate: latestInfrastructureUpdate(db, clubId, "CHAIRMAN_OWNER"),
   };
 };

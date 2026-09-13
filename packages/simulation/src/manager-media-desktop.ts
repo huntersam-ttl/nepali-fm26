@@ -132,7 +132,12 @@ export const buildMediaCentreView = (
     .filter((story) => story.subjectIds.some((id) => subjects.has(id)))
     .sort((a, b) => (a.publishedOn < b.publishedOn ? 1 : a.publishedOn > b.publishedOn ? -1 : 0))
     .slice(0, 12);
-  const interviews = new MediaPhaseBRepository(db).interviews(context.character.personId);
+  // Excludes OWNER_BUSINESS: the same physical person may also hold a
+  // press-producing role like Owner, whose interviews belong to their own
+  // dashboard, never the Manager's Media Centre.
+  const interviews = new MediaPhaseBRepository(db)
+    .interviews(context.character.personId)
+    .filter((interview) => interview.context !== "OWNER_BUSINESS");
   const openInterview = interviews.find((item) => item.status === "OPEN");
   const answeredSourceIds = new Set(interviews.map((item) => item.sourceEntityId));
   const eligibleForInterview = stories.filter(
@@ -326,6 +331,7 @@ const PRESS_CONTEXT_TITLE: Record<MediaInterview["context"], string> = {
   TRANSFER: "Transfer interview",
   PLAYER_ISSUE: "Player issue interview",
   EVENT: "Press conference",
+  OWNER_BUSINESS: "Owner interview",
 };
 
 /**
@@ -348,6 +354,10 @@ export const structuredPressInboxItems = (
     .filter(
       (interview) =>
         interview.status === "OPEN" &&
+        // The same physical person may also hold a press-producing role like
+        // Owner, whose OWNER_BUSINESS interviews route through their own
+        // dashboard (ownerPressInboxItems) — never delivered here too.
+        interview.context !== "OWNER_BUSINESS" &&
         interview.structuredQuestions &&
         interview.structuredQuestions.length > 0,
     );
