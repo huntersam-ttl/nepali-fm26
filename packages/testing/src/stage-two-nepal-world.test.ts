@@ -131,12 +131,15 @@ describe("stage two Nepal world data pipeline", () => {
       saveName: "Testing-only Nepal August 2026",
       gameVersion: "0.2.0",
       randomSeed: "stage-two-seed",
+      globalSeedPath: null,
     });
 
     expect(created.worldDate).toBe("2026-08-01");
     expect(created.inspection).toMatchObject({
       countries: 2,
-      locations: 1,
+      // The dataset's one location plus the Nepal founder locations every save
+      // gets for owner club creation (ensureNepalFounderLocations, 5463334).
+      locations: 85,
       venues: 1,
       federations: 1,
       competitions: 1,
@@ -166,6 +169,7 @@ describe("stage two Nepal world data pipeline", () => {
       saveName: "Testing-only Staff Workforce",
       gameVersion: "0.2.0",
       randomSeed: "staff-workforce-seed",
+      globalSeedPath: null,
     });
 
     const db = openGameDatabase(databasePath);
@@ -438,12 +442,18 @@ describe("stage two Nepal world data pipeline", () => {
       saveName: "Nepal Club Registry August 2026",
       gameVersion: "0.2.0",
       randomSeed: "club-registry-seed",
+      globalSeedPath: null,
     });
 
+    // Beyond the registry import itself, save creation now adds founder
+    // locations (5463334) and grounds for every playable club (912d0df),
+    // bootstraps squads for empty playable clubs (4fd68ff: +42 generated
+    // players), and gives every playable player a gameplay profile (5486e7d).
+    // entityProvenance is unchanged: the imported records themselves are not.
     expect(created.inspection).toMatchObject({
       countries: 2,
-      locations: 87,
-      venues: 45,
+      locations: 133,
+      venues: 83,
       federations: 1,
       competitions: 5,
       competitionSeasons: 5,
@@ -454,15 +464,15 @@ describe("stage two Nepal world data pipeline", () => {
       clubMemberships: 69,
       teams: 65,
       academies: 8,
-      venueRelationships: 13,
+      venueRelationships: 52,
       locationTravelContexts: 3,
-      persons: 1095,
-      personRoles: 1095,
-      teamPersonAssignments: 1093,
-      playerAttributes: 1093,
-      playerFactualProfiles: 573,
-      playerPotentials: 1093,
-      playerDevelopmentStates: 1093,
+      persons: 1137,
+      personRoles: 1137,
+      teamPersonAssignments: 1135,
+      playerAttributes: 1135,
+      playerFactualProfiles: 1135,
+      playerPotentials: 1135,
+      playerDevelopmentStates: 1135,
       entityProvenance: 4467,
     });
     expect(inspectNepalSave(databasePath)).toEqual(created);

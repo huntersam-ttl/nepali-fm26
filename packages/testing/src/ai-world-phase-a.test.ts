@@ -27,7 +27,8 @@ describe("AI world and long-term decision-making phase A", () => {
       runClubAiSeasonPlanning(first, { date: `${year}-08-28`, seed: "ai-continuity" });
       runClubAiSeasonPlanning(second, { date: `${year}-08-28`, seed: "ai-continuity" });
     }
-    const clubId = (first.prepare("SELECT id FROM clubs ORDER BY id LIMIT 1").get() as { id: EntityId }).id;
+    // Real Nepal clubs only: the global seed adds CONTEXT_ONLY foreign clubs that AI season planning never touches.
+    const clubId = (first.prepare("SELECT id FROM clubs c WHERE NOT EXISTS (SELECT 1 FROM external_club_context e WHERE e.club_id = c.id) ORDER BY id LIMIT 1").get() as { id: EntityId }).id;
     const a = new ClubEconomyRepository(first).aiDecisions(clubId);
     const b = new ClubEconomyRepository(second).aiDecisions(clubId);
     expect(a).toEqual(b);
@@ -39,7 +40,8 @@ describe("AI world and long-term decision-making phase A", () => {
     const policies = new InsuranceRepository(first).policies(clubId);
     expect(policies).toHaveLength(3);
     expect(policies.map((policy) => policy.status)).toEqual(["EXPIRED", "EXPIRED", "ACTIVE"]);
-    expect(first.prepare("SELECT COUNT(*) AS count FROM historical_events WHERE event_type IN ('INSURANCE_POLICY_ACTIVATED','INSURANCE_POLICY_RENEWED','INSURANCE_POLICY_EXPIRED')").get()).toEqual({ count: 5 });
+    // This club's three policies only; AI planning now insures many more clubs across the world.
+    expect(first.prepare("SELECT COUNT(*) AS count FROM historical_events WHERE event_type IN ('INSURANCE_POLICY_ACTIVATED','INSURANCE_POLICY_RENEWED','INSURANCE_POLICY_EXPIRED') AND involved_entities_json LIKE ?").get(`%${clubId}%`)).toEqual({ count: 5 });
     first.close(); second.close();
     const reloaded = openGameDatabase(firstPath);
     expect(new ClubEconomyRepository(reloaded).aiDecisions(clubId)).toHaveLength(3);

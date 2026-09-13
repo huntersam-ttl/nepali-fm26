@@ -241,12 +241,21 @@ describe("supporter culture phase A: attendance", () => {
     const db = openGameDatabase(createSave("matchday"));
     initializeClubEconomyForSave({ db, worldDate: "2026-08-01", seed: "matchday" });
     initializeSupporterCultureForSave({ db, worldDate: "2026-08-01", seed: "matchday" });
+    // Real Nepal clubs and grounds only: the global seed adds CONTEXT_ONLY
+    // foreign clubs that carry no supporter profile or club economy.
     const teams = db
       .prepare(
-        "SELECT id, club_id FROM teams WHERE club_id IS NOT NULL AND level = 'senior' AND gender = 'men' ORDER BY id LIMIT 2",
+        `SELECT t.id, t.club_id FROM teams t
+         WHERE t.club_id IS NOT NULL AND t.level = 'senior' AND t.gender = 'men'
+           AND NOT EXISTS (SELECT 1 FROM external_club_context e WHERE e.club_id = t.club_id)
+         ORDER BY t.id LIMIT 2`,
       )
       .all() as Array<{ id: EntityId }>;
-    const venue = db.prepare("SELECT id FROM venues ORDER BY id LIMIT 1").get() as
+    const venue = db
+      .prepare(
+        "SELECT v.id FROM venues v JOIN countries c ON c.id = v.country_id WHERE c.iso_code IN ('NP', 'NPL') ORDER BY v.id LIMIT 1",
+      )
+      .get() as
       { id: EntityId } | undefined;
     const result = postMatchdayEconomy(
       db,

@@ -21,7 +21,8 @@ describe("ClubMart procurement phase B", () => {
     const db = openGameDatabase(makeSave("clubmart-phase-b"));
     initializeClubEconomyForSave({ db, worldDate: "2026-08-01", seed: "clubmart-phase-b" });
     initializeClubMartForSave(db);
-    const clubId = (db.prepare("SELECT id FROM clubs ORDER BY id LIMIT 1").get() as { id: EntityId }).id;
+    // Real Nepal clubs only: the global seed adds CONTEXT_ONLY foreign clubs with no club economy.
+    const clubId = (db.prepare("SELECT id FROM clubs c WHERE NOT EXISTS (SELECT 1 FROM external_club_context e WHERE e.club_id = c.id) ORDER BY id LIMIT 1").get() as { id: EntityId }).id;
     const supplierId = new ProcurementRepository(db).suppliers()[0].id;
     const contract = createProcurementContract(db, { clubId, supplierId, agreementType: "MAINTENANCE_SERVICE", category: "MEDICAL_SUPPLIES", unitPrice: 20000, discountRate: 0.08, serviceLevel: 0.9, warrantyMonths: 12, startsOn: "2026-08-28", endsOn: "2028-08-28", renewalNoticeDays: 60 });
     const renewed = renewProcurementContract(db, contract.id, { startsOn: "2028-08-29", endsOn: "2030-08-28" });
