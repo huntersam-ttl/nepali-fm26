@@ -33,6 +33,22 @@ const openSave = (): GameDatabase => {
   return db;
 };
 
+/**
+ * Quick Sim only plays the fixture the manager is due to play today
+ * (userMatchRequiresAction), so continue the career to its matchday first —
+ * the same path a player takes by pressing Continue.
+ */
+const advanceToMatchday = (fixtureDate: string): void => {
+  for (let guard = 0; guard < 60; guard += 1) {
+    const fixtures = service.getFixtures();
+    if (!fixtures.ok) throw new Error(fixtures.error.message);
+    if (fixtures.data.worldDate >= fixtureDate) return;
+    const advanced = service.continueCareer();
+    if (!advanced.ok) throw new Error(advanced.error.message);
+  }
+  throw new Error(`career never reached matchday ${fixtureDate}`);
+};
+
 beforeAll(() => {
   savesDirectory = mkdtempSync(join(tmpdir(), "nepal-match-final-"));
   service = new DesktopApplicationService({ savesDirectory, worldDatasetPath: WORLD_DATASET });
@@ -68,6 +84,7 @@ describe("match finalization", () => {
     expect(fixtures.ok).toBe(true);
     if (!fixtures.ok) return;
     const target = fixtures.data.upcoming[0]!;
+    advanceToMatchday(target.date);
 
     // Seed one notable event before the real match command. Finalization must
     // publish it through the normal production hook, not a test-only call.
@@ -158,6 +175,7 @@ describe("match finalization", () => {
     expect(fixtures.ok).toBe(true);
     if (!fixtures.ok) return;
     const target = fixtures.data.upcoming[0]!;
+    advanceToMatchday(target.date);
 
     service.closeCareer();
     const prepared = openSave();
