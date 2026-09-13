@@ -10,6 +10,7 @@ import type {
   PlayerActionId,
   SaveMetadata,
 } from "@nepal-football-sim/shared-types";
+import { executiveHasAuthority } from "./executive-roles.js";
 import { responsibilityOwner } from "./staff-market.js";
 
 export type {
@@ -80,14 +81,24 @@ export const buildActorPlayerActions = (
   // is told their delegation doesn't extend to direct player control. Only
   // the Manager gets the more specific "which responsibility, and why"
   // reasons below, since only the Manager can actually hold (or be denied)
-  // one of those responsibilities in the first place.
+  // one of those responsibilities in the first place. An executive who
+  // genuinely holds recruitment/contract authority at this player's club is
+  // pointed at their recruitment desk instead of being dead-ended.
+  const executiveRecruits =
+    isDelegatedExecutive &&
+    playerClub !== undefined &&
+    (
+      ["RECRUITMENT_STRATEGY", "TRANSFER_NEGOTIATION", "LOAN_STRATEGY", "PLAYER_CONTRACTS"] as const
+    ).some((authority) => executiveHasAuthority(db, playerClub, actorPersonId, authority));
   const reason = ownerReadOnly
     ? "Owner view is read-only; football decisions must be routed through the Manager or delegated Director."
     : actorRole === "FEDERATION_PRESIDENT"
       ? "The President may view player context but cannot mutate club football decisions."
-      : isDelegatedExecutive
+      : executiveRecruits
         ? "On-pitch decisions for this player stay with the Manager. Recruitment, contract and loan business runs through your own recruitment desk."
-        : "The active role does not control this player's club.";
+        : isDelegatedExecutive
+          ? "This delegated role does not carry direct control over players; football decisions remain with the Manager."
+          : "The active role does not control this player's club.";
   const reasonFor = (id: PlayerActionId): string | undefined => {
     if (actorRole !== "MANAGER") return reason;
     if (id === "SHORTLIST_SCOUT" && !scoutingActions)
