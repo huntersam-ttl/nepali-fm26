@@ -104,6 +104,13 @@ describe("canonical imported global recruitment", () => {
       expect(candidates.length).toBeLessThanOrEqual(12);
       expect(marketRegionForPlayer(db, africaPositionNegativeId)).toBe("AFRICA");
       expect(marketRegionForPlayer(db, southAsiaPositionNegativeId)).toBe("SOUTH_ASIA");
+      // Exact position is only revealed at GOOD knowledge, and since scouting
+      // gains depend on scout quality (a05b0e0) one pass may stop at BASIC.
+      // A second HIGH pass on the same two targets reaches GOOD regardless.
+      for (const playerId of [africaId, southAsiaId]) {
+        createScoutingAssignment(db, { clubId: nepalClub.id, targetPlayerId: playerId, startedAt: "2026-08-02", priority: "HIGH" });
+      }
+      expect(simulateScoutingDay({ db, worldDate: "2026-08-09", seed: "canonical-recruitment-second-pass" }).assignmentsCompleted).toBe(2);
       const africaForwards = searchRegionalCandidatesForClub(db, nepalClub.id, { position: "ST" }, "2026-08-08", 12);
       expect(africaForwards.some((candidate) => candidate.playerId === africaId)).toBe(true);
       expect(africaForwards.some((candidate) => candidate.playerId === africaPositionNegativeId)).toBe(false);

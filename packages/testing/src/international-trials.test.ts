@@ -147,7 +147,13 @@ describe("international trials", () => {
     expect(afterTrial.sourceType).toBe("TRIAL");
     expect(afterTrial.observations).toBeGreaterThan(beforeTrial.observations);
     expect(afterTrial.confidence).toBe("HIGH");
-    expect(afterTrial.knowledgeLevel).toBe("COMPLETE");
+    // A trial adds two knowledge levels on top of what scouting earned (capped
+    // at COMPLETE). How far scouting got depends on scout quality, so assert
+    // the trial's own rule rather than a fixed end level.
+    const knowledgeLevels = ["NONE", "MINIMAL", "BASIC", "GOOD", "EXTENSIVE", "COMPLETE"];
+    expect(knowledgeLevels.indexOf(afterTrial.knowledgeLevel)).toBe(
+      Math.min(knowledgeLevels.length - 1, knowledgeLevels.indexOf(beforeTrial.knowledgeLevel) + 2),
+    );
     expect(activeTeamClub(db, playerId)).toBe(parentTeamClub);
     expect(db.prepare("SELECT COUNT(*) AS count FROM transfers WHERE person_id = ?").get(playerId)).toEqual({ count: 0 });
     expect(db.prepare("SELECT COUNT(*) AS count FROM transfer_history_events WHERE player_id = ?").get(playerId)).toEqual({ count: 0 });
