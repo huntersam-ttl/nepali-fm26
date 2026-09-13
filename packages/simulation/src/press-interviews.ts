@@ -1198,3 +1198,54 @@ export const answerPressQuestionAsAi = (
   const stance = available[hash % Math.max(1, available.length)] ?? question.options[0]!.stance;
   return answerPressQuestion(db, { interviewId: input.interviewId, stance, teamId: input.teamId, date: input.date });
 };
+
+/**
+ * Bounded AI press participation for an AI-controlled manager: opens (or
+ * resumes) a real PRE_MATCH/POST_MATCH/TRANSFER/PLAYER_ISSUE conference
+ * through the exact same startPressConference/generatePressQuestions path a
+ * human uses, then answers every question with answerPressQuestionAsAi
+ * until the interview is COMPLETED — never leaving one open, never a second
+ * "AI Inbox". Idempotent: startPressConference's own existing-topic/
+ * existingOpen checks make a second call for the same source fact resolve
+ * to the same interview rather than creating a duplicate, so calling this
+ * once per source fact (never on a fixed schedule, never for a fact with
+ * nothing grounded) is the only frequency control this function itself
+ * needs — the caller is still responsible for deciding *when* a fact is
+ * material enough to bother calling this at all (e.g. reusing
+ * shouldCreatePreMatchPress for PRE_MATCH).
+ */
+export const runAiPressConference = (
+  db: GameDatabase,
+  input: {
+    context: "PRE_MATCH" | "POST_MATCH" | "TRANSFER" | "PLAYER_ISSUE";
+    managerPersonId: EntityId;
+    teamId: EntityId;
+    fixtureId?: EntityId;
+    date: string;
+    seed: string;
+  },
+): MediaInterview | undefined => {
+  const interview = startPressConference(db, {
+    context: input.context,
+    managerPersonId: input.managerPersonId,
+    teamId: input.teamId,
+    fixtureId: input.fixtureId,
+    date: input.date,
+  });
+  if (!interview.structuredQuestions || interview.structuredQuestions.length === 0) return undefined;
+  let current = interview;
+  // A structured conference has at most MAX_QUESTIONS questions, so this
+  // loop is inherently bounded — never a risk of looping indefinitely on a
+  // malformed interview.
+  while (current.status === "OPEN") {
+    const next = answerPressQuestionAsAi(db, {
+      interviewId: current.id,
+      teamId: input.teamId,
+      date: input.date,
+      seed: input.seed,
+    });
+    if (next.id === current.id && next.currentQuestionIndex === current.currentQuestionIndex) break;
+    current = next;
+  }
+  return current;
+};
