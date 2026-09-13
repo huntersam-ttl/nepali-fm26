@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import type {
   ChairmanDashboard,
   CareerHeader,
@@ -16,6 +16,8 @@ import type {
 import type { AppError, DesktopRuntimeApi } from "../appBridge.js";
 import { AsyncPanel, Badge, ErrorBanner, Metrics, Panel, useRuntimeData } from "./ui.js";
 import { CandidacyPanel } from "./screens/HomeScreen.js";
+import { StructuredPressConferencePanel } from "./screens/MediaScreen.js";
+import { managerBridge } from "./managerBridge.js";
 import {
   BankMeeting,
   EntityRefLink,
@@ -594,6 +596,22 @@ const ChairmanDashboardScreen = ({
 }): React.ReactElement => {
   const [state, refresh] = useRuntimeData(() => bridge.getChairmanDashboard());
   const [candidates, refreshCandidates] = useRuntimeData(() => bridge.listOwnerManagerCandidates());
+  // The single natural Owner press entry point — evaluated once when the
+  // dashboard opens, mirroring evaluatePreMatchPress's own natural-trigger
+  // pattern for the Manager. Creates an interview only from a genuinely new
+  // real club-business fact (never a recurring schedule); a no-op refresh
+  // when there is nothing new. The created interview then surfaces through
+  // the dashboard's own Inbox (ownerPressInboxItems), never a second UI.
+  useEffect(() => {
+    let cancelled = false;
+    void managerBridge.evaluateOwnerBusinessPress().then((result) => {
+      if (!cancelled && result.ok && result.data) refresh();
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   return (
     <AsyncPanel state={state}>
       {(dashboard) => (
@@ -643,6 +661,7 @@ const ChairmanDashboardView = ({
   const [busyEquipment, setBusyEquipment] = useState(false);
   const [candidateFilter, setCandidateFilter] = useState("");
   const [openReferenceTarget, setOpenReferenceTarget] = useState<{ entityType: ProfileEntityType; entityId: EntityId } | null>(null);
+  const [openPressInterviewId, setOpenPressInterviewId] = useState<EntityId | null>(null);
   const openReference = (reference: EntityReference): void =>
     setOpenReferenceTarget({ entityType: reference.entityType as ProfileEntityType, entityId: reference.id });
   const saveBudget = async (): Promise<void> => {
@@ -862,7 +881,11 @@ const ChairmanDashboardView = ({
       <Panel title="Recent club transactions">
         <TransactionList entries={dashboard.finances.ledgerEntries} />
       </Panel>
-      <InboxPanel inbox={dashboard.inbox} bridge={bridge} />
+      <InboxPanel
+        inbox={dashboard.inbox}
+        bridge={bridge}
+        onOpenPressConference={(interviewId) => setOpenPressInterviewId(interviewId)}
+      />
       {/*
        * Standing for the federation presidency is a long-horizon career option,
        * not the owner's daily business, so it sits below the club rather than
@@ -875,6 +898,16 @@ const ChairmanDashboardView = ({
           entityType={openReferenceTarget.entityType}
           entityId={openReferenceTarget.entityId}
           onClose={() => setOpenReferenceTarget(null)}
+        />
+      )}
+      {openPressInterviewId && (
+        <StructuredPressConferencePanel
+          interviewId={openPressInterviewId}
+          ownerContext
+          onClose={() => {
+            setOpenPressInterviewId(null);
+            refresh();
+          }}
         />
       )}
     </section>

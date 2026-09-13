@@ -37,6 +37,7 @@ const PRESS_CONTEXT_LABEL: Record<StructuredPressConferenceView["context"], stri
   TRANSFER: "Transfer interview",
   PLAYER_ISSUE: "Player issue interview",
   EVENT: "Press conference",
+  OWNER_BUSINESS: "Owner interview",
 };
 
 /**
@@ -50,6 +51,7 @@ const PRESS_CONTEXT_LABEL: Record<StructuredPressConferenceView["context"], stri
 export const StructuredPressConferencePanel = ({
   trigger,
   interviewId,
+  ownerContext,
   onClose,
   onSelectPlayer,
 }: {
@@ -60,6 +62,12 @@ export const StructuredPressConferencePanel = ({
   };
   /** Resumes/reviews an already-known interview instead of opening one. */
   interviewId?: EntityId;
+  /** Present when this panel is showing an Owner interview (never a manager
+   * one) — routes answer/resume calls to the Owner's own commands instead of
+   * the Manager's, the same one canonical MediaInterview pipeline either
+   * way. Owner interviews are always opened by evaluateOwnerBusinessPress
+   * (called from the Owner dashboard), never by this panel's own trigger. */
+  ownerContext?: boolean;
   onClose: () => void;
   /** Present wherever the caller already has a Player Profile surface to
    * route a question's subject player into — the same canonical navigation
@@ -75,7 +83,9 @@ export const StructuredPressConferencePanel = ({
     const load = async () => {
       const result =
         interviewId !== undefined
-          ? await managerBridge.getStructuredPressConference(interviewId)
+          ? ownerContext
+            ? await managerBridge.getOwnerStructuredPressConference(interviewId)
+            : await managerBridge.getStructuredPressConference(interviewId)
           : trigger
             ? await managerBridge.requestStructuredPressConference(trigger)
             : null;
@@ -86,15 +96,20 @@ export const StructuredPressConferencePanel = ({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [interviewId, trigger?.context, trigger?.fixtureId]);
+  }, [interviewId, ownerContext, trigger?.context, trigger?.fixtureId]);
 
   const answer = async (stance: PressResponseStance) => {
     if (!state?.ok) return;
     setBusy(true);
-    const result = await managerBridge.answerStructuredPressQuestion({
-      interviewId: state.data.interviewId,
-      stance,
-    });
+    const result = ownerContext
+      ? await managerBridge.answerOwnerStructuredPressQuestion({
+          interviewId: state.data.interviewId,
+          stance,
+        })
+      : await managerBridge.answerStructuredPressQuestion({
+          interviewId: state.data.interviewId,
+          stance,
+        });
     setBusy(false);
     setState(result);
   };

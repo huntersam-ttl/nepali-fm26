@@ -6512,9 +6512,10 @@ const InboxStoryCard = ({
   item: InboxItem;
   onOpenReference: (reference: EntityReference) => void;
   onOpenStory: (eventId: EntityId) => void;
-  /** Manager-only — same authority gate as the other Manager-only Inbox
-   * actions below (Owner/President never receive a PRESS_INTERVIEW item in
-   * the first place, so this is simply unused/omittable there). */
+  /** Manager and Owner both receive PRESS_INTERVIEW items (each scoped to
+   * their own role's interviews — never mixed); President does not yet.
+   * Simply unused/omittable wherever a caller has no press interview to
+   * route. */
   onOpenPressConference?: (interviewId: EntityId) => void;
   /** True only for an item that landed since the last render — see useNewlyArrived. */
   justArrived?: boolean;
@@ -6581,7 +6582,8 @@ export const InboxPanel = ({
   onOpenPlayerMeeting?: (target: { personId: EntityId; concernId?: EntityId; demandId?: EntityId }) => void;
   /** Manager-only — same authority gate as onOpenTransferNegotiation. */
   onOpenDressingRoom?: () => void;
-  /** Manager-only — Owner/President never receive a PRESS_INTERVIEW item. */
+  /** Manager and Owner both use this (each scoped to their own role's
+   * interviews); President does not yet. */
   onOpenPressConference?: (interviewId: EntityId) => void;
 }): React.ReactElement => {
   const [openReferenceTarget, setOpenReferenceTarget] = useState<{ entityType: ProfileEntityType; entityId: EntityId } | null>(null);

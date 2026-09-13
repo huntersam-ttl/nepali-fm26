@@ -164,6 +164,12 @@ export const managerBridge = {
     runtimeCall<StructuredPressConferenceView>("getStructuredPressConference", { interviewId }),
   evaluatePreMatchPress: (fixtureId: EntityId) =>
     runtimeCall<StructuredPressConferenceView | undefined>("evaluatePreMatchPress", { fixtureId }),
+  evaluateOwnerBusinessPress: () =>
+    runtimeCall<StructuredPressConferenceView | undefined>("evaluateOwnerBusinessPress"),
+  answerOwnerStructuredPressQuestion: (input: { interviewId: EntityId; stance: PressResponseStance }) =>
+    runtimeCall<StructuredPressConferenceView>("answerOwnerStructuredPressQuestion", { input }),
+  getOwnerStructuredPressConference: (interviewId: EntityId) =>
+    runtimeCall<StructuredPressConferenceView>("getOwnerStructuredPressConference", { interviewId }),
   getSupporterOverview: () =>
     runtimeCall<SupporterReadModel | undefined>("getSupporterOverview"),
   getDressingRoom: () => runtimeCall<DressingRoomView>("getDressingRoom"),

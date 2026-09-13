@@ -689,6 +689,14 @@ const dispatch = (
       return service.getStructuredPressConference(body.interviewId as EntityId);
     case "evaluatePreMatchPress":
       return service.evaluatePreMatchPress(body.fixtureId as EntityId);
+    case "evaluateOwnerBusinessPress":
+      return service.evaluateOwnerBusinessPress();
+    case "answerOwnerStructuredPressQuestion":
+      return service.answerOwnerStructuredPressQuestion(
+        body.input as { interviewId: EntityId; stance: PressResponseStance },
+      );
+    case "getOwnerStructuredPressConference":
+      return service.getOwnerStructuredPressConference(body.interviewId as EntityId);
     case "getSupporterOverview":
       return service.getSupporterOverview();
     case "getDressingRoom":

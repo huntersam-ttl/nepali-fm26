@@ -390,6 +390,11 @@ import {
 } from "./owner-manager-meetings.js";
 import { capitalInjectionFromInvestor } from "./investor.js";
 import { buildChairmanDashboard, buildFederationPresidentDashboard } from "./role-desktop.js";
+import {
+  answerOwnerStructuredPressQuestion,
+  evaluateOwnerBusinessPress,
+  getOwnerStructuredPressConference,
+} from "./owner-media-desktop.js";
 import { buildOwnerMatchday, type OwnerMatchdayView } from "./owner-matchday.js";
 import { buildActorPlayerActions, type ActorPlayerActions } from "./player-actions.js";
 import { buildEntityReference } from "./entity-reference.js";
@@ -1210,6 +1215,52 @@ export class DesktopApplicationService {
       )?.targetId;
       if (clubId) ensureOwnerPersonalFinancialProfile(db, personId, clubId, save.worldDate);
       return buildChairmanDashboard(db, save);
+    });
+  }
+
+  /** The single natural Owner press entry point — called once when the
+   * owner opens their dashboard. Creates an OWNER_BUSINESS interview only
+   * from a genuinely new, real club-business fact (never a recurring
+   * schedule); returns undefined when there is nothing new to ask about.
+   * Idempotent per fact. */
+  evaluateOwnerBusinessPress(): AppResult<StructuredPressConferenceView | undefined> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER") {
+        throw appError("ROLE_NOT_AUTHORIZED", "You do not currently hold the Chairman role.");
+      }
+      const clubId = heldCareerRoles(db, personId).find(
+        (role) => role.role === "CHAIRMAN_OWNER",
+      )?.targetId;
+      if (!clubId) throw appError("ROLE_NOT_AUTHORIZED", "No controlled club is available.");
+      return evaluateOwnerBusinessPress(db, save, { clubId, ownerPersonId: personId });
+    });
+  }
+
+  answerOwnerStructuredPressQuestion(input: {
+    interviewId: EntityId;
+    stance: PressResponseStance;
+  }): AppResult<StructuredPressConferenceView> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER") {
+        throw appError("ROLE_NOT_AUTHORIZED", "You do not currently hold the Chairman role.");
+      }
+      return answerOwnerStructuredPressQuestion(db, save, {
+        ownerPersonId: personId,
+        interviewId: input.interviewId,
+        stance: input.stance,
+      });
+    });
+  }
+
+  getOwnerStructuredPressConference(interviewId: EntityId): AppResult<StructuredPressConferenceView> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER") {
+        throw appError("ROLE_NOT_AUTHORIZED", "You do not currently hold the Chairman role.");
+      }
+      return getOwnerStructuredPressConference(db, { ownerPersonId: personId, interviewId });
     });
   }
 

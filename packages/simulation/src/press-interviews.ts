@@ -1,4 +1,5 @@
 import {
+  ClubEconomyRepository,
   CompetitionRepository,
   EventRepository,
   MediaPhaseBRepository,
@@ -454,6 +455,64 @@ const playerIssueCandidates = (db: GameDatabase, input: { teamId: EntityId }): C
   return candidates;
 };
 
+/**
+ * Owner press candidates — real club-business events only, never invented
+ * corporate news. An infrastructure project is offered once when it first
+ * reaches APPROVED and again once it first reaches COMPLETED (two genuinely
+ * different moments); a sponsorship is offered once it first becomes ACTIVE.
+ * Deduplication against a prior interview on the exact same event is the
+ * caller's job (startPressConference's own existing-topic check, keyed by
+ * sourceEntityId), matching every other context in this file.
+ */
+const ownerCandidates = (db: GameDatabase, input: { clubId: EntityId }): Candidate[] => {
+  const economy = new ClubEconomyRepository(db);
+  const candidates: Candidate[] = [];
+
+  // Only the single most-recently-true fact per topic becomes a candidate —
+  // a club can carry several qualifying projects/sponsorships at once (most
+  // notably the founding sponsorship every club is seeded with at world
+  // generation), but an Owner press conference asks about one grounded,
+  // genuinely-new event at a time, not every real fact simultaneously. The
+  // exclude-set the caller passes into generatePressQuestions still lets a
+  // fact that has already been asked-and-completed drop out in favour of
+  // whatever is now the most recent, so press naturally advances to newer
+  // events as they occur rather than getting stuck re-picking the same one.
+  const latestProject = economy
+    .infrastructureProjects(input.clubId)
+    .filter((project) => project.status === "APPROVED" || project.status === "COMPLETED")
+    .sort((a, b) => (a.planningStart < b.planningStart ? 1 : a.planningStart > b.planningStart ? -1 : 0))[0];
+  if (latestProject) {
+    const label = latestProject.projectType.replace(/_/g, " ").toLowerCase();
+    candidates.push({
+      topic: "INFRASTRUCTURE_PROJECT",
+      prompt:
+        latestProject.status === "COMPLETED"
+          ? `The ${label} project is complete — what does it mean for the club's long-term ambitions?`
+          : `Investment has been approved for a new ${label} — what does this mean for the club's long-term ambitions?`,
+      subjectEntities: [{ id: latestProject.id, type: "infrastructureProject" }],
+      priority: 6,
+    });
+  }
+
+  const latestSponsorship = economy
+    .sponsorships(input.clubId)
+    .filter((sponsorship) => sponsorship.status === "ACTIVE")
+    .sort((a, b) => (a.startDate < b.startDate ? 1 : a.startDate > b.startDate ? -1 : 0))[0];
+  if (latestSponsorship) {
+    const sponsor = economy.sponsors().find((item) => item.id === latestSponsorship.sponsorId);
+    candidates.push({
+      topic: "SPONSORSHIP_SIGNED",
+      prompt: sponsor
+        ? `How important is the agreement with ${sponsor.name} to the club?`
+        : "How important is this commercial agreement to the club?",
+      subjectEntities: sponsor ? [{ id: sponsor.id, type: "sponsor" }] : [],
+      priority: 5,
+    });
+  }
+
+  return candidates;
+};
+
 // ---------------------------------------------------------------------------
 // Response options per topic — only the stances that make sense, each with
 // distinct, bounded consequences (see applyConsequence below).
@@ -487,6 +546,16 @@ const OPTION_TEXT: Partial<Record<PressQuestionTopic, Partial<Record<PressRespon
     ASSERTIVE: "It was the right setup for this opponent, and I'd make the same call again.",
     DEFLECT: "I'm not going to break down the thinking behind every team sheet.",
     CALM: "It was simply the shape that suited the players available today.",
+  },
+  INFRASTRUCTURE_PROJECT: {
+    ASSERTIVE: "This is exactly the kind of investment that shows real ambition.",
+    CALM: "It's one step in a longer-term plan for the club.",
+    NON_COMMITTAL: "There's more still to come, but I won't get ahead of things.",
+  },
+  SPONSORSHIP_SIGNED: {
+    PRAISE: "It's a real vote of confidence in where this club is heading.",
+    CALM: "It strengthens the club financially, which matters as much as anything on the pitch.",
+    DEFLECT: "The commercial side isn't something I discuss in detail.",
   },
   MENTALITY_CHOICE: {
     ASSERTIVE: "We set out to impose ourselves from the first minute.",
@@ -570,25 +639,44 @@ export const generatePressQuestions = (
   db: GameDatabase,
   input: {
     context: MediaInterview["context"];
-    teamId: EntityId;
+    teamId?: EntityId;
     fixtureId?: EntityId;
+    /** OWNER_BUSINESS is club-scoped, not team-scoped — an owner has no team. */
+    clubId?: EntityId;
+    /** Candidates whose topic + every subject id already appears in this set
+     * (as "topic:subjectId") are dropped before the MAX_QUESTIONS cap, not
+     * after — otherwise a genuinely new fact could be crowded out of the cap
+     * by facts that were merely already asked about (e.g. Owner press,
+     * where a club's founding sponsorship must never crowd out a freshly
+     * signed one just because it sorts first). */
+    excludeTopicSubjectKeys?: ReadonlySet<string>;
   },
 ): PressQuestion[] => {
   const candidates: Candidate[] =
-    input.context === "PRE_MATCH" && input.fixtureId
+    input.context === "PRE_MATCH" && input.fixtureId && input.teamId
       ? preMatchCandidates(db, { teamId: input.teamId, fixtureId: input.fixtureId })
-      : input.context === "POST_MATCH" && input.fixtureId
+      : input.context === "POST_MATCH" && input.fixtureId && input.teamId
         ? postMatchCandidates(db, { teamId: input.teamId, fixtureId: input.fixtureId })
-        : input.context === "TRANSFER"
+        : input.context === "TRANSFER" && input.teamId
           ? transferCandidates(db, { teamId: input.teamId })
-          : input.context === "PLAYER_ISSUE"
+          : input.context === "PLAYER_ISSUE" && input.teamId
             ? playerIssueCandidates(db, { teamId: input.teamId })
-            : [];
+            : input.context === "OWNER_BUSINESS" && input.clubId
+              ? ownerCandidates(db, { clubId: input.clubId })
+              : [];
+  const sourceEntityId = input.fixtureId ?? input.clubId ?? input.teamId;
+  const excluded = input.excludeTopicSubjectKeys;
   return candidates
+    .filter(
+      (candidate) =>
+        !excluded ||
+        candidate.subjectEntities.length === 0 ||
+        candidate.subjectEntities.some((subject) => !excluded.has(`${candidate.topic}:${subject.id}`)),
+    )
     .sort((a, b) => b.priority - a.priority || a.topic.localeCompare(b.topic))
     .slice(0, MAX_QUESTIONS)
     .map((candidate, index) => ({
-      id: createStableEntityId("press-question", `${input.fixtureId ?? input.teamId}:${input.context}:${index}`),
+      id: createStableEntityId("press-question", `${sourceEntityId}:${input.context}:${index}`),
       topic: candidate.topic,
       prompt: candidate.prompt,
       subjectEntities: candidate.subjectEntities,
@@ -613,7 +701,7 @@ const PLAYER_TOPICS = new Set<PressQuestionTopic>([
 /** Bounded, explainable consequence for one answer. Never a giant swing. */
 const applyConsequence = (
   db: GameDatabase,
-  input: { question: PressQuestion; stance: PressResponseStance; managerPersonId: EntityId; teamId: EntityId; date: string },
+  input: { question: PressQuestion; stance: PressResponseStance; managerPersonId: EntityId; teamId?: EntityId; date: string },
 ): string | undefined => {
   const subjectPlayer = input.question.subjectEntities.find((ref) => ref.type === "person");
   if (!subjectPlayer || !PLAYER_TOPICS.has(input.question.topic)) return undefined;
@@ -638,6 +726,7 @@ const applyConsequence = (
 
   if (
     input.stance === "COMMIT" &&
+    input.teamId &&
     (input.question.topic === "TRANSFER_BID" || input.question.topic === "TRANSFER_REQUEST")
   ) {
     createStructuredCommitment(db, input.date, {
@@ -664,6 +753,14 @@ const addDays = (date: string, days: number): string => {
   return d.toISOString().slice(0, 10);
 };
 
+/** Which career-role's press pipeline a MediaInterview context belongs to —
+ * used only to scope "one open conference at a time" per role, so a
+ * protagonist holding two press-producing roles (e.g. Manager of one club
+ * and Owner of another) never has one role's open interview block the
+ * other's. */
+const contextRole = (context: MediaInterview["context"]): "MANAGER" | "OWNER" =>
+  context === "OWNER_BUSINESS" ? "OWNER" : "MANAGER";
+
 /** Opens (or returns the already-open) structured press conference for this
  * exact context — one open conference per manager at a time, matching the
  * existing single-conference-at-a-time rule. */
@@ -672,14 +769,35 @@ export const startPressConference = (
   input: {
     context: MediaInterview["context"];
     managerPersonId: EntityId;
-    teamId: EntityId;
+    teamId?: EntityId;
+    /** OWNER_BUSINESS is club-scoped, not team-scoped — an owner has no team. */
+    clubId?: EntityId;
     date: string;
     fixtureId?: EntityId;
     importance?: number;
+    /** Overrides the source-entity part of this interview's dedup id.
+     * Fixture-bound contexts (PRE_MATCH/POST_MATCH) are already naturally
+     * unique per fixture; a club-scoped context like OWNER_BUSINESS is not —
+     * the same club can produce several genuinely distinct real events
+     * (a new sponsorship, a new infrastructure project) on the very same
+     * calendar date, and without a per-event key they would collide onto
+     * one interview id and silently resolve to whichever was created first. */
+    dedupeKey?: string;
+    /** Forwarded to generatePressQuestions so the interview this function
+     * actually persists reflects the same "already asked" exclusions the
+     * caller used to decide whether anything new exists at all. */
+    excludeTopicSubjectKeys?: ReadonlySet<string>;
   },
 ): MediaInterview => {
   const repo = new MediaPhaseBRepository(db);
-  const existingOpen = repo.interviews(input.managerPersonId).find((item) => item.status === "OPEN");
+  // Interviews are keyed by personId only, and the same physical person can
+  // hold more than one press-producing career role (e.g. Manager and Owner
+  // of different clubs) — so "one open conference at a time" is scoped to
+  // this same role's own contexts, never blocking (or being blocked by)
+  // another role's unrelated open interview for the same person.
+  const existingOpen = repo
+    .interviews(input.managerPersonId)
+    .find((item) => item.status === "OPEN" && contextRole(item.context) === contextRole(input.context));
   if (existingOpen) return existingOpen;
 
   // The exact same subject/context/date has already produced an interview —
@@ -687,8 +805,11 @@ export const startPressConference = (
   // of regenerating. Without this, re-requesting the same topic after
   // completing it earlier the same day would silently reroll a COMPLETED
   // interview back to OPEN with its answers discarded.
-  const sourceEntityId = input.fixtureId ?? input.teamId;
-  const stableId = createStableEntityId("media-interview", `${sourceEntityId}:${input.context}:${input.date}`);
+  const sourceEntityId = input.fixtureId ?? input.clubId ?? input.teamId ?? input.managerPersonId;
+  const stableId = createStableEntityId(
+    "media-interview",
+    `${input.dedupeKey ?? sourceEntityId}:${input.context}:${input.date}`,
+  );
   const existingSameTopic = repo.interviews(input.managerPersonId).find((item) => item.id === stableId);
   if (existingSameTopic) return existingSameTopic;
 
@@ -715,6 +836,8 @@ export const startPressConference = (
     context: input.context,
     teamId: input.teamId,
     fixtureId: input.fixtureId,
+    clubId: input.clubId,
+    excludeTopicSubjectKeys: input.excludeTopicSubjectKeys,
   });
   const outlet =
     new MediaRepository(db)
@@ -734,7 +857,7 @@ export const startPressConference = (
     importance: input.importance ?? (questions.length > 0 ? 6 : 3),
     questions: questions.map((question) => question.prompt),
     responses: [],
-    summary: `${input.context === "PRE_MATCH" ? "Pre-match" : input.context === "POST_MATCH" ? "Post-match" : input.context === "TRANSFER" ? "Transfer" : "Player issue"} press conference opened.`,
+    summary: `${input.context === "PRE_MATCH" ? "Pre-match" : input.context === "POST_MATCH" ? "Post-match" : input.context === "TRANSFER" ? "Transfer" : input.context === "OWNER_BUSINESS" ? "Owner" : "Player issue"} interview opened.`,
     managerReputationEffect: 0,
     clubSupportEffect: 0,
     status: "OPEN",
@@ -754,7 +877,7 @@ export const startPressConference = (
  * reroll. */
 export const answerPressQuestion = (
   db: GameDatabase,
-  input: { interviewId: EntityId; stance: PressResponseStance; teamId: EntityId; date: string },
+  input: { interviewId: EntityId; stance: PressResponseStance; teamId?: EntityId; date: string },
 ): MediaInterview => {
   const repo = new MediaPhaseBRepository(db);
   const interview = repo.interviews().find((item) => item.id === input.interviewId);
