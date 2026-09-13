@@ -865,10 +865,20 @@ export const initializeWorkforceSupplyForSave = (input: {
   }
   const environment = refereeDevelopmentEnvironment(input.db);
   const demand = computeWorkforceDemand({ db: input.db, date: input.worldDate, seasonLabel });
+  // The bootstrap pool must staff the busiest scheduled matchday from day one:
+  // fixture assignment never double-books an official on a date, so a pool
+  // smaller than the peak day hard-fails that day's remaining fixtures. The
+  // intake cap only bounds growth beyond that floor.
+  const peakFixtures = scheduledFixturePeak(
+    input.db,
+    `${Number(seasonLabel) - 1}-01-01`,
+    `${Number(seasonLabel) + 1}-12-31`,
+  );
   let created = 0;
   for (const role of ["REFEREE", "ASSISTANT_REFEREE"] as const) {
+    const peakDayNeed = peakFixtures * (role === "ASSISTANT_REFEREE" ? ASSISTANTS_PER_FIXTURE : 1);
     const target = Math.min(
-      MAX_OFFICIAL_INTAKE_PER_SEASON * 2,
+      Math.max(MAX_OFFICIAL_INTAKE_PER_SEASON * 2, peakDayNeed),
       demandLine(demand, "REFEREES", role)?.required ?? 0,
     );
     for (let index = 0; index < target; index += 1) {
