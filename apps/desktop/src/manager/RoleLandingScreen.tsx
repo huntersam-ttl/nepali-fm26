@@ -14,7 +14,7 @@ import type {
   OwnerManagerCandidate,
 } from "@nepal-football-sim/shared-types";
 import type { AppError, DesktopRuntimeApi } from "../appBridge.js";
-import { AsyncPanel, Badge, ErrorBanner, Metrics, Panel, useRuntimeData } from "./ui.js";
+import { AsyncPanel, Badge, ErrorBanner, Metrics, Panel, useReturnFocusOnClose, useRuntimeData } from "./ui.js";
 import { CandidacyPanel } from "./screens/HomeScreen.js";
 import { StructuredPressConferencePanel } from "./screens/MediaScreen.js";
 import { managerBridge } from "./managerBridge.js";
@@ -489,6 +489,7 @@ const ExecutiveDashboardView = ({
   const [error, setError] = useState<AppError | null>(null);
   const [busy, setBusy] = useState(false);
   const [openPressInterviewId, setOpenPressInterviewId] = useState<EntityId | null>(null);
+  const pressFocus = useReturnFocusOnClose();
   const canSetBudget = authority.permittedActions.includes("BUDGET_ADMINISTRATION");
   const canManageCommercial = authority.permittedActions.includes("COMMERCIAL_OVERSIGHT");
   const canManageFacilities = authority.permittedActions.includes("FACILITY_OVERSIGHT");
@@ -585,7 +586,10 @@ const ExecutiveDashboardView = ({
         <InboxPanel
           inbox={authority.inbox}
           bridge={bridge}
-          onOpenPressConference={(interviewId) => setOpenPressInterviewId(interviewId)}
+          onOpenPressConference={(interviewId) => {
+            pressFocus.capture();
+            setOpenPressInterviewId(interviewId);
+          }}
         />
       )}
       {canAdminister && <SecretaryDesk bridge={bridge} clubId={authority.clubId} />}
@@ -599,6 +603,7 @@ const ExecutiveDashboardView = ({
           onClose={() => {
             setOpenPressInterviewId(null);
             refresh();
+            pressFocus.restore();
           }}
         />
       )}
@@ -620,7 +625,10 @@ const RoleHeader = ({
   <header className="page-header">
     <div>
       <p className="eyebrow">{organisation}</p>
-      <h1>{roleName(header.activeRole)}</h1>
+      {/* tabIndex=-1: programmatically focusable (never in the Tab order)
+       * so useReturnFocusOnClose has a real, always-present landing spot
+       * when a closed panel's own triggering element is gone. */}
+      <h1 tabIndex={-1}>{roleName(header.activeRole)}</h1>
       <p className="subtle">{context}</p>
     </div>
     <span className="role-badge">{roles.heldRoles.length} held roles</span>
@@ -704,6 +712,7 @@ const ChairmanDashboardView = ({
   const [candidateFilter, setCandidateFilter] = useState("");
   const [openReferenceTarget, setOpenReferenceTarget] = useState<{ entityType: ProfileEntityType; entityId: EntityId } | null>(null);
   const [openPressInterviewId, setOpenPressInterviewId] = useState<EntityId | null>(null);
+  const pressFocus = useReturnFocusOnClose();
   const openReference = (reference: EntityReference): void =>
     setOpenReferenceTarget({ entityType: reference.entityType as ProfileEntityType, entityId: reference.id });
   const saveBudget = async (): Promise<void> => {
@@ -926,7 +935,10 @@ const ChairmanDashboardView = ({
       <InboxPanel
         inbox={dashboard.inbox}
         bridge={bridge}
-        onOpenPressConference={(interviewId) => setOpenPressInterviewId(interviewId)}
+        onOpenPressConference={(interviewId) => {
+          pressFocus.capture();
+          setOpenPressInterviewId(interviewId);
+        }}
       />
       {/*
        * Standing for the federation presidency is a long-horizon career option,
@@ -949,6 +961,7 @@ const ChairmanDashboardView = ({
           onClose={() => {
             setOpenPressInterviewId(null);
             refresh();
+            pressFocus.restore();
           }}
         />
       )}
@@ -1019,6 +1032,7 @@ const FederationDashboardView = ({
   const [message, setMessage] = useState<string | null>(null);
   const [openReferenceTarget, setOpenReferenceTarget] = useState<{ entityType: ProfileEntityType; entityId: EntityId } | null>(null);
   const [openPressInterviewId, setOpenPressInterviewId] = useState<EntityId | null>(null);
+  const pressFocus = useReturnFocusOnClose();
   const openReference = (reference: EntityReference): void =>
     setOpenReferenceTarget({ entityType: reference.entityType as ProfileEntityType, entityId: reference.id });
   const approved = dashboard.proposals.find((item) => item.status === "APPROVED");
@@ -1158,7 +1172,10 @@ const FederationDashboardView = ({
       <InboxPanel
         inbox={dashboard.inbox}
         bridge={bridge}
-        onOpenPressConference={(interviewId) => setOpenPressInterviewId(interviewId)}
+        onOpenPressConference={(interviewId) => {
+          pressFocus.capture();
+          setOpenPressInterviewId(interviewId);
+        }}
       />
       <EntityStorylinePanel bridge={bridge} entityId={dashboard.federation.id} onOpenReference={openReference} />
       {openReferenceTarget && (
@@ -1176,6 +1193,7 @@ const FederationDashboardView = ({
           onClose={() => {
             setOpenPressInterviewId(null);
             refresh();
+            pressFocus.restore();
           }}
         />
       )}
