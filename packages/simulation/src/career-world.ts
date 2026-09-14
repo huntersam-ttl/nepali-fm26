@@ -76,6 +76,7 @@ import {
   manageAiTeamMeetingsForTeam,
 } from "./squad-dynamics.js";
 import { ensureAiStaffAssigned, evaluateAllStaffContracts } from "./staff-market.js";
+import { manageAiPressForTeam } from "./ai-press-production.js";
 import { settleFederationInjuryWelfare, settleMatchInjuryInsurance } from "./insurance.js";
 import { processInternationalTrials } from "./international-trials.js";
 import { processExternalFootballWorldSeason } from "./external-football-world.js";
@@ -768,6 +769,12 @@ const simulateCompetitionSeason = (
         managerContract.managerProfileId,
         teamId,
       );
+      manageAiPressForTeam(db, { ...input.save, worldDate: fixture.scheduledDate }, {
+        teamId,
+        clubId: clubIdForTeam(db, teamId),
+        managerPersonId: managerContract.personId,
+        fixtureId: fixture.id,
+      });
     }
     playedThisRun += 1;
   }
