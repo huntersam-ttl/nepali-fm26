@@ -7,6 +7,7 @@ import {
   WorldRepository,
   type GameDatabase,
 } from "@nepal-football-sim/database";
+import { publishHistoricalEvent } from "./historical-events.js";
 import {
   createStableEntityId,
   type ClubOwnershipModel,
@@ -362,7 +363,7 @@ const insertOwnershipStoryEvent = (
     offerId?: EntityId;
   },
 ): void => {
-  new EventRepository(db).insertHistoricalEvent({
+  publishHistoricalEvent(db, {
     id: createStableEntityId(
       "history",
       `${input.eventType}:${input.clubId}:${input.buyerPersonId}:${input.date}:${input.dedupeKey ?? ""}`,
@@ -872,7 +873,7 @@ const completeAcquisition = (
   };
   new OwnershipRepository(db).insertTransaction(transaction);
   applySupporterOwnershipOutcome({ db, clubId: offer.clubId, date, trustImpact: 4 });
-  new EventRepository(db).insertHistoricalEvent({
+  publishHistoricalEvent(db, {
     id: createStableEntityId("history", `OWNERSHIP_TRANSFER:${offer.id}`),
     occurredOn: date,
     eventType: "CLUB_OWNERSHIP_TRANSFERRED",
@@ -913,7 +914,7 @@ const completeShareSale = (db: GameDatabase, offer: OwnershipAcquisitionOffer, a
   if (!buyer) db.prepare("INSERT OR IGNORE INTO club_ownership_history (id,club_id,holder_id,holder_name,start_date,end_date,exit_reason,successor_holder_id,acquisition_price,percentage,provenance_status) VALUES (?,?,?,?,?,?,?,?,?,?,?)").run(buyerStake.id, offer.clubId, buyerStake.holderId ?? null, buyerStake.holderName, date, null, null, null, amount, offer.percentage, status);
   const transaction: OwnershipAcquisitionTransaction = { id: createStableEntityId("ownership-transaction", offer.id), offerId: offer.id, clubId: offer.clubId, buyerPersonId: offer.buyerPersonId, sellerHolderId: offer.sellerHolderId, date, amount, percentage: offer.percentage, status: "POSTED", provenanceStatus: status };
   repo.insertTransaction(transaction);
-  new EventRepository(db).insertHistoricalEvent({ id: createStableEntityId("history", `OWNERSHIP_SHARE_SALE:${offer.id}`), occurredOn: date, eventType: "CLUB_OWNERSHIP_TRANSFERRED", involvedEntities: [{ id: offer.clubId, type: "club" }, { id: offer.buyerPersonId, type: "person" }, { id: offer.sellerHolderId!, type: "person" }], title: "Club ownership share sold", data: { amount, percentage: offer.percentage, transactionType: "PERSONAL_SHARE_SALE" }, importance: "high", scope: "club" });
+  publishHistoricalEvent(db, { id: createStableEntityId("history", `OWNERSHIP_SHARE_SALE:${offer.id}`), occurredOn: date, eventType: "CLUB_OWNERSHIP_TRANSFERRED", involvedEntities: [{ id: offer.clubId, type: "club" }, { id: offer.buyerPersonId, type: "person" }, { id: offer.sellerHolderId!, type: "person" }], title: "Club ownership share sold", data: { amount, percentage: offer.percentage, transactionType: "PERSONAL_SHARE_SALE" }, importance: "high", scope: "club" });
   applySupporterOwnershipOutcome({ db, clubId: offer.clubId, date, trustImpact: 1 });
   return transaction;
 };
@@ -1346,7 +1347,7 @@ export const exitClubOwnership = (
     0,
     status,
   );
-  new EventRepository(db).insertHistoricalEvent({
+  publishHistoricalEvent(db, {
     id: createStableEntityId(
       "history",
       `OWNERSHIP_SUCCESSION_STARTED:${input.clubId}:${input.date}`,

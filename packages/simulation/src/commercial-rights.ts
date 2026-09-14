@@ -9,7 +9,6 @@ import {
   CompetitionCommercialRepository,
   CommercialRightsRepository,
   NationalTeamCommercialRepository,
-  EventRepository,
   type GameDatabase,
 } from "@nepal-football-sim/database";
 import type {
@@ -17,6 +16,7 @@ import type {
   NationalTeamCommercialSettlement,
 } from "@nepal-football-sim/shared-types";
 import { postFederationTransaction } from "./federation-governance.js";
+import { publishHistoricalEvent } from "./historical-events.js";
 
 export type CommercialRightsEvidence = {
   federationReputation: number;
@@ -809,7 +809,7 @@ export const awardCommercialRights = (
   repo.upsertOffer(active);
   repo.upsertPackage({ ...rightsPackage, status: "ACTIVE" });
   linkTitleSponsorIfApplicable(db, rightsPackage, active);
-  new EventRepository(db).insertHistoricalEvent({
+  publishHistoricalEvent(db, {
     id: createStableEntityId("history", `COMMERCIAL_RIGHTS_AWARDED:${offer.id}`),
     occurredOn: input.date,
     eventType: "FEDERATION_COMMERCIAL_RIGHTS_AWARDED",
