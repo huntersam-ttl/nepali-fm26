@@ -1,5 +1,4 @@
 import {
-  EventRepository,
   PlayerRepository,
   YouthRepository,
   ClubNetworkRepository,
@@ -7,6 +6,7 @@ import {
 } from "@nepal-football-sim/database";
 import { createStableEntityId, type EntityId, type YouthPartnershipDevelopmentProgramme } from "@nepal-football-sim/shared-types";
 import { ageForPlayer } from "./youth-intake.js";
+import { publishHistoricalEvent } from "./historical-events.js";
 
 const PROGRAMME_DAYS = 45;
 const MAX_PROGRAMMES_PER_CLUB_SEASON = 2;
@@ -84,7 +84,7 @@ export const completeYouthDevelopmentPartnerships = (
     });
     const finished = { ...programme, status: "COMPLETED" as const, developmentApplied: true, completedOn: worldDate };
     youth.upsertPartnershipDevelopmentProgramme(finished);
-    new EventRepository(db).insertHistoricalEvent({
+    publishHistoricalEvent(db, {
       id: createStableEntityId("history", `FOREIGN_DEVELOPMENT_PROGRAMME_COMPLETED:${programme.id}`),
       occurredOn: worldDate,
       eventType: "FOREIGN_DEVELOPMENT_PROGRAMME_COMPLETED",
