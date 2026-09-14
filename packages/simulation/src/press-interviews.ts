@@ -130,6 +130,47 @@ export const shouldCreatePreMatchPress = (
   return { trigger: reasons.length > 0, reasons };
 };
 
+/**
+ * Bounded, deterministic decision for whether a just-finished match is
+ * material enough to naturally offer a post-match conference — never every
+ * routine result. Reuses the same real match/table data postMatchCandidates
+ * itself reads (never a second data source): a real dismissal, a heavy
+ * margin, or genuine title/relegation table stakes. This is the gate the
+ * production AI post-match loop uses so it never generates a conference for
+ * every AI fixture in every league.
+ */
+export const shouldCreatePostMatchPress = (
+  db: GameDatabase,
+  input: { teamId: EntityId; fixtureId: EntityId },
+): { trigger: boolean; reasons: string[] } => {
+  const reasons: string[] = [];
+  const fixture = db.prepare("SELECT * FROM fixtures WHERE id = ?").get(input.fixtureId) as SqlRow | undefined;
+  const match = fixture
+    ? (db.prepare("SELECT * FROM matches WHERE fixture_id = ?").get(fixture.id) as SqlRow | undefined)
+    : undefined;
+  if (!fixture || !match) return { trigger: false, reasons };
+
+  const events = db
+    .prepare("SELECT * FROM match_events WHERE match_id = ?")
+    .all(match.id) as SqlRow[];
+  if (events.some((event) => event.type === "RED_CARD")) reasons.push("red card");
+
+  const homeGoals = Number(match.home_goals ?? 0);
+  const awayGoals = Number(match.away_goals ?? 0);
+  if (Math.abs(homeGoals - awayGoals) >= 3) reasons.push("heavy margin");
+
+  const standings = new CompetitionRepository(db).standings(fixture.competition_season_id as EntityId);
+  if (standings.length > 0) {
+    const position = standings.findIndex((row) => row.teamId === input.teamId) + 1;
+    const total = standings.length;
+    if (position > 0 && (position <= 3 || position > total - 3)) {
+      reasons.push(position <= 3 ? "title-race table stakes" : "relegation table stakes");
+    }
+  }
+
+  return { trigger: reasons.length > 0, reasons };
+};
+
 const preMatchCandidates = (
   db: GameDatabase,
   input: { teamId: EntityId; fixtureId: EntityId },
