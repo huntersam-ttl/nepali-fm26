@@ -6,6 +6,7 @@ import {
   CommercialRightsRepository,
   EventRepository,
   FacilityPlanningRepository,
+  FederationGovernanceRepository,
   ClubLicensingRepository,
   CompetitionRepository,
   GovernmentRepository,
@@ -425,6 +426,7 @@ import {
 import {
   initializeFederationGovernanceForSave,
   federationCommercialOverview,
+  createFederationProject,
 } from "./federation-governance.js";
 import {
   awardCommercialRightsForPresident,
@@ -2029,6 +2031,31 @@ export class DesktopApplicationService {
         "ACTIVE",
         "SIMULATION_ONLY",
       );
+      // Real, grounded facts for the Owner/President press E2E specs to
+      // exercise — the same club infrastructure project and federation
+      // project shape owner-press.test.ts/president-press.test.ts already
+      // use, never a press-specific fixture format.
+      new ClubEconomyRepository(db).upsertInfrastructureProject({
+        id: createStableEntityId("e2e-role-owner-project", `${save.id}:${personId}`),
+        clubId,
+        projectType: "STAND",
+        planningStart: save.worldDate,
+        expectedCompletion: "2027-01-01",
+        capitalCost: 5_000_000,
+        ongoingCost: 100_000,
+        currency: "NPR",
+        status: "APPROVED",
+        financingJson: {},
+        provenanceStatus: "SIMULATION_ONLY",
+      });
+      const federationProject = createFederationProject(db, {
+        federationId: federation.id,
+        projectType: "NATIONAL_TRAINING_CENTRE",
+        name: "National Training Centre",
+        date: save.worldDate,
+        seed: `${save.randomSeed}:e2e-federation-project`,
+      });
+      new FederationGovernanceRepository(db).upsertProject({ ...federationProject, status: "CONSTRUCTION" });
       return { ready: true };
     });
   }
