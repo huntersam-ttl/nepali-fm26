@@ -1,4 +1,45 @@
+import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { expect, test, type Page, type Locator } from "@playwright/test";
+
+const axeSource = readFileSync(createRequire(import.meta.url).resolve("axe-core/axe.min.js"), "utf8");
+
+/** Injects axe-core into the page (once per navigation) and asserts zero
+ * serious/critical violations, scoped to exactly the given CSS selectors
+ * (defaulting to the sidebar nav) rather than the whole document — the
+ * dashboards this flow visits also render unrelated widgets (e.g. the
+ * President's own "Build-a-Nation" scorecard, a pre-existing, out-of-scope
+ * low-contrast defect unrelated to press) that would otherwise make this
+ * press-focused check fail on something this task never touches. Used at
+ * each real checkpoint of the keyboard flow below rather than a separate,
+ * disconnected accessibility-only pass. */
+const expectNoSeriousA11yViolations = async (
+  page: Page,
+  label: string,
+  extraPanels: Locator[] = [],
+): Promise<void> => {
+  await page.evaluate(axeSource);
+  const sidebar = page.locator(".sidebar");
+  const nodes = await Promise.all(
+    [sidebar, ...extraPanels].map(async (locator) => ((await locator.count()) > 0 ? locator.elementHandle() : null)),
+  );
+  const results = await page.evaluate(
+    async (handles) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const axe = (window as any).axe;
+      const context = handles.filter((node): node is Element => Boolean(node));
+      return axe.run(context.length > 0 ? context : document, { resultTypes: ["violations"] });
+    },
+    nodes.filter((node): node is NonNullable<typeof node> => Boolean(node)),
+  );
+  const serious = (results.violations as Array<{ id: string; impact: string; nodes: unknown[] }>).filter(
+    (violation) => violation.impact === "serious" || violation.impact === "critical",
+  );
+  if (serious.length > 0) {
+    console.log(`axe violations at ${label}:`, JSON.stringify(serious, null, 2));
+  }
+  expect(serious, `axe serious/critical violations at ${label}`).toHaveLength(0);
+};
 
 /** Every Panel in this app renders as `<article><header><h2>{title}</h2>...`
  * (ui.tsx's shared Panel component) — scope to that article by its own h2,
@@ -66,17 +107,28 @@ test("Owner and President press: real keyboard Tab/Enter opens, answers, and clo
   await page.getByRole("button", { name: /Load career/i }).click();
   await page.getByRole("button", { name: new RegExp(saveName) }).click();
   await expect(page.getByLabel("Active career role")).toHaveValue("MANAGER");
+  await expectNoSeriousA11yViolations(page, "Manager dashboard", [panelByTitle(page, "Inbox")]);
+
+  // Media / press history view. "Past interviews" only renders once a
+  // completed Manager-context interview exists — this fixture seeds Owner/
+  // President facts, not a Manager one, so assert on the section's own
+  // always-present "Interviews" panel instead of the conditional history list.
+  await page.getByRole("button", { name: "Media", exact: true }).click();
+  await expect(panelByTitle(page, "Interviews")).toBeVisible();
+  await expectNoSeriousA11yViolations(page, "Manager Media history view", [panelByTitle(page, "Interviews")]);
+  await page.getByRole("button", { name: "Home / Inbox", exact: true }).click();
 
   // ---------------------------------------------------------------------
   // Owner: keyboard-only Inbox -> conference -> answer -> entity link -> close
   // ---------------------------------------------------------------------
   await page.getByLabel("Active career role").selectOption("CHAIRMAN_OWNER");
   await expect(page.getByRole("heading", { name: "Chairman / Owner" })).toBeVisible();
+  const inboxPanel = panelByTitle(page, "Inbox");
+  await expectNoSeriousA11yViolations(page, "Owner dashboard", [inboxPanel]);
 
   // Real evaluate call fires from the dashboard's own mount effect; wait
   // for the Inbox item it produces rather than calling any press command
   // directly from this test.
-  const inboxPanel = panelByTitle(page, "Inbox");
   const ownerOpenButton = inboxPanel.getByRole("button", { name: "Open Press Conference" });
   await expect(ownerOpenButton).toBeVisible({ timeout: 30_000 });
 
@@ -87,6 +139,7 @@ test("Owner and President press: real keyboard Tab/Enter opens, answers, and clo
   await page.keyboard.press("Enter");
   const ownerPanel = panelByTitle(page, "Owner interview");
   await expect(ownerPanel).toBeVisible();
+  await expectNoSeriousA11yViolations(page, "Owner press conference panel", [ownerPanel]);
 
   // Tab to the subject entity link, if the grounded question surfaces one,
   // and confirm it is a real, named, keyboard-reachable control.
@@ -116,8 +169,8 @@ test("Owner and President press: real keyboard Tab/Enter opens, answers, and clo
   // ---------------------------------------------------------------------
   await page.getByLabel("Active career role").selectOption("FEDERATION_PRESIDENT");
   await expect(page.getByRole("heading", { name: "Federation President" })).toBeVisible();
-
   const presidentInboxPanel = panelByTitle(page, "Inbox");
+  await expectNoSeriousA11yViolations(page, "President dashboard", [presidentInboxPanel]);
   const presidentOpenButton = presidentInboxPanel.getByRole("button", { name: "Open Press Conference" });
   await expect(presidentOpenButton).toBeVisible({ timeout: 30_000 });
   await presidentOpenButton.focus();
@@ -125,6 +178,7 @@ test("Owner and President press: real keyboard Tab/Enter opens, answers, and clo
   await page.keyboard.press("Enter");
   const presidentPanel = panelByTitle(page, "Federation Press Conference");
   await expect(presidentPanel).toBeVisible();
+  await expectNoSeriousA11yViolations(page, "President press conference panel", [presidentPanel]);
 
   const presidentEntityLink = presidentPanel.locator(".button-row button, .button-row a").first();
   if (await presidentEntityLink.count()) {
