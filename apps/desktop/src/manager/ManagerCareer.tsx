@@ -21,6 +21,7 @@ import { MatchdayScreen } from "./matchday/MatchdayScreen.js";
 import { RoleLandingScreen, EXECUTIVE_ROLES } from "./RoleLandingScreen.js";
 import type { ChairmanScreen, PresidentScreen } from "./RoleDetailScreen.js";
 import { OrganizationProfilePanel } from "./RoleDetailScreen.js";
+import { PresentationSettingsPanel } from "../presentation/PresentationSettingsPanel.js";
 
 const careerRoleLabel = (role: CareerRole): string =>
   role === "CHAIRMAN_OWNER"
@@ -153,6 +154,7 @@ export const ManagerCareer = ({
   const [autosave, setAutosave] = useState<AutosaveStatusView | null>(null);
   const [matchdayFixture, setMatchdayFixture] = useState<FixtureRow | null>(null);
   const [openClubId, setOpenClubId] = useState<EntityId | null>(null);
+  const [presentationOpen, setPresentationOpen] = useState(false);
 
   const refreshAutosave = async (): Promise<void> => {
     const result = await bridge.getAutosaveStatus();
@@ -304,6 +306,14 @@ export const ManagerCareer = ({
               Restore latest autosave
             </button>
           )}
+          {/* The only other entry point for these settings is the pre-career
+              "Career Saves" screen, which meant changing 3D/quality/motion
+              mid-career required Save -> Main Menu -> adjust -> Continue.
+              Reuses the exact same panel component, never a second settings
+              surface. */}
+          <button className="ghost small" onClick={() => setPresentationOpen(true)}>
+            Presentation
+          </button>
         </div>
       </aside>
 
@@ -502,6 +512,7 @@ export const ManagerCareer = ({
           }}
         />
       )}
+      {presentationOpen && <PresentationSettingsPanel onClose={() => setPresentationOpen(false)} />}
     </main>
   );
 };
