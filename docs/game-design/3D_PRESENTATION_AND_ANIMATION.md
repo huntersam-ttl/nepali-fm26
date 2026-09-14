@@ -172,9 +172,167 @@ closing a scene releases its GPU context (25 open/close cycles produced 25
 distinct canvases, every context live, every one torn down — without working
 disposal a driver refuses new contexts well before 25).
 
+## Packaged Tauri native runtime — manual acceptance gate
+
+Everything this layer's automated suite can prove, it proves: the full
+architecture, Club Environment, state-driven visuals, determinism, a real
+visible first frame, live resize, DPR handling, LOW/MEDIUM/HIGH quality,
+3D OFF, reduced motion, WebGL-unavailable fallback, render-error fallback,
+lazy-chunk loading, route churn, disposal, entity clickability, keyboard
+access, automated accessibility (axe), and responsive layout — all verified
+in a real, visible Chromium browser window against the same compiled
+frontend bundle the packaged app embeds, plus an unsigned Tauri build that
+genuinely compiles, bundles, launches, and shuts down cleanly.
+
+What automation in this environment cannot do is drive the *packaged* app's
+native WKWebView window once it's running: creating a career, clicking
+through to Club Profile, resizing the actual native window, and changing
+settings inside that specific window all require macOS Accessibility (TCC)
+permission or keystroke-injection rights that this execution context does
+not hold and cannot grant itself. This was tested directly, not assumed —
+`osascript`'s own error messages name the restriction:
+
+```
+$ osascript -e 'tell application "System Events" to tell process "nepal-football-sim" to get position of window 1'
+osascript is not allowed assistive access. (-1719)
+
+$ osascript -e 'tell application "System Events" to keystroke "test"'
+osascript is not allowed to send keystrokes. (1002)
+```
+
+`cliclick` is not installed, the app registers no deep-link URL scheme to
+jump past the click, `safaridriver` only automates Safari itself (not an
+arbitrary third-party WKWebView host), and the release build is not
+`isInspectable` (no `devtools` Cargo feature compiled in — enabling it would
+still need the same blocked click/menu path to actually reach Safari's Web
+Inspector). This is a property of the execution sandbox, not of the app: a
+human sitting at the actual machine has none of these restrictions.
+
+**This is why the checklist below exists** — it is the same acceptance
+automation would perform, written for a person to run once per release
+candidate. It is short by design (10–15 minutes) and requires no special
+tooling beyond the unsigned build itself.
+
+### 3D Packaged Tauri Manual Acceptance
+
+Run this against a freshly built unsigned package (`pnpm run
+package:unsigned` from `apps/desktop`) before signing off a release
+candidate that touches presentation, scene, or settings code.
+
+**A. Launch**
+1. `open ".../src-tauri/target/release/bundle/macos/Nepal Football Simulation.app"`.
+2. Confirm the window opens with no crash dialog.
+
+**B. Start or continue a career**
+3. New Career (or Continue an existing one).
+
+**C. Reach Club Profile**
+4. From the Competition table (or any club reference), open your own club's
+   profile.
+
+**D. First frame**
+5. Confirm: a visible 3D stadium/campus scene appears immediately — no blank
+   canvas, no missing chunk, no visual corruption (stretched geometry,
+   missing textures/colour, console-visible errors if DevTools happen to be
+   reachable on your build).
+
+**E. Resize**
+6. Narrow the window significantly, then widen it past its original size,
+   then make it noticeably shorter/taller. Maximize (green-button zoom),
+   then restore.
+7. At each step confirm: the scene fills its panel with no stretch and no
+   blank/black frame, before and after maximize/restore.
+
+**F. Presentation settings** (now reachable from the sidebar's
+"Presentation" button without leaving the career — see below)
+8. Set quality to **HIGH**; revisit Club Profile if it does not update the
+   already-open panel. Confirm the scene still renders, no crash.
+9. Set quality to **LOW**. Confirm the scene still renders (a LOW-quality
+   scene should look visibly simpler — no shadows, sparser scenery — if you
+   compare against HIGH).
+10. Set motion to **REDUCED**. Confirm the camera stops drifting; small
+    on-site motion (e.g. a construction crane, if one is present) may
+    continue.
+11. Turn **3D OFF**. Confirm the 2D fallback view appears with the same club
+    facts, no blank panel.
+12. Turn 3D back **ON**. Confirm the scene returns.
+
+**G. Settings persistence**
+13. Quit the app (Cmd+Q or the app menu — not Force Quit) and relaunch.
+14. Confirm the quality/motion/3D-on-off settings from step 8–12 are still
+    in effect (footer text and/or the Presentation panel's own selection).
+
+**H. WebGL-unavailable fallback**
+15. No supported in-app flag exists to force this in a signed/unsigned
+    release build. Mark this step **browser/unit-verified, not manually
+    injectable** — do not attempt to disable your GPU driver or similar to
+    force it; that is not a representative release check.
+
+**I. Route churn**
+16. Club Profile → Squad → Competition (or Dashboard) → Club Profile.
+    Repeat 5 times, ideally opening a different club's profile at least
+    once along the way.
+
+**J. Verify after churn**
+17. No crash. No blank scene on any return to Club Profile. No obviously
+    runaway memory growth (Activity Monitor's Real Memory column, sampled
+    before/after, staying in the same order of magnitude is enough — some
+    growth from WebKit's own caching is normal). No console/user-facing
+    error banner.
+
+**K. Record**
+18. macOS version (`sw_vers`), machine/GPU (Apple menu → About This Mac),
+    the exact `.app` artifact path and its build date, PASS/FAIL per
+    section, and a screenshot of the first-frame Club Profile view at
+    minimum. Attach failure screenshots for anything marked FAIL.
+
+#### Result template
+
+```
+PACKAGED_3D_FIRST_FRAME:
+PACKAGED_RESIZE:
+PACKAGED_SETTINGS:
+PACKAGED_SETTINGS_PERSISTENCE:
+PACKAGED_REDUCED_MOTION:
+PACKAGED_3D_OFF:
+PACKAGED_ROUTE_CHURN:
+PACKAGED_FALLBACK: BROWSER_UNIT_VERIFIED_NOT_MANUALLY_INJECTABLE
+PACKAGED_CRASH_FREE:
+
+OVERALL: PASS / FAIL
+
+BLOCKERS:
+NOTES:
+
+macOS version:
+Machine/GPU:
+Artifact path/build date:
+```
+
+### Release gate policy
+
+The 3D presentation foundation is **engineering-complete**: every gate an
+automated agent or CI runner can verify has been verified, on both a real
+browser and a real (if execution-sandboxed) packaged build. It is **not**
+release-accepted until a human has run the checklist above against an
+unsigned release-candidate build and recorded a `PASS`. Track these as two
+separate, explicit statuses rather than one combined "done":
+
+- `3D_PRESENTATION_ENGINEERING_COMPLETE` — true today.
+- `3D_PACKAGED_NATIVE_ACCEPTANCE_PENDING` — stays true until a completed,
+  `PASS`-recorded run of the checklist above exists for a given release
+  candidate. Re-run it whenever presentation/scene/settings code changes
+  meaningfully, not just once ever.
+
+Do not declare a combined `3D_PRESENTATION_FOUNDATION_COMPLETE` status
+anywhere (docs, release notes, roadmap tracking) until that human run has
+actually happened.
+
 ## Status
 
-Foundation and the first vertical slice (Club Environment on Club Profile) are
-implemented, along with the UI motion foundation above. Everything in the
-matrix is still to do, and each should be built on this foundation rather than
-beside it.
+Foundation and the first vertical slice (Club Environment on Club Profile)
+are implemented, along with the UI motion foundation above, quality/motion/
+3D-off settings (now reachable both before and during an active career),
+and the packaged-build manual acceptance gate documented above. Everything
+in the matrix is still to do, and each should be built on this foundation
+rather than beside it.
