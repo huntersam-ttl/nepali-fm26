@@ -813,6 +813,14 @@ tbody tr[tabindex]:focus-visible {
   color: var(--text);
 }
 
+/* button.link's own --accent colour (needed for legibility on the table's
+   plain background) drops under WCAG AA against this row's accent-tinted
+   highlight background (4.2:1, measured via axe) — the row's own bright
+   --text colour, already used for its plain cells, stays safe here too. */
+.row-highlight button.link {
+  color: var(--text);
+}
+
 .badge {
   display: inline-block;
   padding: 1px 7px;
@@ -2530,6 +2538,14 @@ button.club-campus-block:focus-visible,
 }
 .club-campus-block strong {
   font-size: 13px;
+}
+/* The block's own tier-tone tint (warn/amber worst-case) sits under the
+   text, not the page's plain dark surface --muted was tuned against — at
+   that tint the muted token's contrast drops under WCAG AA (4.29:1,
+   measured via axe). The block is always dark enough that the brighter
+   --text token stays comfortably safe against every tone. */
+.club-campus-block .subtle {
+  color: var(--text);
 }
 
 .stadium-visual {
