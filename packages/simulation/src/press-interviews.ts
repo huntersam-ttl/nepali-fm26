@@ -1044,7 +1044,22 @@ export const startPressConference = (
       .filter((item) => item.context === input.context && item.status === "COMPLETED")
       .sort((a, b) => (a.interviewDate < b.interviewDate ? 1 : a.interviewDate > b.interviewDate ? -1 : 0))[0];
     if (recentCompleted && addDays(recentCompleted.interviewDate, PRESS_COOLDOWN_DAYS) > input.date) {
-      return recentCompleted;
+      // The cooldown exists to stop re-asking about a fact that hasn't
+      // materially changed, never to block a genuine follow-up once it has
+      // (e.g. a transfer moving from SUBMITTED to COMPLETED days later). A
+      // caller that tracks already-asked topics (topic:subjectId) can prove
+      // a real new one exists; only then does it bypass the cooldown. A
+      // caller that doesn't pass excludeTopicSubjectKeys keeps the exact
+      // prior all-or-nothing cooldown behaviour (see press-interviews.test.ts's
+      // cooldown-suppression coverage).
+      const hasNewTopic = input.excludeTopicSubjectKeys
+        ? generatePressQuestions(db, {
+            context: input.context,
+            teamId: input.teamId,
+            excludeTopicSubjectKeys: input.excludeTopicSubjectKeys,
+          }).length > 0
+        : false;
+      if (!hasNewTopic) return recentCompleted;
     }
   }
 
@@ -1171,22 +1186,29 @@ export const answerPressQuestion = (
 /** A press conference publishes a real historical event only when a material
  * (non-neutral) stance was actually taken — never for every routine answer. */
 const publishMaterialPressEvent = (db: GameDatabase, interview: MediaInterview, answers: PressAnswer[]): void => {
-  // FEDERATION_GOVERNANCE and RECRUITMENT have no COMMIT/PROTECT_PLAYER/
-  // CHALLENGE_PLAYER/CRITICAL stances of their own (a President is never
-  // asked to commit to keeping a player, and neither is a Sporting
-  // Director) — ASSERTIVE is their equivalent "took a real position"
-  // stance, scoped to these contexts only so it never changes what counts
-  // as material for the existing Manager/Owner topics.
-  const material =
-    interview.context === "FEDERATION_GOVERNANCE" || interview.context === "RECRUITMENT"
-      ? answers.find((answer) => answer.stance === "ASSERTIVE")
-      : answers.find(
-          (answer) =>
-            answer.stance === "COMMIT" ||
-            answer.stance === "PROTECT_PLAYER" ||
-            answer.stance === "CHALLENGE_PLAYER" ||
-            answer.stance === "CRITICAL",
-        );
+  // FEDERATION_GOVERNANCE, RECRUITMENT and OWNER_BUSINESS have no COMMIT/
+  // PROTECT_PLAYER/CHALLENGE_PLAYER/CRITICAL stances of their own (a
+  // President, Sporting Director or Owner is never asked to commit to
+  // keeping a player) — ASSERTIVE is their equivalent "took a real
+  // position" stance, scoped to these contexts only so it never changes
+  // what counts as material for the existing Manager topics. Without this,
+  // an Owner press interview could never publish a Story at all: none of
+  // OWNER_BUSINESS's own topics (INFRASTRUCTURE_PROJECT, SPONSORSHIP_SIGNED)
+  // offer a Manager-style player-facing stance to key off.
+  const ASSERTIVE_MATERIAL_CONTEXTS = new Set<MediaInterview["context"]>([
+    "FEDERATION_GOVERNANCE",
+    "RECRUITMENT",
+    "OWNER_BUSINESS",
+  ]);
+  const material = ASSERTIVE_MATERIAL_CONTEXTS.has(interview.context)
+    ? answers.find((answer) => answer.stance === "ASSERTIVE")
+    : answers.find(
+        (answer) =>
+          answer.stance === "COMMIT" ||
+          answer.stance === "PROTECT_PLAYER" ||
+          answer.stance === "CHALLENGE_PLAYER" ||
+          answer.stance === "CRITICAL",
+      );
   if (!material || !interview.managerPersonId) return;
   const question = interview.structuredQuestions?.find((item) => item.id === material.questionId);
   const eventId = createStableEntityId("historical-event", `press-conference:${interview.id}:${material.questionId}`);
@@ -1200,13 +1222,15 @@ const publishMaterialPressEvent = (db: GameDatabase, interview: MediaInterview, 
         ? "PRESIDENT_PRESS_STATEMENT"
         : interview.context === "RECRUITMENT"
           ? "SPORTING_DIRECTOR_PRESS_STATEMENT"
-          : material.stance === "COMMIT"
-            ? "MANAGER_PRESS_COMMITMENT"
-            : material.stance === "PROTECT_PLAYER"
-              ? "MANAGER_PRESS_SUPPORT"
-              : material.stance === "CHALLENGE_PLAYER"
-                ? "MANAGER_PRESS_CHALLENGE"
-                : "MANAGER_PRESS_CRITICISM",
+          : interview.context === "OWNER_BUSINESS"
+            ? "OWNER_PRESS_STATEMENT"
+            : material.stance === "COMMIT"
+              ? "MANAGER_PRESS_COMMITMENT"
+              : material.stance === "PROTECT_PLAYER"
+                ? "MANAGER_PRESS_SUPPORT"
+                : material.stance === "CHALLENGE_PLAYER"
+                  ? "MANAGER_PRESS_CHALLENGE"
+                  : "MANAGER_PRESS_CRITICISM",
     involvedEntities: [
       { id: interview.managerPersonId, type: "person" },
       ...(question?.subjectEntities ?? []),
@@ -1264,6 +1288,13 @@ export const runAiPressConference = (
     fixtureId?: EntityId;
     date: string;
     seed: string;
+    /** Forwarded to startPressConference for the manually-requestable
+     * contexts (TRANSFER/PLAYER_ISSUE) so a genuinely new topic/fact can
+     * follow up on an already-completed one instead of being blanket-blocked
+     * by the cooldown — mirrors the Owner/President/SD "already asked"
+     * pattern for the AI production path. */
+    dedupeKey?: string;
+    excludeTopicSubjectKeys?: ReadonlySet<string>;
   },
 ): MediaInterview | undefined => {
   const interview = startPressConference(db, {
@@ -1272,6 +1303,8 @@ export const runAiPressConference = (
     teamId: input.teamId,
     fixtureId: input.fixtureId,
     date: input.date,
+    dedupeKey: input.dedupeKey,
+    excludeTopicSubjectKeys: input.excludeTopicSubjectKeys,
   });
   if (!interview.structuredQuestions || interview.structuredQuestions.length === 0) return undefined;
   let current = interview;

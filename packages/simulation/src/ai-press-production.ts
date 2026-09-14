@@ -6,6 +6,37 @@ import {
   shouldCreatePostMatchPress,
 } from "./press-interviews.js";
 import { responsibilityOwner } from "./staff-market.js";
+import { MediaPhaseBRepository } from "@nepal-football-sim/database";
+
+/** Every real TRANSFER/PLAYER_ISSUE topic this AI manager has already been
+ * asked about AND answered — the AI-production equivalent of
+ * alreadyAskedOwnerTopics/alreadyAskedPresidentTopics/alreadyAskedSdTopics/
+ * alreadyAskedManagerTopics, so a genuinely new topic (e.g. a transfer
+ * moving from SUBMITTED to COMPLETED) can follow up on an already-completed
+ * one instead of the flat TRANSFER/PLAYER_ISSUE cooldown blocking it. */
+const alreadyAskedAiTopics = (
+  db: GameDatabase,
+  managerPersonId: EntityId,
+  context: "TRANSFER" | "PLAYER_ISSUE",
+): Set<string> => {
+  const asked = new Set<string>();
+  for (const interview of new MediaPhaseBRepository(db).interviews(managerPersonId)) {
+    if (interview.context !== context || interview.status !== "COMPLETED") continue;
+    for (const question of interview.structuredQuestions ?? []) {
+      for (const subject of question.subjectEntities) {
+        asked.add(`${question.topic}:${subject.id}`);
+      }
+    }
+  }
+  return asked;
+};
+
+const dedupeKeyForQuestions = (
+  questions: ReturnType<typeof generatePressQuestions>,
+): string | undefined =>
+  Array.from(new Set(questions.flatMap((question) => question.subjectEntities.map((subject) => subject.id))))
+    .sort()
+    .join(",") || undefined;
 
 /**
  * The single canonical producer of AI press participation — called once per
@@ -53,7 +84,12 @@ export const manageAiPressForTeam = (
   // its own RECRUITMENT press pipeline instead. One source fact, one
   // primary press owner, same rule the human Manager-vs-SD split uses.
   if (responsibilityOwner(db, input.clubId, "TRANSFERS").ownerType === "MANAGER") {
-    const transferQuestions = generatePressQuestions(db, { context: "TRANSFER", teamId: input.teamId });
+    const transferAsked = alreadyAskedAiTopics(db, input.managerPersonId, "TRANSFER");
+    const transferQuestions = generatePressQuestions(db, {
+      context: "TRANSFER",
+      teamId: input.teamId,
+      excludeTopicSubjectKeys: transferAsked,
+    });
     if (transferQuestions.length > 0) {
       runAiPressConference(db, {
         context: "TRANSFER",
@@ -61,6 +97,8 @@ export const manageAiPressForTeam = (
         teamId: input.teamId,
         date: save.worldDate,
         seed,
+        dedupeKey: dedupeKeyForQuestions(transferQuestions),
+        excludeTopicSubjectKeys: transferAsked,
       });
     }
   }
@@ -69,7 +107,12 @@ export const manageAiPressForTeam = (
   // generatePressQuestions itself is the materiality check here (it returns
   // nothing for a team with no active concern), so no separate threshold is
   // needed beyond what playerIssueCandidates already requires.
-  const playerIssueQuestions = generatePressQuestions(db, { context: "PLAYER_ISSUE", teamId: input.teamId });
+  const playerIssueAsked = alreadyAskedAiTopics(db, input.managerPersonId, "PLAYER_ISSUE");
+  const playerIssueQuestions = generatePressQuestions(db, {
+    context: "PLAYER_ISSUE",
+    teamId: input.teamId,
+    excludeTopicSubjectKeys: playerIssueAsked,
+  });
   if (playerIssueQuestions.length > 0) {
     runAiPressConference(db, {
       context: "PLAYER_ISSUE",
@@ -77,6 +120,8 @@ export const manageAiPressForTeam = (
       teamId: input.teamId,
       date: save.worldDate,
       seed,
+      dedupeKey: dedupeKeyForQuestions(playerIssueQuestions),
+      excludeTopicSubjectKeys: playerIssueAsked,
     });
   }
 };

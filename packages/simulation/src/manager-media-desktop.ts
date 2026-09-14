@@ -24,7 +24,12 @@ import {
   resolvePressConference,
   type PressConferenceReadModel,
 } from "./press-social-lifestyle.js";
-import { answerPressQuestion, shouldCreatePreMatchPress, startPressConference } from "./press-interviews.js";
+import {
+  answerPressQuestion,
+  generatePressQuestions,
+  shouldCreatePreMatchPress,
+  startPressConference,
+} from "./press-interviews.js";
 import { buildEntityReference } from "./entity-reference.js";
 import { commitmentFromPressResponse } from "./commitments.js";
 import { supporterReadModel } from "./supporter-culture.js";
@@ -281,18 +286,66 @@ const buildStructuredPressConferenceView = (
   };
 };
 
+/** Every real TRANSFER/PLAYER_ISSUE topic this manager has already been
+ * asked about AND answered — mirrors alreadyAskedOwnerTopics/
+ * alreadyAskedPresidentTopics/alreadyAskedSdTopics exactly. PRE_MATCH/
+ * POST_MATCH need no equivalent: they're already naturally exact-once via
+ * their fixture-derived interview id. Scoping this to `context` (rather than
+ * every Manager interview) keeps a completed PRE_MATCH topic from ever
+ * suppressing an unrelated TRANSFER one. */
+const alreadyAskedManagerTopics = (
+  db: GameDatabase,
+  managerPersonId: EntityId,
+  context: "TRANSFER" | "PLAYER_ISSUE",
+): Set<string> => {
+  const asked = new Set<string>();
+  for (const interview of new MediaPhaseBRepository(db).interviews(managerPersonId)) {
+    if (interview.context !== context || interview.status !== "COMPLETED") continue;
+    for (const question of interview.structuredQuestions ?? []) {
+      for (const subject of question.subjectEntities) {
+        asked.add(`${question.topic}:${subject.id}`);
+      }
+    }
+  }
+  return asked;
+};
+
 export const requestManagerStructuredPressConference = (
   db: GameDatabase,
   save: SaveMetadata,
   context: ManagerContext,
   input: { context: "PRE_MATCH" | "POST_MATCH" | "TRANSFER" | "PLAYER_ISSUE"; fixtureId?: EntityId },
 ): StructuredPressConferenceView => {
+  const manualContext = input.context === "TRANSFER" || input.context === "PLAYER_ISSUE" ? input.context : undefined;
+  const asked = manualContext
+    ? alreadyAskedManagerTopics(db, context.character.personId, manualContext)
+    : undefined;
+  // teamId alone is not a unique dedup key for TRANSFER/PLAYER_ISSUE: two
+  // distinct real facts (two different completed transfers, two separate
+  // player concerns) can both become press-worthy close together, and
+  // without a per-fact key they would collide onto the same interview id —
+  // mirrors the Owner/President/SD dedupeKey construction exactly.
+  const dedupeKey = manualContext
+    ? Array.from(
+        new Set(
+          generatePressQuestions(db, {
+            context: manualContext,
+            teamId: context.team.id,
+            excludeTopicSubjectKeys: asked,
+          }).flatMap((question) => question.subjectEntities.map((subject) => subject.id)),
+        ),
+      )
+        .sort()
+        .join(",") || undefined
+    : undefined;
   const interview = startPressConference(db, {
     context: input.context,
     managerPersonId: context.character.personId,
     teamId: context.team.id,
     date: save.worldDate,
     fixtureId: input.fixtureId,
+    dedupeKey,
+    excludeTopicSubjectKeys: asked,
   });
   return buildStructuredPressConferenceView(db, interview);
 };
