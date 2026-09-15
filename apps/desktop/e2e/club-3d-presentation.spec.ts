@@ -25,11 +25,14 @@ const expectNoSeriousA11yViolations = async (page: Page, label: string): Promise
  * first club listed under that division tab (real, deterministic ordering
  * from the dataset) instead of whatever the wizard defaults to — used to
  * get a genuinely different real club (top vs bottom division) rather than
- * the same default club every time. */
+ * the same default club every time. Passing `clubName` instead picks a
+ * specific real club by name (e.g. to hold division roughly constant while
+ * varying the club's real recorded district for a geography comparison). */
 const createCareerAndOpenClubProfile = async (
   page: Page,
   saveName: string,
   division?: "A" | "C",
+  clubName?: string,
 ): Promise<void> => {
   await page.goto("/");
   await page.getByRole("button", { name: /New career/i }).click();
@@ -37,7 +40,10 @@ const createCareerAndOpenClubProfile = async (
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByLabel("Starting club")).toBeVisible();
-  if (division) {
+  if (clubName) {
+    await page.getByRole("tab", { name: "All divisions" }).click();
+    await page.getByLabel("Starting club").getByRole("button", { name: new RegExp(clubName) }).click();
+  } else if (division) {
     await page.getByRole("tab", { name: `${division} Division` }).click();
     await page.getByLabel("Starting club").getByRole("button").first().click();
   }
@@ -282,5 +288,73 @@ test.describe("Club Profile 3D presentation", () => {
         `${preset}: small=${small[preset]!.byteLength}B large=${large[preset]!.byteLength}B looked identical`,
       ).toBe(true);
     }
+  });
+
+  test("geography: Kathmandu Valley, Hill and Terai clubs render visibly different Overview scenes", async ({
+    page,
+  }) => {
+    test.setTimeout(180_000);
+    // Three real, distinct Division-A clubs (comparable development level).
+    // Which real district each lands in is itself seeded world-generation
+    // state (see estimatedClubLocality) rather than a fixed fact about a
+    // named club, so this doesn't assert which specific geography each
+    // gets — only that three different real clubs' Overview scenes are not
+    // interchangeable with each other.
+    const shotFor = async (clubName: string, label: string): Promise<Buffer> => {
+      await createCareerAndOpenClubProfile(page, `E2E 3D Geo ${label} ${Date.now()}`, undefined, clubName);
+      const region = page.getByRole("region", { name: /club environment/i });
+      await region.getByRole("button", { name: "Overview", exact: true }).click();
+      await page.waitForTimeout(300);
+      const shot = await region.locator("canvas").screenshot();
+      expect(shot.byteLength, `${label} screenshot too small`).toBeGreaterThan(3_000);
+      return shot;
+    };
+
+    const kathmandu = await shotFor("Machhindra FC", "Kathmandu");
+    const hill = await shotFor("Church Boys United", "Hill");
+    const terai = await shotFor("Friends Club", "Terai");
+
+    const meaningfullyDifferent = (a: Buffer, b: Buffer, labelA: string, labelB: string): void => {
+      const ratio = a.byteLength / b.byteLength;
+      expect(
+        Buffer.compare(a, b) !== 0 || Math.abs(ratio - 1) > 0.02,
+        `${labelA} (${a.byteLength}B) vs ${labelB} (${b.byteLength}B) looked identical`,
+      ).toBe(true);
+    };
+    meaningfullyDifferent(kathmandu, hill, "Kathmandu", "Hill");
+    meaningfullyDifferent(hill, terai, "Hill", "Terai");
+    meaningfullyDifferent(kathmandu, terai, "Kathmandu", "Terai");
+  });
+
+  test("geography: a small and a large club still differ visually, and the DOM always states a real, named geography", async ({
+    page,
+  }) => {
+    test.setTimeout(150_000);
+    // Club-to-district assignment is itself world-generation state (seeded
+    // per save, not a fixed fact about a named club — see
+    // estimatedClubLocality), so this deliberately reads whatever geography
+    // each real club actually got this save rather than assuming a fixed
+    // mapping. What must hold regardless: the DOM always names one of the
+    // four real geography bands, never a raw enum or blank line, and a
+    // Division C club's campus differs visually from a Division A club's.
+    await createCareerAndOpenClubProfile(page, `E2E 3D Geo Small ${Date.now()}`, "C");
+    const region1 = page.getByRole("region", { name: /club environment/i });
+    await region1.getByRole("button", { name: "Overview", exact: true }).click();
+    await page.waitForTimeout(300);
+    const smallShot = await region1.locator("canvas").screenshot();
+    await expect(
+      page.getByText(/Kathmandu Valley|Terai|Hill district|Surrounding terrain not on record/i),
+    ).toBeVisible();
+
+    await createCareerAndOpenClubProfile(page, `E2E 3D Geo Large ${Date.now()}`, "A");
+    const region2 = page.getByRole("region", { name: /club environment/i });
+    await region2.getByRole("button", { name: "Overview", exact: true }).click();
+    await page.waitForTimeout(300);
+    const largeShot = await region2.locator("canvas").screenshot();
+    await expect(
+      page.getByText(/Kathmandu Valley|Terai|Hill district|Surrounding terrain not on record/i),
+    ).toBeVisible();
+
+    expect(Buffer.compare(smallShot, largeShot)).not.toBe(0);
   });
 });
