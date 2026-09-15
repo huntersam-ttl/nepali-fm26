@@ -254,4 +254,33 @@ test.describe("Club Profile 3D presentation", () => {
     expect(sizeRatio, `large=${largeShot.byteLength}B small=${smallShot.byteLength}B`).not.toBeCloseTo(1, 1);
     expect(Buffer.compare(smallShot, largeShot)).not.toBe(0);
   });
+
+  test("campus progression: Overview, Training, Academy and Admin all render substantially differently between a bottom- and top-division club", async ({
+    page,
+  }) => {
+    test.setTimeout(180_000);
+    const shotsFor = async (division: "A" | "C"): Promise<Record<string, Buffer>> => {
+      await createCareerAndOpenClubProfile(page, `E2E 3D Campus ${division} ${Date.now()}`, division);
+      const region = page.getByRole("region", { name: /club environment/i });
+      const shots: Record<string, Buffer> = {};
+      for (const preset of ["Overview", "Training ground", "Academy", "Club offices"]) {
+        await region.getByRole("button", { name: preset, exact: true }).click();
+        await page.waitForTimeout(300);
+        shots[preset] = await region.locator("canvas").screenshot();
+        expect(shots[preset]!.byteLength, `${preset} screenshot too small`).toBeGreaterThan(3_000);
+      }
+      return shots;
+    };
+
+    const small = await shotsFor("C");
+    const large = await shotsFor("A");
+
+    for (const preset of ["Overview", "Training ground", "Academy", "Club offices"]) {
+      const ratio = large[preset]!.byteLength / small[preset]!.byteLength;
+      expect(
+        Buffer.compare(small[preset]!, large[preset]!) !== 0 || Math.abs(ratio - 1) > 0.03,
+        `${preset}: small=${small[preset]!.byteLength}B large=${large[preset]!.byteLength}B looked identical`,
+      ).toBe(true);
+    }
+  });
 });
