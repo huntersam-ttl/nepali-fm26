@@ -1,10 +1,14 @@
 import {
   CareerControlRepository,
   ExecutiveRoleRepository,
-  type BaseCareerRole,
   type GameDatabase,
 } from "@nepal-football-sim/database";
-import type { CareerRole, EntityId } from "@nepal-football-sim/shared-types";
+import {
+  isBaseCareerRole,
+  type BaseCareerRole,
+  type CareerRole,
+  type EntityId,
+} from "@nepal-football-sim/shared-types";
 
 export type HeldCareerRole = { role: CareerRole; targetId?: EntityId };
 const roleOrder: CareerRole[] = [
@@ -16,9 +20,6 @@ const roleOrder: CareerRole[] = [
   "CEO",
   "GENERAL_SECRETARY",
 ];
-
-const isBaseCareerRole = (role: CareerRole | undefined): role is BaseCareerRole =>
-  role === "MANAGER" || role === "CHAIRMAN_OWNER";
 
 const preferredBaseRole = (
   held: HeldCareerRole[],
