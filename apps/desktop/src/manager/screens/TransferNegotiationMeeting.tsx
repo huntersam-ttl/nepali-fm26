@@ -49,6 +49,23 @@ export const transferNegotiationImportance = (
 };
 
 /**
+ * Whether a completed incoming transfer qualifies for the restrained
+ * SIGNING presentation instead of the ongoing NEGOTIATION room. Reads only
+ * real, already-persisted state: the offer must actually be COMPLETED (the
+ * deal is done, not still being discussed), it must be an incoming
+ * permanent transfer (a loan's stakes don't read as a "signing", and an
+ * outgoing sale is the other club's signing, not this one), and the fee
+ * must have been genuinely IMPORTANT/MAJOR for this club — never every
+ * completed transfer, however small.
+ */
+export const isQualifyingSigningOffer = (
+  offerStatus: string,
+  isIncoming: boolean,
+  isLoan: boolean,
+  importance: "ROUTINE" | "IMPORTANT" | "MAJOR",
+): boolean => offerStatus === "COMPLETED" && isIncoming && !isLoan && importance !== "ROUTINE";
+
+/**
  * The dedicated negotiation meeting — a presentation/action surface over the
  * canonical TransferOffer/NegotiationRound state (via the same manager
  * bridge commands the Transfer Centre table uses), reusing the shared
@@ -117,6 +134,8 @@ export const TransferNegotiationMeeting = ({
     offer.status === "COMPLETED" || offer.status === "REJECTED" || offer.status === "WITHDRAWN";
   const stage = negotiationStage(offer);
   const otherClubLabel = offer.otherClub?.label ?? offer.otherClubName ?? "Unknown club";
+  const importance = transferNegotiationImportance(offer.transferFee, centre.budget.transferRemaining, isLoan);
+  const isQualifyingSigning = isQualifyingSigningOffer(offer.status, isOurBid, isLoan, importance);
 
   const run = async (
     id: string,
@@ -215,18 +234,18 @@ export const TransferNegotiationMeeting = ({
       </header>
       {error && <ErrorBanner error={error} />}
       <MeetingShell
-        title={`${offer.playerName ?? "Unknown player"} — ${isLoan ? "Loan" : "Transfer"} negotiation`}
-        meetingType={isLoan ? "LOAN NEGOTIATION" : "TRANSFER NEGOTIATION"}
+        title={`${offer.playerName ?? "Unknown player"} — ${isQualifyingSigning ? "Signing" : `${isLoan ? "Loan" : "Transfer"} negotiation`}`}
+        meetingType={isQualifyingSigning ? "SIGNING" : isLoan ? "LOAN NEGOTIATION" : "TRANSFER NEGOTIATION"}
         deadline={offer.respondBy}
         context={context}
       >
         <MeetingEnvironmentScene
-          context="NEGOTIATION"
+          context={isQualifyingSigning ? "SIGNING" : "NEGOTIATION"}
           // No club facility state is available to this manager-scoped
           // negotiation surface — MODEST is a conservative, honest default
           // rather than a guessed tier.
           environmentTier="MODEST"
-          importance={transferNegotiationImportance(offer.transferFee, centre.budget.transferRemaining, isLoan)}
+          importance={importance}
           organisationId={String(offer.id)}
           organisationName={otherClubLabel}
           fallback={null}

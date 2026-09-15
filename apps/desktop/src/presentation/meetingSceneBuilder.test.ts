@@ -100,6 +100,17 @@ describe("meeting scene geometry follows real state", () => {
     press.dispose();
   });
 
+  it("gives Signing a single desk-and-document layout distinct from Negotiation's two-sided table", () => {
+    const negotiation = sceneFor("OFF", { context: "NEGOTIATION" });
+    const signing = sceneFor("OFF", { context: "SIGNING" });
+    // Signing has one chair (not a full side of them) and a document plane
+    // on top of the desk — a genuinely different real layout, not the same
+    // table re-skinned.
+    expect(signing.scene.children.length).not.toBe(negotiation.scene.children.length);
+    negotiation.dispose();
+    signing.dispose();
+  });
+
   it("releases its geometry on dispose rather than leaking it", () => {
     const handle = sceneFor("OFF");
     let disposed = 0;

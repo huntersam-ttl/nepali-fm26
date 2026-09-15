@@ -14,7 +14,7 @@ import type { FacilityVisualTier } from "./clubScenePresentation.js";
  * unit-testable without a GPU.
  */
 
-export type MeetingContext = "BOARDROOM" | "NEGOTIATION" | "PRESS";
+export type MeetingContext = "BOARDROOM" | "NEGOTIATION" | "PRESS" | "SIGNING";
 
 export type MeetingImportance = "ROUTINE" | "IMPORTANT" | "MAJOR";
 
@@ -45,6 +45,7 @@ const CONTEXT_LABEL: Record<MeetingContext, string> = {
   BOARDROOM: "Boardroom",
   NEGOTIATION: "Negotiation room",
   PRESS: "Press room",
+  SIGNING: "Signing room",
 };
 
 const TIER_LABEL: Record<FacilityVisualTier, string> = {

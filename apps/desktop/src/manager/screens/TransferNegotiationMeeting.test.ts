@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { transferNegotiationImportance } from "./TransferNegotiationMeeting.js";
+import { isQualifyingSigningOffer, transferNegotiationImportance } from "./TransferNegotiationMeeting.js";
 
 describe("transferNegotiationImportance — real, bounded, never a fabricated record claim", () => {
   it("is always ROUTINE for a loan, regardless of fee", () => {
@@ -26,5 +26,35 @@ describe("transferNegotiationImportance — real, bounded, never a fabricated re
 
   it("is ROUTINE for a modest fee relative to the budget", () => {
     expect(transferNegotiationImportance(100_000, 1_000_000, false)).toBe("ROUTINE");
+  });
+});
+
+describe("isQualifyingSigningOffer — only a genuinely completed, important incoming permanent transfer", () => {
+  it("qualifies a completed, incoming, important permanent transfer", () => {
+    expect(isQualifyingSigningOffer("COMPLETED", true, false, "IMPORTANT")).toBe(true);
+    expect(isQualifyingSigningOffer("COMPLETED", true, false, "MAJOR")).toBe(true);
+  });
+
+  it("never qualifies a still-in-progress offer, however important", () => {
+    expect(isQualifyingSigningOffer("SUBMITTED", true, false, "MAJOR")).toBe(false);
+    expect(isQualifyingSigningOffer("ACCEPTED", true, false, "MAJOR")).toBe(false);
+    expect(isQualifyingSigningOffer("COUNTERED", true, false, "MAJOR")).toBe(false);
+  });
+
+  it("never qualifies a routine completed transfer", () => {
+    expect(isQualifyingSigningOffer("COMPLETED", true, false, "ROUTINE")).toBe(false);
+  });
+
+  it("never qualifies an outgoing sale — that is the buying club's signing, not this one", () => {
+    expect(isQualifyingSigningOffer("COMPLETED", false, false, "MAJOR")).toBe(false);
+  });
+
+  it("never qualifies a loan, even a completed important-reading one", () => {
+    expect(isQualifyingSigningOffer("COMPLETED", true, true, "MAJOR")).toBe(false);
+  });
+
+  it("never qualifies a rejected or withdrawn offer", () => {
+    expect(isQualifyingSigningOffer("REJECTED", true, false, "MAJOR")).toBe(false);
+    expect(isQualifyingSigningOffer("WITHDRAWN", true, false, "MAJOR")).toBe(false);
   });
 });

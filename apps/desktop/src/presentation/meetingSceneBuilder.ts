@@ -159,6 +159,48 @@ export const buildMeetingScene = (
         scene.add(chair);
       }
     }
+  } else if (profile.context === "SIGNING") {
+    // A single signing desk with a document on it, facing a media-style
+    // backdrop panel — restrained and deliberately not a shared negotiation
+    // table: this is a completed, read-only moment, not an ongoing
+    // back-and-forth. No chairs on both sides, no rows of seating.
+    const deskWidth = Math.min(form.width * 0.3, 1.8);
+    const deskDepth = Math.min(form.depth * 0.22, 0.9);
+    const desk = new THREE.Mesh(new THREE.BoxGeometry(deskWidth, 0.08, deskDepth), tableMaterial);
+    desk.position.set(0, 0.75, 0.4);
+    desk.castShadow = quality.shadows;
+    desk.receiveShadow = quality.shadows;
+    scene.add(desk);
+    const legMaterial = new THREE.MeshStandardMaterial({ color: 0x23262e, roughness: 0.5, metalness: 0.4 });
+    for (const xSign of [1, -1]) {
+      for (const zSign of [1, -1]) {
+        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.72, 6), legMaterial);
+        leg.position.set(xSign * (deskWidth / 2 - 0.15), 0.36, 0.4 + zSign * (deskDepth / 2 - 0.15));
+        scene.add(leg);
+      }
+    }
+    // The document itself — a thin, pale plane resting on the desk.
+    const document = new THREE.Mesh(
+      new THREE.PlaneGeometry(deskWidth * 0.35, deskDepth * 0.6),
+      new THREE.MeshStandardMaterial({ color: 0xf2ede0, roughness: 0.9 }),
+    );
+    document.rotation.x = -Math.PI / 2;
+    document.position.set(0, 0.795, 0.4);
+    scene.add(document);
+    // A single chair on the near side only — one signatory in frame, no
+    // opposing negotiation seat.
+    const chair = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.5, 0.45), chairMaterial);
+    chair.position.set(0, 0.25, 0.4 + deskDepth / 2 + 0.5);
+    scene.add(chair);
+    // A media-style backdrop panel behind the desk, distinct from the
+    // boardroom/negotiation accent band — a step-and-repeat-style surface
+    // rather than a plain identity strip.
+    const backdrop = new THREE.Mesh(
+      new THREE.PlaneGeometry(form.width * 0.6, form.height * 0.55),
+      new THREE.MeshStandardMaterial({ color: accent.getHex(), roughness: 0.6, metalness: 0.05 }),
+    );
+    backdrop.position.set(0, form.height * 0.4, -form.depth / 2 + 0.03);
+    scene.add(backdrop);
   } else {
     // A shared table — boardroom/negotiation share this layout, differing
     // only in tier-driven scale.
