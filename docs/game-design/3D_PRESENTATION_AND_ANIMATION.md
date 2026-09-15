@@ -129,12 +129,40 @@ Full motion only, static otherwise, gated off entirely at Low quality.
 well-known Nepali geography (which districts sit in the Kathmandu valley or
 the Terai plains), never a fabricated location. `HILL` is the default for any
 other recorded district, which is geographically correct for most of the
-country. The result only ever changes the campus's backdrop silhouette (low
-hill cones, or a scatter of generic urban blocks for the valley) — never the
-club's own buildings, and never claims a precise real site. `UNKNOWN` (no
-location on record) and `TERAI` both keep flat open ground with no added
-silhouette, which is itself the honest presentation of open plains terrain or
-a district this campus has no real geography evidence for.
+country.
+
+Geography composes the actual site now, not only a distant backdrop:
+
+| | Terrain | Density/boundary | Access road | Vegetation | Fog depth |
+| --- | --- | --- | --- | --- | --- |
+| **Kathmandu Valley** | flat valley floor | walled compound boundary, dense near-surrounding low/mid-rise massing (22 blocks, pulled in close) | tight paved urban lane | sparser (0.6×), individual urban trees | closest (haze from 38) |
+| **Hill** | raised, terraced plinth with stepped retaining-wall rings | sparser surrounding buildings | curving two-segment hillside road, never a straight cut | denser clustered cover (1.3×, larger canopy) | mid-range (from 55) |
+| **Terai** | flat, with a broad open field-edge ring | no added massing — open reads as open | wide straight approach | more widely spread, smaller-canopy field planting (1.15×) | furthest, clearest (from 75) |
+| **Unknown** | flat, unchanged | none added | plain neutral lane | unchanged | original neutral depth (from 60) |
+
+All of this is quality-gated behind `quality.ambientProps` (so LOW quality
+keeps the world identity recognisable without paying for it) and is
+independent of club development scale — a small and a large club in the
+same district keep the same terrain/boundary/road treatment while their
+buildings still grow separately (verified by a dedicated determinism test).
+Fixed camera-preset positions and building plots are untouched by any of
+this, so existing stadium/facility geometry and camera framing are
+unaffected. `UNKNOWN` (no location on record) keeps flat open ground with no
+added terrain — the honest presentation of a district this campus has no
+real geography evidence for, never a guess.
+
+The accessible text summary states the actual composition
+("Kathmandu Valley — compact urban site, walled compound, dense near
+surroundings"; "Terai — open lowland site, broad flat surroundings, wide
+field edge"; "Hill district — terraced campus, raised site, hillside
+surroundings"), not a generic label.
+
+One subtlety worth recording: which real district a given club lands in is
+itself *world-generation* state (`estimatedClubLocality`, seeded by club id
+but only used as a fallback when no real `location_id` is recorded) —
+not a fixed fact a test can hardcode by club name. E2E coverage reads
+whatever geography a club actually gets that save rather than asserting a
+specific club-to-district mapping.
 
 ### Camera presets
 
@@ -452,30 +480,37 @@ are implemented, along with the UI motion foundation above, quality/motion/
 3D-off settings (now reachable both before and during an active career),
 and the packaged-build manual acceptance gate documented above.
 
-Phase 1 of the living-world upgrade added geographic identity and five named
-camera presets. Phase 2 (this pass) added: stadium typology separate from
-tier (real stand-arrangement variety, not just scale), a small coherent
+Phase 1 of the living-world upgrade added geographic identity (classification
+only) and five named camera presets. Phase 2 added: stadium typology separate
+from tier (real stand-arrangement variety, not just scale), a small coherent
 material library, stepped seating/support columns/roof struts, floodlight
 provision bands, stadium construction visualization (previously the one
 campus block with none at all), club-accent corner flags, and a real-browser
 screenshot test proving a top-division club's stadium renders substantially
 differently from a bottom-division club's.
 
-Phase 3 (this pass) closed the training/academy/HQ/medical composition gap
-left open by Phase 2: each of the four facility buildings now composes
-differently from real facility-quality state (distinct pitch-count
-progressions, gym/indoor-hall annexes, an HQ entrance canopy and plaza, a
-medical recovery annex), with a per-kind material language and a campus-
-wide flag/fence-vs-forecourt site-development treatment, and a real-browser
-test proving Overview/Training/Academy/Admin all render substantially
-differently between a bottom- and top-division club.
+Phase 3 closed the training/academy/HQ/medical composition gap left open by
+Phase 2: each of the four facility buildings now composes differently from
+real facility-quality state (distinct pitch-count progressions, gym/indoor-
+hall annexes, an HQ entrance canopy and plaza, a medical recovery annex),
+with a per-kind material language and a campus-wide flag/fence-vs-forecourt
+site-development treatment, and a real-browser test proving Overview/
+Training/Academy/Admin all render substantially differently between a
+bottom- and top-division club.
+
+Phase 4 (this pass) deepened geography from a distant silhouette into real
+site composition — terrain (Hill's terraced plinth), boundary (Kathmandu's
+compound wall), access roads, vegetation density/type, and atmospheric fog
+depth, all described above — verified deterministic, independent of club
+scale, and by two real-browser tests (three real clubs' Overview scenes
+pairwise different; a small and large club's scenes differ while the DOM
+always states one of the four real geography bands).
 
 Not yet built, deliberately deferred rather than rushed: weather-state
-atmosphere (no such simulation state exists yet to read honestly), deeper
-Kathmandu/Terai compositional density beyond the existing backdrop
-silhouette and campus material choices, a federation-HQ scene for the
-President career (out of scope by design — see the Future-system
-integration matrix), and residential/education representation for an elite
-academy (no simulation state to ground it honestly). Everything else in the
-matrix is still to do, and each should be built on this foundation rather
-than beside it.
+atmosphere (no such simulation state exists yet to read honestly), time-of-
+day/floodlight-glow lighting profiles (no canonical time-of-day state
+exists either), a federation-HQ scene for the President career (out of
+scope by design — see the Future-system integration matrix), and
+residential/education representation for an elite academy (no simulation
+state to ground it honestly). Everything else in the matrix is still to
+do, and each should be built on this foundation rather than beside it.
