@@ -19,7 +19,13 @@ Federation President is not an independent permanent career. A successful electi
 
 ### Non-player operational roles
 
-Sporting Director, Director of Football, CEO, General Secretary, Technical Director and other staff/executive jobs remain part of the simulated football world. They are AI/NPC appointments and authority holders rather than selectable player career modes.
+Sporting Director, Director of Football, CEO, General Secretary, Technical Director and other staff/executive jobs remain part of the simulated football world. They are AI/NPC appointments and authority holders rather than selectable player career modes — `switchActiveCareerRole` rejects any of them with `ROLE_NOT_AUTHORIZED`, and `getCareerRoles()` never lists them for the human role picker, even when the player's own person happens to hold one of these jobs (for example through delegation).
+
+A human who genuinely holds an NPC executive appointment still reaches that job's authority — recruitment desk, budget/licensing/admin commands, press — through the appointment itself, never by switching career. The Chairman/Owner also has a dedicated read-only supervision surface (Staff → Executive Management) listing every executive role's current holder or vacancy and delegated authorities, without ever becoming that executive.
+
+### Old-save reconciliation
+
+A save written before this cleanup could have a stored active role that is now an NPC-only job, or predate the base-career column entirely. On load, the active role always resolves to a genuinely-held playable role: a stale executive value falls back to the stored base career (or a safe derived one), and a `FEDERATION_PRESIDENT` value that is no longer backed by a real, active tenure falls back the same way. The underlying appointment and ownership records are never touched by this reconciliation.
 
 ## Match presentation boundary
 

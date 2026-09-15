@@ -267,6 +267,13 @@ const dispatch = (
             ok: false,
             error: { code: "ROLE_NOT_AUTHORIZED", message: "The E2E role fixture is disabled." },
           };
+    case "seedE2EStaleExecutiveRole":
+      return process.env.NEPAL_E2E_ROLE_FIXTURE === "1"
+        ? service.seedE2EStaleExecutiveRole(body.activeRole as string, body.baseRole as string | undefined)
+        : {
+            ok: false,
+            error: { code: "ROLE_NOT_AUTHORIZED", message: "The E2E role fixture is disabled." },
+          };
     case "foundClub":
       return service.foundClub(body.name as string, body.locationName as string);
     case "implementFederationGovernanceProposal":

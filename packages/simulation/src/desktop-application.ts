@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import {
+  CareerControlRepository,
   CareerWorldRepository,
   ClubEconomyRepository,
   CommercialRightsRepository,
@@ -63,6 +64,7 @@ import {
   type AppResult,
   type AutosaveSlotView,
   type AutosaveStatusView,
+  type BaseCareerRole,
   type CareerCreationCommand,
   type CareerHeader,
   type CareerRole,
@@ -2127,6 +2129,49 @@ export class DesktopApplicationService {
         seed: `${save.randomSeed}:e2e-federation-project`,
       });
       new FederationGovernanceRepository(db).upsertProject({ ...federationProject, status: "CONSTRUCTION" });
+      // The same physical person also holds every NPC executive job at the
+      // club — the deliberate stress case for the role picker: none of
+      // these may ever appear as a selectable career, no matter how many
+      // NPC jobs this person happens to hold.
+      for (const role of EXECUTIVE_ROLES_TUPLE) {
+        const alreadyHeld = db
+          .prepare("SELECT 1 FROM club_executive_roles WHERE club_id=? AND role=? AND status='FILLED' LIMIT 1")
+          .get(clubId, role);
+        if (alreadyHeld) continue;
+        const appointmentId = createStableEntityId("e2e-role-exec-appointment", `${save.id}:${personId}:${role}`);
+        db.prepare(
+          `INSERT INTO staff_appointments (id, person_id, organisation_type, club_id, role, start_date, employment_status)
+           VALUES (?, ?, 'CLUB', ?, ?, ?, 'ACTIVE')`,
+        ).run(appointmentId, personId, clubId, role, save.worldDate);
+        db.prepare(
+          `INSERT INTO club_executive_roles (id, club_id, role, person_id, appointment_id, status, assigned_on, provenance_status)
+           VALUES (?, ?, ?, ?, ?, 'FILLED', ?, 'SIMULATION_ONLY')`,
+        ).run(
+          createStableEntityId("e2e-role-exec-role", `${save.id}:${personId}:${role}`),
+          clubId,
+          role,
+          personId,
+          appointmentId,
+          save.worldDate,
+        );
+      }
+      return { ready: true };
+    });
+  }
+
+  /** Test-only: writes a career_control_context row shaped like a save from
+   * before the executive-role cleanup (active_role stored as an NPC
+   * executive job, or a base_role predating the base-career model), so E2E
+   * can drive the real load path and prove the UI reconciles it safely.
+   * Gated behind NEPAL_E2E_ROLE_FIXTURE, same as seedE2ERoleFixture. */
+  seedE2EStaleExecutiveRole(activeRole: string, baseRole?: string): AppResult<{ ready: true }> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      new CareerControlRepository(db).upsert({
+        personId,
+        activeRole: activeRole as CareerRole,
+        baseRole: baseRole as BaseCareerRole | undefined,
+      });
       return { ready: true };
     });
   }

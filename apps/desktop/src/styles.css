@@ -2601,6 +2601,18 @@ button.club-campus-block:focus-visible,
   display: flex;
   flex-direction: column;
   gap: 4px;
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+  color: var(--text);
+}
+.development-scorecard-item .project-progress-labels {
+  /* --muted (#96a5be) is tuned for the dark theme's own surfaces; this
+     button previously fell back to the browser's default light chrome,
+     which failed WCAG contrast against it (axe: 2.16, needs 4.5). */
+  color: var(--text);
+  opacity: 0.75;
 }
 
 .finance-flow-columns {
