@@ -98,6 +98,7 @@ import { useNewlyArrived } from "../presentation/MotionPrimitives.js";
 import { humanizeEnum, humanizeToken } from "./storyHumanizer.js";
 import { MeetingEnvironmentScene } from "../presentation/MeetingEnvironmentScene.js";
 import { meetingTierForScore100 } from "../presentation/meetingScenePresentation.js";
+import { facilityTierForQuality } from "../presentation/clubScenePresentation.js";
 
 export type ChairmanScreen =
   | "dashboard"
@@ -1291,6 +1292,20 @@ const InvestorMeetingView = ({
             : []),
         ]}
       >
+        <MeetingEnvironmentScene
+          context="BOARDROOM"
+          environmentTier={facilityTierForQuality(overview.valuation.factors.facilityQuality)}
+          importance={
+            selectedBid && selectedBid.offer.percentage >= overview.majorityThreshold
+              ? "MAJOR"
+              : selectedBid
+                ? "IMPORTANT"
+                : "ROUTINE"
+          }
+          organisationId={String(overview.clubId)}
+          organisationName={overview.clubName}
+          fallback={null}
+        />
         <MeetingBrief heading="Ownership structure">
           <OwnershipDonut
             stakes={market.ownership
