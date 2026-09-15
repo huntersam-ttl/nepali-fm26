@@ -474,6 +474,16 @@ const ChairmanFinance = ({
   );
 };
 
+/**
+ * No MeetingEnvironmentScene is wired into this candidate list. Appointment
+ * resolves synchronously (pick a candidate → engine-resolved contract →
+ * ACTIVE) with no pending/offered/under-review status ever reaching the UI —
+ * see ManagerContractStatus and the "resolves an appointment instantly"
+ * regression in chairman-manager-appointment.test.ts. There is no
+ * appointment "moment" to present beyond the instant list action, so this is
+ * STAFF_APPOINTMENT_PRESENTATION = N/A_BY_ARCHITECTURE for this flow, the
+ * same verdict as contract renewal and for the same structural reason.
+ */
 const ChairmanManager = ({
   dashboard,
   bridge,
