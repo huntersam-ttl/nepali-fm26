@@ -158,7 +158,18 @@ export const buildClubScene = (
   // club's ground simply presents better lit.
   const skyTop = new THREE.Color().setHSL(0.6, 0.35, 0.1 + profile.prestige * 0.06);
   scene.background = skyTop;
-  scene.fog = new THREE.Fog(skyTop, 60, 150);
+  // Atmospheric depth by geography — a real compositional effect, never a
+  // weather claim: Kathmandu's valley reads enclosed (haze starts closer),
+  // Terai's open plain reads clear to a distant horizon, Hill sits between,
+  // and Unknown keeps the original neutral depth.
+  const FOG_RANGE: Record<typeof profile.geography, [number, number]> = {
+    KATHMANDU_VALLEY: [38, 105],
+    HILL: [55, 135],
+    TERAI: [75, 190],
+    UNKNOWN: [60, 150],
+  };
+  const [fogNear, fogFar] = FOG_RANGE[profile.geography];
+  scene.fog = new THREE.Fog(skyTop, fogNear, fogFar);
 
   const camera = new THREE.PerspectiveCamera(42, 16 / 9, 0.5, 400);
   camera.position.set(34, 22, 38);
@@ -601,18 +612,31 @@ export const buildClubScene = (
 
   // ---- ambient site props (quality-gated, never state-bearing) ---------
   if (quality.ambientProps) {
-    const treeCount = profile.site === "OPEN_LAND" ? 26 : profile.site === "URBAN" ? 8 : 16;
+    const baseTreeCount = profile.site === "OPEN_LAND" ? 26 : profile.site === "URBAN" ? 8 : 16;
+    // Geography adjusts count and canopy so the same site density still
+    // reads as sparse urban planting, clustered hillside cover, or broader
+    // open-field vegetation.
+    const treeCount =
+      profile.geography === "KATHMANDU_VALLEY"
+        ? Math.round(baseTreeCount * 0.6)
+        : profile.geography === "HILL"
+          ? Math.round(baseTreeCount * 1.3)
+          : profile.geography === "TERAI"
+            ? Math.round(baseTreeCount * 1.15)
+            : baseTreeCount;
+    const canopyScale = profile.geography === "HILL" ? 1.25 : profile.geography === "TERAI" ? 0.85 : 1;
+    const maxRadius = profile.geography === "TERAI" ? 60 : 34;
     const trunkMaterial = new THREE.MeshStandardMaterial({ color: 0x4a3b2a, roughness: 1 });
     const leafMaterial = new THREE.MeshStandardMaterial({ color: 0x2f5134, roughness: 1 });
     for (let index = 0; index < treeCount; index += 1) {
       const angle = random() * Math.PI * 2;
-      const radius = 30 + random() * 34;
+      const radius = 30 + random() * maxRadius;
       const x = Math.cos(angle) * radius;
       const z = Math.sin(angle) * radius;
       const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.22, 1.6, 5), trunkMaterial);
       trunk.position.set(x, 0.8, z);
       scene.add(trunk);
-      const canopy = new THREE.Mesh(new THREE.IcosahedronGeometry(1.1 + random() * 0.5, 0), leafMaterial);
+      const canopy = new THREE.Mesh(new THREE.IcosahedronGeometry((1.1 + random() * 0.5) * canopyScale, 0), leafMaterial);
       canopy.position.set(x, 2.1, z);
       canopy.castShadow = quality.shadows;
       scene.add(canopy);
@@ -622,10 +646,13 @@ export const buildClubScene = (
   // ---- geographic identity (quality-gated, never state-bearing) --------
   // A real classification of the club's recorded district (Kathmandu valley,
   // Terai plains, or hill terrain — see siteGeographyForLocation), not an
-  // invented location: gives Nepal's campuses a distinct silhouette instead
-  // of generic flat terrain, without claiming a precise real site.
+  // invented location. This composes the actual site, not only a distant
+  // silhouette: Kathmandu gets a tighter compound boundary and denser near
+  // surroundings, Hill gets a raised, terraced campus plinth, Terai gets a
+  // wide open field edge — never a claim about a precise real site.
   if (quality.ambientProps) {
     if (profile.geography === "HILL") {
+      // Distant ridgeline.
       const ridgeMaterial = new THREE.MeshStandardMaterial({ color: 0x33473a, roughness: 1 });
       const ridgeCount = 7;
       for (let index = 0; index < ridgeCount; index += 1) {
@@ -639,20 +666,93 @@ export const buildClubScene = (
         ridge.rotation.y = random() * Math.PI;
         scene.add(ridge);
       }
+      // A hill site sits on a raised, terraced plinth rather than flat
+      // ground — the whole campus reads as levelled into a slope, with
+      // retaining-wall steps down to the surrounding terrain.
+      const plinth = new THREE.Mesh(
+        new THREE.CylinderGeometry(46, 52, 0.9, 8),
+        materials.paintedConcrete,
+      );
+      plinth.position.y = -0.35;
+      scene.add(plinth);
+      for (let step = 0; step < 3; step += 1) {
+        const radius = 48 + step * 6;
+        const terrace = new THREE.Mesh(
+          new THREE.TorusGeometry(radius, 0.5, 4, 16),
+          materials.concrete,
+        );
+        terrace.rotation.x = Math.PI / 2;
+        terrace.position.y = -0.6 - step * 0.5;
+        scene.add(terrace);
+      }
     } else if (profile.geography === "KATHMANDU_VALLEY") {
+      // Distant layered hill/mountain backdrop around the valley.
+      const ridgeMaterial = new THREE.MeshStandardMaterial({ color: 0x3a4550, roughness: 1 });
+      for (let index = 0; index < 5; index += 1) {
+        const angle = (index / 5) * Math.PI * 2 + random() * 0.4;
+        const radius = 110 + random() * 25;
+        const ridge = new THREE.Mesh(new THREE.ConeGeometry(30 + random() * 12, 16 + random() * 10, 4), ridgeMaterial);
+        ridge.position.set(Math.cos(angle) * radius, 6, Math.sin(angle) * radius);
+        scene.add(ridge);
+      }
+      // Dense near-surrounding low/mid-rise massing — a real urban edge,
+      // not a scattered handful of boxes.
       const blockMaterial = new THREE.MeshStandardMaterial({ color: 0x3a3f4a, roughness: 0.85 });
-      for (let index = 0; index < 14; index += 1) {
+      for (let index = 0; index < 22; index += 1) {
         const angle = random() * Math.PI * 2;
-        const radius = 55 + random() * 30;
+        const radius = 48 + random() * 22;
         const height = 2.5 + random() * 5;
         const block = new THREE.Mesh(new THREE.BoxGeometry(3 + random() * 2, height, 3 + random() * 2), blockMaterial);
         block.position.set(Math.cos(angle) * radius, height / 2, Math.sin(angle) * radius);
         scene.add(block);
       }
+      // A compound boundary wall — the tighter, walled-in feeling a real
+      // valley-city football ground has, unlike an open rural site.
+      const wall = new THREE.Mesh(
+        new THREE.CylinderGeometry(44, 44, 1.3, 24, 1, true),
+        materials.paintedConcrete,
+      );
+      wall.position.y = 0.65;
+      scene.add(wall);
+    } else if (profile.geography === "TERAI") {
+      // A broad, low, open horizon line — the flat plains read as open
+      // rather than boxed in, with field-edge vegetation instead of ridges
+      // or urban massing.
+      const fieldMaterial = new THREE.MeshStandardMaterial({ color: 0x3c4a2e, roughness: 1 });
+      const field = new THREE.Mesh(new THREE.RingGeometry(70, 130, 24), fieldMaterial);
+      field.rotation.x = -Math.PI / 2;
+      field.position.y = -0.02;
+      scene.add(field);
     }
-    // TERAI and UNKNOWN keep the existing flat, open ground with no added
-    // silhouette — that is itself the honest presentation of open plains
-    // terrain or a district this campus has no real geography evidence for.
+    // UNKNOWN keeps the existing flat, open ground with no added terrain —
+    // the honest presentation of a district this campus has no real
+    // geography evidence for.
+
+    // A single deterministic access lane, styled by geography, so every
+    // club feels connected to a real place rather than floating on a plain:
+    // Kathmandu's is a tight paved urban approach, Hill's curves in from an
+    // angle (a hillside road, not a straight cut), Terai's is a wide
+    // straight approach, and Unknown gets a plain neutral lane.
+    const roadMaterial = profile.geography === "TERAI" || profile.geography === "KATHMANDU_VALLEY" ? materials.asphalt : materials.paintedConcrete;
+    const roadWidth = profile.geography === "KATHMANDU_VALLEY" ? 3.2 : profile.geography === "TERAI" ? 5.5 : 4;
+    if (profile.geography === "HILL") {
+      // Two angled segments read as a curving hillside approach.
+      const segmentA = new THREE.Mesh(new THREE.PlaneGeometry(roadWidth, 30), roadMaterial);
+      segmentA.rotation.x = -Math.PI / 2;
+      segmentA.rotation.z = 0.35;
+      segmentA.position.set(-30, 0.02, 48);
+      scene.add(segmentA);
+      const segmentB = new THREE.Mesh(new THREE.PlaneGeometry(roadWidth, 26), roadMaterial);
+      segmentB.rotation.x = -Math.PI / 2;
+      segmentB.rotation.z = -0.2;
+      segmentB.position.set(0, 0.02, 58);
+      scene.add(segmentB);
+    } else {
+      const road = new THREE.Mesh(new THREE.PlaneGeometry(roadWidth, 50), roadMaterial);
+      road.rotation.x = -Math.PI / 2;
+      road.position.set(0, 0.02, 55);
+      scene.add(road);
+    }
   }
 
   // Camera preset state. `easing` holds a target the update loop lerps

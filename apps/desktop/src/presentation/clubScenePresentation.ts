@@ -361,10 +361,10 @@ export const buildClubSceneProfile = (profile: ClubProfile): ClubSceneProfile =>
     : "No home ground on record";
 
   const GEOGRAPHY_SUMMARY: Record<SiteGeography, string> = {
-    KATHMANDU_VALLEY: "Kathmandu valley setting — a dense urban surrounding",
-    TERAI: "Terai plains setting — open, flat surrounding land",
-    HILL: "Hill-region setting — elevated, terraced surrounding terrain",
-    UNKNOWN: "Surrounding terrain not on record",
+    KATHMANDU_VALLEY: "Kathmandu Valley — compact urban site, walled compound, dense near surroundings",
+    TERAI: "Terai — open lowland site, broad flat surroundings, wide field edge",
+    HILL: "Hill district — terraced campus, raised site, hillside surroundings",
+    UNKNOWN: "Surrounding terrain not on record — neutral Nepal setting",
   };
 
   const summary = [

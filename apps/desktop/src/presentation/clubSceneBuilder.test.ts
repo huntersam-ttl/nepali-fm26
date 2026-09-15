@@ -381,3 +381,70 @@ describe("club scene geometry follows real state", () => {
     elite.dispose();
   });
 });
+
+describe("geography composes the actual site, not only a distant silhouette", () => {
+  const sceneObjectCount = (handle: { scene: { children: unknown[] } }): number => handle.scene.children.length;
+
+  it("gives Kathmandu, Hill and Terai each a different scene object count for the same club otherwise", () => {
+    const kathmandu = sceneFor("OFF", { locationLabel: "Kathmandu" });
+    const hill = sceneFor("OFF", { locationLabel: "Kaski" });
+    const terai = sceneFor("OFF", { locationLabel: "Chitwan" });
+    const unknown = sceneFor("OFF", { locationLabel: undefined });
+    const counts = [kathmandu, hill, terai, unknown].map(sceneObjectCount);
+    // Every geography must differ from Unknown, and Kathmandu/Hill/Terai
+    // must differ from each other too — not just three names on one shape.
+    expect(new Set(counts).size).toBe(4);
+    kathmandu.dispose();
+    hill.dispose();
+    terai.dispose();
+    unknown.dispose();
+  });
+
+  it("gives Kathmandu a tighter fog distance than Terai — real atmospheric depth, not a shared default", () => {
+    const kathmandu = sceneFor("OFF", { locationLabel: "Kathmandu" });
+    const terai = sceneFor("OFF", { locationLabel: "Chitwan" });
+    const kathmanduFog = (kathmandu.scene.fog as { far: number }).far;
+    const teraiFog = (terai.scene.fog as { far: number }).far;
+    expect(kathmanduFog).toBeLessThan(teraiFog);
+    kathmandu.dispose();
+    terai.dispose();
+  });
+
+  it("is deterministic: the same geography always builds the identical object count and camera", () => {
+    const a = sceneFor("OFF", { locationLabel: "Kathmandu" });
+    const b = sceneFor("OFF", { locationLabel: "Kathmandu" });
+    expect(sceneObjectCount(b)).toBe(sceneObjectCount(a));
+    expect(b.camera.position.equals(a.camera.position)).toBe(true);
+    a.dispose();
+    b.dispose();
+  });
+
+  it("keeps geography's site composition independent of club development scale", () => {
+    const smallHill = sceneFor("OFF", {
+      locationLabel: "Kaski",
+      stadium: { venueId: eid("v"), name: "Small", capacity: 900, confirmedHomeGround: true },
+      facilitySnapshot: { trainingFacilityQuality: 0, youthFacilityQuality: 0, medicalFacilityQuality: 0, analyticsFacilityQuality: 0, academyCapacity: 0 },
+    });
+    const largeHill = sceneFor("OFF", {
+      locationLabel: "Kaski",
+      stadium: { venueId: eid("v"), name: "Large", capacity: 30000, floodlights: true, coveredStands: true, confirmedHomeGround: true },
+      facilitySnapshot: { trainingFacilityQuality: 18, youthFacilityQuality: 18, medicalFacilityQuality: 18, analyticsFacilityQuality: 18, academyCapacity: 60 },
+    });
+    // Club development (buildings/stadium) still grows the campus — measured
+    // over the campus groups themselves, since ambient/geography props are
+    // added as individual top-level objects that would otherwise dominate a
+    // whole-scene count regardless of club scale.
+    const campusComplexity = (handle: typeof smallHill): number => {
+      let total = 0;
+      for (const pickable of handle.pickables) pickable.object.traverse(() => (total += 1));
+      return total;
+    };
+    expect(campusComplexity(largeHill)).toBeGreaterThan(campusComplexity(smallHill));
+    // ...while both keep the same Hill terrain treatment (the plinth is
+    // built at a fixed radius/position regardless of club scale).
+    const hillFog = (smallHill.scene.fog as { far: number }).far;
+    expect((largeHill.scene.fog as { far: number }).far).toBe(hillFog);
+    smallHill.dispose();
+    largeHill.dispose();
+  });
+});
