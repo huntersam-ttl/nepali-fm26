@@ -346,13 +346,50 @@ actually needs. Same eased-on-Full/instant-on-Reduced behavior.
 
 In every case the scene is purely additive beside the existing canonical
 controls (offer/counter/accept/reject/withdraw, topic/stance/commitment,
-question/response), which are unchanged. **Contract negotiation, the
-completed-signing presentation, and staff appointments are not wired to
-live UI** — `ContractsScreen.tsx`'s renewal flow is a single instant action
-with no negotiation "moment" comparable to a meeting, so no scene insertion
-point exists there without inventing one; signing and staff appointment
-integration was not attempted this pass. See Known P2 in the phase report
-for the honest remainder.
+question/response), which are unchanged.
+
+**Read-only by construction**: `MeetingEnvironmentScene`, `meetingSceneBuilder.ts`
+and `meetingScenePresentation.ts` never call `managerBridge`/any runtime
+command — they only ever read caller-supplied props. Mounting, unmounting or
+re-rendering a scene cannot create a duplicate offer, interview, event or
+Story; the "exactly once" guarantee comes from the same simulation-layer
+tests that already cover these flows (e.g. `press-dedupe-and-followup.test.ts`,
+`transfer-loan-negotiation.test.ts`), not from anything specific to the
+presentation layer.
+
+**N/A_BY_ARCHITECTURE — not unwired gaps, but genuine absence of a decision
+moment**:
+
+- **Contract negotiation**: `ContractsScreen.tsx`'s renewal (and
+  `PlayerProfileScreen.tsx`'s "Offer Contract" form) resolve synchronously —
+  proposal in, engine-resolved terms out, contract `ACTIVE` — inside one
+  manager command. `PlayerContractStatus` (`"ACTIVE" | "EXPIRED" |
+  "TERMINATED" | "AGREED_FUTURE" | "UNKNOWN"`) never carries a
+  pending/offered/awaiting-response value a presentation layer could ever
+  observe mid-negotiation. See the "resolves a renewal instantly" regression
+  in `manager-gameplay.test.ts`.
+- **Staff appointment**: the only staff appointment flow with real UI —
+  Manager appointed by Owner, `ChairmanManager` in `RoleDetailScreen.tsx` —
+  is the same shape: pick a candidate from a list, `appointManager` resolves
+  the contract synchronously (`ManagerContractStatus` is `"ACTIVE" |
+  "RESIGNED" | "SACKED" | "EXPIRED"`, no pending state). Sporting
+  Director/DoF/CEO appointment has no manager-facing UI at all. See the
+  "resolves an appointment instantly" regression in
+  `chairman-manager-appointment.test.ts`.
+
+Both are documented and tested rather than faked with an invented
+negotiation/appointment lifecycle, per this task's explicit instruction:
+presentation must follow real simulation state, never the reverse.
+
+**Not attempted this pass**: the completed-signing presentation (qualifying
+IMPORTANT/MAJOR incoming transfers). A genuine signing moment does exist
+(an offer reaching `COMPLETED` status is real, observable state, reopenable
+through the same `TransferNegotiationMeeting`), but a restrained signing
+scene visually distinct from `NEGOTIATION` (per this task's Phase 11
+requirement) needs a new `MeetingContext` value with its own layout in
+`meetingSceneBuilder.ts` — real geometry work, not a wiring change — and was
+not attempted here to avoid rushing 3D asset work without visual-diff
+verification. See Known P2 in the phase report.
 
 ## Non-negotiables for every scene
 
