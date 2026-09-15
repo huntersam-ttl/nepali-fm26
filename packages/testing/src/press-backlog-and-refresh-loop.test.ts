@@ -261,7 +261,8 @@ describe("press backlog policy and refresh-loop regression", () => {
     }
     db.close();
     expect(service.loadCareer(save.id).ok).toBe(true);
-    expect(service.switchActiveCareerRole("SPORTING_DIRECTOR")).toMatchObject({ ok: true });
+    // SPORTING_DIRECTOR is an NPC job: reached through the held appointment,
+    // never a career switch.
 
     const interviewIds = new Set<EntityId>();
     for (let i = 0; i < 10; i += 1) {

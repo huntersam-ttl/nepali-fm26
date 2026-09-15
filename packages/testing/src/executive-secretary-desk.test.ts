@@ -135,9 +135,8 @@ describe("general secretary operations desk", () => {
     if (!header.ok) throw new Error(header.error.message);
     makeManagerAlsoExecutive(filePath, clubId, header.data.worldDate, "GENERAL_SECRETARY");
 
-    const switched = service.switchActiveCareerRole("GENERAL_SECRETARY");
-    expect(switched.ok).toBe(true);
-
+    // GENERAL_SECRETARY is an NPC job — the desk is reachable through the
+    // held appointment without ever switching the player's career into it.
     const desk = service.getSecretaryOperationsDesk(clubId);
     expect(desk.ok).toBe(true);
     if (!desk.ok) return;

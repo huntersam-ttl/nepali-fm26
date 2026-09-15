@@ -722,13 +722,12 @@ describe("press dedupe — role switch", () => {
     db.close();
 
     expect(service.loadCareer(saveId).ok).toBe(true);
-    expect(service.switchActiveCareerRole("SPORTING_DIRECTOR")).toMatchObject({ ok: true });
+    // SPORTING_DIRECTOR is an NPC job: reached through the held appointment,
+    // never a career switch — the active role stays MANAGER throughout.
     const sdFirst = service.evaluateSportingDirectorPress();
     expect(sdFirst.ok && sdFirst.data).toBeDefined();
     const sdInterviewId = sdFirst.ok ? sdFirst.data!.interviewId : undefined;
 
-    expect(service.switchActiveCareerRole("MANAGER")).toMatchObject({ ok: true });
-    expect(service.switchActiveCareerRole("SPORTING_DIRECTOR")).toMatchObject({ ok: true });
     const sdAgain = service.evaluateSportingDirectorPress();
     expect(sdAgain.ok && sdAgain.data?.interviewId).toBe(sdInterviewId);
 

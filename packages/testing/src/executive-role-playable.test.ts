@@ -136,25 +136,31 @@ afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
-describe("executive role: playable CEO reachability through the real desktop service", () => {
+describe("executive role: CEO is an NPC job, reachable via delegation but never player-switchable", () => {
   it.each(["A", "B", "C"] as const)(
-    "%s-Division: CEO appears in held roles, role switch works, and the canonical budget command succeeds",
+    "%s-Division: CEO never appears in the human role picker, but the manager who holds it can still act through the canonical budget command without switching",
     (division) => {
       const { service, clubId, filePath } = prepareDivision(division);
       const header = service.getCareerHeader();
       if (!header.ok) throw new Error(header.error.message);
       makeManagerAlsoCeo(filePath, clubId, header.data.worldDate);
 
+      // CEO is an NPC executive job: it must never appear in the
+      // player-facing role picker, even though this person genuinely holds
+      // the appointment.
       const roles = service.getCareerRoles();
       expect(roles.ok).toBe(true);
       if (!roles.ok) return;
-      expect(roles.data.heldRoles).toContain("CEO");
+      expect(roles.data.heldRoles).not.toContain("CEO");
+      expect(roles.data.activeRole).toBe("MANAGER");
 
-      const switched = service.switchActiveCareerRole("CEO");
-      expect(switched.ok).toBe(true);
-      if (!switched.ok) return;
-      expect(switched.data.activeRole).toBe("CEO");
+      // Switching into it is rejected outright...
+      const switched = service.switchActiveCareerRole("CEO" as never);
+      expect(switched.ok).toBe(false);
+      if (!switched.ok) expect(switched.error.code).toBe("ROLE_NOT_AUTHORIZED");
 
+      // ...but the delegated CEO authority is still reachable while the
+      // player stays in their real playable role.
       const authority = service.getExecutiveAuthority();
       expect(authority.ok).toBe(true);
       if (!authority.ok) return;
@@ -167,12 +173,11 @@ describe("executive role: playable CEO reachability through the real desktop ser
     },
   );
 
-  it("preserves the active CEO role across a full reload", () => {
+  it("preserves the active MANAGER role (never CEO) across a full reload, with CEO authority still working", () => {
     const { service, clubId, filePath } = prepareDivision("B");
     const header = service.getCareerHeader();
     if (!header.ok) throw new Error(header.error.message);
     makeManagerAlsoCeo(filePath, clubId, header.data.worldDate);
-    service.switchActiveCareerRole("CEO");
 
     const reopened = new DesktopApplicationService({
       savesDirectory: filePath.slice(0, filePath.lastIndexOf("/")),
@@ -184,15 +189,17 @@ describe("executive role: playable CEO reachability through the real desktop ser
     const loaded = reopened.loadCareer(saveId);
     expect(loaded.ok).toBe(true);
     if (!loaded.ok) return;
-    expect(loaded.data.header.activeRole).toBe("CEO");
+    expect(loaded.data.header.activeRole).toBe("MANAGER");
+
+    const budget = reopened.setExecutiveClubBudget(clubId, "2026", "WAGE_BUDGET", 1_500_000);
+    expect(budget.ok).toBe(true);
   });
 
-  it("reconciles role loss: unassigning the executive role removes CEO from held roles and blocks further executive commands", () => {
+  it("reconciles role loss: unassigning the executive role removes CEO from the read model and blocks further executive commands", () => {
     const { service, clubId, filePath } = prepareDivision("B");
     const header = service.getCareerHeader();
     if (!header.ok) throw new Error(header.error.message);
     const personId = makeManagerAlsoCeo(filePath, clubId, header.data.worldDate);
-    service.switchActiveCareerRole("CEO");
     expect(service.setExecutiveClubBudget(clubId, "2026", "WAGE_BUDGET", 1_000_000).ok).toBe(true);
 
     const db = openGameDatabase(filePath);
@@ -201,13 +208,9 @@ describe("executive role: playable CEO reachability through the real desktop ser
     ).run(clubId);
     db.close();
 
-    const roles = service.getCareerRoles();
-    expect(roles.ok).toBe(true);
-    if (roles.ok) expect(roles.data.heldRoles).not.toContain("CEO");
-
-    // The active role reconciles back to a genuinely held one (Manager) —
-    // executive commands against the now-vacant assignment must reject,
-    // never silently execute through a stale role.
+    // The active role was always MANAGER here (never CEO), so there is
+    // nothing to reconcile on the player side — only the delegated
+    // authority disappears.
     const stillActingAsCeo = service.setExecutiveClubBudget(
       clubId,
       "2026",
@@ -219,12 +222,9 @@ describe("executive role: playable CEO reachability through the real desktop ser
     void personId;
   });
 
-  it("rejects a Manager who never switched to CEO from invoking an executive command, even though they hold both roles", () => {
-    const { service, clubId, filePath } = prepareDivision("B");
-    const header = service.getCareerHeader();
-    if (!header.ok) throw new Error(header.error.message);
-    makeManagerAlsoCeo(filePath, clubId, header.data.worldDate);
-    // Deliberately do not switch — active role remains MANAGER.
+  it("rejects a manager with no CEO appointment at all from invoking an executive command", () => {
+    const { service, clubId } = prepareDivision("B");
+    // Deliberately never grant a CEO appointment for this club.
     const result = service.setExecutiveClubBudget(clubId, "2026", "WAGE_BUDGET", 1_000_000);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.code).toBe("ROLE_NOT_AUTHORIZED");

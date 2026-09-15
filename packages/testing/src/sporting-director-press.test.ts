@@ -76,7 +76,8 @@ const newSdService = (label: string, role: "SPORTING_DIRECTOR" | "DIRECTOR_OF_FO
   db.close();
 
   expect(service.loadCareer(save.id).ok).toBe(true);
-  expect(service.switchActiveCareerRole(role)).toMatchObject({ ok: true, data: { activeRole: role } });
+  // SPORTING_DIRECTOR/DIRECTOR_OF_FOOTBALL are NPC jobs — the
+  // appointment above is enough; the player never switches into them.
   return { service, saveId: save.id, savePath, personId, clubId };
 };
 
@@ -141,7 +142,6 @@ describe("sporting director press", () => {
       submittedAt: "2026-08-01",
     });
     expect(service.loadCareer(saveId).ok).toBe(true);
-    expect(service.switchActiveCareerRole("SPORTING_DIRECTOR")).toMatchObject({ ok: true });
 
     const evaluated = service.evaluateSportingDirectorPress();
     expect(evaluated.ok).toBe(true);
@@ -176,7 +176,6 @@ describe("sporting director press", () => {
 
     service.closeCareer();
     expect(service.loadCareer(saveId).ok).toBe(true);
-    expect(service.switchActiveCareerRole("SPORTING_DIRECTOR")).toMatchObject({ ok: true });
     const reloaded = service.getSportingDirectorStructuredPressConference(interviewId);
     expect(reloaded.ok).toBe(true);
     if (reloaded.ok) {
@@ -329,7 +328,6 @@ describe("sporting director press", () => {
       submittedAt: "2026-08-01",
     });
     expect(service.loadCareer(saveId).ok).toBe(true);
-    expect(service.switchActiveCareerRole("SPORTING_DIRECTOR")).toMatchObject({ ok: true });
 
     const evaluated = service.evaluateSportingDirectorPress();
     expect(evaluated.ok).toBe(true);
@@ -351,7 +349,6 @@ describe("sporting director press", () => {
     db.close();
 
     expect(service.loadCareer(saveId).ok).toBe(true);
-    expect(service.switchActiveCareerRole("SPORTING_DIRECTOR")).toMatchObject({ ok: true });
     const secondEvaluate = service.evaluateSportingDirectorPress();
     expect(secondEvaluate.ok).toBe(true);
     if (secondEvaluate.ok) expect(secondEvaluate.data).toBeUndefined();
@@ -393,7 +390,6 @@ describe("sporting director press", () => {
       submittedAt: "2026-08-01",
     });
     expect(service.loadCareer(saveId).ok).toBe(true);
-    expect(service.switchActiveCareerRole("SPORTING_DIRECTOR")).toMatchObject({ ok: true });
 
     const evaluated = service.evaluateSportingDirectorPress();
     expect(evaluated.ok).toBe(true);
@@ -423,7 +419,6 @@ describe("sporting director press", () => {
       submittedAt: "2026-08-01",
     });
     expect(service.loadCareer(saveId).ok).toBe(true);
-    expect(service.switchActiveCareerRole("DIRECTOR_OF_FOOTBALL")).toMatchObject({ ok: true });
     const evaluated = service.evaluateSportingDirectorPress();
     expect(evaluated.ok).toBe(true);
     expect(evaluated.ok && evaluated.data?.status).toBe("OPEN");

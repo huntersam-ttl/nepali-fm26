@@ -184,7 +184,7 @@ describe("press role authority matrix (Manager, Owner, President)", () => {
     service.closeCareer();
   });
 
-  it("SD press: SD allowed, Manager/Owner/President rejected", () => {
+  it("SD press: SD's own recruitment press works from a held appointment (no switch), Owner/President rejected", () => {
     const directory = mkdtempSync(join(tmpdir(), "matrix-sd-"));
     dirs.push(directory);
     const service = new DesktopApplicationService({ savesDirectory: directory, worldDatasetPath: registryPath });
@@ -197,20 +197,19 @@ describe("press role authority matrix (Manager, Owner, President)", () => {
     grantExecutiveRole(service, savePath, "SPORTING_DIRECTOR");
 
     expect(service.loadCareerByPath(savePath).ok).toBe(true);
-    expect(service.switchActiveCareerRole("SPORTING_DIRECTOR")).toMatchObject({
-      ok: true,
-      data: { activeRole: "SPORTING_DIRECTOR" },
+    // SPORTING_DIRECTOR is an NPC job: never player-switchable, even though
+    // this same person genuinely holds the appointment.
+    expect(service.switchActiveCareerRole("SPORTING_DIRECTOR" as never)).toMatchObject({
+      ok: false,
     });
 
     // SD press itself returns ok:true even with nothing new to ask about
     // (evaluatePresidentPress/evaluateOwnerBusinessPress behave the same
-    // way) — the authority check passing is what this test proves.
+    // way) — the authority check passing is what this test proves. It is
+    // reached through the held appointment, not a career switch: the
+    // active role stays MANAGER throughout.
     const sdAttempt = service.evaluateSportingDirectorPress();
     expect(sdAttempt.ok).toBe(true);
-
-    const managerAttempt = service.requestStructuredPressConference({ context: "TRANSFER" });
-    expect(managerAttempt.ok).toBe(false);
-    if (!managerAttempt.ok) expect(managerAttempt.error.code).toBe("ROLE_NOT_AUTHORIZED");
 
     const ownerAttempt = service.evaluateOwnerBusinessPress();
     expect(ownerAttempt.ok).toBe(false);
@@ -222,7 +221,7 @@ describe("press role authority matrix (Manager, Owner, President)", () => {
     service.closeCareer();
   });
 
-  it("SPORTING_DIRECTOR/CEO/GENERAL_SECRETARY are rejected from Owner and President press even though their own press features do not exist yet", () => {
+  it("SPORTING_DIRECTOR/CEO/GENERAL_SECRETARY are never player-switchable, and Owner/President press stay rejected for a Manager who merely holds one", () => {
     for (const role of ["SPORTING_DIRECTOR", "CEO", "GENERAL_SECRETARY"] as const) {
       const directory = mkdtempSync(join(tmpdir(), `matrix-${role.toLowerCase()}-`));
       dirs.push(directory);
@@ -235,7 +234,7 @@ describe("press role authority matrix (Manager, Owner, President)", () => {
 
       grantExecutiveRole(service, savePath, role);
       expect(service.loadCareerByPath(savePath).ok).toBe(true);
-      expect(service.switchActiveCareerRole(role)).toMatchObject({ ok: true, data: { activeRole: role } });
+      expect(service.switchActiveCareerRole(role as never)).toMatchObject({ ok: false });
 
       const ownerAttempt = service.evaluateOwnerBusinessPress();
       expect(ownerAttempt.ok).toBe(false);
