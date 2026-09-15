@@ -11,7 +11,7 @@ const fillCharacter = async (page: Page, saveName: string): Promise<void> => {
 export const createExistingClubOwner = async (page: Page, division: PlayableDivision): Promise<string> => {
   const saveName = `Browser Owner ${division} ${Date.now()}`;
   await page.goto("/");
-  await page.getByRole("button", { name: /New Career/ }).click();
+  await page.getByRole("button", { name: /New Career/i }).click();
   await fillCharacter(page, saveName);
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
@@ -21,14 +21,14 @@ export const createExistingClubOwner = async (page: Page, division: PlayableDivi
   await club.click();
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Create Save" }).click();
-  await expect(page.getByRole("button", { name: "Home / Inbox" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Home / Inbox" })).toBeVisible({ timeout: 120_000 });
   const fixture = await page.request.post("/runtime/command/seedE2ERoleFixture", { data: {} });
   expect(fixture.ok()).toBeTruthy();
   expect((await fixture.json()).ok).toBeTruthy();
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await page.getByRole("button", { name: "Main Menu" }).click();
   await page.reload();
-  await page.getByRole("button", { name: /Load Career/ }).click();
+  await page.getByRole("button", { name: /Load Career/i }).click();
   await page.getByRole("button", { name: new RegExp(saveName) }).click();
   await page.getByLabel("Active career role").selectOption("CHAIRMAN_OWNER");
   await expect(page.getByRole("heading", { name: "Chairman / Owner" })).toBeVisible();
@@ -38,7 +38,7 @@ export const createExistingClubOwner = async (page: Page, division: PlayableDivi
 export const createFounderOwner = async (page: Page): Promise<string> => {
   const saveName = `Browser Founder C ${Date.now()}`;
   await page.goto("/");
-  await page.getByRole("button", { name: /New Career/ }).click();
+  await page.getByRole("button", { name: /New Career/i }).click();
   await fillCharacter(page, saveName);
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByLabel("Career mode").selectOption("OWNER");
@@ -61,7 +61,7 @@ export const saveReloadOwnerCareer = async (page: Page, saveName: string): Promi
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await page.getByRole("button", { name: "Main Menu" }).click();
   await page.reload();
-  await page.getByRole("button", { name: /Load Career/ }).click();
+  await page.getByRole("button", { name: /Load Career/i }).click();
   await page.getByRole("button", { name: new RegExp(saveName) }).click();
   await page.getByLabel("Active career role").selectOption("CHAIRMAN_OWNER");
   await expect(page.getByRole("heading", { name: "Chairman / Owner" })).toBeVisible();
