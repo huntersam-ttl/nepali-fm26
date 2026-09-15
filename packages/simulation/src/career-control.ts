@@ -5,9 +5,11 @@ import {
 } from "@nepal-football-sim/database";
 import {
   isBaseCareerRole,
+  isPlayableCareerRole,
   type BaseCareerRole,
   type CareerRole,
   type EntityId,
+  type PlayableCareerRole,
 } from "@nepal-football-sim/shared-types";
 
 export type HeldCareerRole = { role: CareerRole; targetId?: EntityId };
@@ -63,8 +65,25 @@ export const heldCareerRoles = (db: GameDatabase, personId: EntityId): HeldCaree
   return roles.sort((a, b) => roleOrder.indexOf(a.role) - roleOrder.indexOf(b.role));
 };
 
-export const activeCareerRole = (db: GameDatabase, personId: EntityId): CareerRole => {
+/** The human-playable subset of `heldCareerRoles` — never includes an NPC
+ * executive job (Sporting Director, Director of Football, CEO, General
+ * Secretary, ...) even when this same person happens to also hold one.
+ * This is what the player's own role picker must be built from; executive
+ * jobs stay reachable only through their own dedicated authority APIs. */
+export const playableCareerRoles = (db: GameDatabase, personId: EntityId): PlayableCareerRole[] =>
+  heldCareerRoles(db, personId)
+    .map((entry) => entry.role)
+    .filter(isPlayableCareerRole);
+
+/**
+ * Resolves and persists the human player's active career role. Always a
+ * `PlayableCareerRole` — never an NPC executive job, even if the stored
+ * control-state row is stale (an older save written before executive roles
+ * were removed from the player-facing model, or any other malformed state).
+ */
+export const activeCareerRole = (db: GameDatabase, personId: EntityId): PlayableCareerRole => {
   const held = heldCareerRoles(db, personId);
+  const playable = held.filter((entry) => isPlayableCareerRole(entry.role));
   const repo = new CareerControlRepository(db);
   const context = repo.get(personId);
   const current = context?.activeRole;
@@ -73,23 +92,45 @@ export const activeCareerRole = (db: GameDatabase, personId: EntityId): CareerRo
   // active when the player entered office. This is deliberately different
   // from merely picking the first held role: an Owner who becomes President
   // must come back as Owner, not silently become Manager because both roles
-  // happen to be held.
-  let resolved = current && held.some((entry) => entry.role === current) ? current : undefined;
+  // happen to be held. A stored `current` that isn't itself playable (a
+  // stale executive value from an older save) is never trusted directly —
+  // it always falls through to reconciliation below.
+  let resolved =
+    current && isPlayableCareerRole(current) && playable.some((entry) => entry.role === current)
+      ? current
+      : undefined;
   if (!resolved && current === "FEDERATION_PRESIDENT") {
-    resolved = preferredBaseRole(held, context?.baseRole);
+    resolved = preferredBaseRole(playable, context?.baseRole);
   }
-  resolved ??= preferredBaseRole(held, context?.baseRole) ?? held[0]?.role ?? "MANAGER";
+  // Final fallback is deliberately restricted to the playable subset (never
+  // `held[0]?.role`, which could be an NPC executive job sorted first only
+  // because no playable role exists at all) — "MANAGER" here is a safe,
+  // architecture-supported default, not a claim the person actually holds
+  // a manager contract.
+  const firstPlayable = playable[0]?.role;
+  resolved ??=
+    preferredBaseRole(playable, context?.baseRole) ??
+    (firstPlayable && isPlayableCareerRole(firstPlayable) ? firstPlayable : undefined) ??
+    "MANAGER";
 
   const baseRole = isBaseCareerRole(resolved)
     ? resolved
-    : preferredBaseRole(held, context?.baseRole);
+    : preferredBaseRole(playable, context?.baseRole);
   if (current !== resolved || context?.baseRole !== baseRole) {
     repo.upsert({ personId, activeRole: resolved, baseRole });
   }
   return resolved;
 };
 
-export const switchActiveCareerRole = (db: GameDatabase, personId: EntityId, targetRole: CareerRole): CareerRole => {
+export const switchActiveCareerRole = (db: GameDatabase, personId: EntityId, targetRole: CareerRole): PlayableCareerRole => {
+  if (!isPlayableCareerRole(targetRole)) {
+    // Deliberately thrown even when this exact person genuinely holds that
+    // job (e.g. a delegated CEO appointment): NPC executive roles are never
+    // player-switchable, regardless of who holds the underlying position.
+    // DesktopApplicationService maps any thrown error here to
+    // ROLE_NOT_AUTHORIZED — never a crash.
+    throw new Error(`${targetRole} is an NPC executive role and cannot be selected as a player career.`);
+  }
   const held = heldCareerRoles(db, personId);
   if (!held.some((entry) => entry.role === targetRole)) throw new Error(`Career role ${targetRole} is not currently held by this person.`);
 

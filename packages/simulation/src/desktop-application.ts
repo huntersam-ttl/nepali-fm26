@@ -348,7 +348,40 @@ import {
 } from "./tactics.js";
 import { resolveTeamTacticalSetup } from "./ai-tactics.js";
 import { suitability } from "./team-selection.js";
-import { activeCareerRole, heldCareerRoles, switchActiveCareerRole } from "./career-control.js";
+import {
+  activeCareerRole,
+  heldCareerRoles,
+  playableCareerRoles,
+  switchActiveCareerRole,
+} from "./career-control.js";
+
+const EXECUTIVE_ROLES_TUPLE = ["SPORTING_DIRECTOR", "DIRECTOR_OF_FOOTBALL", "CEO", "GENERAL_SECRETARY"] as const;
+
+/**
+ * The NPC executive job (Sporting Director, Director of Football, CEO,
+ * General Secretary) this person genuinely holds an active appointment for
+ * — never derived from `activeCareerRole`/the career picker, since those
+ * NPC jobs are no longer player-switchable. A human Owner who has
+ * delegated a domain to (or personally been assigned as, in an unusual
+ * save) one of these executives still reaches that executive's own
+ * authority/desk commands through this held-appointment lookup, exactly as
+ * before this migration — they simply never "become" the role to get
+ * there. When `clubId` is given, only an appointment at that specific club
+ * counts.
+ */
+const heldExecutiveRole = (
+  db: GameDatabase,
+  personId: EntityId,
+  clubId?: EntityId,
+): { role: ExecutiveRole; clubId: EntityId } | undefined => {
+  const match = heldCareerRoles(db, personId).find(
+    (entry) =>
+      (EXECUTIVE_ROLES_TUPLE as readonly string[]).includes(entry.role) &&
+      entry.targetId &&
+      (!clubId || entry.targetId === clubId),
+  );
+  return match?.targetId ? { role: match.role as ExecutiveRole, clubId: match.targetId } : undefined;
+};
 import {
   ExecutiveRoleError,
   executiveHasAuthority,
@@ -999,7 +1032,12 @@ export class DesktopApplicationService {
   getCareerRoles(): AppResult<CareerRoleState> {
     return this.withSession((db, save) => {
       const personId = careerPersonId(db, save);
-      const heldRoles = heldCareerRoles(db, personId).map((entry) => entry.role);
+      // heldRoles is the player-facing role picker surface: it must never
+      // offer an NPC executive job (SPORTING_DIRECTOR/DIRECTOR_OF_FOOTBALL/
+      // CEO/GENERAL_SECRETARY) as something to switch into, even when this
+      // person genuinely holds one. Those stay reachable only through their
+      // own dedicated executive-authority APIs.
+      const heldRoles = playableCareerRoles(db, personId);
       return { activeRole: activeCareerRole(db, personId), heldRoles };
     });
   }
@@ -1007,19 +1045,18 @@ export class DesktopApplicationService {
   getExecutiveAuthority(clubId?: EntityId): AppResult<ExecutiveAuthorityDesktopView | undefined> {
     return this.withSession((db, save) => {
       const actorPersonId = careerPersonId(db, save);
-      const actorRole = activeCareerRole(db, actorPersonId);
-      const executiveRoles: ExecutiveRole[] = [
-        "SPORTING_DIRECTOR",
-        "DIRECTOR_OF_FOOTBALL",
-        "CEO",
-        "GENERAL_SECRETARY",
-      ];
-      if (!executiveRoles.includes(actorRole as ExecutiveRole)) return undefined;
-      const targetClubId =
-        clubId ??
-        heldCareerRoles(db, actorPersonId).find((item) => item.role === actorRole)?.targetId;
-      if (!targetClubId) return undefined;
-      const assignment = executiveRoleReadModel(db, targetClubId, actorRole as ExecutiveRole);
+      // Resolved from a genuinely held executive appointment, never from
+      // activeCareerRole/the career picker — SPORTING_DIRECTOR, DIRECTOR_OF_
+      // FOOTBALL, CEO and GENERAL_SECRETARY are NPC jobs, never something a
+      // player switches into, even when this same person happens to hold
+      // one (e.g. a delegated appointment). The player reaches this data by
+      // staying in their real playable role (Owner/Manager/President), not
+      // by impersonating the executive.
+      const held = heldExecutiveRole(db, actorPersonId, clubId);
+      if (!held) return undefined;
+      const actorRole = held.role;
+      const targetClubId = held.clubId;
+      const assignment = executiveRoleReadModel(db, targetClubId, actorRole);
       const isRecruitmentExecutive = actorRole === "SPORTING_DIRECTOR" || actorRole === "DIRECTOR_OF_FOOTBALL";
       return {
         actorPersonId,
@@ -1330,16 +1367,18 @@ export class DesktopApplicationService {
     db: GameDatabase,
     personId: EntityId,
   ): { clubId: EntityId; actorRole: CareerRole } {
-    const actorRole = activeCareerRole(db, personId);
-    if (actorRole !== "SPORTING_DIRECTOR" && actorRole !== "DIRECTOR_OF_FOOTBALL") {
+    // Resolved from a genuinely held SD/DoF appointment, never from
+    // activeCareerRole — these are NPC jobs, never something the player
+    // switches into. Reachable while the player stays in their real
+    // playable role, exactly like getExecutiveAuthority above.
+    const held = heldExecutiveRole(db, personId);
+    if (!held || (held.role !== "SPORTING_DIRECTOR" && held.role !== "DIRECTOR_OF_FOOTBALL")) {
       throw appError(
         "ROLE_NOT_AUTHORIZED",
         "You do not currently hold recruitment authority at a club.",
       );
     }
-    const clubId = heldCareerRoles(db, personId).find((role) => role.role === actorRole)?.targetId;
-    if (!clubId) throw appError("ROLE_NOT_AUTHORIZED", "No controlled club is available.");
-    return { clubId, actorRole };
+    return { clubId: held.clubId, actorRole: held.role };
   }
 
   /** The single natural Sporting Director / Director of Football press
@@ -1418,6 +1457,7 @@ export class DesktopApplicationService {
         )?.targetId;
       if (!target)
         throw appError("ROLE_NOT_AUTHORIZED", "No club facility responsibility is available.");
+      const facilityExecutive = heldExecutiveRole(db, personId, target);
       if (role === "CHAIRMAN_OWNER") {
         if (
           !heldCareerRoles(db, personId).some(
@@ -1425,7 +1465,7 @@ export class DesktopApplicationService {
           )
         )
           throw appError("ROLE_NOT_AUTHORIZED", "The owner does not control this club.");
-      } else if (role === "CEO" || role === "GENERAL_SECRETARY") {
+      } else if (facilityExecutive?.role === "CEO" || facilityExecutive?.role === "GENERAL_SECRETARY") {
         this.executiveActor(db, save, target);
       } else if (role !== "MANAGER") {
         throw appError(
@@ -1476,6 +1516,7 @@ export class DesktopApplicationService {
     return this.withSession((db, save) => {
       const personId = careerPersonId(db, save);
       const role = activeCareerRole(db, personId);
+      const executive = heldExecutiveRole(db, personId, clubId);
       if (role === "CHAIRMAN_OWNER") {
         if (
           !heldCareerRoles(db, personId).some(
@@ -1483,7 +1524,7 @@ export class DesktopApplicationService {
           )
         )
           throw appError("ROLE_NOT_AUTHORIZED", "The owner does not control this club.");
-      } else if (role === "CEO" || role === "GENERAL_SECRETARY")
+      } else if (executive?.role === "CEO" || executive?.role === "GENERAL_SECRETARY")
         this.executiveActor(db, save, clubId);
       else
         throw appError(
@@ -1524,7 +1565,7 @@ export class DesktopApplicationService {
         )
           throw appError("ROLE_NOT_AUTHORIZED", "The owner does not control this club.");
         callerRole = "CHAIRMAN_OWNER";
-      } else if (role === "CEO") {
+      } else if (heldExecutiveRole(db, personId, input.clubId)?.role === "CEO") {
         this.executiveActor(db, save, input.clubId);
         callerRole = "CEO";
       } else {
@@ -1568,7 +1609,7 @@ export class DesktopApplicationService {
       if (role === "CHAIRMAN_OWNER") {
         if (!heldCareerRoles(db, personId).some((entry) => entry.role === role && entry.targetId === project.club_id))
           throw appError("ROLE_NOT_AUTHORIZED", "The owner does not control this club.");
-      } else if (role === "CEO") {
+      } else if (heldExecutiveRole(db, personId, project.club_id)?.role === "CEO") {
         this.executiveActor(db, save, project.club_id);
       } else {
         throw appError("ROLE_NOT_AUTHORIZED", "Only the owner or authorized CEO may request club government support.");
@@ -1593,7 +1634,7 @@ export class DesktopApplicationService {
       if (role === "CHAIRMAN_OWNER") {
         if (!heldCareerRoles(db, personId).some((entry) => entry.role === role && entry.targetId === input.clubId))
           throw appError("ROLE_NOT_AUTHORIZED", "The owner does not control this club.");
-      } else if (role === "CEO") {
+      } else if (heldExecutiveRole(db, personId, input.clubId)?.role === "CEO") {
         this.executiveActor(db, save, input.clubId);
       } else {
         throw appError("ROLE_NOT_AUTHORIZED", "Only the owner or authorized CEO may request club government support.");
@@ -1620,15 +1661,19 @@ export class DesktopApplicationService {
           ["CHAIRMAN_OWNER", "CEO", "GENERAL_SECRETARY"].includes(entry.role),
         )?.targetId;
       if (!target) throw appError("ROLE_NOT_AUTHORIZED", "No club facility responsibility is available.");
+      const executive = heldExecutiveRole(db, personId, target);
+      let meetingRole: "CEO" | "GENERAL_SECRETARY" | "CHAIRMAN_OWNER";
       if (role === "CHAIRMAN_OWNER") {
         if (!heldCareerRoles(db, personId).some((entry) => entry.role === role && entry.targetId === target))
           throw appError("ROLE_NOT_AUTHORIZED", "The owner does not control this club.");
-      } else if (role === "CEO" || role === "GENERAL_SECRETARY") {
+        meetingRole = role;
+      } else if (executive?.role === "CEO" || executive?.role === "GENERAL_SECRETARY") {
         this.executiveActor(db, save, target);
+        meetingRole = executive.role;
       } else {
         throw appError("ROLE_NOT_AUTHORIZED", "The active role cannot view club government support.");
       }
-      return buildGovernmentSupportMeeting(db, { ...input, clubId: target }, role);
+      return buildGovernmentSupportMeeting(db, { ...input, clubId: target }, meetingRole);
     });
   }
 
@@ -1640,10 +1685,11 @@ export class DesktopApplicationService {
         .prepare("SELECT club_id FROM government_funding_applications WHERE id=?")
         .get(applicationId) as { club_id?: EntityId } | undefined;
       if (!application?.club_id) throw appError("INVALID_SELECTION", "Government funding application is unavailable.");
+      const applicationExecutive = heldExecutiveRole(db, personId, application.club_id);
       if (role === "CHAIRMAN_OWNER") {
         if (!heldCareerRoles(db, personId).some((entry) => entry.role === role && entry.targetId === application.club_id))
           throw appError("ROLE_NOT_AUTHORIZED", "The owner does not control this club.");
-      } else if (role === "CEO" || role === "GENERAL_SECRETARY") {
+      } else if (applicationExecutive?.role === "CEO" || applicationExecutive?.role === "GENERAL_SECRETARY") {
         this.executiveActor(db, save, application.club_id);
       } else {
         throw appError("ROLE_NOT_AUTHORIZED", "Only the owner or authorized executive may submit this case.");
@@ -1914,7 +1960,7 @@ export class DesktopApplicationService {
           clubId ??
           heldCareerRoles(db, personId).find((entry) => entry.role === "CHAIRMAN_OWNER")?.targetId;
         if (!targetClubId) throw appError("ROLE_NOT_AUTHORIZED", "No club is available.");
-      } else if (role === "CEO") {
+      } else if (heldExecutiveRole(db, personId, clubId)?.role === "CEO") {
         targetClubId =
           clubId ?? heldCareerRoles(db, personId).find((entry) => entry.role === "CEO")?.targetId;
         if (!targetClubId) throw appError("ROLE_NOT_AUTHORIZED", "No club is available.");
@@ -2352,7 +2398,7 @@ export class DesktopApplicationService {
           clubId ??
           heldCareerRoles(db, personId).find((entry) => entry.role === "CHAIRMAN_OWNER")?.targetId;
         if (!targetClubId) throw appError("ROLE_NOT_AUTHORIZED", "No club is available.");
-      } else if (role === "CEO") {
+      } else if (heldExecutiveRole(db, personId, clubId)?.role === "CEO") {
         targetClubId =
           clubId ?? heldCareerRoles(db, personId).find((entry) => entry.role === "CEO")?.targetId;
         if (!targetClubId) throw appError("ROLE_NOT_AUTHORIZED", "No club is available.");
@@ -4526,19 +4572,15 @@ export class DesktopApplicationService {
     save: SaveMetadata,
     clubId: EntityId,
   ): { role: "CEO" | "GENERAL_SECRETARY"; personId: EntityId } {
+    // Resolved from a genuinely held CEO/General Secretary appointment,
+    // never from activeCareerRole/the career picker — these are NPC jobs,
+    // never something a player switches into, even when this same person
+    // happens to hold one (e.g. a delegated appointment).
     const personId = careerPersonId(db, save);
-    const role = activeCareerRole(db, personId);
-    if (role !== "CEO" && role !== "GENERAL_SECRETARY")
+    const held = heldExecutiveRole(db, personId, clubId);
+    if (!held || (held.role !== "CEO" && held.role !== "GENERAL_SECRETARY"))
       throw appError("ROLE_NOT_AUTHORIZED", "An active CEO or General Secretary role is required.");
-    const held = heldCareerRoles(db, personId).find(
-      (entry) => entry.role === role && entry.targetId === clubId,
-    );
-    if (!held)
-      throw appError(
-        "ROLE_NOT_AUTHORIZED",
-        "The active executive role is not assigned to this club.",
-      );
-    return { role, personId };
+    return { role: held.role, personId };
   }
 
   private executiveActorForCase(
