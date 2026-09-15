@@ -320,4 +320,64 @@ describe("club scene geometry follows real state", () => {
     idle.dispose();
     building.dispose();
   });
+
+  const buildingObjectCount = (
+    handle: { pickables: Array<{ object: { traverse: (fn: () => void) => void }; building: string }> },
+    kind: string,
+  ): number => {
+    let count = 0;
+    handle.pickables.find((entry) => entry.building === kind)!.object.traverse(() => {
+      count += 1;
+    });
+    return count;
+  };
+
+  it("gives an Elite training complex visibly more geometry than a Basic one — real composition, not just a bigger box", () => {
+    const basic = sceneFor("OFF", {
+      facilitySnapshot: { trainingFacilityQuality: 3, youthFacilityQuality: 0, medicalFacilityQuality: 0, analyticsFacilityQuality: 0, academyCapacity: 0 },
+    });
+    const elite = sceneFor("OFF", {
+      facilitySnapshot: { trainingFacilityQuality: 18, youthFacilityQuality: 0, medicalFacilityQuality: 0, analyticsFacilityQuality: 0, academyCapacity: 0 },
+    });
+    expect(buildingObjectCount(elite, "TRAINING")).toBeGreaterThan(buildingObjectCount(basic, "TRAINING"));
+    basic.dispose();
+    elite.dispose();
+  });
+
+  it("gives training and academy different geometry at the same tier — not duplicate copies of each other", () => {
+    const handle = sceneFor("OFF", {
+      facilitySnapshot: { trainingFacilityQuality: 16, youthFacilityQuality: 16, medicalFacilityQuality: 0, analyticsFacilityQuality: 0, academyCapacity: 30 },
+    });
+    const training = buildingObjectCount(handle, "TRAINING");
+    const academy = buildingObjectCount(handle, "ACADEMY");
+    // Same tier band (16 -> ELITE for both), but training's pitch count and
+    // academy's are deliberately different bands (4 vs 3 at ELITE), so the
+    // two blocks are not identical geometry with a different label.
+    expect(training).not.toBe(academy);
+    handle.dispose();
+  });
+
+  it("gives an Elite club HQ visibly more geometry than a Basic office — a real administration ladder", () => {
+    const basic = sceneFor("OFF", {
+      facilitySnapshot: { trainingFacilityQuality: 0, youthFacilityQuality: 0, medicalFacilityQuality: 0, analyticsFacilityQuality: 3, academyCapacity: 0 },
+    });
+    const elite = sceneFor("OFF", {
+      facilitySnapshot: { trainingFacilityQuality: 0, youthFacilityQuality: 0, medicalFacilityQuality: 0, analyticsFacilityQuality: 18, academyCapacity: 0 },
+    });
+    expect(buildingObjectCount(elite, "OFFICES")).toBeGreaterThan(buildingObjectCount(basic, "OFFICES"));
+    basic.dispose();
+    elite.dispose();
+  });
+
+  it("gives an Elite medical centre visibly more geometry than an Advanced-or-below one via the recovery annex", () => {
+    const professional = sceneFor("OFF", {
+      facilitySnapshot: { trainingFacilityQuality: 0, youthFacilityQuality: 0, medicalFacilityQuality: 10, analyticsFacilityQuality: 0, academyCapacity: 0 },
+    });
+    const elite = sceneFor("OFF", {
+      facilitySnapshot: { trainingFacilityQuality: 0, youthFacilityQuality: 0, medicalFacilityQuality: 18, analyticsFacilityQuality: 0, academyCapacity: 0 },
+    });
+    expect(buildingObjectCount(elite, "MEDICAL")).toBeGreaterThan(buildingObjectCount(professional, "MEDICAL"));
+    professional.dispose();
+    elite.dispose();
+  });
 });

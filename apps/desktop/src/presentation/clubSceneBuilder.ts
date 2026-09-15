@@ -394,6 +394,30 @@ export const buildClubScene = (
   pickables.push({ object: stadiumGroup, building: "STADIUM" });
 
   // ---- facility buildings --------------------------------------------
+  // Practice-pitch counts differ by kind and tier: training grows fastest
+  // (a first-team's real training load), academy grows more modestly (youth
+  // squads need fewer full pitches), medical/offices never get one at all.
+  const PRACTICE_PITCH_COUNT: Record<"TRAINING" | "ACADEMY", Record<FacilityVisualTier, number>> = {
+    TRAINING: { UNDEVELOPED: 0, BASIC: 1, MODEST: 2, PROFESSIONAL: 2, ADVANCED: 3, ELITE: 4 },
+    ACADEMY: { UNDEVELOPED: 0, BASIC: 1, MODEST: 1, PROFESSIONAL: 2, ADVANCED: 2, ELITE: 3 },
+  };
+
+  // Building-kind material language: training reads utilitarian (concrete/
+  // steel), academy institutional and lighter, offices go glass/steel only
+  // once the tier can plausibly support a modern façade, medical stays a
+  // clean, mostly-render block. Never randomised — purely a function of
+  // kind and tier, so the same club always presents the same way.
+  const bodyMaterialFor = (kind: SceneBuilding["kind"], tier: FacilityVisualTier): THREE.Material => {
+    if (kind === "OFFICES") {
+      if (tier === "ADVANCED" || tier === "ELITE") return materials.glass;
+      if (tier === "PROFESSIONAL") return materials.steel;
+      return materials.paintedConcrete;
+    }
+    if (kind === "MEDICAL") return tier === "ELITE" ? materials.glass : materials.buildingRender;
+    if (kind === "ACADEMY") return materials.paintedConcrete;
+    return materials.concrete; // TRAINING
+  };
+
   for (const building of profile.buildings) {
     const plot = BUILDING_PLOT[building.kind];
     const form = BUILDING_FORM[building.tier];
@@ -406,10 +430,9 @@ export const buildClubScene = (
     const developed = building.tier !== "UNDEVELOPED";
     const body = new THREE.Mesh(
       new THREE.BoxGeometry(form.width, Math.max(form.height, 0.2), form.depth),
-      new THREE.MeshStandardMaterial({
-        color: developed ? 0x525d70 : 0x3a4238,
-        roughness: developed ? 0.7 : 1,
-      }),
+      developed
+        ? bodyMaterialFor(building.kind, building.tier)
+        : new THREE.MeshStandardMaterial({ color: 0x3a4238, roughness: 1 }),
     );
     body.position.y = Math.max(form.height, 0.2) / 2;
     body.castShadow = quality.shadows && developed;
@@ -424,20 +447,107 @@ export const buildClubScene = (
       );
       band.position.y = form.height * 0.62;
       group.add(band);
-    }
 
-    // Training and academy blocks have real practice pitches beside them.
-    if ((building.kind === "TRAINING" || building.kind === "ACADEMY") && developed) {
-      const pitchCount = building.tier === "ELITE" ? 3 : building.tier === "ADVANCED" ? 2 : 1;
-      for (let index = 0; index < pitchCount; index += 1) {
-        const practice = new THREE.Mesh(
-          new THREE.PlaneGeometry(7, 4.6),
-          new THREE.MeshStandardMaterial({ color: 0x2c5f38, roughness: 0.95 }),
+      // Kind-specific composition: real component composition, not the same
+      // box scaled up for every kind and tier.
+      if (building.kind === "TRAINING" || building.kind === "ACADEMY") {
+        const pitchCount = PRACTICE_PITCH_COUNT[building.kind][building.tier];
+        const pitchWidth = building.kind === "ACADEMY" ? 6 : 7;
+        const pitchDepth = building.kind === "ACADEMY" ? 4 : 4.6;
+        for (let index = 0; index < pitchCount; index += 1) {
+          const practice = new THREE.Mesh(
+            new THREE.PlaneGeometry(pitchWidth, pitchDepth),
+            new THREE.MeshStandardMaterial({ color: 0x2c5f38, roughness: 0.95 }),
+          );
+          practice.rotation.x = -Math.PI / 2;
+          practice.position.set(0, 0.05, form.depth / 2 + 3.4 + index * (pitchDepth + 0.6));
+          practice.receiveShadow = quality.shadows;
+          group.add(practice);
+          // Portable training goals, smaller than the stadium's real goal —
+          // reads as a practice pitch, not a match venue.
+          const goal = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.5, 1.3), materials.steel);
+          goal.position.set(-pitchWidth / 2 + 0.1, 0.25, form.depth / 2 + 3.4 + index * (pitchDepth + 0.6));
+          group.add(goal);
+        }
+        // A gym/performance annex from Professional up; an indoor hall
+        // silhouette (a taller, roofed block) only at Elite.
+        if (building.tier === "PROFESSIONAL" || building.tier === "ADVANCED" || building.tier === "ELITE") {
+          const annex = new THREE.Mesh(
+            new THREE.BoxGeometry(form.width * 0.55, form.height * 0.7, form.depth * 0.5),
+            materials.steel,
+          );
+          annex.position.set(form.width * 0.75, (form.height * 0.7) / 2, 0);
+          annex.castShadow = quality.shadows;
+          group.add(annex);
+        }
+        if (building.tier === "ELITE") {
+          const hall = new THREE.Mesh(
+            new THREE.CylinderGeometry(form.width * 0.32, form.width * 0.32, form.height * 1.2, 8, 1, false, 0, Math.PI),
+            materials.roofMetal,
+          );
+          hall.rotation.z = Math.PI / 2;
+          hall.rotation.y = Math.PI / 2;
+          hall.position.set(-form.width * 0.7, form.height * 0.5, 0);
+          hall.castShadow = quality.shadows;
+          group.add(hall);
+        }
+        // Floodlights beside the practice pitches from Modest up.
+        if (building.tier !== "BASIC" && pitchCount > 0) {
+          for (const side of [1, -1]) {
+            const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 3.4, 6), materials.steel);
+            pole.position.set(side * (pitchWidth / 2 + 0.6), 1.7, form.depth / 2 + 3.4);
+            group.add(pole);
+          }
+        }
+      } else if (building.kind === "OFFICES") {
+        // An entrance canopy from Professional up — a modest office has a
+        // door, not a portico.
+        if (building.tier === "PROFESSIONAL" || building.tier === "ADVANCED" || building.tier === "ELITE") {
+          const canopy = new THREE.Mesh(new THREE.BoxGeometry(form.width * 0.5, 0.12, 1.4), materials.roofMetal);
+          canopy.position.set(0, form.height * 0.35, -(form.depth / 2 + 0.7));
+          group.add(canopy);
+          for (const side of [1, -1]) {
+            const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, form.height * 0.35, 6), materials.darkSteel);
+            post.position.set(side * form.width * 0.2, (form.height * 0.35) / 2, -(form.depth / 2 + 0.7));
+            group.add(post);
+          }
+        }
+        // A small forecourt plaza at Elite — the arrival façade a flagship
+        // club's HQ is expected to have.
+        if (building.tier === "ELITE") {
+          const plaza = new THREE.Mesh(
+            new THREE.PlaneGeometry(form.width * 1.4, 2.2),
+            materials.paintedConcrete,
+          );
+          plaza.rotation.x = -Math.PI / 2;
+          plaza.position.set(0, 0.03, -(form.depth / 2 + 1.6));
+          group.add(plaza);
+        }
+      } else if (building.kind === "MEDICAL" && (building.tier === "ADVANCED" || building.tier === "ELITE")) {
+        // A recovery annex once the medical facility is genuinely advanced.
+        const annex = new THREE.Mesh(
+          new THREE.BoxGeometry(form.width * 0.45, form.height * 0.6, form.depth * 0.45),
+          materials.glass,
         );
-        practice.rotation.x = -Math.PI / 2;
-        practice.position.set(0, 0.05, form.depth / 2 + 3.4 + index * 5.2);
-        practice.receiveShadow = quality.shadows;
-        group.add(practice);
+        annex.position.set(-form.width * 0.7, (form.height * 0.6) / 2, 0);
+        group.add(annex);
+      }
+
+      // Low-tier buildings sit behind a plain fence; developed sites from
+      // Professional up get a short paved forecourt instead — real site
+      // development, not the same ground texture at every tier.
+      const pathMaterial = building.tier === "PROFESSIONAL" || building.tier === "ADVANCED" || building.tier === "ELITE" ? materials.asphalt : materials.fence;
+      if (building.tier === "PROFESSIONAL" || building.tier === "ADVANCED" || building.tier === "ELITE") {
+        const path = new THREE.Mesh(new THREE.PlaneGeometry(form.width * 0.6, 1.6), pathMaterial);
+        path.rotation.x = -Math.PI / 2;
+        path.position.set(0, 0.02, -(form.depth / 2 + 0.9));
+        group.add(path);
+      } else {
+        for (let side = -1; side <= 1; side += 2) {
+          const fence = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.5, form.depth * 0.9), materials.fence);
+          fence.position.set(side * (form.width / 2 + 0.15), 0.25, 0);
+          group.add(fence);
+        }
       }
     }
 
@@ -469,6 +579,20 @@ export const buildClubScene = (
       marker.rotation.x = -Math.PI / 2;
       marker.position.y = 0.09;
       group.add(marker);
+    }
+
+    // A club-accent flag at the entrance of any genuinely developed
+    // building from Professional up — the same identity language the
+    // stadium already carries, extended across the campus.
+    if (developed && quality.ambientProps && (building.tier === "PROFESSIONAL" || building.tier === "ADVANCED" || building.tier === "ELITE")) {
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.2, 6), materials.darkSteel);
+      pole.position.set(form.width / 2 + 0.6, 1.1, form.depth / 2);
+      group.add(pole);
+      const flagMaterial = new THREE.MeshStandardMaterial({ color: accent.getHex(), side: THREE.DoubleSide, roughness: 0.8 });
+      const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.4), flagMaterial);
+      flag.position.set(form.width / 2 + 0.9, 1.9, form.depth / 2);
+      group.add(flag);
+      if (motion === "FULL") animated.push({ object: flag, phase: random() * Math.PI * 2, amplitude: 0.15 });
     }
 
     scene.add(group);
