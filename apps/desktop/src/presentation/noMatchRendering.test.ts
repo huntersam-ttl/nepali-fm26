@@ -52,15 +52,19 @@ describe("no match rendering, ever", () => {
     expect(importers.map(relative).sort()).toEqual([
       path.join("presentation", "SceneCanvas.tsx"),
       path.join("presentation", "clubSceneBuilder.ts"),
+      path.join("presentation", "federationSceneBuilder.ts"),
     ]);
   });
 
   it("mounts 3D scenes only where a scene is genuinely intended", () => {
     const mounts = allSources
       .filter((file) => !relative(file).startsWith("presentation"))
-      .filter((file) => /<(SceneCanvas|ClubEnvironmentScene)\b/.test(read(file)));
-    // Club Profile only. Adding a scene elsewhere is a deliberate act and
-    // should update this list along with the design doc.
-    expect(mounts.map(relative)).toEqual([path.join("manager", "RoleDetailScreen.tsx")]);
+      .filter((file) => /<(SceneCanvas|ClubEnvironmentScene|FederationEnvironmentScene)\b/.test(read(file)));
+    // Club Profile and the President Dashboard's federation world only.
+    // Adding a scene elsewhere is a deliberate act and should update this
+    // list along with the design doc.
+    expect(mounts.map(relative).sort()).toEqual(
+      [path.join("manager", "RoleDetailScreen.tsx"), path.join("manager", "RoleLandingScreen.tsx")].sort(),
+    );
   });
 });

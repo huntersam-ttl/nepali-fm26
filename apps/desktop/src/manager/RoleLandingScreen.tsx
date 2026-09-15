@@ -34,6 +34,7 @@ import {
 } from "./RoleDetailScreen.js";
 import { projectStatusLabel } from "./clubWorldPresentation.js";
 import { humanizeEnum, humanizeToken } from "./storyHumanizer.js";
+import { FederationEnvironmentScene } from "../presentation/FederationEnvironmentScene.js";
 
 export const EXECUTIVE_ROLES = ["SPORTING_DIRECTOR", "DIRECTOR_OF_FOOTBALL", "CEO", "GENERAL_SECRETARY"];
 
@@ -1057,6 +1058,19 @@ const FederationDashboardView = ({
           {message}
         </p>
       )}
+      <Panel title="Federation world">
+        <FederationEnvironmentScene
+          dashboard={dashboard}
+          fallback={
+            <p className="empty-state">
+              {dashboard.federation.name} headquarters and national football centre — 3D presentation
+              unavailable or turned off; see the summary panels below for the same facts.
+            </p>
+          }
+          onOpenGovernance={() => onNavigate("governance")}
+          onOpenNationalDevelopment={() => onNavigate("national-development")}
+        />
+      </Panel>
       <div className="summary-grid">
         <Panel title="Federation summary">
           <Metrics
