@@ -173,6 +173,8 @@ const dispatch = (
       return service.getExecutiveRecruitmentDesk(body.clubId as EntityId);
     case "getExecutiveAuthority":
       return service.getExecutiveAuthority(body.clubId as EntityId | undefined);
+    case "getClubExecutiveOverview":
+      return service.getClubExecutiveOverview(body.clubId as EntityId | undefined);
     case "switchActiveCareerRole":
       return service.switchActiveCareerRole(body.targetRole as CareerRole);
     case "getChairmanDashboard":

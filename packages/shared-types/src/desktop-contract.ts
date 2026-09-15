@@ -56,6 +56,7 @@ import type {
 import type {
   ExecutiveAuthorityDesktopView,
   ExecutiveRecruitmentDesk,
+  ExecutiveRoleReadModel,
   SecretaryOperationsDesk,
 } from "./executive-roles.js";
 import type { FederationDevelopmentSummary, NationDevelopmentScorecard } from "./federation-policy.js";
@@ -964,6 +965,10 @@ export type DesktopRuntimeApi = {
   ): Promise<AppResult<ExecutiveRecruitmentDesk>>;
   getSecretaryOperationsDesk(clubId: EntityId): Promise<AppResult<SecretaryOperationsDesk>>;
   switchActiveCareerRole(targetRole: CareerRole): Promise<AppResult<CareerHeader>>;
+  /** Owner-only supervision read model: every executive role at the owned
+   * club (holder or vacancy, authorities) regardless of who holds it —
+   * never requires the Owner to become the executive themselves. */
+  getClubExecutiveOverview(clubId?: EntityId): Promise<AppResult<ExecutiveRoleReadModel[]>>;
   getChairmanDashboard(): Promise<AppResult<ChairmanDashboard>>;
   getOwnerMatchday(): Promise<AppResult<OwnerMatchdayView>>;
   watchOwnerFixture(fixtureId?: EntityId): Promise<AppResult<LiveMatchView>>;

@@ -107,7 +107,8 @@ export type ChairmanScreen =
   | "investors"
   | "bank"
   | "meeting"
-  | "matchday";
+  | "matchday"
+  | "executive";
 export type PresidentScreen =
   | "dashboard"
   | "governance"
@@ -153,6 +154,10 @@ const SECTION_TITLES: Record<string, { title: string; subtitle: string }> = {
     subtitle: "Fixtures, results, and league position — no tactical control.",
   },
   investors: { title: "Investors", subtitle: "Ownership stakes and equity interest." },
+  executive: {
+    title: "Executive management",
+    subtitle: "Who holds each executive role, their authority, and where it stands vacant.",
+  },
   governance: { title: "Governance", subtitle: "Proposals, policy, and federation decisions." },
   "national-teams": {
     title: "National teams",
@@ -234,6 +239,8 @@ const ChairmanDetail = ({
             <SponsorMeeting bridge={bridge} role="CHAIRMAN_OWNER" clubId={dashboard.club.id} />
           );
         if (screen === "investors") return <InvestorMeeting bridge={bridge} />;
+        if (screen === "executive")
+          return <ExecutiveManagementOverview bridge={bridge} clubId={dashboard.club.id} />;
         if (screen === "bank")
           return <BankMeeting bridge={bridge} role="CHAIRMAN_OWNER" clubId={dashboard.club.id} />;
         if (screen === "meeting")
@@ -242,6 +249,52 @@ const ChairmanDetail = ({
           return <OwnerMatchday bridge={bridge} onTalkToManager={() => onNavigate("meeting")} />;
         return <ChairmanSupporters dashboard={dashboard} />;
       }}
+    </AsyncPanel>
+  );
+};
+
+const EXECUTIVE_ROLE_LABELS: Record<string, string> = {
+  SPORTING_DIRECTOR: "Sporting Director",
+  DIRECTOR_OF_FOOTBALL: "Director of Football",
+  CEO: "CEO",
+  GENERAL_SECRETARY: "General Secretary",
+};
+
+/**
+ * Owner supervision surface for the club's NPC executive roles. Shows who
+ * holds each role (or that it is vacant) and their delegated authorities —
+ * the Owner reads and delegates from here, never becomes the executive.
+ */
+const ExecutiveManagementOverview = ({
+  bridge,
+  clubId,
+}: {
+  bridge: DesktopRuntimeApi;
+  clubId: EntityId;
+}): React.ReactElement => {
+  const [state] = useRuntimeData(() => bridge.getClubExecutiveOverview(clubId), [clubId]);
+  return (
+    <AsyncPanel state={state}>
+      {(roles) => (
+        <Panel title="Executive roles">
+          <ul className="report-list">
+            {roles.map((role) => (
+              <li key={role.role}>
+                <strong>{EXECUTIVE_ROLE_LABELS[role.role] ?? role.role}</strong>{" "}
+                <Badge tone={role.status === "FILLED" ? "ok" : "warn"}>
+                  {role.status === "FILLED" ? "Filled" : "Vacant"}
+                </Badge>
+                <p className="subtle">
+                  {role.status === "FILLED"
+                    ? `Held by ${role.personName ?? "an appointed executive"}.`
+                    : "This role is vacant; the club operates with existing manager authority."}{" "}
+                  Delegated authorities: {role.authorities.map(humanizeToken).join(", ") || "none"}.
+                </p>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      )}
     </AsyncPanel>
   );
 };

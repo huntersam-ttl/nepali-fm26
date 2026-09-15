@@ -210,6 +210,7 @@ import {
   type StaffSuccessionPlanView,
   type ExecutiveAuthorityDesktopView,
   type ExecutiveRecruitmentDesk,
+  type ExecutiveRoleReadModel,
   type SecretaryOperationsDesk,
   type ExecutiveRole,
   type StartMatchCommand,
@@ -1256,6 +1257,30 @@ export class DesktopApplicationService {
       const updated = loadSave(db, save.id);
       this.writeCatalogEntry(this.catalogEntry(db, updated, filePath));
       return careerHeader(db, updated);
+    });
+  }
+
+  /**
+   * Owner supervision read model: every executive role at the owned club
+   * (SPORTING_DIRECTOR, DIRECTOR_OF_FOOTBALL, CEO, GENERAL_SECRETARY),
+   * showing its current holder or vacancy and delegated authorities —
+   * regardless of who holds it. Unlike getExecutiveAuthority (which only
+   * resolves for a person genuinely holding the job themselves), this is
+   * the Owner's own supervision surface: they never need to become the
+   * executive to see who is doing the job.
+   */
+  getClubExecutiveOverview(clubId?: EntityId): AppResult<ExecutiveRoleReadModel[]> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER") {
+        throw appError("ROLE_NOT_AUTHORIZED", "You do not currently hold the Chairman role.");
+      }
+      const targetClubId =
+        clubId ?? heldCareerRoles(db, personId).find((role) => role.role === "CHAIRMAN_OWNER")?.targetId;
+      if (!targetClubId) throw appError("ROLE_NOT_AUTHORIZED", "No club is available.");
+      if (!heldCareerRoles(db, personId).some((entry) => entry.role === "CHAIRMAN_OWNER" && entry.targetId === targetClubId))
+        throw appError("ROLE_NOT_AUTHORIZED", "The owner does not control this club.");
+      return EXECUTIVE_ROLES_TUPLE.map((role) => executiveRoleReadModel(db, targetClubId, role));
     });
   }
 
