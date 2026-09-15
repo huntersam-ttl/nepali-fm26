@@ -394,25 +394,37 @@ Both are documented and tested rather than faked with an invented
 negotiation/appointment lifecycle, per this task's explicit instruction:
 presentation must follow real simulation state, never the reverse.
 
-**Verification status — honest, not yet complete**: the boardroom meeting
-has a passing real-browser Playwright suite
-(`apps/desktop/e2e/meeting-3d-presentation.spec.ts`) proving the canvas
-renders, camera presets move it, the canonical action still works, 3D OFF
-mounts no canvas, and axe reports zero serious/critical violations.
-Transfer negotiation, the investor meeting, press and the new signing
-presentation do **not** have an equivalent real-browser suite yet — this
-pass added and unit-tested the code but did not extend live-browser
-coverage to these contexts, since a deterministic Playwright fixture for a
-real `COMPLETED`, `IMPORTANT`/`MAJOR` transfer (needed to reach the signing
-room) does not exist and was not built this pass. A manual check in the
-same live desktop build showed the transfer negotiation panel's real state
-(player, club, fee, budget context) and canonical actions rendering
-correctly with zero console errors; the 3D canvas itself was not confirmed
-mounting in that manual check, and — given the existing boardroom suite
-already proves canvas mounting works for this same `MeetingEnvironmentScene`
-family of code — the cause was not isolated (most likely a quirk of that
-particular manual/ambient testing session rather than a product defect, but
-unconfirmed). See Known P1/P2 in the phase report.
+**Verification status**: both the boardroom meeting
+(`apps/desktop/e2e/meeting-3d-presentation.spec.ts`) and transfer
+negotiation/signing (`apps/desktop/e2e/decision-presentation.spec.ts`) have
+passing real-browser Playwright suites proving the canvas renders at a
+real non-zero size, camera presets actually move it, the canonical action
+(Start meeting / Withdraw offer) still works, 3D OFF mounts no canvas, and
+— for the boardroom — axe reports zero serious/critical violations.
+
+The transfer-negotiation/signing suite runs against a deterministic fixture
+(`DesktopApplicationService.seedE2EDecisionPresentationFixture`, gated
+behind `NEPAL_E2E_ROLE_FIXTURE` like the other `seedE2E*` fixtures) that
+seeds a real, still-open incoming offer through the same
+`makeManagerTransferOffer` engine code the UI calls, and a real completed
+`MAJOR` incoming offer with its fee set to exactly the club's remaining
+transfer budget — the completed offer's state (status, a real contract, a
+real transfer-history event, the player's club) is written directly rather
+than depending on the AI personal-terms negotiation's outcome, which is
+real but genuinely non-deterministic (stall/reject/withdraw are all
+legitimate results a fixture can't rely on).
+
+This resolved an open question from the prior pass: a manual check against
+a **shared, ambient dev server session** had shown the transfer-negotiation
+canvas failing to mount, with the cause unconfirmed. Re-run against an
+isolated server the canvas mounted correctly every time — confirming that
+result was environmental (a concurrent session's interference), not a
+product defect.
+
+**Investor meeting and press do not yet have an equivalent real-browser
+suite** — only the boardroom and transfer-negotiation/signing contexts
+were extended to live-browser coverage this pass. See Known P2 in the
+phase report.
 
 ## Non-negotiables for every scene
 
