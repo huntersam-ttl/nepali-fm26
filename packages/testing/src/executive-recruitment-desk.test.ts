@@ -137,9 +137,8 @@ describe("executive recruitment desk", () => {
     if (!header.ok) throw new Error(header.error.message);
     makeManagerAlsoExecutive(filePath, clubId, header.data.worldDate, "SPORTING_DIRECTOR");
 
-    const switched = service.switchActiveCareerRole("SPORTING_DIRECTOR");
-    expect(switched.ok).toBe(true);
-
+    // SPORTING_DIRECTOR is an NPC job — the desk is reachable through the
+    // held appointment without ever switching the player's career into it.
     const desk = service.getExecutiveRecruitmentDesk(clubId);
     expect(desk.ok).toBe(true);
     if (!desk.ok) return;
