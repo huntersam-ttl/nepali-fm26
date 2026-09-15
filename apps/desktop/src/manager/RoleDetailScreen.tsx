@@ -96,6 +96,8 @@ import { campusBlockDescriptors, projectProgressPercent, projectStatusLabel } fr
 import { ClubEnvironmentScene } from "../presentation/ClubEnvironmentScene.js";
 import { useNewlyArrived } from "../presentation/MotionPrimitives.js";
 import { humanizeEnum, humanizeToken } from "./storyHumanizer.js";
+import { MeetingEnvironmentScene } from "../presentation/MeetingEnvironmentScene.js";
+import { meetingTierForScore100 } from "../presentation/meetingScenePresentation.js";
 
 export type ChairmanScreen =
   | "dashboard"
@@ -4218,6 +4220,16 @@ const OwnerManagerMeetingView = ({
             role: "Manager",
             organisation: overview.clubName,
           }}
+        />
+        <MeetingEnvironmentScene
+          context="BOARDROOM"
+          environmentTier={meetingTierForScore100(overview.boardConfidence)}
+          importance={
+            overview.pressure === "HIGH" ? "MAJOR" : overview.pressure === "MEDIUM" ? "IMPORTANT" : "ROUTINE"
+          }
+          organisationId={String(overview.clubId)}
+          organisationName={overview.clubName}
+          fallback={null}
         />
         <button className="ghost small" onClick={() => setOpenManagerId(overview.managerPersonId)}>
           View manager profile

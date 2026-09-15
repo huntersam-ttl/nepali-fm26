@@ -2716,6 +2716,13 @@ button.map-region-block:focus-visible {
   position: absolute;
   inset: 0;
 }
+/* Off-pitch decision rooms (boardroom/negotiation/press) are a compact
+   interior, not a wide campus band — a shorter aspect keeps the scene from
+   crowding the real decision controls beside/below it. */
+.meeting-scene-canvas {
+  aspect-ratio: 16 / 9;
+  max-height: 260px;
+}
 .scene-host-loading {
   position: absolute;
   inset: 0;
