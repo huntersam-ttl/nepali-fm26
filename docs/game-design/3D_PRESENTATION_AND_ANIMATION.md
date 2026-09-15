@@ -45,9 +45,45 @@ Concretely, in the shipped Club Environment:
 | Site build-up, light warmth | `ClubReputationSummary.footballReputation` |
 | Layout jitter, accent hue | stable hash of the club id (deterministic) |
 | Terrain silhouette | `ClubProfile.locationLabel` classified against real Nepal districts |
+| Stand arrangement (typology) | real stand count + stadium tier + the club's stable seed |
+| Floodlight provision | recorded `floodlights` flag + stadium tier (NONE/BASIC/PROFESSIONAL/ELITE) |
+| Stadium construction | a real `CONSTRUCTION`/planned project on the stadium block itself |
 
 A big but unlit, uncovered ground is deliberately **not** allowed to present as
 an elite modern arena, however large its capacity.
+
+### Stadium typology and materials
+
+Tier (quality/scale) and **typology** (physical arrangement) are deliberately
+separate — `stadiumTypologyFor(standCount, tier, seed)` in
+`clubScenePresentation.ts` — so two clubs at the same tier are not pixel-
+identical: `OPEN_GROUND` / `SINGLE_MAIN_STAND` (1 stand), `MAIN_AND_TERRACE`
+(opposite long sides) / `MAIN_AND_END` (main + one end, chosen by seed
+parity) for 2 stands, `THREE_SIDED` for 3, and `FOUR_STAND_BOWL` /
+`ENCLOSED_BOWL` (elite/large-capacity only, with corner infill panels
+closing the bowl) for 4. `clubSceneBuilder.ts`'s `STAND_SELECTION` map picks
+*which* of the four fixed stand placements a typology actually builds on.
+
+Stands carry a stepped seating rake, support columns under the deck, and
+roof struts, rather than flat box faces. A small material library
+(`buildMaterialLibrary`) gives concrete, painted concrete, steel, dark
+steel, roof metal, glass, asphalt, seating and fence distinct roughness/
+metalness/colour so steel no longer reads like concrete and a roof no
+longer reads like a seating deck. Two club-accent flags mark the stadium
+corners (flutter-animated on Full motion only) — identity, not a crest
+claim. The pitch itself carries a subtle mowing-stripe pattern and static
+goal frames — environment furniture, never match state (see the permanent
+match-rendering boundary below).
+
+Floodlights are a real provision band now (`FloodlightTier`), not a binary
+flag: pole height and lamp size scale from `NONE` through `BASIC` /
+`PROFESSIONAL` / `ELITE`, tied to the stadium tier.
+
+The stadium block previously had **no** construction visualization at all —
+only the campus facility buildings did. It now shows the same honesty rule:
+a real `CONSTRUCTION` project on the stadium shows temporary perimeter
+fencing; a merely planned one shows a ring marker; neither appears once the
+project record is gone.
 
 ### Geographic identity
 
@@ -101,6 +137,22 @@ procedural geometry derived from game state rather than artist-authored GLTF
 assets, so the core library is sufficient, and a second React reconciler is a
 cost with no current benefit. Revisit if scenes become complex enough to want a
 component tree.
+
+### Clickability
+
+The permanent rule: **destination exists → clickable; no destination →
+plain.** `ClubEnvironmentScene` is opened from `OrganizationProfilePanel`
+(`onOpenReference`), a single shared panel reachable from *any* role viewing
+*any* club — the player's own, an opponent's, or a foreign club. That shared,
+multi-context reach is exactly why a generic "open Training" click has no
+single safe target: the same panel serves a Manager looking at a rival club,
+an Owner looking at their own, and a President looking at either.
+
+| Visual entity | Canonical destination | Clickable | Reason |
+| --- | --- | --- | --- |
+| Stadium/Training/Academy/Medical/Offices, with a real active project | Infrastructure project detail (`OrganizationProfilePanel`, via the project's own `EntityReference`) | **Yes** | A real, visible destination exists and is reused, never duplicated |
+| Any of the above, with no active project | — | **No** | No single destination is safe from every viewing context this panel is opened in (see above) |
+| Executive appointments (Sporting Director/DoF/CEO/General Secretary) | Chairman/Owner → Staff → Executive Management (`getClubExecutiveOverview`) | **Yes, but only from the Owner's own club-facing nav**, not from this shared 3D scene | Correct destination only exists when the viewer *is* the Owner of *this* club — not derivable inside a panel any role/any club can open |
 
 ## Non-negotiables for every scene
 
@@ -361,14 +413,23 @@ actually happened.
 Foundation and the first vertical slice (Club Environment on Club Profile)
 are implemented, along with the UI motion foundation above, quality/motion/
 3D-off settings (now reachable both before and during an active career),
-and the packaged-build manual acceptance gate documented above. The Club
-Environment has since deepened (Phase 1 of the living-world upgrade):
-geographic identity and five named camera presets, both described above.
-Not yet built from this Phase 1 pass, deliberately deferred rather than
-rushed: multi-camera-preset coverage of the two-dimensional campus grid
-fallback, richer atmosphere (flags, banners, weather), material variety
-beyond flat-coloured boxes (distinct glass/steel/track surfaces), and a
-federation-HQ scene for the President career (out of scope by design —
-see the Future-system integration matrix). Everything else in the matrix
-is still to do, and each should be built on this foundation rather than
-beside it.
+and the packaged-build manual acceptance gate documented above.
+
+Phase 1 of the living-world upgrade added geographic identity and five named
+camera presets. Phase 2 (this pass) added: stadium typology separate from
+tier (real stand-arrangement variety, not just scale), a small coherent
+material library, stepped seating/support columns/roof struts, floodlight
+provision bands, stadium construction visualization (previously the one
+campus block with none at all), club-accent corner flags, and a real-browser
+screenshot test proving a top-division club's stadium renders substantially
+differently from a bottom-division club's.
+
+Not yet built, deliberately deferred rather than rushed: weather-state
+atmosphere (no such simulation state exists yet to read honestly), richer
+Kathmandu/Terai compositional density beyond the existing backdrop
+silhouette, training/academy component-composition depth beyond shared
+practice-pitch counts, a distinct administration-progression visual ladder,
+and a federation-HQ scene for the President career (out of scope by design —
+see the Future-system integration matrix). Everything else in the matrix is
+still to do, and each should be built on this foundation rather than beside
+it.
