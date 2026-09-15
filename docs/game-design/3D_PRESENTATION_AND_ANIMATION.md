@@ -181,19 +181,26 @@ asked to see.
 
 ```
 apps/desktop/src/presentation/
-  clubScenePresentation.ts   pure state -> ClubSceneProfile  (renderer-agnostic, unit-tested)
-  scenePreferences.ts        quality tiers, motion level, WebGL capability     (unit-tested)
-  SceneCanvas.tsx            reusable host: lazy load, resize, pause, dispose, error boundary
-  clubSceneBuilder.ts        ClubSceneProfile -> three.js scene  (the only module importing three)
-  ClubEnvironmentScene.tsx   the Club Profile hero + accessible text readout + 2D fallback
-  PresentationSettingsPanel.tsx  graphics/animation preferences
+  clubScenePresentation.ts        pure state -> ClubSceneProfile  (renderer-agnostic, unit-tested)
+  federationScenePresentation.ts  pure state -> FederationSceneProfile (same pattern, President career)
+  scenePreferences.ts             quality tiers, motion level, WebGL capability     (unit-tested)
+  SceneCanvas.tsx                 reusable host: lazy load, resize, pause, dispose, error boundary
+  clubSceneBuilder.ts             ClubSceneProfile -> three.js scene
+  federationSceneBuilder.ts       FederationSceneProfile -> three.js scene
+  ClubEnvironmentScene.tsx        the Club Profile hero + accessible text readout + 2D fallback
+  FederationEnvironmentScene.tsx  the President Dashboard hero, same guarantees
+  PresentationSettingsPanel.tsx   graphics/animation preferences
 ```
 
+Only `clubSceneBuilder.ts` and `federationSceneBuilder.ts` import `three` — enforced by
+`noMatchRendering.test.ts`'s import allowlist, so a third 3D surface cannot
+appear without a deliberate update to that test and this doc — so three.js
+ships as a lazily-loaded chunk that costs nothing until a scene is actually
+shown.
+
 The split matters: the **derivation layer is pure TypeScript and has no
-renderer dependency**, so scene correctness is unit-testable without a GPU, and
-the renderer stays swappable. Only `clubSceneBuilder.ts` imports `three`, so
-three.js ships as a lazily-loaded chunk that costs nothing until a scene is
-actually shown.
+renderer dependency**, so scene correctness is unit-testable without a GPU,
+and the renderer stays swappable.
 
 ### Library choice
 
@@ -218,6 +225,60 @@ an Owner looking at their own, and a President looking at either.
 | Stadium/Training/Academy/Medical/Offices, with a real active project | Infrastructure project detail (`OrganizationProfilePanel`, via the project's own `EntityReference`) | **Yes** | A real, visible destination exists and is reused, never duplicated |
 | Any of the above, with no active project | — | **No** | No single destination is safe from every viewing context this panel is opened in (see above) |
 | Executive appointments (Sporting Director/DoF/CEO/General Secretary) | Chairman/Owner → Staff → Executive Management (`getClubExecutiveOverview`) | **Yes, but only from the Owner's own club-facing nav**, not from this shared 3D scene | Correct destination only exists when the viewer *is* the Owner of *this* club — not derivable inside a panel any role/any club can open |
+| Federation HQ | Governance screen (`onNavigate("governance")`) | **Yes** | `FederationEnvironmentScene` is only ever the President's own dashboard for their own federation — unlike the club scene, there is no other-viewer/other-federation ambiguity, so a direct `onNavigate` route is safe |
+| National Football Centre | National Development screen (`onNavigate("national-development")`) | **Yes** | same reasoning |
+| Referee-development marker, women's-development marker, trees | — | **No** | Environmental/identity props, never routed — no destination exists for them |
+
+## Federation Environment (President career)
+
+Mirrors the club scene's architecture and every guarantee (deterministic,
+state-driven, text-parity, 2D fallback, quality/motion-aware) for the
+Federation President's own world — `federationScenePresentation.ts` /
+`federationSceneBuilder.ts` / `FederationEnvironmentScene.tsx`.
+
+**State source**: the same `FederationPresidentDashboard` the President
+Dashboard already reads — no new backend query. `FederationSimulationProfile`
+carries real 0-100 development scores (a genuinely different scale from a
+club's 0-20 facility quality, so federation tiers use their own bands:
+`federationTierForScore`). HQ reads from institutional strength
+(`governanceStability`/`commercialStrength`/`infrastructureLevel` averaged);
+the National Football Centre reads from football-development strength
+(`youthDevelopment`/`coachEducation`/`infrastructureLevel`) — two genuinely
+different real inputs, so a federation strong in governance but weak in
+youth development gets a large HQ next to a modest national centre, never
+the reverse implied by one number.
+
+**Buildings**: `HQ` and `NATIONAL_CENTRE` only (two real blocks, not five —
+deliberately smaller in scope than the club campus, matched to what real
+federation state actually supports). The national centre's practice-pitch
+count scales 0-4 from its own tier. A small referee-development marker
+appears only once `refereeDevelopment >= 20`; a women's-development marker
+appears only from a real `WOMENS_DEVELOPMENT` `FederationProject` (any
+status) — never inferred from unrelated scores.
+
+**Construction**: real `FederationProject` records map to HQ (`GRASSROOTS_
+PROGRAMME`/`DIGITAL_BROADCAST`/`CLUB_SUPPORT_PROGRAMME`) or the national
+centre (`NATIONAL_TRAINING_CENTRE`/`REGIONAL_CENTRE`/`ACADEMY_EXPANSION`/
+`WOMENS_DEVELOPMENT`/`COACH_EDUCATION`/`REFEREE_PROGRAMME`), with the same
+scaffold-for-`CONSTRUCTION`/`IMPLEMENTATION`, ring-marker-for-planned
+lifecycle the club campus uses.
+
+**Geography**: honestly `UNKNOWN` — no canonical federation HQ district
+exists in current simulation state, so this never hardcodes "Kathmandu" as
+a fact. Reuses the club geography engine's types rather than duplicating it;
+will pick up a real district automatically if federation location data is
+ever added.
+
+**Cameras**: three named presets — `OVERVIEW`, `HQ`, `NATIONAL_CENTRE` — a
+deliberately smaller set than the club's five, matched to the two real
+buildings that exist. Same eased-on-Full/instant-on-Reduced behavior.
+
+**Integration**: mounted in the President Dashboard
+(`RoleLandingScreen.tsx`'s `FederationDashboardView`), reusing `SceneCanvas`
+directly rather than duplicating its lazy-load/resize/dispose/error-boundary
+logic. Switching career role away from President and back re-shows the
+federation scene; 3D OFF leaves the full President dashboard functional
+through DOM controls alone.
 
 ## Non-negotiables for every scene
 
@@ -264,7 +325,7 @@ meaningful". Expected work per system:
 | Women's football | the *same* scene architecture and quality — never a lesser visual tier |
 | Supporters | crowd density, banners, atmosphere driven by supporter state |
 | Multi-club ownership | group/world portfolio visualization |
-| Federation completion | federation HQ, national training centre, national stadium |
+| Federation completion | HQ/national centre shipped (see Federation Environment above); a national stadium scene is still to do |
 | National teams | national-team hub, tournament branding, qualification moments |
 | Career/economy/reputation | milestone sequences, trophy room, boardroom |
 | Weather/travel | scene atmosphere by time of day and climate, where the model holds it |
@@ -498,19 +559,31 @@ site-development treatment, and a real-browser test proving Overview/
 Training/Academy/Admin all render substantially differently between a
 bottom- and top-division club.
 
-Phase 4 (this pass) deepened geography from a distant silhouette into real
-site composition — terrain (Hill's terraced plinth), boundary (Kathmandu's
+Phase 4 deepened geography from a distant silhouette into real site
+composition — terrain (Hill's terraced plinth), boundary (Kathmandu's
 compound wall), access roads, vegetation density/type, and atmospheric fog
 depth, all described above — verified deterministic, independent of club
 scale, and by two real-browser tests (three real clubs' Overview scenes
 pairwise different; a small and large club's scenes differ while the DOM
 always states one of the four real geography bands).
 
+Phase 5 (this pass) gave the Federation President career its own physical
+world — the Federation Environment described above — built on the same
+architecture and guarantees as the club scene, driven by the same real
+`FederationPresidentDashboard` state the President Dashboard already reads,
+with real HQ/national-centre construction lifecycle, real referee- and
+women's-development markers, and a real-browser test proving the scene
+renders, camera presets and click-through to Governance/National
+Development work, and a role switch away from and back to President
+correctly re-shows the federation context.
+
 Not yet built, deliberately deferred rather than rushed: weather-state
 atmosphere (no such simulation state exists yet to read honestly), time-of-
 day/floodlight-glow lighting profiles (no canonical time-of-day state
-exists either), a federation-HQ scene for the President career (out of
-scope by design — see the Future-system integration matrix), and
-residential/education representation for an elite academy (no simulation
-state to ground it honestly). Everything else in the matrix is still to
-do, and each should be built on this foundation rather than beside it.
+exists either), residential/education representation for an elite academy
+(no simulation state to ground it honestly), a national-stadium scene and
+federation geography beyond `UNKNOWN` (no canonical federation-HQ district
+exists in current state), and a browser test proving HQ/national-centre
+visually differ between a weak and strong federation (covered at unit
+level only this pass). Everything else in the matrix is still to do, and
+each should be built on this foundation rather than beside it.
