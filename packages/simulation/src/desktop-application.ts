@@ -19,6 +19,7 @@ import {
   SaveRepository,
   SquadDynamicsRepository,
   StaffMarketRepository,
+  TransferMarketRepository,
   WorldRepository,
   createNewSave,
   loadSave,
@@ -100,6 +101,7 @@ import {
   type GovernmentFundingType,
   type FederationPresidentDashboard,
   type E2ERoleFixtureResult,
+  type E2EDecisionPresentationFixtureResult,
   type FederationGovernanceProposal,
   type ClubBudget,
   type ClubBudgetCategory,
@@ -2174,6 +2176,118 @@ export class DesktopApplicationService {
       });
       return { ready: true };
     });
+  }
+
+  /**
+   * Test-only fixture for the off-pitch decision-presentation E2E suite:
+   * creates one real, still-open incoming permanent transfer offer (for the
+   * live NEGOTIATION scene) and one real completed incoming permanent
+   * transfer offer whose fee is set to exactly the club's remaining budget
+   * (so it deterministically reads MAJOR, qualifying the SIGNING scene) —
+   * both built through the same canonical `makeManagerTransferOffer`/
+   * `completePermanentTransfer` engine code the real UI calls, not a
+   * bespoke fixture shape. Gated behind NEPAL_E2E_ROLE_FIXTURE, same as the
+   * other seedE2E* fixtures.
+   */
+  seedE2EDecisionPresentationFixture(): AppResult<E2EDecisionPresentationFixtureResult> {
+    return this.managerCommand((db, save, context) => {
+      const clubId = context.club?.id;
+      if (!clubId) throw new ManagerCommandError("ROLE_NOT_AUTHORIZED", "Manager has no club.");
+      const targets = db
+        .prepare(
+          `SELECT pc.player_id AS playerId FROM player_contracts pc
+           WHERE pc.status = 'ACTIVE' AND pc.club_id != ?
+           ORDER BY pc.player_id LIMIT 2`,
+        )
+        .all(clubId) as Array<{ playerId: EntityId }>;
+      if (targets.length < 2) {
+        throw new ManagerCommandError(
+          "FIXTURE_MISSING",
+          "Decision-presentation fixture requires at least two externally contracted players.",
+        );
+      }
+      const [negotiationTarget, signingTarget] = targets;
+
+      let centre = makeManagerTransferOffer(db, save, context, {
+        playerId: negotiationTarget.playerId,
+        fee: 100_000,
+      });
+      const negotiationOffer = centre.incoming.find((offer) => offer.playerId === negotiationTarget.playerId);
+      if (!negotiationOffer) {
+        throw new ManagerCommandError("FIXTURE_MISSING", "Failed to seed the active negotiation offer.");
+      }
+
+      // Exactly the remaining budget after the first offer — guarantees this
+      // offer is real-signal MAJOR under transferNegotiationImportance
+      // (fee >= transferRemaining) without inventing a fake "record fee".
+      centre = makeManagerTransferOffer(db, save, context, {
+        playerId: signingTarget.playerId,
+        fee: centre.budget.transferRemaining,
+      });
+      const signingOfferView = centre.incoming.find((offer) => offer.playerId === signingTarget.playerId);
+      if (!signingOfferView) {
+        throw new ManagerCommandError("FIXTURE_MISSING", "Failed to seed the signing offer.");
+      }
+      const market = new TransferMarketRepository(db);
+      const signingOfferRaw = market.transferOffers().find((offer) => offer.id === signingOfferView.id);
+      if (!signingOfferRaw) {
+        throw new ManagerCommandError("FIXTURE_MISSING", "Failed to read back the seeded signing offer.");
+      }
+      // completePermanentTransfer runs the real AI personal-terms
+      // negotiation, which can genuinely stall/reject/withdraw depending on
+      // player preferences and wage affordability — real behaviour, but not
+      // a deterministic fixture. This test-only fixture instead writes the
+      // same real completed-state shape that function writes on success
+      // (offer COMPLETED, a real contract at the buying club, a real
+      // transfer-history event, the player's club updated) directly through
+      // the same public repository methods it calls, so the E2E suite gets
+      // a guaranteed-COMPLETED offer without depending on that negotiation's
+      // outcome.
+      const previousContract = market.activeContract(signingTarget.playerId, save.worldDate);
+      market.updateOfferStatus(signingOfferRaw.id, "COMPLETED");
+      if (previousContract) market.markContractStatus(previousContract.id, "TERMINATED");
+      market.upsertPlayerContract({
+        id: createStableEntityId("player-contract", `${signingTarget.playerId}:e2e-signing:${save.worldDate}`),
+        playerId: signingTarget.playerId,
+        clubId,
+        startDate: save.worldDate,
+        endDate: addDays(save.worldDate, 24 * 30),
+        contractType: previousContract?.contractType ?? "PROFESSIONAL",
+        salary: previousContract?.salary ?? 50_000,
+        appearanceFee: 0,
+        goalBonus: 0,
+        cleanSheetBonus: 0,
+        signingBonus: 0,
+        loyaltyBonus: 0,
+        currency: signingOfferRaw.currency,
+        squadRole: previousContract?.squadRole ?? "ROTATION",
+        status: "ACTIVE",
+        provenance: {
+          sourceName: "Nepal football simulation",
+          lastVerifiedDate: save.worldDate,
+          confidence: 0,
+          confidenceLevel: "LOW",
+          status: "SIMULATION_ONLY",
+          notes: "E2E decision-presentation fixture",
+        },
+      });
+      market.updatePlayerClub(signingTarget.playerId, clubId);
+      market.insertTransferHistoryEvent({
+        id: createStableEntityId("transfer-history", `${signingTarget.playerId}:e2e-signing:${save.worldDate}`),
+        playerId: signingTarget.playerId,
+        clubId,
+        relatedClubId: signingOfferRaw.sellingClubId,
+        eventType: "TRANSFER_COMPLETED",
+        occurredOn: save.worldDate,
+        data: { fee: signingOfferRaw.transferFee, currency: signingOfferRaw.currency },
+      });
+      const finalOffer = market.transferOffers().find((offer) => offer.id === signingOfferView.id);
+      return {
+        negotiationOfferId: negotiationOffer.id,
+        signingOfferId: signingOfferView.id,
+        signingOfferStatus: finalOffer?.status ?? "UNKNOWN",
+      };
+    }, true);
   }
 
   foundClub(name: string, locationName: string): AppResult<SimulationClubRecord> {

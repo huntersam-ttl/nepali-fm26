@@ -900,6 +900,17 @@ export type FederationCandidacyAssessment = {
 
 export type E2ERoleFixtureResult = { ready: true };
 
+/** Result of the off-pitch decision-presentation E2E fixture: the ids the
+ * spec needs to navigate directly to a real, still-open negotiation and a
+ * real, qualifying completed (signing) offer. `signingOfferStatus` is the
+ * offer's real persisted status after the engine's own completion logic
+ * ran — the spec asserts on it rather than assuming success. */
+export type E2EDecisionPresentationFixtureResult = {
+  negotiationOfferId: EntityId;
+  signingOfferId: EntityId;
+  signingOfferStatus: string;
+};
+
 /** Lightweight identity of the open career. Cheap enough for headers and menus. */
 export type CareerHeader = {
   saveId: EntityId;
