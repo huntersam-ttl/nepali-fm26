@@ -105,6 +105,25 @@ export type SceneBuilding = {
   project?: ClubCampusProject;
 };
 
+/**
+ * The stadium's physical arrangement, kept deliberately separate from its
+ * tier (quality/scale): two clubs at the same tier should not necessarily
+ * look identical. Derived deterministically from real stand count plus the
+ * club's stable seed — never randomised per launch.
+ */
+export type StadiumTypology =
+  | "OPEN_GROUND"
+  | "SINGLE_MAIN_STAND"
+  | "MAIN_AND_TERRACE"
+  | "MAIN_AND_END"
+  | "THREE_SIDED"
+  | "FOUR_STAND_BOWL"
+  | "ENCLOSED_BOWL";
+
+/** Floodlight provision band, distinct from the plain on/off flag the scene
+ * used to carry — tied to real recorded capacity and stadium tier. */
+export type FloodlightTier = "NONE" | "BASIC" | "PROFESSIONAL" | "ELITE";
+
 export type ClubSceneProfile = {
   clubId: string;
   clubName: string;
@@ -112,13 +131,20 @@ export type ClubSceneProfile = {
     tier: StadiumVisualTier;
     /** 1-4 real stands, scaled from recorded capacity. */
     standCount: number;
+    typology: StadiumTypology;
     floodlights: boolean;
+    floodlightTier: FloodlightTier;
     roofed: boolean;
     capacity?: number;
     /** True when the venue is only the nearest known ground, not a confirmed
      * home ground — the scene must not imply ownership the data doesn't have. */
     provisionalVenue: boolean;
     label: string;
+    /** A real in-progress/planned project on the stadium block itself —
+     * present so the 3D stadium can show construction, not just the campus
+     * facility buildings. */
+    underConstruction: boolean;
+    planned: boolean;
   };
   buildings: SceneBuilding[];
   site: SiteDevelopment;
@@ -208,6 +234,35 @@ export const stadiumTierLabel = (tier: StadiumVisualTier): string => STADIUM_TIE
  * four sides a ground physically has. A capacity-less venue shows one stand. */
 const standCountForCapacity = (capacity: number | undefined): number =>
   capacity && capacity > 0 ? Math.min(4, Math.max(1, Math.round(capacity / 8000))) : 1;
+
+/**
+ * Physical arrangement from real stand count, tier, and the club's own
+ * stable seed — never from randomness re-rolled per launch. Two clubs with
+ * the same stand count can still take a different (still deterministic)
+ * shape, so a tier is not a single fixed silhouette.
+ */
+export const stadiumTypologyFor = (
+  standCount: number,
+  tier: StadiumVisualTier,
+  seed: number,
+): StadiumTypology => {
+  if (standCount <= 1) return tier === "LOCAL_GROUND" ? "OPEN_GROUND" : "SINGLE_MAIN_STAND";
+  if (standCount === 2) return seed % 2 === 0 ? "MAIN_AND_TERRACE" : "MAIN_AND_END";
+  if (standCount === 3) return "THREE_SIDED";
+  return tier === "ELITE" || tier === "MODERN_LARGE" ? "ENCLOSED_BOWL" : "FOUR_STAND_BOWL";
+};
+
+/** Floodlight provision band. A club with no real capacity on record and no
+ * recorded floodlight flag gets NONE, never an assumed installation. */
+export const floodlightTierFor = (
+  hasFloodlights: boolean,
+  tier: StadiumVisualTier,
+): FloodlightTier => {
+  if (!hasFloodlights) return "NONE";
+  if (tier === "ELITE" || tier === "MODERN_LARGE") return "ELITE";
+  if (tier === "ESTABLISHED") return "PROFESSIONAL";
+  return "BASIC";
+};
 
 /** Which campus block each real project type physically sits on. Mirrors
  * clubWorldPresentation.ts's mapping so the two surfaces never disagree. */
@@ -320,17 +375,23 @@ export const buildClubSceneProfile = (profile: ClubProfile): ClubSceneProfile =>
     GEOGRAPHY_SUMMARY[geography],
   ];
 
+  const hasFloodlights = Boolean(profile.stadium?.floodlights);
+
   return {
     clubId,
     clubName: profile.entityReference.label,
     stadium: {
       tier: stadiumTier,
       standCount,
-      floodlights: Boolean(profile.stadium?.floodlights),
+      typology: stadiumTypologyFor(standCount, stadiumTier, seed),
+      floodlights: hasFloodlights,
+      floodlightTier: floodlightTierFor(hasFloodlights, stadiumTier),
       roofed: Boolean(profile.stadium?.coveredStands),
       capacity: profile.stadium?.capacity,
       provisionalVenue: Boolean(profile.stadium) && !profile.stadium!.confirmedHomeGround,
       label: stadiumLabel,
+      underConstruction: Boolean(stadiumProject && BUILDING_PROJECT_STATUSES.has(stadiumProject.status)),
+      planned: Boolean(stadiumProject && PLANNED_PROJECT_STATUSES.has(stadiumProject.status)),
     },
     buildings,
     site: siteDevelopmentFor(prestige, developedBlocks),

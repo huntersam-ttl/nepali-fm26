@@ -266,4 +266,58 @@ describe("club scene geometry follows real state", () => {
     expect(disposed).toBeGreaterThan(0);
     expect(handle.scene.children.length).toBe(0);
   });
+
+  it("gives a full-capacity elite stadium visibly more stadium geometry than a one-stand local ground of the same building count", () => {
+    const village = sceneFor("OFF", {
+      stadium: { venueId: eid("v"), name: "Village", capacity: 900, confirmedHomeGround: true },
+    });
+    const elite = sceneFor("OFF", {
+      stadium: {
+        venueId: eid("v2"),
+        name: "Elite Bowl",
+        capacity: 45000,
+        floodlights: true,
+        coveredStands: true,
+        confirmedHomeGround: true,
+      },
+    });
+    const stadiumObjectCount = (handle: typeof village): number => {
+      let count = 0;
+      const stadium = handle.pickables.find((entry) => entry.building === "STADIUM")!.object;
+      stadium.traverse(() => {
+        count += 1;
+      });
+      return count;
+    };
+    expect(stadiumObjectCount(elite)).toBeGreaterThan(stadiumObjectCount(village));
+    village.dispose();
+    elite.dispose();
+  });
+
+  it("shows the stadium itself under construction from a real project — the stadium block previously had no construction state at all", () => {
+    const idle = sceneFor("OFF", {
+      stadium: { venueId: eid("v"), name: "V", capacity: 12000, confirmedHomeGround: true },
+    });
+    const building = sceneFor("OFF", {
+      stadium: { venueId: eid("v"), name: "V", capacity: 12000, confirmedHomeGround: true },
+      campusProjects: [
+        {
+          id: eid("stand-proj"),
+          projectType: "STAND",
+          status: "CONSTRUCTION",
+          reference: { ...ref("stand-proj", "Stand expansion"), entityType: "INFRASTRUCTURE_PROJECT" },
+        } as ClubProfile["campusProjects"][number],
+      ],
+    });
+    const stadiumObjectCount = (handle: typeof idle): number => {
+      let count = 0;
+      handle.pickables.find((entry) => entry.building === "STADIUM")!.object.traverse(() => {
+        count += 1;
+      });
+      return count;
+    };
+    expect(stadiumObjectCount(building)).toBeGreaterThan(stadiumObjectCount(idle));
+    idle.dispose();
+    building.dispose();
+  });
 });

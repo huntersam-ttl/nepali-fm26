@@ -3,8 +3,10 @@ import type { ClubProfile, EntityId, EntityReference } from "@nepal-football-sim
 import {
   buildClubSceneProfile,
   facilityTierForQuality,
+  floodlightTierFor,
   siteGeographyForLocation,
   stadiumTierForVenue,
+  stadiumTypologyFor,
 } from "./clubScenePresentation.js";
 
 const eid = (value: string): EntityId => value as unknown as EntityId;
@@ -73,6 +75,90 @@ describe("stadium visual tiers", () => {
       confirmedHomeGround: true,
     });
     expect(equipped).toBe("ELITE");
+  });
+});
+
+describe("stadium typology — physical arrangement, distinct from tier", () => {
+  it("gives a one-stand local ground an open, unroofed shape", () => {
+    expect(stadiumTypologyFor(1, "LOCAL_GROUND", 4)).toBe("OPEN_GROUND");
+    expect(stadiumTypologyFor(1, "BASIC_VENUE", 4)).toBe("SINGLE_MAIN_STAND");
+  });
+
+  it("gives two clubs with the same two-stand count a different real shape by seed parity", () => {
+    expect(stadiumTypologyFor(2, "ESTABLISHED", 4)).toBe("MAIN_AND_TERRACE");
+    expect(stadiumTypologyFor(2, "ESTABLISHED", 5)).toBe("MAIN_AND_END");
+  });
+
+  it("only an elite or modern-large tier at full stand count encloses into a bowl", () => {
+    expect(stadiumTypologyFor(4, "ELITE", 4)).toBe("ENCLOSED_BOWL");
+    expect(stadiumTypologyFor(4, "MODERN_LARGE", 4)).toBe("ENCLOSED_BOWL");
+    expect(stadiumTypologyFor(4, "ESTABLISHED", 4)).toBe("FOUR_STAND_BOWL");
+  });
+
+  it("is deterministic and carried into the scene profile", () => {
+    const scene = buildClubSceneProfile(
+      clubProfile({ stadium: { venueId: eid("v"), name: "V", capacity: 32000, floodlights: true, coveredStands: true, confirmedHomeGround: true } }),
+    );
+    expect(scene.stadium.typology).toBe(stadiumTypologyFor(scene.stadium.standCount, scene.stadium.tier, scene.seed));
+  });
+});
+
+describe("floodlight tiers — a real provision band, not a bare flag", () => {
+  it("is NONE when the club has no recorded floodlights, regardless of tier", () => {
+    expect(floodlightTierFor(false, "ELITE")).toBe("NONE");
+  });
+
+  it("scales with stadium tier when floodlights are recorded", () => {
+    expect(floodlightTierFor(true, "LOCAL_GROUND")).toBe("BASIC");
+    expect(floodlightTierFor(true, "ESTABLISHED")).toBe("PROFESSIONAL");
+    expect(floodlightTierFor(true, "ELITE")).toBe("ELITE");
+  });
+});
+
+describe("stadium construction visibility", () => {
+  it("shows the stadium block itself as under construction from a real project — previously invisible to the 3D scene", () => {
+    const scene = buildClubSceneProfile(
+      clubProfile({
+        stadium: { venueId: eid("v"), name: "V", capacity: 12000, confirmedHomeGround: true },
+        campusProjects: [
+          {
+            id: eid("proj-stand"),
+            reference: reference("proj-stand", "Stand expansion"),
+            projectType: "STAND",
+            status: "CONSTRUCTION",
+          },
+        ],
+      }),
+    );
+    expect(scene.stadium.underConstruction).toBe(true);
+    expect(scene.stadium.planned).toBe(false);
+    expect(scene.summary.join(" ")).toContain("under construction");
+  });
+
+  it("shows a merely planned stadium project as planned, not under construction", () => {
+    const scene = buildClubSceneProfile(
+      clubProfile({
+        stadium: { venueId: eid("v"), name: "V", capacity: 12000, confirmedHomeGround: true },
+        campusProjects: [
+          {
+            id: eid("proj-stand-2"),
+            reference: reference("proj-stand-2", "Stand expansion"),
+            projectType: "STAND",
+            status: "APPROVED",
+          },
+        ],
+      }),
+    );
+    expect(scene.stadium.underConstruction).toBe(false);
+    expect(scene.stadium.planned).toBe(true);
+  });
+
+  it("shows neither once no real project remains on the stadium block", () => {
+    const scene = buildClubSceneProfile(
+      clubProfile({ stadium: { venueId: eid("v"), name: "V", capacity: 12000, confirmedHomeGround: true } }),
+    );
+    expect(scene.stadium.underConstruction).toBe(false);
+    expect(scene.stadium.planned).toBe(false);
   });
 });
 
