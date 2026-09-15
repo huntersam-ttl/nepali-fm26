@@ -85,6 +85,43 @@ a real `CONSTRUCTION` project on the stadium shows temporary perimeter
 fencing; a merely planned one shows a ring marker; neither appears once the
 project record is gone.
 
+### Training, academy, HQ and medical composition
+
+The four facility buildings (training, academy, medical, offices) used to
+share one generic shape — a box, an accent band, and an optional practice
+pitch — differing only in scale. Each kind now *composes* differently from
+real facility-quality state, in `clubSceneBuilder.ts`'s facility-building
+loop:
+
+- **Training** grows a practice pitch fastest (1/2/2/3/4 pitches across
+  Basic→Elite), with a portable training goal per pitch (smaller than the
+  stadium's real goal, so it never reads as a match venue) and pitch-side
+  floodlight poles from Modest up. A gym/performance annex appears from
+  Professional up; an indoor-hall silhouette only at Elite.
+- **Academy** grows more modestly (1/1/2/2/3 pitches) — a real youth
+  programme needs fewer full pitches than the first team — with the same
+  annex/hall progression, so the same tier still reads as visibly different
+  training vs. academy geometry, never a duplicate with a different label.
+- **Offices** (the Admin/HQ camera target) gain an entrance canopy from
+  Professional up and a small forecourt plaza at Elite — an institutional
+  arrival ladder, not the same office block scaled.
+- **Medical** gains a recovery annex only once genuinely Advanced/Elite;
+  below that it stays a single clean block, since fabricating a distinct
+  "developing" medical shape the facility-quality data doesn't support
+  would be decoration, not state.
+
+A per-kind material language accompanies this: offices move from painted
+concrete through steel to glass as the tier rises; academy stays lighter/
+institutional (painted concrete throughout); medical stays a clean render
+block, glass only at Elite; training stays utilitarian concrete/steel
+throughout — steel and concrete are never interchangeable palette choices.
+
+Site development also now differs by tier: a plain perimeter fence at low
+tiers, a paved forecourt path from Professional up. A club-accent flag
+marks any developed building's entrance from Professional up (the stadium
+already had this; it now extends across the campus) — flutter-animated on
+Full motion only, static otherwise, gated off entirely at Low quality.
+
 ### Geographic identity
 
 `siteGeographyForLocation` classifies the club's real recorded district into
@@ -424,12 +461,21 @@ campus block with none at all), club-accent corner flags, and a real-browser
 screenshot test proving a top-division club's stadium renders substantially
 differently from a bottom-division club's.
 
+Phase 3 (this pass) closed the training/academy/HQ/medical composition gap
+left open by Phase 2: each of the four facility buildings now composes
+differently from real facility-quality state (distinct pitch-count
+progressions, gym/indoor-hall annexes, an HQ entrance canopy and plaza, a
+medical recovery annex), with a per-kind material language and a campus-
+wide flag/fence-vs-forecourt site-development treatment, and a real-browser
+test proving Overview/Training/Academy/Admin all render substantially
+differently between a bottom- and top-division club.
+
 Not yet built, deliberately deferred rather than rushed: weather-state
-atmosphere (no such simulation state exists yet to read honestly), richer
+atmosphere (no such simulation state exists yet to read honestly), deeper
 Kathmandu/Terai compositional density beyond the existing backdrop
-silhouette, training/academy component-composition depth beyond shared
-practice-pitch counts, a distinct administration-progression visual ladder,
-and a federation-HQ scene for the President career (out of scope by design —
-see the Future-system integration matrix). Everything else in the matrix is
-still to do, and each should be built on this foundation rather than beside
-it.
+silhouette and campus material choices, a federation-HQ scene for the
+President career (out of scope by design — see the Future-system
+integration matrix), and residential/education representation for an elite
+academy (no simulation state to ground it honestly). Everything else in the
+matrix is still to do, and each should be built on this foundation rather
+than beside it.
