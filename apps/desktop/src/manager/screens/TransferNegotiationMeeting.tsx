@@ -25,6 +25,28 @@ import {
   negotiationOptions,
   negotiationStage,
 } from "../negotiationPresentation.js";
+import { MeetingEnvironmentScene } from "../../presentation/MeetingEnvironmentScene.js";
+
+/**
+ * Real, bounded transfer/loan importance from the fee relative to the
+ * club's own real remaining transfer budget — never a fabricated "record
+ * signing" claim. A fee that would exhaust (or exceed) the remaining
+ * budget is genuinely MAJOR for this club; a fee using up a large share of
+ * it is IMPORTANT; anything else stays ROUTINE. A loan (no fee) is always
+ * ROUTINE here — its stakes show up in wage contribution, not transfer
+ * spend.
+ */
+export const transferNegotiationImportance = (
+  transferFee: number,
+  transferBudgetRemaining: number,
+  isLoan: boolean,
+): "ROUTINE" | "IMPORTANT" | "MAJOR" => {
+  if (isLoan || transferFee <= 0) return "ROUTINE";
+  if (transferBudgetRemaining <= 0 || transferFee >= transferBudgetRemaining) return "MAJOR";
+  const share = transferFee / transferBudgetRemaining;
+  if (share >= 0.5) return "IMPORTANT";
+  return "ROUTINE";
+};
 
 /**
  * The dedicated negotiation meeting — a presentation/action surface over the
@@ -198,6 +220,17 @@ export const TransferNegotiationMeeting = ({
         deadline={offer.respondBy}
         context={context}
       >
+        <MeetingEnvironmentScene
+          context="NEGOTIATION"
+          // No club facility state is available to this manager-scoped
+          // negotiation surface — MODEST is a conservative, honest default
+          // rather than a guessed tier.
+          environmentTier="MODEST"
+          importance={transferNegotiationImportance(offer.transferFee, centre.budget.transferRemaining, isLoan)}
+          organisationId={String(offer.id)}
+          organisationName={otherClubLabel}
+          fallback={null}
+        />
         <section aria-label="Deal summary" className="negotiation-summary">
           <div className="negotiation-badges">
             <Badge tone="info">{isLoan ? "Loan" : offer.offerType === "FREE_TRANSFER" ? "Free transfer" : "Permanent"}</Badge>

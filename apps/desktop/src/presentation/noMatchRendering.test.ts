@@ -64,15 +64,18 @@ describe("no match rendering, ever", () => {
         /<(SceneCanvas|ClubEnvironmentScene|FederationEnvironmentScene|MeetingEnvironmentScene)\b/.test(read(file)),
       );
     // Club Profile, the President Dashboard's federation world, the
-    // Owner<->Manager boardroom meeting, and the shared structured press
+    // Owner<->Manager boardroom meeting, the investor/ownership meeting
+    // (also in RoleDetailScreen.tsx), the shared structured press
     // conference panel (Manager/Owner/President/SD interviews all route
-    // through it). Adding a scene elsewhere is a deliberate act and should
-    // update this list along with the design doc.
+    // through it), and the transfer/loan negotiation meeting. Adding a
+    // scene elsewhere is a deliberate act and should update this list
+    // along with the design doc.
     expect(mounts.map(relative).sort()).toEqual(
       [
         path.join("manager", "RoleDetailScreen.tsx"),
         path.join("manager", "RoleLandingScreen.tsx"),
         path.join("manager", "screens", "MediaScreen.tsx"),
+        path.join("manager", "screens", "TransferNegotiationMeeting.tsx"),
       ].sort(),
     );
   });
