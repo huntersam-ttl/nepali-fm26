@@ -618,6 +618,29 @@ describe("manager gameplay", () => {
     expect(after.data.contracts.filter((row) => row.playerId === target.playerId)).toHaveLength(1);
   });
 
+  it("resolves a renewal instantly with no pending/negotiation status exposed to the UI", () => {
+    // Contract negotiation has no live negotiation lifecycle: the manager
+    // proposes terms and the engine resolves them synchronously in one call.
+    // This is why the off-pitch decision-presentation work marks contract
+    // renewal CONTRACT_NEGOTIATION_PRESENTATION = N/A_BY_ARCHITECTURE rather
+    // than wiring a NEGOTIATION scene onto a moment that doesn't exist.
+    const before = service.getContracts();
+    expect(before.ok).toBe(true);
+    if (!before.ok) return;
+    const target = before.data.contracts.find((row) => row.status === "ACTIVE");
+    expect(target).toBeTruthy();
+    if (!target) return;
+
+    const renewed = service.renewContract({ playerId: target.playerId, months: 12 });
+    expect(renewed.ok).toBe(true);
+    if (!renewed.ok) return;
+    const updated = renewed.data.contracts.find((row) => row.playerId === target.playerId);
+    // The very next read already shows the renewed terms as active — there is
+    // no intermediate "offered"/"pending"/"awaiting response" row a
+    // presentation layer could ever observe.
+    expect(updated?.status).toBe("ACTIVE");
+  });
+
   it("transfer-lists a player and keeps the status after reload", () => {
     const squad = service.getSquad();
     if (!squad.ok) return;

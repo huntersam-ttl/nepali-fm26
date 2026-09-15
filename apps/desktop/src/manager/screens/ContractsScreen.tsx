@@ -4,6 +4,15 @@ import { managerBridge } from "../managerBridge.js";
 import { AsyncPanel, Badge, ErrorBanner, Metrics, Panel, money, useRuntimeData } from "../ui.js";
 import type { AppError } from "../../appBridge.js";
 
+/**
+ * No MeetingEnvironmentScene NEGOTIATION context is wired here. Renewal
+ * resolves synchronously (proposal → engine-resolved terms → ACTIVE) with no
+ * pending/offered/awaiting-response contract status ever reaching the UI —
+ * see PlayerContractStatus and the "resolves a renewal instantly" regression
+ * in manager-gameplay.test.ts. There is no negotiation moment to present, so
+ * this is CONTRACT_NEGOTIATION_PRESENTATION = N/A_BY_ARCHITECTURE rather than
+ * an unwired context.
+ */
 export const ContractsScreen = ({
   onSelectPlayer,
 }: {
