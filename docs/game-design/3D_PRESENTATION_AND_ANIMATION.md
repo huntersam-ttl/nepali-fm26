@@ -343,6 +343,19 @@ actually needs. Same eased-on-Full/instant-on-Reduced behavior.
   real `context` field — `OWNER_BUSINESS`/`FEDERATION_GOVERNANCE` read as
   `IMPORTANT`, everything else `ROUTINE`. One integration point covers all
   four interview roles since they share this component.
+- **Completed signing presentation** (`TransferNegotiationMeeting.tsx`,
+  reopened on a `COMPLETED` offer) — a new `context="SIGNING"` with its own
+  layout: a single desk, a document plane, one near-side chair and a
+  media-style backdrop panel, genuinely distinct from `NEGOTIATION`'s
+  two-sided table (unit-tested object-count difference in
+  `meetingSceneBuilder.test.ts`). Gated by a new pure
+  `isQualifyingSigningOffer(offerStatus, isIncoming, isLoan, importance)`
+  helper: only a `COMPLETED`, incoming, permanent transfer whose fee already
+  read `IMPORTANT`/`MAJOR` (the existing `transferNegotiationImportance`
+  signal) swaps into the signing room; routine completions, in-progress
+  offers, loans and outgoing sales keep the plain negotiation room. Reads
+  the same already-completed `TransferOfferView` the negotiation room reads
+  — no new transaction lifecycle, no completion event of its own.
 
 In every case the scene is purely additive beside the existing canonical
 controls (offer/counter/accept/reject/withdraw, topic/stance/commitment,
@@ -381,15 +394,25 @@ Both are documented and tested rather than faked with an invented
 negotiation/appointment lifecycle, per this task's explicit instruction:
 presentation must follow real simulation state, never the reverse.
 
-**Not attempted this pass**: the completed-signing presentation (qualifying
-IMPORTANT/MAJOR incoming transfers). A genuine signing moment does exist
-(an offer reaching `COMPLETED` status is real, observable state, reopenable
-through the same `TransferNegotiationMeeting`), but a restrained signing
-scene visually distinct from `NEGOTIATION` (per this task's Phase 11
-requirement) needs a new `MeetingContext` value with its own layout in
-`meetingSceneBuilder.ts` — real geometry work, not a wiring change — and was
-not attempted here to avoid rushing 3D asset work without visual-diff
-verification. See Known P2 in the phase report.
+**Verification status — honest, not yet complete**: the boardroom meeting
+has a passing real-browser Playwright suite
+(`apps/desktop/e2e/meeting-3d-presentation.spec.ts`) proving the canvas
+renders, camera presets move it, the canonical action still works, 3D OFF
+mounts no canvas, and axe reports zero serious/critical violations.
+Transfer negotiation, the investor meeting, press and the new signing
+presentation do **not** have an equivalent real-browser suite yet — this
+pass added and unit-tested the code but did not extend live-browser
+coverage to these contexts, since a deterministic Playwright fixture for a
+real `COMPLETED`, `IMPORTANT`/`MAJOR` transfer (needed to reach the signing
+room) does not exist and was not built this pass. A manual check in the
+same live desktop build showed the transfer negotiation panel's real state
+(player, club, fee, budget context) and canonical actions rendering
+correctly with zero console errors; the 3D canvas itself was not confirmed
+mounting in that manual check, and — given the existing boardroom suite
+already proves canvas mounting works for this same `MeetingEnvironmentScene`
+family of code — the cause was not isolated (most likely a quirk of that
+particular manual/ambient testing session rather than a product defect, but
+unconfirmed). See Known P1/P2 in the phase report.
 
 ## Non-negotiables for every scene
 
