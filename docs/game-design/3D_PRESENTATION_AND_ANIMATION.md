@@ -183,20 +183,23 @@ asked to see.
 apps/desktop/src/presentation/
   clubScenePresentation.ts        pure state -> ClubSceneProfile  (renderer-agnostic, unit-tested)
   federationScenePresentation.ts  pure state -> FederationSceneProfile (same pattern, President career)
+  meetingScenePresentation.ts     pure state -> MeetingSceneProfile (same pattern, off-pitch decision rooms)
   scenePreferences.ts             quality tiers, motion level, WebGL capability     (unit-tested)
   SceneCanvas.tsx                 reusable host: lazy load, resize, pause, dispose, error boundary
   clubSceneBuilder.ts             ClubSceneProfile -> three.js scene
   federationSceneBuilder.ts       FederationSceneProfile -> three.js scene
+  meetingSceneBuilder.ts          MeetingSceneProfile -> three.js scene (boardroom/negotiation/press)
   ClubEnvironmentScene.tsx        the Club Profile hero + accessible text readout + 2D fallback
   FederationEnvironmentScene.tsx  the President Dashboard hero, same guarantees
+  MeetingEnvironmentScene.tsx     the reusable decision-room hero, same guarantees
   PresentationSettingsPanel.tsx   graphics/animation preferences
 ```
 
-Only `clubSceneBuilder.ts` and `federationSceneBuilder.ts` import `three` — enforced by
-`noMatchRendering.test.ts`'s import allowlist, so a third 3D surface cannot
-appear without a deliberate update to that test and this doc — so three.js
-ships as a lazily-loaded chunk that costs nothing until a scene is actually
-shown.
+Only `clubSceneBuilder.ts`, `federationSceneBuilder.ts` and `meetingSceneBuilder.ts`
+import `three` — enforced by `noMatchRendering.test.ts`'s import allowlist, so a
+fourth 3D surface cannot appear without a deliberate update to that test and
+this doc — so three.js ships as a lazily-loaded chunk that costs nothing until
+a scene is actually shown.
 
 The split matters: the **derivation layer is pure TypeScript and has no
 renderer dependency**, so scene correctness is unit-testable without a GPU,
@@ -280,6 +283,48 @@ logic. Switching career role away from President and back re-shows the
 federation scene; 3D OFF leaves the full President dashboard functional
 through DOM controls alone.
 
+## Meeting Environment (off-pitch decision rooms)
+
+One reusable interior scene for every off-pitch decision moment — a
+boardroom, a negotiation room, a press room — instead of a bespoke renderer
+per workflow. `MeetingContext = "BOARDROOM" | "NEGOTIATION" | "PRESS"`.
+
+**Real-state-only contract**: `buildMeetingSceneProfile` never guesses an
+`environmentTier` or `MeetingImportance` — both are always caller-supplied
+real state. A caller with no real signal passes a conservative default
+(`"MODEST"`/`"ROUTINE"`) rather than this module inventing one. Reuses the
+club scene's own `FacilityVisualTier` bands for consistency; `meetingTierForScore100`
+converts a 0-100 real score (board confidence, a reputation figure) for
+callers whose only signal isn't a club's own 0-20 facility scale.
+
+**Layout differs by context, not just by label**: `BOARDROOM`/`NEGOTIATION`
+share a table-and-chairs layout (chair count scales 2-12 with tier);
+`PRESS` gets a podium facing rows of seating — a genuinely different real
+arrangement, verified by a unit test asserting the two produce different
+object counts at the same tier. Room footprint, wall material (painted
+concrete → glass at Advanced/Elite) and chair count all scale with the
+real `environmentTier`.
+
+**No modelled people**: identity (who is in the room) stays entirely in the
+DOM (`MeetingParticipants`, existing profile links) — this scene only ever
+furnishes the room itself. See the permanent no-animated-human-scope-creep
+boundary below.
+
+**Cameras**: two presets, `ROOM` and `TABLE` — deliberately smaller than
+the club/federation scenes' sets, matched to what a single-room interior
+actually needs. Same eased-on-Full/instant-on-Reduced behavior.
+
+**Shipped integration**: the Owner↔Manager boardroom meeting
+(`RoleDetailScreen.tsx`'s `OwnerManagerMeeting`) — `environmentTier` from
+real board confidence, `importance` from real board pressure
+(`HIGH`→`MAJOR`, `MEDIUM`→`IMPORTANT`, else `ROUTINE`). The scene is purely
+additive beside the existing canonical topic/stance/commitment controls,
+which are unchanged. Transfer negotiation, contract negotiation, signing,
+investor/ownership meetings, staff appointments and press are **not** wired
+to live UI this pass — the reusable architecture supports all three
+contexts, but only the boardroom got a real integration; see Known P2 in
+the phase report for the honest remainder.
+
 ## Non-negotiables for every scene
 
 1. **Never required.** Every destination reachable by clicking a 3D object must
@@ -308,6 +353,12 @@ through DOM controls alone.
     renders correctly anywhere.
 12. **Information density wins.** A management game needs dense data. 3D is a
     hero/context band beside structured data, never a replacement for it.
+13. **No animated-human scope creep.** No realistic faces, body rigs, lip
+    sync, mocap, or walking/seated-negotiation animations. Person identity
+    (who is in the room) stays in the DOM; a 3D scene furnishes the
+    environment only. This is a permanent boundary, not a Phase 6-only
+    rule — revisit only with a deliberate, scoped decision, never as an
+    incidental add-on to an environment task.
 
 ## Future-system integration matrix
 
@@ -577,13 +628,27 @@ renders, camera presets and click-through to Governance/National
 Development work, and a role switch away from and back to President
 correctly re-shows the federation context.
 
+Phase 6 (this pass) added the Meeting Environment described above — one
+reusable off-pitch decision-room scene (boardroom/negotiation/press)
+instead of a bespoke renderer per workflow, driven only by caller-supplied
+real state (never a guessed tier or importance), with a shipped real
+integration into the Owner↔Manager boardroom meeting and a real-browser
+test proving the scene renders alongside the unchanged canonical meeting
+controls, camera presets work, and the real "Start meeting" action still
+functions end-to-end. Draw calls/triangles are an order of magnitude below
+the club/federation scenes, as intended for a small interior.
+
 Not yet built, deliberately deferred rather than rushed: weather-state
 atmosphere (no such simulation state exists yet to read honestly), time-of-
 day/floodlight-glow lighting profiles (no canonical time-of-day state
 exists either), residential/education representation for an elite academy
 (no simulation state to ground it honestly), a national-stadium scene and
 federation geography beyond `UNKNOWN` (no canonical federation-HQ district
-exists in current state), and a browser test proving HQ/national-centre
+exists in current state), a browser test proving HQ/national-centre
 visually differ between a weak and strong federation (covered at unit
-level only this pass). Everything else in the matrix is still to do, and
+level only), and — the largest remaining gap — wiring the Meeting
+Environment's NEGOTIATION and PRESS contexts into their real UI (transfer
+negotiation, contract negotiation, signing, investor/ownership meetings,
+staff appointments, structured press) — only BOARDROOM shipped a live
+integration this pass. Everything else in the matrix is still to do, and
 each should be built on this foundation rather than beside it.
