@@ -36,6 +36,55 @@ export type FacilityVisualTier =
  * vegetation density, never a fixed decorative layout. */
 export type SiteDevelopment = "OPEN_LAND" | "SPARSE" | "DEVELOPED" | "URBAN";
 
+/**
+ * Broad terrain identity for the club's real recorded district, so Nepal's
+ * campuses read as Nepal rather than generic flat terrain. This is a real
+ * classification of well-known Nepali geography (which districts sit in the
+ * Kathmandu valley or the Terai plains), not an invented location — but the
+ * exact site the campus sits on within that district is still unknown, so
+ * the result stays an honest terrain *identity*, never a claim of the real
+ * site's precise geography.
+ */
+export type SiteGeography = "KATHMANDU_VALLEY" | "TERAI" | "HILL" | "UNKNOWN";
+
+const KATHMANDU_VALLEY_DISTRICTS = ["kathmandu", "lalitpur", "bhaktapur"];
+// A representative, non-exhaustive set of Nepal's well-known Terai (flat
+// southern plains) districts — everything else recorded falls back to HILL,
+// which is geographically correct for the great majority of the country.
+const TERAI_DISTRICTS = [
+  "jhapa",
+  "morang",
+  "sunsari",
+  "saptari",
+  "siraha",
+  "dhanusa",
+  "mahottari",
+  "sarlahi",
+  "rautahat",
+  "bara",
+  "parsa",
+  "chitwan",
+  "nawalparasi",
+  "rupandehi",
+  "kapilvastu",
+  "dang",
+  "banke",
+  "bardiya",
+  "kailali",
+  "kanchanpur",
+];
+
+/** Classifies from the club's recorded location label alone — real district
+ * names, matched case-insensitively; anything unrecognised or absent stays
+ * UNKNOWN rather than guessing. */
+export const siteGeographyForLocation = (locationLabel: string | undefined): SiteGeography => {
+  if (!locationLabel) return "UNKNOWN";
+  const normalized = locationLabel.toLowerCase();
+  if (KATHMANDU_VALLEY_DISTRICTS.some((district) => normalized.includes(district))) return "KATHMANDU_VALLEY";
+  if (TERAI_DISTRICTS.some((district) => normalized.includes(district))) return "TERAI";
+  return "HILL";
+};
+
 export type SceneBuildingKind = "STADIUM" | "TRAINING" | "ACADEMY" | "MEDICAL" | "OFFICES";
 
 /** One physical building in the scene, with the real state that put it there. */
@@ -73,6 +122,7 @@ export type ClubSceneProfile = {
   };
   buildings: SceneBuilding[];
   site: SiteDevelopment;
+  geography: SiteGeography;
   /** 0-1, from real football reputation. Drives lighting warmth/prestige only. */
   prestige: number;
   /** Deterministic hue (0-360) from the club id. SIMULATION_ONLY: this is a
@@ -203,6 +253,7 @@ export const buildClubSceneProfile = (profile: ClubProfile): ClubSceneProfile =>
   const seed = stableSeed(clubId);
   const snapshot = profile.facilitySnapshot;
   const prestige = Math.max(0, Math.min(1, (profile.reputation?.footballReputation ?? 0) / 100));
+  const geography = siteGeographyForLocation(profile.locationLabel);
 
   const projectByBlock = new Map<SceneBuildingKind, ClubCampusProject>();
   for (const project of profile.campusProjects) {
@@ -254,11 +305,19 @@ export const buildClubSceneProfile = (profile: ClubProfile): ClubSceneProfile =>
       }${profile.stadium.confirmedHomeGround ? "" : " (nearest known venue, not a confirmed home ground)"}`
     : "No home ground on record";
 
+  const GEOGRAPHY_SUMMARY: Record<SiteGeography, string> = {
+    KATHMANDU_VALLEY: "Kathmandu valley setting — a dense urban surrounding",
+    TERAI: "Terai plains setting — open, flat surrounding land",
+    HILL: "Hill-region setting — elevated, terraced surrounding terrain",
+    UNKNOWN: "Surrounding terrain not on record",
+  };
+
   const summary = [
     stadiumLabel,
     ...(stadiumStatus ? [`Stadium: ${stadiumStatus}`] : []),
     ...buildings.map((building) => building.statusLabel),
     `Club football reputation ${profile.reputation?.footballReputation ?? 0} of 100`,
+    GEOGRAPHY_SUMMARY[geography],
   ];
 
   return {
@@ -275,6 +334,7 @@ export const buildClubSceneProfile = (profile: ClubProfile): ClubSceneProfile =>
     },
     buildings,
     site: siteDevelopmentFor(prestige, developedBlocks),
+    geography,
     prestige,
     // Deterministic, stable, and explicitly not a real-kit colour claim.
     accentHue: seed % 360,

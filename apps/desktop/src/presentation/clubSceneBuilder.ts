@@ -14,6 +14,10 @@ import type { SceneMotion, SceneQualitySettings } from "./scenePreferences.js";
  * as a separate chunk the first time a scene is actually shown.
  */
 
+/** Named viewpoints the player can jump the camera to. ADMIN frames the
+ * offices block — there is no separate "admin" building kind. */
+export type CameraPreset = "OVERVIEW" | "STADIUM" | "TRAINING" | "ACADEMY" | "ADMIN";
+
 export type ClubSceneHandle = {
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
@@ -21,6 +25,9 @@ export type ClubSceneHandle = {
   update: (elapsedSeconds: number) => void;
   /** Objects the player can click, mapped to the block they represent. */
   pickables: Array<{ object: THREE.Object3D; building: SceneBuilding["kind"] }>;
+  /** Moves the camera to a named preset. Instant on Reduced/Off motion;
+   * eased over a few frames of `update()` on Full. */
+  focus: (preset: CameraPreset) => void;
   dispose: () => void;
 };
 
@@ -60,6 +67,26 @@ const BUILDING_PLOT: Record<SceneBuilding["kind"], { x: number; z: number }> = {
   ACADEMY: { x: 17, z: 6 },
   MEDICAL: { x: -15, z: -9 },
   OFFICES: { x: 15, z: -9 },
+};
+
+/** Camera position/look-at for each named preset, framed from each plot's
+ * fixed position — deterministic, and independent of any single club's
+ * building tiers so the presets never point at empty space. */
+const CAMERA_PRESET_VIEW: Record<CameraPreset, { position: [number, number, number]; lookAt: [number, number, number] }> = {
+  OVERVIEW: { position: [34, 22, 38], lookAt: [0, 2, 0] },
+  STADIUM: { position: [0, 10, 26], lookAt: [0, 2, 0] },
+  TRAINING: {
+    position: [BUILDING_PLOT.TRAINING.x - 9, 9, BUILDING_PLOT.TRAINING.z + 14],
+    lookAt: [BUILDING_PLOT.TRAINING.x, 2, BUILDING_PLOT.TRAINING.z],
+  },
+  ACADEMY: {
+    position: [BUILDING_PLOT.ACADEMY.x + 9, 9, BUILDING_PLOT.ACADEMY.z + 14],
+    lookAt: [BUILDING_PLOT.ACADEMY.x, 2, BUILDING_PLOT.ACADEMY.z],
+  },
+  ADMIN: {
+    position: [BUILDING_PLOT.OFFICES.x + 9, 8, BUILDING_PLOT.OFFICES.z - 12],
+    lookAt: [BUILDING_PLOT.OFFICES.x, 2, BUILDING_PLOT.OFFICES.z],
+  },
 };
 
 const disposeObject = (root: THREE.Object3D): void => {
@@ -309,11 +336,76 @@ export const buildClubScene = (
     }
   }
 
+  // ---- geographic identity (quality-gated, never state-bearing) --------
+  // A real classification of the club's recorded district (Kathmandu valley,
+  // Terai plains, or hill terrain — see siteGeographyForLocation), not an
+  // invented location: gives Nepal's campuses a distinct silhouette instead
+  // of generic flat terrain, without claiming a precise real site.
+  if (quality.ambientProps) {
+    if (profile.geography === "HILL") {
+      const ridgeMaterial = new THREE.MeshStandardMaterial({ color: 0x33473a, roughness: 1 });
+      const ridgeCount = 7;
+      for (let index = 0; index < ridgeCount; index += 1) {
+        const angle = (index / ridgeCount) * Math.PI * 2 + random() * 0.3;
+        const radius = 90 + random() * 30;
+        const ridge = new THREE.Mesh(
+          new THREE.ConeGeometry(26 + random() * 14, 22 + random() * 16, 4),
+          ridgeMaterial,
+        );
+        ridge.position.set(Math.cos(angle) * radius, 8, Math.sin(angle) * radius);
+        ridge.rotation.y = random() * Math.PI;
+        scene.add(ridge);
+      }
+    } else if (profile.geography === "KATHMANDU_VALLEY") {
+      const blockMaterial = new THREE.MeshStandardMaterial({ color: 0x3a3f4a, roughness: 0.85 });
+      for (let index = 0; index < 14; index += 1) {
+        const angle = random() * Math.PI * 2;
+        const radius = 55 + random() * 30;
+        const height = 2.5 + random() * 5;
+        const block = new THREE.Mesh(new THREE.BoxGeometry(3 + random() * 2, height, 3 + random() * 2), blockMaterial);
+        block.position.set(Math.cos(angle) * radius, height / 2, Math.sin(angle) * radius);
+        scene.add(block);
+      }
+    }
+    // TERAI and UNKNOWN keep the existing flat, open ground with no added
+    // silhouette — that is itself the honest presentation of open plains
+    // terrain or a district this campus has no real geography evidence for.
+  }
+
+  // Camera preset state. `easing` holds a target the update loop lerps
+  // toward on Full motion; Reduced/Off jump the camera immediately instead,
+  // since a multi-frame tween is exactly the discomfort those settings exist
+  // to remove. Overview keeps its gentle drift only while it is the active
+  // preset — once the player focuses a building, the camera holds still
+  // there rather than drifting away from what they asked to see.
+  let activePreset: CameraPreset = "OVERVIEW";
+  let easing: { position: THREE.Vector3; lookAt: THREE.Vector3 } | undefined;
+  const currentLookAt = new THREE.Vector3(0, 2, 0);
+
+  const focus = (preset: CameraPreset): void => {
+    activePreset = preset;
+    const view = CAMERA_PRESET_VIEW[preset];
+    const targetPosition = new THREE.Vector3(...view.position);
+    const targetLookAt = new THREE.Vector3(...view.lookAt);
+    if (motion === "FULL") {
+      easing = { position: targetPosition, lookAt: targetLookAt };
+    } else {
+      camera.position.copy(targetPosition);
+      currentLookAt.copy(targetLookAt);
+      camera.lookAt(currentLookAt);
+    }
+  };
+
   const update = (elapsedSeconds: number): void => {
     if (motion === "OFF") return;
-    // Reduced motion keeps the scene alive but removes the camera drift that
-    // causes the most discomfort; only small on-site movement remains.
-    if (motion === "FULL") {
+    if (easing) {
+      camera.position.lerp(easing.position, 0.12);
+      currentLookAt.lerp(easing.lookAt, 0.12);
+      camera.lookAt(currentLookAt);
+      if (camera.position.distanceTo(easing.position) < 0.05) easing = undefined;
+    } else if (motion === "FULL" && activePreset === "OVERVIEW") {
+      // Reduced motion keeps the scene alive but removes the camera drift
+      // that causes the most discomfort; only small on-site movement remains.
       const drift = Math.sin(elapsedSeconds * 0.09) * 2.4;
       camera.position.x = 34 + drift;
       camera.position.z = 38 - drift * 0.35;
@@ -329,5 +421,5 @@ export const buildClubScene = (
     scene.clear();
   };
 
-  return { scene, camera, update, pickables, dispose };
+  return { scene, camera, update, pickables, focus, dispose };
 };

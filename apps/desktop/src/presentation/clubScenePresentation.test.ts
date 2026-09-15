@@ -3,6 +3,7 @@ import type { ClubProfile, EntityId, EntityReference } from "@nepal-football-sim
 import {
   buildClubSceneProfile,
   facilityTierForQuality,
+  siteGeographyForLocation,
   stadiumTierForVenue,
 } from "./clubScenePresentation.js";
 
@@ -195,5 +196,33 @@ describe("club scene profile — state driven", () => {
     const scene = buildClubSceneProfile(clubProfile());
     expect(scene.accentHue).toBeGreaterThanOrEqual(0);
     expect(scene.accentHue).toBeLessThan(360);
+  });
+});
+
+describe("geographic identity", () => {
+  it("classifies a real Kathmandu valley district", () => {
+    expect(siteGeographyForLocation("Kathmandu")).toBe("KATHMANDU_VALLEY");
+    expect(siteGeographyForLocation("Lalitpur (estimated)")).toBe("KATHMANDU_VALLEY");
+    expect(siteGeographyForLocation("Bhaktapur")).toBe("KATHMANDU_VALLEY");
+  });
+
+  it("classifies a real Terai plains district", () => {
+    expect(siteGeographyForLocation("Morang")).toBe("TERAI");
+    expect(siteGeographyForLocation("Chitwan (estimated)")).toBe("TERAI");
+  });
+
+  it("falls back to hill terrain for any other real, recorded district — geographically correct for most of Nepal", () => {
+    expect(siteGeographyForLocation("Kaski (estimated)")).toBe("HILL");
+    expect(siteGeographyForLocation("Gulmi")).toBe("HILL");
+  });
+
+  it("never guesses a terrain when there is no location on record", () => {
+    expect(siteGeographyForLocation(undefined)).toBe("UNKNOWN");
+  });
+
+  it("carries the classification into the scene profile and states it in the text summary", () => {
+    const scene = buildClubSceneProfile(clubProfile({ locationLabel: "Kathmandu" }));
+    expect(scene.geography).toBe("KATHMANDU_VALLEY");
+    expect(scene.summary.join(" ").toLowerCase()).toContain("kathmandu valley");
   });
 });

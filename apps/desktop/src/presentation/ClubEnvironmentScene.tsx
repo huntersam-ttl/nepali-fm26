@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import type { ClubProfile, EntityReference } from "@nepal-football-sim/shared-types";
 import { buildClubSceneProfile, facilityTierLabel, type SceneBuilding } from "./clubScenePresentation.js";
 import { SceneCanvas, SceneErrorBoundary, type SceneHandle } from "./SceneCanvas.js";
@@ -26,6 +26,16 @@ const BUILDING_LABEL: Record<SceneBuilding["kind"], string> = {
   ACADEMY: "Academy",
   MEDICAL: "Medical centre",
   OFFICES: "Club offices",
+};
+
+const CAMERA_PRESETS = ["OVERVIEW", "STADIUM", "TRAINING", "ACADEMY", "ADMIN"] as const;
+type CameraPresetName = (typeof CAMERA_PRESETS)[number];
+const CAMERA_PRESET_LABEL: Record<CameraPresetName, string> = {
+  OVERVIEW: "Overview",
+  STADIUM: "Stadium",
+  TRAINING: "Training ground",
+  ACADEMY: "Academy",
+  ADMIN: "Club offices",
 };
 
 export const ClubEnvironmentScene = ({
@@ -69,6 +79,8 @@ export const ClubEnvironmentScene = ({
 
   const clickableProjects = sceneProfile.buildings.filter((building) => building.project?.reference.visible);
 
+  const [cameraPreset, setCameraPreset] = useState<CameraPresetName>("OVERVIEW");
+
   return (
     <section className="club-scene" aria-label={`${sceneProfile.clubName} club environment`}>
       {render3d ? (
@@ -80,10 +92,27 @@ export const ClubEnvironmentScene = ({
             ariaLabel={`${sceneProfile.clubName}: ${sceneProfile.stadium.label}`}
             onPick={openBuilding}
             fallback={<div className="club-scene-fallback">{fallback}</div>}
+            focusTarget={cameraPreset}
           />
         </SceneErrorBoundary>
       ) : (
         <div className="club-scene-fallback">{fallback}</div>
+      )}
+
+      {render3d && (
+        <div className="club-scene-cameras" role="group" aria-label="Camera view">
+          {CAMERA_PRESETS.map((preset) => (
+            <button
+              key={preset}
+              type="button"
+              className={cameraPreset === preset ? "ghost small active" : "ghost small"}
+              aria-pressed={cameraPreset === preset}
+              onClick={() => setCameraPreset(preset)}
+            >
+              {CAMERA_PRESET_LABEL[preset]}
+            </button>
+          ))}
+        </div>
       )}
 
       {/* Everything the scene depicts, in words. The canvas never carries

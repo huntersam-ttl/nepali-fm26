@@ -16,6 +16,9 @@ export type SceneHandle = {
   camera: unknown;
   update: (elapsedSeconds: number) => void;
   pickables: Array<{ object: unknown; building: string }>;
+  /** Optional: moves the camera to a named preset. Scenes without named
+   * viewpoints simply omit it. */
+  focus?: (preset: string) => void;
   dispose: () => void;
 };
 
@@ -31,6 +34,7 @@ export const SceneCanvas = ({
   onPick,
   fallback,
   className,
+  focusTarget,
 }: {
   /** Builds the scene contents. Async so the caller can dynamic-import three. */
   factory: SceneFactory;
@@ -43,6 +47,9 @@ export const SceneCanvas = ({
   /** Rendered instead of the canvas whenever 3D cannot or should not run. */
   fallback: React.ReactNode;
   className?: string;
+  /** A named camera preset to move to. Applied via `handle.focus` without
+   * rebuilding the scene — only supported by scenes that expose `focus`. */
+  focusTarget?: string;
 }): React.ReactElement => {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const [status, setStatus] = useState<Status>("loading");
@@ -50,6 +57,27 @@ export const SceneCanvas = ({
   // re-running the whole scene effect.
   const pickRef = useRef(onPick);
   pickRef.current = onPick;
+  // Populated once the scene is ready, so the focus effect below (and any
+  // other imperative action) can reach the live renderer/handle without
+  // being a dependency of the main build effect.
+  const rendererRef = useRef<import("three").WebGLRenderer | undefined>(undefined);
+  const handleRef = useRef<SceneHandle | undefined>(undefined);
+  // The most recently requested preset, read once at scene-ready time in
+  // case a caller sets it before the async build finishes.
+  const focusRef = useRef(focusTarget);
+  focusRef.current = focusTarget;
+
+  // Applies a focus-target change to the live scene without rebuilding it.
+  // Motion OFF never runs the render loop, so this renders one frame itself.
+  useEffect(() => {
+    const handle = handleRef.current;
+    const renderer = rendererRef.current;
+    if (!focusTarget || !handle?.focus) return;
+    handle.focus(focusTarget);
+    if (motion === "OFF" && renderer) {
+      renderer.render(handle.scene as import("three").Scene, handle.camera as import("three").Camera);
+    }
+  }, [focusTarget, motion]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -77,6 +105,8 @@ export const SceneCanvas = ({
           handle.dispose();
           return;
         }
+        handleRef.current = handle;
+        if (focusRef.current) handle.focus?.(focusRef.current);
 
         renderer = new three.WebGLRenderer({
           antialias: quality.antialias,
@@ -85,6 +115,7 @@ export const SceneCanvas = ({
         });
         renderer.setPixelRatio(effectivePixelRatio(quality.pixelRatio, globalThis.devicePixelRatio));
         renderer.shadowMap.enabled = quality.shadows;
+        rendererRef.current = renderer;
         canvas = renderer.domElement;
         canvas.setAttribute("role", "img");
         canvas.setAttribute("aria-label", ariaLabel);
@@ -207,6 +238,8 @@ export const SceneCanvas = ({
       renderer?.dispose();
       renderer?.forceContextLoss?.();
       if (canvas?.parentNode) canvas.parentNode.removeChild(canvas);
+      handleRef.current = undefined;
+      rendererRef.current = undefined;
     };
     // A quality/motion/scene change rebuilds deliberately. onPick is read
     // through pickRef instead of being a dependency on purpose: callers

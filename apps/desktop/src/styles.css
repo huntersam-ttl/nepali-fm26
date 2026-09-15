@@ -2731,6 +2731,16 @@ button.map-region-block:focus-visible {
   padding: 12px;
   background: var(--surface-2);
 }
+.club-scene-cameras {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.club-scene-cameras .ghost.active {
+  border-color: rgba(155, 124, 255, 0.55);
+  background: linear-gradient(90deg, rgba(155, 124, 255, 0.3), rgba(155, 124, 255, 0.08));
+  color: #fff;
+}
 .club-scene-readout {
   display: flex;
   flex-direction: column;

@@ -125,6 +125,63 @@ describe("club scene animation contract", () => {
   });
 });
 
+describe("camera presets", () => {
+  it("jumps instantly to a preset on Reduced motion", () => {
+    const handle = sceneFor("REDUCED");
+    const before = handle.camera.position.clone();
+    handle.focus("STADIUM");
+    const afterFocus = handle.camera.position.clone();
+    expect(afterFocus.equals(before)).toBe(false);
+    handle.update(1);
+    handle.update(2);
+    expect(handle.camera.position.equals(afterFocus)).toBe(true);
+    handle.dispose();
+  });
+
+  it("eases toward a preset over several frames on Full motion, without snapping instantly", () => {
+    const handle = sceneFor("FULL");
+    handle.update(0);
+    const before = handle.camera.position.clone();
+    handle.focus("TRAINING");
+    handle.update(0.1);
+    const oneFrameIn = handle.camera.position.clone();
+    expect(oneFrameIn.equals(before)).toBe(false);
+    for (let frame = 0; frame < 60; frame += 1) handle.update(0.1 * (frame + 2));
+    const settled = handle.camera.position.clone();
+    // Still moving after one frame, but converges after many.
+    expect(oneFrameIn.distanceTo(settled)).toBeGreaterThan(0);
+    handle.dispose();
+  });
+
+  it("stops orbiting Overview once a different preset is focused, and resumes when Overview is re-selected", () => {
+    const handle = sceneFor("FULL");
+    handle.focus("ACADEMY");
+    for (let frame = 0; frame < 40; frame += 1) handle.update(0.1 * (frame + 1));
+    const settledAtAcademy = handle.camera.position.clone();
+    handle.update(20);
+    handle.update(21);
+    expect(handle.camera.position.distanceTo(settledAtAcademy)).toBeLessThan(0.1);
+    handle.focus("OVERVIEW");
+    for (let frame = 0; frame < 40; frame += 1) handle.update(0.1 * (frame + 1));
+    const settledOverview = handle.camera.position.clone();
+    handle.update(40);
+    const afterDrift = handle.camera.position.clone();
+    expect(afterDrift.equals(settledOverview)).toBe(false);
+    handle.dispose();
+  });
+
+  it("frames a different, real position for each named preset", () => {
+    const handle = sceneFor("REDUCED");
+    const positions = (["OVERVIEW", "STADIUM", "TRAINING", "ACADEMY", "ADMIN"] as const).map((preset) => {
+      handle.focus(preset);
+      return handle.camera.position.clone();
+    });
+    const unique = new Set(positions.map((position) => `${position.x},${position.y},${position.z}`));
+    expect(unique.size).toBe(positions.length);
+    handle.dispose();
+  });
+});
+
 describe("club scene geometry follows real state", () => {
   // Measured over the campus groups only, never scene.children: ambient trees
   // are quality-gated scenery and a bare open-land site carries far more of
