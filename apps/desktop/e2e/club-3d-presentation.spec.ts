@@ -168,4 +168,50 @@ test.describe("Club Profile 3D presentation", () => {
     const tabIndex = await canvas.evaluate((element) => element.getAttribute("tabindex"));
     expect(tabIndex).toBeNull();
   });
+
+  test("camera presets: real buttons change the view, are keyboard-operable, and never leave a console error", async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    const errors: string[] = [];
+    page.on("console", (message) => {
+      if (message.type() === "error") errors.push(message.text());
+    });
+    page.on("pageerror", (error) => errors.push(String(error)));
+
+    await createCareerAndOpenClubProfile(page, `E2E 3D Camera ${Date.now()}`);
+    const region = page.getByRole("region", { name: /club environment/i });
+    const cameras = region.getByRole("group", { name: "Camera view" });
+    await expect(cameras).toBeVisible();
+
+    const overview = cameras.getByRole("button", { name: "Overview" });
+    const stadium = cameras.getByRole("button", { name: "Stadium" });
+    await expect(overview).toHaveAttribute("aria-pressed", "true");
+    await expect(stadium).toHaveAttribute("aria-pressed", "false");
+
+    const canvas = region.locator("canvas");
+    const before = await canvas.screenshot();
+
+    // Mouse activation.
+    await stadium.click();
+    await expect(stadium).toHaveAttribute("aria-pressed", "true");
+    await expect(overview).toHaveAttribute("aria-pressed", "false");
+    await page.waitForTimeout(200);
+    const afterStadium = await canvas.screenshot();
+    expect(Buffer.compare(before, afterStadium)).not.toBe(0);
+
+    // Keyboard activation: Tab to the pressed Stadium button, move to
+    // Training with the keyboard alone, and activate with Enter.
+    const training = cameras.getByRole("button", { name: "Training ground" });
+    await training.focus();
+    await expect(training).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(training).toHaveAttribute("aria-pressed", "true");
+    await page.waitForTimeout(200);
+    const afterTraining = await canvas.screenshot();
+    expect(Buffer.compare(afterStadium, afterTraining)).not.toBe(0);
+
+    await expectNoSeriousA11yViolations(page, "Club Profile camera presets");
+    expect(errors, `console/page errors: ${errors.join("; ")}`).toHaveLength(0);
+  });
 });
