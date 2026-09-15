@@ -44,9 +44,37 @@ Concretely, in the shipped Club Environment:
 | Plot marker | a real planned/approved/financing project |
 | Site build-up, light warmth | `ClubReputationSummary.footballReputation` |
 | Layout jitter, accent hue | stable hash of the club id (deterministic) |
+| Terrain silhouette | `ClubProfile.locationLabel` classified against real Nepal districts |
 
 A big but unlit, uncovered ground is deliberately **not** allowed to present as
 an elite modern arena, however large its capacity.
+
+### Geographic identity
+
+`siteGeographyForLocation` classifies the club's real recorded district into
+`KATHMANDU_VALLEY`, `TERAI`, `HILL`, or `UNKNOWN` — a real classification of
+well-known Nepali geography (which districts sit in the Kathmandu valley or
+the Terai plains), never a fabricated location. `HILL` is the default for any
+other recorded district, which is geographically correct for most of the
+country. The result only ever changes the campus's backdrop silhouette (low
+hill cones, or a scatter of generic urban blocks for the valley) — never the
+club's own buildings, and never claims a precise real site. `UNKNOWN` (no
+location on record) and `TERAI` both keep flat open ground with no added
+silhouette, which is itself the honest presentation of open plains terrain or
+a district this campus has no real geography evidence for.
+
+### Camera presets
+
+`ClubSceneHandle.focus(preset)` moves the camera to one of five named,
+deterministic viewpoints: `OVERVIEW`, `STADIUM`, `TRAINING`, `ACADEMY`,
+`ADMIN` (the offices block — there is no distinct admin building). Rendered as
+five real DOM buttons (`role="group"`, `aria-pressed` per button) beside the
+canvas. On **Full** motion the camera eases toward the target over several
+frames; on **Reduced**/**Off** it jumps instantly, because a multi-frame tween
+is exactly the discomfort Reduced motion exists to remove. Overview's ambient
+drift only plays while Overview is the active preset, so focusing a building
+holds the camera still there rather than drifting away from what the player
+asked to see.
 
 ## Architecture
 
@@ -333,6 +361,14 @@ actually happened.
 Foundation and the first vertical slice (Club Environment on Club Profile)
 are implemented, along with the UI motion foundation above, quality/motion/
 3D-off settings (now reachable both before and during an active career),
-and the packaged-build manual acceptance gate documented above. Everything
-in the matrix is still to do, and each should be built on this foundation
-rather than beside it.
+and the packaged-build manual acceptance gate documented above. The Club
+Environment has since deepened (Phase 1 of the living-world upgrade):
+geographic identity and five named camera presets, both described above.
+Not yet built from this Phase 1 pass, deliberately deferred rather than
+rushed: multi-camera-preset coverage of the two-dimensional campus grid
+fallback, richer atmosphere (flags, banners, weather), material variety
+beyond flat-coloured boxes (distinct glass/steel/track surfaces), and a
+federation-HQ scene for the President career (out of scope by design —
+see the Future-system integration matrix). Everything else in the matrix
+is still to do, and each should be built on this foundation rather than
+beside it.
