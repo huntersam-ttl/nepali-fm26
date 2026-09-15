@@ -17,6 +17,24 @@ import { managerBridge } from "../managerBridge.js";
 import { AsyncPanel, Badge, EmptyState, Metrics, Panel, useRuntimeData } from "../ui.js";
 import { EntityRefLink, OrganizationProfilePanel, StoryDetailPanel, type ProfileEntityType } from "../RoleDetailScreen.js";
 import { TransferNegotiationLauncher } from "./TransferNegotiationMeeting.js";
+import { MeetingEnvironmentScene } from "../../presentation/MeetingEnvironmentScene.js";
+
+/** Real, from the interview's own context — never fabricated. Governance-
+ * level interviews (Owner business, Federation governance) are genuinely
+ * higher-stakes than a routine pre/post-match or recruitment interview, so
+ * they read as IMPORTANT rather than ROUTINE. No context here is invented
+ * as MAJOR/LANDMARK — that would need real evidence (a record transfer, a
+ * title-deciding result) this view does not carry. */
+const PRESS_IMPORTANCE: Record<StructuredPressConferenceView["context"], "ROUTINE" | "IMPORTANT"> = {
+  PRE_MATCH: "ROUTINE",
+  POST_MATCH: "ROUTINE",
+  TRANSFER: "ROUTINE",
+  PLAYER_ISSUE: "ROUTINE",
+  EVENT: "ROUTINE",
+  RECRUITMENT: "ROUTINE",
+  OWNER_BUSINESS: "IMPORTANT",
+  FEDERATION_GOVERNANCE: "IMPORTANT",
+};
 
 /**
  * OrganizationProfilePanel's `bridge` prop is typed as the full
@@ -163,6 +181,18 @@ export const StructuredPressConferencePanel = ({
         Interview with <EntityRefLink reference={view.journalist} onOpen={setOpenReferenceTarget} /> ·{" "}
         <EntityRefLink reference={view.outlet} onOpen={setOpenReferenceTarget} />
       </p>
+
+      <MeetingEnvironmentScene
+        context="PRESS"
+        // No club/federation facility state is available to this shared
+        // panel (it serves Manager/Owner/President/SD alike) — MODEST is a
+        // conservative, honest default rather than a guessed tier.
+        environmentTier="MODEST"
+        importance={PRESS_IMPORTANCE[view.context]}
+        organisationId={String(view.interviewId)}
+        organisationName={view.outlet.label}
+        fallback={null}
+      />
 
       {view.priorAnswers.length > 0 && (
         <ul className="report-list">
