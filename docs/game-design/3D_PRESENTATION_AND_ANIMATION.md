@@ -314,16 +314,45 @@ boundary below.
 the club/federation scenes' sets, matched to what a single-room interior
 actually needs. Same eased-on-Full/instant-on-Reduced behavior.
 
-**Shipped integration**: the Owner↔Manager boardroom meeting
-(`RoleDetailScreen.tsx`'s `OwnerManagerMeeting`) — `environmentTier` from
-real board confidence, `importance` from real board pressure
-(`HIGH`→`MAJOR`, `MEDIUM`→`IMPORTANT`, else `ROUTINE`). The scene is purely
-additive beside the existing canonical topic/stance/commitment controls,
-which are unchanged. Transfer negotiation, contract negotiation, signing,
-investor/ownership meetings, staff appointments and press are **not** wired
-to live UI this pass — the reusable architecture supports all three
-contexts, but only the boardroom got a real integration; see Known P2 in
-the phase report for the honest remainder.
+**Shipped integrations**:
+
+- **Owner↔Manager boardroom meeting** (`RoleDetailScreen.tsx`'s
+  `OwnerManagerMeeting`) — `context="BOARDROOM"`, `environmentTier` from
+  real board confidence, `importance` from real board pressure
+  (`HIGH`→`MAJOR`, `MEDIUM`→`IMPORTANT`, else `ROUTINE`).
+- **Investor / ownership meeting** (`RoleDetailScreen.tsx`'s
+  `InvestorMeetingView`) — `context="BOARDROOM"`, `environmentTier` from the
+  club's real `valuation.factors.facilityQuality` (via the club scene's own
+  `facilityTierForQuality`), `importance` from whether the selected real bid
+  would cross the real majority-control threshold (`MAJOR`), is merely
+  pending (`IMPORTANT`), or nothing is selected (`ROUTINE`).
+- **Transfer / loan negotiation meeting**
+  (`TransferNegotiationMeeting.tsx`) — `context="NEGOTIATION"`,
+  `environmentTier="MODEST"` (an explicitly-commented conservative default —
+  this manager-scoped read model carries no club facility signal),
+  `importance` from a new `transferNegotiationImportance` helper comparing
+  the real transfer fee against the club's own real remaining transfer
+  budget (loans and free transfers are always `ROUTINE`; a fee that would
+  exhaust the budget is `MAJOR`; one using at least half of it is
+  `IMPORTANT`). Never claims a fabricated "record signing".
+- **Structured press conference panel**
+  (`MediaScreen.tsx`'s `StructuredPressConferencePanel`) — `context="PRESS"`,
+  `environmentTier="MODEST"` (this shared panel serves Manager, Owner,
+  Federation President and Sporting Director interviews alike and carries no
+  club/federation facility state), `importance` from the interview's own
+  real `context` field — `OWNER_BUSINESS`/`FEDERATION_GOVERNANCE` read as
+  `IMPORTANT`, everything else `ROUTINE`. One integration point covers all
+  four interview roles since they share this component.
+
+In every case the scene is purely additive beside the existing canonical
+controls (offer/counter/accept/reject/withdraw, topic/stance/commitment,
+question/response), which are unchanged. **Contract negotiation, the
+completed-signing presentation, and staff appointments are not wired to
+live UI** — `ContractsScreen.tsx`'s renewal flow is a single instant action
+with no negotiation "moment" comparable to a meeting, so no scene insertion
+point exists there without inventing one; signing and staff appointment
+integration was not attempted this pass. See Known P2 in the phase report
+for the honest remainder.
 
 ## Non-negotiables for every scene
 
