@@ -1,6 +1,7 @@
 export * from "./desktop-contract.js";
 export * from "./domain.js";
 export * from "./manager-contract.js";
+export * from "./playable-career.js";
 export * from "./ids.js";
 export * from "./federation-compliance.js";
 export * from "./territorial-football.js";

@@ -3,7 +3,12 @@ import {
   ExecutiveRoleRepository,
   type GameDatabase,
 } from "@nepal-football-sim/database";
-import type { CareerRole, EntityId } from "@nepal-football-sim/shared-types";
+import {
+  isBaseCareerRole,
+  type BaseCareerRole,
+  type CareerRole,
+  type EntityId,
+} from "@nepal-football-sim/shared-types";
 
 export type HeldCareerRole = { role: CareerRole; targetId?: EntityId };
 const roleOrder: CareerRole[] = [
@@ -15,6 +20,17 @@ const roleOrder: CareerRole[] = [
   "CEO",
   "GENERAL_SECRETARY",
 ];
+
+const preferredBaseRole = (
+  held: HeldCareerRole[],
+  stored?: BaseCareerRole,
+): BaseCareerRole | undefined => {
+  if (stored && held.some((entry) => entry.role === stored)) return stored;
+  const manager = held.find((entry) => entry.role === "MANAGER");
+  if (manager) return "MANAGER";
+  const owner = held.find((entry) => entry.role === "CHAIRMAN_OWNER");
+  return owner ? "CHAIRMAN_OWNER" : undefined;
+};
 
 /** Canonical role ownership lookup. It never creates or mutates appointments. */
 export const heldCareerRoles = (db: GameDatabase, personId: EntityId): HeldCareerRole[] => {
@@ -50,15 +66,44 @@ export const heldCareerRoles = (db: GameDatabase, personId: EntityId): HeldCaree
 export const activeCareerRole = (db: GameDatabase, personId: EntityId): CareerRole => {
   const held = heldCareerRoles(db, personId);
   const repo = new CareerControlRepository(db);
-  const current = repo.get(personId)?.activeRole;
-  const resolved = current && held.some((entry) => entry.role === current) ? current : held[0]?.role ?? "MANAGER";
-  if (current !== resolved) repo.upsert({ personId, activeRole: resolved });
+  const context = repo.get(personId);
+  const current = context?.activeRole;
+
+  // If a temporary presidency has ended, return to the base career that was
+  // active when the player entered office. This is deliberately different
+  // from merely picking the first held role: an Owner who becomes President
+  // must come back as Owner, not silently become Manager because both roles
+  // happen to be held.
+  let resolved = current && held.some((entry) => entry.role === current) ? current : undefined;
+  if (!resolved && current === "FEDERATION_PRESIDENT") {
+    resolved = preferredBaseRole(held, context?.baseRole);
+  }
+  resolved ??= preferredBaseRole(held, context?.baseRole) ?? held[0]?.role ?? "MANAGER";
+
+  const baseRole = isBaseCareerRole(resolved)
+    ? resolved
+    : preferredBaseRole(held, context?.baseRole);
+  if (current !== resolved || context?.baseRole !== baseRole) {
+    repo.upsert({ personId, activeRole: resolved, baseRole });
+  }
   return resolved;
 };
 
 export const switchActiveCareerRole = (db: GameDatabase, personId: EntityId, targetRole: CareerRole): CareerRole => {
-  if (!heldCareerRoles(db, personId).some((entry) => entry.role === targetRole)) throw new Error(`Career role ${targetRole} is not currently held by this person.`);
+  const held = heldCareerRoles(db, personId);
+  if (!held.some((entry) => entry.role === targetRole)) throw new Error(`Career role ${targetRole} is not currently held by this person.`);
+
   const repo = new CareerControlRepository(db);
-  if (activeCareerRole(db, personId) !== targetRole) repo.upsert({ personId, activeRole: targetRole });
+  const current = activeCareerRole(db, personId);
+  const context = repo.get(personId);
+  const baseRole = targetRole === "FEDERATION_PRESIDENT"
+    ? (isBaseCareerRole(current) ? current : preferredBaseRole(held, context?.baseRole))
+    : isBaseCareerRole(targetRole)
+      ? targetRole
+      : context?.baseRole;
+
+  if (current !== targetRole || context?.baseRole !== baseRole) {
+    repo.upsert({ personId, activeRole: targetRole, baseRole });
+  }
   return targetRole;
 };
