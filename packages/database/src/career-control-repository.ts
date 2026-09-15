@@ -1,7 +1,6 @@
-import type { CareerRole, EntityId } from "@nepal-football-sim/shared-types";
+import type { BaseCareerRole, CareerRole, EntityId } from "@nepal-football-sim/shared-types";
 import type { GameDatabase } from "./connection.js";
 
-export type BaseCareerRole = "MANAGER" | "CHAIRMAN_OWNER";
 export type CareerControlContext = {
   personId: EntityId;
   activeRole: CareerRole;
