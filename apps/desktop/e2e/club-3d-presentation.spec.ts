@@ -21,14 +21,26 @@ const expectNoSeriousA11yViolations = async (page: Page, label: string): Promise
 /** Creates a real career and navigates to the player's own Club Profile,
  * where the 3D Club Environment scene lives, entirely through real UI —
  * the same path a player takes (New Career -> Competition table -> own
- * club link), never a direct API shortcut. */
-const createCareerAndOpenClubProfile = async (page: Page, saveName: string): Promise<void> => {
+ * club link), never a direct API shortcut. Passing `division` picks the
+ * first club listed under that division tab (real, deterministic ordering
+ * from the dataset) instead of whatever the wizard defaults to — used to
+ * get a genuinely different real club (top vs bottom division) rather than
+ * the same default club every time. */
+const createCareerAndOpenClubProfile = async (
+  page: Page,
+  saveName: string,
+  division?: "A" | "C",
+): Promise<void> => {
   await page.goto("/");
   await page.getByRole("button", { name: /New career/i }).click();
   await page.getByLabel("Save name").fill(saveName);
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByLabel("Starting club")).toBeVisible();
+  if (division) {
+    await page.getByRole("tab", { name: `${division} Division` }).click();
+    await page.getByLabel("Starting club").getByRole("button").first().click();
+  }
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Create Save" }).click();
   await expect(page.getByRole("button", { name: "Home / Inbox" })).toBeVisible({ timeout: 120_000 });
@@ -213,5 +225,33 @@ test.describe("Club Profile 3D presentation", () => {
 
     await expectNoSeriousA11yViolations(page, "Club Profile camera presets");
     expect(errors, `console/page errors: ${errors.join("; ")}`).toHaveLength(0);
+  });
+
+  test("visual progression: a top-division club's stadium renders substantially differently from a bottom-division club's, at the same camera and viewport", async ({
+    page,
+  }) => {
+    test.setTimeout(150_000);
+    await createCareerAndOpenClubProfile(page, `E2E 3D Small ${Date.now()}`, "C");
+    const region = page.getByRole("region", { name: /club environment/i });
+    await region.getByRole("button", { name: "Stadium" }).click();
+    await page.waitForTimeout(300);
+    const smallShot = await region.locator("canvas").screenshot();
+    expect(smallShot.byteLength).toBeGreaterThan(5_000);
+
+    await createCareerAndOpenClubProfile(page, `E2E 3D Large ${Date.now()}`, "A");
+    const region2 = page.getByRole("region", { name: /club environment/i });
+    await region2.getByRole("button", { name: "Stadium" }).click();
+    await page.waitForTimeout(300);
+    const largeShot = await region2.locator("canvas").screenshot();
+    expect(largeShot.byteLength).toBeGreaterThan(5_000);
+
+    // A real threshold rather than a single-pixel check: two genuinely
+    // different stadiums encode to meaningfully different PNG byte streams
+    // — a top-division club's fuller, roofed, floodlit bowl is visually
+    // denser than a bottom-division club's modest ground, which compresses
+    // to noticeably fewer bytes even before pixel content is compared.
+    const sizeRatio = largeShot.byteLength / smallShot.byteLength;
+    expect(sizeRatio, `large=${largeShot.byteLength}B small=${smallShot.byteLength}B`).not.toBeCloseTo(1, 1);
+    expect(Buffer.compare(smallShot, largeShot)).not.toBe(0);
   });
 });
