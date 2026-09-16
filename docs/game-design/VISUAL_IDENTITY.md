@@ -677,3 +677,45 @@ Playwright portrait coverage (Player A/B, role continuity, Squad,
 Dressing Room, or Staff), a dedicated 20/50-portrait performance
 harness, Create-a-Club failure-path verification, and kit-distinctness
 warnings — all still open.
+
+## Phase 1N — automated portrait determinism and role continuity
+
+Every phase from 1K onward re-verified the same two claims by hand in
+the browser (a player's portrait is deterministic/distinct; the same
+career person keeps the same face across role switches). This
+automates both, so future phases don't need to keep manually
+re-checking them.
+
+`PersonPortrait` gained a `data-face-signature` attribute —
+`identity.seed`, already a hash of `personId` computed inside
+`buildPersonVisualIdentity`, never the raw id itself, so nothing
+sensitive reaches the DOM. Comparing this instead of screenshots means
+legitimate attire/context differences across roles (tracksuit vs.
+business attire vs. institutional tone) can never produce a false
+failure the way a full pixel diff would.
+
+New `apps/desktop/e2e/portrait-continuity.spec.ts` (2 tests): Player
+A/B — two Squad rows resolve to two different Player Profile faces; a
+player's own Squad-row signature exactly matches their Profile-page
+signature; the same player's face survives a real save/reload
+unchanged. Role continuity — one human career person's topbar portrait
+signature stays identical across Owner → President → Manager → Owner.
+
+**Verified these aren't tautological**, the same way the Phase 1G nav
+fix's regression test was: temporarily seeded the topbar portrait from
+`${personId}:${activeRole}` instead of `personId` alone, re-ran, watched
+the continuity test fail exactly as expected
+("President → Manager must keep the same face", two different
+signatures), reverted, confirmed both tests green again (twice).
+
+Re-ran and confirmed still green: `role-boundary.spec.ts` (2/2),
+`nav-responsive.spec.ts` (2/2), kit-history unit suite (9/9). New
+`PersonPortrait.test.tsx` case covers the signature contract at the
+unit level too (same person/different role → same signature; different
+person → different signature; never the raw id).
+
+**Not attempted this pass:** Squad/Dressing Room/Staff-surface-specific
+Playwright coverage (multiple avatars rendering, no overflow, etc.),
+20/50-portrait performance harness, explicit N+1 bridge-call
+instrumentation, recruitment avatars, Create-a-Club failure-path E2E,
+and kit distinctness.
