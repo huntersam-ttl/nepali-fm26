@@ -269,15 +269,87 @@ work, would remain so. No animated match player, live pitch, ball
 renderer, or match camera was introduced or is planned — matches remain
 Quick Sim / Key Events / Text Live, per the permanent rule.
 
+## Phase 1F — independent Home/Away/Third kit persistence
+
+Item 2 of the prior phase's recommended next steps shipped this pass:
+club kits are no longer colours-only derivatives — each of Home, Away,
+and Third now has its own persisted base/secondary/trim/shorts/socks
+colours and pattern, editable and saved independently. Saving one slot's
+edits never touches another slot's saved (or still-deterministic) design,
+verified both at the unit-test level (`packages/testing/src/club-visual-identity.test.ts`)
+and live in the browser (see below).
+
+**Shipped:**
+- `ClubKitDesignOverride` (shared-types) / migration-100's existing
+  `home_kit_json`/`away_kit_json`/`third_kit_json` columns are now
+  actually written to, via `ClubVisualIdentityRepository.upsertFull`'s
+  read-existing-then-merge-only-supplied-slots pattern.
+- `setClubVisualIdentity` accepts optional `homeKit`/`awayKit`/`thirdKit`,
+  validates each slot's colours (hex) and pattern (enum) independently,
+  and the response always reflects the full merged state (not just what
+  was passed in that call).
+- `resolveClubVisualIdentity` (`apps/desktop/src/presentation/clubVisualIdentity.ts`) —
+  the single canonical resolver every UI surface now calls instead of
+  manually merging partial override state.
+- `ClubKitEditor` (`apps/desktop/src/presentation/ClubKitEditor.tsx`) — one
+  reusable component, Home/Away/Third tabs, wired into the Club Identity
+  screen's `ClubIdentityEditor`.
+- Collar, sleeve style, and shirt-number colour remain **not** exposed as
+  editable fields, on purpose: the `ClubKit` SVG renderer doesn't visually
+  differentiate them yet, and this task's own instruction was "fix the
+  renderer before exposing a choice — no fake dropdowns that render
+  identically regardless of selection."
+
+**Live-verified** on an isolated dev server (fresh `/tmp` save dir,
+`NEPAL_E2E_ROLE_FIXTURE=1`, port 1430): founded a Manager-mode Church
+Boys United career, seeded the fixture, switched to Chairman/Owner,
+opened Club Identity, switched the kit tab to Away, changed its pattern
+to Halves and base colour to magenta — the Away preview (both the tab's
+own preview and the top-of-page kit strip) updated live while Home's gold
+Sash kit stayed untouched. Saved ("Club identity saved."), reloaded the
+whole app from the main menu, continued the save, re-opened Club Identity:
+Home was still the original deterministic gold Sash, Away was still the
+saved magenta Halves, Third was still deterministic — confirming the
+independent-slot persistence survives a real save/reload cycle. Zero
+console errors throughout.
+
+**A responsive-layout bug found during this verification (not fixed this
+pass):** the Chairman/Owner sidebar nav (`apps/desktop/src/manager/ManagerCareer.tsx`,
+`CHAIRMAN_NAV`) switches to a 3-column CSS grid below the 1080px
+`max-width` breakpoint (`apps/desktop/src/styles.css:679`). At narrow
+widths the third column's content — including the entire "Club" group and
+its "Club Identity" link — is pushed outside the 248px-wide sidebar and
+becomes unreachable by click, though it's still present in the DOM (found
+via `find`, invisible in a screenshot). This reproduced in the Browser
+pane's default ~721px-wide viewport; widening to 1440px made the nav
+render correctly (2-column layout, "Club Identity" visible and clickable).
+This is a real, unaddressed responsiveness defect in the Chairman/Owner
+workspace nav, not specific to the kit editor — it would affect any
+Chairman/Owner screen in the "Club" or "External relations" groups at
+narrow widths. Flagged here rather than fixed, since fixing the nav's
+breakpoint/column logic is outside this phase's kit-persistence scope.
+
+**Not attempted this pass** (kept from the prior phase's gap list, still
+open): Create-a-Club kit integration (the wizard has colours+badge but not
+kits), kit history activation/UI, kit distinctness warnings, non-player
+portrait wiring, list avatars, app-wide badge use beyond Club Profile,
+and any automated Playwright/axe/responsive/performance verification —
+every check in this phase, as in every prior one, was manual via the
+Browser pane, not scripted.
+
 ## Recommended next phase
 
 1. Wire `PersonPortrait` into manager/staff/owner/president profile headers
    and the squad/staff list rows (cheap, same renderer, no new model work).
-2. Extend `ClubKitDesign` persistence to independent pattern/collar/sleeve
-   editing (currently colours + badge only), and build one shared
-   `ClubKitEditor` with Home/Away/Third tabs, reusing `ClubKit` for preview.
+2. ~~Extend `ClubKitDesign` persistence to independent pattern/collar/sleeve
+   editing~~ — kit colours + pattern now persist independently per slot
+   (Phase 1F); collar/sleeve/number-colour still need renderer support
+   before they can be exposed.
 3. Activate `club_kit_history`: snapshot on season rollover (or first
    identity resolution of a new season, whichever proves architecturally
    safer), and add a compact history section to Club Profile.
-4. Merchandise/retail last, once club colours and kits exist to hang
+4. Fix the Chairman/Owner sidebar nav's sub-1080px 3-column layout so the
+   "Club" and "External relations" groups don't get clipped out of the
+   visible sidebar width.
+5. Merchandise/retail last, once club colours and kits exist to hang
    demand and shirt-sales tracking off of.
