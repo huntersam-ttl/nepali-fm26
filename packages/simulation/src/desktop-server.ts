@@ -517,6 +517,13 @@ const dispatch = (
       );
     case "getClubProfile":
       return service.getClubProfile(body.clubId as EntityId);
+    case "getClubVisualIdentity":
+      return service.getClubVisualIdentity(body.clubId as EntityId);
+    case "setClubColours":
+      return service.setClubColours(
+        body.clubId as EntityId,
+        body.colours as { primaryColour: string; secondaryColour: string; accentColour: string },
+      );
     case "getStaffProfile":
       return service.getStaffProfile(body.personId as EntityId);
     case "getCompetitionProfile":

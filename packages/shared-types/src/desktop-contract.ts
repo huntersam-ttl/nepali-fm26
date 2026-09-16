@@ -527,6 +527,23 @@ export type PresidentCommercialHistoryEntry = {
   settlementState: "SETTLED" | "NOT_SETTLED" | "NOT_APPLICABLE";
 };
 
+/**
+ * The club's real, resolved visual-identity colours — either a real,
+ * player-saved override (`isCustom: true`) or the deterministic
+ * SIMULATION_ONLY default every club without one falls back to.
+ * `getClubVisualIdentity` is the single resolver for this; badge shape/
+ * symbol and kit pattern selection stay deterministically derived from the
+ * club id on the client (not yet player-editable — only colours persist).
+ */
+export type ClubVisualIdentityView = {
+  clubId: EntityId;
+  primaryColour: string;
+  secondaryColour: string;
+  accentColour: string;
+  isCustom: boolean;
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
 export type ClubStadiumSummary = {
   venueId: EntityId;
   name: string;
@@ -1007,6 +1024,11 @@ export type DesktopRuntimeApi = {
     entityId: EntityId,
   ): Promise<AppResult<OrganizationProfile>>;
   getClubProfile?(clubId: EntityId): Promise<AppResult<ClubProfile>>;
+  getClubVisualIdentity?(clubId: EntityId): Promise<AppResult<ClubVisualIdentityView>>;
+  setClubColours?(
+    clubId: EntityId,
+    colours: { primaryColour: string; secondaryColour: string; accentColour: string },
+  ): Promise<AppResult<ClubVisualIdentityView>>;
   getStaffProfile?(personId: EntityId): Promise<AppResult<StaffProfileReadModel>>;
   getCompetitionProfile?(competitionId: EntityId): Promise<AppResult<CompetitionProfile>>;
   getInfrastructureProjectProfile?(projectId: EntityId): Promise<AppResult<InfrastructureProjectProfile>>;

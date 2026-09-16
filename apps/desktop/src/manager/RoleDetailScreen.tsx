@@ -114,7 +114,8 @@ export type ChairmanScreen =
   | "bank"
   | "meeting"
   | "matchday"
-  | "executive";
+  | "executive"
+  | "identity";
 export type PresidentScreen =
   | "dashboard"
   | "governance"
@@ -160,6 +161,7 @@ const SECTION_TITLES: Record<string, { title: string; subtitle: string }> = {
     subtitle: "Fixtures, results, and league position — no tactical control.",
   },
   investors: { title: "Investors", subtitle: "Ownership stakes and equity interest." },
+  identity: { title: "Club Identity", subtitle: "Colours, badge, and kits." },
   executive: {
     title: "Executive management",
     subtitle: "Who holds each executive role, their authority, and where it stands vacant.",
@@ -253,6 +255,8 @@ const ChairmanDetail = ({
           return <OwnerManagerMeeting bridge={bridge} clubId={dashboard.club.id} />;
         if (screen === "matchday")
           return <OwnerMatchday bridge={bridge} onTalkToManager={() => onNavigate("meeting")} />;
+        if (screen === "identity")
+          return <ClubIdentityEditor bridge={bridge} clubId={dashboard.club.id} clubName={dashboard.club.name} />;
         return <ChairmanSupporters dashboard={dashboard} />;
       }}
     </AsyncPanel>
@@ -474,6 +478,130 @@ const ChairmanFinance = ({
       </Panel>
       <Ledger entries={dashboard.finances.ledgerEntries} />
     </section>
+  );
+};
+
+/**
+ * Owner-facing colour editor — the one real, persisted lever on top of the
+ * deterministic default identity (buildClubVisualIdentity). Badge shape/
+ * symbol and kit pattern remain deterministic in this pass; only the three
+ * real colours are player-editable, and they immediately re-derive the
+ * badge and all three kits (see buildClubVisualIdentity's colourOverride
+ * parameter) since kits/badges are colour-derived from the same palette.
+ */
+const ClubIdentityEditor = ({
+  bridge,
+  clubId,
+  clubName,
+}: {
+  bridge: DesktopRuntimeApi;
+  clubId: EntityId;
+  clubName: string;
+}): React.ReactElement => {
+  const [state, refresh] = useRuntimeData(
+    () =>
+      bridge.getClubVisualIdentity
+        ? bridge.getClubVisualIdentity(clubId)
+        : Promise.resolve({ ok: false as const, error: { code: "INVALID_SELECTION" as const, message: "Unavailable" } }),
+    [clubId],
+  );
+  const [primary, setPrimary] = useState<string | null>(null);
+  const [secondary, setSecondary] = useState<string | null>(null);
+  const [accent, setAccent] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  return (
+    <AsyncPanel state={state}>
+      {(identity) => {
+        const primaryColour = primary ?? identity.primaryColour;
+        const secondaryColour = secondary ?? identity.secondaryColour;
+        const accentColour = accent ?? identity.accentColour;
+        const preview = buildClubVisualIdentity(clubId, clubName, { primaryColour, secondaryColour, accentColour });
+        const save = async (): Promise<void> => {
+          if (!bridge.setClubColours) return;
+          setBusy(true);
+          setMessage(null);
+          const result = await bridge.setClubColours(clubId, { primaryColour, secondaryColour, accentColour });
+          setBusy(false);
+          if (result.ok) {
+            setMessage("Club colours saved.");
+            refresh();
+          } else {
+            setMessage(result.error.message);
+          }
+        };
+        return (
+          <Panel title="Club colours" className="panel-wide">
+            {!identity.isCustom && (
+              <p className="subtle">
+                {clubName} is currently using a generated SIMULATION_ONLY default identity. Choose real colours below
+                to make it your own.
+              </p>
+            )}
+            <div className="club-identity-editor">
+              <div className="club-identity-controls">
+                <label>
+                  Primary colour
+                  <input
+                    type="color"
+                    aria-label="Primary colour"
+                    value={primaryColour}
+                    onChange={(event) => setPrimary(event.target.value)}
+                  />
+                  <span className="subtle">{primaryColour}</span>
+                </label>
+                <label>
+                  Secondary colour
+                  <input
+                    type="color"
+                    aria-label="Secondary colour"
+                    value={secondaryColour}
+                    onChange={(event) => setSecondary(event.target.value)}
+                  />
+                  <span className="subtle">{secondaryColour}</span>
+                </label>
+                <label>
+                  Accent colour
+                  <input
+                    type="color"
+                    aria-label="Accent colour"
+                    value={accentColour}
+                    onChange={(event) => setAccent(event.target.value)}
+                  />
+                  <span className="subtle">{accentColour}</span>
+                </label>
+                <button className="primary" disabled={busy} onClick={() => void save()}>
+                  {busy ? "Saving…" : "Save colours"}
+                </button>
+                {message && <p className="notice" role="status">{message}</p>}
+              </div>
+              <div className="club-identity-preview">
+                <ClubBadge design={preview.badge} size="large" clubName={clubName} />
+                <div className="club-kit-strip">
+                  <div>
+                    <ClubKit design={preview.home} size="medium" label="Home" />
+                    <span className="subtle">Home</span>
+                  </div>
+                  <div>
+                    <ClubKit design={preview.away} size="medium" label="Away" />
+                    <span className="subtle">Away</span>
+                  </div>
+                  <div>
+                    <ClubKit design={preview.third} size="medium" label="Third" />
+                    <span className="subtle">Third</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <p className="subtle club-identity-provenance">
+              Generated visual identity (SIMULATION_ONLY) — this project holds no licensed real club branding. Badge
+              shape/symbol and kit patterns are not yet editable.
+            </p>
+          </Panel>
+        );
+      }}
+    </AsyncPanel>
   );
 };
 
@@ -7162,7 +7290,22 @@ const ClubProfileBody = ({
   onOpenReference: (reference: EntityReference) => void;
   bridge: DesktopRuntimeApi;
 }): React.ReactElement => {
-  const identity = buildClubVisualIdentity(profile.entityReference.id, profile.entityReference.label);
+  const [visualIdentityState] = useRuntimeData(
+    () =>
+      bridge.getClubVisualIdentity
+        ? bridge.getClubVisualIdentity(profile.entityReference.id)
+        : Promise.resolve({ ok: false as const, error: { code: "INVALID_SELECTION" as const, message: "Unavailable" } }),
+    [profile.entityReference.id],
+  );
+  const colourOverride =
+    visualIdentityState.status === "ready" && visualIdentityState.data.isCustom
+      ? {
+          primaryColour: visualIdentityState.data.primaryColour,
+          secondaryColour: visualIdentityState.data.secondaryColour,
+          accentColour: visualIdentityState.data.accentColour,
+        }
+      : undefined;
+  const identity = buildClubVisualIdentity(profile.entityReference.id, profile.entityReference.label, colourOverride);
   return (
   <>
     <div className="club-profile-header">

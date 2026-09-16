@@ -2298,6 +2298,44 @@ tbody tr:last-child td {
   height: 108px;
 }
 
+.club-identity-editor {
+  display: flex;
+  gap: 32px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.club-identity-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 180px;
+}
+
+.club-identity-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.club-identity-controls input[type="color"] {
+  width: 100%;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--line, #2c3954);
+  border-radius: 4px;
+  background: none;
+}
+
+.club-identity-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
 .club-profile-header {
   display: flex;
   align-items: flex-start;

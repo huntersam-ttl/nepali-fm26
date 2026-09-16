@@ -70,6 +70,7 @@ const CHAIRMAN_NAV: Array<{ group: string; items: Array<{ id: ChairmanScreen; la
   { group: "Staff", items: [{ id: "executive", label: "Executive Management" }] },
   { group: "Development", items: [{ id: "facilities", label: "Facilities" }] },
   { group: "Commercial", items: [{ id: "sponsorship", label: "Sponsorship" }, { id: "supporters", label: "Supporters" }] },
+  { group: "Club", items: [{ id: "identity", label: "Club Identity" }] },
   { group: "External relations", items: [{ id: "bank", label: "Bank" }] },
 ];
 const PRESIDENT_NAV: Array<{ group: string; items: Array<{ id: PresidentScreen; label: string }> }> = [

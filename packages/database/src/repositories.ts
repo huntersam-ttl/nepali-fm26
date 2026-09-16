@@ -9614,3 +9614,131 @@ export class ExternalFootballRepository {
     }));
   }
 }
+
+/** A real, player-saved club colour override. Badge shape/symbol and kit
+ * pattern selection are not persisted here — they stay deterministically
+ * derived from the club id/name on the client; only the three colours a
+ * player can actually edit this pass are stored. */
+export type ClubVisualIdentityRecord = {
+  clubId: EntityId;
+  primaryColour: string;
+  secondaryColour: string;
+  accentColour: string;
+  provenanceStatus: "SIMULATION_ONLY";
+  updatedAt: string;
+};
+
+export type ClubKitHistoryEntry = {
+  id: EntityId;
+  clubId: EntityId;
+  seasonKey: string;
+  homeKitJson: string;
+  awayKitJson: string;
+  thirdKitJson: string;
+  createdAt: string;
+};
+
+export class ClubVisualIdentityRepository {
+  constructor(private readonly db: GameDatabase) {}
+
+  get(clubId: EntityId): ClubVisualIdentityRecord | undefined {
+    const row = this.db
+      .prepare(
+        `SELECT club_id, primary_colour, secondary_colour, accent_colour, provenance_status, updated_at
+         FROM club_visual_identities WHERE club_id = ?`,
+      )
+      .get(clubId) as
+      | {
+          club_id: EntityId;
+          primary_colour: string;
+          secondary_colour: string;
+          accent_colour: string;
+          provenance_status: "SIMULATION_ONLY";
+          updated_at: string;
+        }
+      | undefined;
+    if (!row) return undefined;
+    return {
+      clubId: row.club_id,
+      primaryColour: row.primary_colour,
+      secondaryColour: row.secondary_colour,
+      accentColour: row.accent_colour,
+      provenanceStatus: row.provenance_status,
+      updatedAt: row.updated_at,
+    };
+  }
+
+  /** Upserts the club's colour override. Badge/kit design JSON columns are
+   * required by the table but not yet player-editable, so they're written
+   * as empty placeholders here — never read back (colours are resolved
+   * independently; a future badge/kit editor would populate these for
+   * real). */
+  upsertColours(input: {
+    clubId: EntityId;
+    primaryColour: string;
+    secondaryColour: string;
+    accentColour: string;
+    updatedAt: string;
+  }): void {
+    this.db
+      .prepare(
+        `INSERT INTO club_visual_identities
+           (club_id, primary_colour, secondary_colour, accent_colour, badge_design_json, home_kit_json, away_kit_json, third_kit_json, provenance_status, updated_at)
+         VALUES (?, ?, ?, ?, '{}', '{}', '{}', '{}', 'SIMULATION_ONLY', ?)
+         ON CONFLICT(club_id) DO UPDATE SET
+           primary_colour = excluded.primary_colour,
+           secondary_colour = excluded.secondary_colour,
+           accent_colour = excluded.accent_colour,
+           updated_at = excluded.updated_at`,
+      )
+      .run(input.clubId, input.primaryColour, input.secondaryColour, input.accentColour, input.updatedAt);
+  }
+
+  /** One immutable snapshot per club per season — a no-op if a snapshot for
+   * this exact season already exists, so repeated loads/ticks never
+   * duplicate or overwrite an earlier season's real kit history. */
+  snapshotSeasonIfAbsent(input: {
+    id: EntityId;
+    clubId: EntityId;
+    seasonKey: string;
+    homeKitJson: string;
+    awayKitJson: string;
+    thirdKitJson: string;
+    createdAt: string;
+  }): void {
+    this.db
+      .prepare(
+        `INSERT OR IGNORE INTO club_kit_history
+           (id, club_id, season_key, home_kit_json, away_kit_json, third_kit_json, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(input.id, input.clubId, input.seasonKey, input.homeKitJson, input.awayKitJson, input.thirdKitJson, input.createdAt);
+  }
+
+  kitHistory(clubId: EntityId): ClubKitHistoryEntry[] {
+    return (
+      this.db
+        .prepare(
+          `SELECT id, club_id, season_key, home_kit_json, away_kit_json, third_kit_json, created_at
+           FROM club_kit_history WHERE club_id = ? ORDER BY season_key`,
+        )
+        .all(clubId) as Array<{
+        id: EntityId;
+        club_id: EntityId;
+        season_key: string;
+        home_kit_json: string;
+        away_kit_json: string;
+        third_kit_json: string;
+        created_at: string;
+      }>
+    ).map((row) => ({
+      id: row.id,
+      clubId: row.club_id,
+      seasonKey: row.season_key,
+      homeKitJson: row.home_kit_json,
+      awayKitJson: row.away_kit_json,
+      thirdKitJson: row.third_kit_json,
+      createdAt: row.created_at,
+    }));
+  }
+}

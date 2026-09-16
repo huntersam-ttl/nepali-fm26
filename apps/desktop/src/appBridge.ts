@@ -79,6 +79,7 @@ import type {
   ClubInfrastructureGovernmentContext,
   FederationCommercialRightsOffer,
   ClubProfile,
+  ClubVisualIdentityView,
   StaffProfileReadModel,
   CompetitionProfile,
   InfrastructureProjectProfile,
@@ -226,6 +227,12 @@ const bindCommands = (call: CommandCaller): DesktopRuntimeApi => ({
   getOrganizationProfile: (entityType: OrganizationProfileEntityType, entityId: EntityId) =>
     call<OrganizationProfile>("getOrganizationProfile", { entityType, entityId }),
   getClubProfile: (clubId: EntityId) => call<ClubProfile>("getClubProfile", { clubId }),
+  getClubVisualIdentity: (clubId: EntityId) =>
+    call<ClubVisualIdentityView>("getClubVisualIdentity", { clubId }),
+  setClubColours: (
+    clubId: EntityId,
+    colours: { primaryColour: string; secondaryColour: string; accentColour: string },
+  ) => call<ClubVisualIdentityView>("setClubColours", { clubId, colours }),
   getStaffProfile: (personId: EntityId) =>
     call<StaffProfileReadModel>("getStaffProfile", { personId }),
   getCompetitionProfile: (competitionId: EntityId) =>

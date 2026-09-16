@@ -20,6 +20,7 @@ import {
   SquadDynamicsRepository,
   StaffMarketRepository,
   TransferMarketRepository,
+  ClubVisualIdentityRepository,
   WorldRepository,
   createNewSave,
   loadSave,
@@ -119,6 +120,7 @@ import {
   type SimulationClubRecord,
   type Club,
   type ClubProfile,
+  type ClubVisualIdentityView,
   type InfrastructureProjectProfile,
   type StaffProfileReadModel,
   type CompetitionProfile,
@@ -270,6 +272,7 @@ import { ensureLowerLeaguePlayableWorld, reconcileWorkforceSupply } from "./work
 import { initializePeopleFoundation } from "./people-foundation.js";
 import { reconcilePlayablePlayerProfilesOnce } from "./player-profile-reconciliation.js";
 import { initializeTransferMarketForSave, rebalanceNewNepalSaveSquads } from "./transfer-market.js";
+import { deterministicClubColours, isValidHexColour } from "./club-visual-identity-colours.js";
 import {
   appointNationalTeamHeadCoachForPresident,
   FederationPersonnelError,
@@ -4066,6 +4069,65 @@ export class DesktopApplicationService {
 
   getClubProfile(clubId: EntityId): AppResult<ClubProfile> {
     return this.withSession((db, save) => buildClubProfile(db, clubId, activeCareerRole(db, careerPersonId(db, save))));
+  }
+
+  /** Resolves this club's real, current visual-identity colours: a saved
+   * override if one exists, else the same deterministic SIMULATION_ONLY
+   * fallback the client itself would compute — so a club with no override
+   * never has to distinguish "not customised" from "customised to look
+   * exactly like the default" at the UI layer. */
+  getClubVisualIdentity(clubId: EntityId): AppResult<ClubVisualIdentityView> {
+    return this.withSession((db) => {
+      const record = new ClubVisualIdentityRepository(db).get(clubId);
+      if (record) {
+        return {
+          clubId,
+          primaryColour: record.primaryColour,
+          secondaryColour: record.secondaryColour,
+          accentColour: record.accentColour,
+          isCustom: true,
+          provenanceStatus: "SIMULATION_ONLY",
+        };
+      }
+      return { clubId, ...deterministicClubColours(clubId), isCustom: false, provenanceStatus: "SIMULATION_ONLY" };
+    });
+  }
+
+  /** Only the club's own controlling Chairman/Owner may repaint it. */
+  setClubColours(
+    clubId: EntityId,
+    colours: { primaryColour: string; secondaryColour: string; accentColour: string },
+  ): AppResult<ClubVisualIdentityView> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER") {
+        throw appError("ROLE_NOT_AUTHORIZED", "Only the active chairman/owner may edit club colours.");
+      }
+      const ownedClubId = heldCareerRoles(db, personId).find((role) => role.role === "CHAIRMAN_OWNER")?.targetId;
+      if (ownedClubId !== clubId) {
+        throw appError("ROLE_NOT_AUTHORIZED", "You may only edit your own club's identity.");
+      }
+      for (const value of [colours.primaryColour, colours.secondaryColour, colours.accentColour]) {
+        if (!isValidHexColour(value)) {
+          throw appError("INVALID_SELECTION", `"${value}" is not a valid colour.`);
+        }
+      }
+      new ClubVisualIdentityRepository(db).upsertColours({
+        clubId,
+        primaryColour: colours.primaryColour,
+        secondaryColour: colours.secondaryColour,
+        accentColour: colours.accentColour,
+        updatedAt: save.worldDate,
+      });
+      return {
+        clubId,
+        primaryColour: colours.primaryColour,
+        secondaryColour: colours.secondaryColour,
+        accentColour: colours.accentColour,
+        isCustom: true,
+        provenanceStatus: "SIMULATION_ONLY",
+      };
+    });
   }
 
   getPlayerPathway(playerId: EntityId): AppResult<PlayerPathway> {

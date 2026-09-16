@@ -3845,6 +3845,44 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       ALTER TABLE media_interviews ADD COLUMN current_question_index INTEGER;
     `,
   },
+  {
+    version: 100,
+    sql: `
+      -- Persisted, player-editable club visual identity (colours, badge
+      -- design, current home/away/third kits). A club with no row here has
+      -- not customised anything — the presentation layer's own
+      -- deterministic SIMULATION_ONLY generator (clubVisualIdentity.ts)
+      -- covers it instead, so this table only ever holds real overrides,
+      -- never a materialized copy of the fallback.
+      CREATE TABLE IF NOT EXISTS club_visual_identities (
+        club_id TEXT PRIMARY KEY REFERENCES clubs(id),
+        primary_colour TEXT NOT NULL,
+        secondary_colour TEXT NOT NULL,
+        accent_colour TEXT NOT NULL,
+        badge_design_json TEXT NOT NULL,
+        home_kit_json TEXT NOT NULL,
+        away_kit_json TEXT NOT NULL,
+        third_kit_json TEXT NOT NULL,
+        provenance_status TEXT NOT NULL DEFAULT 'SIMULATION_ONLY',
+        updated_at TEXT NOT NULL
+      );
+
+      -- One immutable snapshot per club per season — never overwritten once
+      -- written, so changing this season's kit can never erase how the club
+      -- actually looked in a prior season.
+      CREATE TABLE IF NOT EXISTS club_kit_history (
+        id TEXT PRIMARY KEY,
+        club_id TEXT NOT NULL REFERENCES clubs(id),
+        season_key TEXT NOT NULL,
+        home_kit_json TEXT NOT NULL,
+        away_kit_json TEXT NOT NULL,
+        third_kit_json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        UNIQUE(club_id, season_key)
+      );
+      CREATE INDEX IF NOT EXISTS idx_club_kit_history_club ON club_kit_history(club_id);
+    `,
+  },
 ];
 
 export const migrateDatabase = (db: GameDatabase): number => {
