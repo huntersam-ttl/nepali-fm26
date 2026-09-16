@@ -626,3 +626,54 @@ unit suite (9/9) and nav-responsive Playwright regression (2/2). Full
 card/row component was confirmed to exist — needs its own inventory
 before wiring), executive portraits, transfer/scouting avatars, and any
 automated Playwright coverage for these new avatars specifically.
+
+## Phase 1M — staff and NPC-executive portraits
+
+Inventory found the shared surface: `StaffScreen.tsx`'s one canonical
+staff table (`market.staff`, each row a real `StaffRowWithContract`
+with `personId`). Wired a decorative small `PersonPortrait` into its
+name column — one integration point covering assistant manager,
+coaches, scouts, physios, and every `DIRECTOR`-category NPC executive
+(Sporting Director, Director of Football, CEO, General Secretary,
+Technical Director) at once, same pattern as Phase 1L's Squad/Dressing
+Room wiring. `staffPortraitRole(member)` maps `category === "DIRECTOR"`
+to the `EXECUTIVE` portrait role and everything else to `STAFF` — attire
+only; the face is always `personId`-derived, and nothing here touches
+career-role authorization, the role picker, or contract semantics
+(re-confirmed by re-running `role-boundary.spec.ts`, unaffected). No
+age travels with `StaffRow`, so these portraits fall back to a neutral
+age band, same limitation already accepted for Dressing Room's `Link`.
+No new bridge calls — built entirely from `member.personId` already on
+each row.
+
+New `StaffScreen.a11y.test.tsx` (2 tests): both portrait-role branches
+render with real fixtures, each portrait is `aria-hidden` with no
+`role`/`aria-label` (no redundant "Name portrait, Name" announcement),
+and zero serious/critical axe violations. **A pre-existing, unrelated
+axe violation was found and explicitly disabled rather than silently
+fixed:** the screen's own metrics header ("Staff count/Open
+vacancies/...") uses bare `<dt>`/`<dd>` pairs with no wrapping `<dl>` —
+confirmed pre-existing, unrelated to the portrait work this test
+actually covers, and flagged as a separate task rather than patched
+inline, per "preserve unrelated work."
+
+**Re-ran and confirmed still green:** `role-boundary.spec.ts` (2/2 —
+executive roles remain unreachable via the role picker; stale saves
+reconcile without ever rendering an executive dashboard),
+`nav-responsive.spec.ts` (2/2), and the kit-history unit suite (9/9).
+Full `apps/desktop` suite: 274/274 (272 prior + 2 new).
+
+**Live-verified:** the wired Staff screen renders with zero console
+errors. Could not visually confirm *populated* staff rows specifically
+— a freshly created career has no hired staff yet, and the screen
+correctly showed its real "No staff records exist for this club." empty
+state (a manual hire attempt in the browser didn't succeed within this
+pass's time budget). Row rendering itself is proven instead by the new
+unit test's real `StaffRowWithContract` fixtures, which exercise both
+portrait-role branches exactly as production data would.
+
+**Not attempted this pass:** transfer/scouting avatars, automated
+Playwright portrait coverage (Player A/B, role continuity, Squad,
+Dressing Room, or Staff), a dedicated 20/50-portrait performance
+harness, Create-a-Club failure-path verification, and kit-distinctness
+warnings — all still open.
