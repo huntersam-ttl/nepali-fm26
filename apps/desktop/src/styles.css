@@ -2292,13 +2292,41 @@ tbody tr:last-child td {
   min-width: 120px;
 }
 
+.player-card-avatar {
+  position: relative;
+  width: 108px;
+  height: 108px;
+}
+
+.person-portrait {
+  border-radius: 50%;
+  background: var(--surface-2, #1b2740);
+}
+
+.person-portrait-ring {
+  fill: none;
+  stroke: var(--line, #2c3954);
+  stroke-width: 1;
+}
+
+.player-card-avatar .person-portrait {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+}
+
 .player-card-ring {
+  position: absolute;
+  inset: 0;
   width: 108px;
   height: 108px;
 }
 
 .player-card-ring-track {
-  fill: var(--surface-2, #1b2740);
+  fill: none;
   stroke: var(--line, #2c3954);
   stroke-width: 3;
 }
@@ -2311,15 +2339,16 @@ tbody tr:last-child td {
   transition: stroke-dashoffset 0.4s ease;
 }
 
-.player-card-silhouette {
-  fill: var(--text, #e8edf5);
-  font-size: 22px;
-  font-weight: 700;
+.player-card-rating-chip {
+  fill: var(--surface-2, #1b2740);
+  stroke: var(--line, #2c3954);
+  stroke-width: 1;
 }
 
 .player-card-rating {
-  fill: var(--muted, #96a5be);
+  fill: var(--text, #e8edf5);
   font-size: 12px;
+  font-weight: 700;
 }
 
 .player-card-meta {

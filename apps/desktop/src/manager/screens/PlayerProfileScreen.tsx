@@ -17,6 +17,8 @@ import type { DesktopRuntimeApi } from "../../appBridge.js";
 import { TransferNegotiationLauncher } from "./TransferNegotiationMeeting.js";
 import { PlayerMeetingPanel } from "./PlayerMeetingPanel.js";
 import { humanizeEnum } from "../storyHumanizer.js";
+import { PersonPortrait } from "../../presentation/PersonPortrait.js";
+import { buildPersonVisualIdentity } from "../../presentation/personVisualIdentity.js";
 import {
   AsyncPanel,
   Badge,
@@ -53,14 +55,6 @@ const POSITION_SHORT: Record<string, string> = {
 const positionShort = (position: string): string =>
   POSITION_SHORT[position] ?? position.slice(0, 2).toUpperCase();
 
-const initialsFor = (name: string): string =>
-  name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? "")
-    .join("") || "?";
-
 /**
  * A compact 2D football-card presentation for the header — silhouette
  * initials, position badge, club identity chip, and an overall-rating ring.
@@ -75,26 +69,28 @@ const PlayerCard = ({
 }): React.ReactElement => {
   const ringCircumference = 2 * Math.PI * 42;
   const ringProgress = Math.max(0, Math.min(1, player.ability / 20));
+  const identity = buildPersonVisualIdentity(player.personId, player.age.value);
   return (
     <div className="player-card">
-      <svg viewBox="0 0 120 120" className="player-card-ring" role="img" aria-label={`Overall rating ${player.ability.toFixed(1)}`}>
-        <circle cx="60" cy="60" r="42" className="player-card-ring-track" />
-        <circle
-          cx="60"
-          cy="60"
-          r="42"
-          className="player-card-ring-fill"
-          strokeDasharray={`${ringCircumference}`}
-          strokeDashoffset={`${ringCircumference * (1 - ringProgress)}`}
-          transform="rotate(-90 60 60)"
-        />
-        <text x="60" y="55" textAnchor="middle" className="player-card-silhouette">
-          {initialsFor(player.name)}
-        </text>
-        <text x="60" y="78" textAnchor="middle" className="player-card-rating">
-          {player.ability.toFixed(1)}
-        </text>
-      </svg>
+      <div className="player-card-avatar">
+        <PersonPortrait identity={identity} role="PLAYER" size="large" />
+        <svg viewBox="0 0 120 120" className="player-card-ring" role="img" aria-label={`Overall rating ${player.ability.toFixed(1)}`}>
+          <circle cx="60" cy="60" r="42" className="player-card-ring-track" />
+          <circle
+            cx="60"
+            cy="60"
+            r="42"
+            className="player-card-ring-fill"
+            strokeDasharray={`${ringCircumference}`}
+            strokeDashoffset={`${ringCircumference * (1 - ringProgress)}`}
+            transform="rotate(-90 60 60)"
+          />
+          <rect x="42" y="90" width="36" height="16" rx="8" className="player-card-rating-chip" />
+          <text x="60" y="102" textAnchor="middle" className="player-card-rating">
+            {player.ability.toFixed(1)}
+          </text>
+        </svg>
+      </div>
       <div className="player-card-meta">
         <span className="player-card-position">{positionShort(player.primaryPosition)}</span>
         {player.club ? (
