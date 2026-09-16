@@ -157,37 +157,70 @@ across a real `saveCareer()`/`loadCareer()` cycle; a Manager (not an
 Owner) is rejected with `ROLE_NOT_AUTHORIZED` before colour validation
 even runs.
 
-**Badge shape/symbol and kit pattern are still deterministic-only** — only
-the three colours are player-editable this pass. `club_kit_history` exists
-as a table + repository methods (`snapshotSeasonIfAbsent`, `kitHistory`)
-but nothing calls them yet: there is no season-start trigger and no
-history UI.
+## Phase 1D: editable badge shape/symbol/initials, and portrait club colours
+
+The persisted identity is no longer colours-only. `club_visual_identities`'
+`badge_design_json` column now stores a real `{shape, symbol, initials}`
+override (`ClubVisualIdentityRepository.get()`/`upsertFull()`), and a new
+command `setClubVisualIdentity(clubId, {colours..., badgeShape,
+badgeSymbol, badgeInitials})` is the full-identity write — validated
+against the real `BADGE_SHAPES`/`BADGE_SYMBOLS` enums and real hex syntax,
+gated to the same `CHAIRMAN_OWNER`-of-this-club check as `setClubColours`
+(kept for compatibility; both remain real, working commands).
+`getClubVisualIdentity` now also resolves `badgeShape`/`badgeSymbol`/
+`badgeInitials` when a real override exists, left `undefined` — never
+fabricated — for a club that only ever saved a Phase 1C colour-only
+override, or none at all.
+
+The **Club Identity** editor gained real Shape and Symbol `<select>`
+dropdowns and an Initials text field alongside the existing colour
+pickers, plus a "Reset to default" action, all routed through
+`setClubVisualIdentity`. Verified live: changed the badge shape from Round
+to Diamond, watched the preview update immediately, saved, got "Club
+identity saved.", zero console errors. Unit-tested
+(`club-visual-identity.test.ts`, 6 tests): a full identity persists across
+a real save/reload and resolves exactly; an invalid badge shape is
+rejected before writing; a legacy Phase 1C colour-only row still resolves
+correctly with badge fields `undefined` (no crash, no fabrication).
+
+**Player portraits now wear the player's real club colour.** `PlayerCard`
+resolves the player's club identity (`managerBridge.getClubVisualIdentity`)
+and passes its real `primaryColour` into `PersonPortrait`'s existing
+`clubPrimaryColour` prop — previously always a fixed generic default. An
+unemployed player, or any resolution failure, still falls back to the
+neutral default rather than fabricating a colour.
+
+**Kit pattern/collar/sleeve are still deterministic-only** — independent
+Home/Away/Third design editing does not exist; only colours and badge
+design are player-editable. `club_kit_history` exists as a table +
+repository methods but nothing calls them yet: there is no season-start
+snapshot trigger and no history UI. There is still no Create-a-Club
+identity flow, and no portrait wiring beyond the player.
 
 ## What did NOT ship
 
 Following this task's own explicit fallback instruction — "if merchandise
 becomes too large for one safe pass, ship portraits + badge + kit creator
-first and report merchandise as the next phase" — these three passes
-shipped a deterministic default identity for people and clubs plus a real,
-persisted, owner-editable colour layer for clubs — but not the full
-editable system (badge/kit design editors, Create-a-Club integration, kit
-history) or merchandise.
+first and report merchandise as the next phase" — these four passes
+shipped a deterministic default identity for people and clubs, a real
+persisted colour+badge editing layer for clubs, and player-portrait club
+colours — but not independent kit design editing, Create-a-Club
+integration, kit history, the rest of the portrait wiring, or merchandise.
 
 Not attempted, honestly listed rather than half-built:
 
-- **Manager/staff/owner/president profile integration** — the portrait
+- **Manager/staff/owner/president portrait integration** — the portrait
   renderer supports these roles; the profile screens haven't been wired.
 - **List/card avatars** (squad list, staff list, shortlist, dressing-room
   concerns, inbox, press subject).
-- **Badge shape/symbol editor and kit pattern editor** — only colours are
-  editable; shape/symbol/pattern stay deterministically tied to the club id.
+- **Independent Home/Away/Third kit design editing** (pattern, collar,
+  sleeve, shorts/socks colour) — kits stay deterministically derived from
+  the club's colours; badge shape/symbol/colours are editable, kits are not.
 - **Create-a-Club visual-identity integration** — no `.tsx` create-club
   flow exists to attach a creator to yet (only a minimal
   `foundClub(name, locationName)` backend command).
 - **Kit history activation** — the table and repository methods exist;
   nothing snapshots a season or shows history yet.
-- **Player portrait wearing real club kit colours** — `PersonPortrait`'s
-  player attire still uses a fixed default, not the club's real colours.
 - **App-wide badge use** beyond the Club Profile header and the new
   identity editor's own preview (fixture cards, competition tables,
   transfer/signing presentation, etc.).
