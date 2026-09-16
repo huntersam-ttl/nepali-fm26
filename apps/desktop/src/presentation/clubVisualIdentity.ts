@@ -192,21 +192,22 @@ const kitDesignFor = (clubId: string, slot: KitSlot, colours: ClubColours, seed:
 
 /** The club's full visual identity: colours, badge, and all three kits —
  * one call, always the same result for the same club id/name. Pass
- * `colourOverride` (from `getClubVisualIdentity`'s real saved colours, when
- * `isCustom` is true) to re-derive the badge/kits from the club's actual
- * saved colours instead of the deterministic default; badge shape/symbol
- * and kit pattern selection stay tied to the club id either way — only the
- * colours a player can currently edit change. */
+ * `colourOverride` and/or `badgeOverride` (from `getClubVisualIdentity`'s
+ * real saved values) to re-derive the identity from what the club actually
+ * saved instead of the deterministic default; kit pattern selection stays
+ * tied to the club id either way — only colours and badge shape/symbol/
+ * initials are currently player-editable. */
 export const buildClubVisualIdentity = (
   clubId: string,
   clubName: string,
   colourOverride?: ClubColours,
+  badgeOverride?: { shape: BadgeShape; symbol: BadgeSymbol; initials: string },
 ): ClubVisualIdentity => {
   const seed = stableSeed(clubId);
   const colours = colourOverride ?? buildClubColours(clubId);
   return {
     ...colours,
-    badge: { ...buildClubBadgeDesign(clubId, clubName), ...colours },
+    badge: { ...buildClubBadgeDesign(clubId, clubName), ...colours, ...badgeOverride },
     home: kitDesignFor(clubId, "HOME", colours, seed),
     away: kitDesignFor(clubId, "AWAY", colours, seed),
     third: kitDesignFor(clubId, "THIRD", colours, seed),

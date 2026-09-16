@@ -138,4 +138,153 @@ describe("club visual identity — deterministic fallback and real persisted ove
     service.closeCareer();
     rmSync(savesDirectory, { recursive: true, force: true });
   });
+
+  it("lets the owner save a full identity (colours + badge), which persists and resolves exactly", () => {
+    const savesDirectory = mkdtempSync(join(tmpdir(), "club-identity-full-"));
+    const service = new DesktopApplicationService({ savesDirectory, worldDatasetPath: WORLD_DATASET });
+    const locations = service.listFounderLocations();
+    expect(locations.ok).toBe(true);
+    if (!locations.ok) return;
+    const location = locations.data[0]!;
+    const created = service.createCareer({
+      saveName: "Identity Full Save",
+      careerMode: "OWNER",
+      founder: {
+        clubName: "Full Identity FC",
+        locationId: location.id,
+        locationName: location.district,
+        groundName: "Full Identity Ground",
+        philosophy: "COMMUNITY",
+      },
+      character,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const dashboard = service.getChairmanDashboard();
+    expect(dashboard.ok).toBe(true);
+    if (!dashboard.ok) return;
+    const clubId = dashboard.data.club.id;
+
+    const saved = service.setClubVisualIdentity(clubId, {
+      primaryColour: "#101010",
+      secondaryColour: "#202020",
+      accentColour: "#303030",
+      badgeShape: "DIAMOND",
+      badgeSymbol: "STAR",
+      badgeInitials: "fifc",
+    });
+    expect(saved.ok).toBe(true);
+    if (saved.ok) {
+      expect(saved.data.badgeShape).toBe("DIAMOND");
+      expect(saved.data.badgeSymbol).toBe("STAR");
+      // Initials are normalised (trimmed + upper-cased) rather than stored verbatim.
+      expect(saved.data.badgeInitials).toBe("FIFC");
+    }
+
+    expect(service.saveCareer().ok).toBe(true);
+    expect(service.loadCareer(created.data.catalogEntry.saveId).ok).toBe(true);
+
+    const resolved = service.getClubVisualIdentity(clubId);
+    expect(resolved.ok).toBe(true);
+    if (resolved.ok) {
+      expect(resolved.data.isCustom).toBe(true);
+      expect(resolved.data.badgeShape).toBe("DIAMOND");
+      expect(resolved.data.badgeSymbol).toBe("STAR");
+      expect(resolved.data.badgeInitials).toBe("FIFC");
+      expect(resolved.data.primaryColour).toBe("#101010");
+    }
+
+    service.closeCareer();
+    rmSync(savesDirectory, { recursive: true, force: true });
+  });
+
+  it("rejects an invalid badge shape/symbol rather than saving it", () => {
+    const savesDirectory = mkdtempSync(join(tmpdir(), "club-identity-invalid-badge-"));
+    const service = new DesktopApplicationService({ savesDirectory, worldDatasetPath: WORLD_DATASET });
+    const locations = service.listFounderLocations();
+    expect(locations.ok).toBe(true);
+    if (!locations.ok) return;
+    const location = locations.data[0]!;
+    const created = service.createCareer({
+      saveName: "Identity Invalid Badge",
+      careerMode: "OWNER",
+      founder: {
+        clubName: "Invalid Badge FC",
+        locationId: location.id,
+        locationName: location.district,
+        groundName: "Invalid Badge Ground",
+        philosophy: "COMMUNITY",
+      },
+      character,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const dashboard = service.getChairmanDashboard();
+    expect(dashboard.ok).toBe(true);
+    if (!dashboard.ok) return;
+
+    const result = service.setClubVisualIdentity(dashboard.data.club.id, {
+      primaryColour: "#101010",
+      secondaryColour: "#202020",
+      accentColour: "#303030",
+      // @ts-expect-error deliberately invalid for this test
+      badgeShape: "HEXAGON",
+      badgeSymbol: "STAR",
+      badgeInitials: "IBF",
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("INVALID_SELECTION");
+
+    service.closeCareer();
+    rmSync(savesDirectory, { recursive: true, force: true });
+  });
+
+  it("keeps resolving a legacy Phase 1C colour-only override correctly (no badge fields, no crash)", () => {
+    const savesDirectory = mkdtempSync(join(tmpdir(), "club-identity-legacy-colours-"));
+    const service = new DesktopApplicationService({ savesDirectory, worldDatasetPath: WORLD_DATASET });
+    const locations = service.listFounderLocations();
+    expect(locations.ok).toBe(true);
+    if (!locations.ok) return;
+    const location = locations.data[0]!;
+    const created = service.createCareer({
+      saveName: "Identity Legacy Colours",
+      careerMode: "OWNER",
+      founder: {
+        clubName: "Legacy Colours FC",
+        locationId: location.id,
+        locationName: location.district,
+        groundName: "Legacy Colours Ground",
+        philosophy: "COMMUNITY",
+      },
+      character,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const dashboard = service.getChairmanDashboard();
+    expect(dashboard.ok).toBe(true);
+    if (!dashboard.ok) return;
+    const clubId = dashboard.data.club.id;
+
+    // Simulates a save that only ever went through Phase 1C's colour-only
+    // write path — never a full identity write.
+    expect(
+      service.setClubColours(clubId, { primaryColour: "#654321", secondaryColour: "#123abc", accentColour: "#abc123" })
+        .ok,
+    ).toBe(true);
+
+    const resolved = service.getClubVisualIdentity(clubId);
+    expect(resolved.ok).toBe(true);
+    if (resolved.ok) {
+      expect(resolved.data.isCustom).toBe(true);
+      expect(resolved.data.primaryColour).toBe("#654321");
+      // No badge override was ever saved for this club — the resolver must
+      // not fabricate one.
+      expect(resolved.data.badgeShape).toBeUndefined();
+      expect(resolved.data.badgeSymbol).toBeUndefined();
+      expect(resolved.data.badgeInitials).toBeUndefined();
+    }
+
+    service.closeCareer();
+    rmSync(savesDirectory, { recursive: true, force: true });
+  });
 });

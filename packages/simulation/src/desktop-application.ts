@@ -121,6 +121,8 @@ import {
   type Club,
   type ClubProfile,
   type ClubVisualIdentityView,
+  type ClubBadgeShape,
+  type ClubBadgeSymbol,
   type InfrastructureProjectProfile,
   type StaffProfileReadModel,
   type CompetitionProfile,
@@ -272,7 +274,12 @@ import { ensureLowerLeaguePlayableWorld, reconcileWorkforceSupply } from "./work
 import { initializePeopleFoundation } from "./people-foundation.js";
 import { reconcilePlayablePlayerProfilesOnce } from "./player-profile-reconciliation.js";
 import { initializeTransferMarketForSave, rebalanceNewNepalSaveSquads } from "./transfer-market.js";
-import { deterministicClubColours, isValidHexColour } from "./club-visual-identity-colours.js";
+import {
+  BADGE_SHAPES,
+  BADGE_SYMBOLS,
+  deterministicClubColours,
+  isValidHexColour,
+} from "./club-visual-identity-colours.js";
 import {
   appointNationalTeamHeadCoachForPresident,
   FederationPersonnelError,
@@ -4085,11 +4092,78 @@ export class DesktopApplicationService {
           primaryColour: record.primaryColour,
           secondaryColour: record.secondaryColour,
           accentColour: record.accentColour,
+          // A club may have only ever saved colours (Phase 1C) — merge in
+          // its real badge override when one exists, and leave it
+          // undefined otherwise so the client derives the deterministic
+          // default shape/symbol/initials instead of a fabricated one.
+          badgeShape: record.badgeDesign?.shape as ClubBadgeShape | undefined,
+          badgeSymbol: record.badgeDesign?.symbol as ClubBadgeSymbol | undefined,
+          badgeInitials: record.badgeDesign?.initials,
           isCustom: true,
           provenanceStatus: "SIMULATION_ONLY",
         };
       }
       return { clubId, ...deterministicClubColours(clubId), isCustom: false, provenanceStatus: "SIMULATION_ONLY" };
+    });
+  }
+
+  /** Full identity write (colours + badge design). Superset of
+   * setClubColours, which remains for compatibility with saves/tests that
+   * only ever call it. */
+  setClubVisualIdentity(
+    clubId: EntityId,
+    identity: {
+      primaryColour: string;
+      secondaryColour: string;
+      accentColour: string;
+      badgeShape: ClubBadgeShape;
+      badgeSymbol: ClubBadgeSymbol;
+      badgeInitials: string;
+    },
+  ): AppResult<ClubVisualIdentityView> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER") {
+        throw appError("ROLE_NOT_AUTHORIZED", "Only the active chairman/owner may edit club identity.");
+      }
+      const ownedClubId = heldCareerRoles(db, personId).find((role) => role.role === "CHAIRMAN_OWNER")?.targetId;
+      if (ownedClubId !== clubId) {
+        throw appError("ROLE_NOT_AUTHORIZED", "You may only edit your own club's identity.");
+      }
+      for (const value of [identity.primaryColour, identity.secondaryColour, identity.accentColour]) {
+        if (!isValidHexColour(value)) {
+          throw appError("INVALID_SELECTION", `"${value}" is not a valid colour.`);
+        }
+      }
+      if (!BADGE_SHAPES.includes(identity.badgeShape)) {
+        throw appError("INVALID_SELECTION", `"${identity.badgeShape}" is not a real badge shape.`);
+      }
+      if (!BADGE_SYMBOLS.includes(identity.badgeSymbol)) {
+        throw appError("INVALID_SELECTION", `"${identity.badgeSymbol}" is not a real badge symbol.`);
+      }
+      const initials = identity.badgeInitials.trim().toUpperCase().slice(0, 4);
+      if (initials.length === 0) {
+        throw appError("INVALID_SELECTION", "Initials cannot be empty.");
+      }
+      new ClubVisualIdentityRepository(db).upsertFull({
+        clubId,
+        primaryColour: identity.primaryColour,
+        secondaryColour: identity.secondaryColour,
+        accentColour: identity.accentColour,
+        badgeDesign: { shape: identity.badgeShape, symbol: identity.badgeSymbol, initials },
+        updatedAt: save.worldDate,
+      });
+      return {
+        clubId,
+        primaryColour: identity.primaryColour,
+        secondaryColour: identity.secondaryColour,
+        accentColour: identity.accentColour,
+        badgeShape: identity.badgeShape,
+        badgeSymbol: identity.badgeSymbol,
+        badgeInitials: initials,
+        isCustom: true,
+        provenanceStatus: "SIMULATION_ONLY",
+      };
     });
   }
 

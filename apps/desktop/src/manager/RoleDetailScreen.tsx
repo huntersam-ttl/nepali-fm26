@@ -96,7 +96,8 @@ import { campusBlockDescriptors, projectProgressPercent, projectStatusLabel } fr
 import { ClubEnvironmentScene } from "../presentation/ClubEnvironmentScene.js";
 import { ClubBadge } from "../presentation/ClubBadge.js";
 import { ClubKit } from "../presentation/ClubKit.js";
-import { buildClubVisualIdentity } from "../presentation/clubVisualIdentity.js";
+import { buildClubBadgeDesign, buildClubVisualIdentity } from "../presentation/clubVisualIdentity.js";
+import type { ClubBadgeShape, ClubBadgeSymbol } from "@nepal-football-sim/shared-types";
 import { useNewlyArrived } from "../presentation/MotionPrimitives.js";
 import { humanizeEnum, humanizeToken } from "./storyHumanizer.js";
 import { MeetingEnvironmentScene } from "../presentation/MeetingEnvironmentScene.js";
@@ -508,6 +509,9 @@ const ClubIdentityEditor = ({
   const [primary, setPrimary] = useState<string | null>(null);
   const [secondary, setSecondary] = useState<string | null>(null);
   const [accent, setAccent] = useState<string | null>(null);
+  const [shape, setShape] = useState<ClubBadgeShape | null>(null);
+  const [symbol, setSymbol] = useState<ClubBadgeSymbol | null>(null);
+  const [initials, setInitials] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -517,26 +521,50 @@ const ClubIdentityEditor = ({
         const primaryColour = primary ?? identity.primaryColour;
         const secondaryColour = secondary ?? identity.secondaryColour;
         const accentColour = accent ?? identity.accentColour;
-        const preview = buildClubVisualIdentity(clubId, clubName, { primaryColour, secondaryColour, accentColour });
+        const deterministicBadge = buildClubBadgeDesign(clubId, clubName);
+        const badgeShape = shape ?? identity.badgeShape ?? deterministicBadge.shape;
+        const badgeSymbol = symbol ?? identity.badgeSymbol ?? deterministicBadge.symbol;
+        const badgeInitials = initials ?? identity.badgeInitials ?? deterministicBadge.initials;
+        const preview = buildClubVisualIdentity(
+          clubId,
+          clubName,
+          { primaryColour, secondaryColour, accentColour },
+          { shape: badgeShape, symbol: badgeSymbol, initials: badgeInitials },
+        );
         const save = async (): Promise<void> => {
-          if (!bridge.setClubColours) return;
+          if (!bridge.setClubVisualIdentity) return;
           setBusy(true);
           setMessage(null);
-          const result = await bridge.setClubColours(clubId, { primaryColour, secondaryColour, accentColour });
+          const result = await bridge.setClubVisualIdentity(clubId, {
+            primaryColour,
+            secondaryColour,
+            accentColour,
+            badgeShape,
+            badgeSymbol,
+            badgeInitials,
+          });
           setBusy(false);
           if (result.ok) {
-            setMessage("Club colours saved.");
+            setMessage("Club identity saved.");
             refresh();
           } else {
             setMessage(result.error.message);
           }
         };
+        const resetToDefault = (): void => {
+          setPrimary(null);
+          setSecondary(null);
+          setAccent(null);
+          setShape(null);
+          setSymbol(null);
+          setInitials(null);
+        };
         return (
-          <Panel title="Club colours" className="panel-wide">
+          <Panel title="Club identity" className="panel-wide">
             {!identity.isCustom && (
               <p className="subtle">
-                {clubName} is currently using a generated SIMULATION_ONLY default identity. Choose real colours below
-                to make it your own.
+                {clubName} is currently using a generated SIMULATION_ONLY default identity. Choose real colours and a
+                badge below to make it your own.
               </p>
             )}
             <div className="club-identity-editor">
@@ -571,9 +599,52 @@ const ClubIdentityEditor = ({
                   />
                   <span className="subtle">{accentColour}</span>
                 </label>
-                <button className="primary" disabled={busy} onClick={() => void save()}>
-                  {busy ? "Saving…" : "Save colours"}
-                </button>
+                <label>
+                  Badge shape
+                  <select
+                    aria-label="Badge shape"
+                    value={badgeShape}
+                    onChange={(event) => setShape(event.target.value as ClubBadgeShape)}
+                  >
+                    {(["SHIELD", "ROUND", "DIAMOND", "OVAL", "MODERN", "CREST"] as const).map((option) => (
+                      <option key={option} value={option}>
+                        {option.charAt(0) + option.slice(1).toLowerCase()}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Badge symbol
+                  <select
+                    aria-label="Badge symbol"
+                    value={badgeSymbol}
+                    onChange={(event) => setSymbol(event.target.value as ClubBadgeSymbol)}
+                  >
+                    {(["FOOTBALL", "MOUNTAIN", "STAR", "STRIPES", "MONOGRAM", "GEOMETRIC"] as const).map((option) => (
+                      <option key={option} value={option}>
+                        {option.charAt(0) + option.slice(1).toLowerCase()}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Initials
+                  <input
+                    type="text"
+                    aria-label="Badge initials"
+                    value={badgeInitials}
+                    maxLength={4}
+                    onChange={(event) => setInitials(event.target.value.toUpperCase())}
+                  />
+                </label>
+                <div className="button-row">
+                  <button className="primary" disabled={busy} onClick={() => void save()}>
+                    {busy ? "Saving…" : "Save identity"}
+                  </button>
+                  <button className="ghost" type="button" onClick={resetToDefault}>
+                    Reset to default
+                  </button>
+                </div>
                 {message && <p className="notice" role="status">{message}</p>}
               </div>
               <div className="club-identity-preview">
@@ -595,8 +666,8 @@ const ClubIdentityEditor = ({
               </div>
             </div>
             <p className="subtle club-identity-provenance">
-              Generated visual identity (SIMULATION_ONLY) — this project holds no licensed real club branding. Badge
-              shape/symbol and kit patterns are not yet editable.
+              Generated visual identity (SIMULATION_ONLY) — this project holds no licensed real club branding. Kit
+              patterns are not yet independently editable.
             </p>
           </Panel>
         );
@@ -7305,7 +7376,23 @@ const ClubProfileBody = ({
           accentColour: visualIdentityState.data.accentColour,
         }
       : undefined;
-  const identity = buildClubVisualIdentity(profile.entityReference.id, profile.entityReference.label, colourOverride);
+  const badgeOverride =
+    visualIdentityState.status === "ready" &&
+    visualIdentityState.data.badgeShape &&
+    visualIdentityState.data.badgeSymbol &&
+    visualIdentityState.data.badgeInitials
+      ? {
+          shape: visualIdentityState.data.badgeShape,
+          symbol: visualIdentityState.data.badgeSymbol,
+          initials: visualIdentityState.data.badgeInitials,
+        }
+      : undefined;
+  const identity = buildClubVisualIdentity(
+    profile.entityReference.id,
+    profile.entityReference.label,
+    colourOverride,
+    badgeOverride,
+  );
   return (
   <>
     <div className="club-profile-header">

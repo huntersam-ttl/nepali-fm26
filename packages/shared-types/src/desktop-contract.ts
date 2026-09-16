@@ -527,19 +527,29 @@ export type PresidentCommercialHistoryEntry = {
   settlementState: "SETTLED" | "NOT_SETTLED" | "NOT_APPLICABLE";
 };
 
+export type ClubBadgeShape = "SHIELD" | "ROUND" | "DIAMOND" | "OVAL" | "MODERN" | "CREST";
+export type ClubBadgeSymbol = "FOOTBALL" | "MOUNTAIN" | "STAR" | "STRIPES" | "MONOGRAM" | "GEOMETRIC";
+
 /**
- * The club's real, resolved visual-identity colours — either a real,
- * player-saved override (`isCustom: true`) or the deterministic
- * SIMULATION_ONLY default every club without one falls back to.
- * `getClubVisualIdentity` is the single resolver for this; badge shape/
- * symbol and kit pattern selection stay deterministically derived from the
- * club id on the client (not yet player-editable — only colours persist).
+ * The club's real, resolved visual identity — colours and badge design —
+ * either a real, player-saved override (`isCustom: true`) or the
+ * deterministic SIMULATION_ONLY default every club without one falls back
+ * to. `getClubVisualIdentity` is the single resolver for this. Kit pattern/
+ * collar/sleeve selection still stays deterministically derived from the
+ * club id on the client (not yet player-editable).
  */
 export type ClubVisualIdentityView = {
   clubId: EntityId;
   primaryColour: string;
   secondaryColour: string;
   accentColour: string;
+  /** Present only once a real badge override has been saved; a club with
+   * only a legacy colour-only override, or no override at all, has no
+   * saved shape/symbol/initials — the client derives the deterministic
+   * default for those instead. */
+  badgeShape?: ClubBadgeShape;
+  badgeSymbol?: ClubBadgeSymbol;
+  badgeInitials?: string;
   isCustom: boolean;
   provenanceStatus: "SIMULATION_ONLY";
 };
@@ -1028,6 +1038,20 @@ export type DesktopRuntimeApi = {
   setClubColours?(
     clubId: EntityId,
     colours: { primaryColour: string; secondaryColour: string; accentColour: string },
+  ): Promise<AppResult<ClubVisualIdentityView>>;
+  /** Full identity write — colours plus badge design. Superset of
+   * setClubColours (kept for now for compatibility); the editor should
+   * route through this one. */
+  setClubVisualIdentity?(
+    clubId: EntityId,
+    identity: {
+      primaryColour: string;
+      secondaryColour: string;
+      accentColour: string;
+      badgeShape: ClubBadgeShape;
+      badgeSymbol: ClubBadgeSymbol;
+      badgeInitials: string;
+    },
   ): Promise<AppResult<ClubVisualIdentityView>>;
   getStaffProfile?(personId: EntityId): Promise<AppResult<StaffProfileReadModel>>;
   getCompetitionProfile?(competitionId: EntityId): Promise<AppResult<CompetitionProfile>>;

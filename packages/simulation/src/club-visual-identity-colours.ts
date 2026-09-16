@@ -65,3 +65,9 @@ export const deterministicClubColours = (
 const HEX_COLOUR = /^#[0-9a-fA-F]{6}$/;
 
 export const isValidHexColour = (value: string): boolean => HEX_COLOUR.test(value);
+
+/** Mirrors apps/desktop/src/presentation/clubVisualIdentity.ts's BadgeShape/
+ * BadgeSymbol value sets — the server only needs the valid-value lists to
+ * validate a save, not the renderer itself. */
+export const BADGE_SHAPES = ["SHIELD", "ROUND", "DIAMOND", "OVAL", "MODERN", "CREST"] as const;
+export const BADGE_SYMBOLS = ["FOOTBALL", "MOUNTAIN", "STAR", "STRIPES", "MONOGRAM", "GEOMETRIC"] as const;

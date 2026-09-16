@@ -10,6 +10,8 @@ import type {
   DemandResponseCommand,
   SquadMeetingCommand,
   EntityId,
+  ClubBadgeShape,
+  ClubBadgeSymbol,
   OrganizationProfileEntityType,
   LiveTacticsCommand,
   MediaResponseStance,
@@ -523,6 +525,18 @@ const dispatch = (
       return service.setClubColours(
         body.clubId as EntityId,
         body.colours as { primaryColour: string; secondaryColour: string; accentColour: string },
+      );
+    case "setClubVisualIdentity":
+      return service.setClubVisualIdentity(
+        body.clubId as EntityId,
+        body.identity as {
+          primaryColour: string;
+          secondaryColour: string;
+          accentColour: string;
+          badgeShape: ClubBadgeShape;
+          badgeSymbol: ClubBadgeSymbol;
+          badgeInitials: string;
+        },
       );
     case "getStaffProfile":
       return service.getStaffProfile(body.personId as EntityId);

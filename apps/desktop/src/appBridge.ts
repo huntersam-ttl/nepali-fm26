@@ -80,6 +80,8 @@ import type {
   FederationCommercialRightsOffer,
   ClubProfile,
   ClubVisualIdentityView,
+  ClubBadgeShape,
+  ClubBadgeSymbol,
   StaffProfileReadModel,
   CompetitionProfile,
   InfrastructureProjectProfile,
@@ -233,6 +235,17 @@ const bindCommands = (call: CommandCaller): DesktopRuntimeApi => ({
     clubId: EntityId,
     colours: { primaryColour: string; secondaryColour: string; accentColour: string },
   ) => call<ClubVisualIdentityView>("setClubColours", { clubId, colours }),
+  setClubVisualIdentity: (
+    clubId: EntityId,
+    identity: {
+      primaryColour: string;
+      secondaryColour: string;
+      accentColour: string;
+      badgeShape: ClubBadgeShape;
+      badgeSymbol: ClubBadgeSymbol;
+      badgeInitials: string;
+    },
+  ) => call<ClubVisualIdentityView>("setClubVisualIdentity", { clubId, identity }),
   getStaffProfile: (personId: EntityId) =>
     call<StaffProfileReadModel>("getStaffProfile", { personId }),
   getCompetitionProfile: (competitionId: EntityId) =>

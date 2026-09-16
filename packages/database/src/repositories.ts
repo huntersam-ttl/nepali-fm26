@@ -9619,11 +9619,21 @@ export class ExternalFootballRepository {
  * pattern selection are not persisted here — they stay deterministically
  * derived from the club id/name on the client; only the three colours a
  * player can actually edit this pass are stored. */
+export type ClubBadgeDesignOverride = {
+  shape: string;
+  symbol: string;
+  initials: string;
+};
+
 export type ClubVisualIdentityRecord = {
   clubId: EntityId;
   primaryColour: string;
   secondaryColour: string;
   accentColour: string;
+  /** Undefined when only a legacy colour-only override (or no badge
+   * override at all) has ever been saved for this club — the caller
+   * derives the deterministic default shape/symbol/initials instead. */
+  badgeDesign?: ClubBadgeDesignOverride;
   provenanceStatus: "SIMULATION_ONLY";
   updatedAt: string;
 };
@@ -9644,7 +9654,7 @@ export class ClubVisualIdentityRepository {
   get(clubId: EntityId): ClubVisualIdentityRecord | undefined {
     const row = this.db
       .prepare(
-        `SELECT club_id, primary_colour, secondary_colour, accent_colour, provenance_status, updated_at
+        `SELECT club_id, primary_colour, secondary_colour, accent_colour, badge_design_json, provenance_status, updated_at
          FROM club_visual_identities WHERE club_id = ?`,
       )
       .get(clubId) as
@@ -9653,26 +9663,36 @@ export class ClubVisualIdentityRepository {
           primary_colour: string;
           secondary_colour: string;
           accent_colour: string;
+          badge_design_json: string;
           provenance_status: "SIMULATION_ONLY";
           updated_at: string;
         }
       | undefined;
     if (!row) return undefined;
+    let badgeDesign: ClubBadgeDesignOverride | undefined;
+    try {
+      const parsed = JSON.parse(row.badge_design_json) as Partial<ClubBadgeDesignOverride>;
+      if (parsed.shape && parsed.symbol && parsed.initials) {
+        badgeDesign = { shape: parsed.shape, symbol: parsed.symbol, initials: parsed.initials };
+      }
+    } catch {
+      badgeDesign = undefined;
+    }
     return {
       clubId: row.club_id,
       primaryColour: row.primary_colour,
       secondaryColour: row.secondary_colour,
       accentColour: row.accent_colour,
+      badgeDesign,
       provenanceStatus: row.provenance_status,
       updatedAt: row.updated_at,
     };
   }
 
-  /** Upserts the club's colour override. Badge/kit design JSON columns are
-   * required by the table but not yet player-editable, so they're written
-   * as empty placeholders here — never read back (colours are resolved
-   * independently; a future badge/kit editor would populate these for
-   * real). */
+  /** Upserts the club's colour override only. Never touches a previously
+   * saved badge design (the ON CONFLICT clause below deliberately omits
+   * badge_design_json) — colours-only and full-identity writes are
+   * independent operations, exactly like Phase 1C's legacy behaviour. */
   upsertColours(input: {
     clubId: EntityId;
     primaryColour: string;
@@ -9692,6 +9712,32 @@ export class ClubVisualIdentityRepository {
            updated_at = excluded.updated_at`,
       )
       .run(input.clubId, input.primaryColour, input.secondaryColour, input.accentColour, input.updatedAt);
+  }
+
+  /** Upserts the club's full identity: colours plus a real badge design
+   * override. */
+  upsertFull(input: {
+    clubId: EntityId;
+    primaryColour: string;
+    secondaryColour: string;
+    accentColour: string;
+    badgeDesign: ClubBadgeDesignOverride;
+    updatedAt: string;
+  }): void {
+    const badgeJson = JSON.stringify(input.badgeDesign);
+    this.db
+      .prepare(
+        `INSERT INTO club_visual_identities
+           (club_id, primary_colour, secondary_colour, accent_colour, badge_design_json, home_kit_json, away_kit_json, third_kit_json, provenance_status, updated_at)
+         VALUES (?, ?, ?, ?, ?, '{}', '{}', '{}', 'SIMULATION_ONLY', ?)
+         ON CONFLICT(club_id) DO UPDATE SET
+           primary_colour = excluded.primary_colour,
+           secondary_colour = excluded.secondary_colour,
+           accent_colour = excluded.accent_colour,
+           badge_design_json = excluded.badge_design_json,
+           updated_at = excluded.updated_at`,
+      )
+      .run(input.clubId, input.primaryColour, input.secondaryColour, input.accentColour, badgeJson, input.updatedAt);
   }
 
   /** One immutable snapshot per club per season — a no-op if a snapshot for
