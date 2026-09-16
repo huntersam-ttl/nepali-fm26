@@ -1,9 +1,21 @@
 import React, { useState } from "react";
-import type { EntityId } from "@nepal-football-sim/shared-types";
+import type { EntityId, StaffRowWithContract } from "@nepal-football-sim/shared-types";
 import { managerBridge } from "../managerBridge.js";
 import { AsyncPanel, Badge, Panel, useRuntimeData } from "../ui.js";
+import { PersonPortrait } from "../../presentation/PersonPortrait.js";
+import { buildPersonVisualIdentity } from "../../presentation/personVisualIdentity.js";
 
 const money = (minor?: number): string => (minor === undefined ? "—" : `NPR ${Math.round(minor / 1000)}k`);
+
+/** Presentation-only: which attire a staff member's portrait wears.
+ * Never changes the person's face (that's always personId-derived) and
+ * never alters their real employment role, authority, or contract —
+ * this mapping exists purely so a Director-category person (Sporting
+ * Director, Director of Football, CEO, General Secretary, Technical
+ * Director — all NPC-only, never player-selectable) reads as business
+ * attire rather than a tracksuit. */
+const staffPortraitRole = (member: StaffRowWithContract): "STAFF" | "EXECUTIVE" =>
+  member.category === "DIRECTOR" ? "EXECUTIVE" : "STAFF";
 
 const DOMAINS = ["TRANSFERS", "SCOUTING", "CONTRACTS", "YOUTH", "TRAINING", "MEDICAL"] as const;
 
@@ -131,7 +143,21 @@ export const StaffScreen = ({ refreshKey }: { refreshKey: number }): React.React
                     <tbody>
                       {market.staff.filter((member) => matches(member.name, member.role)).map((member) => (
                         <tr key={member.appointmentId}>
-                          <td>{member.name}</td>
+                          <td className="squad-name-cell">
+                            {/* decorative: the visible name text right next
+                                to it already identifies this person. No age
+                                travels with StaffRow, so this falls back to
+                                a neutral age band — still the same real
+                                face. Built from data already on this row —
+                                no extra bridge call per staff member. */}
+                            <PersonPortrait
+                              identity={buildPersonVisualIdentity(member.personId)}
+                              role={staffPortraitRole(member)}
+                              size="small"
+                              decorative
+                            />
+                            {member.name}
+                          </td>
                           <td>{member.role.replace(/_/g, " ").toLowerCase()}</td>
                           {/* Most staff roles (admin, scouting, medical) carry
                               no coaching licence at all — "Unknown" implied a
