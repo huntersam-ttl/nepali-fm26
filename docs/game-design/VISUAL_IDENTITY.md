@@ -114,26 +114,64 @@ provenance line. Manually verified against an isolated dev server: the
 badge and all three kits render with visibly distinct colours/patterns,
 zero console errors.
 
-**This is still a deterministic DEFAULT, not a player-editable identity.**
-There is no badge/kit creator UI, no Create-a-Club integration, no
-persisted override (so no way for an owner to change their club's colours
-yet), and no kit history. A future editable layer can add a real override
-record and fall back to this generator whenever one doesn't exist, without
-needing to change the generator itself.
+## Phase 1C: real, persisted, owner-editable club colours
+
+The deterministic default above is no longer the only source of truth.
+`club_visual_identities` (migration 100, `packages/database`) stores a real
+per-club colour override, read/written through `ClubVisualIdentityRepository`.
+One resolver — `DesktopApplicationService.getClubVisualIdentity(clubId)` —
+is the single place every surface asks "what does this club actually look
+like": it returns the saved override (`isCustom: true`) when one exists, or
+the same deterministic `SIMULATION_ONLY` fallback the client would compute
+on its own (`isCustom: false`) when it doesn't, so no caller ever has to
+special-case "not customised yet". `setClubColours(clubId, colours)` is
+gated to the club's own real controlling `CHAIRMAN_OWNER` (checked against
+their actual held role, not just "some owner exists") with real hex
+validation before anything is written.
+
+The deterministic fallback's colour algorithm is intentionally duplicated
+server-side (`packages/simulation/src/club-visual-identity-colours.ts`)
+rather than imported from the browser-only `apps/desktop` presentation
+module, since a Vite/browser bundle and a better-sqlite3-based Node package
+can't share code directly — the same independently-reimplemented-hash
+pattern already used across this codebase's own scene builders. Both
+copies must stay numerically identical; a shared pure-logic package would
+be the cleaner long-term fix.
+
+A real editor exists: **Club Identity**, a new Chairman/Owner workspace
+screen (`RoleDetailScreen.tsx`'s `ClubIdentityEditor`, reachable from the
+sidebar). Three native `<input type="color">` controls with real hex
+values shown as text (never colour-only), a live preview built from the
+same canonical `ClubBadge`/`ClubKit` renderers (editing a colour instantly
+re-derives the badge and all three kits, since they're colour-derived from
+the same palette), and a Save action. Club Profile now resolves the club's
+real identity through `getClubVisualIdentity` instead of always showing
+the generated default.
+
+Verified live end-to-end against an isolated dev server: opened Club
+Identity as Chairman/Owner, changed the primary colour, watched the badge
+and home/away kit previews update immediately, saved, got "Club colours
+saved.", zero console errors. Unit-tested (`club-visual-identity.test.ts`):
+the fallback is stable across repeated calls; a saved colour persists
+across a real `saveCareer()`/`loadCareer()` cycle; a Manager (not an
+Owner) is rejected with `ROLE_NOT_AUTHORIZED` before colour validation
+even runs.
+
+**Badge shape/symbol and kit pattern are still deterministic-only** — only
+the three colours are player-editable this pass. `club_kit_history` exists
+as a table + repository methods (`snapshotSeasonIfAbsent`, `kitHistory`)
+but nothing calls them yet: there is no season-start trigger and no
+history UI.
 
 ## What did NOT ship
 
 Following this task's own explicit fallback instruction — "if merchandise
 becomes too large for one safe pass, ship portraits + badge + kit creator
-first and report merchandise as the next phase" — these two passes shipped
-the deterministic **default** identity for both people and clubs, but not
-the **editable** layer (creator UIs, persistence, Create-a-Club
-integration) or merchandise. Building real editable state (new
-tables/migration, commands, multi-step creator UI, distinctness
-validation, kit history) is a substantially larger, uncontracted feature
-with no existing Create-a-Club UI to attach it to today (the codebase
-inventory found only a minimal `foundClub(name, locationName)` backend
-command with no `.tsx` flow calling it).
+first and report merchandise as the next phase" — these three passes
+shipped a deterministic default identity for people and clubs plus a real,
+persisted, owner-editable colour layer for clubs — but not the full
+editable system (badge/kit design editors, Create-a-Club integration, kit
+history) or merchandise.
 
 Not attempted, honestly listed rather than half-built:
 
@@ -141,20 +179,20 @@ Not attempted, honestly listed rather than half-built:
   renderer supports these roles; the profile screens haven't been wired.
 - **List/card avatars** (squad list, staff list, shortlist, dressing-room
   concerns, inbox, press subject).
-- **Badge creator UI and kit creator/editor UI** — colour/shape/symbol/
-  pattern controls, live preview, keyboard accessibility, distinctness
-  warnings.
+- **Badge shape/symbol editor and kit pattern editor** — only colours are
+  editable; shape/symbol/pattern stay deterministically tied to the club id.
 - **Create-a-Club visual-identity integration** — no `.tsx` create-club
-  flow exists to attach a creator to yet.
-- **Persisted, player-editable club identity** — today's badge/kits are
-  always the deterministic default; there is no way to change them, and
-  so no migration or old-save-fallback question actually arises yet
-  (every save, old or new, already gets a stable default for free).
-- **Kit history** — moot without an editable design to snapshot against.
+  flow exists to attach a creator to yet (only a minimal
+  `foundClub(name, locationName)` backend command).
+- **Kit history activation** — the table and repository methods exist;
+  nothing snapshots a season or shows history yet.
+- **Player portrait wearing real club kit colours** — `PersonPortrait`'s
+  player attire still uses a fixed default, not the club's real colours.
+- **App-wide badge use** beyond the Club Profile header and the new
+  identity editor's own preview (fixture cards, competition tables,
+  transfer/signing presentation, etc.).
 - **Real-club provenance beyond SIMULATION_ONLY** (VERIFIED/REPORTED/
   ESTIMATED tiers) — moot until real licensed branding data exists.
-- **App-wide badge use** beyond the Club Profile header (fixture cards,
-  competition tables, transfer/signing presentation, etc.).
 - **Merchandise/retail model, demand model, shirt sales, club store UI,
   3D store integration, star-signing demand bump.**
 - **Browser E2E, visual-difference browser tests (beyond the unit-level
