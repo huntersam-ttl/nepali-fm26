@@ -580,9 +580,49 @@ verification, and kit-distinctness warnings — all still open.
    fixed in Phase 1G; automated in Phase 1H.
 5. ~~Extend the Create-a-Club wizard with the same `ClubKitEditor`~~ —
    done in Phase 1I.
-6. Add squad-list avatars (small `PersonPortrait`, data already on each
-   row — no new bridge calls) — cheapest remaining visual-identity win.
+6. ~~Add squad-list avatars~~ — done in Phase 1L, alongside Dressing Room.
 7. Live/E2E-verify the Create-a-Club identity-failure banner (Retry /
    Continue without saving) — currently only code-reviewed.
 8. Merchandise/retail last, once club colours and kits exist to hang
    demand and shirt-sales tracking off of.
+
+## Phase 1L — squad/dressing-room avatars, player secondary colour
+
+Two additive `PersonPortrait` props, not a second avatar component:
+`clubSecondaryColour` (a small collar/trim `<path>`, PLAYER attire only,
+only when supplied — never the full `ClubKit` renderer) and `decorative`
+(sets `aria-hidden` and drops `role="img"`/`aria-label` entirely, for a
+list row whose adjacent text already names the person, instead of a
+screen reader announcing the same name twice).
+
+Wired `clubSecondaryColour` into `PlayerProfileScreen`'s large portrait,
+which already resolves the player's real club identity once per profile
+— no new fetch. Wired `decorative` small portraits into the Squad
+screen's main table (built from `player.personId`/`player.age.value`,
+already on each row — zero new bridge calls per player) and into
+Dressing Room's one shared player-reference component (`Link`, used by
+concerns, demands, promises, and hierarchy lists alike), so a single
+change covers every one of those lists rather than patching each
+separately. Neither list surface has a club id in scope without a new
+per-screen fetch, so list avatars use the role's neutral default attire;
+only the profile-page portrait currently shows real club colours.
+
+New `apps/desktop/src/presentation/PersonPortrait.test.tsx` (4 tests):
+named vs. fallback accessible labelling, `decorative` → `aria-hidden`
+with no `role`/`aria-label`, and the secondary-colour trim rendering
+only for `PLAYER` attire and only when a colour is actually supplied.
+
+**Live-verified:** Squad list — visually distinct small avatars per row,
+names still primary, row clicks still open the right profile. Dressing
+Room — hierarchy/relationship lists show avatars with no redundant
+announcement (a link's accessible name stayed exactly "Arik Bista", not
+"Arik Bista portrait, Arik Bista"). Player Profile — the real club
+secondary colour now renders as a collar detail on the large portrait.
+Zero console errors throughout. Re-confirmed still green: kit-history
+unit suite (9/9) and nav-responsive Playwright regression (2/2). Full
+`apps/desktop` suite: 272/272 (268 prior + 4 new).
+
+**Not attempted this pass:** staff-list portraits (no shared staff
+card/row component was confirmed to exist — needs its own inventory
+before wiring), executive portraits, transfer/scouting avatars, and any
+automated Playwright coverage for these new avatars specifically.
