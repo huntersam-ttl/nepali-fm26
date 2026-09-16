@@ -88,41 +88,78 @@ from any other inline SVG icon already in this codebase. No profiling
 beyond that qualitative comparison was done this pass (a 50-portrait squad
 list is not yet wired, so there is nothing to profile there yet).
 
-## What did NOT ship this pass
+## Phase 1B: club colours, badge, and kits (deterministic default)
+
+`clubVisualIdentity.ts` adds the same deterministic-default treatment to
+clubs: `buildClubColours(clubId)` (primary/secondary/accent, real hue
+contrast — never three near-identical shades), `buildClubBadgeDesign(clubId,
+clubName)` (a shape from 6 original outlines, a symbol from 6 generic
+geometric marks, and real initials derived from the real club name), and
+`buildClubVisualIdentity(clubId, clubName)` which also derives all three
+kits (home = primary/secondary; away swaps and re-patterns them; third
+leans on the accent colour with its own pattern — unit-tested to never
+collapse into near-identical reskins). Every design is explicitly
+`SIMULATION_ONLY`. As with portraits, there is no new database column: the
+identity is fully reconstructable from the club's own real id and name, so
+every club — including every legacy save — resolves a stable identity with
+zero migration risk and zero chance of randomizing on reload.
+
+`ClubBadge.tsx` (SVG, clip-path shapes, small/medium/large) and
+`ClubKit.tsx` (SVG shirt/shorts/socks, a small pattern library, plus a
+colour-independent `kitDescription()` string for accessibility) are the
+two canonical renderers. Both are wired into the Club Profile header
+(`RoleDetailScreen.tsx`'s `ClubProfileBody`): a badge beside the club name,
+a home/away/third kit strip beneath it, and an explicit SIMULATION_ONLY
+provenance line. Manually verified against an isolated dev server: the
+badge and all three kits render with visibly distinct colours/patterns,
+zero console errors.
+
+**This is still a deterministic DEFAULT, not a player-editable identity.**
+There is no badge/kit creator UI, no Create-a-Club integration, no
+persisted override (so no way for an owner to change their club's colours
+yet), and no kit history. A future editable layer can add a real override
+record and fall back to this generator whenever one doesn't exist, without
+needing to change the generator itself.
+
+## What did NOT ship
 
 Following this task's own explicit fallback instruction — "if merchandise
 becomes too large for one safe pass, ship portraits + badge + kit creator
-first and report merchandise as the next phase" — this pass went further
-and shipped **only portraits**, since even badges and kits are each
-substantial, uncontracted feature surfaces (a badge-shape/symbol library
-plus a creator UI; a kit-pattern library plus a creator UI with
-home/away/third distinctness validation) with no existing code to extend
-(the codebase inventory for this task found no club-colour, badge, or kit
-model anywhere, and no existing Create-a-Club UI to attach a creator to —
-only a minimal `foundClub(name, locationName)` backend command with no
-`.tsx` flow calling it).
+first and report merchandise as the next phase" — these two passes shipped
+the deterministic **default** identity for both people and clubs, but not
+the **editable** layer (creator UIs, persistence, Create-a-Club
+integration) or merchandise. Building real editable state (new
+tables/migration, commands, multi-step creator UI, distinctness
+validation, kit history) is a substantially larger, uncontracted feature
+with no existing Create-a-Club UI to attach it to today (the codebase
+inventory found only a minimal `foundClub(name, locationName)` backend
+command with no `.tsx` flow calling it).
 
 Not attempted, honestly listed rather than half-built:
 
-- **Manager/staff/owner/president profile integration** — the renderer
-  supports these roles; the profile screens haven't been wired.
+- **Manager/staff/owner/president profile integration** — the portrait
+  renderer supports these roles; the profile screens haven't been wired.
 - **List/card avatars** (squad list, staff list, shortlist, dressing-room
-  concerns, inbox, press subject) — Part E of the original request.
-- **Club visual identity model** (primary/secondary/accent colour) and
-  **club badge** (shape/symbol/creator/renderer) — Parts F/G.
-- **Kit model, kit creator, kit renderer, kit history** — Parts H/I/J/R.
-- **Real-club provenance handling** (VERIFIED/REPORTED/ESTIMATED/
-  SIMULATION_ONLY for badges/kits) — Part K; moot until a badge/kit model
-  exists.
+  concerns, inbox, press subject).
+- **Badge creator UI and kit creator/editor UI** — colour/shape/symbol/
+  pattern controls, live preview, keyboard accessibility, distinctness
+  warnings.
+- **Create-a-Club visual-identity integration** — no `.tsx` create-club
+  flow exists to attach a creator to yet.
+- **Persisted, player-editable club identity** — today's badge/kits are
+  always the deterministic default; there is no way to change them, and
+  so no migration or old-save-fallback question actually arises yet
+  (every save, old or new, already gets a stable default for free).
+- **Kit history** — moot without an editable design to snapshot against.
+- **Real-club provenance beyond SIMULATION_ONLY** (VERIFIED/REPORTED/
+  ESTIMATED tiers) — moot until real licensed branding data exists.
+- **App-wide badge use** beyond the Club Profile header (fixture cards,
+  competition tables, transfer/signing presentation, etc.).
 - **Merchandise/retail model, demand model, shirt sales, club store UI,
-  3D store integration, star-signing demand bump** — Parts L–Q.
-- **Save/reload verification** for anything beyond portraits (portraits
-  need no explicit save/reload test — they are a pure function of the
-  person id, which is already itself proven stable across reload by every
-  other save/reload test in this codebase).
-- **Browser E2E, visual-difference browser tests, responsive matrix,
-  accessibility (axe) pass, and the full determinism test matrix** beyond
-  the unit tests already added for `personVisualIdentity.ts`.
+  3D store integration, star-signing demand bump.**
+- **Browser E2E, visual-difference browser tests (beyond the unit-level
+  distinctness tests), responsive matrix, and accessibility (axe) pass**
+  for the club-identity surfaces.
 
 ## No-match-rendering compliance
 
