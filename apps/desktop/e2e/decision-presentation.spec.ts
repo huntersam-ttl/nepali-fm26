@@ -155,3 +155,53 @@ test.describe("Transfer negotiation and signing presentation", () => {
     await expect(page.getByText(/The transfer is complete\./)).toBeVisible();
   });
 });
+
+test.describe("Manager press presentation", () => {
+  test("PRESS scene renders for a real transfer-context interview, zero console errors", async ({
+    page,
+  }) => {
+    test.setTimeout(180_000);
+    const errors: string[] = [];
+    page.on("console", (message) => {
+      if (message.type() === "error") errors.push(message.text());
+    });
+    page.on("pageerror", (error) => errors.push(String(error)));
+
+    // The active negotiation offer seeded here is exactly the real context
+    // a Manager transfer-interview question needs — no separate press
+    // fixture required.
+    await seedManagerDecisionPresentationFixture(page);
+
+    await page.getByRole("button", { name: "Media", exact: true }).click();
+    await page.getByRole("button", { name: "Transfer interview" }).click();
+
+    const panel = page.locator("article", {
+      has: page.getByRole("heading", { name: "Transfer interview", exact: true }),
+    });
+    await expect(panel).toBeVisible({ timeout: 15_000 });
+    await expect(panel.getByText("Interview with")).toBeVisible();
+
+    const region = panel.getByRole("region", { name: /press$/i });
+    const canvas = region.locator("canvas");
+    await expect(canvas).toBeVisible({ timeout: 15_000 });
+    const box = await canvas.boundingBox();
+    expect(box?.width ?? 0).toBeGreaterThan(0);
+    expect(box?.height ?? 0).toBeGreaterThan(0);
+
+    // A modest single-offer transfer isn't always materially newsworthy —
+    // the press asking (or genuinely having nothing to ask) are both real,
+    // legitimate outcomes here; only answer by keyboard when a real
+    // question exists, rather than requiring one.
+    const responseButton = panel.locator(".controls button.ghost").first();
+    if (await responseButton.isVisible()) {
+      await responseButton.focus();
+      await expect(responseButton).toBeFocused();
+      await page.keyboard.press("Enter");
+      await expect(panel.getByText(/Completed after \d question/)).toBeVisible({ timeout: 15_000 });
+    } else {
+      await expect(panel.getByText(/nothing pressing to ask/)).toBeVisible();
+    }
+
+    expect(errors, `console/page errors: ${errors.join("; ")}`).toHaveLength(0);
+  });
+});
