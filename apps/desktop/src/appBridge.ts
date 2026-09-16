@@ -80,6 +80,7 @@ import type {
   FederationCommercialRightsOffer,
   ClubProfile,
   ClubVisualIdentityView,
+  ClubKitHistorySeason,
   ClubBadgeShape,
   ClubBadgeSymbol,
   ClubKitDesignOverride,
@@ -250,6 +251,8 @@ const bindCommands = (call: CommandCaller): DesktopRuntimeApi => ({
       thirdKit?: ClubKitDesignOverride;
     },
   ) => call<ClubVisualIdentityView>("setClubVisualIdentity", { clubId, identity }),
+  getClubKitHistory: (clubId: EntityId) =>
+    call<ClubKitHistorySeason[]>("getClubKitHistory", { clubId }),
   getStaffProfile: (personId: EntityId) =>
     call<StaffProfileReadModel>("getStaffProfile", { personId }),
   getCompetitionProfile: (competitionId: EntityId) =>

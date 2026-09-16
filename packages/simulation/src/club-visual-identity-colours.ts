@@ -83,3 +83,55 @@ export const KIT_PATTERNS = [
   "CENTRE_STRIPE",
   "HALVES",
 ] as const;
+
+export type DeterministicKitFields = {
+  baseColour: string;
+  secondaryColour: string;
+  trimColour: string;
+  pattern: (typeof KIT_PATTERNS)[number];
+  shortsColour: string;
+  socksColour: string;
+};
+
+const pick = <T,>(options: readonly T[], seed: number, salt: number): T => options[(seed + salt) % options.length] as T;
+
+/**
+ * Server-side mirror of clubVisualIdentity.ts's private kitDesignFor —
+ * needed so a club's kit history can be snapshotted with its real,
+ * structured fallback kit design (not just colours) for a club that has
+ * never saved a custom kit override for a given slot. Must stay
+ * numerically identical to the client copy: same seed, same salts, same
+ * per-slot field mapping.
+ */
+export const deterministicClubKits = (
+  clubId: string,
+  colours: { primaryColour: string; secondaryColour: string; accentColour: string },
+): { home: DeterministicKitFields; away: DeterministicKitFields; third: DeterministicKitFields } => {
+  const seed = stableSeed(clubId);
+  return {
+    home: {
+      baseColour: colours.primaryColour,
+      secondaryColour: colours.secondaryColour,
+      trimColour: colours.secondaryColour,
+      pattern: pick(KIT_PATTERNS, seed, 1),
+      shortsColour: colours.primaryColour,
+      socksColour: colours.primaryColour,
+    },
+    away: {
+      baseColour: colours.secondaryColour,
+      secondaryColour: colours.primaryColour,
+      trimColour: colours.primaryColour,
+      pattern: pick(KIT_PATTERNS, seed, 2),
+      shortsColour: colours.secondaryColour,
+      socksColour: colours.secondaryColour,
+    },
+    third: {
+      baseColour: colours.accentColour,
+      secondaryColour: colours.primaryColour,
+      trimColour: colours.secondaryColour,
+      pattern: pick(KIT_PATTERNS, seed, 4),
+      shortsColour: "#16181d",
+      socksColour: colours.accentColour,
+    },
+  };
+};

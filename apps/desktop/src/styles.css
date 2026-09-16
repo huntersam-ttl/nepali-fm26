@@ -2366,6 +2366,26 @@ tbody tr:last-child td {
   font-size: 11px;
 }
 
+.kit-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.kit-history-season h3 {
+  margin-bottom: 6px;
+}
+
+.kit-history-season .club-kit-strip {
+  margin: 0;
+}
+
+.kit-history-season .club-kit-strip span.subtle {
+  max-width: 120px;
+  text-align: center;
+  font-size: 10px;
+}
+
 .person-portrait {
   border-radius: 50%;
   background: var(--surface-2, #1b2740);

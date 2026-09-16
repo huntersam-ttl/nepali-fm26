@@ -121,6 +121,7 @@ import {
   type Club,
   type ClubProfile,
   type ClubVisualIdentityView,
+  type ClubKitHistorySeason,
   type ClubBadgeShape,
   type ClubBadgeSymbol,
   type ClubKitDesignOverride,
@@ -280,6 +281,7 @@ import {
   BADGE_SYMBOLS,
   KIT_PATTERNS,
   deterministicClubColours,
+  deterministicClubKits,
   isValidHexColour,
 } from "./club-visual-identity-colours.js";
 import {
@@ -4086,8 +4088,30 @@ export class DesktopApplicationService {
    * never has to distinguish "not customised" from "customised to look
    * exactly like the default" at the UI layer. */
   getClubVisualIdentity(clubId: EntityId): AppResult<ClubVisualIdentityView> {
-    return this.withSession((db) => {
+    return this.withSession((db, save) => {
       const record = new ClubVisualIdentityRepository(db).get(clubId);
+      const colours = record
+        ? { primaryColour: record.primaryColour, secondaryColour: record.secondaryColour, accentColour: record.accentColour }
+        : deterministicClubColours(clubId);
+      const deterministicKits = deterministicClubKits(clubId, colours);
+      // There is no live, per-save season-rollover event to hook a kit-
+      // history snapshot to — season transitions in this codebase only
+      // happen inside the offline career-world generator that builds the
+      // starting world before any save exists, never during a player's
+      // own interactive play. So the snapshot is taken here instead, on
+      // the season's first real identity read during play: idempotent
+      // (snapshotSeasonIfAbsent is INSERT OR IGNORE, unique on
+      // club_id+season_key), and safe to call on every read since only
+      // the season's very first call ever inserts anything.
+      new ClubVisualIdentityRepository(db).snapshotSeasonIfAbsent({
+        id: createStableEntityId("club-kit-history", `${clubId}:${save.worldDate.slice(0, 4)}`),
+        clubId,
+        seasonKey: save.worldDate.slice(0, 4),
+        homeKitJson: JSON.stringify(record?.homeKit ?? deterministicKits.home),
+        awayKitJson: JSON.stringify(record?.awayKit ?? deterministicKits.away),
+        thirdKitJson: JSON.stringify(record?.thirdKit ?? deterministicKits.third),
+        createdAt: save.worldDate,
+      });
       if (record) {
         return {
           clubId,
@@ -4112,8 +4136,24 @@ export class DesktopApplicationService {
           provenanceStatus: "SIMULATION_ONLY",
         };
       }
-      return { clubId, ...deterministicClubColours(clubId), isCustom: false, provenanceStatus: "SIMULATION_ONLY" };
+      return { clubId, ...colours, isCustom: false, provenanceStatus: "SIMULATION_ONLY" };
     });
+  }
+
+  /** One row per season a snapshot exists for, oldest first — each
+   * season's kit designs are immutable once recorded (see
+   * getClubVisualIdentity's snapshot-on-read comment) even if the club's
+   * current kits are edited afterward. */
+  getClubKitHistory(clubId: EntityId): AppResult<ClubKitHistorySeason[]> {
+    return this.withSession((db) =>
+      new ClubVisualIdentityRepository(db).kitHistory(clubId).map((entry) => ({
+        seasonKey: entry.seasonKey,
+        homeKit: JSON.parse(entry.homeKitJson) as ClubKitDesignOverride,
+        awayKit: JSON.parse(entry.awayKitJson) as ClubKitDesignOverride,
+        thirdKit: JSON.parse(entry.thirdKitJson) as ClubKitDesignOverride,
+        createdAt: entry.createdAt,
+      })),
+    );
   }
 
   /** Full identity write (colours + badge design). Superset of

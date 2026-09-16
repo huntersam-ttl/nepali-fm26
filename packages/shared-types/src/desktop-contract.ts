@@ -581,6 +581,18 @@ export type ClubVisualIdentityView = {
   provenanceStatus: "SIMULATION_ONLY";
 };
 
+/** One immutable snapshot of a club's kit designs for a past or current
+ * season — `seasonKey` is the plain 4-digit year already used elsewhere
+ * in this codebase for season labels (e.g. "2026"), not a slash-year
+ * format. Recorded once per club per season and never overwritten. */
+export type ClubKitHistorySeason = {
+  seasonKey: string;
+  homeKit: ClubKitDesignOverride;
+  awayKit: ClubKitDesignOverride;
+  thirdKit: ClubKitDesignOverride;
+  createdAt: string;
+};
+
 export type ClubStadiumSummary = {
   venueId: EntityId;
   name: string;
@@ -1086,6 +1098,10 @@ export type DesktopRuntimeApi = {
       thirdKit?: ClubKitDesignOverride;
     },
   ): Promise<AppResult<ClubVisualIdentityView>>;
+  /** Oldest-first list of the club's immutable per-season kit snapshots.
+   * A club with no history yet (a save from before this feature, or one
+   * still in its first season) resolves to an empty array. */
+  getClubKitHistory?(clubId: EntityId): Promise<AppResult<ClubKitHistorySeason[]>>;
   getStaffProfile?(personId: EntityId): Promise<AppResult<StaffProfileReadModel>>;
   getCompetitionProfile?(competitionId: EntityId): Promise<AppResult<CompetitionProfile>>;
   getInfrastructureProjectProfile?(projectId: EntityId): Promise<AppResult<InfrastructureProjectProfile>>;

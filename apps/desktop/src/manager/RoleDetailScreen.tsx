@@ -56,6 +56,7 @@ import type {
   OrganizationCommercialDeal,
   OrganizationProfileEntityType,
   ClubProfile,
+  ClubKitHistorySeason,
   ClubStadiumSummary,
   ClubFacilitySnapshot,
   InfrastructureProjectProfile,
@@ -95,7 +96,7 @@ import {
 import { campusBlockDescriptors, projectProgressPercent, projectStatusLabel } from "./clubWorldPresentation.js";
 import { ClubEnvironmentScene } from "../presentation/ClubEnvironmentScene.js";
 import { ClubBadge } from "../presentation/ClubBadge.js";
-import { ClubKit } from "../presentation/ClubKit.js";
+import { ClubKit, kitDescription } from "../presentation/ClubKit.js";
 import {
   buildClubBadgeDesign,
   buildClubVisualIdentity,
@@ -7380,6 +7381,51 @@ const StadiumVisual = ({ stadium }: { stadium: ClubStadiumSummary }): React.Reac
 };
 
 /** Never fabricates club history/metadata — only fields buildClubProfile actually returns. */
+/** One immutable snapshot per season the club has had a real save-turn in
+ * — never a huge archive browser, just each season's three kit previews
+ * with colour-independent text underneath. Reuses ClubKit exactly as the
+ * current-identity strip above does; a season row is only ever built from
+ * the real ClubKitDesignOverride fields recorded for it, never re-derived. */
+const ClubKitHistoryPanel = ({ bridge, clubId }: { bridge: DesktopRuntimeApi; clubId: EntityId }): React.ReactElement | null => {
+  const [state] = useRuntimeData(
+    () =>
+      bridge.getClubKitHistory
+        ? bridge.getClubKitHistory(clubId)
+        : Promise.resolve({ ok: true as const, data: [] as ClubKitHistorySeason[] }),
+    [clubId],
+  );
+  if (state.status !== "ready") return null;
+  const seasons = state.data;
+  return (
+    <Panel title="Kit history">
+      {seasons.length === 0 ? (
+        <p className="empty-state">No historical kit records yet.</p>
+      ) : (
+        <div className="kit-history-list">
+          {seasons.map((season) => (
+            <div className="kit-history-season" key={season.seasonKey}>
+              <h3>{season.seasonKey}</h3>
+              <div className="club-kit-strip">
+                {(["HOME", "AWAY", "THIRD"] as const).map((slot) => {
+                  const fields = slot === "HOME" ? season.homeKit : slot === "AWAY" ? season.awayKit : season.thirdKit;
+                  const design = { slot, ...fields, provenanceStatus: "SIMULATION_ONLY" as const };
+                  const label = slot === "HOME" ? "Home" : slot === "AWAY" ? "Away" : "Third";
+                  return (
+                    <div key={slot}>
+                      <ClubKit design={design} size="small" label={`${season.seasonKey} ${label}`} />
+                      <span className="subtle">{kitDescription(design, `${season.seasonKey} ${label}`)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Panel>
+  );
+};
+
 const ClubProfileBody = ({
   profile,
   onOpenReference,
@@ -7438,6 +7484,7 @@ const ClubProfileBody = ({
       Club colours, badge, and kits are a generated visual identity (SIMULATION_ONLY) — this project holds no
       licensed real club branding.
     </p>
+    {!profile.foreignContext && <ClubKitHistoryPanel bridge={bridge} clubId={profile.entityReference.id} />}
     {/* A CONTEXT_ONLY foreign club never ran through Nepal's club-economy
         simulation, so it has no real manager/owner/finances/facilities to
         show — only the real global-dataset context that actually exists

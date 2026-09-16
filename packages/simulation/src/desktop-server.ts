@@ -542,6 +542,8 @@ const dispatch = (
           thirdKit?: ClubKitDesignOverride;
         },
       );
+    case "getClubKitHistory":
+      return service.getClubKitHistory(body.clubId as EntityId);
     case "getStaffProfile":
       return service.getStaffProfile(body.personId as EntityId);
     case "getCompetitionProfile":

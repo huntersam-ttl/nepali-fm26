@@ -427,4 +427,107 @@ describe("club visual identity — deterministic fallback and real persisted ove
     service.closeCareer();
     rmSync(savesDirectory, { recursive: true, force: true });
   });
+
+  it("snapshots the current season's real kit designs on identity read, once, and never mutates that snapshot afterward", () => {
+    const savesDirectory = mkdtempSync(join(tmpdir(), "club-kit-history-"));
+    const service = new DesktopApplicationService({ savesDirectory, worldDatasetPath: WORLD_DATASET });
+    const locations = service.listFounderLocations();
+    expect(locations.ok).toBe(true);
+    if (!locations.ok) return;
+    const location = locations.data[0]!;
+    const created = service.createCareer({
+      saveName: "Kit History",
+      careerMode: "OWNER",
+      founder: {
+        clubName: "Kit History FC",
+        locationId: location.id,
+        locationName: location.district,
+        groundName: "Kit History Ground",
+        philosophy: "COMMUNITY",
+      },
+      character,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const dashboard = service.getChairmanDashboard();
+    expect(dashboard.ok).toBe(true);
+    if (!dashboard.ok) return;
+    const clubId = dashboard.data.club.id;
+
+    // A brand-new club has no history until its identity is actually read
+    // once — this is the "first identity read of a season" activation
+    // trigger (there is no live, per-save season-rollover event to hook
+    // this to instead; see desktop-application.ts's getClubVisualIdentity
+    // for why).
+    const beforeAnyRead = service.getClubKitHistory(clubId);
+    expect(beforeAnyRead.ok).toBe(true);
+    if (beforeAnyRead.ok) expect(beforeAnyRead.data).toEqual([]);
+
+    const firstRead = service.getClubVisualIdentity(clubId);
+    expect(firstRead.ok).toBe(true);
+    if (!firstRead.ok) return;
+
+    const historyAfterFirstRead = service.getClubKitHistory(clubId);
+    expect(historyAfterFirstRead.ok).toBe(true);
+    if (!historyAfterFirstRead.ok) return;
+    expect(historyAfterFirstRead.data).toHaveLength(1);
+    const [seasonOne] = historyAfterFirstRead.data;
+    expect(seasonOne!.seasonKey).toBe("2026");
+    // The club has no custom kit yet, so history recorded the real
+    // deterministic fallback design — structured fields, not a placeholder.
+    expect(firstRead.data.isCustom).toBe(false);
+    expect(seasonOne!.homeKit.baseColour).toMatch(/^#[0-9a-fA-F]{6}$/);
+    expect(typeof seasonOne!.awayKit.pattern).toBe("string");
+
+    // Reading identity again within the same season must not duplicate the
+    // snapshot (snapshotSeasonIfAbsent is INSERT OR IGNORE, unique on
+    // club_id+season_key).
+    service.getClubVisualIdentity(clubId);
+    service.getClubVisualIdentity(clubId);
+    const historyAfterRepeatedReads = service.getClubKitHistory(clubId);
+    expect(historyAfterRepeatedReads.ok).toBe(true);
+    if (historyAfterRepeatedReads.ok) expect(historyAfterRepeatedReads.data).toHaveLength(1);
+
+    // Now the owner customises the club's Home kit to something completely
+    // different from what was snapshotted above.
+    const saved = service.setClubVisualIdentity(clubId, {
+      primaryColour: "#0a0a0a",
+      secondaryColour: "#f0f0f0",
+      accentColour: "#c0ffee",
+      badgeShape: "CREST",
+      badgeSymbol: "STAR",
+      badgeInitials: "KHF",
+      homeKit: {
+        baseColour: "#ff0000",
+        secondaryColour: "#00ff00",
+        trimColour: "#0000ff",
+        pattern: "HALVES",
+        shortsColour: "#ffffff",
+        socksColour: "#000000",
+      },
+    });
+    expect(saved.ok).toBe(true);
+
+    // Reading identity again (still the same season) must still not
+    // duplicate the snapshot, AND the season-one snapshot recorded above
+    // must remain exactly what it was — history is immutable, not a live
+    // reference to the club's current kit.
+    service.getClubVisualIdentity(clubId);
+    const historyAfterEdit = service.getClubKitHistory(clubId);
+    expect(historyAfterEdit.ok).toBe(true);
+    if (!historyAfterEdit.ok) return;
+    expect(historyAfterEdit.data).toHaveLength(1);
+    expect(historyAfterEdit.data[0]).toEqual(seasonOne);
+    expect(historyAfterEdit.data[0]!.homeKit.baseColour).not.toBe("#ff0000");
+
+    // Persists across a real save/reload, not just in-memory.
+    expect(service.saveCareer().ok).toBe(true);
+    expect(service.loadCareer(created.data.catalogEntry.saveId).ok).toBe(true);
+    const historyAfterReload = service.getClubKitHistory(clubId);
+    expect(historyAfterReload.ok).toBe(true);
+    if (historyAfterReload.ok) expect(historyAfterReload.data).toEqual(historyAfterEdit.data);
+
+    service.closeCareer();
+    rmSync(savesDirectory, { recursive: true, force: true });
+  });
 });
