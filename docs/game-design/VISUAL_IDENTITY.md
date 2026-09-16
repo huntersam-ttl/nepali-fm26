@@ -719,3 +719,42 @@ Playwright coverage (multiple avatars rendering, no overflow, etc.),
 20/50-portrait performance harness, explicit N+1 bridge-call
 instrumentation, recruitment avatars, Create-a-Club failure-path E2E,
 and kit distinctness.
+
+## Phase 1O — Squad and Dressing Room avatar E2E
+
+Extended `portrait-continuity.spec.ts` (reusing its `faceSignature()`
+helper and isolated-server harness, not a second E2E identity system)
+with two more tests:
+
+- **Squad**: more than 5 avatars render; the first portrait is
+  `aria-hidden` with no `tabindex` (decorative, not a separate
+  keyboard target); two adjacent rows' face signatures differ; the
+  table causes no page-level horizontal overflow; zero serious/critical
+  axe violations (same axe-core injection pattern already used by
+  `role-boundary.spec.ts`); and a row's own face signature exactly
+  matches that same player's Player Profile signature once opened —
+  proving the list avatar and the profile portrait are the same
+  rendering path, not two independently-seeded faces.
+- **Dressing Room**: the shared player-reference link's portrait is
+  `aria-hidden` with no `tabindex`; the link's accessible name is
+  exactly the player's name (no "Name portrait, Name" doubling); no
+  horizontal overflow; zero serious/critical axe violations; and the
+  row's face signature matches that player's Profile signature after
+  clicking through.
+
+All 4 tests in the file pass together (1.7 min). Re-ran and confirmed
+still green: `nav-responsive.spec.ts` (2/2), `role-boundary.spec.ts`
+(2/2), kit-history unit suite (9/9).
+
+**Deliberately skipped this pass:** a Staff-surface avatar test. A
+separate session is working on `StaffScreen`'s pre-existing, unrelated
+`dlitem` a11y bug (see Phase 1M), and no commit for it had landed in
+this branch's history as of this phase — adding an axe assertion
+against that screen risked either colliding with that work or
+reporting a false failure on an issue already flagged and owned
+elsewhere. Revisit once that fix lands (or is confirmed abandoned).
+
+**Not attempted this pass:** Staff/executive avatar E2E (see above),
+20/50-portrait performance harness, explicit N+1 bridge-call
+instrumentation, recruitment avatars, Create-a-Club failure-path E2E,
+and kit distinctness.
