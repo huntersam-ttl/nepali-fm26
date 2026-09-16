@@ -460,6 +460,65 @@ to 120s to match its sibling wait in `createExistingClubOwner`.
 Owner Club Identity), kit-history activation/UI, and non-player portrait
 wiring — all still open.
 
+## Phase 1J — activated kit history
+
+Investigated the "canonical season lifecycle" this task's own Phase 1
+asked to find before wiring anything, and the honest finding is: **there
+isn't one that runs during live play.** The only season-transition code
+in this codebase, `createNextSeasons` (`packages/simulation/src/career-world.ts`),
+runs exclusively inside the offline `career-world`/`career-cli.ts`
+generator that pre-builds the starting world's history before any player
+save even exists — nothing in `desktop-application.ts` or any live
+command ever calls it. Attaching a kit-history snapshot there would only
+ever record pre-game history, never anything a player experiences.
+
+Given that, this activates history via this task's own documented
+fallback: **the season's first real identity read during play**
+(`getClubVisualIdentity`). `snapshotSeasonIfAbsent` was already
+`INSERT OR IGNORE` unique on `club_id + season_key` since Phase 1C
+(built, never called) — safe to call on every read, since only the
+season's first call ever inserts anything. Added
+`deterministicClubKits` to `club-visual-identity-colours.ts` (a
+server-side port of the client's private `kitDesignFor`, same seed/salts)
+so a club with no custom kit saved still gets its real structured
+fallback design recorded, not a placeholder. `seasonKey` reuses this
+codebase's existing plain-4-digit-year convention
+(`date.slice(0, 4)`, already used in `federation-governance.ts`,
+`ai-club-strategy.ts`, `club-economy.ts`) rather than inventing a
+slash-year format nowhere else in the codebase uses.
+
+New read command `getClubKitHistory` returns a club's history
+oldest-first. New "Kit history" section on Club Profile (below the
+current identity strip) shows each season's three `ClubKit` previews
+with `kitDescription()`'s colour-independent text — reusing the existing
+renderer, not a new visual system — and is simply omitted for a club
+with no history yet rather than showing an empty panel.
+
+**Verified:** a new unit test
+(`packages/testing/src/club-visual-identity.test.ts`) confirms
+activation on first read, no duplicate row on repeated reads within a
+season, and — critically — that editing the club's *current* kit
+afterward does not mutate the already-recorded season snapshot, across
+a real save/reload. Live-verified in the browser (Chairman/Owner →
+Competition → a club link → Club Profile): "Kit history" rendered
+season "2026" with all three real previews and matching text, zero
+console errors.
+
+**Not verified:** whether two genuinely different seasons stay
+independent of each other (the fuller multi-season immutability
+requirement). There is no way to advance a save's world date across a
+season boundary through the public API to exercise this in a test,
+precisely because — per the finding above — season rollover isn't a
+live player-facing mechanic in this codebase today. The underlying
+guarantee (`UNIQUE(club_id, season_key)` + `INSERT OR IGNORE`) is
+structural and pre-existing, not newly built this phase, but remains
+unexercised by any multi-season test.
+
+**Not attempted this pass:** non-player portrait wiring (manager/staff/
+owner/president/executive), the Create-a-Club identity-failure path's
+live/E2E verification, automated Create-a-Club kit E2E, kit-distinctness
+warnings, and list avatars — all still open.
+
 ## Recommended next phase
 
 1. Wire `PersonPortrait` into manager/staff/owner/president profile headers
@@ -468,13 +527,16 @@ wiring — all still open.
    editing~~ — kit colours + pattern now persist independently per slot
    (Phase 1F); collar/sleeve/number-colour still need renderer support
    before they can be exposed.
-3. Activate `club_kit_history`: snapshot on season rollover (or first
-   identity resolution of a new season, whichever proves architecturally
-   safer), and add a compact history section to Club Profile.
+3. ~~Activate `club_kit_history`~~ — activated in Phase 1J via
+   snapshot-on-first-identity-read-of-season (see above; there is no live
+   season-rollover event to hook it to instead). A multi-season browser/
+   integration proof is still owed once/if a live season-transition
+   mechanic exists to test it against.
 4. ~~Fix the Chairman/Owner sidebar nav's sub-1080px 3-column layout~~ —
-   fixed in Phase 1G; an automated regression test for it is still owed.
-5. Extend the Create-a-Club wizard with the same `ClubKitEditor` used
-   post-creation, so Home/Away/Third can be chosen at founding time
-   (currently only colours + badge are).
-6. Merchandise/retail last, once club colours and kits exist to hang
+   fixed in Phase 1G; automated in Phase 1H.
+5. ~~Extend the Create-a-Club wizard with the same `ClubKitEditor`~~ —
+   done in Phase 1I.
+6. Live/E2E-verify the Create-a-Club identity-failure banner (Retry /
+   Continue without saving) — currently only code-reviewed.
+7. Merchandise/retail last, once club colours and kits exist to hang
    demand and shirt-sales tracking off of.
