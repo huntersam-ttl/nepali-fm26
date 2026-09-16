@@ -1,5 +1,28 @@
+import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { expect, test, type Page } from "@playwright/test";
 import { createExistingClubOwner } from "./support/owner-harness.js";
+
+// Same axe-core injection pattern already used by role-boundary.spec.ts —
+// reused rather than a second a11y-check mechanism.
+const axeSource = readFileSync(createRequire(import.meta.url).resolve("axe-core/axe.min.js"), "utf8");
+
+const expectNoSeriousA11yViolations = async (page: Page, label: string): Promise<void> => {
+  await page.evaluate(axeSource);
+  const results = await page.evaluate(async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const axe = (window as any).axe;
+    return axe.run(document, { resultTypes: ["violations"] });
+  });
+  const serious = (results.violations as Array<{ id: string; impact: string; nodes: unknown[] }>).filter(
+    (violation) => violation.impact === "serious" || violation.impact === "critical",
+  );
+  if (serious.length > 0) console.log(`axe violations at ${label}:`, JSON.stringify(serious, null, 2));
+  expect(serious, `axe serious/critical violations at ${label}`).toHaveLength(0);
+};
+
+const hasNoHorizontalOverflow = async (page: Page): Promise<boolean> =>
+  page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
 
 // createExistingClubOwner needs NEPAL_E2E_ROLE_FIXTURE=1, which the shared
 // ambient dev server other specs' reuseExistingServer may already be
@@ -114,6 +137,98 @@ test("the same human career person keeps the same portrait face across Manager -
   await page.getByLabel("Active career role").selectOption("CHAIRMAN_OWNER");
   const backToOwner = await faceSignature(page, topbarPortrait);
   expect(backToOwner, "Manager -> Owner must keep the same face").toBe(asOwner);
+
+  expect(errors, `console/page errors: ${errors.join("; ")}`).toHaveLength(0);
+});
+
+test("Squad avatars render for multiple distinct players, stay decorative, and match each player's own Profile face", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(String(error)));
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+
+  await createExistingClubOwner(page, "A");
+  await page.getByLabel("Active career role").selectOption("MANAGER");
+  await page.getByRole("button", { name: "Squad", exact: true }).click();
+  await expect(page.locator("table tbody tr").first()).toBeVisible();
+
+  const portraits = page.locator("table tbody tr svg.person-portrait");
+  const portraitCount = await portraits.count();
+  expect(portraitCount, "several avatars should render, not just one").toBeGreaterThan(5);
+
+  // Decorative: hidden from assistive tech, and never a separate
+  // keyboard-focusable target — the row itself is what's focusable.
+  const firstPortrait = portraits.first();
+  expect(await firstPortrait.getAttribute("aria-hidden")).toBe("true");
+  expect(await firstPortrait.getAttribute("tabindex")).toBeNull();
+
+  // At least two rows' faces are genuinely different people.
+  const sigA = await faceSignature(page, "table tbody tr:nth-child(1) svg.person-portrait");
+  const sigB = await faceSignature(page, "table tbody tr:nth-child(2) svg.person-portrait");
+  expect(sigA).not.toBe(sigB);
+
+  expect(await hasNoHorizontalOverflow(page), "Squad table should not force page-level horizontal overflow").toBe(
+    true,
+  );
+
+  await expectNoSeriousA11yViolations(page, "Squad");
+
+  // The row's own face must be the exact same person once opened as a
+  // full Player Profile — the list avatar isn't a different rendering
+  // path from the profile portrait.
+  const rowName = (await page.locator("table tbody tr").nth(0).locator("td").first().innerText()).trim();
+  await page.locator("table tbody tr").nth(0).click();
+  await expect(page.getByRole("heading", { name: rowName })).toBeVisible();
+  const profileSignature = await faceSignature(page, ".player-card-avatar svg.person-portrait");
+  expect(profileSignature).toBe(sigA);
+
+  expect(errors, `console/page errors: ${errors.join("; ")}`).toHaveLength(0);
+});
+
+test("Dressing Room avatars render next to real players, stay decorative, and link to the matching Profile face", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(String(error)));
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+
+  await createExistingClubOwner(page, "A");
+  await page.getByLabel("Active career role").selectOption("MANAGER");
+  await page.getByRole("button", { name: "Dressing Room", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Hierarchy" })).toBeVisible();
+
+  const playerLink = page.locator(".dressing-room-player-link").first();
+  await expect(playerLink).toBeVisible();
+  const playerName = (await playerLink.innerText()).trim();
+
+  const rowPortrait = playerLink.locator("svg.person-portrait");
+  expect(await rowPortrait.getAttribute("aria-hidden")).toBe("true");
+  expect(await rowPortrait.getAttribute("tabindex")).toBeNull();
+  // The link's accessible name must be exactly the player's name — the
+  // decorative portrait must never double it up.
+  expect(await playerLink.evaluate((el) => (el.textContent ?? "").trim())).toBe(playerName);
+
+  const rowSignature = await rowPortrait.getAttribute("data-face-signature");
+  expect(rowSignature).not.toBeNull();
+
+  expect(
+    await hasNoHorizontalOverflow(page),
+    "Dressing Room should not force page-level horizontal overflow",
+  ).toBe(true);
+
+  await expectNoSeriousA11yViolations(page, "Dressing Room");
+
+  await playerLink.click();
+  await expect(page.getByRole("heading", { name: playerName })).toBeVisible();
+  const profileSignature = await faceSignature(page, ".player-card-avatar svg.person-portrait");
+  expect(profileSignature).toBe(rowSignature);
 
   expect(errors, `console/page errors: ${errors.join("; ")}`).toHaveLength(0);
 });
