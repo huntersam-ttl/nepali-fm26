@@ -47,7 +47,10 @@ export const createFounderOwner = async (page: Page): Promise<string> => {
   await page.getByLabel("Province / district").selectOption({ index: 1 });
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Create Save" }).click();
-  await expect(page.getByRole("button", { name: "Dashboard", exact: true })).toBeVisible();
+  // World generation plus the founder's follow-up identity write (colours,
+  // badge, and now Home/Away/Third kits) can run past the default 15s
+  // expect timeout, same as createExistingClubOwner's analogous wait below.
+  await expect(page.getByRole("button", { name: "Dashboard", exact: true })).toBeVisible({ timeout: 120_000 });
   await expect(page.getByRole("heading", { name: "Chairman / Owner" })).toBeVisible();
   return saveName;
 };

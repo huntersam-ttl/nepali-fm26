@@ -17,7 +17,10 @@ import { ManagerCareer } from "./manager/ManagerCareer.js";
 import { PresentationSettingsPanel } from "./presentation/PresentationSettingsPanel.js";
 import { presentationCapabilityLabel } from "./presentation/scenePreferences.js";
 import { ClubBadge } from "./presentation/ClubBadge.js";
-import type { ClubBadgeDesign } from "./presentation/clubVisualIdentity.js";
+import { ClubKit, kitDescription } from "./presentation/ClubKit.js";
+import { ClubKitEditor } from "./presentation/ClubKitEditor.js";
+import { buildClubVisualIdentity } from "./presentation/clubVisualIdentity.js";
+import type { ClubBadgeDesign, ClubKitDesignFields, KitSlot } from "./presentation/clubVisualIdentity.js";
 import type { ClubBadgeShape, ClubBadgeSymbol } from "@nepal-football-sim/shared-types";
 import "./styles.css";
 
@@ -225,10 +228,28 @@ const NewCareer = (props: {
   const [founderBadgeShape, setFounderBadgeShape] = useState<ClubBadgeShape>("SHIELD");
   const [founderBadgeSymbol, setFounderBadgeSymbol] = useState<ClubBadgeSymbol>("FOOTBALL");
   const [founderBadgeInitials, setFounderBadgeInitials] = useState("");
+  // Home/Away/Third start undefined (not yet edited) and re-derive from the
+  // current colours on every render until the player actually edits a
+  // slot in ClubKitEditor, at which point that slot's fields are captured
+  // here and stop re-deriving — editing colours afterward must not
+  // silently discard a kit the player already designed.
+  const [founderHomeKit, setFounderHomeKit] = useState<ClubKitDesignFields | null>(null);
+  const [founderAwayKit, setFounderAwayKit] = useState<ClubKitDesignFields | null>(null);
+  const [founderThirdKit, setFounderThirdKit] = useState<ClubKitDesignFields | null>(null);
   const [teamId, setTeamId] = useState<EntityId | "">("");
   const [step, setStep] = useState(1);
   const [division, setDivision] = useState("All");
   const [busy, setBusy] = useState(false);
+  // The club and its identity are two separate, non-atomic writes
+  // (createCareer has no identity fields). If the identity write fails,
+  // the club itself was still founded successfully — so rather than
+  // transition into that career silently un-branded (or only logging to
+  // the console, where the player would never see it), the created
+  // career is held here until the player either retries the identity
+  // save or explicitly chooses to continue without it.
+  const [pendingCareer, setPendingCareer] = useState<DesktopApplicationState | null>(null);
+  const [pendingClubId, setPendingClubId] = useState<EntityId | null>(null);
+  const [identityError, setIdentityError] = useState<AppError | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -263,7 +284,48 @@ const NewCareer = (props: {
     initials: (founderBadgeInitials || derivedInitials).toUpperCase().slice(0, 4),
     provenanceStatus: "SIMULATION_ONLY",
   };
+  // No real club id exists yet during founding, so the deterministic kit
+  // defaults are seeded from the club name instead — stable for the
+  // wizard session, discarded once the real club (and its own id-derived
+  // fallback) exists after creation. Only used for slots the player
+  // hasn't touched yet.
+  const deterministicFounderIdentity = buildClubVisualIdentity(founderClubName || "founder-preview", founderClubName || "Your club", {
+    primaryColour: founderPrimaryColour,
+    secondaryColour: founderSecondaryColour,
+    accentColour: founderAccentColour,
+  });
+  const founderKits: Record<KitSlot, ClubKitDesignFields> = {
+    HOME: founderHomeKit ?? deterministicFounderIdentity.home,
+    AWAY: founderAwayKit ?? deterministicFounderIdentity.away,
+    THIRD: founderThirdKit ?? deterministicFounderIdentity.third,
+  };
+  const setFounderKit = (slot: KitSlot, fields: ClubKitDesignFields): void => {
+    if (slot === "HOME") setFounderHomeKit(fields);
+    else if (slot === "AWAY") setFounderAwayKit(fields);
+    else setFounderThirdKit(fields);
+  };
   const visibleClubs = clubs.filter((club) => division === "All" || club.division === division);
+
+  const saveFounderIdentity = async (clubId: EntityId): Promise<boolean> => {
+    if (!bridge.setClubVisualIdentity) return true;
+    const identitySaved = await bridge.setClubVisualIdentity(clubId, {
+      primaryColour: founderPrimaryColour,
+      secondaryColour: founderSecondaryColour,
+      accentColour: founderAccentColour,
+      badgeShape: founderBadgeShape,
+      badgeSymbol: founderBadgeSymbol,
+      badgeInitials: founderBadgePreview.initials,
+      homeKit: founderKits.HOME,
+      awayKit: founderKits.AWAY,
+      thirdKit: founderKits.THIRD,
+    });
+    if (!identitySaved.ok) {
+      setIdentityError(identitySaved.error);
+      return false;
+    }
+    setIdentityError(null);
+    return true;
+  };
 
   return (
     <StartShell error={props.error}>
@@ -426,6 +488,8 @@ const NewCareer = (props: {
                 <ClubBadge design={founderBadgePreview} size="large" clubName={founderClubName || "Your club"} />
               </div>
             </div>
+            <h3>Kits</h3>
+            <ClubKitEditor kits={founderKits} onChange={setFounderKit} />
           </div>
           ) : (
           <div>
@@ -448,6 +512,18 @@ const NewCareer = (props: {
               </p>
               <div className="club-identity-preview">
                 <ClubBadge design={founderBadgePreview} size="large" clubName={founderClubName} />
+              </div>
+              <div className="club-kit-strip">
+                {(["HOME", "AWAY", "THIRD"] as const).map((slot) => {
+                  const design = { slot, ...founderKits[slot], provenanceStatus: "SIMULATION_ONLY" as const };
+                  const label = slot === "HOME" ? "Home" : slot === "AWAY" ? "Away" : "Third";
+                  return (
+                    <figure key={slot}>
+                      <ClubKit design={design} size="medium" label={label} />
+                      <figcaption>{kitDescription(design, label)}</figcaption>
+                    </figure>
+                  );
+                })}
               </div>
             </div>
           ) : (
@@ -497,23 +573,20 @@ const NewCareer = (props: {
               // write against the club that now really exists — createCareer
               // itself has no identity fields, so this cannot be one atomic
               // transaction. A failure here does not undo the (successful)
-              // career creation; it is logged rather than silently treated
-              // as full success, and the club still shows its real
-              // deterministic default identity until the player retries via
-              // the Club Identity screen.
+              // career creation, but the player is not silently dropped into
+              // an un-branded career either: the created career is held in
+              // `pendingCareer` and a visible error with a retry (and an
+              // explicit "continue without it" escape hatch) is shown below,
+              // instead of only logging to the console.
               if (result.ok && careerMode === "OWNER" && bridge.getChairmanDashboard && bridge.setClubVisualIdentity) {
                 const dashboard = await bridge.getChairmanDashboard();
                 if (dashboard.ok) {
-                  const identitySaved = await bridge.setClubVisualIdentity(dashboard.data.club.id, {
-                    primaryColour: founderPrimaryColour,
-                    secondaryColour: founderSecondaryColour,
-                    accentColour: founderAccentColour,
-                    badgeShape: founderBadgeShape,
-                    badgeSymbol: founderBadgeSymbol,
-                    badgeInitials: founderBadgePreview.initials,
-                  });
-                  if (!identitySaved.ok) {
-                    console.error("Founder club identity failed to save:", identitySaved.error);
+                  const saved = await saveFounderIdentity(dashboard.data.club.id);
+                  if (!saved) {
+                    setPendingCareer(result.data);
+                    setPendingClubId(dashboard.data.club.id);
+                    setBusy(false);
+                    return;
                   }
                 }
               }
@@ -525,6 +598,35 @@ const NewCareer = (props: {
             {step < 4 ? "Continue" : busy ? "Creating…" : "Create Save"}
           </button>
         </div>
+        {identityError && pendingCareer && (
+          <div className="notice" role="alert">
+            <p>
+              <strong>{founderClubName}</strong> was created, but its custom colours, badge, and kits could not be
+              saved: {identityError.message}. The club currently shows its deterministic default identity instead.
+            </p>
+            <div className="button-row">
+              <button
+                className="primary"
+                disabled={busy || !pendingClubId}
+                onClick={async () => {
+                  if (!pendingClubId) return;
+                  setBusy(true);
+                  const saved = await saveFounderIdentity(pendingClubId);
+                  setBusy(false);
+                  if (saved) props.onCreated(pendingCareer);
+                }}
+              >
+                Retry saving identity
+              </button>
+              <button className="ghost" disabled={busy} onClick={() => props.onCreated(pendingCareer)}>
+                Continue without saving branding
+              </button>
+            </div>
+            <p className="subtle">
+              You can still set the club's colours, badge, and kits later from the Club Identity screen.
+            </p>
+          </div>
+        )}
       </section>
     </StartShell>
   );
