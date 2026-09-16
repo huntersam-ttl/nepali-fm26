@@ -337,6 +337,48 @@ and any automated Playwright/axe/responsive/performance verification —
 every check in this phase, as in every prior one, was manual via the
 Browser pane, not scripted.
 
+## Phase 1G — fixed the Owner navigation P1
+
+The narrow-width nav-clipping bug found while verifying Phase 1F is fixed.
+Root cause: `apps/desktop/src/styles.css`'s `@media (max-width: 1080px)`
+block switched `nav` to a 3-column CSS grid, on the assumption that
+`.manager-shell` would also stack to a single full-width column at that
+breakpoint (an adjacent rule in the same block does set
+`grid-template-columns: 1fr` on `.manager-shell`). But a later,
+unconditional `.manager-shell { grid-template-columns: 248px minmax(0, 1fr); }`
+rule — added by a subsequent dark-theme pass, with no media guard — always
+wins the cascade at equal specificity because it comes later in the file,
+regardless of viewport width. So the sidebar never actually got wider than
+248px, and the 3-column nav grid inside that fixed 248px column pushed
+later groups (`Club`, `External relations`) off the visible edge: present
+in the DOM (`find` could still locate `Club Identity`), invisible and
+unclickable in a screenshot.
+
+Fix: removed the `nav { grid-template-columns: repeat(3, 1fr); }` override
+rather than resurrecting the never-actually-active full-width stacked
+shell (touching that would risk unverified layout changes to every other
+narrow-width screen, well outside this fix's scope). `nav`'s own
+un-media-queried base rule (`display: grid; gap: 6px;`, no explicit
+columns) already lays nav-group children out in a single implicit column
+— i.e. vertically stacked — which is exactly what a permanently
+248px-wide sidebar needs at any viewport width.
+
+**Verified live**, Chairman/Owner role, at 721 / 900 / 1024 / 1080 / 1280 /
+1600px: at every width, all nav groups — `Owner office`, `Ownership`,
+`Staff`, `Development`, `Commercial`, `Club` (`Club Identity`), `External
+relations` (`Bank`) — stayed visible and clickable, `Club Identity`
+opened correctly, no horizontal overflow (`document.documentElement.scrollWidth`
+never exceeded `clientWidth`), zero console errors. Re-checked Manager-role
+nav (same CSS, different data) at 721px for regression — unaffected,
+still correct. `apps/desktop` presentation+manager vitest suite: 268/268
+unchanged. Root typecheck: unchanged at the 17-error baseline.
+
+**Not attempted this pass:** an automated regression test asserting this
+at each breakpoint (Playwright or a jsdom/CSS-matching unit test) — the
+verification above was manual via the Browser pane only, same as every
+prior phase's checks. A future pass should add one so this can't silently
+regress again.
+
 ## Recommended next phase
 
 1. Wire `PersonPortrait` into manager/staff/owner/president profile headers
@@ -348,8 +390,10 @@ Browser pane, not scripted.
 3. Activate `club_kit_history`: snapshot on season rollover (or first
    identity resolution of a new season, whichever proves architecturally
    safer), and add a compact history section to Club Profile.
-4. Fix the Chairman/Owner sidebar nav's sub-1080px 3-column layout so the
-   "Club" and "External relations" groups don't get clipped out of the
-   visible sidebar width.
-5. Merchandise/retail last, once club colours and kits exist to hang
+4. ~~Fix the Chairman/Owner sidebar nav's sub-1080px 3-column layout~~ —
+   fixed in Phase 1G; an automated regression test for it is still owed.
+5. Extend the Create-a-Club wizard with the same `ClubKitEditor` used
+   post-creation, so Home/Away/Third can be chosen at founding time
+   (currently only colours + badge are).
+6. Merchandise/retail last, once club colours and kits exist to hang
    demand and shirt-sales tracking off of.
