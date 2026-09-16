@@ -421,10 +421,34 @@ isolated server the canvas mounted correctly every time — confirming that
 result was environmental (a concurrent session's interference), not a
 product defect.
 
-**Investor meeting and press do not yet have an equivalent real-browser
-suite** — only the boardroom and transfer-negotiation/signing contexts
-were extended to live-browser coverage this pass. See Known P2 in the
-phase report.
+**Investor meeting** also has a passing real-browser suite
+(`apps/desktop/e2e/investor-presentation.spec.ts`): no bespoke fixture was
+needed since `createInvestorStakeOffer` — the same real command the
+"Simulation investor bids" button calls — deterministically generates
+exactly three real `OFFER`-status bids for a given club/seller/percentage,
+with no AI personal-terms negotiation involved. It proves the BOARDROOM
+canvas mounts with real investor/valuation/stake/bid state, camera presets
+move it, and the canonical Reject action updates real persisted state
+(verified against the decided-bid row, not a transient toast).
+
+**Press** (Manager/Owner/President) also has passing real-browser coverage:
+Owner and President via two assertions added to the existing
+`apps/desktop/e2e/press-keyboard-activation.spec.ts` (its own real
+Tab/Enter keyboard flow, already axe-checked, now also asserts a real
+non-zero canvas mounts for each and that the two panels' canvases render
+visibly different frames); Manager via a new test in
+`decision-presentation.spec.ts` that clicks the Media screen's real
+"Transfer interview" button (which calls the production
+`requestStructuredPressConference` command directly — no fixture needed
+beyond an already-seeded active transfer offer as context).
+
+**Not yet real-browser verified this pass**: the visual-difference matrix
+beyond negotiation-vs-signing (basic-vs-elite tier, negotiation-vs-
+boardroom, boardroom-vs-press), transfer save/reload, the quality
+(LOW/MEDIUM/HIGH/REDUCED) and WebGL-fallback matrix beyond the existing 3D
+OFF checks, the full accessibility matrix beyond boardroom/Owner-press/
+President-press, the 1280/1440/1600 responsive matrix, and performance
+measurement. See Known P2 in the phase report.
 
 ## Non-negotiables for every scene
 
