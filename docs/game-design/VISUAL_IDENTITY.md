@@ -379,6 +379,35 @@ verification above was manual via the Browser pane only, same as every
 prior phase's checks. A future pass should add one so this can't silently
 regress again.
 
+## Phase 1H — automated the nav regression
+
+`apps/desktop/e2e/nav-responsive.spec.ts` now covers the Phase 1G fix.
+Building it surfaced that the bug was purely *visual* clipping, not DOM
+invisibility: the affected button kept a real, non-zero bounding box, so
+a plain Playwright `toBeVisible()` assertion (checked first) passed even
+with the 3-column override deliberately reintroduced. The test only
+actually catches the regression once it asserts the button's bounding
+box falls entirely inside the sidebar element's own box
+(`assertWithinSidebar`) — confirmed by temporarily reverting the CSS fix
+and watching this test fail (`right edge (376.3) within sidebar right
+edge (248)`), then restoring the fix and confirming it passes again.
+
+Covers Chairman/Owner nav (`Club Identity`, `Bank`) at 721 / 900 / 1024 /
+1080 / 1280 / 1440 / 1600px, plus a Manager-role smoke check (`Media`) at
+721 / 900 / 1080px to confirm the same CSS change didn't regress that
+role's nav. Runs against its own isolated dev-server instance
+(`NEPAL_NAV_E2E_BASE_URL` env var, set only for this file), with
+`NEPAL_E2E_ROLE_FIXTURE=1` and a disposable save directory, rather than
+depending on the shared ambient dev server other specs' `reuseExistingServer`
+config may already be pointed at (which is not guaranteed to have that
+fixture flag set).
+
+**Not attempted this pass:** everything else this task's four-item order
+asked for — Create-a-Club Home/Away/Third kit customization, kit-history
+activation/UI, and non-player (manager/staff/owner/president) portrait
+wiring are all still open, exactly as listed in "What did NOT ship"
+above.
+
 ## Recommended next phase
 
 1. Wire `PersonPortrait` into manager/staff/owner/president profile headers
