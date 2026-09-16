@@ -22,6 +22,16 @@ import { RoleLandingScreen, EXECUTIVE_ROLES } from "./RoleLandingScreen.js";
 import type { ChairmanScreen, PresidentScreen } from "./RoleDetailScreen.js";
 import { OrganizationProfilePanel } from "./RoleDetailScreen.js";
 import { PresentationSettingsPanel } from "../presentation/PresentationSettingsPanel.js";
+import { PersonPortrait } from "../presentation/PersonPortrait.js";
+import { buildPersonVisualIdentity, type PersonRole } from "../presentation/personVisualIdentity.js";
+
+/** The portrait's `role` must derive from the same real career person
+ * regardless of which office they currently hold — a Manager who becomes
+ * temporary Federation President (or an Owner who does) keeps the same
+ * face, because `buildPersonVisualIdentity` seeds only on `personId`, never
+ * on role. Only the attire this maps to changes. */
+const portraitRoleFor = (role: CareerRole): PersonRole =>
+  role === "CHAIRMAN_OWNER" ? "OWNER" : role === "FEDERATION_PRESIDENT" ? "PRESIDENT" : role === "MANAGER" ? "MANAGER" : "EXECUTIVE";
 
 const careerRoleLabel = (role: CareerRole): string =>
   role === "CHAIRMAN_OWNER"
@@ -339,9 +349,21 @@ export const ManagerCareer = ({
         )}
         <header className="topbar">
           <div className="identity">
-            <strong>{header.characterName}</strong>
-            <span>{header.activeRole === "FEDERATION_PRESIDENT" ? "Federation office" : header.teamName ?? "Unemployed"}</span>
-            <span className="topbar-role">{roleLabel} · {header.activeRole === "FEDERATION_PRESIDENT" ? "All Nepal Football Association" : header.clubName ?? "Nepal Football"}</span>
+            {header.personId && (
+              // `name` is omitted: the visible <strong>{characterName}</strong>
+              // right beside it already names the person, so repeating it in
+              // the portrait's own alt text would be redundant announcement.
+              <PersonPortrait
+                identity={buildPersonVisualIdentity(header.personId, header.personAge)}
+                role={portraitRoleFor(header.activeRole)}
+                size="small"
+              />
+            )}
+            <div>
+              <strong>{header.characterName}</strong>
+              <span>{header.activeRole === "FEDERATION_PRESIDENT" ? "Federation office" : header.teamName ?? "Unemployed"}</span>
+              <span className="topbar-role">{roleLabel} · {header.activeRole === "FEDERATION_PRESIDENT" ? "All Nepal Football Association" : header.clubName ?? "Nepal Football"}</span>
+            </div>
           </div>
           <label className="role-picker">
             Role

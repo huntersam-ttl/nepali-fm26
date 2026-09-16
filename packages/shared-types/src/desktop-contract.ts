@@ -977,13 +977,20 @@ export type E2EDecisionPresentationFixtureResult = {
   signingOfferStatus: string;
 };
 
-/** Lightweight identity of the open career. Cheap enough for headers and menus. */
+/** Lightweight identity of the open career. Cheap enough for headers and menus.
+ * `personId`/`personAge` identify the actual human career person — the same
+ * one whether they're currently acting as Manager, Chairman/Owner, or
+ * temporary Federation President, so a portrait built from `personId` (never
+ * from `activeRole`) stays the same face across a role switch. Absent only
+ * for the rare corrupt-save case where no player character record exists. */
 export type CareerHeader = {
   saveId: EntityId;
   saveName: string;
   worldDate: string;
   characterName: string;
   activeRole: CareerRole;
+  personId?: EntityId;
+  personAge?: number;
   clubName?: string;
   teamName?: string;
   competitionName?: string;

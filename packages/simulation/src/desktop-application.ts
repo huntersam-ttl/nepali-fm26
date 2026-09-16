@@ -5792,6 +5792,8 @@ const unemployedCareerHeader = (db: GameDatabase, save: SaveMetadata): CareerHea
     worldDate: save.worldDate,
     characterName: person ? displayName(person) : "Manager",
     activeRole: person ? activeCareerRole(db, person.id) : "MANAGER",
+    personId: person?.id,
+    personAge: person?.dateOfBirth ? ageOn(person.dateOfBirth, save.worldDate) : undefined,
     clubName: ownedClub?.name,
     teamName: ownedClub?.team_name,
     competitionName: ownedClub?.competition_name,
@@ -5836,6 +5838,10 @@ const careerHeaderFromContext = (
   worldDate: save.worldDate,
   characterName: displayName(context.managerPerson),
   activeRole: activeCareerRole(db, context.managerPerson.id),
+  personId: context.managerPerson.id,
+  personAge: context.managerPerson.dateOfBirth
+    ? ageOn(context.managerPerson.dateOfBirth, save.worldDate)
+    : undefined,
   clubName: context.club?.name,
   teamName: context.team.name,
   competitionName: context.season.name,

@@ -237,7 +237,16 @@ nav button.active {
   box-shadow: 0 2px 8px rgba(24, 43, 37, 0.05);
 }
 
-.identity,
+.identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 150px;
+}
+.identity > div {
+  display: grid;
+  gap: 2px;
+}
 .date-block {
   display: grid;
   gap: 2px;
