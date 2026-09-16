@@ -66,4 +66,28 @@ describe("PersonPortrait", () => {
     );
     expect(owner.container.querySelector('path[fill="#ffcc00"]')).toBeNull();
   });
+
+  it("exposes a stable, role-independent face signature that automated tests can compare instead of diffing screenshots", () => {
+    const personA = buildPersonVisualIdentity("face-signature-person-a");
+    const personB = buildPersonVisualIdentity("face-signature-person-b");
+
+    const asManager = render(<PersonPortrait identity={personA} role="MANAGER" size="small" />);
+    const managerSignature = asManager.container.querySelector("svg")!.getAttribute("data-face-signature");
+    asManager.unmount();
+
+    // Same person, different role/attire -> same signature (identity is
+    // seeded from personId alone, never role).
+    const asOwner = render(<PersonPortrait identity={personA} role="OWNER" size="large" />);
+    expect(asOwner.container.querySelector("svg")!.getAttribute("data-face-signature")).toBe(managerSignature);
+    asOwner.unmount();
+
+    // A different person -> a different signature.
+    const otherPerson = render(<PersonPortrait identity={personB} role="MANAGER" size="small" />);
+    expect(otherPerson.container.querySelector("svg")!.getAttribute("data-face-signature")).not.toBe(
+      managerSignature,
+    );
+
+    // Never the raw person id itself.
+    expect(managerSignature).not.toBe("face-signature-person-a");
+  });
 });

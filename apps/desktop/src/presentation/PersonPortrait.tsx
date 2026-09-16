@@ -94,6 +94,14 @@ export const PersonPortrait = ({
       width={px}
       height={px}
       {...accessibleProps}
+      // A stable, harmless identity signature for automated tests to
+      // compare faces across renders (e.g. "the same person still looks
+      // the same after switching role") without diffing raw pixels or a
+      // full screenshot, which would also catch legitimate attire
+      // differences. `identity.seed` is a hash of personId, not the
+      // person id itself, so this never leaks a real database id into
+      // the DOM.
+      data-face-signature={identity.seed}
       className={className ? `person-portrait ${className}` : "person-portrait"}
     >
       <circle cx="32" cy="32" r="31" className="person-portrait-ring" />
