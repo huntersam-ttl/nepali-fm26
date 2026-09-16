@@ -408,6 +408,58 @@ activation/UI, and non-player (manager/staff/owner/president) portrait
 wiring are all still open, exactly as listed in "What did NOT ship"
 above.
 
+## Phase 1I — Create-a-Club kits
+
+The real Owner/Founder wizard (`apps/desktop/src/main.tsx`) now includes
+Home/Away/Third kit editing, reusing the existing `ClubKitEditor` — no
+second kit-editing UI was built. `founderHomeKit`/`founderAwayKit`/
+`founderThirdKit` start `null` (not yet edited); while `null`, a slot is
+derived live from the deterministic fallback identity using the wizard's
+current colours (`buildClubVisualIdentity`, seeded from the club name
+since no real club id exists until after creation), so changing colours
+before touching a kit correctly refreshes its default. The moment a slot
+is edited in `ClubKitEditor`, its fields are captured in that slot's own
+state and stop re-deriving — a later colour change can no longer discard
+a kit the player already designed.
+
+**Live-verified:** edited Away's pattern (Halves→Sash) and base colour
+(magenta), then changed the club's primary colour — Home re-derived to
+the new colour exactly, Away kept the manual edit exactly. The review
+step (step 4) shows all three `ClubKit` SVG previews plus
+`kitDescription()`'s colour-independent text ("Home kit — a centre
+stripe, shirt with shorts and socks in the club's real colours."). After
+creating the club, `Club Identity` showed exactly the reviewed
+badge/colours/kits — teal Home, magenta Away, green Third — immediately,
+and again after a full save/reload cycle. Zero console errors throughout.
+
+**Failure handling:** `createCareer` and `setClubVisualIdentity` remain
+two non-atomic writes (unchanged limitation from Phase 1E). A failed
+identity write no longer only `console.error`s: the created career is
+held (`pendingCareer`/`pendingClubId` state) and a visible banner offers
+"Retry saving identity" or "Continue without saving branding" instead of
+silently dropping the player into an un-branded career with no visible
+error. **Not live-verified** — forcing the identity write to fail
+deterministically wasn't attempted this pass; the code mirrors the
+already-verified success path and typechecks cleanly, but this specific
+branch has only been read-reviewed, not exercised.
+
+**A pre-existing, unrelated bug found while verifying this:**
+`apps/desktop/e2e/support/owner-harness.ts`'s `openOwnerRoute()` asserts
+a heading "Ownership and investors" for the Investors route, but the
+real screen renders heading "Investors" (the heading text drifted from
+the assertion at some point, unrelated to this phase). Confirmed
+reproducing at the pre-Phase-1I baseline (`e223d32`), so not something
+this phase introduced. Left unfixed (out of scope) and flagged as a
+separate task rather than patched inline, per "preserve unrelated peer
+work." One genuinely related flake *was* fixed: `createFounderOwner`'s
+Dashboard wait used the default 15s timeout, which world generation
+plus the (now slightly heavier) identity write could exceed — extended
+to 120s to match its sibling wait in `createExistingClubOwner`.
+
+**Not attempted this pass:** kit-distinctness warnings (Create-a-Club or
+Owner Club Identity), kit-history activation/UI, and non-player portrait
+wiring — all still open.
+
 ## Recommended next phase
 
 1. Wire `PersonPortrait` into manager/staff/owner/president profile headers
