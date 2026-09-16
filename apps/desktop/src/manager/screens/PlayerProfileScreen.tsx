@@ -70,10 +70,24 @@ const PlayerCard = ({
   const ringCircumference = 2 * Math.PI * 42;
   const ringProgress = Math.max(0, Math.min(1, player.ability / 20));
   const identity = buildPersonVisualIdentity(player.personId, player.age.value);
+  const clubId = player.club?.id;
+  const [clubIdentityState] = useRuntimeData(
+    () =>
+      clubId && managerBridge.getClubVisualIdentity
+        ? managerBridge.getClubVisualIdentity(clubId)
+        : Promise.resolve({ ok: false as const, error: { code: "INVALID_SELECTION" as const, message: "No club" } }),
+    [clubId],
+  );
+  // Only ever the player's own real, resolved club colour (custom or the
+  // same deterministic fallback the club's own profile shows) — never a
+  // fabricated shirt colour. An unemployed player or a club the identity
+  // command can't resolve just falls back to PersonPortrait's own neutral
+  // default (no clubPrimaryColour passed).
+  const clubPrimaryColour = clubIdentityState.status === "ready" ? clubIdentityState.data.primaryColour : undefined;
   return (
     <div className="player-card">
       <div className="player-card-avatar">
-        <PersonPortrait identity={identity} role="PLAYER" size="large" />
+        <PersonPortrait identity={identity} role="PLAYER" size="large" clubPrimaryColour={clubPrimaryColour} />
         <svg viewBox="0 0 120 120" className="player-card-ring" role="img" aria-label={`Overall rating ${player.ability.toFixed(1)}`}>
           <circle cx="60" cy="60" r="42" className="player-card-ring-track" />
           <circle

@@ -3,6 +3,7 @@ import type {
   AppResult,
   CalendarEntry,
   ClubProfile,
+  ClubVisualIdentityView,
   CompetitionProfile,
   ConcernResponseAction,
   EntityReference,
@@ -121,6 +122,8 @@ export const managerBridge = {
   getOrganizationProfile: (entityType: OrganizationProfileEntityType, entityId: EntityId) =>
     runtimeCall<OrganizationProfile>("getOrganizationProfile", { entityType, entityId }),
   getClubProfile: (clubId: EntityId) => runtimeCall<ClubProfile>("getClubProfile", { clubId }),
+  getClubVisualIdentity: (clubId: EntityId) =>
+    runtimeCall<ClubVisualIdentityView>("getClubVisualIdentity", { clubId }),
   getStaffProfile: (personId: EntityId) =>
     runtimeCall<StaffProfileReadModel>("getStaffProfile", { personId }),
   getCompetitionProfile: (competitionId: EntityId) =>
