@@ -16,6 +16,9 @@ import {
 import { ManagerCareer } from "./manager/ManagerCareer.js";
 import { PresentationSettingsPanel } from "./presentation/PresentationSettingsPanel.js";
 import { presentationCapabilityLabel } from "./presentation/scenePreferences.js";
+import { ClubBadge } from "./presentation/ClubBadge.js";
+import type { ClubBadgeDesign } from "./presentation/clubVisualIdentity.js";
+import type { ClubBadgeShape, ClubBadgeSymbol } from "@nepal-football-sim/shared-types";
 import "./styles.css";
 
 type Entry = "start" | "new" | "load" | "career";
@@ -216,6 +219,12 @@ const NewCareer = (props: {
   const [founderLocationId, setFounderLocationId] = useState("");
   const [founderClubName, setFounderClubName] = useState("Nepal Community FC");
   const [founderGroundName, setFounderGroundName] = useState("");
+  const [founderPrimaryColour, setFounderPrimaryColour] = useState("#2b3a67");
+  const [founderSecondaryColour, setFounderSecondaryColour] = useState("#e7ebef");
+  const [founderAccentColour, setFounderAccentColour] = useState("#8fd14f");
+  const [founderBadgeShape, setFounderBadgeShape] = useState<ClubBadgeShape>("SHIELD");
+  const [founderBadgeSymbol, setFounderBadgeSymbol] = useState<ClubBadgeSymbol>("FOOTBALL");
+  const [founderBadgeInitials, setFounderBadgeInitials] = useState("");
   const [teamId, setTeamId] = useState<EntityId | "">("");
   const [step, setStep] = useState(1);
   const [division, setDivision] = useState("All");
@@ -238,6 +247,22 @@ const NewCareer = (props: {
 
   const selectedClub = clubs.find((club) => club.teamId === teamId);
   const selectedFounderLocation = founderLocations.find((location) => location.id === founderLocationId);
+  const derivedInitials =
+    founderClubName
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 3)
+      .map((part) => part[0]?.toUpperCase() ?? "")
+      .join("") || "FC";
+  const founderBadgePreview: ClubBadgeDesign = {
+    shape: founderBadgeShape,
+    symbol: founderBadgeSymbol,
+    primaryColour: founderPrimaryColour,
+    secondaryColour: founderSecondaryColour,
+    accentColour: founderAccentColour,
+    initials: (founderBadgeInitials || derivedInitials).toUpperCase().slice(0, 4),
+    provenanceStatus: "SIMULATION_ONLY",
+  };
   const visibleClubs = clubs.filter((club) => division === "All" || club.division === division);
 
   return (
@@ -325,6 +350,82 @@ const NewCareer = (props: {
             <label>Province / district<select value={founderLocationId} onChange={(event) => setFounderLocationId(event.target.value)}><option value="">Choose district</option>{founderLocations.map((location) => <option key={location.id} value={location.id}>{location.province} · {location.district}</option>)}</select></label>
             <label>Starter ground name<input placeholder={`${founderClubName || "Club"} Ground`} value={founderGroundName} onChange={(event) => setFounderGroundName(event.target.value)} /></label>
             <p className="subtle">The starter ground is a modest simulation-only local ground. Manager: vacant until you appoint one.</p>
+            <div className="club-identity-editor">
+              <div className="club-identity-controls">
+                <p className="subtle">
+                  Club identity (SIMULATION_ONLY) — this project holds no licensed real club branding.
+                </p>
+                <label>
+                  Primary colour
+                  <input
+                    type="color"
+                    aria-label="Primary colour"
+                    value={founderPrimaryColour}
+                    onChange={(event) => setFounderPrimaryColour(event.target.value)}
+                  />
+                </label>
+                <label>
+                  Secondary colour
+                  <input
+                    type="color"
+                    aria-label="Secondary colour"
+                    value={founderSecondaryColour}
+                    onChange={(event) => setFounderSecondaryColour(event.target.value)}
+                  />
+                </label>
+                <label>
+                  Accent colour
+                  <input
+                    type="color"
+                    aria-label="Accent colour"
+                    value={founderAccentColour}
+                    onChange={(event) => setFounderAccentColour(event.target.value)}
+                  />
+                </label>
+                <label>
+                  Badge shape
+                  <select
+                    aria-label="Badge shape"
+                    value={founderBadgeShape}
+                    onChange={(event) => setFounderBadgeShape(event.target.value as ClubBadgeShape)}
+                  >
+                    {(["SHIELD", "ROUND", "DIAMOND", "OVAL", "MODERN", "CREST"] as const).map((option) => (
+                      <option key={option} value={option}>
+                        {option.charAt(0) + option.slice(1).toLowerCase()}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Badge symbol
+                  <select
+                    aria-label="Badge symbol"
+                    value={founderBadgeSymbol}
+                    onChange={(event) => setFounderBadgeSymbol(event.target.value as ClubBadgeSymbol)}
+                  >
+                    {(["FOOTBALL", "MOUNTAIN", "STAR", "STRIPES", "MONOGRAM", "GEOMETRIC"] as const).map((option) => (
+                      <option key={option} value={option}>
+                        {option.charAt(0) + option.slice(1).toLowerCase()}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Initials
+                  <input
+                    type="text"
+                    aria-label="Badge initials"
+                    placeholder={derivedInitials}
+                    maxLength={4}
+                    value={founderBadgeInitials}
+                    onChange={(event) => setFounderBadgeInitials(event.target.value.toUpperCase())}
+                  />
+                </label>
+              </div>
+              <div className="club-identity-preview">
+                <ClubBadge design={founderBadgePreview} size="large" clubName={founderClubName || "Your club"} />
+              </div>
+            </div>
           </div>
           ) : (
           <div>
@@ -338,10 +439,23 @@ const NewCareer = (props: {
           )
         )}
         {step === 4 && (
-          careerMode === "OWNER" ? <p>Found <strong>{founderClubName}</strong> in {selectedFounderLocation?.province} · {selectedFounderLocation?.district}, entering C Division with 100% Founder ownership and a modest local ground.</p> : <p>
-            Join {selectedClub?.clubName ?? "your club"} as manager in the{" "}
-            {selectedClub?.competitionName ?? "Nepal league"} and create a SQLite career save.
-          </p>
+          careerMode === "OWNER" ? (
+            <div className="club-identity-editor">
+              <p>
+                Found <strong>{founderClubName}</strong> in {selectedFounderLocation?.province} ·{" "}
+                {selectedFounderLocation?.district}, entering C Division with 100% Founder ownership and a modest
+                local ground.
+              </p>
+              <div className="club-identity-preview">
+                <ClubBadge design={founderBadgePreview} size="large" clubName={founderClubName} />
+              </div>
+            </div>
+          ) : (
+            <p>
+              Join {selectedClub?.clubName ?? "your club"} as manager in the{" "}
+              {selectedClub?.competitionName ?? "Nepal league"} and create a SQLite career save.
+            </p>
+          )
         )}
         <div className="button-row">
           <button
@@ -379,6 +493,30 @@ const NewCareer = (props: {
                   startingReputationProfile: "LOCAL_RESPECTED",
                 },
               });
+              // The chosen identity is applied as a real, immediate follow-up
+              // write against the club that now really exists — createCareer
+              // itself has no identity fields, so this cannot be one atomic
+              // transaction. A failure here does not undo the (successful)
+              // career creation; it is logged rather than silently treated
+              // as full success, and the club still shows its real
+              // deterministic default identity until the player retries via
+              // the Club Identity screen.
+              if (result.ok && careerMode === "OWNER" && bridge.getChairmanDashboard && bridge.setClubVisualIdentity) {
+                const dashboard = await bridge.getChairmanDashboard();
+                if (dashboard.ok) {
+                  const identitySaved = await bridge.setClubVisualIdentity(dashboard.data.club.id, {
+                    primaryColour: founderPrimaryColour,
+                    secondaryColour: founderSecondaryColour,
+                    accentColour: founderAccentColour,
+                    badgeShape: founderBadgeShape,
+                    badgeSymbol: founderBadgeSymbol,
+                    badgeInitials: founderBadgePreview.initials,
+                  });
+                  if (!identitySaved.ok) {
+                    console.error("Founder club identity failed to save:", identitySaved.error);
+                  }
+                }
+              }
               setBusy(false);
               if (result.ok) props.onCreated(result.data);
               else props.onError(result.error);
