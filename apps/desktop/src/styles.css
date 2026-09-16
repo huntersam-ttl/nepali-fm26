@@ -676,9 +676,16 @@ dd {
     border-bottom: 1px solid #ccd5cf;
   }
 
-  nav {
-    grid-template-columns: repeat(3, 1fr);
-  }
+  /* A later, unconditional .manager-shell rule (below) always forces the
+   * 248px-sidebar two-column shell regardless of viewport width, so the
+   * sidebar never actually gets the full width this stacked-shell rule
+   * above assumes. A 3-column nav grid inside that still-narrow 248px
+   * sidebar pushed whole nav groups (including "Club") outside the
+   * visible sidebar and made them unreachable. Nav's un-media-queried
+   * base rule (`nav { display: grid; gap: 6px; }`) already lays groups
+   * out in a single implicit column, i.e. vertically stacked — which is
+   * exactly what a narrow, fixed-width sidebar needs, so there is
+   * nothing to override here. */
 
   .topbar-actions {
     flex-wrap: wrap;
