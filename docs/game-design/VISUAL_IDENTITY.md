@@ -190,22 +190,54 @@ and passes its real `primaryColour` into `PersonPortrait`'s existing
 unemployed player, or any resolution failure, still falls back to the
 neutral default rather than fabricating a colour.
 
+## Phase 1E: Create-a-Club identity, corrected premise
+
+**A correction to every prior phase's documentation**: earlier passes
+reported "no `.tsx` create-club flow exists — only a minimal
+`foundClub(name, locationName)` backend command." That was wrong. A real,
+player-facing Owner/Founder career-creation wizard already existed in
+`apps/desktop/src/main.tsx` (the "New Career" flow's OWNER branch, driving
+`bridge.createCareer({careerMode: "OWNER", founder: {...}, ...})` — the
+same richer flow `packages/testing/src/founder-career.test.ts` exercises,
+not the bare `foundClub` command). It just had never been extended with
+visual identity. A more thorough re-audit this pass found it.
+
+Step 3 of that wizard (Founder setup) now includes colour pickers, badge
+shape/symbol selects, and an initials field, with a live `ClubBadge`
+preview built from a temporary local design object (there is no club id
+yet at this point in the wizard — the preview is real, but not yet the
+persisted generator's output). The same preview repeats on the step 4
+review screen. On submit, `createCareer` runs first, unchanged; only once
+it succeeds and the new club id is known (`getChairmanDashboard`) is the
+chosen identity persisted through the same canonical `setClubVisualIdentity`
+command the Owner's Club Identity screen already uses. `createCareer` has
+no identity fields of its own, so this cannot be one atomic transaction —
+a failure here is logged rather than silently presented as full success,
+though the club founding itself is never rolled back (by the time
+identity-save runs, the club is already real).
+
+Verified live end-to-end: founded "Nepal Community FC" with a custom
+shield badge, star symbol, and navy primary colour chosen mid-wizard; the
+Club Identity screen and kit strip immediately afterward showed exactly
+those saved values (not the deterministic default). Zero console errors.
+
 **Kit pattern/collar/sleeve are still deterministic-only** — independent
-Home/Away/Third design editing does not exist; only colours and badge
-design are player-editable. `club_kit_history` exists as a table +
-repository methods but nothing calls them yet: there is no season-start
-snapshot trigger and no history UI. There is still no Create-a-Club
-identity flow, and no portrait wiring beyond the player.
+Home/Away/Third design editing does not exist in either the creation
+wizard or the post-creation editor; only colours and badge design are
+player-editable. `club_kit_history` exists as a table + repository methods
+but nothing calls them yet: there is no season-start snapshot trigger and
+no history UI. Portrait wiring beyond the player remains unbuilt.
 
 ## What did NOT ship
 
 Following this task's own explicit fallback instruction — "if merchandise
 becomes too large for one safe pass, ship portraits + badge + kit creator
-first and report merchandise as the next phase" — these four passes
+first and report merchandise as the next phase" — these five passes
 shipped a deterministic default identity for people and clubs, a real
-persisted colour+badge editing layer for clubs, and player-portrait club
-colours — but not independent kit design editing, Create-a-Club
-integration, kit history, the rest of the portrait wiring, or merchandise.
+persisted colour+badge editing layer (both in the post-creation editor
+and now the creation wizard itself), and player-portrait club colours —
+but not independent kit design editing, kit history, the rest of the
+portrait wiring, or merchandise.
 
 Not attempted, honestly listed rather than half-built:
 
@@ -215,10 +247,8 @@ Not attempted, honestly listed rather than half-built:
   concerns, inbox, press subject).
 - **Independent Home/Away/Third kit design editing** (pattern, collar,
   sleeve, shorts/socks colour) — kits stay deterministically derived from
-  the club's colours; badge shape/symbol/colours are editable, kits are not.
-- **Create-a-Club visual-identity integration** — no `.tsx` create-club
-  flow exists to attach a creator to yet (only a minimal
-  `foundClub(name, locationName)` backend command).
+  the club's colours; badge shape/symbol/colours are editable (including
+  at club-creation time now), kits are not.
 - **Kit history activation** — the table and repository methods exist;
   nothing snapshots a season or shows history yet.
 - **App-wide badge use** beyond the Club Profile header and the new
@@ -243,10 +273,11 @@ Quick Sim / Key Events / Text Live, per the permanent rule.
 
 1. Wire `PersonPortrait` into manager/staff/owner/president profile headers
    and the squad/staff list rows (cheap, same renderer, no new model work).
-2. Design `ClubVisualIdentity` (colours) reusing/exporting the existing
-   `clubScenePresentation.ts` hash pattern rather than a third
-   reimplementation, then a badge model + SVG renderer.
-3. Only after a real Create-a-Club UI exists (none does today), build the
-   badge/kit creator into it.
+2. Extend `ClubKitDesign` persistence to independent pattern/collar/sleeve
+   editing (currently colours + badge only), and build one shared
+   `ClubKitEditor` with Home/Away/Third tabs, reusing `ClubKit` for preview.
+3. Activate `club_kit_history`: snapshot on season rollover (or first
+   identity resolution of a new season, whichever proves architecturally
+   safer), and add a compact history section to Club Profile.
 4. Merchandise/retail last, once club colours and kits exist to hang
    demand and shirt-sales tracking off of.
