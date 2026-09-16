@@ -96,7 +96,13 @@ import { campusBlockDescriptors, projectProgressPercent, projectStatusLabel } fr
 import { ClubEnvironmentScene } from "../presentation/ClubEnvironmentScene.js";
 import { ClubBadge } from "../presentation/ClubBadge.js";
 import { ClubKit } from "../presentation/ClubKit.js";
-import { buildClubBadgeDesign, buildClubVisualIdentity } from "../presentation/clubVisualIdentity.js";
+import {
+  buildClubBadgeDesign,
+  buildClubVisualIdentity,
+  resolveClubVisualIdentity,
+} from "../presentation/clubVisualIdentity.js";
+import type { ClubKitDesignFields, KitSlot } from "../presentation/clubVisualIdentity.js";
+import { ClubKitEditor } from "../presentation/ClubKitEditor.js";
 import type { ClubBadgeShape, ClubBadgeSymbol } from "@nepal-football-sim/shared-types";
 import { useNewlyArrived } from "../presentation/MotionPrimitives.js";
 import { humanizeEnum, humanizeToken } from "./storyHumanizer.js";
@@ -512,6 +518,7 @@ const ClubIdentityEditor = ({
   const [shape, setShape] = useState<ClubBadgeShape | null>(null);
   const [symbol, setSymbol] = useState<ClubBadgeSymbol | null>(null);
   const [initials, setInitials] = useState<string | null>(null);
+  const [kitEdits, setKitEdits] = useState<Partial<Record<KitSlot, ClubKitDesignFields>>>({});
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -525,11 +532,18 @@ const ClubIdentityEditor = ({
         const badgeShape = shape ?? identity.badgeShape ?? deterministicBadge.shape;
         const badgeSymbol = symbol ?? identity.badgeSymbol ?? deterministicBadge.symbol;
         const badgeInitials = initials ?? identity.badgeInitials ?? deterministicBadge.initials;
+        const resolved = resolveClubVisualIdentity(identity, clubId, clubName);
+        const kits: Record<KitSlot, ClubKitDesignFields> = {
+          HOME: kitEdits.HOME ?? resolved.home,
+          AWAY: kitEdits.AWAY ?? resolved.away,
+          THIRD: kitEdits.THIRD ?? resolved.third,
+        };
         const preview = buildClubVisualIdentity(
           clubId,
           clubName,
           { primaryColour, secondaryColour, accentColour },
           { shape: badgeShape, symbol: badgeSymbol, initials: badgeInitials },
+          { home: kits.HOME, away: kits.AWAY, third: kits.THIRD },
         );
         const save = async (): Promise<void> => {
           if (!bridge.setClubVisualIdentity) return;
@@ -542,10 +556,19 @@ const ClubIdentityEditor = ({
             badgeShape,
             badgeSymbol,
             badgeInitials,
+            // Only slots the player actually touched this session are
+            // sent — an untouched slot's previously-saved (or
+            // deterministic) design is left alone by the backend, never
+            // silently overwritten with the current preview's derived
+            // value.
+            homeKit: kitEdits.HOME,
+            awayKit: kitEdits.AWAY,
+            thirdKit: kitEdits.THIRD,
           });
           setBusy(false);
           if (result.ok) {
             setMessage("Club identity saved.");
+            setKitEdits({});
             refresh();
           } else {
             setMessage(result.error.message);
@@ -558,6 +581,7 @@ const ClubIdentityEditor = ({
           setShape(null);
           setSymbol(null);
           setInitials(null);
+          setKitEdits({});
         };
         return (
           <Panel title="Club identity" className="panel-wide">
@@ -665,9 +689,13 @@ const ClubIdentityEditor = ({
                 </div>
               </div>
             </div>
+            <h3>Kits</h3>
+            <ClubKitEditor
+              kits={kits}
+              onChange={(slot, fields) => setKitEdits((current) => ({ ...current, [slot]: fields }))}
+            />
             <p className="subtle club-identity-provenance">
-              Generated visual identity (SIMULATION_ONLY) — this project holds no licensed real club branding. Kit
-              patterns are not yet independently editable.
+              Generated visual identity (SIMULATION_ONLY) — this project holds no licensed real club branding.
             </p>
           </Panel>
         );
@@ -7368,30 +7396,10 @@ const ClubProfileBody = ({
         : Promise.resolve({ ok: false as const, error: { code: "INVALID_SELECTION" as const, message: "Unavailable" } }),
     [profile.entityReference.id],
   );
-  const colourOverride =
-    visualIdentityState.status === "ready" && visualIdentityState.data.isCustom
-      ? {
-          primaryColour: visualIdentityState.data.primaryColour,
-          secondaryColour: visualIdentityState.data.secondaryColour,
-          accentColour: visualIdentityState.data.accentColour,
-        }
-      : undefined;
-  const badgeOverride =
-    visualIdentityState.status === "ready" &&
-    visualIdentityState.data.badgeShape &&
-    visualIdentityState.data.badgeSymbol &&
-    visualIdentityState.data.badgeInitials
-      ? {
-          shape: visualIdentityState.data.badgeShape,
-          symbol: visualIdentityState.data.badgeSymbol,
-          initials: visualIdentityState.data.badgeInitials,
-        }
-      : undefined;
-  const identity = buildClubVisualIdentity(
+  const identity = resolveClubVisualIdentity(
+    visualIdentityState.status === "ready" ? visualIdentityState.data : undefined,
     profile.entityReference.id,
     profile.entityReference.label,
-    colourOverride,
-    badgeOverride,
   );
   return (
   <>

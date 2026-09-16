@@ -71,3 +71,15 @@ export const isValidHexColour = (value: string): boolean => HEX_COLOUR.test(valu
  * validate a save, not the renderer itself. */
 export const BADGE_SHAPES = ["SHIELD", "ROUND", "DIAMOND", "OVAL", "MODERN", "CREST"] as const;
 export const BADGE_SYMBOLS = ["FOOTBALL", "MOUNTAIN", "STAR", "STRIPES", "MONOGRAM", "GEOMETRIC"] as const;
+
+/** Mirrors apps/desktop/src/presentation/clubVisualIdentity.ts's KitPattern
+ * value set — only patterns the SVG kit renderer actually differentiates
+ * visually. */
+export const KIT_PATTERNS = [
+  "PLAIN",
+  "VERTICAL_STRIPES",
+  "HORIZONTAL_HOOPS",
+  "SASH",
+  "CENTRE_STRIPE",
+  "HALVES",
+] as const;

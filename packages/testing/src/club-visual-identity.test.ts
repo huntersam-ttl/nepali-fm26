@@ -287,4 +287,144 @@ describe("club visual identity — deterministic fallback and real persisted ove
     service.closeCareer();
     rmSync(savesDirectory, { recursive: true, force: true });
   });
+
+  it("persists each kit slot independently — saving Home never touches Away/Third, across a real reload", () => {
+    const savesDirectory = mkdtempSync(join(tmpdir(), "club-identity-kits-"));
+    const service = new DesktopApplicationService({ savesDirectory, worldDatasetPath: WORLD_DATASET });
+    const locations = service.listFounderLocations();
+    expect(locations.ok).toBe(true);
+    if (!locations.ok) return;
+    const location = locations.data[0]!;
+    const created = service.createCareer({
+      saveName: "Identity Kits",
+      careerMode: "OWNER",
+      founder: {
+        clubName: "Kits FC",
+        locationId: location.id,
+        locationName: location.district,
+        groundName: "Kits Ground",
+        philosophy: "COMMUNITY",
+      },
+      character,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const dashboard = service.getChairmanDashboard();
+    expect(dashboard.ok).toBe(true);
+    if (!dashboard.ok) return;
+    const clubId = dashboard.data.club.id;
+
+    const homeKit = {
+      baseColour: "#111111",
+      secondaryColour: "#222222",
+      trimColour: "#333333",
+      pattern: "VERTICAL_STRIPES" as const,
+      shortsColour: "#444444",
+      socksColour: "#555555",
+    };
+    const firstSave = service.setClubVisualIdentity(clubId, {
+      primaryColour: "#101010",
+      secondaryColour: "#202020",
+      accentColour: "#303030",
+      badgeShape: "ROUND",
+      badgeSymbol: "MOUNTAIN",
+      badgeInitials: "KFC",
+      homeKit,
+    });
+    expect(firstSave.ok).toBe(true);
+    if (firstSave.ok) {
+      expect(firstSave.data.homeKit).toEqual(homeKit);
+      expect(firstSave.data.awayKit).toBeUndefined();
+      expect(firstSave.data.thirdKit).toBeUndefined();
+    }
+
+    // Now save Away only — Home must remain exactly as saved, Third must
+    // still be undefined (deterministic), never silently reset.
+    const awayKit = {
+      baseColour: "#666666",
+      secondaryColour: "#777777",
+      trimColour: "#888888",
+      pattern: "SASH" as const,
+      shortsColour: "#999999",
+      socksColour: "#aaaaaa",
+    };
+    const secondSave = service.setClubVisualIdentity(clubId, {
+      primaryColour: "#101010",
+      secondaryColour: "#202020",
+      accentColour: "#303030",
+      badgeShape: "ROUND",
+      badgeSymbol: "MOUNTAIN",
+      badgeInitials: "KFC",
+      awayKit,
+    });
+    expect(secondSave.ok).toBe(true);
+    if (secondSave.ok) {
+      expect(secondSave.data.homeKit).toEqual(homeKit);
+      expect(secondSave.data.awayKit).toEqual(awayKit);
+      expect(secondSave.data.thirdKit).toBeUndefined();
+    }
+
+    expect(service.saveCareer().ok).toBe(true);
+    expect(service.loadCareer(created.data.catalogEntry.saveId).ok).toBe(true);
+
+    const resolved = service.getClubVisualIdentity(clubId);
+    expect(resolved.ok).toBe(true);
+    if (resolved.ok) {
+      expect(resolved.data.homeKit).toEqual(homeKit);
+      expect(resolved.data.awayKit).toEqual(awayKit);
+      expect(resolved.data.thirdKit).toBeUndefined();
+    }
+
+    service.closeCareer();
+    rmSync(savesDirectory, { recursive: true, force: true });
+  });
+
+  it("rejects an invalid kit pattern rather than saving it", () => {
+    const savesDirectory = mkdtempSync(join(tmpdir(), "club-identity-invalid-kit-"));
+    const service = new DesktopApplicationService({ savesDirectory, worldDatasetPath: WORLD_DATASET });
+    const locations = service.listFounderLocations();
+    expect(locations.ok).toBe(true);
+    if (!locations.ok) return;
+    const location = locations.data[0]!;
+    const created = service.createCareer({
+      saveName: "Identity Invalid Kit",
+      careerMode: "OWNER",
+      founder: {
+        clubName: "Invalid Kit FC",
+        locationId: location.id,
+        locationName: location.district,
+        groundName: "Invalid Kit Ground",
+        philosophy: "COMMUNITY",
+      },
+      character,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const dashboard = service.getChairmanDashboard();
+    expect(dashboard.ok).toBe(true);
+    if (!dashboard.ok) return;
+
+    const result = service.setClubVisualIdentity(dashboard.data.club.id, {
+      primaryColour: "#101010",
+      secondaryColour: "#202020",
+      accentColour: "#303030",
+      badgeShape: "ROUND",
+      badgeSymbol: "MOUNTAIN",
+      badgeInitials: "IKF",
+      homeKit: {
+        baseColour: "#111111",
+        secondaryColour: "#222222",
+        trimColour: "#333333",
+        // @ts-expect-error deliberately invalid for this test
+        pattern: "TARTAN",
+        shortsColour: "#444444",
+        socksColour: "#555555",
+      },
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("INVALID_SELECTION");
+
+    service.closeCareer();
+    rmSync(savesDirectory, { recursive: true, force: true });
+  });
 });

@@ -190,26 +190,77 @@ const kitDesignFor = (clubId: string, slot: KitSlot, colours: ClubColours, seed:
   };
 };
 
+export type ClubKitDesignFields = Pick<
+  ClubKitDesign,
+  "baseColour" | "secondaryColour" | "trimColour" | "pattern" | "shortsColour" | "socksColour"
+>;
+
 /** The club's full visual identity: colours, badge, and all three kits —
  * one call, always the same result for the same club id/name. Pass
- * `colourOverride` and/or `badgeOverride` (from `getClubVisualIdentity`'s
- * real saved values) to re-derive the identity from what the club actually
- * saved instead of the deterministic default; kit pattern selection stays
- * tied to the club id either way — only colours and badge shape/symbol/
- * initials are currently player-editable. */
+ * `colourOverride`/`badgeOverride`/`kitOverrides` (from
+ * `getClubVisualIdentity`'s real saved values) to re-derive the identity
+ * from what the club actually saved instead of the deterministic default.
+ * Each kit slot is independent: a saved Home kit never implies Away/Third
+ * were also saved, and an omitted slot still derives its own deterministic
+ * default from the club id. */
 export const buildClubVisualIdentity = (
   clubId: string,
   clubName: string,
   colourOverride?: ClubColours,
   badgeOverride?: { shape: BadgeShape; symbol: BadgeSymbol; initials: string },
+  kitOverrides?: { home?: ClubKitDesignFields; away?: ClubKitDesignFields; third?: ClubKitDesignFields },
 ): ClubVisualIdentity => {
   const seed = stableSeed(clubId);
   const colours = colourOverride ?? buildClubColours(clubId);
   return {
     ...colours,
     badge: { ...buildClubBadgeDesign(clubId, clubName), ...colours, ...badgeOverride },
-    home: kitDesignFor(clubId, "HOME", colours, seed),
-    away: kitDesignFor(clubId, "AWAY", colours, seed),
-    third: kitDesignFor(clubId, "THIRD", colours, seed),
+    home: { ...kitDesignFor(clubId, "HOME", colours, seed), ...kitOverrides?.home },
+    away: { ...kitDesignFor(clubId, "AWAY", colours, seed), ...kitOverrides?.away },
+    third: { ...kitDesignFor(clubId, "THIRD", colours, seed), ...kitOverrides?.third },
   };
+};
+
+/** A structural minimum of `getClubVisualIdentity`'s wire response — kept
+ * local (rather than importing the shared-types response type) so this
+ * presentation module has no dependency on the wire contract shape beyond
+ * what it actually reads. */
+type ResolvedIdentityView = {
+  isCustom: boolean;
+  primaryColour: string;
+  secondaryColour: string;
+  accentColour: string;
+  badgeShape?: BadgeShape;
+  badgeSymbol?: BadgeSymbol;
+  badgeInitials?: string;
+  homeKit?: ClubKitDesignFields;
+  awayKit?: ClubKitDesignFields;
+  thirdKit?: ClubKitDesignFields;
+};
+
+/**
+ * The single place every UI surface should call to turn a real
+ * `getClubVisualIdentity` response into a renderable `ClubVisualIdentity`
+ * — no caller should manually pick apart which fields are custom and
+ * re-merge them itself. Handles every historical storage shape safely:
+ * no row (`isCustom: false`) → full deterministic fallback; colours-only →
+ * colours preserved, badge/kits deterministic; colours+badge → both
+ * preserved, kits deterministic; any kit slot present → that slot
+ * preserved independently of the others.
+ */
+export const resolveClubVisualIdentity = (
+  view: ResolvedIdentityView | undefined,
+  clubId: string,
+  clubName: string,
+): ClubVisualIdentity => {
+  if (!view || !view.isCustom) return buildClubVisualIdentity(clubId, clubName);
+  return buildClubVisualIdentity(
+    clubId,
+    clubName,
+    { primaryColour: view.primaryColour, secondaryColour: view.secondaryColour, accentColour: view.accentColour },
+    view.badgeShape && view.badgeSymbol && view.badgeInitials
+      ? { shape: view.badgeShape, symbol: view.badgeSymbol, initials: view.badgeInitials }
+      : undefined,
+    { home: view.homeKit, away: view.awayKit, third: view.thirdKit },
+  );
 };

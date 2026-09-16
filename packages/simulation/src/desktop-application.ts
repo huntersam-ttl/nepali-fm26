@@ -123,6 +123,7 @@ import {
   type ClubVisualIdentityView,
   type ClubBadgeShape,
   type ClubBadgeSymbol,
+  type ClubKitDesignOverride,
   type InfrastructureProjectProfile,
   type StaffProfileReadModel,
   type CompetitionProfile,
@@ -277,6 +278,7 @@ import { initializeTransferMarketForSave, rebalanceNewNepalSaveSquads } from "./
 import {
   BADGE_SHAPES,
   BADGE_SYMBOLS,
+  KIT_PATTERNS,
   deterministicClubColours,
   isValidHexColour,
 } from "./club-visual-identity-colours.js";
@@ -4099,6 +4101,13 @@ export class DesktopApplicationService {
           badgeShape: record.badgeDesign?.shape as ClubBadgeShape | undefined,
           badgeSymbol: record.badgeDesign?.symbol as ClubBadgeSymbol | undefined,
           badgeInitials: record.badgeDesign?.initials,
+          // Each kit slot is independently undefined when that slot has
+          // never been saved — the client derives the deterministic
+          // default for exactly that slot, never all three at once just
+          // because one was customised.
+          homeKit: record.homeKit as ClubKitDesignOverride | undefined,
+          awayKit: record.awayKit as ClubKitDesignOverride | undefined,
+          thirdKit: record.thirdKit as ClubKitDesignOverride | undefined,
           isCustom: true,
           provenanceStatus: "SIMULATION_ONLY",
         };
@@ -4119,6 +4128,9 @@ export class DesktopApplicationService {
       badgeShape: ClubBadgeShape;
       badgeSymbol: ClubBadgeSymbol;
       badgeInitials: string;
+      homeKit?: ClubKitDesignOverride;
+      awayKit?: ClubKitDesignOverride;
+      thirdKit?: ClubKitDesignOverride;
     },
   ): AppResult<ClubVisualIdentityView> {
     return this.withSession((db, save) => {
@@ -4145,14 +4157,29 @@ export class DesktopApplicationService {
       if (initials.length === 0) {
         throw appError("INVALID_SELECTION", "Initials cannot be empty.");
       }
+      for (const kit of [identity.homeKit, identity.awayKit, identity.thirdKit]) {
+        if (!kit) continue;
+        for (const value of [kit.baseColour, kit.secondaryColour, kit.trimColour, kit.shortsColour, kit.socksColour]) {
+          if (!isValidHexColour(value)) {
+            throw appError("INVALID_SELECTION", `"${value}" is not a valid kit colour.`);
+          }
+        }
+        if (!KIT_PATTERNS.includes(kit.pattern)) {
+          throw appError("INVALID_SELECTION", `"${kit.pattern}" is not a real kit pattern.`);
+        }
+      }
       new ClubVisualIdentityRepository(db).upsertFull({
         clubId,
         primaryColour: identity.primaryColour,
         secondaryColour: identity.secondaryColour,
         accentColour: identity.accentColour,
         badgeDesign: { shape: identity.badgeShape, symbol: identity.badgeSymbol, initials },
+        homeKit: identity.homeKit,
+        awayKit: identity.awayKit,
+        thirdKit: identity.thirdKit,
         updatedAt: save.worldDate,
       });
+      const stored = new ClubVisualIdentityRepository(db).get(clubId)!;
       return {
         clubId,
         primaryColour: identity.primaryColour,
@@ -4161,6 +4188,9 @@ export class DesktopApplicationService {
         badgeShape: identity.badgeShape,
         badgeSymbol: identity.badgeSymbol,
         badgeInitials: initials,
+        homeKit: stored.homeKit as ClubKitDesignOverride | undefined,
+        awayKit: stored.awayKit as ClubKitDesignOverride | undefined,
+        thirdKit: stored.thirdKit as ClubKitDesignOverride | undefined,
         isCustom: true,
         provenanceStatus: "SIMULATION_ONLY",
       };

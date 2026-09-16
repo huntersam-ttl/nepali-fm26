@@ -529,14 +529,34 @@ export type PresidentCommercialHistoryEntry = {
 
 export type ClubBadgeShape = "SHIELD" | "ROUND" | "DIAMOND" | "OVAL" | "MODERN" | "CREST";
 export type ClubBadgeSymbol = "FOOTBALL" | "MOUNTAIN" | "STAR" | "STRIPES" | "MONOGRAM" | "GEOMETRIC";
+export type ClubKitPattern =
+  | "PLAIN"
+  | "VERTICAL_STRIPES"
+  | "HORIZONTAL_HOOPS"
+  | "SASH"
+  | "CENTRE_STRIPE"
+  | "HALVES";
+
+/** A real, player-saved kit design override for one slot. Deliberately
+ * limited to fields the SVG renderer actually differentiates visually
+ * (base/secondary/trim/shorts/socks colour and pattern) — collar,
+ * sleeveStyle, and numberColour are not yet rendered distinctly, so they
+ * are not exposed as editable here rather than offering choices that would
+ * silently render identically. */
+export type ClubKitDesignOverride = {
+  baseColour: string;
+  secondaryColour: string;
+  trimColour: string;
+  pattern: ClubKitPattern;
+  shortsColour: string;
+  socksColour: string;
+};
 
 /**
- * The club's real, resolved visual identity — colours and badge design —
- * either a real, player-saved override (`isCustom: true`) or the
- * deterministic SIMULATION_ONLY default every club without one falls back
- * to. `getClubVisualIdentity` is the single resolver for this. Kit pattern/
- * collar/sleeve selection still stays deterministically derived from the
- * club id on the client (not yet player-editable).
+ * The club's real, resolved visual identity — colours, badge design, and
+ * kit designs — either a real, player-saved override (`isCustom: true`) or
+ * the deterministic SIMULATION_ONLY default every club without one falls
+ * back to. `getClubVisualIdentity` is the single resolver for this.
  */
 export type ClubVisualIdentityView = {
   clubId: EntityId;
@@ -550,6 +570,13 @@ export type ClubVisualIdentityView = {
   badgeShape?: ClubBadgeShape;
   badgeSymbol?: ClubBadgeSymbol;
   badgeInitials?: string;
+  /** Present only once a real kit override has been saved for that slot;
+   * a club with no kit override has these undefined and the client derives
+   * the deterministic default kit for that slot instead. Independent per
+   * slot — a saved Home kit never implies Away/Third were also saved. */
+  homeKit?: ClubKitDesignOverride;
+  awayKit?: ClubKitDesignOverride;
+  thirdKit?: ClubKitDesignOverride;
   isCustom: boolean;
   provenanceStatus: "SIMULATION_ONLY";
 };
@@ -1039,9 +1066,12 @@ export type DesktopRuntimeApi = {
     clubId: EntityId,
     colours: { primaryColour: string; secondaryColour: string; accentColour: string },
   ): Promise<AppResult<ClubVisualIdentityView>>;
-  /** Full identity write — colours plus badge design. Superset of
-   * setClubColours (kept for now for compatibility); the editor should
-   * route through this one. */
+  /** Full identity write — colours, badge design, and all three kits.
+   * Superset of setClubColours (kept for now for compatibility); the
+   * editor should route through this one. Kits are optional per call: a
+   * caller that only changed colours/badge can omit them, and any
+   * previously-saved kit override for an omitted slot is left untouched
+   * (never silently reset to the deterministic default). */
   setClubVisualIdentity?(
     clubId: EntityId,
     identity: {
@@ -1051,6 +1081,9 @@ export type DesktopRuntimeApi = {
       badgeShape: ClubBadgeShape;
       badgeSymbol: ClubBadgeSymbol;
       badgeInitials: string;
+      homeKit?: ClubKitDesignOverride;
+      awayKit?: ClubKitDesignOverride;
+      thirdKit?: ClubKitDesignOverride;
     },
   ): Promise<AppResult<ClubVisualIdentityView>>;
   getStaffProfile?(personId: EntityId): Promise<AppResult<StaffProfileReadModel>>;

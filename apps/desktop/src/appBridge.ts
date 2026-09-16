@@ -82,6 +82,7 @@ import type {
   ClubVisualIdentityView,
   ClubBadgeShape,
   ClubBadgeSymbol,
+  ClubKitDesignOverride,
   StaffProfileReadModel,
   CompetitionProfile,
   InfrastructureProjectProfile,
@@ -244,6 +245,9 @@ const bindCommands = (call: CommandCaller): DesktopRuntimeApi => ({
       badgeShape: ClubBadgeShape;
       badgeSymbol: ClubBadgeSymbol;
       badgeInitials: string;
+      homeKit?: ClubKitDesignOverride;
+      awayKit?: ClubKitDesignOverride;
+      thirdKit?: ClubKitDesignOverride;
     },
   ) => call<ClubVisualIdentityView>("setClubVisualIdentity", { clubId, identity }),
   getStaffProfile: (personId: EntityId) =>

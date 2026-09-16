@@ -12,6 +12,7 @@ import type {
   EntityId,
   ClubBadgeShape,
   ClubBadgeSymbol,
+  ClubKitDesignOverride,
   OrganizationProfileEntityType,
   LiveTacticsCommand,
   MediaResponseStance,
@@ -536,6 +537,9 @@ const dispatch = (
           badgeShape: ClubBadgeShape;
           badgeSymbol: ClubBadgeSymbol;
           badgeInitials: string;
+          homeKit?: ClubKitDesignOverride;
+          awayKit?: ClubKitDesignOverride;
+          thirdKit?: ClubKitDesignOverride;
         },
       );
     case "getStaffProfile":
