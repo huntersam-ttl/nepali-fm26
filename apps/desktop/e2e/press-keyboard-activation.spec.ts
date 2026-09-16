@@ -139,6 +139,16 @@ test("Owner and President press: real keyboard Tab/Enter opens, answers, and clo
   await page.keyboard.press("Enter");
   const ownerPanel = panelByTitle(page, "Owner interview");
   await expect(ownerPanel).toBeVisible();
+  // PRESS scene: real canvas, non-zero size, additive beside the canonical
+  // conference controls that the rest of this test already exercises.
+  const ownerPressCanvas = ownerPanel.getByRole("region", { name: /press$/i }).locator("canvas");
+  await expect(ownerPressCanvas).toBeVisible({ timeout: 15_000 });
+  const ownerCanvasBox = await ownerPressCanvas.boundingBox();
+  expect(ownerCanvasBox?.width ?? 0).toBeGreaterThan(0);
+  expect(ownerCanvasBox?.height ?? 0).toBeGreaterThan(0);
+  // Captured now, before this panel closes, for the cross-role visual-diff
+  // check once the President's own panel is open below.
+  const ownerFrame = await ownerPressCanvas.screenshot();
   await expectNoSeriousA11yViolations(page, "Owner press conference panel", [ownerPanel]);
 
   // Tab to the subject entity link, if the grounded question surfaces one,
@@ -178,6 +188,18 @@ test("Owner and President press: real keyboard Tab/Enter opens, answers, and clo
   await page.keyboard.press("Enter");
   const presidentPanel = panelByTitle(page, "Federation Press Conference");
   await expect(presidentPanel).toBeVisible();
+  const presidentPressCanvas = presidentPanel.getByRole("region", { name: /press$/i }).locator("canvas");
+  await expect(presidentPressCanvas).toBeVisible({ timeout: 15_000 });
+  const presidentCanvasBox = await presidentPressCanvas.boundingBox();
+  expect(presidentCanvasBox?.width ?? 0).toBeGreaterThan(0);
+  expect(presidentCanvasBox?.height ?? 0).toBeGreaterThan(0);
+  // Both are the same PRESS layout (podium-and-rows, correctly reused across
+  // roles) but a genuinely different real outlet/context — same context,
+  // different real state, so the accent/summary text differs even though
+  // the room shape doesn't. Any pixel difference here is enough to prove
+  // this is a live, state-driven render rather than a static image.
+  const presidentFrame = await presidentPressCanvas.screenshot();
+  expect(Buffer.compare(ownerFrame, presidentFrame)).not.toBe(0);
   await expectNoSeriousA11yViolations(page, "President press conference panel", [presidentPanel]);
 
   const presidentEntityLink = presidentPanel.locator(".button-row button, .button-row a").first();

@@ -15,7 +15,7 @@ mkdirSync(savesDirectory, { recursive: true });
 
 export default defineConfig({
   testDir: "apps/desktop/e2e",
-  testMatch: /(decision-presentation|investor-presentation|press-presentation)\.spec\.ts/,
+  testMatch: /(decision-presentation|investor-presentation|press-presentation|press-keyboard-activation)\.spec\.ts/,
   timeout: 180_000,
   expect: { timeout: 15_000 },
   use: {
