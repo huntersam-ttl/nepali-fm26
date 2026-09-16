@@ -519,10 +519,54 @@ owner/president/executive), the Create-a-Club identity-failure path's
 live/E2E verification, automated Create-a-Club kit E2E, kit-distinctness
 warnings, and list avatars — all still open.
 
+## Phase 1K — Manager/Owner/President portraits, and role continuity
+
+Wired `PersonPortrait` into the single shared topbar
+(`apps/desktop/src/manager/ManagerCareer.tsx`'s `<header className="topbar">`)
+that already renders identically for all three roles, rather than
+patching three separate dashboards — the highest-value single
+integration point available, per this task's own "prefer one
+canonical destination" instruction.
+
+`CareerHeader` (`packages/shared-types/src/desktop-contract.ts`) gained
+optional `personId`/`personAge`, populated in both of
+`desktop-application.ts`'s header builders
+(`careerHeaderFromContext`/`unemployedCareerHeader`) from the same real
+person record that already backs `characterName`; age reuses the
+existing `ageOn(dateOfBirth, worldDate)` pattern (e.g. `squadReadModel`),
+not a new one.
+
+**The continuity guarantee is structural, not incidental:**
+`buildPersonVisualIdentity(personId, age)` never takes `role` as an
+input — only a new `portraitRoleFor` mapping decides attire (Manager /
+Owner / President / Executive), never the face. So the same career
+person renders the identical face across every role switch, by
+construction. Verified two ways: a new integration test
+(`packages/testing/src/career-header-portrait-continuity.test.ts`)
+asserts `personId`/`personAge` survive Manager → Chairman/Owner →
+Federation President → Manager unchanged (via the real
+`switchActiveCareerRole` command); and live in the browser, the same
+portrait rendered next to "Maya" across all three roles with zero
+console errors.
+
+**Also re-ran, unchanged and still green:** the kit-history unit suite
+(9/9) and the nav-responsive Playwright regression (2/2) — this
+phase's own instruction not to reopen either without a real defect,
+and none was found.
+
+**Not attempted this pass:** Staff/NPC-executive portrait wiring
+(coach/scout/physio/CEO/etc.), list avatars (squad/dressing-room/staff/
+transfer), player-portrait secondary club colour, automated Playwright
+portrait coverage, the Create-a-Club identity-failure path's live/E2E
+verification, and kit-distinctness warnings — all still open.
+
 ## Recommended next phase
 
-1. Wire `PersonPortrait` into manager/staff/owner/president profile headers
-   and the squad/staff list rows (cheap, same renderer, no new model work).
+1. ~~Wire `PersonPortrait` into manager/staff/owner/president profile
+   headers~~ — Manager/Owner/President done in Phase 1K via the shared
+   topbar; staff and NPC executives still need their own integration
+   point (no single shared "staff card" component was confirmed to
+   exist — investigate before wiring).
 2. ~~Extend `ClubKitDesign` persistence to independent pattern/collar/sleeve
    editing~~ — kit colours + pattern now persist independently per slot
    (Phase 1F); collar/sleeve/number-colour still need renderer support
@@ -536,7 +580,9 @@ warnings, and list avatars — all still open.
    fixed in Phase 1G; automated in Phase 1H.
 5. ~~Extend the Create-a-Club wizard with the same `ClubKitEditor`~~ —
    done in Phase 1I.
-6. Live/E2E-verify the Create-a-Club identity-failure banner (Retry /
+6. Add squad-list avatars (small `PersonPortrait`, data already on each
+   row — no new bridge calls) — cheapest remaining visual-identity win.
+7. Live/E2E-verify the Create-a-Club identity-failure banner (Retry /
    Continue without saving) — currently only code-reviewed.
-7. Merchandise/retail last, once club colours and kits exist to hang
+8. Merchandise/retail last, once club colours and kits exist to hang
    demand and shirt-sales tracking off of.
