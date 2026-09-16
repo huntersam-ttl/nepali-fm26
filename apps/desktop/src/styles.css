@@ -2298,6 +2298,29 @@ tbody tr:last-child td {
   height: 108px;
 }
 
+.club-profile-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.club-kit-strip {
+  display: flex;
+  gap: 20px;
+  margin: 10px 0;
+}
+
+.club-kit-strip > div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.club-identity-provenance {
+  font-size: 11px;
+}
+
 .person-portrait {
   border-radius: 50%;
   background: var(--surface-2, #1b2740);

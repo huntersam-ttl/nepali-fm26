@@ -94,6 +94,9 @@ import {
 } from "./ownershipNegotiationPresentation.js";
 import { campusBlockDescriptors, projectProgressPercent, projectStatusLabel } from "./clubWorldPresentation.js";
 import { ClubEnvironmentScene } from "../presentation/ClubEnvironmentScene.js";
+import { ClubBadge } from "../presentation/ClubBadge.js";
+import { ClubKit } from "../presentation/ClubKit.js";
+import { buildClubVisualIdentity } from "../presentation/clubVisualIdentity.js";
 import { useNewlyArrived } from "../presentation/MotionPrimitives.js";
 import { humanizeEnum, humanizeToken } from "./storyHumanizer.js";
 import { MeetingEnvironmentScene } from "../presentation/MeetingEnvironmentScene.js";
@@ -7158,20 +7161,45 @@ const ClubProfileBody = ({
   profile: ClubProfile;
   onOpenReference: (reference: EntityReference) => void;
   bridge: DesktopRuntimeApi;
-}): React.ReactElement => (
+}): React.ReactElement => {
+  const identity = buildClubVisualIdentity(profile.entityReference.id, profile.entityReference.label);
+  return (
   <>
-    <h2>{profile.entityReference.label}</h2>
-    <div className="button-row">
-      <Badge tone="info">{band(profile.entityReference.entityType)}</Badge>
-      {profile.division && <Badge tone="info">{band(profile.division)}</Badge>}
-      {profile.foreignContext && <Badge tone="info">Foreign club</Badge>}
-      {profile.financialSummary && (
-        <Badge tone={profile.financialSummary.financialHealth === "DISTRESSED" || profile.financialSummary.financialHealth === "INSOLVENT" ? "bad" : profile.financialSummary.financialHealth === "TIGHT" ? "warn" : "ok"}>
-          {band(profile.financialSummary.financialHealth)}
-        </Badge>
-      )}
+    <div className="club-profile-header">
+      <ClubBadge design={identity.badge} size="large" clubName={profile.entityReference.label} />
+      <div>
+        <h2>{profile.entityReference.label}</h2>
+        <div className="button-row">
+          <Badge tone="info">{band(profile.entityReference.entityType)}</Badge>
+          {profile.division && <Badge tone="info">{band(profile.division)}</Badge>}
+          {profile.foreignContext && <Badge tone="info">Foreign club</Badge>}
+          {profile.financialSummary && (
+            <Badge tone={profile.financialSummary.financialHealth === "DISTRESSED" || profile.financialSummary.financialHealth === "INSOLVENT" ? "bad" : profile.financialSummary.financialHealth === "TIGHT" ? "warn" : "ok"}>
+              {band(profile.financialSummary.financialHealth)}
+            </Badge>
+          )}
+        </div>
+        <p className="subtle">{profile.locationLabel ?? "Location not on record"}</p>
+      </div>
     </div>
-    <p className="subtle">{profile.locationLabel ?? "Location not on record"}</p>
+    <div className="club-kit-strip">
+      <div>
+        <ClubKit design={identity.home} size="medium" label="Home" />
+        <span className="subtle">Home</span>
+      </div>
+      <div>
+        <ClubKit design={identity.away} size="medium" label="Away" />
+        <span className="subtle">Away</span>
+      </div>
+      <div>
+        <ClubKit design={identity.third} size="medium" label="Third" />
+        <span className="subtle">Third</span>
+      </div>
+    </div>
+    <p className="subtle club-identity-provenance">
+      Club colours, badge, and kits are a generated visual identity (SIMULATION_ONLY) — this project holds no
+      licensed real club branding.
+    </p>
     {/* A CONTEXT_ONLY foreign club never ran through Nepal's club-economy
         simulation, so it has no real manager/owner/finances/facilities to
         show — only the real global-dataset context that actually exists
@@ -7213,7 +7241,8 @@ const ClubProfileBody = ({
       <FullClubProfileBody profile={profile} onOpenReference={onOpenReference} bridge={bridge} />
     )}
   </>
-);
+  );
+};
 
 /** A club's real senior-team roster as clickable player references — shared
  * between a domestic and a CONTEXT_ONLY foreign club's profile, so a foreign
