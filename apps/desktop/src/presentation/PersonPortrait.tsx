@@ -49,7 +49,9 @@ export const PersonPortrait = ({
   role,
   size,
   clubPrimaryColour,
+  clubSecondaryColour,
   name,
+  decorative,
   className,
 }: {
   identity: PersonVisualIdentity;
@@ -59,10 +61,22 @@ export const PersonPortrait = ({
    * fabricated here; pass undefined and the role's own neutral default is
    * used instead. */
   clubPrimaryColour?: string;
+  /** A second real club colour shown as a small collar/trim detail on
+   * PLAYER attire only — every other role keeps its single-tone attire
+   * unchanged. Never fabricated: pass undefined (e.g. no resolved club
+   * identity in scope) and no trim renders at all, same as
+   * `clubPrimaryColour`. */
+  clubSecondaryColour?: string;
   /** Used only to build the alt/aria text; the surrounding heading may
    * already name the person, in which case pass undefined to avoid
    * redundant repetition (see PersonPortrait's accessibility contract). */
   name?: string;
+  /** True in a list row where adjacent text already names the person —
+   * hides the portrait from assistive tech entirely (`aria-hidden`, no
+   * `role="img"`/`aria-label`) instead of a screen reader announcing the
+   * same name twice back to back. Use on standalone profile/header
+   * portraits only when nothing nearby already names the person. */
+  decorative?: boolean;
   className?: string;
 }): React.ReactElement => {
   const px = SIZE_PX[size];
@@ -70,19 +84,27 @@ export const PersonPortrait = ({
   const attire = roleAttireColour(role, clubPrimaryColour);
   const showFacialHair = identity.facialHairStyle !== "NONE" && identity.ageBand !== "YOUTH";
   const label = name ? `${name} portrait` : "Portrait";
+  const accessibleProps = decorative
+    ? { "aria-hidden": true as const }
+    : { role: "img" as const, "aria-label": label };
 
   return (
     <svg
       viewBox="0 0 64 64"
       width={px}
       height={px}
-      role="img"
-      aria-label={label}
+      {...accessibleProps}
       className={className ? `person-portrait ${className}` : "person-portrait"}
     >
       <circle cx="32" cy="32" r="31" className="person-portrait-ring" />
       {/* Shoulders / attire */}
       <path d="M 8 64 Q 32 40 56 64 Z" fill={attire} />
+      {/* A small collar/trim detail in the club's secondary colour —
+          player attire only, deliberately just one extra shape rather than
+          the full ClubKit renderer. */}
+      {role === "PLAYER" && clubSecondaryColour && (
+        <path d="M 24 42 Q 32 48 40 42 L 37 52 Q 32 54 27 52 Z" fill={clubSecondaryColour} />
+      )}
       {/* Neck */}
       <rect x="27" y="38" width="10" height="10" fill={identity.skinTone} />
       {/* Face */}

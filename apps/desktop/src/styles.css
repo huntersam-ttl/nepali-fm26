@@ -2400,6 +2400,28 @@ tbody tr:last-child td {
   background: var(--surface-2, #1b2740);
 }
 
+.squad-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.squad-name-cell .person-portrait {
+  flex: none;
+}
+
+.dressing-room-player-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  vertical-align: middle;
+}
+
+.dressing-room-player-link .person-portrait {
+  flex: none;
+}
+
 .person-portrait-ring {
   fill: none;
   stroke: var(--line, #2c3954);

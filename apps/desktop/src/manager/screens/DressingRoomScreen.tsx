@@ -11,6 +11,8 @@ import { AsyncPanel, Badge, EmptyState, Metrics, Panel, useRuntimeData } from ".
 import { humanizeEnum } from "../storyHumanizer.js";
 import { PlayerMeetingPanel } from "./PlayerMeetingPanel.js";
 import { TeamMeetingPanel } from "./TeamMeetingPanel.js";
+import { PersonPortrait } from "../../presentation/PersonPortrait.js";
+import { buildPersonVisualIdentity } from "../../presentation/personVisualIdentity.js";
 
 const hierarchyLabelText = (label: DressingRoomHierarchyLabel): string => {
   switch (label) {
@@ -94,8 +96,17 @@ export const DressingRoomScreen = ({
     setTeamMeetingContext(result.data);
   };
 
+  // The screen's one reusable player reference — every concern, demand,
+  // promise, and hierarchy row already routes through this, so wiring a
+  // portrait here covers all of them at once rather than patching each
+  // list separately. No age is available at this call site (only
+  // personId + name travel with these read models), so the portrait
+  // falls back to a neutral age band — still the same real face.
+  // decorative: the visible name text right next to it already
+  // identifies the player.
   const Link = ({ id, name }: { id: EntityId; name: string }): React.ReactElement => (
-    <button className="link" onClick={() => onSelectPlayer(id)}>
+    <button className="link dressing-room-player-link" onClick={() => onSelectPlayer(id)}>
+      <PersonPortrait identity={buildPersonVisualIdentity(id)} role="PLAYER" size="small" decorative />
       {name}
     </button>
   );

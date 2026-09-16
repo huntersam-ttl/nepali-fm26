@@ -7,6 +7,8 @@ import type {
 } from "@nepal-football-sim/shared-types";
 import { managerBridge } from "../managerBridge.js";
 import { AsyncPanel, Badge, EmptyState, FactValue, Panel, availabilityTone, useRuntimeData } from "../ui.js";
+import { PersonPortrait } from "../../presentation/PersonPortrait.js";
+import { buildPersonVisualIdentity } from "../../presentation/personVisualIdentity.js";
 
 type SortKey = "ability" | "name" | "fitness" | "goals" | "appearances";
 
@@ -333,7 +335,20 @@ const SquadTable = (props: {
                   }
                 }}
               >
-                <td>{player.name}</td>
+                <td className="squad-name-cell">
+                  {/* decorative: the visible name text right next to it
+                      already identifies the player, so the portrait is
+                      hidden from assistive tech rather than announced
+                      redundantly. Built from data already on this row —
+                      no extra bridge call per player. */}
+                  <PersonPortrait
+                    identity={buildPersonVisualIdentity(player.personId, player.age.value)}
+                    role="PLAYER"
+                    size="small"
+                    decorative
+                  />
+                  {player.name}
+                </td>
                 <td>{player.positions.join(", ")}</td>
                 <td>
                   <FactValue fact={player.age} />

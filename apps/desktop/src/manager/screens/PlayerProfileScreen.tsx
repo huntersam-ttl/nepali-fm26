@@ -84,10 +84,17 @@ const PlayerCard = ({
   // command can't resolve just falls back to PersonPortrait's own neutral
   // default (no clubPrimaryColour passed).
   const clubPrimaryColour = clubIdentityState.status === "ready" ? clubIdentityState.data.primaryColour : undefined;
+  const clubSecondaryColour = clubIdentityState.status === "ready" ? clubIdentityState.data.secondaryColour : undefined;
   return (
     <div className="player-card">
       <div className="player-card-avatar">
-        <PersonPortrait identity={identity} role="PLAYER" size="large" clubPrimaryColour={clubPrimaryColour} />
+        <PersonPortrait
+          identity={identity}
+          role="PLAYER"
+          size="large"
+          clubPrimaryColour={clubPrimaryColour}
+          clubSecondaryColour={clubSecondaryColour}
+        />
         <svg viewBox="0 0 120 120" className="player-card-ring" role="img" aria-label={`Overall rating ${player.ability.toFixed(1)}`}>
           <circle cx="60" cy="60" r="42" className="player-card-ring-track" />
           <circle
