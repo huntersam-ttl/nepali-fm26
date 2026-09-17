@@ -794,3 +794,46 @@ and the kit-history unit suite (9/9). Full `apps/desktop` suite:
 peer-blocked), the full 1024/1280/1440/1600 responsive matrix,
 Create-a-Club failure-path E2E, kit distinctness, and recruitment
 avatars.
+
+## Phase 1Q — Create-a-Club identity-save failure recovery
+
+Checked at startup: the peer `StaffScreen` `dlitem` fix still had not
+landed, so Staff/executive avatar E2E remains explicitly
+`PEER_BLOCKED` this phase too.
+
+Closed the most important unverified behavior remaining in this whole
+feature (open since Phase 1I): the founder wizard's identity write is
+a real, non-atomic follow-up call after `createCareer` succeeds, and
+its failure-recovery UI (banner, Retry, Continue without saving) had
+only ever been code-reviewed.
+
+Added `armE2ENextIdentitySaveFailure` — a test-only, one-shot fault
+injection gated behind `NEPAL_E2E_ROLE_FIXTURE` (same gate every other
+E2E fixture command uses, so unreachable outside a dev/test run).
+Armed, it makes the very next `setClubVisualIdentity` call throw
+immediately after authorization checks and before any validation or
+write — meaning the failure path is naturally atomic: the real write
+(`upsertFull`, one statement covering colours+badge+kits together) is
+never reached at all when armed, so no partial identity can ever be
+persisted.
+
+New `apps/desktop/e2e/create-a-club-failure-recovery.spec.ts` (3
+tests): the banner shows with Retry/Continue and never a false success
+message; Retry persists the exact designed colour exactly once and
+survives a real save/reload with no duplicate club; Continue without
+saving leaves exactly one club showing the real deterministic fallback
+(not the failed custom colour), no crash, no duplicate club.
+
+**Verified non-tautological**: ran an unarmed founder flow and
+confirmed it proceeds straight to Dashboard with zero banner, then
+re-confirmed the armed flow shows it — same bug-injection-and-revert
+discipline as Phase 1N's continuity test. All 3 tests pass together
+and on repeat.
+
+Re-ran and confirmed still green: `nav-responsive.spec.ts` (2/2),
+`role-boundary.spec.ts` (2/2), kit-history unit suite (9/9). Root
+typecheck: unchanged at the 17-error baseline.
+
+**Not attempted this pass:** the full 1024/1280/1440/1600 responsive
+matrix, Staff/executive avatar E2E (peer-blocked), Staff axe
+(peer-blocked), kit distinctness, and recruitment avatars.
