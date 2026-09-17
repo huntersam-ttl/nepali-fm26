@@ -149,6 +149,21 @@ test("Club Store reports the real merchandise ledger, from empty state through a
 
   await expectNoSeriousA11yViolations(page, "Club Store (zero state)");
 
+  // ---- Figures point at their canonical screens, not at duplicates ----
+  // Revenue is the club's real finance-ledger trade, so it opens Club
+  // finance; the store is a real facility project, so it opens Facilities.
+  await expect(
+    page.getByRole("button", { name: /Merchandise revenue .* open Club finance/ }),
+    "revenue should link to the canonical finance screen",
+  ).toBeVisible();
+  const planStore = page.getByRole("button", { name: "Plan one from Facilities" });
+  await expect(planStore, "a club with no store should link to Facilities").toBeVisible();
+  await planStore.click();
+  // Following the link really leaves the Club Store for the canonical
+  // project screen, rather than opening a second project view in place.
+  await expect(page.getByText(/^Club store — \d{4} season$/)).toBeHidden();
+  await openClubStore(page);
+
   // ---- Keyboard reachability (decorative kit SVGs must not steal focus) ----
   await page.getByRole("button", { name: "Club Store", exact: true }).focus();
   await expect(page.getByRole("button", { name: "Club Store", exact: true })).toBeFocused();
