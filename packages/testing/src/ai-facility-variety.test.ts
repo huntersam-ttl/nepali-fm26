@@ -172,4 +172,39 @@ describe("AI facility project variety", () => {
     expect(after).toEqual(before);
     reloaded.close();
   });
+
+  it("chooses RETAIL_STORE for a club prioritising commercial growth with real headroom to sell more merchandise", () => {
+    const db = freshDb("ai-facility-retail");
+    const economy = new ClubEconomyRepository(db);
+    const club = realClub(db);
+    const account = economy.financialAccount(club)!;
+    economy.upsertFinancialAccount({ ...account, cashBalance: 10_000_000, financialHealth: "STABLE" });
+    const policy = economy.boardPolicy(club);
+    if (policy) economy.upsertBoardPolicy({ ...policy, commercialPriority: 0.9, infrastructurePriority: 0.6 });
+    const commercial = economy.commercialProfile(club);
+    if (commercial) economy.upsertCommercialProfile({ ...commercial, merchandiseAppeal: 15 });
+
+    runClubAiSeasonPlanning(db, { date: "2026-08-28", seed: "ai-facility-retail-run" });
+    const projects = economy.infrastructureProjects(club);
+    expect(projects).toHaveLength(1);
+    expect(projects[0]!.projectType).toBe("RETAIL_STORE");
+    db.close();
+  });
+
+  it("does not choose RETAIL_STORE for a club whose merchandiseAppeal is already high", () => {
+    const db = freshDb("ai-facility-retail-satisfied");
+    const economy = new ClubEconomyRepository(db);
+    const club = realClub(db);
+    const account = economy.financialAccount(club)!;
+    economy.upsertFinancialAccount({ ...account, cashBalance: 10_000_000, financialHealth: "STABLE" });
+    const policy = economy.boardPolicy(club);
+    if (policy) economy.upsertBoardPolicy({ ...policy, commercialPriority: 0.9, infrastructurePriority: 0.6 });
+    const commercial = economy.commercialProfile(club);
+    if (commercial) economy.upsertCommercialProfile({ ...commercial, merchandiseAppeal: 85 });
+
+    runClubAiSeasonPlanning(db, { date: "2026-08-28", seed: "ai-facility-retail-satisfied-run" });
+    const projects = economy.infrastructureProjects(club);
+    expect(projects.some((project) => project.projectType === "RETAIL_STORE")).toBe(false);
+    db.close();
+  });
 });

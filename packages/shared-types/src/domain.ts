@@ -2408,7 +2408,8 @@ export type InfrastructureProjectType =
   | "FLOODLIGHTS"
   | "PITCH"
   | "DRAINAGE"
-  | "REFURBISHMENT";
+  | "REFURBISHMENT"
+  | "RETAIL_STORE";
 
 export type InfrastructureProjectStatus =
   "IDEA" | "PLANNING" | "APPROVED" | "FINANCING" | "CONSTRUCTION" | "COMPLETED" | "CANCELLED";

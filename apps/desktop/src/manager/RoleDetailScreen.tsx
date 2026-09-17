@@ -5187,6 +5187,7 @@ const FACILITY_PROJECT_TYPES: Array<{ type: InfrastructureProjectType; label: st
   { type: "TRAINING_GROUND", label: "Training ground" },
   { type: "ACADEMY", label: "Academy" },
   { type: "STADIUM", label: "Stadium / ground" },
+  { type: "RETAIL_STORE", label: "Club store" },
 ];
 const FACILITY_MODE_LABELS: Record<FacilityProjectMode, string> = {
   UPGRADE_EXISTING: "Upgrade existing",
@@ -5312,6 +5313,7 @@ const facilityNarrative = (input: {
     PITCH: ["pitch"],
     DRAINAGE: ["drainage"],
     REFURBISHMENT: ["refurbish"],
+    RETAIL_STORE: ["store", "shop", "retail", "merchandise"],
   };
   const keywords = typeKeywords[input.projectType] ?? [];
   const request = input.managerRequests.find((item) =>

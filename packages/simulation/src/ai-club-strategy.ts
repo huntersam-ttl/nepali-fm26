@@ -59,6 +59,7 @@ const chooseInfrastructureProjectType = (input: {
   reputation: number;
   cashBalance: number;
   completedTypes: ReadonlySet<InfrastructureProjectType>;
+  merchandiseAppeal?: number;
 }): InfrastructureProjectType | undefined => {
   const training = input.facility?.trainingFacilityQuality ?? 3;
   const youth = input.facility?.youthFacilityQuality ?? 3;
@@ -79,6 +80,17 @@ const chooseInfrastructureProjectType = (input: {
   // prerequisite) — only offered once that's genuinely in place.
   if (hasTrainingGround && medical < 4 && input.cashBalance > 2_500_000) {
     return "MEDICAL_ROOM";
+  }
+  // A club actually prioritising commercial growth with real headroom to
+  // sell more merchandise (a low merchandiseAppeal) and a real store not
+  // yet built — retail simulation isn't human-club-only.
+  if (
+    input.priorities.commercial >= 0.5 &&
+    (input.merchandiseAppeal ?? 100) < 40 &&
+    !input.completedTypes.has("RETAIL_STORE") &&
+    input.cashBalance > 1_800_000
+  ) {
+    return "RETAIL_STORE";
   }
   // The default, most broadly useful upgrade — still the common outcome for
   // a club with no sharper need.
@@ -334,6 +346,7 @@ export const runClubAiSeasonPlanning = (db: GameDatabase, input: { date: string;
             reputation,
             cashBalance: account.cashBalance,
             completedTypes: completedProjectTypes,
+            merchandiseAppeal: commercial?.merchandiseAppeal,
           })
         : undefined;
     if (chosenProjectType) {

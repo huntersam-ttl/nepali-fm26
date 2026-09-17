@@ -1196,6 +1196,8 @@ const projectStoryPhrase = (type: InfrastructureProjectType): string => {
       return "club offices upgrade";
     case "REFURBISHMENT":
       return "facility refurbishment";
+    case "RETAIL_STORE":
+      return "club store investment";
     default:
       return "facility project";
   }
@@ -1336,6 +1338,23 @@ export const advanceInfrastructureProjects = (
                     }
                   : {};
         economy.upsertFacilityProfile({ ...facility, ...quality });
+      }
+      // A completed club store is a commercial asset, not a football
+      // facility — it raises merchandiseAppeal (the input
+      // postMerchandiseRevenue already reads every month), never
+      // trainingFacilityQuality/etc. Bounded and additive rather than
+      // multiplicative, same "no runaway" discipline as the quality
+      // bumps above; capped at 100 to match this field's apparent 0-100
+      // scale (see buildCommercialProfile's own derivation).
+      if (next.projectType === "RETAIL_STORE") {
+        const commercial = economy.commercialProfile(project.clubId);
+        if (commercial) {
+          economy.upsertCommercialProfile({
+            ...commercial,
+            merchandiseAppeal: Math.min(100, commercial.merchandiseAppeal + 6),
+            updatedOn: input.date,
+          });
+        }
       }
       recordHistoricalEventOnce(db, {
         id: createStableEntityId("history", `FACILITY_PROJECT_COMPLETED:${project.id}`),
@@ -2752,6 +2771,8 @@ const projectBaseCost = (type: InfrastructureProjectType): number => {
     case "RECOVERY_CENTRE":
     case "GYM":
       return 1800000;
+    case "RETAIL_STORE":
+      return 900000;
     default:
       return 1200000;
   }
@@ -2786,6 +2807,8 @@ const projectComponents = (type: InfrastructureProjectType): string[] => {
       return ["video_suite", "analyst_workspace"];
     case "REFURBISHMENT":
       return ["renewed_core_components"];
+    case "RETAIL_STORE":
+      return ["shop_floor", "till_and_fulfilment"];
     default:
       return [type.toLowerCase()];
   }
@@ -2807,7 +2830,7 @@ const assetTypeForProject = (type: InfrastructureProjectType): ClubAsset["assetT
     ? "VENUE"
     : type === "TRAINING_GROUND" || type === "ACADEMY"
       ? "TRAINING_GROUND"
-      : type === "OFFICE"
+      : type === "OFFICE" || type === "RETAIL_STORE"
         ? "BUILDING"
         : "EQUIPMENT";
 
