@@ -57,6 +57,35 @@ export const KIT_SLOT_SHARES = { home: 0.58, away: 0.27, third: 0.15 } as const;
 export const merchandiseUnitPrice = (merchandiseAppeal: number): number =>
   Math.round(180 + merchandiseAppeal * 35);
 
+/**
+ * Recovers the merchandise appeal a *past* posting was actually earned at,
+ * from canonical data the game already stores.
+ *
+ * `postMerchandiseRevenue` records every merchandise posting twice: the
+ * money into the `MERCHANDISE` ledger, and a `CommercialHistoryEvent`
+ * carrying the same `amount` plus `audienceImpact` — the real unit count
+ * sold at that moment. Because the canonical price is
+ * `amount = units * round(180 + appeal * 35)`, dividing the stored amount
+ * by the stored units recovers that posting's unit price, and inverting
+ * the formula recovers the appeal behind it — exactly, with no new
+ * storage, no snapshot column, and no duplicated finance history.
+ *
+ * Returns `undefined` when the pairing can't be trusted (no units, no
+ * money, or a non-finite result), so callers fall back to the club's
+ * present-day appeal — which is what a genuine pre-feature save, with
+ * ledger rows but no commercial-history rows, will do.
+ */
+export const appealFromMerchandiseTrade = (input: {
+  amount: number;
+  units: number;
+}): number | undefined => {
+  if (!(input.units > 0) || !(input.amount > 0)) return undefined;
+  const unitPrice = input.amount / input.units;
+  const appeal = (unitPrice - 180) / 35;
+  if (!Number.isFinite(appeal)) return undefined;
+  return Math.min(100, Math.max(0, appeal));
+};
+
 export type ShirtSalesSplit = {
   /** Revenue attributed to replica shirts, out of total merchandise revenue. */
   shirtRevenue: number;

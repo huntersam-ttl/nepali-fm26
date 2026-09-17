@@ -286,7 +286,7 @@ import {
   deterministicClubKits,
   isValidHexColour,
 } from "./club-visual-identity-colours.js";
-import { shirtSalesFromRevenue } from "./club-retail.js";
+import { appealFromMerchandiseTrade, shirtSalesFromRevenue } from "./club-retail.js";
 import {
   appointNationalTeamHeadCoachForPresident,
   FederationPersonnelError,
@@ -4215,19 +4215,43 @@ export class DesktopApplicationService {
 
       // Season grouping uses the same plain 4-digit key the kit history
       // uses, so a season row joins directly to that season's recorded
-      // kit snapshot. Note the unit counts for *past* seasons are derived
-      // using the club's CURRENT merchandiseAppeal (the game stores the
-      // revenue per season, not the appeal it was earned at), so historic
-      // revenue is exact while historic unit counts are an approximation.
+      // kit snapshot.
       const revenueBySeason = new Map<string, number>();
       for (const entry of merchandiseEntries) {
         const key = entry.date.slice(0, 4);
         revenueBySeason.set(key, (revenueBySeason.get(key) ?? 0) + entry.amount);
       }
+
+      // Each season's units are derived at the appeal that season's trade
+      // was actually earned at, recovered from the commercial-history rows
+      // postMerchandiseRevenue already writes alongside every posting
+      // (amount + real units sold). Without this, an old season would be
+      // re-priced at today's appeal and its unit count would silently
+      // change whenever the club's appeal moved. Seasons with no history
+      // rows — a save written before those rows existed — fall back to the
+      // club's current appeal, which is the best figure such a save has.
+      const tradeBySeason = new Map<string, { amount: number; units: number }>();
+      for (const event of economy.commercialHistory(targetClubId)) {
+        if (event.eventType !== "MERCHANDISE") continue;
+        const key = event.date.slice(0, 4);
+        const running = tradeBySeason.get(key) ?? { amount: 0, units: 0 };
+        tradeBySeason.set(key, {
+          amount: running.amount + event.amount,
+          units: running.units + event.audienceImpact,
+        });
+      }
+      const appealForSeason = (key: string): number => {
+        const trade = tradeBySeason.get(key);
+        return (trade ? appealFromMerchandiseTrade(trade) : undefined) ?? merchandiseAppeal;
+      };
+
       const seasonHistory = [...revenueBySeason.entries()]
         .sort((left, right) => left[0].localeCompare(right[0]))
         .map(([key, merchandiseRevenue]) => {
-          const split = shirtSalesFromRevenue({ merchandiseRevenue, merchandiseAppeal });
+          const split = shirtSalesFromRevenue({
+            merchandiseRevenue,
+            merchandiseAppeal: appealForSeason(key),
+          });
           return {
             seasonKey: key,
             merchandiseRevenue,
@@ -4240,7 +4264,10 @@ export class DesktopApplicationService {
         });
 
       const seasonMerchandiseRevenue = revenueBySeason.get(seasonKey) ?? 0;
-      const current = shirtSalesFromRevenue({ merchandiseRevenue: seasonMerchandiseRevenue, merchandiseAppeal });
+      const current = shirtSalesFromRevenue({
+        merchandiseRevenue: seasonMerchandiseRevenue,
+        merchandiseAppeal: appealForSeason(seasonKey),
+      });
 
       const retailProjects = economy
         .infrastructureProjects(targetClubId)
