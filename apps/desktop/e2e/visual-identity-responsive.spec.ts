@@ -1,5 +1,27 @@
+import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { expect, test, type Page } from "@playwright/test";
 import { createExistingClubOwner } from "./support/owner-harness.js";
+
+// Same axe-core injection pattern already used by role-boundary.spec.ts
+// and portrait-continuity.spec.ts's Squad/Dressing Room checks — extends
+// that coverage to Player Profile and the shared role header, which
+// hadn't been axe-checked by any prior phase.
+const axeSource = readFileSync(createRequire(import.meta.url).resolve("axe-core/axe.min.js"), "utf8");
+
+const expectNoSeriousA11yViolations = async (page: Page, label: string): Promise<void> => {
+  await page.evaluate(axeSource);
+  const results = await page.evaluate(async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const axe = (window as any).axe;
+    return axe.run(document, { resultTypes: ["violations"] });
+  });
+  const serious = (results.violations as Array<{ id: string; impact: string; nodes: unknown[] }>).filter(
+    (violation) => violation.impact === "serious" || violation.impact === "critical",
+  );
+  if (serious.length > 0) console.log(`axe violations at ${label}:`, JSON.stringify(serious, null, 2));
+  expect(serious, `axe serious/critical violations at ${label}`).toHaveLength(0);
+};
 
 // createExistingClubOwner needs NEPAL_E2E_ROLE_FIXTURE=1, not guaranteed on
 // the shared ambient dev server other specs' reuseExistingServer may be
@@ -54,6 +76,7 @@ test("Player Profile is responsive at 1024/1280/1440/1600", async ({ page }) => 
     await expect(page.getByText("Market value")).toBeVisible();
   }
 
+  await expectNoSeriousA11yViolations(page, "Player Profile");
   expect(errors, `console/page errors: ${errors.join("; ")}`).toHaveLength(0);
 });
 
@@ -128,6 +151,7 @@ test("The shared role header is responsive for Manager (all widths) and Owner/Pr
     await expect(page.getByLabel("Active career role")).toBeVisible();
     await expect(page.getByRole("button", { name: "Save", exact: true })).toBeVisible();
   }
+  await expectNoSeriousA11yViolations(page, "Manager header");
 
   for (const role of ["CHAIRMAN_OWNER", "FEDERATION_PRESIDENT"] as const) {
     await page.getByLabel("Active career role").selectOption(role);
@@ -137,6 +161,7 @@ test("The shared role header is responsive for Manager (all widths) and Owner/Pr
       await assertWithinViewport(page, page.locator(".identity svg.person-portrait"), `${role} header portrait @${width}`);
       await expect(page.getByLabel("Active career role")).toBeVisible();
     }
+    await expectNoSeriousA11yViolations(page, `${role} header`);
   }
 
   expect(errors, `console/page errors: ${errors.join("; ")}`).toHaveLength(0);
