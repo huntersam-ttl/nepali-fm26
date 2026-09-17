@@ -119,19 +119,64 @@ project card in `Planning` status. Zero console errors.
 - Root typecheck: unchanged at the historical 17-error baseline; 0 new
   regressions.
 
+## Phase 1B — Owner Commercial dashboard, shirt split, season history
+
+Phase 1B adds an **analytics layer over the existing `MERCHANDISE`
+ledger**. It deliberately does not add a second revenue engine: every
+rupee reported here was posted by the canonical monthly economy tick,
+and replica-shirt counts are *derived* from that revenue rather than
+recorded per sale.
+
+- **`packages/simulation/src/club-retail.ts`** (new, pure, DB-free):
+  `SHIRT_REVENUE_SHARE = 0.55`, `SHIRT_PRICE_PREMIUM = 1.6`,
+  `KIT_SLOT_SHARES = { home .58, away .27, third .15 }`, and
+  `shirtSalesFromRevenue`. Shirts are never 100% of merchandise, the
+  unit price mirrors the canonical `180 + appeal * 35` used by
+  `postMerchandiseRevenue`, and **Home absorbs the rounding remainder**
+  so the three slots always sum to the reported total.
+- **`getClubCommercialOverview`** command
+  (`desktop-application.ts` → `desktop-server.ts` → `appBridge.ts`).
+  Authorisation mirrors `getClubExecutiveOverview` (CHAIRMAN_OWNER, and
+  must own the club). It groups `MERCHANDISE`/`CREDIT` ledger entries by
+  the same 4-digit season key the kit history uses — which is what makes
+  the two joinable with **zero new storage**.
+- **Owner "Club Store" screen** (`RoleDetailScreen.tsx`, nav id
+  `club-store` under the existing Commercial group): hero (badge, all
+  three kits, revenue, units), retail-network metrics reading real
+  `RETAIL_STORE` projects, season history joining each season row to
+  *that season's* kit snapshot, recent postings, and the provenance
+  line. The nav id is `club-store`, not `commercial`, because
+  `SECTION_TITLES` is keyed by bare screen id and `PresidentScreen`
+  already owns `commercial` — reusing it would have silently retitled
+  the President's screen.
+- **Known limitation, documented in code**: past-season unit counts are
+  computed with the *current* `merchandiseAppeal`, because the game
+  stores revenue per season but not the appeal it was earned at.
+
+**Verification.** 7 new pure tests
+(`club-retail-shirt-split.test.ts`) + the 3 existing Phase 1 tests =
+10/10; `apps/desktop` unit suite 280/280; root typecheck unchanged at
+the 17-error baseline (0 new); and the infrastructure/commercial
+regression gate (`infrastructure-phase-a`, `ai-facility-variety`,
+`commercial-phase-c`) 14/14. Live browser on an isolated dev server with
+a fresh save: advanced the world past the month boundary so the real
+tick posted, and the screen rendered that tick's actual output — NPR
+51,712 merchandise, NPR 28,442 shirt revenue, 44 replica shirts split
+25 Home / 12 Away / 7 Third, the real 2026-09-01 posting, and a
+season-history row — matching the raw command JSON exactly, with zero
+console errors.
+
+**Refresh behaviour.** The screen fetches on mount keyed on `clubId`,
+exactly like its sibling owner screens (none of which key on
+`worldDate`; they read the date from their own payload). It therefore
+does not live-update while the clock is advanced from another screen;
+navigating away and back refetches. This matches existing app
+behaviour and was not changed unilaterally.
+
 ## Explicitly not attempted this pass
 
-This phase deliberately shipped the smallest real, non-duplicative,
-fully-tested slice — a working lever (build a store) connected to a
-real, measured outcome (more merchandise revenue) — rather than a wide,
-half-verified surface. Still open, in roughly the order a future phase
-should tackle them:
+Still open, in roughly the order a future phase should tackle them:
 
-- **Home/Away/Third-specific shirt-sales tracking** and a
-  general-merchandise-vs-shirts split. `postMerchandiseRevenue`
-  currently posts one abstract merchandise figure; splitting it by kit
-  slot (and connecting that split to the persisted `ClubKitDesign`/kit
-  history from the visual-identity foundation) is real, separable work.
 - **Star-player / major-signing demand boosts**. The audit found the
   existing proxy for "how big a signing this is" is transfer fee
   (`applySupporterTransferOutcome` in `supporter-culture.ts` already
