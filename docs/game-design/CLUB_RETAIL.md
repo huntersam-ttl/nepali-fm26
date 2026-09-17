@@ -89,7 +89,9 @@ other facility type, not a human-only special case.
 
 **UI**: "Club store" was added to the Owner Facilities screen's existing
 project-type picker (`apps/desktop/src/manager/RoleDetailScreen.tsx`) —
-no new navigation section, no new screen. The existing facility-planning
+no new navigation section, no new screen *at that point* — Phase 1B below
+supersedes this, adding the dedicated Club Store screen and its entry in
+the existing Commercial nav group. The existing facility-planning
 flow (choose type → review real cost/duration/funding → confirm → see
 the live project card) handles it identically to every other project
 type. Live-verified in the browser: selected "Club store", the planner
@@ -173,40 +175,139 @@ does not live-update while the clock is advanced from another screen;
 navigating away and back refetches. This matches existing app
 behaviour and was not changed unilaterally.
 
-## Explicitly not attempted this pass
+## Phase 1C — verification, persistence and a multi-season soak
 
-Still open, in roughly the order a future phase should tackle them:
+**Automated browser coverage** (`apps/desktop/e2e/club-store.spec.ts`).
+A save's `randomSeed` is `desktop:<saveName>:<personId>` and the E2E
+harness puts `Date.now()` in the save name, so hard-coded rupee figures
+would be precision theatre that breaks on the next run. Every number is
+instead asserted against the authoritative `getClubCommercialOverview`
+payload for that same save — itself derived from the real `MERCHANDISE`
+ledger — which makes this a ledger-to-pixel check rather than a
+"renders something non-zero" smoke test. It covers the empty state,
+advancing the real economy past a month boundary through
+`continueCareer`, per-slot unit counts read from each kit tile, the
+recent posting, retail status, save/reload, the fetch-on-mount refresh
+contract, and the destination links.
 
-- **Star-player / major-signing demand boosts**. The audit found the
-  existing proxy for "how big a signing this is" is transfer fee
-  (`applySupporterTransferOutcome` in `supporter-culture.ts` already
-  uses `transferFee` this way for `STAR_SIGNING` supporter events) — a
-  bounded, decaying merchandise-appeal or unit-volume boost keyed off
-  the same `TRANSFER_COMPLETED` event would be the natural hook, not a
-  new "celebrity score."
-- **Named-player shirt sales** ("Top sellers this season: 1. Player
-  A…") — the audit found no existing player popularity/fame signal
-  precise enough to support this honestly. Classified as
-  `NAMED_PLAYER_SHIRT_SALES = DEFERRED_INSUFFICIENT_POPULARITY_SIGNAL`,
-  per this task's own instruction not to fake it.
-- **Retail capacity levels / online vs. physical vs. matchday retail**
-  as separate dials — Phase 1 has one lever (a single `RETAIL_STORE`
-  project raises one appeal stat). Splitting this into physical/online/
-  matchday tiers is a real design decision for a later phase, not
-  assumed here.
-- **Owner Commercial / Club Store dashboard UI** — the business-hero
-  page (badge, current kits, sales breakdown, retail network, recent
-  drivers) described in the brief was not built. Phase 1 only exposes
-  the upgrade lever through the existing Facilities screen; a dedicated
-  Commercial page reusing `ClubBadge`/`ClubKit` is real, separable UI
-  work.
-- **Kit-history commercial connection** (season-by-season sales next to
-  that season's actual kit snapshot) — depends on the shirt-sales split
-  above existing first.
-- **Season history / reporting**, **3D store integration**, and
-  **supplier/sponsorship contracts** — all explicitly deferred to a
-  later phase by this task's own instructions (`CLUB_RETAIL_AND_MERCHANDISE_PHASE_1_COMPLETE`
-  is not claimed; supplier/sponsor contracts are named as Phase 2).
+*Proven non-tautological*: swapping the Home and Away unit bindings made
+the spec fail on the Home tile ("expected 23, received Home11"), and
+reverting restored green. A browser test that has never failed has not
+been shown to detect anything.
+
+**Accessibility.** axe reports 0 serious and 0 critical violations in
+both the zero state and the traded state. Kits are `role="img"` with a
+colour-independent description from `kitDescription()` ("Home kit —
+plain, shirt with shorts and socks…"), so Home/Away/Third are never
+distinguished by hue alone; revenue and store status are text; `Metrics`
+renders its `dt`/`dd` pairs inside a real `<dl>`. Keyboard: the nav entry
+is asserted focusable, and kit artwork carries no `tabindex`, so
+decorative SVG never becomes a tab stop. The two destination affordances
+are real `<button>` elements rather than click handlers bolted onto text,
+so they take focus natively — though the spec asserts their presence and
+activation, not focus specifically.
+
+**Responsive.** Automated at 1024/1280/1440/1600: no page-level
+horizontal overflow, and the hero is checked by bounding-box containment
+rather than DOM visibility — the check style that caught the real
+Owner-nav clipping bug during the identity phases. Phone widths stay out
+of scope: the whole career shell clips below its 720px breakpoint, which
+is pre-existing and not specific to this screen. PC-first remains the
+target.
+
+**Persistence and old saves** (`club-retail-persistence.test.ts`, 6
+tests). These drive the real `DesktopApplicationService` end to end —
+create a career, advance the canonical economy until the monthly tick
+posts, save, then load through a *separate* service instance — rather
+than testing repository serialization in isolation. Covered: honest
+zeros for a club that has never traded; exact preservation of every
+ledger-derived figure across save/load; totals equal to the real
+`MERCHANDISE` ledger across several postings in one season, with
+postings newest-first and capped; ascending season grouping joined to
+each season's own kit snapshot; and a pre-feature save that has
+merchandise trade but no `RETAIL_STORE` project, which loads without
+migration failure and reports `retailStatus: "NONE"`.
+
+**Create-a-Club.** A founded club starts with `merchandiseAppeal` 0.5
+from the existing founding defaults, no `RETAIL_STORE` project, and no
+merchandise ledger entries — no free store, no invented trading history.
+No wizard step was added; the test only asserts what the existing
+founder flow already produces.
+
+**Historical appeal — fixed, with zero new storage.** Phase 1B derived
+past-season units from the club's *present-day* appeal, so an old
+season's shirt numbers silently changed whenever the club grew. The
+audit found the fix already sitting in canonical storage:
+`postMerchandiseRevenue` records every posting twice — money into the
+ledger, and a `CommercialHistoryEvent` carrying the same `amount` plus
+`audienceImpact`, the real units sold at the time. Since the canonical
+price is `amount = units * round(180 + appeal * 35)`, dividing stored
+amount by stored units recovers that posting's price and inverting the
+formula recovers the appeal behind it. No snapshot column, no new table,
+no duplicated finance history. Seasons with no history rows fall back to
+the club's current appeal, which is the best figure such a save carries.
+Proven by moving a club's appeal to 95 after a season traded and
+asserting that season's units do not move.
+
+**Multi-season soak** (`club-retail-soak.test.ts`, 5 seasons, ~12.5 min).
+Runs the canonical whole-world `simulateNepalCareer` with the economy
+enabled and audits every club, AI included. One simulation is shared
+across all four assertions — a season of the full world costs minutes,
+and running a separate world per test would triple the cost to re-observe
+identical state. Results: every merchandise posting finite, non-NaN and
+positive; `merchandiseAppeal` inside `[0, 100]` for every club; league
+merchandise revenue does not explode between first and last season;
+AI clubs build retail stores without spamming them (never more than one
+per season per club, facility choice stays varied, retail well under the
+majority of projects); and merchandise stays a minority of each club's
+credit income alongside matchday, sponsorship and prize money.
+
+**`RETAIL_CAPACITY_TIERS = DEFERRED`.** A completed `RETAIL_STORE`
+already raises `merchandiseAppeal`, which the canonical revenue formula
+already reads every month. The soak shows that lever staying capped and
+merchandise staying proportionate, so the system does not lack a
+capacity dial — it has one. Adding a second multiplier on top would
+double-count the same store.
+
+**`STAR_PLAYER_COMMERCIAL_EFFECT = DEFERRED_INSUFFICIENT_CANONICAL_POPULARITY_SIGNAL`**
+(P2). The signal audit
+found no player popularity, fame or marketability field anywhere in the
+domain types. The only available proxies are `estimatedValue` and the
+`STAR_SIGNING` supporter event, whose "reputation" is literally
+`clampRange(transferFee / 100000, 0, 100)` — transfer fee under another
+name. Shipping a new commercial mechanic on that alone, during a pass
+whose stated priority was closing verification gaps, was not worth the
+economic risk.
+
+**`NAMED_PLAYER_SHIRT_SALES = DEFERRED_INSUFFICIENT_PLAYER_POPULARITY_MODEL`** —
+unchanged, and for the same reason: inferring named-player sales from
+transfer fee would be fabrication dressed as detail.
+
+**Performance.** The dashboard is pure SVG: no WebGL, canvas, chart
+library or animation loop anywhere in `ClubKit`/`ClubBadge` or the
+Club Store path, and season rows are bounded by seasons actually played.
+No separate render benchmark was taken.
+
+**No match rendering.** The full branch diff plus every new file (90KB)
+was audited for match renderer, live pitch, match camera, moving player,
+ball renderer, 2D/3D match, replay and player-dot terms: zero matches.
+
+## Still open
+
+- **Supplier / sponsorship contracts** — Phase 2, explicitly out of
+  scope here.
+- **Star-player / major-signing commercial effect** — P2, pending a real
+  player popularity model (see above).
+- **Named-player shirt sales** — blocked on the same missing model.
+- **Retail capacity tiers / online vs. physical vs. matchday retail** —
+  deferred with justification above, not merely unbuilt.
+- **3D store integration.**
+- **Live refresh from world-date changes** — the dashboard fetches on
+  mount keyed on `clubId`, exactly like its sibling owner screens. That
+  is an app-wide data-architecture question, not a Club Store one, and
+  was not changed unilaterally.
+- **Phone-width support** — the whole career shell clips below ~720px;
+  PC-first remains the target.
 
 ## Provenance
 
