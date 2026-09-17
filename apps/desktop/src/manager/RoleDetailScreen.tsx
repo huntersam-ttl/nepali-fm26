@@ -273,7 +273,14 @@ const ChairmanDetail = ({
         if (screen === "identity")
           return <ClubIdentityEditor bridge={bridge} clubId={dashboard.club.id} clubName={dashboard.club.name} />;
         if (screen === "club-store")
-          return <ClubStoreDashboard bridge={bridge} clubId={dashboard.club.id} clubName={dashboard.club.name} />;
+          return (
+            <ClubStoreDashboard
+              bridge={bridge}
+              clubId={dashboard.club.id}
+              clubName={dashboard.club.name}
+              onNavigate={onNavigate}
+            />
+          );
         return <ChairmanSupporters dashboard={dashboard} />;
       }}
     </AsyncPanel>
@@ -7466,10 +7473,15 @@ const ClubStoreDashboard = ({
   bridge,
   clubId,
   clubName,
+  onNavigate,
 }: {
   bridge: DesktopRuntimeApi;
   clubId: EntityId;
   clubName: string;
+  /** Money and store projects belong to canonical screens that already
+   * exist — this dashboard reports them and points at their real home,
+   * rather than duplicating finance or project controls. */
+  onNavigate: (screen: ChairmanScreen) => void;
 }): React.ReactElement => {
   const unavailable = {
     ok: false as const,
@@ -7524,7 +7536,16 @@ const ClubStoreDashboard = ({
                 <div className="club-store-hero-figures">
                   <div>
                     <span className="subtle">Merchandise revenue</span>
-                    <strong>{money(overview.seasonMerchandiseRevenue)}</strong>
+                    <button
+                      type="button"
+                      className="link"
+                      onClick={() => onNavigate("finance")}
+                      aria-label={`Merchandise revenue ${money(
+                        overview.seasonMerchandiseRevenue,
+                      )} — open Club finance`}
+                    >
+                      <strong>{money(overview.seasonMerchandiseRevenue)}</strong>
+                    </button>
                   </div>
                   <div>
                     <span className="subtle">Replica shirts sold</span>
@@ -7556,14 +7577,34 @@ const ClubStoreDashboard = ({
                 <p className="subtle">
                   A club store project is {overview.activeRetailProject.status.toLowerCase()} —{" "}
                   {money(overview.activeRetailProject.capitalCost)}, due{" "}
-                  {overview.activeRetailProject.expectedCompletion}.
+                  {overview.activeRetailProject.expectedCompletion}.{" "}
+                  <button type="button" className="link" onClick={() => onNavigate("facilities")}>
+                    Open Facilities
+                  </button>
                 </p>
               ) : overview.retailStatus === "NONE" ? (
                 <p className="subtle">
-                  This club has no dedicated store. Plan one from Facilities — a completed store raises the club's
-                  merchandise appeal, which feeds every following month's merchandise revenue.
+                  This club has no dedicated store.{" "}
+                  <button type="button" className="link" onClick={() => onNavigate("facilities")}>
+                    Plan one from Facilities
+                  </button>{" "}
+                  — a completed store raises the club&apos;s merchandise appeal, which feeds every following
+                  month&apos;s merchandise revenue.
                 </p>
-              ) : null}
+              ) : (
+                /* Completed: state the real, supported effect — the store
+                 * count and the appeal figure the revenue formula actually
+                 * reads — never an invented "+x% more shirt sales". */
+                <p className="subtle">
+                  {overview.completedRetailStores === 1
+                    ? "A dedicated club store is open"
+                    : `${overview.completedRetailStores} dedicated club stores are open`}
+                  , and the club&apos;s merchandise appeal is {overview.merchandiseAppeal.toFixed(1)}.{" "}
+                  <button type="button" className="link" onClick={() => onNavigate("facilities")}>
+                    Open Facilities
+                  </button>
+                </p>
+              )}
             </Panel>
 
             <Panel title="Season history" className="panel-wide">
