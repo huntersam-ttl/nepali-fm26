@@ -758,3 +758,39 @@ elsewhere. Revisit once that fix lands (or is confirmed abandoned).
 20/50-portrait performance harness, explicit N+1 bridge-call
 instrumentation, recruitment avatars, Create-a-Club failure-path E2E,
 and kit distinctness.
+
+## Phase 1P — explicit N+1 proof and list-scale performance
+
+Checked at startup: the peer session's `StaffScreen` `dlitem` fix had
+still not landed, so `StaffScreen.tsx`'s markup was left untouched
+again this phase — but a new unit test (below) does render the
+existing component, since that doesn't edit its markup at all.
+
+**N+1 proof** (`apps/desktop/src/manager/screens/portraitDataAccess.test.tsx`,
+3 tests): mocks `managerBridge` for Squad, Dressing Room, and Staff
+with a `Proxy` exposing *only* the one page-level method(s) each
+screen legitimately calls — any other property access throws
+immediately. Renders 20 rows per screen and asserts the mocked
+method(s) were each called exactly once. This is a real regression
+guard, not an architectural claim: if a future change added a per-row
+identity/person lookup, the render would crash rather than this test
+silently continuing to pass.
+
+**Performance proof** (`apps/desktop/src/presentation/PersonPortrait.performance.test.tsx`,
+2 tests): renders 20 and 50 distinct `PersonPortrait`s and asserts all
+signatures are genuinely distinct, zero `<canvas>` elements exist, and
+50-portrait render time doesn't blow up disproportionately relative to
+20 (median-of-3 timing; measured ~11–17ms at 20 and ~29–51ms at 50
+across runs — roughly linear, well under the deliberately generous 6x
+ceiling used to absorb jsdom/CI noise without asserting a fragile
+absolute millisecond threshold).
+
+Re-ran and confirmed still green: the full `portrait-continuity.spec.ts`
+(4/4), `nav-responsive.spec.ts` (2/2), `role-boundary.spec.ts` (2/2),
+and the kit-history unit suite (9/9). Full `apps/desktop` suite:
+280/280 (275 prior + 5 new).
+
+**Not attempted this pass:** Staff/executive avatar E2E (still
+peer-blocked), the full 1024/1280/1440/1600 responsive matrix,
+Create-a-Club failure-path E2E, kit distinctness, and recruitment
+avatars.
