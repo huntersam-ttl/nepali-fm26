@@ -129,7 +129,7 @@ test("Owner negotiates a kit supplier, and the Club Store reports the signed dea
 
   // ---- Phase 1's Club Store reports the Phase 2 deal ----
   await openClubStore(page);
-  const store = page.locator("section", { has: page.getByRole("heading", { name: "Retail network" }) });
+  const store = page.locator("article.panel", { has: page.getByRole("heading", { name: "Retail network" }) });
   await expect(store).toContainText("Kit supplied by");
   await expect(store).toContainText(signed!.sponsorName);
   await expect(store).toContainText(signed!.endDate);
@@ -145,7 +145,7 @@ test("Owner negotiates a kit supplier, and the Club Store reports the signed dea
 
   await openClubStore(page);
   await expect(
-    page.locator("section", { has: page.getByRole("heading", { name: "Retail network" }) }),
+    page.locator("article.panel", { has: page.getByRole("heading", { name: "Retail network" }) }),
   ).toContainText(signed!.sponsorName);
 
   expect(consoleErrors, "the partnership flow should raise no console errors").toEqual([]);

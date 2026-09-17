@@ -112,7 +112,7 @@ const expectDashboardMatchesOverview = async (page: Page, overview: Overview): P
   ).toBe(overview.seasonShirtUnits);
   expect(overview.seasonShirtRevenue).toBeLessThanOrEqual(overview.seasonMerchandiseRevenue);
 
-  const retail = page.locator("section", { has: page.getByRole("heading", { name: "Retail network" }) });
+  const retail = page.locator("article.panel", { has: page.getByRole("heading", { name: "Retail network" }) });
   await expect(retail).toContainText(money(overview.seasonShirtRevenue));
   await expect(retail).toContainText(String(overview.completedRetailStores));
   await expect(retail).toContainText(overview.merchandiseAppeal.toFixed(1));
@@ -197,14 +197,14 @@ test("Club Store reports the real merchandise ledger, from empty state through a
 
   // The most recent posting is rendered with its real date and amount.
   const newest = overview.recentMerchandisePostings[0]!;
-  const postings = page.locator("section", {
+  const postings = page.locator("article.panel", {
     has: page.getByRole("heading", { name: "Recent merchandise postings" }),
   });
   await expect(postings).toContainText(newest.date);
   await expect(postings).toContainText(money(newest.amount));
 
   // Season history now exists, and carries this season's row.
-  const history = page.locator("section", { has: page.getByRole("heading", { name: "Season history" }) });
+  const history = page.locator("article.panel", { has: page.getByRole("heading", { name: "Season history" }) });
   await expect(history).toContainText(overview.seasonKey);
   await expect(history).not.toContainText("No merchandise trade recorded yet.");
 
@@ -261,7 +261,7 @@ test("Club Store is responsive at 1024/1280/1440/1600", async ({ page }) => {
     await expect(page.locator(".club-store-hero")).toContainText("Merchandise revenue");
     await expect(page.locator(".club-store-hero")).toContainText("Replica shirts sold");
     await expect(
-      page.locator("section", { has: page.getByRole("heading", { name: "Retail network" }) }),
+      page.locator("article.panel", { has: page.getByRole("heading", { name: "Retail network" }) }),
     ).toContainText("Merchandise appeal");
   }
 });
