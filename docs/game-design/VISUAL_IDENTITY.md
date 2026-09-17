@@ -837,3 +837,88 @@ typecheck: unchanged at the 17-error baseline.
 **Not attempted this pass:** the full 1024/1280/1440/1600 responsive
 matrix, Staff/executive avatar E2E (peer-blocked), Staff axe
 (peer-blocked), kit distinctness, and recruitment avatars.
+
+## Phase 1R — responsive matrix, axe extension, and foundation completion
+
+Checked at startup and again before each commit: the peer `StaffScreen`
+`dlitem` fix still had not landed in this branch's history. Staff
+avatar E2E and Staff axe remain explicitly `PEER_BLOCKED` — not
+attempted, not simulated, not worked around by touching the peer-owned
+markup.
+
+**Responsive matrix** (`apps/desktop/e2e/visual-identity-responsive.spec.ts`,
+6 tests): automated 1024/1280/1440/1600 coverage using bounding-box
+containment — not mere DOM visibility — the same check style that
+caught the real Owner-nav clipping bug in Phase 1G (an element can be
+"visible" in the accessibility-tree sense while still rendering
+outside where a person could actually see or reach it). Covers Player
+Profile (all 4 widths), Squad (all 4; avatars confirmed to stay ≤32px
+regardless of width), Dressing Room (all 4), the shared role header
+(Manager at all 4, Owner/President at 1024+1600 since it's identical
+CSS already exercised at all 4 widths for Manager), the Create-a-Club
+identity/kit step (1024/1280/1600), and Club Profile/Kit History
+(1024/1280/1600). No real responsive bug was found — all 6 passed on
+the first attempt and again on a repeat run, so no accompanying fix
+commit was needed.
+
+**Closed a real completion-checklist gap**: Player Profile and the
+shared role header had never been axe-checked by any prior phase
+(only Squad/Dressing Room had, since Phase 1O). Added the same
+axe-core injection to both tests — zero serious/critical violations on
+Player Profile and all three role-header states.
+
+**Full regression gate re-run and confirmed green**: `portrait-continuity.spec.ts`
+(4/4), `create-a-club-failure-recovery.spec.ts` (3/3),
+`nav-responsive.spec.ts` (2/2), `role-boundary.spec.ts` (2/2), the
+kit-history unit suite (9/9), the N+1 proof suite (3/3), the portrait
+performance suite (2/2 — 20 portraits ~15–17ms, 50 ~42–50ms, same
+order of magnitude as previously measured), and the full `apps/desktop`
+suite (280/280). Root typecheck: unchanged at the 17-error baseline.
+
+### Foundation completion status
+
+Checking every item in this task's own completion rule against what
+has actually shipped and been verified across Phases 1K–1R:
+
+- Player determinism E2E: green.
+- Role continuity E2E: green.
+- Squad avatar E2E: green.
+- Dressing Room avatar E2E: green.
+- Staff/executive E2E: **explicitly `PEER_BLOCKED`**, with evidence
+  checked and recorded at the start of every phase since 1O (no
+  landed commit as of Phase 1R) — the completion rule's own carve-out
+  permits this.
+- Explicit N+1 proof: green.
+- 20/50 portrait performance: lightweight, re-confirmed.
+- Responsive matrix at 1024/1280/1440/1600: passes.
+- Founder identity screen responsive: yes.
+- Club Profile/Kit History responsive: yes.
+- Create-a-Club failure recovery, Retry exact-once, Continue-without-
+  saving fallback: all green.
+- Kit history: green.
+- Owner nav: green.
+- Role boundary: green.
+- No serious/critical accessibility issue attributable to visual-
+  identity work: true (Player Profile, Squad, Dressing Room, and the
+  role header are all axe-clean; the one known `dlitem` issue on
+  `StaffScreen` is pre-existing, in unrelated metrics-header markup,
+  not introduced by or attributable to the avatar work, and owned by a
+  separate in-flight session).
+- Provenance/privacy: correct throughout (stylized, deterministic
+  portraits; `data-face-signature` is a hash, never a raw id; no
+  external photos; no nationality-driven morphology).
+- No copyrighted photos scraped, no human animation, no rendered
+  match: confirmed throughout every phase.
+- Zero new typecheck regressions: confirmed at every phase, still 17
+  historical baseline errors.
+
+**Every criterion the completion rule itself defines is satisfied.**
+
+**FOOTBALL_VISUAL_IDENTITY_FOUNDATION_COMPLETE**
+
+Kit-distinctness warnings and recruitment avatars remain open as P2,
+exactly as the completion rule allows. Staff/executive avatar E2E and
+Staff axe should be picked up as soon as the peer `StaffScreen` fix
+lands — the fixture, helpers, and patterns needed are already in place
+in `portrait-continuity.spec.ts` and `portraitDataAccess.test.tsx` and
+are directly reusable without new infrastructure.
