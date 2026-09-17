@@ -6,6 +6,7 @@ import { ClubEconomyRepository, openGameDatabase, type GameDatabase } from "@nep
 import {
   DesktopApplicationService,
   runClubAiSeasonPlanning,
+  SPONSORSHIP_SLOT_ORDER,
 } from "@nepal-football-sim/simulation";
 import type { EntityId } from "@nepal-football-sim/shared-types";
 
@@ -135,13 +136,16 @@ describe("AI clubs participate in the commercial system", () => {
     }
   });
 
-  it("converges — repeated planning runs sign every club up to at most four distinct slots, never duplicating one", () => {
-    // A club can hold up to four concurrent sponsors (one per exclusivity
-    // slot), so re-running planning on the same date is expected to keep
-    // filling additional open slots, not stay flat after the very first
-    // signing — that would mean the pipeline could never diversify past one
-    // sponsor. What must hold is convergence (it eventually stops) and no
-    // club ever exceeding four, with no exclusivity-group duplicate.
+  it("converges — repeated planning runs sign every club up to the available slots, never duplicating one", () => {
+    // A club can hold one sponsor per exclusivity slot, so re-running planning
+    // on the same date is expected to keep filling additional open slots, not
+    // stay flat after the very first signing — that would mean the pipeline
+    // could never diversify past one sponsor. What must hold is convergence
+    // (it eventually stops) and no club ever exceeding the canonical slot
+    // count, with no exclusivity-group duplicate. The bound is read from
+    // SPONSORSHIP_SLOT_ORDER rather than hardcoded, so adding a slot (kit
+    // supply, most recently) does not silently turn a real behavioural
+    // assertion into a stale number.
     for (let i = 0; i < 6; i += 1) runClubAiSeasonPlanning(db, { date, seed: "ai-commercial-run" });
     const saturated = clubIds().map((id) => activeSponsorships(id).length);
     runClubAiSeasonPlanning(db, { date, seed: "ai-commercial-run" });
@@ -149,7 +153,7 @@ describe("AI clubs participate in the commercial system", () => {
     expect(after).toEqual(saturated);
     for (const id of clubIds()) {
       const active = activeSponsorships(id);
-      expect(active.length).toBeLessThanOrEqual(4);
+      expect(active.length).toBeLessThanOrEqual(SPONSORSHIP_SLOT_ORDER.length);
       expect(new Set(active.map((item) => item.exclusivityGroup)).size).toBe(active.length);
     }
   });
