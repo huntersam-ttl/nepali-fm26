@@ -937,6 +937,7 @@ const SPONSORSHIP_TYPE_LABELS: Record<string, string> = {
   ACADEMY: "academy / youth programme",
   OFFICIAL_PARTNER: "official partner",
   LOCAL_PARTNER: "local partner",
+  KIT_SUPPLIER: "kit supply",
 };
 
 const budgetTierPhrase = (tier: SponsorMeetingContract["sponsorBudgetTier"]): string =>
@@ -7573,6 +7574,19 @@ const ClubStoreDashboard = ({
                   { label: "Shirt revenue", value: money(overview.seasonShirtRevenue) },
                 ]}
               />
+              {overview.kitSupplier ? (
+                /* The supplier deal lives in Sponsorship — this is a summary
+                 * of it, not a second place to manage it. */
+                <p className="subtle">
+                  Kit supplied by <strong>{overview.kitSupplier.partnerName}</strong> until{" "}
+                  {overview.kitSupplier.endDate} — {money(overview.kitSupplier.annualValue)} a year,
+                  plus {(overview.kitSupplier.royaltyShare * 100).toFixed(0)}% of merchandise trade
+                  as royalty.{" "}
+                  <button type="button" className="link" onClick={() => onNavigate("sponsorship")}>
+                    Open Sponsorship
+                  </button>
+                </p>
+              ) : null}
               {overview.activeRetailProject ? (
                 <p className="subtle">
                   A club store project is {overview.activeRetailProject.status.toLowerCase()} —{" "}
