@@ -57,6 +57,8 @@ import type {
   OrganizationProfileEntityType,
   ClubProfile,
   ClubKitHistorySeason,
+  ClubCommercialOverview,
+  ClubRetailStatus,
   ClubStadiumSummary,
   ClubFacilitySnapshot,
   InfrastructureProjectProfile,
@@ -123,7 +125,8 @@ export type ChairmanScreen =
   | "meeting"
   | "matchday"
   | "executive"
-  | "identity";
+  | "identity"
+  | "club-store";
 export type PresidentScreen =
   | "dashboard"
   | "governance"
@@ -170,6 +173,10 @@ const SECTION_TITLES: Record<string, { title: string; subtitle: string }> = {
   },
   investors: { title: "Investors", subtitle: "Ownership stakes and equity interest." },
   identity: { title: "Club Identity", subtitle: "Colours, badge, and kits." },
+  "club-store": {
+    title: "Club Store",
+    subtitle: "Merchandise trade, replica shirt sales, and the club's retail network.",
+  },
   executive: {
     title: "Executive management",
     subtitle: "Who holds each executive role, their authority, and where it stands vacant.",
@@ -265,6 +272,8 @@ const ChairmanDetail = ({
           return <OwnerMatchday bridge={bridge} onTalkToManager={() => onNavigate("meeting")} />;
         if (screen === "identity")
           return <ClubIdentityEditor bridge={bridge} clubId={dashboard.club.id} clubName={dashboard.club.name} />;
+        if (screen === "club-store")
+          return <ClubStoreDashboard bridge={bridge} clubId={dashboard.club.id} clubName={dashboard.club.name} />;
         return <ChairmanSupporters dashboard={dashboard} />;
       }}
     </AsyncPanel>
@@ -7383,6 +7392,221 @@ const StadiumVisual = ({ stadium }: { stadium: ClubStadiumSummary }): React.Reac
 };
 
 /** Never fabricates club history/metadata — only fields buildClubProfile actually returns. */
+const RETAIL_STATUS_LABEL: Record<ClubRetailStatus, string> = {
+  NONE: "No dedicated store",
+  PLANNING: "Store planned",
+  UNDER_DEVELOPMENT: "Store under construction",
+  OPERATING: "Store operating",
+};
+
+const RETAIL_STATUS_TONE: Record<ClubRetailStatus, "ok" | "warn" | "info"> = {
+  NONE: "warn",
+  PLANNING: "info",
+  UNDER_DEVELOPMENT: "info",
+  OPERATING: "ok",
+};
+
+/** One past season's merchandise trade shown beside the kits actually
+ * recorded for that season — never today's kits. Joined by the same
+ * plain 4-digit season key both the ledger grouping and the kit history
+ * already use, so changing the current kits can never rewrite what an
+ * old season visually sold. */
+const CommercialSeasonRow = ({
+  row,
+  kits,
+}: {
+  row: ClubCommercialOverview["seasonHistory"][number];
+  kits?: ClubKitHistorySeason;
+}): React.ReactElement => (
+  <div className="club-store-season">
+    <div className="club-store-season-head">
+      <strong>{row.seasonKey}</strong>
+      <span className="subtle">{money(row.merchandiseRevenue)}</span>
+      <span className="subtle">{row.shirtUnits.toLocaleString("en-US")} replica shirts</span>
+    </div>
+    {kits ? (
+      <div className="club-kit-strip">
+        {(
+          [
+            ["HOME", "Home", kits.homeKit, row.homeShirtUnits],
+            ["AWAY", "Away", kits.awayKit, row.awayShirtUnits],
+            ["THIRD", "Third", kits.thirdKit, row.thirdShirtUnits],
+          ] as const
+        ).map(([slot, label, fields, units]) => (
+          <div key={slot}>
+            <ClubKit
+              design={{ slot, ...fields, provenanceStatus: "SIMULATION_ONLY" as const }}
+              size="small"
+              label={`${row.seasonKey} ${label}`}
+            />
+            <span className="subtle">
+              {label} · {units.toLocaleString("en-US")}
+            </span>
+          </div>
+        ))}
+      </div>
+    ) : (
+      <p className="subtle">
+        {row.homeShirtUnits.toLocaleString("en-US")} Home · {row.awayShirtUnits.toLocaleString("en-US")} Away ·{" "}
+        {row.thirdShirtUnits.toLocaleString("en-US")} Third — no kit snapshot was recorded for this season.
+      </p>
+    )}
+  </div>
+);
+
+/**
+ * The Owner's Club Store. Every money figure comes from the club's real
+ * `MERCHANDISE` ledger postings (the monthly economy tick's own output);
+ * replica-shirt counts are the analytics layer derived from that
+ * revenue, not a second sales ledger; and retail status reads straight
+ * off canonical RETAIL_STORE infrastructure projects, so the store the
+ * player builds in Facilities is the same store reported here.
+ */
+const ClubStoreDashboard = ({
+  bridge,
+  clubId,
+  clubName,
+}: {
+  bridge: DesktopRuntimeApi;
+  clubId: EntityId;
+  clubName: string;
+}): React.ReactElement => {
+  const unavailable = {
+    ok: false as const,
+    error: { code: "INVALID_SELECTION" as const, message: "Unavailable" },
+  };
+  const [state] = useRuntimeData(
+    () =>
+      bridge.getClubCommercialOverview
+        ? bridge.getClubCommercialOverview(clubId)
+        : Promise.resolve(unavailable),
+    [clubId],
+  );
+  const [identityState] = useRuntimeData(
+    () => (bridge.getClubVisualIdentity ? bridge.getClubVisualIdentity(clubId) : Promise.resolve(unavailable)),
+    [clubId],
+  );
+  const [historyState] = useRuntimeData(
+    () =>
+      bridge.getClubKitHistory
+        ? bridge.getClubKitHistory(clubId)
+        : Promise.resolve({ ok: true as const, data: [] as ClubKitHistorySeason[] }),
+    [clubId],
+  );
+
+  return (
+    <AsyncPanel state={state}>
+      {(overview) => {
+        const identity = resolveClubVisualIdentity(
+          identityState.status === "ready" ? identityState.data : undefined,
+          clubId,
+          clubName,
+        );
+        const kitHistory = historyState.status === "ready" ? historyState.data : [];
+        const slots = [
+          { label: "Home", design: identity.home, units: overview.homeShirtUnits },
+          { label: "Away", design: identity.away, units: overview.awayShirtUnits },
+          { label: "Third", design: identity.third, units: overview.thirdShirtUnits },
+        ];
+        return (
+          <>
+            <Panel title={`Club store — ${overview.seasonKey} season`} className="panel-wide">
+              <div className="club-store-hero">
+                <div className="club-store-hero-identity">
+                  <ClubBadge design={identity.badge} size="large" clubName={overview.clubName} />
+                  <div>
+                    <strong>{overview.clubName}</strong>
+                    <Badge tone={RETAIL_STATUS_TONE[overview.retailStatus]}>
+                      {RETAIL_STATUS_LABEL[overview.retailStatus]}
+                    </Badge>
+                  </div>
+                </div>
+                <div className="club-store-hero-figures">
+                  <div>
+                    <span className="subtle">Merchandise revenue</span>
+                    <strong>{money(overview.seasonMerchandiseRevenue)}</strong>
+                  </div>
+                  <div>
+                    <span className="subtle">Replica shirts sold</span>
+                    <strong>{overview.seasonShirtUnits.toLocaleString("en-US")}</strong>
+                  </div>
+                </div>
+                <div className="club-kit-strip">
+                  {slots.map((slot) => (
+                    <div key={slot.label}>
+                      <ClubKit design={slot.design} size="medium" label={slot.label} />
+                      <span className="subtle">{slot.label}</span>
+                      <strong>{slot.units.toLocaleString("en-US")}</strong>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </Panel>
+
+            <Panel title="Retail network">
+              <Metrics
+                items={[
+                  { label: "Store status", value: RETAIL_STATUS_LABEL[overview.retailStatus] },
+                  { label: "Stores completed", value: String(overview.completedRetailStores) },
+                  { label: "Merchandise appeal", value: overview.merchandiseAppeal.toFixed(1) },
+                  { label: "Shirt revenue", value: money(overview.seasonShirtRevenue) },
+                ]}
+              />
+              {overview.activeRetailProject ? (
+                <p className="subtle">
+                  A club store project is {overview.activeRetailProject.status.toLowerCase()} —{" "}
+                  {money(overview.activeRetailProject.capitalCost)}, due{" "}
+                  {overview.activeRetailProject.expectedCompletion}.
+                </p>
+              ) : overview.retailStatus === "NONE" ? (
+                <p className="subtle">
+                  This club has no dedicated store. Plan one from Facilities — a completed store raises the club's
+                  merchandise appeal, which feeds every following month's merchandise revenue.
+                </p>
+              ) : null}
+            </Panel>
+
+            <Panel title="Season history" className="panel-wide">
+              {overview.seasonHistory.length === 0 ? (
+                <p className="empty-state">No merchandise trade recorded yet.</p>
+              ) : (
+                <div className="club-store-season-list">
+                  {[...overview.seasonHistory].reverse().map((row) => (
+                    <CommercialSeasonRow
+                      key={row.seasonKey}
+                      row={row}
+                      kits={kitHistory.find((entry) => entry.seasonKey === row.seasonKey)}
+                    />
+                  ))}
+                </div>
+              )}
+            </Panel>
+
+            <Panel title="Recent merchandise postings">
+              {overview.recentMerchandisePostings.length === 0 ? (
+                <p className="empty-state">No merchandise postings yet.</p>
+              ) : (
+                <ul className="compact-list">
+                  {overview.recentMerchandisePostings.map((posting) => (
+                    <li key={`${posting.date}-${posting.amount}`}>
+                      {posting.date} · <strong>{money(posting.amount)}</strong>{" "}
+                      <span className="subtle">{posting.description}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <p className="subtle club-identity-provenance">
+                Simulation-only commercial figures. Revenue is the club's real finance-ledger trade under
+                Merchandise; replica-shirt counts are derived from that revenue, not recorded per sale.
+              </p>
+            </Panel>
+          </>
+        );
+      }}
+    </AsyncPanel>
+  );
+};
+
 /** One immutable snapshot per season the club has had a real save-turn in
  * — never a huge archive browser, just each season's three kit previews
  * with colour-independent text underneath. Reuses ClubKit exactly as the

@@ -79,7 +79,7 @@ const CHAIRMAN_NAV: Array<{ group: string; items: Array<{ id: ChairmanScreen; la
   { group: "Ownership", items: [{ id: "investors", label: "Investors" }] },
   { group: "Staff", items: [{ id: "executive", label: "Executive Management" }] },
   { group: "Development", items: [{ id: "facilities", label: "Facilities" }] },
-  { group: "Commercial", items: [{ id: "sponsorship", label: "Sponsorship" }, { id: "supporters", label: "Supporters" }] },
+  { group: "Commercial", items: [{ id: "sponsorship", label: "Sponsorship" }, { id: "supporters", label: "Supporters" }, { id: "club-store", label: "Club Store" }] },
   { group: "Club", items: [{ id: "identity", label: "Club Identity" }] },
   { group: "External relations", items: [{ id: "bank", label: "Bank" }] },
 ];

@@ -2375,6 +2375,76 @@ tbody tr:last-child td {
   font-size: 11px;
 }
 
+/* Club Store — a business dashboard hero rather than another grid of
+   identical cards: club identity on the left, the two figures that
+   actually matter in the middle, and the three real kits being sold on
+   the right. */
+.club-store-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 28px;
+}
+
+.club-store-hero-identity {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.club-store-hero-identity > div {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+
+.club-store-hero-figures {
+  display: flex;
+  gap: 24px;
+}
+
+.club-store-hero-figures > div {
+  display: grid;
+  gap: 2px;
+}
+
+.club-store-hero-figures strong {
+  font-size: 1.3rem;
+}
+
+.club-store-hero .club-kit-strip {
+  margin: 0;
+  margin-left: auto;
+}
+
+.club-store-season-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.club-store-season {
+  display: grid;
+  gap: 6px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line, #2c3954);
+}
+
+.club-store-season:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.club-store-season-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.club-store-season .club-kit-strip {
+  margin: 0;
+}
+
 .kit-history-list {
   display: flex;
   flex-direction: column;
