@@ -614,6 +614,15 @@ export class DesktopApplicationService {
   private readonly autosaveEnabled: boolean;
   private dataset?: NepalWorldDataset;
   private session?: CareerSession;
+  /** Test-only deterministic fault injection for setClubVisualIdentity,
+   * armed via armE2ENextIdentitySaveFailure — itself gated behind
+   * NEPAL_E2E_ROLE_FIXTURE at the server layer, same as every other E2E
+   * fixture command, so this can never be reached outside a dev/test
+   * run. Consumed (reset to false) by the very next
+   * setClubVisualIdentity call, so it fails exactly once and never
+   * again — real production behaviour is completely unaffected when
+   * this is never armed. */
+  private e2eNextIdentitySaveShouldFail = false;
 
   constructor(options: DesktopRuntimeOptions) {
     this.savesDirectory = options.savesDirectory;
@@ -2051,6 +2060,17 @@ export class DesktopApplicationService {
   }
 
   /** Test-only fixture hook; the desktop server gates exposure with an E2E env flag. */
+  /** Test-only: arms a deterministic one-time failure for the very next
+   * setClubVisualIdentity call (any club, any session) — used to verify
+   * the Create-a-Club wizard's identity-persistence failure UI (visible
+   * error, Retry, Continue without saving) without any random/flaky
+   * failure. Does not require an open session, since the founder wizard
+   * arms this before the club (and therefore the session) exists. */
+  armE2ENextIdentitySaveFailure(): AppResult<E2ERoleFixtureResult> {
+    this.e2eNextIdentitySaveShouldFail = true;
+    return ok({ ready: true });
+  }
+
   seedE2ERoleFixture(): AppResult<E2ERoleFixtureResult> {
     return this.withSession((db, save) => {
       const personId = careerPersonId(db, save);
@@ -4181,6 +4201,10 @@ export class DesktopApplicationService {
       const ownedClubId = heldCareerRoles(db, personId).find((role) => role.role === "CHAIRMAN_OWNER")?.targetId;
       if (ownedClubId !== clubId) {
         throw appError("ROLE_NOT_AUTHORIZED", "You may only edit your own club's identity.");
+      }
+      if (this.e2eNextIdentitySaveShouldFail) {
+        this.e2eNextIdentitySaveShouldFail = false;
+        throw appError("SAVE_CORRUPT", "Simulated identity persistence failure (E2E test fixture).");
       }
       for (const value of [identity.primaryColour, identity.secondaryColour, identity.accentColour]) {
         if (!isValidHexColour(value)) {
