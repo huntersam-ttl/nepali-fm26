@@ -1058,6 +1058,18 @@ export type CareerHeader = {
   activeRole: CareerRole;
   personId?: EntityId;
   personAge?: number;
+  /**
+   * The club the career is currently attached to, when there is one.
+   *
+   * Presentation support rather than new simulation state: the shell resolves
+   * the club's canonical badge and colours through
+   * `resolveClubVisualIdentity(view, clubId, clubName)`, which needs a real
+   * id. Without this the shell could only guess identity from the club's
+   * name, which would fabricate a badge for a club it had not actually
+   * identified. Absent while unemployed, and for the Federation President,
+   * whose shell identity is the federation rather than a club.
+   */
+  clubId?: EntityId;
   clubName?: string;
   teamName?: string;
   competitionName?: string;

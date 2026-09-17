@@ -6038,6 +6038,9 @@ const careerHeaderFromContext = (
   personAge: context.managerPerson.dateOfBirth
     ? ageOn(context.managerPerson.dateOfBirth, save.worldDate)
     : undefined,
+  // Sourced from the same resolved club record as the name, so the shell's
+  // badge/colour lookup is keyed on a real club rather than inferred text.
+  clubId: context.club?.id,
   clubName: context.club?.name,
   teamName: context.team.name,
   competitionName: context.season.name,
