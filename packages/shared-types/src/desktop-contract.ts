@@ -641,6 +641,18 @@ export type ClubCommercialOverview = {
     expectedCompletion: string;
     capitalCost: number;
   };
+  /**
+   * The club's active kit supplier, when one is under contract. Read from
+   * the canonical SponsorshipContract in the KIT_SUPPLIER slot — the Club
+   * Store reports the deal, it does not own or duplicate it.
+   */
+  kitSupplier?: {
+    partnerName: string;
+    endDate: string;
+    annualValue: number;
+    /** Share of merchandise revenue paid as a royalty, as a fraction. */
+    royaltyShare: number;
+  };
   /** Most recent real merchandise ledger postings, newest first. */
   recentMerchandisePostings: Array<{ date: string; amount: number; description: string }>;
   /** Oldest-first, every season the ledger actually has trade for. */

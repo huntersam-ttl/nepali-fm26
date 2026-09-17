@@ -650,6 +650,40 @@ export const sponsorMeetingOverview = (db: GameDatabase, clubId: EntityId): Spon
   };
 };
 
+/**
+ * The exclusivity slots a club can hold concurrently, in the order offers
+ * are proposed for them. This is the single source of truth for "how many
+ * sponsorships can a club hold" — the monthly economy tick and the AI's
+ * commercial planner both read it rather than repeating a literal, which
+ * is what previously had to be found and updated in three places whenever
+ * the slot model changed.
+ *
+ * Order matters: world creation seeds every club with `count: 1`, which
+ * fills the FIRST open slot, so SHIRT_MAIN must stay at the head. A club
+ * starts with a shirt sponsor and has to go to market for a kit supplier
+ * like any other deal — it is never handed one for free.
+ */
+export const SPONSORSHIP_SLOT_ORDER: readonly SponsorshipType[] = [
+  "SHIRT_MAIN",
+  "OFFICIAL_PARTNER",
+  "SLEEVE",
+  "LOCAL_PARTNER",
+  "KIT_SUPPLIER",
+] as const;
+
+/**
+ * The share of a month's real merchandise revenue a kit supplier pays the
+ * club as a royalty, on top of the contract's own annual value.
+ *
+ * Deliberately a bounded module constant rather than a per-contract field:
+ * the contract model does not need another column to express "this is a
+ * supply deal", and the royalty must stay small enough that a supplier can
+ * never out-earn the merchandise trade it is a share of. The club keeps its
+ * merchandise income in full — this is additional rights money, not a cut
+ * taken out of it.
+ */
+export const KIT_SUPPLIER_ROYALTY_SHARE = 0.06;
+
 export const generateSponsorOffers = (
   db: GameDatabase,
   input: { clubId: EntityId; date: string; seed: string; count?: number },
@@ -678,18 +712,18 @@ export const generateSponsorOffers = (
   const rng = new SeededRandom(`${input.seed}:sponsor-offers:${input.clubId}:${input.date}`);
   const count = input.count ?? 3;
   /*
-   * A club can hold up to four concurrent sponsors, one per exclusivity slot
-   * (shirt main, official partner, sleeve, local partner) — `acceptSponsorOffer`
-   * already refuses a second sponsor within the same slot. But every caller
-   * of this function requests `count: 1`, and offers used to always fill
-   * index 0 (SHIRT_MAIN) regardless of what the club already held. Once a
-   * club's real shirt sponsor was in place, generating another SHIRT_MAIN
-   * offer was pointless (rejected on accept) and every OTHER slot stayed
-   * permanently empty — the commercial pipeline could never diversify beyond
-   * the one baseline sponsor a club starts with. Offers are now built only
-   * for slots the club doesn't currently hold.
+   * A club can hold one sponsor per exclusivity slot (see
+   * SPONSORSHIP_SLOT_ORDER) — `acceptSponsorOffer` already refuses a second
+   * sponsor within the same slot. But every caller of this function requests
+   * `count: 1`, and offers used to always fill index 0 (SHIRT_MAIN)
+   * regardless of what the club already held. Once a club's real shirt
+   * sponsor was in place, generating another SHIRT_MAIN offer was pointless
+   * (rejected on accept) and every OTHER slot stayed permanently empty — the
+   * commercial pipeline could never diversify beyond the one baseline
+   * sponsor a club starts with. Offers are now built only for slots the club
+   * doesn't currently hold.
    */
-  const slotOrder: SponsorshipType[] = ["SHIRT_MAIN", "OFFICIAL_PARTNER", "SLEEVE", "LOCAL_PARTNER"];
+  const slotOrder: SponsorshipType[] = [...SPONSORSHIP_SLOT_ORDER];
   const heldSlots = new Set(
     economy
       .sponsorships(input.clubId)
@@ -752,7 +786,9 @@ export const generateSponsorOffers = (
         sponsorId: sponsor.id,
         type,
         startDate: input.date,
-        endDate: addYears(input.date, type === "SHIRT_MAIN" ? 2 : 1),
+        // Shirt-front and kit-supply deals are the two the club commits to
+        // for longer; the smaller slots stay on a one-year cycle.
+        endDate: addYears(input.date, type === "SHIRT_MAIN" || type === "KIT_SUPPLIER" ? 2 : 1),
         annualValue: Math.round(value),
         bonuses: { champion: Math.round(value * 0.12), promotion: Math.round(value * 0.08) },
         currency,
@@ -1779,7 +1815,10 @@ export const processClubEconomyMonth = (
     // Never pile up a fresh offer every month on top of one already waiting
     // for a decision — the player (or an AI club not yet processed this
     // cycle) still has this one to act on.
-    if (activeSponsorships.length < 4 && pendingSponsorOffers.length === 0) {
+    if (
+      activeSponsorships.length < SPONSORSHIP_SLOT_ORDER.length &&
+      pendingSponsorOffers.length === 0
+    ) {
       generateSponsorOffers(db, {
         clubId: account.clubId,
         date: input.date,
@@ -1847,7 +1886,32 @@ export const processClubEconomyMonth = (
           idempotencyKey: `commercial-partnership:${account.clubId}:${input.date}`,
         });
     }
-    postMerchandiseRevenue(db, { clubId: account.clubId, date: input.date, seed: input.seed });
+    const merchandiseRevenue = postMerchandiseRevenue(db, {
+      clubId: account.clubId,
+      date: input.date,
+      seed: input.seed,
+    });
+    /*
+     * A kit supplier pays a bounded royalty on the merchandise the club
+     * actually sold this month, derived from the figure the canonical
+     * merchandise posting just returned — never a second sales model and
+     * never a direct cash mutation. It posts under the same SPONSORSHIP
+     * category as every other contract payment, keyed by contract and date
+     * so a replayed or repeated tick cannot pay it twice.
+     */
+    const kitSupplier = activeSponsorships.find((item) => item.type === "KIT_SUPPLIER");
+    if (kitSupplier && merchandiseRevenue > 0) {
+      postClubTransaction(db, {
+        clubId: account.clubId,
+        date: input.date,
+        category: "SPONSORSHIP",
+        direction: "CREDIT",
+        amount: Math.round(merchandiseRevenue * KIT_SUPPLIER_ROYALTY_SHARE),
+        description: "Kit supplier merchandise royalty",
+        relatedEntityId: kitSupplier.id,
+        idempotencyKey: `kit-royalty:${kitSupplier.id}:${input.date}`,
+      });
+    }
   }
   for (const item of loanWages) {
     const parentPaid = postLoanWageShare(db, {
@@ -2151,6 +2215,89 @@ export const postCompetitionPrizeMoney = (
   }
 };
 
+/**
+ * Settles a club's sponsorship performance bonuses for a completed season.
+ *
+ * Only clauses with a real canonical outcome behind them are ever paid:
+ * `champion` reads `competition_winners` — the same row season finalisation
+ * writes when it crowns a champion — and `promotion` reads
+ * `competition_movements`, both scoped to the season being closed. There is
+ * deliberately no continental-qualification clause: no offer advertises one
+ * and no reliable canonical hook exists, so nothing here pretends to pay it.
+ *
+ * Exactly-once is structural rather than guarded by new state:
+ * `postClubTransaction` derives its ledger row id from the idempotency key,
+ * so re-closing a season, reloading a save, or replaying the tick collapses
+ * onto the same row instead of paying a second time.
+ */
+export const settleSponsorshipPerformanceBonuses = (
+  db: GameDatabase,
+  input: { clubId: EntityId; seasonLabel: string; date: string },
+): number => {
+  const economy = new ClubEconomyRepository(db);
+  // A contract earns the season's bonuses if it was genuinely in force for
+  // that season — including one that has since expired, which is the normal
+  // case when a deal ends with the season it was won in.
+  const contracts = economy
+    .sponsorships(input.clubId)
+    .filter((item) => item.status === "ACTIVE" || item.status === "EXPIRED")
+    .filter(
+      (item) =>
+        item.startDate.slice(0, 4) <= input.seasonLabel &&
+        item.endDate.slice(0, 4) >= input.seasonLabel,
+    );
+  if (contracts.length === 0) return 0;
+
+  const wonTitle = Boolean(
+    db
+      .prepare(
+        `SELECT 1 FROM competition_winners cw
+           JOIN teams t ON t.id = cw.team_id
+          WHERE t.club_id = ? AND substr(cw.decided_on, 1, 4) = ?
+          LIMIT 1`,
+      )
+      .get(input.clubId, input.seasonLabel),
+  );
+  // CompetitionMovementType declares PROMOTION while existing callers compare
+  // against PROMOTED; both are accepted here so the clause pays on the real
+  // stored value whichever it turns out to be, rather than silently never.
+  const promoted = Boolean(
+    db
+      .prepare(
+        `SELECT 1 FROM competition_movements cm
+           JOIN competition_seasons cs ON cs.id = cm.from_competition_season_id
+          WHERE cm.club_id = ? AND cm.movement_type IN ('PROMOTED', 'PROMOTION')
+            AND substr(cs.end_date, 1, 4) = ?
+          LIMIT 1`,
+      )
+      .get(input.clubId, input.seasonLabel),
+  );
+  if (!wonTitle && !promoted) return 0;
+
+  let paid = 0;
+  for (const contract of contracts) {
+    for (const [clause, achieved] of [
+      ["champion", wonTitle],
+      ["promotion", promoted],
+    ] as const) {
+      const amount = Math.round(contract.bonuses?.[clause] ?? 0);
+      if (!achieved || amount <= 0) continue;
+      postClubTransaction(db, {
+        clubId: input.clubId,
+        date: input.date,
+        category: "SPONSORSHIP",
+        direction: "CREDIT",
+        amount,
+        description: `Sponsorship ${clause} bonus`,
+        relatedEntityId: contract.id,
+        idempotencyKey: `sponsor-bonus:${contract.id}:${input.seasonLabel}:${clause}`,
+      });
+      paid += amount;
+    }
+  }
+  return paid;
+};
+
 export const closeClubFinancialSeason = (
   db: GameDatabase,
   input: { seasonLabel: string; date: string },
@@ -2158,6 +2305,14 @@ export const closeClubFinancialSeason = (
   const economy = new ClubEconomyRepository(db);
   const statements: ClubFinancialStatement[] = [];
   for (const account of economy.financialAccounts()) {
+    // Settle any earned performance bonuses BEFORE the statement is totalled,
+    // so the season's accounts include the money the club actually earned
+    // that season rather than stranding it in the following one.
+    settleSponsorshipPerformanceBonuses(db, {
+      clubId: account.clubId,
+      seasonLabel: input.seasonLabel,
+      date: input.date,
+    });
     const entries = economy.ledgerEntries(account.clubId, input.seasonLabel);
     const revenue = categoryTotals(entries, "CREDIT");
     const expenses = categoryTotals(entries, "DEBIT");

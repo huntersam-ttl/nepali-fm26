@@ -2307,7 +2307,16 @@ export type SponsorshipType =
   | "STADIUM"
   | "ACADEMY"
   | "OFFICIAL_PARTNER"
-  | "LOCAL_PARTNER";
+  | "LOCAL_PARTNER"
+  /**
+   * The club's kit manufacturer. A supplier is a commercial agreement like
+   * any other sponsorship — same offer/negotiate/accept/expire lifecycle,
+   * same exclusivity slot, same canonical ledger posting — so it is a
+   * SponsorshipType rather than a parallel contract model. What makes it
+   * distinct is that it also pays a bounded royalty on the club's real
+   * merchandise trade (see club-retail / CLUB_COMMERCIAL_PARTNERSHIPS).
+   */
+  | "KIT_SUPPLIER";
 
 export type SponsorshipContract = {
   id: EntityId;

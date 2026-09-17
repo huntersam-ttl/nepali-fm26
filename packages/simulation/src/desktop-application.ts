@@ -43,7 +43,11 @@ import {
   withAutosaveStamp,
 } from "./save-management.js";
 import { advanceMacroEconomyForWorldDate } from "./macro-economy.js";
-import { advanceInfrastructureProjects, processClubEconomyMonth } from "./club-economy.js";
+import {
+  advanceInfrastructureProjects,
+  KIT_SUPPLIER_ROYALTY_SHARE,
+  processClubEconomyMonth,
+} from "./club-economy.js";
 import {
   advanceProcurementContracts,
   advanceProcurementOrders,
@@ -4285,6 +4289,27 @@ export class DesktopApplicationService {
               ? "PLANNING"
               : "NONE";
 
+      /*
+       * The kit supplier is a canonical SponsorshipContract in the
+       * KIT_SUPPLIER slot — the Club Store reports the deal that the
+       * Sponsorship screen owns, and never stores or re-derives one of its
+       * own. Absent when the club has no supplier under contract, which is
+       * how every club starts.
+       */
+      const supplierContract = economy
+        .sponsorships(targetClubId)
+        .find(
+          (item) =>
+            item.type === "KIT_SUPPLIER" &&
+            item.status === "ACTIVE" &&
+            item.endDate >= save.worldDate,
+        );
+      const supplierName = supplierContract
+        ? new ClubEconomyRepository(db)
+            .sponsors()
+            .find((sponsor) => sponsor.id === supplierContract.sponsorId)?.name
+        : undefined;
+
       return {
         clubId: targetClubId,
         clubName: getClub(db, targetClubId).name,
@@ -4298,6 +4323,14 @@ export class DesktopApplicationService {
         thirdShirtUnits: current.thirdShirtUnits,
         retailStatus,
         completedRetailStores,
+        kitSupplier: supplierContract
+          ? {
+              partnerName: supplierName ?? "Unknown supplier",
+              endDate: supplierContract.endDate,
+              annualValue: supplierContract.annualValue,
+              royaltyShare: KIT_SUPPLIER_ROYALTY_SHARE,
+            }
+          : undefined,
         activeRetailProject: active
           ? {
               status: active.status,
