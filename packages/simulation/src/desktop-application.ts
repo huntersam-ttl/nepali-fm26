@@ -122,6 +122,8 @@ import {
   type ClubProfile,
   type ClubVisualIdentityView,
   type ClubKitHistorySeason,
+  type ClubCommercialOverview,
+  type ClubRetailStatus,
   type ClubBadgeShape,
   type ClubBadgeSymbol,
   type ClubKitDesignOverride,
@@ -284,6 +286,7 @@ import {
   deterministicClubKits,
   isValidHexColour,
 } from "./club-visual-identity-colours.js";
+import { shirtSalesFromRevenue } from "./club-retail.js";
 import {
   appointNationalTeamHeadCoachForPresident,
   FederationPersonnelError,
@@ -4174,6 +4177,115 @@ export class DesktopApplicationService {
         createdAt: entry.createdAt,
       })),
     );
+  }
+
+  /**
+   * The Owner's commercial / club-store read model. Every money figure
+   * here is grouped from real `MERCHANDISE` ledger rows that the
+   * canonical monthly economy tick already posted — this command does
+   * not post, mutate, or re-derive any revenue. Shirt unit counts are
+   * the analytics layer in club-retail.ts sitting on top of that real
+   * revenue, and retail status is read straight off canonical
+   * RETAIL_STORE infrastructure projects rather than a parallel
+   * retail-building state that could drift out of sync with them.
+   */
+  getClubCommercialOverview(clubId?: EntityId): AppResult<ClubCommercialOverview> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      if (activeCareerRole(db, personId) !== "CHAIRMAN_OWNER") {
+        throw appError("ROLE_NOT_AUTHORIZED", "You do not currently hold the Chairman role.");
+      }
+      const targetClubId =
+        clubId ?? heldCareerRoles(db, personId).find((role) => role.role === "CHAIRMAN_OWNER")?.targetId;
+      if (!targetClubId) throw appError("ROLE_NOT_AUTHORIZED", "No club is available.");
+      if (
+        !heldCareerRoles(db, personId).some(
+          (entry) => entry.role === "CHAIRMAN_OWNER" && entry.targetId === targetClubId,
+        )
+      ) {
+        throw appError("ROLE_NOT_AUTHORIZED", "The owner does not control this club.");
+      }
+
+      const economy = new ClubEconomyRepository(db);
+      const merchandiseAppeal = economy.commercialProfile(targetClubId)?.merchandiseAppeal ?? 0;
+      const seasonKey = save.worldDate.slice(0, 4);
+      const merchandiseEntries = economy
+        .ledgerEntries(targetClubId)
+        .filter((entry) => entry.category === "MERCHANDISE" && entry.direction === "CREDIT");
+
+      // Season grouping uses the same plain 4-digit key the kit history
+      // uses, so a season row joins directly to that season's recorded
+      // kit snapshot. Note the unit counts for *past* seasons are derived
+      // using the club's CURRENT merchandiseAppeal (the game stores the
+      // revenue per season, not the appeal it was earned at), so historic
+      // revenue is exact while historic unit counts are an approximation.
+      const revenueBySeason = new Map<string, number>();
+      for (const entry of merchandiseEntries) {
+        const key = entry.date.slice(0, 4);
+        revenueBySeason.set(key, (revenueBySeason.get(key) ?? 0) + entry.amount);
+      }
+      const seasonHistory = [...revenueBySeason.entries()]
+        .sort((left, right) => left[0].localeCompare(right[0]))
+        .map(([key, merchandiseRevenue]) => {
+          const split = shirtSalesFromRevenue({ merchandiseRevenue, merchandiseAppeal });
+          return {
+            seasonKey: key,
+            merchandiseRevenue,
+            shirtRevenue: split.shirtRevenue,
+            shirtUnits: split.shirtUnits,
+            homeShirtUnits: split.homeShirtUnits,
+            awayShirtUnits: split.awayShirtUnits,
+            thirdShirtUnits: split.thirdShirtUnits,
+          };
+        });
+
+      const seasonMerchandiseRevenue = revenueBySeason.get(seasonKey) ?? 0;
+      const current = shirtSalesFromRevenue({ merchandiseRevenue: seasonMerchandiseRevenue, merchandiseAppeal });
+
+      const retailProjects = economy
+        .infrastructureProjects(targetClubId)
+        .filter((project) => project.projectType === "RETAIL_STORE");
+      const completedRetailStores = retailProjects.filter((project) => project.status === "COMPLETED").length;
+      const active = retailProjects.find(
+        (project) => project.status !== "COMPLETED" && project.status !== "CANCELLED",
+      );
+      const retailStatus: ClubRetailStatus =
+        completedRetailStores > 0
+          ? "OPERATING"
+          : active?.status === "CONSTRUCTION"
+            ? "UNDER_DEVELOPMENT"
+            : active
+              ? "PLANNING"
+              : "NONE";
+
+      return {
+        clubId: targetClubId,
+        clubName: getClub(db, targetClubId).name,
+        seasonKey,
+        merchandiseAppeal,
+        seasonMerchandiseRevenue,
+        seasonShirtRevenue: current.shirtRevenue,
+        seasonShirtUnits: current.shirtUnits,
+        homeShirtUnits: current.homeShirtUnits,
+        awayShirtUnits: current.awayShirtUnits,
+        thirdShirtUnits: current.thirdShirtUnits,
+        retailStatus,
+        completedRetailStores,
+        activeRetailProject: active
+          ? {
+              status: active.status,
+              expectedCompletion: active.expectedCompletion,
+              capitalCost: active.capitalCost,
+            }
+          : undefined,
+        recentMerchandisePostings: [...merchandiseEntries]
+          .sort((left, right) => right.date.localeCompare(left.date))
+          .slice(0, 6)
+          .map((entry) => ({ date: entry.date, amount: entry.amount, description: entry.description })),
+        seasonHistory,
+        provenanceStatus: "SIMULATION_ONLY" as const,
+      };
+    });
   }
 
   /** Full identity write (colours + badge design). Superset of

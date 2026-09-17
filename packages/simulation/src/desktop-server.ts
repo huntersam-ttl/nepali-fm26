@@ -551,6 +551,8 @@ const dispatch = (
       );
     case "getClubKitHistory":
       return service.getClubKitHistory(body.clubId as EntityId);
+    case "getClubCommercialOverview":
+      return service.getClubCommercialOverview(body.clubId as EntityId | undefined);
     case "getStaffProfile":
       return service.getStaffProfile(body.personId as EntityId);
     case "getCompetitionProfile":

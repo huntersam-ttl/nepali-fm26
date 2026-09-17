@@ -1,6 +1,7 @@
 export * from "./clock.js";
 export * from "./career-world.js";
 export * from "./club-economy.js";
+export * from "./club-retail.js";
 export * from "./demo-league.js";
 export * from "./desktop-application.js";
 export * from "./desktop-server.js";

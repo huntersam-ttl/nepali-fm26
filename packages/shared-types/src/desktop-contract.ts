@@ -593,6 +593,61 @@ export type ClubKitHistorySeason = {
   createdAt: string;
 };
 
+/** Where the club's dedicated retail store currently stands, derived
+ * entirely from canonical RETAIL_STORE InfrastructureProject rows — there
+ * is no separate retail-building state to drift out of sync with them. */
+export type ClubRetailStatus = "NONE" | "PLANNING" | "UNDER_DEVELOPMENT" | "OPERATING";
+
+/** One season's merchandise trade, grouped from the club's real
+ * `MERCHANDISE` ledger entries by the same plain 4-digit season key the
+ * kit history uses — so a season row here joins directly to that
+ * season's recorded kit snapshot. */
+export type ClubCommercialSeasonRow = {
+  seasonKey: string;
+  merchandiseRevenue: number;
+  shirtRevenue: number;
+  shirtUnits: number;
+  homeShirtUnits: number;
+  awayShirtUnits: number;
+  thirdShirtUnits: number;
+};
+
+/**
+ * The Owner's commercial read model. Every money figure traces to real
+ * `MERCHANDISE` ledger entries the monthly economy tick already posted;
+ * shirt unit counts are an analytics layer derived from that revenue
+ * (see packages/simulation/src/club-retail.ts), never a second revenue
+ * engine, and are SIMULATION_ONLY like every other commercial figure
+ * this game produces.
+ */
+export type ClubCommercialOverview = {
+  clubId: EntityId;
+  clubName: string;
+  /** Plain 4-digit year, the codebase's existing season-label convention. */
+  seasonKey: string;
+  merchandiseAppeal: number;
+  seasonMerchandiseRevenue: number;
+  seasonShirtRevenue: number;
+  seasonShirtUnits: number;
+  homeShirtUnits: number;
+  awayShirtUnits: number;
+  thirdShirtUnits: number;
+  retailStatus: ClubRetailStatus;
+  /** How many RETAIL_STORE projects the club has actually completed. */
+  completedRetailStores: number;
+  /** The in-flight store project, when one exists. */
+  activeRetailProject?: {
+    status: string;
+    expectedCompletion: string;
+    capitalCost: number;
+  };
+  /** Most recent real merchandise ledger postings, newest first. */
+  recentMerchandisePostings: Array<{ date: string; amount: number; description: string }>;
+  /** Oldest-first, every season the ledger actually has trade for. */
+  seasonHistory: ClubCommercialSeasonRow[];
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
 export type ClubStadiumSummary = {
   venueId: EntityId;
   name: string;
@@ -1109,6 +1164,9 @@ export type DesktopRuntimeApi = {
    * A club with no history yet (a save from before this feature, or one
    * still in its first season) resolves to an empty array. */
   getClubKitHistory?(clubId: EntityId): Promise<AppResult<ClubKitHistorySeason[]>>;
+  /** The Owner's commercial/club-store read model. Defaults to the club
+   * the caller actually controls when no id is supplied. */
+  getClubCommercialOverview?(clubId?: EntityId): Promise<AppResult<ClubCommercialOverview>>;
   getStaffProfile?(personId: EntityId): Promise<AppResult<StaffProfileReadModel>>;
   getCompetitionProfile?(competitionId: EntityId): Promise<AppResult<CompetitionProfile>>;
   getInfrastructureProjectProfile?(projectId: EntityId): Promise<AppResult<InfrastructureProjectProfile>>;

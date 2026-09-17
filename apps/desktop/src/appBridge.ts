@@ -81,6 +81,7 @@ import type {
   ClubProfile,
   ClubVisualIdentityView,
   ClubKitHistorySeason,
+  ClubCommercialOverview,
   ClubBadgeShape,
   ClubBadgeSymbol,
   ClubKitDesignOverride,
@@ -253,6 +254,8 @@ const bindCommands = (call: CommandCaller): DesktopRuntimeApi => ({
   ) => call<ClubVisualIdentityView>("setClubVisualIdentity", { clubId, identity }),
   getClubKitHistory: (clubId: EntityId) =>
     call<ClubKitHistorySeason[]>("getClubKitHistory", { clubId }),
+  getClubCommercialOverview: (clubId?: EntityId) =>
+    call<ClubCommercialOverview>("getClubCommercialOverview", { clubId }),
   getStaffProfile: (personId: EntityId) =>
     call<StaffProfileReadModel>("getStaffProfile", { personId }),
   getCompetitionProfile: (competitionId: EntityId) =>
