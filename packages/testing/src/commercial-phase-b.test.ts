@@ -13,6 +13,7 @@ import {
   generateSponsorOffers,
   initializeClubEconomyForSave,
   renewSponsorship,
+  SPONSORSHIP_SLOT_ORDER,
 } from "@nepal-football-sim/simulation";
 import type { EntityId } from "@nepal-football-sim/shared-types";
 
@@ -125,9 +126,11 @@ describe("commercial football world phase B", () => {
     // Once every slot is genuinely filled, no further offer is proposed.
     acceptSponsorOffer(db, second.id, "2026-08-02");
     const filled = new Set([...heldFromStart, first.type, second.type]);
-    const remaining = (["SHIRT_MAIN", "OFFICIAL_PARTNER", "SLEEVE", "LOCAL_PARTNER"] as const).filter(
-      (type) => !filled.has(type),
-    );
+    // Derived from the canonical slot model rather than a literal list: when
+    // a slot is added (kit supply, most recently) this loop must saturate the
+    // new slot too, or the "no further offer" assertion below would fail for
+    // the wrong reason — an unfilled slot, not a misbehaving generator.
+    const remaining = SPONSORSHIP_SLOT_ORDER.filter((type) => !filled.has(type));
     for (const _ of remaining) {
       const next = generateSponsorOffers(db, {
         clubId: club.id,
@@ -144,7 +147,11 @@ describe("commercial football world phase B", () => {
       count: 1,
     });
     expect(fullyStocked).toHaveLength(0);
-    expect(new Set(economy.sponsorships(club.id).filter((item) => item.status === "ACTIVE").map((item) => item.type)).size).toBe(4);
+    expect(
+      new Set(
+        economy.sponsorships(club.id).filter((item) => item.status === "ACTIVE").map((item) => item.type),
+      ).size,
+    ).toBe(SPONSORSHIP_SLOT_ORDER.length);
     db.close();
   });
 });
