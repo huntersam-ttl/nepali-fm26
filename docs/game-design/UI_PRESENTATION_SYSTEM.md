@@ -102,6 +102,37 @@ wider cards — the composition never changes, which is what Phase 36 means
 by "don't just stretch edge to edge". And raw enum values are visibly
 leaking into the UI (`NORMAL`, `STABLE`, `NEUTRAL`, `PRIMARY`).
 
+### After the shell restructure (same probe, same viewport)
+
+| Measurement | Before | After |
+| --- | --- | --- |
+| `<h1>` elements | 2 | **1** — "Church Boys United" |
+| `<nav>` inside `<main>` | yes | **no** |
+| `main` landmark | shell wrapper | **`main.workspace`**, exactly one |
+| `aside.sidebar` | present | **preserved** |
+| Page title | `<h1>` | **`<h2>`, 24px** |
+
+The page title's size is the part worth calling out. Demoting the markup
+alone would have silently dropped it to the global `h2` rule (1rem with a
+14px bottom margin) — a real visual regression shipped invisibly — so
+`.page-header h1` and its dark-theme override were both widened to cover
+`h2` in the same change, with the dark layer now reading `--text-page`
+rather than a hand-picked 1.7rem.
+
+Which `<h1>` survives was decided by evidence, not preference:
+`create-a-club-failure-recovery` asserts
+`getByRole("heading", { level: 1 }).first()` is the founded club's name, as
+part of proving the founder flow produced exactly one club. The club is
+also the durable identity of the workspace, while the screen title is the
+current section — so the sidebar keeps the `<h1>` and the page header
+demotes. Both specs that assert screen titles use `getByRole("heading")`
+without a level, so the demotion leaves them passing.
+
+`headerCount` is still 15 — one `<header>` per `Panel`. That is Home
+composition rather than shell structure, and is addressed with the Home
+work rather than by changing `Panel`, whose `<article>` + level-2 heading
+contract is pinned by `press-keyboard-activation`.
+
 ## Data available to Home (no new read model)
 
 `ManagerDashboard` already carries identity, `leaguePosition`/`played`/

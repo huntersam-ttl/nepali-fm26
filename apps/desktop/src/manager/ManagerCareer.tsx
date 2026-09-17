@@ -255,7 +255,21 @@ export const ManagerCareer = ({
   const roleLabel = careerRoleLabel(header.activeRole);
 
   return (
-    <main className="manager-shell">
+    /*
+     * Shell landmarks (UI Phase 1).
+     *
+     * The shell wrapper is a plain element and `.workspace` is the `main`
+     * landmark, so primary navigation sits OUTSIDE main rather than nested
+     * inside it — the audit measured `navInsideMain: true`, which made the
+     * one landmark that should contain the current screen contain the whole
+     * application instead.
+     *
+     * The sidebar keeps the page's single `<h1>` (the club is the durable
+     * identity of the workspace, and create-a-club-failure-recovery asserts
+     * the first level-1 heading is the founded club). The screen title below
+     * is a section heading, not a second page title.
+     */
+    <div className="manager-shell">
       <aside className="sidebar">
         <div>
           <p className="eyebrow">Career workspace</p>
@@ -329,7 +343,7 @@ export const ManagerCareer = ({
         </div>
       </aside>
 
-      <section className="workspace">
+      <main className="workspace">
         {error && <ErrorBanner error={error} />}
         {pendingMatch && !matchFixtureId && (
           <div className="notice" role="status">
@@ -441,7 +455,11 @@ export const ManagerCareer = ({
           <header className="page-header">
             <div>
               <p className="eyebrow">Manager workspace</p>
-              <h1>{LABELS[screen]}</h1>
+              {/* A section heading, not a second page title: the sidebar's
+                  club name is the page's single <h1>. Specs that assert these
+                  screen titles use getByRole("heading") without a level, so
+                  the demotion keeps them passing. */}
+              <h2>{LABELS[screen]}</h2>
               <p className="subtle">{SUBTITLES[screen]}</p>
             </div>
           </header>
@@ -518,7 +536,7 @@ export const ManagerCareer = ({
         )}
         {header.activeRole === "MANAGER" && screen === "medical" && <MedicalScreen onSelectPlayer={openPlayer} />}
         {header.activeRole === "MANAGER" && screen === "media" && <MediaScreen onSelectPlayer={openPlayer} />}
-      </section>
+      </main>
       {openClubId && (
         <OrganizationProfilePanel
           bridge={bridge}
@@ -537,6 +555,6 @@ export const ManagerCareer = ({
         />
       )}
       {presentationOpen && <PresentationSettingsPanel onClose={() => setPresentationOpen(false)} />}
-    </main>
+    </div>
   );
 };
