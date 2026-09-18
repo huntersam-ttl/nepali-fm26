@@ -125,11 +125,13 @@ test("plays a manager career through every gameplay screen and persists it", asy
   const advance = page.locator(".topbar").getByRole("button", { name: "Continue", exact: true });
   for (let attempt = 0; attempt < 12; attempt += 1) {
     if (await matchdayCta.count()) break;
-    // Continue is disabled exactly while a matchday is pending, and the
-    // fixtures effect that sets that state resolves asynchronously, so "no CTA
-    // yet" can also mean "not resolved yet". Clicking a disabled button just
-    // retries until the test times out; wait for the CTA instead.
-    if (await advance.isEnabled()) await advance.click();
+    // Continue disables itself the instant a matchday becomes pending, and the
+    // fixtures effect that sets that state resolves asynchronously. isEnabled()
+    // is only a snapshot: a click issued while it reads true can become
+    // impossible a moment later, and Playwright then retries actionability
+    // until the whole test times out. Bound each attempt so the loop gets to
+    // re-check the CTA instead of blocking on a button that will never enable.
+    await advance.click({ timeout: 5_000 }).catch(() => undefined);
     await page.waitForTimeout(800);
   }
   await goTo(page, "Fixtures");

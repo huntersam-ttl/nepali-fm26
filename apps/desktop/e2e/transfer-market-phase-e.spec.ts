@@ -33,7 +33,18 @@ test("runs a realistic transfer enquiry through offer construction and persisted
     .filter({ has: page.getByRole("heading", { name: "Recruitment search" }) });
   const searchRows = searchPanel.locator("tbody tr");
   const nextPage = searchPanel.getByRole("button", { name: "Next", exact: true });
-  await expect(searchRows.first()).toBeVisible();
+
+  /**
+   * The search panel renders "Loading…" in place of its table while the page
+   * resolves, and under load that can outlast a default expect timeout. A scan
+   * of a still-loading panel sees zero rows and wrongly concludes no player is
+   * reachable, so wait for real rows before reading any of them.
+   */
+  const searchLoaded = async (): Promise<void> => {
+    await expect(searchPanel.getByText("Loading…")).toHaveCount(0, { timeout: 60_000 });
+    await expect(searchRows.first()).toBeVisible({ timeout: 60_000 });
+  };
+  await searchLoaded();
 
   // The search is knowledge-gated but not squad-limited — the pager reports
   // hundreds of reachable players, and the first page simply happens to be our
@@ -55,7 +66,10 @@ test("runs a realistic transfer enquiry through offer construction and persisted
     if (shortlisted) break;
     if (!(await nextPage.isEnabled())) break;
     await nextPage.click();
-    await expect(searchRows.first()).toBeVisible();
+    // Not just "rows are visible": the previous page's rows still are, so that
+    // would pass instantly and rescan the same page. Wait for the panel to
+    // finish loading the next one.
+    await searchLoaded();
   }
   expect(shortlisted, "the recruitment search should reach a player from another club").toBe(true);
   await page.getByRole("button", { name: "Transfers", exact: true }).click();
