@@ -38,7 +38,11 @@ test("switches through a deterministic multi-role career dashboard", async ({ pa
   await page.getByRole("button", { name: "Manager", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Manager oversight" })).toBeVisible();
   await page.getByRole("button", { name: "Facilities", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Ground and facilities" })).toBeVisible();
+  // The screen's title is "Facilities"; "Ground and infrastructure projects."
+  // is its subtitle. "Ground and facilities" is a name this screen has not
+  // carried for some time — exact, so it cannot drift onto the
+  // "Facilities & government support" panel instead.
+  await expect(page.getByRole("heading", { name: "Facilities", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Sponsorship", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Sponsorship" }).first()).toBeVisible();
 
