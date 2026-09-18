@@ -8,7 +8,7 @@ const LONG = 120_000;
 
 const createCareer = async (page: Page, saveName: string): Promise<void> => {
   await page.goto("/");
-  await page.getByRole("button", { name: /New Career/ }).click();
+  await page.getByRole("button", { name: /New Career/i }).click();
   await page.getByLabel("Save name").fill(saveName);
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
@@ -26,12 +26,39 @@ const goTo = (page: Page, screen: string) =>
 
 const controls = (page: Page) => page.locator(".matchday-controls");
 
-/** Opens match preparation for the first upcoming fixture. */
+/**
+ * Opens match preparation for the next *playable* fixture.
+ *
+ * FixturesScreen gates each row on `fixture.date <= worldDate` (4130eeb,
+ * "enforce current fixture integrity", which landed after this spec was
+ * written). A fixture a week away renders "Future · read only" with
+ * aria-disabled and no click handler, so the first row of a fresh career is
+ * deliberately unclickable — the old `tbody tr` first-row click could only
+ * ever have worked against a tree predating that feature.
+ *
+ * Advance world time the way a player does: Continue stops at NEXT_FIXTURE.
+ */
 const openPreMatch = async (page: Page): Promise<void> => {
-  await goTo(page, "Fixtures");
-  await expect(page.locator("tbody tr").first()).toBeVisible();
-  await page.locator("tbody tr").first().click();
-  await expect(page.getByRole("heading", { name: "Match preparation" })).toBeVisible();
+  const matchdayCta = page.getByRole("button", { name: /Matchday/ });
+  // Scoped to the topbar: "Continue" also names the career-setup button.
+  const advance = page.locator(".topbar").getByRole("button", { name: "Continue", exact: true });
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    if (await matchdayCta.count()) break;
+    // Continue is disabled exactly while a matchday is pending, and the
+    // fixtures effect that sets that state resolves asynchronously — so "no
+    // CTA yet" can also mean "not resolved yet". Clicking a disabled button
+    // only retries until the test times out; wait for the CTA instead.
+    if (await advance.isEnabled()) await advance.click();
+    await page.waitForTimeout(800);
+  }
+  await expect(
+    matchdayCta,
+    "the Matchday call-to-action should appear once world time reaches the fixture",
+  ).toBeVisible({ timeout: LONG });
+  await matchdayCta.click();
+  await expect(page.getByRole("heading", { name: "Match preparation" })).toBeVisible({
+    timeout: LONG,
+  });
 };
 
 const chooseView = async (page: Page, label: string): Promise<void> => {
@@ -123,7 +150,11 @@ test("plays a Text Live match end to end with a substitution and tactical change
   await expect(timeline.locator(".commentary-line").first()).toBeVisible();
 
   await page.getByRole("button", { name: "Return to career" }).click();
-  await expect(page.getByRole("heading", { name: "Fixtures" })).toBeVisible();
+  // Two headings are legitimately named "Fixtures": the screen title and the
+  // FixturesScreen panel. Scope to the page header rather than matching both.
+  await expect(
+    page.locator(".page-header").getByRole("heading", { name: "Fixtures" }),
+  ).toBeVisible();
 
   // The completed match is reflected in the career.
   await goTo(page, "Competition");
@@ -161,7 +192,7 @@ test("Key Events skips quiet play and survives a page reload", async ({ page }) 
 
   // Reload: the match must resume, not restart.
   await page.reload();
-  await page.getByRole("button", { name: /Load Career/ }).click();
+  await page.getByRole("button", { name: /Load Career/i }).click();
   await page.getByRole("button", { name: new RegExp(saveName) }).click();
   await expect(page.getByRole("button", { name: "Home / Inbox" })).toBeVisible({
     timeout: LONG,

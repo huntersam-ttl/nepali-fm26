@@ -16,7 +16,7 @@ test("creates, advances, reopens and deletes a real SQLite manager career", asyn
   const before = saveFiles().length;
 
   await page.goto("/");
-  await page.getByRole("button", { name: /New Career/ }).click();
+  await page.getByRole("button", { name: /New Career/i }).click();
 
   await page.getByLabel("Save name").fill(saveName);
   await page.getByLabel("Full name").fill("Maya Adhikari");
@@ -26,15 +26,23 @@ test("creates, advances, reopens and deletes a real SQLite manager career", asyn
   await page.getByRole("button", { name: "Continue" }).click();
 
   // Real Nepal clubs come from the imported world, not a hardcoded list.
+  // The picker is a role="group" of club buttons, not a <select>, so the club's
+  // own name is the button's <strong> rather than an <option>'s text.
   const clubPicker = page.getByLabel("Starting club");
   await expect(clubPicker).toBeVisible();
-  const clubLabel = (await clubPicker.locator("option").first().textContent()) ?? "";
-  expect(clubLabel).not.toMatch(/Testing|Sample|Demo/);
-  const clubName = clubLabel.replace(/\s*\(\d+ players\)\s*$/, "").trim();
+  const clubName = ((await clubPicker.locator("button.club-row strong").first().textContent()) ?? "").trim();
+  expect(clubName).not.toMatch(/Testing|Sample|Demo/);
+  expect(clubName.length, "a real club name should be offered").toBeGreaterThan(0);
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Create Save" }).click();
 
-  await expect(page.getByText(clubName).first()).toBeVisible({ timeout: 30_000 });
+  // Wait for the career shell, not for the club name: the Confirmation step
+  // already reads "Join <club> as manager…", so getByText(clubName) matches
+  // while the save is still being written and the file count below runs early.
+  await expect(page.getByRole("button", { name: "Home / Inbox" })).toBeVisible({
+    timeout: 240_000,
+  });
+  await expect(page.getByText(clubName).first()).toBeVisible();
   expect(saveFiles().length).toBe(before + 1);
 
   await page.getByRole("button", { name: "Squad", exact: true }).click();
@@ -60,7 +68,7 @@ test("creates, advances, reopens and deletes a real SQLite manager career", asyn
 
   // Full reload: nothing survives in the page, only in the save file.
   await page.reload();
-  await page.getByRole("button", { name: /Load Career/ }).click();
+  await page.getByRole("button", { name: /Load Career/i }).click();
   await page.getByRole("button", { name: new RegExp(saveName) }).click();
 
   await expect(page.locator(".topbar strong").nth(1)).toHaveText(advancedDate ?? "", {
@@ -71,7 +79,7 @@ test("creates, advances, reopens and deletes a real SQLite manager career", asyn
   await expect(page.getByLabel("Style")).toHaveValue("HIGH_PRESS");
 
   await page.getByRole("button", { name: "Main Menu" }).click();
-  await page.getByRole("button", { name: /Load Career/ }).click();
+  await page.getByRole("button", { name: /Load Career/i }).click();
   await page
     .locator(".club-row-group", { hasText: saveName })
     .getByRole("button", { name: "Delete" })

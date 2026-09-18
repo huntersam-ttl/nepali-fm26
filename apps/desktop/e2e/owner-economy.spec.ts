@@ -143,7 +143,7 @@ test.describe("Owner economy browser harness", () => {
     await page.getByRole("button", { name: "Save", exact: true }).click();
     await page.getByRole("button", { name: "Main Menu" }).click();
     await page.reload();
-    await page.getByRole("button", { name: /Load Career/ }).click();
+    await page.getByRole("button", { name: /Load Career/i }).click();
     await page.getByRole("button", { name: new RegExp(saveName) }).click();
     await page.getByLabel("Active career role").selectOption("CHAIRMAN_OWNER");
     await expect(page.getByRole("heading", { name: "Chairman / Owner" })).toBeVisible();

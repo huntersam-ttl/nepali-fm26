@@ -11,7 +11,7 @@ const CAREER_TIMEOUT = 120_000;
 
 const openCareer = async (page: Page, saveName: string): Promise<void> => {
   await page.goto("/");
-  await page.getByRole("button", { name: /New Career/ }).click();
+  await page.getByRole("button", { name: /New Career/i }).click();
   await page.getByLabel("Save name").fill(saveName);
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
@@ -64,12 +64,14 @@ test("resigns, applies for a new job, and manages again", async ({ page }) => {
 
   // --- Career history records both spells ---------------------------------
   await expect(page.getByRole("heading", { name: "Career history" })).toBeVisible();
-  await expect(page.locator(".workspace")).toContainText("RESIGNED");
-  await expect(page.locator(".workspace")).toContainText("ACTIVE");
+  // Career history renders outcomes through humanizeEnum, so the page shows
+  // "Resigned"/"Active" rather than the stored RESIGNED/ACTIVE tokens.
+  await expect(page.locator(".workspace")).toContainText("Resigned");
+  await expect(page.locator(".workspace")).toContainText("Active");
 
   // Leave the shared saves directory as this test found it.
   await page.getByRole("button", { name: "Main Menu" }).click();
-  await page.getByRole("button", { name: /Load Career/ }).click();
+  await page.getByRole("button", { name: /Load Career/i }).click();
   await page
     .locator(".club-row-group", { hasText: saveName })
     .getByRole("button", { name: "Delete" })

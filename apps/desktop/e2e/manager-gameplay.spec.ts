@@ -8,15 +8,16 @@ const CAREER_TIMEOUT = 120_000;
 
 const openCareer = async (page: Page, saveName: string): Promise<string> => {
   await page.goto("/");
-  await page.getByRole("button", { name: /New Career/ }).click();
+  await page.getByRole("button", { name: /New Career/i }).click();
   await page.getByLabel("Save name").fill(saveName);
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
 
   const clubPicker = page.getByLabel("Starting club");
   await expect(clubPicker).toBeVisible();
-  const label = (await clubPicker.locator("option").first().textContent()) ?? "";
-  const clubName = label.replace(/\s*\(\d+ players\)\s*$/, "").trim();
+  // The picker is a role="group" of club buttons, not a <select>: the club's
+  // own name is the button's <strong>, never an <option>'s text.
+  const clubName = ((await clubPicker.locator("button.club-row strong").first().textContent()) ?? "").trim();
   expect(clubName).not.toMatch(/Testing|Sample|Demo/);
 
   await page.getByRole("button", { name: "Continue" }).click();
@@ -38,18 +39,30 @@ test("plays a manager career through every gameplay screen and persists it", asy
 
   // --- Home ---------------------------------------------------------------
   await expect(page.getByRole("heading", { name: "Club", exact: true })).toBeVisible();
-  await expect(page.locator(".workspace")).toContainText("ANFA National League");
+  // The competition is world data, not a fixed league name. The old
+  // "ANFA National League" expectation stopped matching the default club's
+  // real competition, so read what the shell reports and prove Home shows the
+  // same thing — a cross-check between two regions rather than a pinned name.
+  const competition = ((await page.locator(".topbar span[title]").first().textContent()) ?? "").trim();
+  expect(competition.length, "the shell should report a competition").toBeGreaterThan(0);
+  await expect(page.locator(".panel").filter({ hasText: "Next fixture" })).toContainText(competition);
   const worldDate = await page.locator(".topbar strong").nth(1).textContent();
 
   // --- Squad and player profile -------------------------------------------
   await goTo(page, "Squad");
-  await expect(page.locator("tbody tr").nth(10)).toBeVisible();
+  // Squad renders two tables. "Player lifestyle & manager support" comes first
+  // in the DOM, its rows carry no click handler, and it only appears when the
+  // club has lifestyle/support reads — so an unscoped "tbody tr" targets a
+  // non-navigating row for some clubs. Scope to the rows that open a profile.
+  const squadRows = page.locator("tbody tr:has(td.squad-name-cell)");
+  await expect(squadRows.nth(10)).toBeVisible();
   await page.getByLabel("Availability").selectOption("AVAILABLE");
-  await expect(page.locator("tbody tr").first()).toBeVisible();
+  await expect(squadRows.first()).toBeVisible();
 
-  const firstPlayer = (await page.locator("tbody tr td").first().textContent()) ?? "";
-  await page.locator("tbody tr").first().click();
-  await expect(page.getByRole("heading", { name: firstPlayer.trim() })).toBeVisible();
+  const firstPlayer =
+    ((await squadRows.first().locator("td.squad-name-cell").textContent()) ?? "").trim();
+  await squadRows.first().click();
+  await expect(page.getByRole("heading", { name: firstPlayer })).toBeVisible();
   await expect(page.locator(".workspace")).toContainText("Attributes");
   await expect(page.locator(".workspace")).toContainText("Technical");
   await page.getByRole("button", { name: /Back to squad/ }).click();
@@ -101,9 +114,33 @@ test("plays a manager career through every gameplay screen and persists it", asy
   // --- Fixtures and Quick Sim ---------------------------------------------
   await goTo(page, "Fixtures");
   await expect(page.locator("tbody tr").nth(4)).toBeVisible();
+
+  // A fixture is only playable once world time reaches it (4130eeb, "enforce
+  // current fixture integrity"): future rows render "Future · read only" with
+  // aria-disabled, so the row itself cannot be clicked on a fresh career.
+  // Advance the way a player does, then enter through the Matchday CTA.
+  // Advancing does not remove the fixture from the upcoming list — only
+  // playing it does — so the count invariant below is unaffected.
+  const matchdayCta = page.getByRole("button", { name: /Matchday/ });
+  const advance = page.locator(".topbar").getByRole("button", { name: "Continue", exact: true });
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    if (await matchdayCta.count()) break;
+    // Continue is disabled exactly while a matchday is pending, and the
+    // fixtures effect that sets that state resolves asynchronously, so "no CTA
+    // yet" can also mean "not resolved yet". Clicking a disabled button just
+    // retries until the test times out; wait for the CTA instead.
+    if (await advance.isEnabled()) await advance.click();
+    await page.waitForTimeout(800);
+  }
+  await goTo(page, "Fixtures");
+  await expect(page.locator("tbody tr").first()).toBeVisible();
   const upcomingBefore = await page.locator("tbody tr").count();
-  await page.locator("tbody tr").first().click();
-  await expect(page.getByRole("heading", { name: "Match preparation" })).toBeVisible();
+
+  await expect(matchdayCta).toBeVisible({ timeout: CAREER_TIMEOUT });
+  await matchdayCta.click();
+  await expect(page.getByRole("heading", { name: "Match preparation" })).toBeVisible({
+    timeout: CAREER_TIMEOUT,
+  });
   await expect(page.locator(".workspace")).toContainText("Selected XI");
 
   // Step 4D routes matches through the matchday flow; Quick Sim is a match view
@@ -142,7 +179,7 @@ test("plays a manager career through every gameplay screen and persists it", asy
   await expect(page.locator(".topbar strong").nth(1)).toHaveText(advancedDate ?? "");
   await page.getByRole("button", { name: "Main Menu" }).click();
   await page.reload();
-  await page.getByRole("button", { name: /Load Career/ }).click();
+  await page.getByRole("button", { name: /Load Career/i }).click();
   await page.getByRole("button", { name: new RegExp(saveName) }).click();
   await expect(page.getByRole("button", { name: "Home / Inbox" })).toBeVisible({
     timeout: CAREER_TIMEOUT,
