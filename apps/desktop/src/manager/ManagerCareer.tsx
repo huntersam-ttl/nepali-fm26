@@ -1,12 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
-import type { AutosaveStatusView, CareerHeader, CareerRole, CareerRoleState, EntityId, FixtureRow } from "@nepal-football-sim/shared-types";
+import type { AutosaveStatusView, CareerHeader, CareerRole, CareerRoleState, EntityId, EntityReferenceType, FixtureRow } from "@nepal-football-sim/shared-types";
 import type { AppError, DesktopRuntimeApi } from "../appBridge.js";
 import { managerBridge } from "./managerBridge.js";
 import { ErrorBanner, useRuntimeData } from "./ui.js";
 import { HomeScreen } from "./screens/HomeScreen.js";
 import { SquadScreen } from "./screens/SquadScreen.js";
 import { DressingRoomScreen } from "./screens/DressingRoomScreen.js";
-import { PlayerProfileScreen } from "./screens/PlayerProfileScreen.js";
 import { TacticsScreen } from "./screens/TacticsScreen.js";
 import { TrainingScreen } from "./screens/TrainingScreen.js";
 import { FixturesScreen } from "./screens/FixturesScreen.js";
@@ -20,7 +19,7 @@ import { MediaScreen } from "./screens/MediaScreen.js";
 import { MatchdayScreen } from "./matchday/MatchdayScreen.js";
 import { RoleLandingScreen, EXECUTIVE_ROLES } from "./RoleLandingScreen.js";
 import type { ChairmanScreen, PresidentScreen } from "./RoleDetailScreen.js";
-import { OrganizationProfilePanel } from "./RoleDetailScreen.js";
+import { EntitySurface } from "./EntitySurface.js";
 import { PresentationSettingsPanel } from "../presentation/PresentationSettingsPanel.js";
 import { PersonPortrait } from "../presentation/PersonPortrait.js";
 import { buildPersonVisualIdentity, type PersonRole } from "../presentation/personVisualIdentity.js";
@@ -177,7 +176,6 @@ export const ManagerCareer = ({
     safeDestination.kind === "workspace" && safeDestination.role !== "MANAGER"
       ? (safeDestination.workspace as RoleScreen)
       : "dashboard";
-  const [playerId, setPlayerId] = useState<EntityId | null>(null);
   const [matchFixtureId, setMatchFixtureId] = useState<EntityId | null>(null);
   const [resumingMatch, setResumingMatch] = useState(false);
   const [openMatchAsReport, setOpenMatchAsReport] = useState(false);
@@ -187,7 +185,6 @@ export const ManagerCareer = ({
   const [notice, setNotice] = useState<string | null>(null);
   const [autosave, setAutosave] = useState<AutosaveStatusView | null>(null);
   const [matchdayFixture, setMatchdayFixture] = useState<FixtureRow | null>(null);
-  const [openClubId, setOpenClubId] = useState<EntityId | null>(null);
   const [presentationOpen, setPresentationOpen] = useState(false);
 
   const refreshAutosave = async (): Promise<void> => {
@@ -233,20 +230,21 @@ export const ManagerCareer = ({
   const goTo = (next: WorkspaceDestination): void => {
     navigate(next);
     if (next.role === "MANAGER") {
-      // Mirrors the old sidebar semantics: leaving a live match is safe (the
-      // session is persisted and resumable from fixtures), and Squad keeps any
-      // open player profile while other workspaces flush it.
-      if (next.workspace !== "squad") setPlayerId(null);
       if (next.workspace !== "fixtures") setMatchFixtureId(null);
     } else {
-      setPlayerId(null);
       setMatchFixtureId(null);
     }
   };
 
+  /** Canonical entity navigation: a meaningful entity click becomes an
+   * AppDestination instead of an overlay, so Back/Forward and history follow
+   * the Phase 1A model. */
+  const openEntity = (entityType: EntityReferenceType, entityId: EntityId): void => {
+    navigate({ kind: "entity", entityType, entityId });
+  };
+
   const openPlayer = (id: EntityId): void => {
-    goTo({ kind: "workspace", role: "MANAGER", workspace: "squad" });
-    setPlayerId(id);
+    openEntity("PLAYER", id);
   };
 
   const advance = async (): Promise<void> => {
@@ -382,7 +380,6 @@ export const ManagerCareer = ({
             disabled={!canBack}
             onClick={() => {
               back();
-              setPlayerId(null);
               setMatchFixtureId(null);
             }}
           >
@@ -395,7 +392,6 @@ export const ManagerCareer = ({
             disabled={!canForward}
             onClick={() => {
               forward();
-              setPlayerId(null);
               setMatchFixtureId(null);
             }}
           >
@@ -510,7 +506,6 @@ export const ManagerCareer = ({
                 // The navigation history resets to the new role's default
                 // workspace (setRole in useAppNavigation); only manager-role
                 // overlay state needs flushing here.
-                setPlayerId(null);
                 setMatchFixtureId(null);
               }}
             >
@@ -570,6 +565,17 @@ export const ManagerCareer = ({
           </div>
         </header>
 
+        {safeDestination.kind === "entity" ? (
+          <EntitySurface
+            entityType={safeDestination.entityType}
+            entityId={safeDestination.entityId}
+            bridge={bridge}
+            onOpenEntity={openEntity}
+            onOpenWorkspace={(workspace) => goTo({ kind: "workspace", role: "MANAGER", workspace })}
+            onBack={() => back()}
+          />
+        ) : (
+          <>
         {header.activeRole !== "MANAGER" ? (
           <RoleLandingScreen header={header} roles={roles} bridge={bridge} screen={roleScreen} onNavigate={(s) => goTo(workspaceForRole(header.activeRole, s))} />
         ) : (
@@ -596,29 +602,15 @@ export const ManagerCareer = ({
             }}
             onNavigate={(next) => {
               goTo({ kind: "workspace", role: "MANAGER", workspace: next });
-              setPlayerId(null);
               setMatchFixtureId(null);
             }}
             bridge={bridge}
             onSelectPlayer={openPlayer}
           />
         )}
-        {header.activeRole === "MANAGER" && screen === "squad" &&
-          (playerId ? (
-            <PlayerProfileScreen
-              playerId={playerId}
-              onClose={() => setPlayerId(null)}
-              onOpenClub={setOpenClubId}
-              onOpenPlayer={setPlayerId}
-              onOpenDressingRoom={() => {
-                goTo({ kind: "workspace", role: "MANAGER", workspace: "dressing-room" });
-                setPlayerId(null);
-              }}
-              bridge={bridge}
-            />
-          ) : (
-            <SquadScreen onSelectPlayer={setPlayerId} />
-          ))}
+        {header.activeRole === "MANAGER" && screen === "squad" && (
+          <SquadScreen onSelectPlayer={openPlayer} />
+        )}
         {header.activeRole === "MANAGER" && screen === "dressing-room" && (
           <DressingRoomScreen onSelectPlayer={openPlayer} />
         )}
@@ -639,17 +631,17 @@ export const ManagerCareer = ({
           ) : (
             <FixturesScreen
               onOpenMatch={(fixtureId, alreadyPlayed) => openMatch(fixtureId, false, alreadyPlayed)}
-              onOpenClub={setOpenClubId}
+              onOpenClub={(id) => openEntity("CLUB", id)}
             />
           ))}
         {header.activeRole === "MANAGER" && screen === "competition" && (
-          <CompetitionScreen onOpenClub={setOpenClubId} />
+          <CompetitionScreen onOpenClub={(id) => openEntity("CLUB", id)} />
         )}
         {header.activeRole === "MANAGER" && screen === "scouting" && (
-          <ScoutingScreen onSelectPlayer={openPlayer} onOpenClub={setOpenClubId} />
+          <ScoutingScreen onSelectPlayer={openPlayer} onOpenClub={(id) => openEntity("CLUB", id)} />
         )}
         {header.activeRole === "MANAGER" && screen === "transfers" && (
-          <TransfersScreen onSelectPlayer={openPlayer} onOpenClub={setOpenClubId} />
+          <TransfersScreen onSelectPlayer={openPlayer} onOpenClub={(id) => openEntity("CLUB", id)} />
         )}
         {header.activeRole === "MANAGER" && screen === "contracts" && <ContractsScreen onSelectPlayer={openPlayer} />}
         {header.activeRole === "MANAGER" && screen === "staff" && (
@@ -657,24 +649,9 @@ export const ManagerCareer = ({
         )}
         {header.activeRole === "MANAGER" && screen === "medical" && <MedicalScreen onSelectPlayer={openPlayer} />}
         {header.activeRole === "MANAGER" && screen === "media" && <MediaScreen onSelectPlayer={openPlayer} />}
+          </>
+        )}
       </main>
-      {openClubId && (
-        <OrganizationProfilePanel
-          bridge={bridge}
-          entityType="CLUB"
-          entityId={openClubId}
-          onClose={() => setOpenClubId(null)}
-          onOpenPlayer={(id) => {
-            // Close this club overlay and navigate to the real Player
-            // Profile underneath — the same pattern PlayerProfileScreen's
-            // own nested OrganizationProfilePanel already uses, so a
-            // squad chip (domestic or a real CONTEXT_ONLY foreign player)
-            // is just as navigable from here.
-            setOpenClubId(null);
-            openPlayer(id);
-          }}
-        />
-      )}
       {presentationOpen && <PresentationSettingsPanel onClose={() => setPresentationOpen(false)} />}
     </div>
   );

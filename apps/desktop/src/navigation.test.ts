@@ -4,14 +4,16 @@ import { act, renderHook } from "@testing-library/react";
 import {
   defaultDestination,
   destinationsEqual,
+  entityDestination,
   initialNavigationState,
   isValidDestinationForRole,
   navigationReducer,
+  referenceToDestination,
   useAppNavigation,
   type AppDestination,
   type NavigationState,
 } from "./navigation.js";
-import type { CareerRole, EntityId } from "@nepal-football-sim/shared-types";
+import type { CareerRole, EntityId, EntityReferenceType } from "@nepal-football-sim/shared-types";
 
 const ws = (role: CareerRole, workspace: string): AppDestination =>
   ({ kind: "workspace", role, workspace }) as AppDestination;
@@ -149,5 +151,71 @@ describe("useAppNavigation hook", () => {
     rerender({ role: "CHAIRMAN_OWNER" });
     expect(result.current.destination).toEqual(ws("CHAIRMAN_OWNER", "dashboard"));
     expect(result.current.canBack).toBe(false);
+  });
+});
+
+describe("canonical entity destinations (Phase 1B)", () => {
+  const ref = (entityType: EntityReferenceType, id: string, visible = true) => ({
+    entityType,
+    id: id as EntityId,
+    visible,
+  });
+
+  it("maps every supported reference to an entity destination", () => {
+    const supported: EntityReferenceType[] = [
+      "PLAYER",
+      "CLUB",
+      "STAFF",
+      "COMPETITION",
+      "INFRASTRUCTURE_PROJECT",
+      "SPONSOR",
+      "LENDER",
+      "INVESTOR",
+      "JOURNALIST",
+      "MEDIA_OUTLET",
+    ];
+    for (const type of supported) {
+      const destination = referenceToDestination(ref(type, "e1"));
+      expect(destination?.kind).toBe("entity");
+      expect(destination?.entityType).toBe(type);
+      expect(destination?.entityId).toBe("e1");
+    }
+  });
+
+  it("refuses hidden and unsupported references (no fabricated destination)", () => {
+    expect(referenceToDestination(ref("CLUB", "e1", false))).toBeUndefined();
+    expect(referenceToDestination(ref("FIXTURE", "f1"))).toBeUndefined();
+    expect(referenceToDestination(ref("NATIONAL_TEAM", "n1"))).toBeUndefined();
+    expect(referenceToDestination(ref("FEDERATION_PROJECT", "x"))).toBeUndefined();
+    expect(referenceToDestination(ref("GOVERNMENT_INSTITUTION", "g1"))).toBeUndefined();
+  });
+
+  it("keeps history across workspace -> entity -> entity -> Back", () => {
+    let state = initialNavigationState("MANAGER"); // home
+    state = nav(state, entityDestination("COMPETITION", "c1" as EntityId));
+    state = nav(state, entityDestination("CLUB", "c2" as EntityId));
+    state = nav(state, entityDestination("PLAYER", "p1" as EntityId));
+    expect(state.history[state.index]).toEqual(entityDestination("PLAYER", "p1" as EntityId));
+
+    state = navigationReducer(state, { type: "back" });
+    expect(state.history[state.index]).toEqual(entityDestination("CLUB", "c2" as EntityId));
+    state = navigationReducer(state, { type: "back" });
+    expect(state.history[state.index]).toEqual(entityDestination("COMPETITION", "c1" as EntityId));
+    state = navigationReducer(state, { type: "back" });
+    expect(state.history[state.index]).toEqual(home());
+  });
+
+  it("entity equality distinguishes kind, type and id (and versus workspace)", () => {
+    expect(destinationsEqual(entityDestination("CLUB", "a" as EntityId), entityDestination("CLUB", "a" as EntityId))).toBe(true);
+    expect(destinationsEqual(entityDestination("CLUB", "a" as EntityId), entityDestination("CLUB", "b" as EntityId))).toBe(false);
+    expect(destinationsEqual(entityDestination("CLUB", "a" as EntityId), entityDestination("PLAYER", "a" as EntityId))).toBe(false);
+    expect(destinationsEqual(entityDestination("CLUB", "a" as EntityId), home())).toBe(false);
+  });
+
+  it("an identical entity destination does not duplicate history", () => {
+    let state = initialNavigationState("MANAGER");
+    state = nav(state, entityDestination("CLUB", "a" as EntityId));
+    state = nav(state, entityDestination("CLUB", "a" as EntityId));
+    expect(state.history.filter((d) => d.kind === "entity")).toHaveLength(1);
   });
 });

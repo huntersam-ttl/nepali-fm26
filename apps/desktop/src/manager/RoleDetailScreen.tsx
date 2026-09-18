@@ -7108,6 +7108,72 @@ export const EntityStorylinePanel = ({
   );
 };
 
+/** The ONE shared renderer for an entity profile's read model + body, used by
+ * both the in-workspace overlay (OrganizationProfilePanel) and the canonical
+ * Phase 1B entity destination (EntitySurface). Centralising the switch here is
+ * what keeps "click an entity" behaving uniformly instead of duplicating the
+ * fetch/body selection across screens. PLAYER is not handled here — its surface
+ * is role-specific (PlayerProfileScreen / PlayerContextPanel) and callers own
+ * that choice. */
+export const EntityProfileBody = ({
+  entityType,
+  entityId,
+  bridge,
+  onOpenReference,
+}: {
+  entityType: ProfileEntityType;
+  entityId: EntityId;
+  bridge: DesktopRuntimeApi;
+  onOpenReference: (reference: EntityReference) => void;
+}): React.ReactElement => {
+  const [state] = useRuntimeData<ProfileData>(async (): Promise<AppResult<ProfileData>> => {
+    if (ORGANIZATION_ENTITY_TYPES.has(entityType)) {
+      const result = await bridge.getOrganizationProfile(entityType as OrganizationProfileEntityType, entityId);
+      return result.ok ? { ok: true as const, data: { kind: "ORGANIZATION" as const, data: result.data } } : result;
+    }
+    if (entityType === "CLUB") {
+      if (!bridge.getClubProfile) return missingProfileMethod("Club profiles are unavailable right now.");
+      const result = await bridge.getClubProfile(entityId);
+      return result.ok ? { ok: true as const, data: { kind: "CLUB" as const, data: result.data } } : result;
+    }
+    if (entityType === "STAFF") {
+      if (!bridge.getStaffProfile) return missingProfileMethod("Staff profiles are unavailable right now.");
+      const result = await bridge.getStaffProfile(entityId);
+      return result.ok ? { ok: true as const, data: { kind: "STAFF" as const, data: result.data } } : result;
+    }
+    if (entityType === "COMPETITION") {
+      if (!bridge.getCompetitionProfile)
+        return missingProfileMethod("Competition profiles are unavailable right now.");
+      const result = await bridge.getCompetitionProfile(entityId);
+      return result.ok ? { ok: true as const, data: { kind: "COMPETITION" as const, data: result.data } } : result;
+    }
+    if (!bridge.getInfrastructureProjectProfile)
+      return missingProfileMethod("Project profiles are unavailable right now.");
+    const result = await bridge.getInfrastructureProjectProfile(entityId);
+    return result.ok
+      ? { ok: true as const, data: { kind: "INFRASTRUCTURE_PROJECT" as const, data: result.data } }
+      : result;
+  }, [entityType, entityId]);
+
+  return (
+    <AsyncPanel state={state}>
+      {(profile) =>
+        profile.kind === "ORGANIZATION" ? (
+          <OrganizationProfileBody profile={profile.data} onOpenReference={onOpenReference} />
+        ) : profile.kind === "CLUB" ? (
+          <ClubProfileBody profile={profile.data} onOpenReference={onOpenReference} bridge={bridge} />
+        ) : profile.kind === "STAFF" ? (
+          <StaffProfileBody profile={profile.data} onOpenReference={onOpenReference} />
+        ) : profile.kind === "COMPETITION" ? (
+          <CompetitionProfileBody profile={profile.data} onOpenReference={onOpenReference} />
+        ) : profile.kind === "INFRASTRUCTURE_PROJECT" ? (
+          <InfrastructureProjectProfileBody profile={profile.data} onOpenReference={onOpenReference} />
+        ) : null
+      }
+    </AsyncPanel>
+  );
+};
+
 export const OrganizationProfilePanel = ({
   bridge,
   entityType,
@@ -7137,37 +7203,6 @@ export const OrganizationProfilePanel = ({
   // shared, role-aware surface. Without this it fell through to the project
   // fetcher and failed outright for every non-manager role.
   const playerTarget = target.entityType === "PLAYER" ? target.entityId : undefined;
-  const [state] = useRuntimeData(async (): Promise<AppResult<ProfileData>> => {
-    if (target.entityType === "PLAYER")
-      return { ok: true as const, data: { kind: "PLAYER" as const, playerId: target.entityId } };
-    if (ORGANIZATION_ENTITY_TYPES.has(target.entityType)) {
-      const result = await bridge.getOrganizationProfile(
-        target.entityType as OrganizationProfileEntityType,
-        target.entityId,
-      );
-      return result.ok ? { ok: true as const, data: { kind: "ORGANIZATION" as const, data: result.data } } : result;
-    }
-    if (target.entityType === "CLUB") {
-      if (!bridge.getClubProfile) return missingProfileMethod("Club profiles are unavailable right now.");
-      const result = await bridge.getClubProfile(target.entityId);
-      return result.ok ? { ok: true as const, data: { kind: "CLUB" as const, data: result.data } } : result;
-    }
-    if (target.entityType === "STAFF") {
-      if (!bridge.getStaffProfile) return missingProfileMethod("Staff profiles are unavailable right now.");
-      const result = await bridge.getStaffProfile(target.entityId);
-      return result.ok ? { ok: true as const, data: { kind: "STAFF" as const, data: result.data } } : result;
-    }
-    if (target.entityType === "COMPETITION") {
-      if (!bridge.getCompetitionProfile)
-        return missingProfileMethod("Competition profiles are unavailable right now.");
-      const result = await bridge.getCompetitionProfile(target.entityId);
-      return result.ok ? { ok: true as const, data: { kind: "COMPETITION" as const, data: result.data } } : result;
-    }
-    if (!bridge.getInfrastructureProjectProfile)
-      return missingProfileMethod("Project profiles are unavailable right now.");
-    const result = await bridge.getInfrastructureProjectProfile(target.entityId);
-    return result.ok ? { ok: true as const, data: { kind: "INFRASTRUCTURE_PROJECT" as const, data: result.data } } : result;
-  }, [target.entityType, target.entityId]);
 
   const openReference = (reference: EntityReference): void => {
     if (reference.entityType === "PLAYER") {
@@ -7228,21 +7263,12 @@ export const OrganizationProfilePanel = ({
         </span>
       }
     >
-      <AsyncPanel state={state}>
-        {(profile) =>
-          profile.kind === "ORGANIZATION" ? (
-            <OrganizationProfileBody profile={profile.data} onOpenReference={openReference} />
-          ) : profile.kind === "CLUB" ? (
-            <ClubProfileBody profile={profile.data} onOpenReference={openReference} bridge={bridge} />
-          ) : profile.kind === "STAFF" ? (
-            <StaffProfileBody profile={profile.data} onOpenReference={openReference} />
-          ) : profile.kind === "COMPETITION" ? (
-            <CompetitionProfileBody profile={profile.data} onOpenReference={openReference} />
-          ) : profile.kind === "INFRASTRUCTURE_PROJECT" ? (
-            <InfrastructureProjectProfileBody profile={profile.data} onOpenReference={openReference} />
-          ) : null
-        }
-      </AsyncPanel>
+      <EntityProfileBody
+        entityType={target.entityType}
+        entityId={target.entityId}
+        bridge={bridge}
+        onOpenReference={openReference}
+      />
     </Panel>
   );
 };

@@ -3238,3 +3238,11 @@ button.map-region-block:focus-visible {
   opacity: 0.42;
   cursor: not-allowed;
 }
+
+/* Phase 1B canonical entity destination surface — rendered inside the shell
+   workspace in place of the workspace screens (never an appended overlay). */
+.entity-destination {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}

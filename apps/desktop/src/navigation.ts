@@ -70,6 +70,74 @@ export type EntityDestination = {
 
 export type AppDestination = WorkspaceDestination | EntityDestination;
 
+/** Entity kinds that have a real canonical destination surface in Phase 1B.
+ * Anything else (e.g. FIXTURE, NATIONAL_TEAM, FEDERATION_PROJECT) intentionally
+ * maps to nothing — callers fall back to their existing non-destination
+ * behaviour instead of fabricating a blank profile page. */
+export const CANONICAL_ENTITY_TYPES = new Set<EntityReferenceType>([
+  "PLAYER",
+  "CLUB",
+  "STAFF",
+  "COMPETITION",
+  "INFRASTRUCTURE_PROJECT",
+  "SPONSOR",
+  "LENDER",
+  "INVESTOR",
+  "JOURNALIST",
+  "MEDIA_OUTLET",
+]);
+
+export const entityDestination = (entityType: EntityReferenceType, entityId: EntityId): EntityDestination => ({
+  kind: "entity",
+  entityType,
+  entityId,
+});
+
+/** Whether an entity kind can be opened as a canonical Phase 1B destination. */
+export const isCanonicalEntityType = (entityType: EntityReferenceType): boolean =>
+  CANONICAL_ENTITY_TYPES.has(entityType);
+
+/** The single central translation from a clickable world reference into the
+ * navigation model. Returns undefined for references that must stay local
+ * (hidden, or a kind with no destination yet) rather than fabricating one. */
+export const referenceToDestination = (reference: {
+  entityType: EntityReferenceType;
+  id: EntityId;
+  visible: boolean;
+}): EntityDestination | undefined => {
+  if (!reference.visible) return undefined;
+  if (!isCanonicalEntityType(reference.entityType)) return undefined;
+  return entityDestination(reference.entityType, reference.id);
+};
+
+/** Human title for an entity destination page header. */
+export const entityTypeTitle = (entityType: EntityReferenceType): string => {
+  switch (entityType) {
+    case "PLAYER":
+      return "Player";
+    case "CLUB":
+      return "Club";
+    case "STAFF":
+      return "Staff";
+    case "COMPETITION":
+      return "Competition";
+    case "INFRASTRUCTURE_PROJECT":
+      return "Project";
+    case "SPONSOR":
+      return "Sponsor";
+    case "LENDER":
+      return "Lender";
+    case "INVESTOR":
+      return "Investor";
+    case "JOURNALIST":
+      return "Journalist";
+    case "MEDIA_OUTLET":
+      return "Media outlet";
+    default:
+      return "Entity";
+  }
+};
+
 /** The workspace a role lands on when a career (or that role) opens. */
 export const defaultDestination = (role: CareerRole): WorkspaceDestination => {
   switch (role) {
