@@ -3154,3 +3154,50 @@ button.map-region-block:focus-visible {
     animation: none;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Club identity in the shell (UI Phase 1).
+
+   Deliberately the LAST rules in the file. `nav button.active` is defined
+   twice already (the base layer and again in the dark layer), so an accent
+   written anywhere earlier is silently overridden — the same cascade trap the
+   nav-clipping bug was caused by. Appended here, after the final closed
+   media block, these win without editing either existing rule.
+
+   --club-accent is the club's real primary colour, set on .manager-shell by
+   ManagerCareer. It falls back to the app accent via its own token default,
+   so an unemployed career and the Federation President keep the standard
+   accent rather than a fabricated club colour.
+   --------------------------------------------------------------------------- */
+.sidebar-identity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.sidebar-identity > div {
+  min-width: 0;
+}
+
+/* A slim edge marker rather than a filled block: the active destination should
+   read as football navigation, not as a highlighted SaaS tab. The tint is the
+   club's colour at low alpha via color-mix, so contrast never depends on how
+   dark or light that colour happens to be; the text colour is untouched. */
+.sidebar nav button.active {
+  position: relative;
+  border-color: color-mix(in srgb, var(--club-accent) 45%, transparent);
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--club-accent) 22%, transparent),
+    transparent 70%
+  );
+}
+.sidebar nav button.active::before {
+  content: "";
+  position: absolute;
+  inset-block: 4px;
+  inset-inline-start: 0;
+  width: 3px;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--club-accent);
+}

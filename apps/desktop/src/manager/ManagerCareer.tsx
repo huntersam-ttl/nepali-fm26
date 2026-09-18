@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import type { AutosaveStatusView, CareerHeader, CareerRole, CareerRoleState, EntityId, FixtureRow } from "@nepal-football-sim/shared-types";
 import type { AppError, DesktopRuntimeApi } from "../appBridge.js";
 import { managerBridge } from "./managerBridge.js";
-import { ErrorBanner } from "./ui.js";
+import { ErrorBanner, useRuntimeData } from "./ui.js";
 import { HomeScreen } from "./screens/HomeScreen.js";
 import { SquadScreen } from "./screens/SquadScreen.js";
 import { DressingRoomScreen } from "./screens/DressingRoomScreen.js";
@@ -24,6 +24,8 @@ import { OrganizationProfilePanel } from "./RoleDetailScreen.js";
 import { PresentationSettingsPanel } from "../presentation/PresentationSettingsPanel.js";
 import { PersonPortrait } from "../presentation/PersonPortrait.js";
 import { buildPersonVisualIdentity, type PersonRole } from "../presentation/personVisualIdentity.js";
+import { ClubBadge } from "../presentation/ClubBadge.js";
+import { resolveClubVisualIdentity } from "../presentation/clubVisualIdentity.js";
 
 /** The portrait's `role` must derive from the same real career person
  * regardless of which office they currently hold — a Manager who becomes
@@ -254,6 +256,54 @@ export const ManagerCareer = ({
 
   const roleLabel = careerRoleLabel(header.activeRole);
 
+  /*
+   * Club identity, fetched once per shell load.
+   *
+   * Keyed on header.clubId so it refetches only when the club actually
+   * changes — never per nav item, per panel, or per render. An unemployed
+   * career and the Federation President have no clubId, and then no request
+   * is made at all: identity is never fabricated for a club the shell has not
+   * identified. The bridge command is optional in the contract, so it is
+   * guarded the same way PlayerProfileScreen and RoleDetailScreen guard it.
+   */
+  const clubId = header.clubId;
+  /*
+   * StrictMode (active under the dev server, which E2E drives) intentionally
+   * invokes effects twice on mount, so useRuntimeData calls this loader twice
+   * for the same club. Sharing the per-club promise keeps that to a single
+   * HTTP request; keyed on clubId it naturally refetches when the club change.
+   */
+  const identityRequests = useRef(
+    new Map<EntityId, ReturnType<NonNullable<DesktopRuntimeApi["getClubVisualIdentity"]>>>(),
+  );
+  const [clubIdentityState] = useRuntimeData(
+    () => {
+      if (!clubId || !bridge.getClubVisualIdentity) {
+        return Promise.resolve({
+          ok: false as const,
+          error: { code: "INVALID_SELECTION" as const, message: "No club" },
+        });
+      }
+      const cached = identityRequests.current.get(clubId);
+      if (cached) return cached;
+      const request = bridge.getClubVisualIdentity(clubId);
+      identityRequests.current.set(clubId, request);
+      return request;
+    },
+    [clubId],
+  );
+  /* resolveClubVisualIdentity handles every historical storage shape, so a
+   * club with no saved override still gets its deterministic badge rather
+   * than nothing. Only ever built from a real clubId. */
+  const clubIdentity =
+    clubId && header.clubName
+      ? resolveClubVisualIdentity(
+          clubIdentityState.status === "ready" ? clubIdentityState.data : undefined,
+          clubId,
+          header.clubName,
+        )
+      : undefined;
+
   return (
     /*
      * Shell landmarks (UI Phase 1).
@@ -269,12 +319,26 @@ export const ManagerCareer = ({
      * the first level-1 heading is the founded club). The screen title below
      * is a section heading, not a second page title.
      */
-    <div className="manager-shell">
+    <div
+      className="manager-shell"
+      /* The club's real primary colour, used only as an accent (see the
+       * --club-accent rules at the end of styles.css). Absent for an
+       * unemployed career and for the Federation President, where the token's
+       * own default keeps the app accent rather than inventing a club colour. */
+      style={clubIdentity ? ({ "--club-accent": clubIdentity.primaryColour } as React.CSSProperties) : undefined}
+    >
       <aside className="sidebar">
-        <div>
-          <p className="eyebrow">Career workspace</p>
-          <h1>{header.activeRole === "FEDERATION_PRESIDENT" ? "All Nepal Football Association" : header.clubName ?? "Nepal Football"}</h1>
-          <span className="role-badge">{roleLabel}</span>
+        <div className="sidebar-identity">
+          {/* Decorative: the <h1> beside it already names the club, so the
+           * badge deliberately omits clubName rather than announcing the club
+           * a second time to assistive tech. Not focusable — it is an <svg>
+           * with no tabindex, so it never enters the Tab order. */}
+          {clubIdentity && <ClubBadge design={clubIdentity.badge} size="small" />}
+          <div>
+            <p className="eyebrow">Career workspace</p>
+            <h1>{header.activeRole === "FEDERATION_PRESIDENT" ? "All Nepal Football Association" : header.clubName ?? "Nepal Football"}</h1>
+            <span className="role-badge">{roleLabel}</span>
+          </div>
         </div>
         <nav aria-label="Primary navigation">
           {header.activeRole === "MANAGER" ? NAV_GROUPS.map((group) => (
