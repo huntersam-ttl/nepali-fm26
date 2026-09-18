@@ -212,7 +212,12 @@ const SectionHeader = ({ screen, role }: { screen: string; role: CareerRole }): 
   return (
     <header className="page-header">
       <div>
-        <h1>{section.title}</h1>
+        {/* A section heading, not a second page title: the sidebar's club name
+            is the shell's single <h1>, exactly as on the Manager screens.
+            .page-header styles h1 and h2 identically, so the demotion changes
+            the outline without changing what the player sees. Every spec that
+            asserts these titles matches by name without a level. */}
+        <h2>{section.title}</h2>
         <p className="subtle">{section.subtitle}</p>
       </div>
     </header>

@@ -80,6 +80,27 @@ test("the loaded Manager shell is free of serious accessibility violations", asy
   await expect(h1s).toHaveCount(1);
   await expect(h1s.first()).toHaveText(clubName);
 
+  // ---- every role shell has one page title, not just Manager ----
+  // Owner and President used to render a second level-1 heading in their own
+  // page header (RoleLandingScreen/RoleDetailScreen), so those shells
+  // announced two page titles while Manager announced one. Assert the rule
+  // where it was actually broken, not only where it already held.
+  for (const role of ["CHAIRMAN_OWNER", "FEDERATION_PRESIDENT"] as const) {
+    const available = await page
+      .getByLabel("Active career role")
+      .locator(`option[value="${role}"]`)
+      .count();
+    if (available === 0) continue;
+    await page.getByLabel("Active career role").selectOption(role);
+    await expect(
+      page.getByRole("heading", { level: 1 }),
+      `${role} shell should expose exactly one level-1 heading`,
+    ).toHaveCount(1);
+    expect(await page.locator("main").count(), `${role} keeps one main landmark`).toBe(1);
+  }
+  await page.getByLabel("Active career role").selectOption("MANAGER");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+
   // ---- the club must not be announced twice in the sidebar ----
   // A badge or portrait beside the club heading has to be decorative; if it
   // carries its own accessible name, screen-reader users hear the club twice.

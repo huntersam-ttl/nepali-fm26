@@ -626,10 +626,18 @@ const RoleHeader = ({
   <header className="page-header">
     <div>
       <p className="eyebrow">{organisation}</p>
-      {/* tabIndex=-1: programmatically focusable (never in the Tab order)
-       * so useReturnFocusOnClose has a real, always-present landing spot
+      {/* A section heading, not a second page title: the sidebar's club (or
+       * federation) name is the shell's single <h1> for every role, exactly as
+       * on the Manager screens. Owner and President previously rendered a
+       * second level-1 heading here, so those shells announced two page
+       * titles. .page-header styles h1 and h2 identically, so this changes the
+       * document outline without changing what the player sees, and every spec
+       * asserting this title matches by name without a level.
+       *
+       * tabIndex=-1 is preserved: programmatically focusable (never in the Tab
+       * order) so useReturnFocusOnClose has a real, always-present landing spot
        * when a closed panel's own triggering element is gone. */}
-      <h1 tabIndex={-1}>{roleName(header.activeRole)}</h1>
+      <h2 tabIndex={-1}>{roleName(header.activeRole)}</h2>
       <p className="subtle">{context}</p>
     </div>
     <span className="role-badge">{roles.heldRoles.length} held roles</span>

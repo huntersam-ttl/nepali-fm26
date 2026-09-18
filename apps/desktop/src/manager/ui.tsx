@@ -44,11 +44,16 @@ export const useReturnFocusOnClose = (): { capture: () => void; restore: () => v
     const attempt = (): void => {
       attempts += 1;
       // Scoped to the specific programmatically-focusable heading
-      // (tabIndex=-1) this hook owns — a bare "h1" selector can match an
+      // (tabIndex=-1) this hook owns — a bare tag selector can match an
       // unrelated, non-focusable heading rendered earlier in the DOM (e.g.
       // the sidebar's own club-name <h1>), on which .focus() is silently a
       // no-op.
-      const fallback = document.querySelector<HTMLElement>('h1[tabindex="-1"]');
+      //
+      // Deliberately keyed on tabindex inside the page header rather than on a
+      // heading level: that heading is an <h2> now (the sidebar owns the
+      // shell's only <h1>), and a selector naming a level silently returns
+      // null the moment the outline changes, dropping focus to <body>.
+      const fallback = document.querySelector<HTMLElement>('.page-header [tabindex="-1"]');
       const restoreTarget = target && target.isConnected ? target : fallback;
       restoreTarget?.focus();
       if (document.activeElement === restoreTarget && restoreTarget) return;
