@@ -26,6 +26,14 @@ import { PersonPortrait } from "../presentation/PersonPortrait.js";
 import { buildPersonVisualIdentity, type PersonRole } from "../presentation/personVisualIdentity.js";
 import { ClubBadge } from "../presentation/ClubBadge.js";
 import { resolveClubVisualIdentity } from "../presentation/clubVisualIdentity.js";
+import {
+  useAppNavigation,
+  defaultDestination,
+  isValidDestinationForRole,
+  type AppDestination,
+  type ManagerWorkspace,
+  type WorkspaceDestination,
+} from "../navigation.js";
 
 /** The portrait's `role` must derive from the same real career person
  * regardless of which office they currently hold — a Manager who becomes
@@ -50,21 +58,9 @@ const careerRoleLabel = (role: CareerRole): string =>
               ? "Director of Football"
               : "Manager";
 
-const SCREENS = [
-  "home",
-  "squad",
-  "dressing-room",
-  "tactics",
-  "training",
-  "fixtures",
-  "competition",
-  "scouting",
-  "transfers",
-  "contracts",
-  "staff",
-  "medical",
-  "media",
-] as const;
+// Manager workspace ids are owned by navigation.ts (ManagerWorkspace) so the
+// shell and the navigation history share one source of truth for them.
+type Screen = ManagerWorkspace;
 
 const NAV_GROUPS: Array<{ label: string; items: Screen[] }> = [
   { label: "Team", items: ["home", "squad", "dressing-room", "tactics", "training", "medical"] },
@@ -73,8 +69,19 @@ const NAV_GROUPS: Array<{ label: string; items: Screen[] }> = [
   { label: "Club", items: ["staff", "media"] },
 ];
 
-type Screen = (typeof SCREENS)[number];
 type RoleScreen = ChairmanScreen | PresidentScreen;
+
+/**
+ * Build a role-qualified workspace destination from a raw nav id. The role is
+ * encoded into the destination so the shared history layer can never confuse
+ * e.g. an Owner "dashboard" with a President "dashboard".
+ */
+const workspaceForRole = (role: CareerRole, workspace: string): WorkspaceDestination => {
+  if (role === "MANAGER") return { kind: "workspace", role, workspace: workspace as ManagerWorkspace };
+  if (role === "CHAIRMAN_OWNER") return { kind: "workspace", role, workspace: workspace as ChairmanScreen };
+  if (role === "FEDERATION_PRESIDENT") return { kind: "workspace", role, workspace: workspace as PresidentScreen };
+  return { kind: "workspace", role, workspace: "dashboard" };
+};
 
 const CHAIRMAN_NAV: Array<{ group: string; items: Array<{ id: ChairmanScreen; label: string }> }> = [
   { group: "Owner office", items: [{ id: "dashboard", label: "Dashboard" }, { id: "matchday", label: "Matchday" }, { id: "finance", label: "Finances" }, { id: "manager", label: "Manager" }, { id: "meeting", label: "Talk to Manager" }] },
@@ -155,8 +162,21 @@ export const ManagerCareer = ({
   onSave: () => Promise<void>;
   onExit: () => void;
 }): React.ReactElement => {
-  const [screen, setScreen] = useState<Screen>("home");
-  const [roleScreen, setRoleScreen] = useState<RoleScreen>("dashboard");
+  const { destination, navigate, back, forward, canBack, canForward } = useAppNavigation(header.activeRole);
+  // The destination may transiently be invalid for the current role (during a
+  // role switch the history effect resets it); fall back to the role's safe
+  // default so the shell never renders an invalid workspace.
+  const safeDestination: AppDestination = isValidDestinationForRole(destination, header.activeRole)
+    ? destination
+    : defaultDestination(header.activeRole);
+  const screen: ManagerWorkspace =
+    safeDestination.kind === "workspace" && safeDestination.role === "MANAGER"
+      ? safeDestination.workspace
+      : "home";
+  const roleScreen: RoleScreen =
+    safeDestination.kind === "workspace" && safeDestination.role !== "MANAGER"
+      ? (safeDestination.workspace as RoleScreen)
+      : "dashboard";
   const [playerId, setPlayerId] = useState<EntityId | null>(null);
   const [matchFixtureId, setMatchFixtureId] = useState<EntityId | null>(null);
   const [resumingMatch, setResumingMatch] = useState(false);
@@ -210,9 +230,23 @@ export const ManagerCareer = ({
     if (result.ok) onHeaderChange(result.data);
   };
 
+  const goTo = (next: WorkspaceDestination): void => {
+    navigate(next);
+    if (next.role === "MANAGER") {
+      // Mirrors the old sidebar semantics: leaving a live match is safe (the
+      // session is persisted and resumable from fixtures), and Squad keeps any
+      // open player profile while other workspaces flush it.
+      if (next.workspace !== "squad") setPlayerId(null);
+      if (next.workspace !== "fixtures") setMatchFixtureId(null);
+    } else {
+      setPlayerId(null);
+      setMatchFixtureId(null);
+    }
+  };
+
   const openPlayer = (id: EntityId): void => {
+    goTo({ kind: "workspace", role: "MANAGER", workspace: "squad" });
     setPlayerId(id);
-    setScreen("squad");
   };
 
   const advance = async (): Promise<void> => {
@@ -235,10 +269,10 @@ export const ManagerCareer = ({
   };
 
   const openMatch = (fixtureId: EntityId, resume = false, alreadyPlayed = false): void => {
+    goTo({ kind: "workspace", role: "MANAGER", workspace: "fixtures" });
     setMatchFixtureId(fixtureId);
     setResumingMatch(resume);
     setOpenMatchAsReport(alreadyPlayed);
-    setScreen("fixtures");
   };
 
   const leaveMatch = async (): Promise<void> => {
@@ -340,6 +374,34 @@ export const ManagerCareer = ({
             <span className="role-badge">{roleLabel}</span>
           </div>
         </div>
+        <div className="sidebar-history" aria-label="Navigation history">
+          <button
+            type="button"
+            className="history-control"
+            aria-label="Go back"
+            disabled={!canBack}
+            onClick={() => {
+              back();
+              setPlayerId(null);
+              setMatchFixtureId(null);
+            }}
+          >
+            ← Back
+          </button>
+          <button
+            type="button"
+            className="history-control"
+            aria-label="Go forward"
+            disabled={!canForward}
+            onClick={() => {
+              forward();
+              setPlayerId(null);
+              setMatchFixtureId(null);
+            }}
+          >
+            Forward →
+          </button>
+        </div>
         <nav aria-label="Primary navigation">
           {header.activeRole === "MANAGER" ? NAV_GROUPS.map((group) => (
             <div className="nav-group" key={group.label}>
@@ -348,13 +410,7 @@ export const ManagerCareer = ({
             <button
               key={item}
               className={screen === item ? "active" : ""}
-              onClick={() => {
-                setScreen(item);
-                if (item !== "squad") setPlayerId(null);
-                // Leaving a live match is safe: the session is persisted and
-                // can be resumed from the fixtures screen.
-                if (item !== "fixtures") setMatchFixtureId(null);
-              }}
+              onClick={() => goTo({ kind: "workspace", role: "MANAGER", workspace: item })}
             >
               {LABELS[item]}
             </button>
@@ -363,7 +419,7 @@ export const ManagerCareer = ({
           )) : (header.activeRole === "CHAIRMAN_OWNER" ? CHAIRMAN_NAV : EXECUTIVE_ROLES.includes(header.activeRole) ? EXECUTIVE_NAV : PRESIDENT_NAV).map((group) => (
             <div className="nav-group" key={group.group}>
               <span className="nav-label">{group.group}</span>
-              {group.items.map((item) => <button key={item.id} className={roleScreen === item.id ? "active" : ""} onClick={() => setRoleScreen(item.id)}>{item.label}</button>)}
+              {group.items.map((item) => <button key={item.id} className={roleScreen === item.id ? "active" : ""} onClick={() => goTo(workspaceForRole(header.activeRole, item.id))}>{item.label}</button>)}
             </div>
           ))}
         </nav>
@@ -451,8 +507,9 @@ export const ManagerCareer = ({
               disabled={busy}
               onChange={async (event) => {
                 await onRoleSwitch(event.target.value as CareerRole);
-                setScreen("home");
-                setRoleScreen("dashboard");
+                // The navigation history resets to the new role's default
+                // workspace (setRole in useAppNavigation); only manager-role
+                // overlay state needs flushing here.
                 setPlayerId(null);
                 setMatchFixtureId(null);
               }}
@@ -514,7 +571,7 @@ export const ManagerCareer = ({
         </header>
 
         {header.activeRole !== "MANAGER" ? (
-          <RoleLandingScreen header={header} roles={roles} bridge={bridge} screen={roleScreen} onNavigate={setRoleScreen} />
+          <RoleLandingScreen header={header} roles={roles} bridge={bridge} screen={roleScreen} onNavigate={(s) => goTo(workspaceForRole(header.activeRole, s))} />
         ) : (
           <header className="page-header">
             <div>
@@ -538,7 +595,7 @@ export const ManagerCareer = ({
               setRefreshKey((key) => key + 1);
             }}
             onNavigate={(next) => {
-              setScreen(next);
+              goTo({ kind: "workspace", role: "MANAGER", workspace: next });
               setPlayerId(null);
               setMatchFixtureId(null);
             }}
@@ -554,7 +611,7 @@ export const ManagerCareer = ({
               onOpenClub={setOpenClubId}
               onOpenPlayer={setPlayerId}
               onOpenDressingRoom={() => {
-                setScreen("dressing-room");
+                goTo({ kind: "workspace", role: "MANAGER", workspace: "dressing-room" });
                 setPlayerId(null);
               }}
               bridge={bridge}

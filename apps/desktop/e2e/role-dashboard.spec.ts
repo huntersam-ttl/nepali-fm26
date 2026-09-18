@@ -60,7 +60,7 @@ test("switches through a deterministic multi-role career dashboard", async ({ pa
     page.getByRole("heading", { name: "Governance", exact: true }).first(),
   ).toBeVisible();
   await page.getByRole("button", { name: "Finance", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Federation finance" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Federation finance" }).first()).toBeVisible();
   await page.getByRole("button", { name: "National Teams", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "National teams", exact: true }).first(),

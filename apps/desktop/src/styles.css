@@ -3201,3 +3201,40 @@ button.map-region-block:focus-visible {
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
   background: var(--club-accent);
 }
+
+/* ---------------------------------------------------------------------------
+   Navigation history (UI Phase 1A). Shell-level Back/Forward controls.
+   Rendered inside the sidebar as plain buttons (NOT inside the <nav>, so no
+   extra nav landmark and no interference with the nav active-edge styling).
+   Appended here, after the club-identity rules, so the cascade cannot be
+   disturbed by earlier `.sidebar` theme rules.
+   --------------------------------------------------------------------------- */
+.sidebar-history {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 0.78rem;
+}
+.sidebar-history button {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 5px 10px;
+  border: 1px solid rgba(155, 124, 255, 0.28);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #d9ceff;
+  font: inherit;
+  line-height: 1.2;
+  cursor: pointer;
+}
+.sidebar-history button:hover:not(:disabled) {
+  background: rgba(155, 124, 255, 0.14);
+}
+.sidebar-history button:focus-visible {
+  outline: 2px solid var(--accent-2);
+  outline-offset: 2px;
+}
+.sidebar-history button:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
