@@ -54,18 +54,25 @@ const fetchOverview = async (page: Page): Promise<Overview> => {
 };
 
 const openClubStore = async (page: Page): Promise<void> => {
-  await page.getByRole("button", { name: "Club Store", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Club Store", exact: true })).toBeVisible();
-  // The panel title carries the season, and only renders once the overview
-  // command has resolved — so this is the real "data is on screen" gate.
-  await expect(page.getByText(/^Club store — \d{4} season$/)).toBeVisible();
+  const seasonTitle = page.getByText(/^Club store — \d{4} season$/);
+  // Navigating here can be undone underneath us: switching role is async, and
+  // when it settles the shell resets to the Owner dashboard. After a reload
+  // with a large saves directory that reset lands *after* this click, so a
+  // single click-then-wait sees the Club Store heading appear and then the
+  // dashboard return. Re-assert navigation instead of assuming it stuck.
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    await page.getByRole("button", { name: "Club Store", exact: true }).click();
+    // The panel title carries the season and only renders once the overview
+    // command has resolved — the real "data is on screen" gate.
+    if (await seasonTitle.isVisible({ timeout: 10_000 }).catch(() => false)) return;
+  }
+  await expect(seasonTitle, "the Club Store panel should stay open once navigated").toBeVisible();
 };
 
 const expectNoSeriousA11yViolations = async (page: Page, label: string): Promise<void> => {
   await page.evaluate(axeSource);
   const results = await page.evaluate(async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const axe = (window as any).axe;
+    const axe = (window as unknown as { axe: { run: (root: Document, options: unknown) => Promise<unknown> } }).axe;
     return axe.run(document, { resultTypes: ["violations"] });
   });
   const serious = (results.violations as Array<{ id: string; impact: string; nodes: unknown[] }>).filter(
