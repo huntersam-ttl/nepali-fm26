@@ -3,7 +3,7 @@ import type { AutosaveStatusView, CareerHeader, CareerRole, CareerRoleState, Ent
 import type { AppError, DesktopRuntimeApi } from "../appBridge.js";
 import { managerBridge } from "./managerBridge.js";
 import { ErrorBanner, useRuntimeData } from "./ui.js";
-import { HomeScreen } from "./screens/HomeScreen.js";
+import { HomeCommandCentre } from "./HomeCommandCentre.js";
 import { SquadScreen } from "./screens/SquadScreen.js";
 import { DressingRoomScreen } from "./screens/DressingRoomScreen.js";
 import { TacticsScreen } from "./screens/TacticsScreen.js";
@@ -644,19 +644,14 @@ export const ManagerCareer = ({
         )}
 
         {header.activeRole === "MANAGER" && screen === "home" && (
-          <HomeScreen
-            busy={busy}
+          <HomeCommandCentre
             refreshKey={refreshKey}
-            onAction={async () => {
-              await refreshHeader();
-              setRefreshKey((key) => key + 1);
-            }}
             onNavigate={(next) => {
               goTo({ kind: "workspace", role: "MANAGER", workspace: next });
               setMatchFixtureId(null);
             }}
-            bridge={bridge}
             onSelectPlayer={openPlayer}
+            onOpenEntity={navigateEntityFromReference}
           />
         )}
         {header.activeRole === "MANAGER" && screen === "squad" && (

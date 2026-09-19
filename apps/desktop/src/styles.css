@@ -3688,6 +3688,38 @@ a.link:focus-visible {
   justify-content: space-between;
 }
 
+/* --- Phase 2B Manager Home / Daily Hub ----------------------------------- */
+.section-title {
+  font-size: 1rem;
+  font-weight: var(--weight-bold, 600);
+  margin: 4px 0 6px;
+}
+.home-command-centre {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--sys-spacing-standard);
+}
+.home-command-centre .surface-hero {
+  min-height: 0;
+}
+.home-opponent {
+  font-size: 1.2rem;
+  font-weight: var(--weight-bold, 600);
+  margin: 2px 0;
+}
+.home-attention-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.home-attention li {
+  padding: 4px 0;
+}
+.home-state {
+  padding: 12px 14px;
+}
+
 /* ---------------------------------------------------------------------------
    Phase 1D shell context: a content-context strip (breadcrumbs + contextual
    secondary nav) that sits above the workspace <main> but OUTSIDE it — so the
