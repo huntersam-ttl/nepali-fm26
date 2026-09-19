@@ -3374,6 +3374,320 @@ button.map-region-block:focus-visible {
   border: 0;
 }
 
+/* ===========================================================================
+   PHASE 2A — Football Visual Design System (ADDITIVE)
+   ---------------------------------------------------------------------------
+   A reusable grammar for future workspace rebuilds. Additive: it introduces
+   semantic tokens + utility primitives that screens may opt into, and never
+   reskins an existing screen. Phase 1 tokens (--surface*, --text*, --gap-*,
+   --radius-*, --weight-*, --line*, --club-accent) stay authoritative; the
+   --sys-* layer names them coherently and adds the status/focus/elevation/
+   selection tokens the system was missing.
+   =========================================================================== */
+
+:root {
+  --sys-success: #5ad1c8;
+  --sys-warning: #f5b95a;
+  --sys-danger: #f47174;
+  --sys-info: #7ea6ff;
+  --sys-neutral: #aebbd0;
+  --sys-focus: #9b7cff;
+  --sys-selection: rgba(155, 124, 255, 0.22);
+  --sys-elevation-1: 0 1px 3px rgba(15, 22, 40, 0.14);
+  --sys-elevation-2: 0 6px 18px rgba(15, 22, 40, 0.22);
+  --sys-surface-app: var(--shell);
+  --sys-surface-shell: var(--shell);
+  --sys-surface-workspace: var(--surface);
+  --sys-surface-primary: var(--surface);
+  --sys-surface-secondary: var(--surface-sunken);
+  --sys-surface-inset: var(--surface-sunken);
+  --sys-surface-elevated: var(--surface-raised);
+  --sys-text-primary: var(--text);
+  --sys-text-secondary: var(--text-body);
+  --sys-text-muted: var(--muted);
+  --sys-text-meta: var(--text-meta);
+  --sys-border-subtle: var(--line-soft);
+  --sys-border-standard: var(--line);
+  --sys-border-strong: var(--club-accent);
+  --sys-accent: var(--club-accent);
+  --sys-accent-soft: var(--club-accent-soft);
+  --sys-selected: var(--club-accent-soft);
+  --sys-spacing-compact: var(--gap-row);
+  --sys-spacing-standard: var(--gap-module);
+  --sys-spacing-large: var(--gap-section);
+  --sys-radius-small: var(--radius-sm);
+  --sys-radius-standard: var(--radius-md);
+  --sys-radius-prominent: var(--radius-lg);
+}
+
+/* --- status chips (STATUS vs TAB vs FILTER are visually distinct) ---------- */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.chip--status {
+  color: var(--sys-text-secondary);
+  background: var(--sys-surface-inset);
+  border: 1px solid var(--sys-border-subtle);
+}
+.chip--tab {
+  color: var(--sys-text-secondary);
+  background: transparent;
+  border: 1px solid transparent;
+}
+.chip--filter {
+  color: var(--sys-text-secondary);
+  background: var(--sys-surface-inset);
+  border: 1px dashed var(--sys-border-subtle);
+}
+.chip--ok {
+  color: #06302b;
+  background: rgba(90, 209, 200, 0.22);
+  border-color: rgba(90, 209, 200, 0.4);
+}
+.chip--warn {
+  color: #4a2f00;
+  background: rgba(245, 185, 90, 0.24);
+  border-color: rgba(245, 185, 90, 0.42);
+}
+.chip--bad {
+  color: #4c0f0f;
+  background: rgba(244, 113, 116, 0.2);
+  border-color: rgba(244, 113, 116, 0.4);
+}
+.chip--info {
+  color: #16295c;
+  background: rgba(126, 166, 255, 0.2);
+  border-color: rgba(126, 166, 255, 0.4);
+}
+.chip--neutral {
+  color: var(--sys-text-muted);
+  background: var(--sys-surface-inset);
+  border: 1px solid var(--sys-border-subtle);
+}
+.chip--active {
+  color: #fff;
+  border-color: var(--sys-accent);
+  background: var(--sys-selection);
+}
+
+/* --- segmented control ----------------------------------------------------- */
+.segmented {
+  display: inline-flex;
+  gap: 4px;
+}
+.segmented button {
+  padding: 5px 11px;
+  border: 1px solid var(--sys-border-subtle);
+  border-radius: var(--sys-radius-standard);
+  background: transparent;
+  color: var(--sys-text-secondary);
+  font: inherit;
+  cursor: pointer;
+}
+.segmented button.active,
+.segmented [aria-current="true"] {
+  color: #fff;
+  border-color: var(--sys-accent);
+  background: var(--sys-selection);
+}
+.segmented button:focus-visible {
+  outline: 2px solid var(--sys-focus);
+  outline-offset: 1px;
+}
+
+/* --- surface hierarchy ----------------------------------------------------- */
+.surface-hero {
+  display: block;
+  padding: 14px 16px;
+  border-radius: var(--sys-radius-prominent);
+  background: var(--sys-surface-primary);
+  border: 1px solid var(--sys-border-strong);
+}
+.surface-primary {
+  border-radius: var(--sys-radius-standard);
+  background: var(--sys-surface-primary);
+  border: 1px solid var(--sys-border-subtle);
+}
+.surface-secondary {
+  border-radius: var(--sys-radius-standard);
+  background: var(--sys-surface-secondary);
+  border: 1px solid var(--sys-border-subtle);
+}
+.inset-region {
+  background: var(--sys-surface-inset);
+  border-radius: var(--sys-radius-small);
+  padding: 8px 10px;
+}
+.quiet-region {
+  color: var(--sys-text-meta);
+  font-size: 0.85rem;
+  padding: 6px 8px;
+}
+
+/* --- typography utilities -------------------------------------------------- */
+.page-eyebrow {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--sys-text-meta);
+}
+.page-description {
+  color: var(--sys-text-muted);
+  font-size: 0.92rem;
+}
+.page-metadata {
+  color: var(--sys-text-meta);
+  font-size: 0.85rem;
+}
+.data-label {
+  color: var(--sys-text-muted);
+  font-size: 0.82rem;
+}
+.data-value {
+  color: var(--sys-text-primary);
+  font-weight: var(--weight-medium, 500);
+}
+.stat-value {
+  font-weight: var(--weight-bold, 700);
+  color: var(--sys-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- stats strip / layout helpers ------------------------------------------ */
+.stats-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sys-spacing-compact);
+  align-items: baseline;
+}
+.stats-strip > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.u-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sys-spacing-standard);
+}
+.u-split {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--sys-spacing-standard);
+  align-items: start;
+}
+@media (max-width: 1100px) {
+  .u-split {
+    grid-template-columns: 1fr;
+  }
+}
+.u-dense {
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+/* --- table skin (operational football table) -------------------------------- */
+.table-skin {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.table-skin thead th {
+  text-align: left;
+  color: var(--sys-text-meta);
+  font-size: 0.8rem;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--sys-border-standard);
+  position: sticky;
+  top: 0;
+}
+.table-skin tbody td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--sys-border-subtle);
+}
+.table-skin .num,
+.table-skin td[align="right"] {
+  text-align: right;
+}
+.table-skin tr:hover {
+  background: var(--sys-surface-secondary);
+}
+.table-skin tr[aria-selected="true"] {
+  background: var(--sys-selection);
+}
+.table-skin .cell-status {
+  text-align: center;
+}
+.table-skin-empty td {
+  padding: 14px;
+  color: var(--sys-text-muted);
+  text-align: center;
+}
+
+/* --- states (loading/empty/unknown/error are visually distinct) -------------- */
+.state-loading {
+  color: var(--sys-text-muted);
+}
+.state-empty,
+.state-noresults {
+  color: var(--sys-text-muted);
+}
+.state-unknown {
+  color: var(--sys-text-meta);
+}
+.state-unknown .unknown-tag {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+.state-error {
+  color: var(--sys-danger);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* --- focus ring ------------------------------------------------------------- */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+a.link:focus-visible {
+  outline: 2px solid var(--sys-focus);
+  outline-offset: 1px;
+}
+
+/* --- representative adoption: tokens drive the shell content-context strip --
+   Layout/geometry is unchanged; only colours/font-sizes map to the new tokens
+   so the grammar is exercised where it is safe (never reskinning a workspace). */
+.content-context {
+  color: var(--sys-text-secondary);
+}
+.breadcrumb-list {
+  color: var(--sys-text-meta);
+}
+.breadcrumb-list button.link {
+  color: var(--sys-accent);
+}
+.page-header h2 {
+  color: var(--sys-text-primary);
+}
+.page-header p {
+  color: var(--sys-text-muted);
+}
+.content-context-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  justify-content: space-between;
+}
+
 /* ---------------------------------------------------------------------------
    Phase 1D shell context: a content-context strip (breadcrumbs + contextual
    secondary nav) that sits above the workspace <main> but OUTSIDE it — so the

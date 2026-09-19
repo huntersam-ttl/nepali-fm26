@@ -23,6 +23,7 @@ import { EntitySurface } from "./EntitySurface.js";
 import { GlobalSearch } from "./GlobalSearch.js";
 import { Breadcrumbs, useEntityReferenceLabels } from "./ShellContext.js";
 import { contextTrail, workspaceLabel, entityCategoryLabel } from "./navigationLabels.js";
+import { StatusChip } from "./StatusChip.js";
 import { PresentationSettingsPanel } from "../presentation/PresentationSettingsPanel.js";
 import { PersonPortrait } from "../presentation/PersonPortrait.js";
 import { buildPersonVisualIdentity, type PersonRole } from "../presentation/personVisualIdentity.js";
@@ -502,7 +503,12 @@ export const ManagerCareer = ({
 
       <div className="workspace-column">
         <header className="content-context">
-          <Breadcrumbs items={crumbItems} onNavigate={navigateDestination} />
+          <div className="content-context-row">
+            <Breadcrumbs items={crumbItems} onNavigate={navigateDestination} />
+            {/* Representative Phase 2A adoption: the role context as a neutral
+                status chip exercises the shared status/chip token grammar. */}
+            <StatusChip label={careerRoleLabel(header.activeRole)} />
+          </div>
         </header>
       <main className="workspace">
         {error && <ErrorBanner error={error} />}
