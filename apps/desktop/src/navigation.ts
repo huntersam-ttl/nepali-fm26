@@ -206,6 +206,9 @@ export const navigationReducer = (state: NavigationState, action: NavigationActi
 
 export type AppNavigation = {
   readonly destination: AppDestination;
+  /** The full destination history (UI state only) — breadcrumbs read this to
+   * derive a bounded context trail, never to replay every click. */
+  readonly history: readonly AppDestination[];
   navigate: (destination: AppDestination) => void;
   back: () => void;
   forward: () => void;
@@ -236,6 +239,7 @@ export const useAppNavigation = (role: CareerRole): AppNavigation => {
 
   return {
     destination: state.history[state.index],
+    history: state.history,
     navigate,
     back,
     forward,

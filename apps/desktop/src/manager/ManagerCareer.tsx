@@ -21,6 +21,8 @@ import { RoleLandingScreen, EXECUTIVE_ROLES } from "./RoleLandingScreen.js";
 import type { ChairmanScreen, PresidentScreen } from "./RoleDetailScreen.js";
 import { EntitySurface } from "./EntitySurface.js";
 import { GlobalSearch } from "./GlobalSearch.js";
+import { Breadcrumbs, useEntityReferenceLabels } from "./ShellContext.js";
+import { contextTrail, workspaceLabel, entityCategoryLabel } from "./navigationLabels.js";
 import { PresentationSettingsPanel } from "../presentation/PresentationSettingsPanel.js";
 import { PersonPortrait } from "../presentation/PersonPortrait.js";
 import { buildPersonVisualIdentity, type PersonRole } from "../presentation/personVisualIdentity.js";
@@ -163,7 +165,7 @@ export const ManagerCareer = ({
   onSave: () => Promise<void>;
   onExit: () => void;
 }): React.ReactElement => {
-  const { destination, navigate, back, forward, canBack, canForward } = useAppNavigation(header.activeRole);
+  const { destination, navigate, back, forward, canBack, canForward, history } = useAppNavigation(header.activeRole);
   // The destination may transiently be invalid for the current role (during a
   // role switch the history effect resets it); fall back to the role's safe
   // default so the shell never renders an invalid workspace.
@@ -178,6 +180,28 @@ export const ManagerCareer = ({
     safeDestination.kind === "workspace" && safeDestination.role !== "MANAGER"
       ? (safeDestination.workspace as RoleScreen)
       : "dashboard";
+  // Phase 1D shell context: a bounded breadcrumb trail (from the most recent
+  // workspace to the current destination) plus the current workspace family's
+  // sibling secondary navigation.
+  const crumbs = contextTrail(destination, history);
+  const entityKeys = crumbs
+    .filter((crumb) => crumb.kind === "entity")
+    .map((crumb) => (crumb.kind === "entity" ? `${crumb.entityType}::${crumb.entityId}` : ""));
+  const entityLabels = useEntityReferenceLabels(entityKeys, bridge);
+  const crumbItems = crumbs.map((crumb, index) => ({
+    destination: crumb,
+    label:
+      crumb.kind === "entity"
+        ? entityLabels.get(`${crumb.entityType}::${crumb.entityId}`) ?? entityCategoryLabel(crumb.entityType)
+        : workspaceLabel(crumb),
+    current: index === crumbs.length - 1,
+  }));
+  // NOTE: contextual SECONDARY navigation is intentionally not wired into the
+  // live shell yet. The primary sidebar already lists every existing navigable
+  // workspace grouped by family, so re-listing those siblings as a second nav
+  // would only duplicate primary navigation (and collide with its labels). The
+  // reusable ContextualNav component + contextualNavItems are ready and
+  // unit-tested for when real sub-page families arrive; nothing is fabricated.
   const [matchFixtureId, setMatchFixtureId] = useState<EntityId | null>(null);
   const [resumingMatch, setResumingMatch] = useState(false);
   const [openMatchAsReport, setOpenMatchAsReport] = useState(false);
@@ -254,6 +278,13 @@ export const ManagerCareer = ({
   const navigateEntityFromReference = (reference: EntityReference): void => {
     const destination = referenceToDestination(reference);
     if (destination) navigate(destination);
+  };
+
+  /** Breadcrumb/context navigation: route any destination through the one
+   * shared navigation system (workspaces via goTo, entities via navigate). */
+  const navigateDestination = (target: AppDestination): void => {
+    if (target.kind === "workspace") goTo(target);
+    else navigate(target);
   };
 
   const advance = async (): Promise<void> => {
@@ -469,6 +500,10 @@ export const ManagerCareer = ({
         </div>
       </aside>
 
+      <div className="workspace-column">
+        <header className="content-context">
+          <Breadcrumbs items={crumbItems} onNavigate={navigateDestination} />
+        </header>
       <main className="workspace">
         {error && <ErrorBanner error={error} />}
         {pendingMatch && !matchFixtureId && (
@@ -662,6 +697,7 @@ export const ManagerCareer = ({
           </>
         )}
       </main>
+      </div>
       {presentationOpen && <PresentationSettingsPanel onClose={() => setPresentationOpen(false)} />}
     </div>
   );
