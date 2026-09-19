@@ -520,6 +520,8 @@ const dispatch = (
       return service.getPlayerMarketValue(body.playerId as EntityId);
     case "getEntityReference":
       return service.getEntityReference(body.entityType as any, body.entityId as EntityId);
+    case "searchFootballWorld":
+      return service.searchFootballWorld(body as any);
     case "getOrganizationProfile":
       return service.getOrganizationProfile(
         body.entityType as OrganizationProfileEntityType,

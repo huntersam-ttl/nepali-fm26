@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import type { AutosaveStatusView, CareerHeader, CareerRole, CareerRoleState, EntityId, EntityReferenceType, FixtureRow } from "@nepal-football-sim/shared-types";
+import type { AutosaveStatusView, CareerHeader, CareerRole, CareerRoleState, EntityId, EntityReference, EntityReferenceType, FixtureRow } from "@nepal-football-sim/shared-types";
 import type { AppError, DesktopRuntimeApi } from "../appBridge.js";
 import { managerBridge } from "./managerBridge.js";
 import { ErrorBanner, useRuntimeData } from "./ui.js";
@@ -20,6 +20,7 @@ import { MatchdayScreen } from "./matchday/MatchdayScreen.js";
 import { RoleLandingScreen, EXECUTIVE_ROLES } from "./RoleLandingScreen.js";
 import type { ChairmanScreen, PresidentScreen } from "./RoleDetailScreen.js";
 import { EntitySurface } from "./EntitySurface.js";
+import { GlobalSearch } from "./GlobalSearch.js";
 import { PresentationSettingsPanel } from "../presentation/PresentationSettingsPanel.js";
 import { PersonPortrait } from "../presentation/PersonPortrait.js";
 import { buildPersonVisualIdentity, type PersonRole } from "../presentation/personVisualIdentity.js";
@@ -29,6 +30,7 @@ import {
   useAppNavigation,
   defaultDestination,
   isValidDestinationForRole,
+  referenceToDestination,
   type AppDestination,
   type ManagerWorkspace,
   type WorkspaceDestination,
@@ -247,6 +249,13 @@ export const ManagerCareer = ({
     openEntity("PLAYER", id);
   };
 
+  /** Global search navigates through the same canonical entity system — map the
+   * lightweight reference to an AppDestination and step the shared history. */
+  const navigateEntityFromReference = (reference: EntityReference): void => {
+    const destination = referenceToDestination(reference);
+    if (destination) navigate(destination);
+  };
+
   const advance = async (): Promise<void> => {
     if (matchdayFixture) {
       setNotice("You have a match today. Choose a match action before continuing.");
@@ -398,6 +407,7 @@ export const ManagerCareer = ({
             Forward →
           </button>
         </div>
+        <GlobalSearch bridge={bridge} onNavigateEntity={navigateEntityFromReference} />
         <nav aria-label="Primary navigation">
           {header.activeRole === "MANAGER" ? NAV_GROUPS.map((group) => (
             <div className="nav-group" key={group.label}>

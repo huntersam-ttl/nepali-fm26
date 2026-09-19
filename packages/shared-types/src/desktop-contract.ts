@@ -1105,7 +1105,29 @@ export type DesktopApplicationState = {
  * Runtime command surface. The transport (HTTP sidecar today, Tauri IPC later)
  * must implement exactly this shape.
  */
+/** Phase 1C global search — a bounded, case-insensitive query. */
+export type GlobalSearchQuery = { query: string; limit?: number };
+
+/** A single lightweight navigation result. Carries identity + cheap public
+ * context only — deliberately NEVER full entity records or hidden/private
+ * fields (ability, potential, wages, finances, scouting). */
+export type GlobalSearchResult = {
+  reference: EntityReference;
+  displayName: string;
+  entityType: EntityReferenceType;
+  /** Public context already known to the user (e.g. a player's position, a
+   * club's tier). Omitted when unknown — never fabricated. */
+  secondaryLabel?: string;
+};
+
 export type DesktopRuntimeApi = {
+
+  /** Global football-world search (Phase 1C). Returns lightweight navigation
+   * results only — identity + a cheap public context label — never full entity
+   * records and never hidden/scouting/private fields. Callers navigate a
+   * result through referenceToDestination; deeper profile data stays behind
+   * the canonical destination read models and their knowledge rules. */
+  searchFootballWorld?(query: GlobalSearchQuery): Promise<AppResult<GlobalSearchResult[]>>;
   listSaves(): Promise<AppResult<SaveCatalogEntry[]>>;
   listStartingClubs(): Promise<AppResult<StartingClubOption[]>>;
   listFounderLocations(): Promise<AppResult<FounderLocationOption[]>>;

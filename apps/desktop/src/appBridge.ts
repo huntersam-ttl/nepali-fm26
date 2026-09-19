@@ -256,6 +256,9 @@ const bindCommands = (call: CommandCaller): DesktopRuntimeApi => ({
     call<ClubKitHistorySeason[]>("getClubKitHistory", { clubId }),
   getClubCommercialOverview: (clubId?: EntityId) =>
     call<ClubCommercialOverview>("getClubCommercialOverview", { clubId }),
+  // Contextually typed by DesktopRuntimeApi: `query` is GlobalSearchQuery and the
+  // `call` generic is inferred from the promised GlobalSearchResult[].
+  searchFootballWorld: (query) => call("searchFootballWorld", { query: query.query, limit: query.limit }),
   getStaffProfile: (personId: EntityId) =>
     call<StaffProfileReadModel>("getStaffProfile", { personId }),
   getCompetitionProfile: (competitionId: EntityId) =>

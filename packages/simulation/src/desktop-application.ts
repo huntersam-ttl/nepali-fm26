@@ -469,6 +469,8 @@ import {
 import { buildOwnerMatchday, type OwnerMatchdayView } from "./owner-matchday.js";
 import { buildActorPlayerActions, type ActorPlayerActions } from "./player-actions.js";
 import { buildEntityReference } from "./entity-reference.js";
+import { searchFootballWorld as searchFootballWorldDb } from "./global-search.js";
+import type { GlobalSearchQuery, GlobalSearchResult } from "@nepal-football-sim/shared-types";
 import { buildOrganizationProfile } from "./organization-profile.js";
 import { buildClubProfile, buildCompetitionProfile, buildInfrastructureProjectProfile, buildStaffProfile } from "./entity-profiles.js";
 import { buildNationalTeamSquad } from "./national-team-squad.js";
@@ -4593,6 +4595,13 @@ export class DesktopApplicationService {
       const personId = careerPersonId(db, save);
       return buildEntityReference(db, entityType, entityId, activeCareerRole(db, personId));
     });
+  }
+
+  /** Phase 1C global football-world search. Role-agnostic, shallow, bounded —
+   * returns lightweight navigation results (identity + cheap public context),
+   * never full records or hidden fields. */
+  searchFootballWorld(query: GlobalSearchQuery): AppResult<GlobalSearchResult[]> {
+    return this.withSession((db) => searchFootballWorldDb(db, query));
   }
 
   getOrganizationProfile(
