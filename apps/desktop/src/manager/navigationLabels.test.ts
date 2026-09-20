@@ -115,10 +115,10 @@ describe("daily operations family nav", () => {
 });
 
 describe("squad family nav", () => {
-  it("lists Overview | First Team | Training | Dynamics | Medical with current marked", () => {
-    const items = squadNavItems("medical");
-    expect(items.map((item) => item.label)).toEqual(["Overview", "First Team", "Training", "Dynamics", "Medical"]);
-    expect(items.find((item) => item.current)?.id).toBe("medical");
+  it("lists Overview | First Team | Training | Dynamics | Medical | Loans with current marked", () => {
+    const items = squadNavItems("loans");
+    expect(items.map((item) => item.label)).toEqual(["Overview", "First Team", "Training", "Dynamics", "Medical", "Loans"]);
+    expect(items.find((item) => item.current)?.id).toBe("loans");
     expect(squadNavItems("dressing-room").find((item) => item.current)?.id).toBe("dressing-room");
   });
 

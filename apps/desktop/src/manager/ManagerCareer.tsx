@@ -26,6 +26,7 @@ import { contextTrail, workspaceLabel, entityCategoryLabel, dailyOpsNavItems, sq
 import { StatusChip } from "./StatusChip.js";
 import { MessagesScreen, NewsScreen, CalendarScreen } from "./DedicatedOps.js";
 import { SquadOverview } from "./SquadOverview.js";
+import { LoansScreen } from "./LoansScreen.js";
 import { PresentationSettingsPanel } from "../presentation/PresentationSettingsPanel.js";
 import { PersonPortrait } from "../presentation/PersonPortrait.js";
 import { buildPersonVisualIdentity, type PersonRole } from "../presentation/personVisualIdentity.js";
@@ -130,6 +131,7 @@ const LABELS: Record<Screen, string> = {
   messages: "Messages",
   news: "News",
   calendar: "Calendar",
+  loans: "Loans",
 };
 
 const SUBTITLES: Record<Screen, string> = {
@@ -150,6 +152,7 @@ const SUBTITLES: Record<Screen, string> = {
   messages: "Read, action, and respond to club and football communications.",
   news: "The latest notable stories from around the football world.",
   calendar: "Fixtures, deadlines and events in the days ahead.",
+  loans: "Players out on loan and players on loan at the club.",
 };
 
 /**
@@ -738,6 +741,7 @@ export const ManagerCareer = ({
             onNavigate={(next) => goTo({ kind: "workspace", role: "MANAGER", workspace: next })}
           />
         )}
+        {header.activeRole === "MANAGER" && screen === "loans" && <LoansScreen onSelectPlayer={openPlayer} />}
           </>
         )}
       </main>

@@ -1,12 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
 
 /**
- * Phase 3B — Training + Development (additive to the Squad family).
+ * Phase 3D — Squad closure: Loans workspace + deferred-pages boundary.
  *
- * Pins: Training is a Squad-family destination reached via the contextual nav
- * with a weekly-planner view; Squad Overview links to Training; and no
- * fabricated U16/U18/U21 youth structure appears (youth is deferred truthfully:
- * no canonical youth-squad read model is exposed).
+ * Loans is the only new live Squad destination (real transfer-centre active
+ * loans, read-only). Discipline, Promises/Relationships, Internationals,
+ * Registration/Eligibility and Youth remain deferred — no fabricated tabs.
  *
  * Declares no per-spec base URL, so NEPAL_E2E_BASE_URL selects the server.
  */
@@ -20,11 +19,12 @@ const captureErrors = (page: Page): string[] => {
   return errors;
 };
 
+const backButton = (page: Page) => page.getByRole("button", { name: "Go back" });
 const squadNav = (page: Page) => page.locator('nav[aria-label="Workspace sections"]');
 const squadItem = (page: Page, name: string) => squadNav(page).getByRole("button", { name, exact: true });
 
 const createManagerCareer = async (page: Page): Promise<string> => {
-  const saveName = `Train ${Date.now()}`;
+  const saveName = `Closure ${Date.now()}`;
   await page.goto("/");
   await page.getByRole("button", { name: /New Career/i }).click();
   await page.getByLabel("Save name").fill(saveName);
@@ -41,49 +41,47 @@ const createManagerCareer = async (page: Page): Promise<string> => {
   return clubName;
 };
 
-test("Squad -> Training: contextual nav, weekly planner, no giant form", async ({ page }) => {
-  test.setTimeout(300_000);
-  const errors = captureErrors(page);
-  await createManagerCareer(page);
-
-  await page.getByLabel("Primary navigation").getByRole("button", { name: "Squad", exact: true }).click();
-  await squadItem(page, "Training").click();
-  await expect(page.locator(".page-header h2")).toHaveText("Training");
-  await expect(squadItem(page, "Training")).toHaveAttribute("aria-current", "true");
-
-  // Weekly planner present (real sessions grid + readiness).
-  await expect(page.locator(".training-week")).toBeVisible();
-  await expect(page.getByLabel("Overall intensity")).toBeVisible();
-
-  expect(errors, `console/page errors: ${errors.join("; ")}`).toHaveLength(0);
-});
-
-test("Squad Overview links to Training, and Back preserves the family", async ({ page }) => {
-  test.setTimeout(300_000);
-  const errors = captureErrors(page);
-  await createManagerCareer(page);
-
-  await page.getByLabel("Primary navigation").getByRole("button", { name: "Squad", exact: true }).click();
-  await squadItem(page, "Overview").click();
-  await expect(page.locator(".page-header h2")).toHaveText("Squad Overview");
-  await page.locator(".squad-overview button").filter({ hasText: "Training" }).click();
-  await expect(page.locator(".page-header h2")).toHaveText("Training");
-  await page.getByRole("button", { name: "Go back" }).click();
-  await expect(page.locator(".page-header h2")).toHaveText("Squad Overview");
-
-  expect(errors, `console/page errors: ${errors.join("; ")}`).toHaveLength(0);
-});
-
-test("No fabricated youth structure: no U16/U18/U21 destination", async ({ page }) => {
+test("Squad family final order includes Loans; deferred pages omitted", async ({ page }) => {
   test.setTimeout(300_000);
   const errors = captureErrors(page);
   await createManagerCareer(page);
 
   await page.getByLabel("Primary navigation").getByRole("button", { name: "Squad", exact: true }).click();
   await expect(squadNav(page)).toBeVisible();
-  // Overview | First Team | Training | Dynamics | Medical | Loans
-  expect(await squadNav(page).getByRole("button").count()).toBe(6);
-  await expect(squadNav(page).getByRole("button", { name: /Youth|U16|U18|U21|Academy|Reserve/i })).toHaveCount(0);
+  const labels = await squadNav(page).getByRole("button").allTextContents();
+  expect(labels).toEqual(["Overview", "First Team", "Training", "Dynamics", "Medical", "Loans"]);
+  // Deferred systems must not appear as nav destinations.
+  await expect(squadNav(page).getByRole("button", { name: /Discipline|Promises|Relationships|Internationals|Registration|Eligibility|Youth|U16|U18|U21/i })).toHaveCount(0);
+
+  await squadItem(page, "Loans").click();
+  await expect(page.locator(".page-header h2")).toHaveText("Loans");
+  await expect(squadItem(page, "Loans")).toHaveAttribute("aria-current", "true");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+
+  expect(errors, `console/page errors: ${errors.join("; ")}`).toHaveLength(0);
+});
+
+test("Loans: player link -> canonical destination -> Back = Loans", async ({ page }) => {
+  test.setTimeout(300_000);
+  const errors = captureErrors(page);
+  await createManagerCareer(page);
+
+  await page.getByLabel("Primary navigation").getByRole("button", { name: "Squad", exact: true }).click();
+  await squadItem(page, "Loans").click();
+  await expect(page.locator(".page-header h2")).toHaveText("Loans");
+
+  // Loading-safe: either a loan player link or the truthful empty state.
+  await expect(
+    page.locator(".loans-layout .report-list button.link, p:has-text('No players are currently on loan')").first(),
+  ).toBeVisible({ timeout: 20_000 });
+  const playerLink = page.locator(".loans-layout .report-list button.link").first();
+  if ((await playerLink.count()) > 0) {
+    const name = (await playerLink.textContent()).trim();
+    await playerLink.click();
+    await expect(page.getByRole("heading", { name }).first()).toBeVisible();
+    await backButton(page).click();
+    await expect(page.locator(".page-header h2")).toHaveText("Loans");
+  }
 
   expect(errors, `console/page errors: ${errors.join("; ")}`).toHaveLength(0);
 });

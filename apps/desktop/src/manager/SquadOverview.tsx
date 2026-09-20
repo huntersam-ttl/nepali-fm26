@@ -110,6 +110,9 @@ export const SquadOverview = ({
               <button className="ghost small" onClick={() => onNavigate("medical")}>
                 Medical
               </button>
+              <button className="ghost small" onClick={() => onNavigate("loans")}>
+                Loans
+              </button>
             </div>
           </section>
         );

@@ -76,9 +76,9 @@ test("No fabricated Discipline/Promises destinations", async ({ page }) => {
 
   await page.getByLabel("Primary navigation").getByRole("button", { name: "Squad", exact: true }).click();
   await expect(squadNav(page)).toBeVisible();
-  // Exactly Overview | First Team | Training | Dynamics | Medical.
-  expect(await squadNav(page).getByRole("button").count()).toBe(5);
-  await expect(squadNav(page).getByRole("button", { name: /Discipline|Promises|Relationships/i })).toHaveCount(0);
+  // Exactly Overview | First Team | Training | Dynamics | Medical | Loans.
+  expect(await squadNav(page).getByRole("button").count()).toBe(6);
+  await expect(squadNav(page).getByRole("button", { name: /Discipline|Promises|Relationships|Internationals|Registration|Eligibility/i })).toHaveCount(0);
 
   expect(errors, `console/page errors: ${errors.join("; ")}`).toHaveLength(0);
 });

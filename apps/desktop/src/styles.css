@@ -3886,6 +3886,17 @@ a.link:focus-visible {
   font-size: 0.85rem;
 }
 
+/* --- Phase 3D Loans workspace ---------------------------------------------- */
+.loans-layout {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--sys-spacing-standard);
+  align-items: start;
+}
+.loans-layout > .surface-primary {
+  padding: 12px 14px;
+}
+
 /* ---------------------------------------------------------------------------
    Phase 1D shell context: a content-context strip (breadcrumbs + contextual
    secondary nav) that sits above the workspace <main> but OUTSIDE it — so the

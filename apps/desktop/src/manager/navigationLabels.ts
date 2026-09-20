@@ -36,6 +36,7 @@ export const MANAGER_WORKSPACE_LABELS: Record<ManagerWorkspace, string> = {
   messages: "Messages",
   news: "News",
   calendar: "Calendar",
+  loans: "Loans",
 };
 
 const OWNER_WORKSPACE_LABELS: Record<string, string> = {
@@ -149,9 +150,16 @@ export const dailyOpsNavItems = (workspace: string): ContextualNavItem[] => {
   }));
 };
 
-/** The Manager Squad family — Overview, First Team, Training, Dynamics, Medical.
- * (Dynamics = dressing-room cohesion/hierarchy/concerns; Medical = medical.) */
-export const SQUAD_FAMILY: string[] = ["squad-overview", "squad", "training", "dressing-room", "medical"];
+/** The Manager Squad family — Overview, First Team, Training, Dynamics, Medical,
+ * and a read-only Loans workspace (real transfer-centre active loans). */
+export const SQUAD_FAMILY: string[] = [
+  "squad-overview",
+  "squad",
+  "training",
+  "dressing-room",
+  "medical",
+  "loans",
+];
 
 export const squadNavItems = (workspace: string): ContextualNavItem[] => {
   if (!SQUAD_FAMILY.includes(workspace)) return [];
@@ -161,6 +169,7 @@ export const squadNavItems = (workspace: string): ContextualNavItem[] => {
     { id: "training", label: "Training", current: workspace === "training" },
     { id: "dressing-room", label: "Dynamics", current: workspace === "dressing-room" },
     { id: "medical", label: "Medical", current: workspace === "medical" },
+    { id: "loans", label: "Loans", current: workspace === "loans" },
   ];
 };
 
