@@ -3841,6 +3841,21 @@ a.link:focus-visible {
   }
 }
 
+/* --- Phase 3A Squad Overview ------------------------------------------------ */
+.squad-overview {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--sys-spacing-standard);
+}
+.squad-overview .squad-availability {
+  padding: 12px 14px;
+}
+.squad-overview .squad-depth,
+.squad-overview .squad-contracts {
+  padding: 12px 14px;
+}
+
 /* ---------------------------------------------------------------------------
    Phase 1D shell context: a content-context strip (breadcrumbs + contextual
    secondary nav) that sits above the workspace <main> but OUTSIDE it — so the

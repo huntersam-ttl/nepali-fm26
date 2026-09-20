@@ -22,9 +22,10 @@ import type { ChairmanScreen, PresidentScreen } from "./RoleDetailScreen.js";
 import { EntitySurface } from "./EntitySurface.js";
 import { GlobalSearch } from "./GlobalSearch.js";
 import { Breadcrumbs, ContextualNav, useEntityReferenceLabels } from "./ShellContext.js";
-import { contextTrail, workspaceLabel, entityCategoryLabel, dailyOpsNavItems } from "./navigationLabels.js";
+import { contextTrail, workspaceLabel, entityCategoryLabel, dailyOpsNavItems, squadNavItems } from "./navigationLabels.js";
 import { StatusChip } from "./StatusChip.js";
 import { MessagesScreen, NewsScreen, CalendarScreen } from "./DedicatedOps.js";
+import { SquadOverview } from "./SquadOverview.js";
 import { PresentationSettingsPanel } from "../presentation/PresentationSettingsPanel.js";
 import { PersonPortrait } from "../presentation/PersonPortrait.js";
 import { buildPersonVisualIdentity, type PersonRole } from "../presentation/personVisualIdentity.js";
@@ -114,6 +115,7 @@ const EXECUTIVE_NAV: Array<{ group: string; items: Array<{ id: PresidentScreen; 
 const LABELS: Record<Screen, string> = {
   home: "Home / Inbox",
   squad: "Squad",
+  "squad-overview": "Squad Overview",
   "dressing-room": "Dressing Room",
   tactics: "Tactics",
   training: "Training",
@@ -133,6 +135,7 @@ const LABELS: Record<Screen, string> = {
 const SUBTITLES: Record<Screen, string> = {
   home: "Decisions, inbox updates, and the next match.",
   squad: "Review player availability, form, and contracts.",
+  "squad-overview": "Summary of availability, depth and squad health.",
   "dressing-room": "Hierarchy, concerns, demands, promises, and squad mood.",
   tactics: "Set the shape and instructions for your team.",
   training: "Plan the week and monitor squad development.",
@@ -209,6 +212,11 @@ export const ManagerCareer = ({
   const dailyOpsItems =
     header.activeRole === "MANAGER" && safeDestination.kind === "workspace"
       ? dailyOpsNavItems(String(safeDestination.workspace))
+      : [];
+  // Squad family secondary nav (Overview | First Team).
+  const squadItems =
+    header.activeRole === "MANAGER" && safeDestination.kind === "workspace"
+      ? squadNavItems(String(safeDestination.workspace))
       : [];
   // NOTE: contextual SECONDARY navigation is intentionally not wired into the
   // live shell yet. The primary sidebar already lists every existing navigable
@@ -525,6 +533,9 @@ export const ManagerCareer = ({
           {dailyOpsItems.length > 1 && (
             <ContextualNav items={dailyOpsItems} onNavigate={(id) => goTo(workspaceForRole(header.activeRole, id))} />
           )}
+          {squadItems.length > 1 && (
+            <ContextualNav items={squadItems} onNavigate={(id) => goTo(workspaceForRole(header.activeRole, id))} />
+          )}
         </header>
       <main className="workspace">
         {error && <ErrorBanner error={error} />}
@@ -668,6 +679,12 @@ export const ManagerCareer = ({
             }}
             onSelectPlayer={openPlayer}
             onOpenEntity={navigateEntityFromReference}
+          />
+        )}
+        {header.activeRole === "MANAGER" && screen === "squad-overview" && (
+          <SquadOverview
+            onSelectPlayer={openPlayer}
+            onNavigate={(next) => goTo({ kind: "workspace", role: "MANAGER", workspace: next })}
           />
         )}
         {header.activeRole === "MANAGER" && screen === "squad" && (

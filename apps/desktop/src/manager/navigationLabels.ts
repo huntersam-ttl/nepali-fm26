@@ -21,6 +21,7 @@ import {
 export const MANAGER_WORKSPACE_LABELS: Record<ManagerWorkspace, string> = {
   home: "Home / Inbox",
   squad: "Squad",
+  "squad-overview": "Squad Overview",
   "dressing-room": "Dressing Room",
   tactics: "Tactics",
   training: "Training",
@@ -146,6 +147,17 @@ export const dailyOpsNavItems = (workspace: string): ContextualNavItem[] => {
     label: DAILY_OPS_LABELS[id] ?? id,
     current: id === workspace,
   }));
+};
+
+/** The Manager Squad family — Overview (summary) and First Team. */
+export const SQUAD_FAMILY: string[] = ["squad-overview", "squad"];
+
+export const squadNavItems = (workspace: string): ContextualNavItem[] => {
+  if (!SQUAD_FAMILY.includes(workspace)) return [];
+  return [
+    { id: "squad-overview", label: "Overview", current: workspace === "squad-overview" },
+    { id: "squad", label: "First Team", current: workspace === "squad" },
+  ];
 };
 
 /** Contextual secondary navigation for the active role's workspace family

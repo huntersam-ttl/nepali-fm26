@@ -6,6 +6,7 @@ import {
   contextualNavItems,
   entityCategoryLabel,
   dailyOpsNavItems,
+  squadNavItems,
   workspaceLabel,
 } from "./navigationLabels.js";
 
@@ -110,5 +111,17 @@ describe("daily operations family nav", () => {
   it("13. is empty outside the family", () => {
     expect(dailyOpsNavItems("squad")).toEqual([]);
     expect(dailyOpsNavItems("tactics")).toEqual([]);
+  });
+});
+
+describe("squad family nav", () => {
+  it("lists Overview | First Team with the current item marked", () => {
+    const items = squadNavItems("squad-overview");
+    expect(items.map((item) => item.label)).toEqual(["Overview", "First Team"]);
+    expect(items.find((item) => item.current)?.id).toBe("squad-overview");
+  });
+
+  it("is empty outside the squad family", () => {
+    expect(squadNavItems("tactics")).toEqual([]);
   });
 });

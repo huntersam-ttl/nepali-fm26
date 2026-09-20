@@ -23,6 +23,7 @@ import type { ChairmanScreen, PresidentScreen } from "./manager/RoleDetailScreen
 export const MANAGER_WORKSPACES = [
   "home",
   "squad",
+  "squad-overview",
   "dressing-room",
   "tactics",
   "training",
