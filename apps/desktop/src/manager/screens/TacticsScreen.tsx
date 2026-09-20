@@ -8,6 +8,7 @@ import type {
 } from "@nepal-football-sim/shared-types";
 import { managerBridge } from "../managerBridge.js";
 import { AsyncPanel, Badge, ErrorBanner, Panel, useRuntimeData } from "../ui.js";
+import { swapSlots } from "../tactics.js";
 import type { AppError } from "../../appBridge.js";
 
 /** Humanised label + one-line behaviour explanation per duty — the same
@@ -122,6 +123,10 @@ const TacticsBoard = ({
 }): React.ReactElement => {
   const [name, setName] = useState(view.setup.name);
   const [formationId, setFormationId] = useState(view.setup.formation.id);
+  // Phase 4A drag/drop: a lightweight pointer source for slot↔slot swap and
+  // bench→slot assignment, consumed by slot onDrop and mapped to the SAME
+  // canonical updateTactics as the accessible controls.
+  const dragRef = useRef<{ slotId?: string; playerId?: string } | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
@@ -317,6 +322,26 @@ const TacticsBoard = ({
                 aria-pressed={selectedSlot === slot.id}
                 aria-label={`${slot.label ?? slot.id}: ${fit?.playerName ?? "no player selected"}`}
                 onClick={() => setSelectedSlot(slot.id === selectedSlot ? null : slot.id)}
+                draggable={Boolean(fit?.playerId)}
+                onDragStart={(event) => {
+                  if (!fit?.playerId) return;
+                  dragRef.current = { slotId: slot.id };
+                  event.dataTransfer.setData("text/plain", fit.playerId);
+                  event.dataTransfer.effectAllowed = "move";
+                }}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  const source = dragRef.current;
+                  dragRef.current = null;
+                  if (!source) return;
+                  if (source.slotId && source.slotId !== slot.id) {
+                    const swapped = swapSlots(view.setup, source.slotId, slot.id);
+                    void applyCommand({ assignments: swapped.assignments });
+                  } else if (source.playerId) {
+                    void assignPlayer(slot.id, source.playerId as EntityId);
+                  }
+                }}
               >
                 <strong>{slot.label ?? slot.id}</strong>
                 <span>{fit?.playerName?.split(" ")[0] ?? "—"}</span>
@@ -497,6 +522,28 @@ const TacticsBoard = ({
                 ))}
               </select>
             </label>
+            <label>
+              Swap with…
+              <select
+                aria-label="Swap this position with another"
+                defaultValue=""
+                onChange={(event) => {
+                  const target = event.target.value;
+                  if (!target || target === selectedSlot) return;
+                  const swapped = swapSlots(view.setup, selectedSlot, target);
+                  void applyCommand({ assignments: swapped.assignments });
+                }}
+              >
+                <option value="">— choose slot —</option>
+                {view.setup.assignments
+                  .filter((item) => item.slotId !== selectedSlot && item.playerId)
+                  .map((item) => (
+                    <option key={item.slotId} value={item.slotId}>
+                      {fitFor(item.slotId)?.playerName ?? item.slotId} ({item.slotId})
+                    </option>
+                  ))}
+              </select>
+            </label>
             {onSelectPlayer && assignment(selectedSlot)?.playerId && (
               <button
                 className="link"
@@ -526,7 +573,7 @@ const TacticsBoard = ({
           {view.setup.bench.map((id) => {
             const player = view.benchCandidates.find((candidate) => candidate.personId === id);
             return (
-              <li key={id}>
+              <li key={id} draggable onDragStart={(event) => { dragRef.current = { playerId: id }; event.dataTransfer.setData("text/plain", id); }}>
                 {player?.name ?? "Unknown player"}
                 <button
                   className="ghost small"
