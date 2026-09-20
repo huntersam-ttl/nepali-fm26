@@ -3720,6 +3720,71 @@ a.link:focus-visible {
   padding: 12px 14px;
 }
 
+/* --- Phase 2C Daily Operations (on Home) ----------------------------------- */
+.daily-operations {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--sys-spacing-standard);
+}
+.daily-operations > .u-split > .surface-primary,
+.daily-operations > .u-split > .u-stack {
+  min-width: 0;
+  padding: 12px 14px;
+}
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 6px;
+  margin: 8px 0;
+}
+.calendar-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  border: 1px solid var(--sys-border-subtle);
+  border-radius: var(--sys-radius-small);
+  background: var(--sys-surface-inset);
+  color: var(--sys-text-secondary);
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.calendar-cell.today {
+  border-color: var(--sys-accent);
+  background: var(--sys-selection);
+  color: #fff;
+}
+.calendar-cell.selected {
+  border-color: var(--sys-accent);
+  outline: 2px solid var(--sys-accent);
+}
+.calendar-cell:focus-visible {
+  outline: 2px solid var(--sys-focus);
+  outline-offset: 1px;
+}
+.calendar-cell-date {
+  font-size: 0.82rem;
+}
+.calendar-cell-count {
+  font-size: 0.72rem;
+  color: var(--sys-text-meta);
+}
+.calendar-detail {
+  margin-top: 6px;
+}
+.news-lead {
+  padding: 8px 0 4px;
+}
+.news-lead .home-news-title {
+  margin: 0 0 4px;
+  font-size: 1.05rem;
+}
+.news-list li {
+  padding: 3px 0;
+}
+
 /* ---------------------------------------------------------------------------
    Phase 1D shell context: a content-context strip (breadcrumbs + contextual
    secondary nav) that sits above the workspace <main> but OUTSIDE it — so the

@@ -5,6 +5,7 @@ import { managerBridge } from "./managerBridge.js";
 import { useRuntimeData, AsyncPanel, FormRun, Metrics, Panel } from "./ui.js";
 import { StatusChip } from "./StatusChip.js";
 import { attentionLimit, managerPrimaryPriority } from "./homePriorities.js";
+import { DailyOperations } from "./DailyOperations.js";
 
 /**
  * Phase 2B — Manager Home / Daily Hub.
@@ -227,6 +228,14 @@ export const HomeCommandCentre = ({
                 />
               </Panel>
             </div>
+
+            <DailyOperations
+              today={dashboard.worldDate}
+              messages={attention}
+              calendar={calendar}
+              onOpenEntity={onOpenEntity}
+              onNavigate={onNavigate}
+            />
           </section>
         );
       }}
