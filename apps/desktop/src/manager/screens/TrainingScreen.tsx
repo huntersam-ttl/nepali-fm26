@@ -7,6 +7,7 @@ import type {
 } from "@nepal-football-sim/shared-types";
 import { managerBridge } from "../managerBridge.js";
 import { AsyncPanel, Badge, ErrorBanner, Metrics, Panel, useRuntimeData } from "../ui.js";
+import { TrainingPlanner } from "../TrainingPlanner.js";
 import type { AppError } from "../../appBridge.js";
 
 export const TrainingScreen = ({
@@ -107,6 +108,7 @@ const TrainingBoard = ({
 
   return (
     <section className="dashboard">
+      <TrainingPlanner view={view} />
       <Panel title="Weekly training plan">
         <div className="controls">
           <label>

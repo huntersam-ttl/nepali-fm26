@@ -3856,6 +3856,36 @@ a.link:focus-visible {
   padding: 12px 14px;
 }
 
+/* --- Phase 3B weekly training planner --------------------------------------- */
+.training-planner {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.training-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(120px, 1fr));
+  gap: 6px;
+  overflow-x: auto;
+}
+.training-day {
+  border: 1px solid var(--sys-border-subtle);
+  border-radius: var(--sys-radius-small);
+  background: var(--sys-surface-inset);
+  padding: 6px;
+}
+.training-day.empty {
+  opacity: 0.6;
+}
+.training-session {
+  padding: 2px 0;
+}
+.training-session-cat {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
 /* ---------------------------------------------------------------------------
    Phase 1D shell context: a content-context strip (breadcrumbs + contextual
    secondary nav) that sits above the workspace <main> but OUTSIDE it — so the
