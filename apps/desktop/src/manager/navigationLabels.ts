@@ -32,6 +32,9 @@ export const MANAGER_WORKSPACE_LABELS: Record<ManagerWorkspace, string> = {
   staff: "Staff",
   medical: "Medical",
   media: "Media",
+  messages: "Messages",
+  news: "News",
+  calendar: "Calendar",
 };
 
 const OWNER_WORKSPACE_LABELS: Record<string, string> = {
@@ -110,6 +113,40 @@ const ownerLabels = (id: string): string => OWNER_WORKSPACE_LABELS[id] ?? id;
 const presidentLabels = (id: string): string => PRESIDENT_WORKSPACE_LABELS[id] ?? id;
 
 export type ContextualNavItem = { id: string; label: string; current: boolean };
+
+/** The Manager Daily Operations family — genuinely related sub-workspaces whose
+ * contextual secondary navigation is distinct from random side-workspaces. */
+export const DAILY_OPS_FAMILY: string[] = [
+  "home",
+  "messages",
+  "news",
+  "calendar",
+  "fixtures",
+  "competition",
+];
+
+// Contextual labels deliberately differ from the global sidebar where a member
+// is ALSO a top-level nav item, so the family nav never duplicates (or collides
+// with) primary navigation accessible names.
+const DAILY_OPS_LABELS: Record<string, string> = {
+  home: "Overview",
+  messages: "Messages",
+  news: "News",
+  calendar: "Calendar",
+  fixtures: "Fixture schedule",
+  competition: "League table",
+};
+
+/** Daily Operations contextual secondary nav (Overview | Messages | News |
+ * Calendar | Fixtures | Competition). Shown only within the family. */
+export const dailyOpsNavItems = (workspace: string): ContextualNavItem[] => {
+  if (!DAILY_OPS_FAMILY.includes(workspace)) return [];
+  return DAILY_OPS_FAMILY.map((id) => ({
+    id,
+    label: DAILY_OPS_LABELS[id] ?? id,
+    current: id === workspace,
+  }));
+};
 
 /** Contextual secondary navigation for the active role's workspace family
  * (siblings of the current workspace). Empty when none apply (e.g. entities,

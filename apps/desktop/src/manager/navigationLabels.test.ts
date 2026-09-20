@@ -5,6 +5,7 @@ import {
   contextTrail,
   contextualNavItems,
   entityCategoryLabel,
+  dailyOpsNavItems,
   workspaceLabel,
 } from "./navigationLabels.js";
 
@@ -89,5 +90,25 @@ describe("contextual secondary nav", () => {
   it("returns nothing for executive roles and unknown workspaces", () => {
     expect(contextualNavItems("CEO", "dashboard")).toEqual([]);
     expect(contextualNavItems("MANAGER", "unknown")).toEqual([]);
+  });
+});
+
+describe("daily operations family nav", () => {
+  it("12. returns the family for a member with the current item marked", () => {
+    const items = dailyOpsNavItems("messages");
+    expect(items.map((item) => item.label)).toEqual([
+      "Overview",
+      "Messages",
+      "News",
+      "Calendar",
+      "Fixture schedule",
+      "League table",
+    ]);
+    expect(items.find((item) => item.current)?.id).toBe("messages");
+  });
+
+  it("13. is empty outside the family", () => {
+    expect(dailyOpsNavItems("squad")).toEqual([]);
+    expect(dailyOpsNavItems("tactics")).toEqual([]);
   });
 });

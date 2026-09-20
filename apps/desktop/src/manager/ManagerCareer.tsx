@@ -21,9 +21,10 @@ import { RoleLandingScreen, EXECUTIVE_ROLES } from "./RoleLandingScreen.js";
 import type { ChairmanScreen, PresidentScreen } from "./RoleDetailScreen.js";
 import { EntitySurface } from "./EntitySurface.js";
 import { GlobalSearch } from "./GlobalSearch.js";
-import { Breadcrumbs, useEntityReferenceLabels } from "./ShellContext.js";
-import { contextTrail, workspaceLabel, entityCategoryLabel } from "./navigationLabels.js";
+import { Breadcrumbs, ContextualNav, useEntityReferenceLabels } from "./ShellContext.js";
+import { contextTrail, workspaceLabel, entityCategoryLabel, dailyOpsNavItems } from "./navigationLabels.js";
 import { StatusChip } from "./StatusChip.js";
+import { MessagesScreen, NewsScreen, CalendarScreen } from "./DedicatedOps.js";
 import { PresentationSettingsPanel } from "../presentation/PresentationSettingsPanel.js";
 import { PersonPortrait } from "../presentation/PersonPortrait.js";
 import { buildPersonVisualIdentity, type PersonRole } from "../presentation/personVisualIdentity.js";
@@ -124,6 +125,9 @@ const LABELS: Record<Screen, string> = {
   staff: "Staff",
   medical: "Medical",
   media: "Media",
+  messages: "Messages",
+  news: "News",
+  calendar: "Calendar",
 };
 
 const SUBTITLES: Record<Screen, string> = {
@@ -140,6 +144,9 @@ const SUBTITLES: Record<Screen, string> = {
   staff: "Build the support team around your squad.",
   medical: "Monitor recovery and return-to-play decisions.",
   media: "Supporter mood, press coverage, and press conferences.",
+  messages: "Read, action, and respond to club and football communications.",
+  news: "The latest notable stories from around the football world.",
+  calendar: "Fixtures, deadlines and events in the days ahead.",
 };
 
 /**
@@ -197,6 +204,12 @@ export const ManagerCareer = ({
         : workspaceLabel(crumb),
     current: index === crumbs.length - 1,
   }));
+  // Daily Operations family secondary nav (Overview | Messages | News | Calendar |
+  // Fixtures | Competition) — shown only within that manager family.
+  const dailyOpsItems =
+    header.activeRole === "MANAGER" && safeDestination.kind === "workspace"
+      ? dailyOpsNavItems(String(safeDestination.workspace))
+      : [];
   // NOTE: contextual SECONDARY navigation is intentionally not wired into the
   // live shell yet. The primary sidebar already lists every existing navigable
   // workspace grouped by family, so re-listing those siblings as a second nav
@@ -509,6 +522,9 @@ export const ManagerCareer = ({
                 status chip exercises the shared status/chip token grammar. */}
             <StatusChip label={careerRoleLabel(header.activeRole)} />
           </div>
+          {dailyOpsItems.length > 1 && (
+            <ContextualNav items={dailyOpsItems} onNavigate={(id) => goTo(workspaceForRole(header.activeRole, id))} />
+          )}
         </header>
       <main className="workspace">
         {error && <ErrorBanner error={error} />}
@@ -695,6 +711,16 @@ export const ManagerCareer = ({
         )}
         {header.activeRole === "MANAGER" && screen === "medical" && <MedicalScreen onSelectPlayer={openPlayer} />}
         {header.activeRole === "MANAGER" && screen === "media" && <MediaScreen onSelectPlayer={openPlayer} />}
+        {header.activeRole === "MANAGER" && screen === "messages" && (
+          <MessagesScreen onOpenEntity={navigateEntityFromReference} />
+        )}
+        {header.activeRole === "MANAGER" && screen === "news" && <NewsScreen onOpenEntity={navigateEntityFromReference} />}
+        {header.activeRole === "MANAGER" && screen === "calendar" && (
+          <CalendarScreen
+            today={header.worldDate}
+            onNavigate={(next) => goTo({ kind: "workspace", role: "MANAGER", workspace: next })}
+          />
+        )}
           </>
         )}
       </main>

@@ -3785,6 +3785,62 @@ a.link:focus-visible {
   padding: 3px 0;
 }
 
+/* --- Phase 2D dedicated Daily Ops workspaces ------------------------------- */
+.messages-layout {
+  display: grid;
+  grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
+  gap: var(--sys-spacing-standard);
+  align-items: start;
+}
+.messages-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 480px;
+  overflow: auto;
+}
+.messages-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--sys-radius-standard);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.messages-row.active {
+  border-color: var(--sys-accent);
+  background: var(--sys-selection);
+}
+.messages-row:focus-visible {
+  outline: 2px solid var(--sys-focus);
+  outline-offset: 1px;
+}
+.messages-row-title {
+  font-weight: 600;
+}
+.messages-detail {
+  padding: 14px 16px;
+}
+.news-workspace,
+.calendar-workspace {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--sys-spacing-standard);
+}
+.news-workspace .news-lead {
+  padding: 14px 16px;
+}
+@media (max-width: 980px) {
+  .messages-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ---------------------------------------------------------------------------
    Phase 1D shell context: a content-context strip (breadcrumbs + contextual
    secondary nav) that sits above the workspace <main> but OUTSIDE it — so the

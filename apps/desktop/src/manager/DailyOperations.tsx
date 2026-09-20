@@ -39,6 +39,11 @@ export const DailyOperations = ({
   return (
     <section className="daily-operations" aria-label="Daily operations">
       <h3 className="section-title">Operations</h3>
+      <div className="button-row">
+        <button className="ghost small" onClick={() => onNavigate("messages")}>Open messages</button>
+        <button className="ghost small" onClick={() => onNavigate("news")}>Open news</button>
+        <button className="ghost small" onClick={() => onNavigate("calendar")}>Open calendar</button>
+      </div>
       <div className="u-split">
         <div className="surface-primary">
           <h4 className="data-label">Calendar · {today}</h4>
