@@ -1,12 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
 
 /**
- * Phase 3B — Training + Development (additive to the Squad family).
+ * Phase 3C — Squad Dynamics + Medical + Discipline/Promises boundary.
  *
- * Pins: Training is a Squad-family destination reached via the contextual nav
- * with a weekly-planner view; Squad Overview links to Training; and no
- * fabricated U16/U18/U21 youth structure appears (youth is deferred truthfully:
- * no canonical youth-squad read model is exposed).
+ * Dynamics = the real dressing-room dynamics state (cohesion/hierarchy/
+ * concerns). Medical = the real medical centre. Discipline and Promises/
+ * Relationships are intentionally deferred (no canonical read/model command),
+ * so no fabricated destinations appear.
  *
  * Declares no per-spec base URL, so NEPAL_E2E_BASE_URL selects the server.
  */
@@ -24,7 +24,7 @@ const squadNav = (page: Page) => page.locator('nav[aria-label="Workspace section
 const squadItem = (page: Page, name: string) => squadNav(page).getByRole("button", { name, exact: true });
 
 const createManagerCareer = async (page: Page): Promise<string> => {
-  const saveName = `Train ${Date.now()}`;
+  const saveName = `Dyn ${Date.now()}`;
   await page.goto("/");
   await page.getByRole("button", { name: /New Career/i }).click();
   await page.getByLabel("Save name").fill(saveName);
@@ -41,49 +41,44 @@ const createManagerCareer = async (page: Page): Promise<string> => {
   return clubName;
 };
 
-test("Squad -> Training: contextual nav, weekly planner, no giant form", async ({ page }) => {
+test("Squad -> Dynamics context nav active on the real dressing-room workspace", async ({ page }) => {
   test.setTimeout(300_000);
   const errors = captureErrors(page);
   await createManagerCareer(page);
 
   await page.getByLabel("Primary navigation").getByRole("button", { name: "Squad", exact: true }).click();
-  await squadItem(page, "Training").click();
-  await expect(page.locator(".page-header h2")).toHaveText("Training");
-  await expect(squadItem(page, "Training")).toHaveAttribute("aria-current", "true");
-
-  // Weekly planner present (real sessions grid + readiness).
-  await expect(page.locator(".training-week")).toBeVisible();
-  await expect(page.getByLabel("Overall intensity")).toBeVisible();
+  await squadItem(page, "Dynamics").click();
+  await expect(page.locator(".page-header h2")).toHaveText("Dressing Room");
+  await expect(squadItem(page, "Dynamics")).toHaveAttribute("aria-current", "true");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
 
   expect(errors, `console/page errors: ${errors.join("; ")}`).toHaveLength(0);
 });
 
-test("Squad Overview links to Training, and Back preserves the family", async ({ page }) => {
+test("Squad -> Medical context nav active on the medical workspace", async ({ page }) => {
   test.setTimeout(300_000);
   const errors = captureErrors(page);
   await createManagerCareer(page);
 
   await page.getByLabel("Primary navigation").getByRole("button", { name: "Squad", exact: true }).click();
-  await squadItem(page, "Overview").click();
-  await expect(page.locator(".page-header h2")).toHaveText("Squad Overview");
-  await page.locator(".squad-overview button").filter({ hasText: "Training" }).click();
-  await expect(page.locator(".page-header h2")).toHaveText("Training");
-  await page.getByRole("button", { name: "Go back" }).click();
-  await expect(page.locator(".page-header h2")).toHaveText("Squad Overview");
+  await squadItem(page, "Medical").click();
+  await expect(page.locator(".page-header h2")).toHaveText("Medical");
+  await expect(squadItem(page, "Medical")).toHaveAttribute("aria-current", "true");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
 
   expect(errors, `console/page errors: ${errors.join("; ")}`).toHaveLength(0);
 });
 
-test("No fabricated youth structure: no U16/U18/U21 destination", async ({ page }) => {
+test("No fabricated Discipline/Promises destinations", async ({ page }) => {
   test.setTimeout(300_000);
   const errors = captureErrors(page);
   await createManagerCareer(page);
 
   await page.getByLabel("Primary navigation").getByRole("button", { name: "Squad", exact: true }).click();
   await expect(squadNav(page)).toBeVisible();
-  // Overview | First Team | Training | Dynamics | Medical
+  // Exactly Overview | First Team | Training | Dynamics | Medical.
   expect(await squadNav(page).getByRole("button").count()).toBe(5);
-  await expect(squadNav(page).getByRole("button", { name: /Youth|U16|U18|U21|Academy|Reserve/i })).toHaveCount(0);
+  await expect(squadNav(page).getByRole("button", { name: /Discipline|Promises|Relationships/i })).toHaveCount(0);
 
   expect(errors, `console/page errors: ${errors.join("; ")}`).toHaveLength(0);
 });

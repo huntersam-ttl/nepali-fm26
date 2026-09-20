@@ -149,8 +149,9 @@ export const dailyOpsNavItems = (workspace: string): ContextualNavItem[] => {
   }));
 };
 
-/** The Manager Squad family — Overview (summary), First Team, Training. */
-export const SQUAD_FAMILY: string[] = ["squad-overview", "squad", "training"];
+/** The Manager Squad family — Overview, First Team, Training, Dynamics, Medical.
+ * (Dynamics = dressing-room cohesion/hierarchy/concerns; Medical = medical.) */
+export const SQUAD_FAMILY: string[] = ["squad-overview", "squad", "training", "dressing-room", "medical"];
 
 export const squadNavItems = (workspace: string): ContextualNavItem[] => {
   if (!SQUAD_FAMILY.includes(workspace)) return [];
@@ -158,6 +159,8 @@ export const squadNavItems = (workspace: string): ContextualNavItem[] => {
     { id: "squad-overview", label: "Overview", current: workspace === "squad-overview" },
     { id: "squad", label: "First Team", current: workspace === "squad" },
     { id: "training", label: "Training", current: workspace === "training" },
+    { id: "dressing-room", label: "Dynamics", current: workspace === "dressing-room" },
+    { id: "medical", label: "Medical", current: workspace === "medical" },
   ];
 };
 
