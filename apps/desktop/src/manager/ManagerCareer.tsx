@@ -11,6 +11,9 @@ import { TrainingScreen } from "./screens/TrainingScreen.js";
 import { FixturesScreen } from "./screens/FixturesScreen.js";
 import { CompetitionScreen } from "./screens/CompetitionScreen.js";
 import { ScoutingScreen } from "./screens/ScoutingScreen.js";
+import { RecruitmentOverviewScreen } from "./screens/RecruitmentOverviewScreen.js";
+import { PlayerDatabaseScreen } from "./screens/PlayerDatabaseScreen.js";
+import { RecommendationsScreen } from "./screens/RecommendationsScreen.js";
 import { TransfersScreen } from "./screens/TransfersScreen.js";
 import { ContractsScreen } from "./screens/ContractsScreen.js";
 import { StaffScreen } from "./screens/StaffScreen.js";
@@ -72,7 +75,7 @@ type Screen = ManagerWorkspace;
 const NAV_GROUPS: Array<{ label: string; items: Screen[] }> = [
   { label: "Team", items: ["home", "squad", "dressing-room", "tactics", "training", "medical"] },
   { label: "Competition", items: ["fixtures", "competition"] },
-  { label: "Recruitment", items: ["scouting", "transfers", "contracts"] },
+  { label: "Recruitment", items: ["recruitment-overview", "player-database", "recommendations", "scouting", "transfers", "contracts"] },
   { label: "Club", items: ["staff", "media"] },
 ];
 
@@ -123,6 +126,9 @@ const LABELS: Record<Screen, string> = {
   fixtures: "Fixtures",
   competition: "Competition",
   scouting: "Scouting",
+  "recruitment-overview": "Recruitment Overview",
+  "player-database": "Player Database",
+  recommendations: "Recommendations",
   transfers: "Transfers",
   contracts: "Contracts",
   staff: "Staff",
@@ -144,6 +150,9 @@ const SUBTITLES: Record<Screen, string> = {
   fixtures: "Prepare for upcoming matches and review results.",
   competition: "Track the table, form, and scoring leaders.",
   scouting: "Turn reports into focused recruitment decisions.",
+  "recruitment-overview": "What the club knows, is scouting, and is waiting on.",
+  "player-database": "Discovery, filters and scouting knowledge across known players.",
+  recommendations: "Current scouting recommendations and report context.",
   transfers: "Manage targets, offers, and squad movement.",
   contracts: "Keep player terms aligned with the club plan.",
   staff: "Build the support team around your squad.",
@@ -721,6 +730,15 @@ export const ManagerCareer = ({
         )}
         {header.activeRole === "MANAGER" && screen === "scouting" && (
           <ScoutingScreen onSelectPlayer={openPlayer} onOpenClub={(id) => openEntity("CLUB", id)} />
+        )}
+        {header.activeRole === "MANAGER" && screen === "recruitment-overview" && (
+          <RecruitmentOverviewScreen onSelectPlayer={openPlayer} />
+        )}
+        {header.activeRole === "MANAGER" && screen === "player-database" && (
+          <PlayerDatabaseScreen onSelectPlayer={openPlayer} onOpenClub={(id) => openEntity("CLUB", id)} />
+        )}
+        {header.activeRole === "MANAGER" && screen === "recommendations" && (
+          <RecommendationsScreen onSelectPlayer={openPlayer} />
         )}
         {header.activeRole === "MANAGER" && screen === "transfers" && (
           <TransfersScreen onSelectPlayer={openPlayer} onOpenClub={(id) => openEntity("CLUB", id)} />
