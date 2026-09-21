@@ -8,7 +8,7 @@ import type {
 } from "@nepal-football-sim/shared-types";
 import { managerBridge } from "../managerBridge.js";
 import { AsyncPanel, Badge, ErrorBanner, Panel, useRuntimeData } from "../ui.js";
-import { swapSlots } from "../tactics.js";
+import { readinessItems, swapSlots } from "../tactics.js";
 import type { AppError } from "../../appBridge.js";
 
 /** Humanised label + one-line behaviour explanation per duty — the same
@@ -492,13 +492,15 @@ const TacticsBoard = ({
               </button>
             )}
             {/* Fit scores are derived ratings, so they are read as whole numbers
-                rather than to two decimal places. */}
+                rather than to two decimal places. Role familiarity is the
+                canonical SlotRoleFit.familiarity read. */}
             {fitFor(selectedSlot) && fitFor(selectedSlot)!.overall > 0 && (
               <p className="subtle">
                 Role fit {Math.round(fitFor(selectedSlot)!.overall)} (
                 {fitFor(selectedSlot)!.label}) · position{" "}
                 {Math.round(fitFor(selectedSlot)!.positionFit)} · attributes{" "}
-                {Math.round(fitFor(selectedSlot)!.attributeFit)}
+                {Math.round(fitFor(selectedSlot)!.attributeFit)} · role familiarity{" "}
+                {Math.round(fitFor(selectedSlot)!.familiarity)}
               </p>
             )}
           </div>
@@ -548,25 +550,21 @@ const TacticsBoard = ({
           </select>
         </label>
 
-        {view.validation.blockingErrors.length > 0 && (
-          <div className="warning">
-            {view.validation.blockingErrors.map((message) => (
-              <div key={message}>{message}</div>
-            ))}
-          </div>
-        )}
-        {view.validation.warnings.length > 0 && (
-          <div className="notice">
-            {view.validation.warnings.map((message) => (
-              <div key={message}>
-                <Badge tone="warn">warning</Badge> {message}
-              </div>
-            ))}
-          </div>
-        )}
-        {view.validation.isValid && view.validation.warnings.length === 0 && (
-          <div className="ok">Selection is legal.</div>
-        )}
+        <h3>Match readiness</h3>
+        {(() => {
+          const items = readinessItems(view.setup, view.familiarity, view.validation);
+          return (
+            <ul className="readiness-list">
+              {items.map((item, index) => (
+                <li key={`${item.severity}-${index}`}>
+                  {item.severity === "blocking" && <Badge tone="bad">blocking</Badge>}
+                  {item.severity === "warning" && <Badge tone="warn">warning</Badge>}
+                  {item.text}
+                </li>
+              ))}
+            </ul>
+          );
+        })()}
       </Panel>
 
       <fieldset className="tactics-modes" aria-label="Tactical phase">

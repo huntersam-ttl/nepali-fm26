@@ -1,4 +1,10 @@
-import type { EntityId, SetPieceAssignments, TacticalSetup, SquadPlayerRow } from "@nepal-football-sim/shared-types";
+import type {
+  EntityId,
+  SetPieceAssignments,
+  SquadPlayerRow,
+  TacticalFamiliarity,
+  TacticalSetup,
+} from "@nepal-football-sim/shared-types";
 
 /**
  * Phase 4A — pure Tactics presentation/selection model.
@@ -207,3 +213,99 @@ export const singleTakerKeys: ReadonlyArray<keyof SetPieceAssignments> = [
   "freeKickTarget",
   "freeKickSecondaryTarget",
 ];
+
+/* ------------------------------------------------------------------
+ * Phase 4D — Tactics closure: relief, validation consolidation + readiness
+ * ------------------------------------------------------------------ */
+
+export const dedupeStrings = (items: readonly string[]): string[] => [...new Set(items)];
+
+/** Deduplicates repeated validation messages while preserving severity. */
+export const consolidateValidation = (validation: {
+  blockingErrors: readonly string[];
+  warnings: readonly string[];
+}): { blockingErrors: string[]; warnings: string[] } => ({
+  blockingErrors: dedupeStrings(validation.blockingErrors),
+  warnings: dedupeStrings(validation.warnings),
+});
+
+export type StartingXIStatus = {
+  required: number;
+  selected: number;
+  complete: boolean;
+  hasGoalkeeper: boolean;
+};
+
+/**
+ * Derived from canonical slot + assignment data only. The engine already emits
+ * "Starting XI must contain exactly 11 players." (blocking) and
+ * "No recognised goalkeeper has been assigned." (warning), so this helper is
+ * for the factual summary line, not for re-classifying severity.
+ */
+export const startingXIStatus = (setup: TacticalSetup): StartingXIStatus => {
+  const slots = setup.formation.slots;
+  const selected = setup.assignments.filter((a) => Boolean(a.playerId)).length;
+  const hasGoalkeeper = slots.some(
+    (slot) => slot.position === "GK" && setup.assignments.some((a) => a.slotId === slot.id && a.playerId),
+  );
+  return {
+    required: slots.length,
+    selected,
+    complete: selected === slots.length && hasGoalkeeper,
+    hasGoalkeeper,
+  };
+};
+
+/** Factual set-piece taker count — never a "completeness" grade. */
+export const setPieceReadiness = (setPieces: SetPieceAssignments): string => {
+  const count = [
+    setPieces.penaltyTaker,
+    setPieces.leftCornerTaker,
+    setPieces.rightCornerTaker,
+    setPieces.directFreeKickTaker,
+    setPieces.indirectFreeKickTaker,
+  ].filter(Boolean).length;
+  return `Set pieces: ${count} takers assigned (defaults apply for the rest)`;
+};
+
+export type ReadinessSeverity = "blocking" | "warning" | "info";
+export type ReadinessItem = { severity: ReadinessSeverity; text: string };
+
+/**
+ * Consolidated factual Match-readiness summary. Severity is taken verbatim from
+ * the canonical SquadSelectionValidation lists (never invented new blocks), plus
+ * pure informational lines. No synthetic readiness score is produced.
+ */
+export const readinessItems = (
+  setup: TacticalSetup,
+  familiarity: TacticalFamiliarity,
+  validation: { blockingErrors: readonly string[]; warnings: readonly string[] },
+): ReadonlyArray<ReadinessItem> => {
+  const { required, selected, hasGoalkeeper } = startingXIStatus(setup);
+  const items: ReadinessItem[] = [
+    {
+      severity: "info",
+      text: `Starting XI: ${selected}/${required} selected${hasGoalkeeper ? " · goalkeeper set" : ""}`,
+    },
+    {
+      severity: "info",
+      text: `Tactical familiarity — formation ${familiarity.formation}% · style ${familiarity.style}% · roles ${familiarity.roles}% · instructions ${familiarity.instructions}%`,
+    },
+    { severity: "info", text: setPieceReadiness(setup.setPieces) },
+  ];
+  for (const text of consolidateValidation(validation).blockingErrors) {
+    items.push({ severity: "blocking", text });
+  }
+  for (const text of consolidateValidation(validation).warnings) {
+    items.push({ severity: "warning", text });
+  }
+  return items;
+};
+
+/**
+ * Tactical cohesion beyond familiarity is not a separate canonical read.
+ * TacticalFamiliarity (numbers) is the cohesion proxy within Tactics; the
+ * dressing-room TeamCohesion (`TeamCohesion.level`) is a Dynamics concern and is
+ * intentionally NOT relabelled as tactical chemistry here.
+ */
+export const tacticalCohesionPresent = (): boolean => false;
