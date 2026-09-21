@@ -1,4 +1,4 @@
-import type { TacticalSetup, SquadPlayerRow } from "@nepal-football-sim/shared-types";
+import type { EntityId, SetPieceAssignments, TacticalSetup, SquadPlayerRow } from "@nepal-football-sim/shared-types";
 
 /**
  * Phase 4A — pure Tactics presentation/selection model.
@@ -72,10 +72,16 @@ export const availablePlayers = (candidates: SquadPlayerRow[]): SquadPlayerRow[]
  * Phase 4B — roles, duties and tactical phases (pure model)
  * ------------------------------------------------------------------ */
 
-export type TacticalMode = "teamShape" | "inPossession" | "transition" | "outOfPossession";
+export type TacticalMode =
+  | "teamShape"
+  | "inPossession"
+  | "transition"
+  | "outOfPossession"
+  | "setPieces";
 
 export const TACTICAL_MODES: ReadonlyArray<{ value: TacticalMode; label: string }> = [
   { value: "teamShape", label: "Team Shape" },
+  { value: "setPieces", label: "Set Pieces" },
   { value: "inPossession", label: "In Possession" },
   { value: "transition", label: "Transition" },
   { value: "outOfPossession", label: "Out of Possession" },
@@ -133,3 +139,71 @@ export const changeRole = (
 ): Pick<TacticalSetup, "assignments"> => ({
   assignments: setup.assignments.map((item) => (item.slotId === slotId ? { ...item, roleId } : item)),
 });
+
+/* ------------------------------------------------------------------
+ * Phase 4C — Set Pieces (pure presentation over canonical setPieces)
+ * ------------------------------------------------------------------ */
+
+/** The set-piece routines the canonical SetPieceAssignments model supports. */
+export const SET_PIECE_ROUTINES: ReadonlyArray<{ value: string; label: string }> = [
+  { value: "penalty", label: "Penalty" },
+  { value: "attackingCorner", label: "Attacking corner" },
+  { value: "defendingCorner", label: "Defending corner" },
+  { value: "attackingFreeKick", label: "Free kick (attacking)" },
+];
+
+/** "Throw-in" is not modelled by the engine — never surfaced as a routine. */
+export const setPieceRoutineSupported = (value: string): boolean =>
+  SET_PIECE_ROUTINES.some((routine) => routine.value === value);
+
+/** Named assignment fields exposed by SetPieceAssignments. */
+export const SET_PIECE_FIELDS: ReadonlyArray<{ key: string; label: string }> = [
+  { key: "penaltyTaker", label: "Penalty taker" },
+  { key: "leftCornerTaker", label: "Left corner taker" },
+  { key: "rightCornerTaker", label: "Right corner taker" },
+  { key: "directFreeKickTaker", label: "Free-kick direct taker" },
+  { key: "indirectFreeKickTaker", label: "Free-kick indirect taker" },
+  { key: "cornerPrimaryTarget", label: "Corner primary target" },
+  { key: "cornerSecondaryTarget", label: "Corner secondary target" },
+  { key: "cornerEdgeTarget", label: "Corner edge target" },
+  { key: "cornerStayBack", label: "Corner stay back" },
+  { key: "defensiveCornerAssignments", label: "Defensive corner marking" },
+  { key: "defensiveAerialPriority", label: "Defensive aerial priority" },
+  { key: "freeKickTarget", label: "Free-kick target" },
+  { key: "freeKickSecondaryTarget", label: "Free-kick secondary target" },
+];
+
+/** Mutate exactly one set-piece field, preserving the rest of the contract. */
+export const setPieceMutation = <K extends keyof SetPieceAssignments>(
+  setPieces: SetPieceAssignments,
+  key: K,
+  value: SetPieceAssignments[K],
+): SetPieceAssignments => ({ ...setPieces, [key]: value });
+
+/** Swap two single-taker slots (e.g. swap left/right corner takers). */
+export const swapTakers = (
+  setPieces: SetPieceAssignments,
+  fieldA: keyof SetPieceAssignments,
+  fieldB: keyof SetPieceAssignments,
+): SetPieceAssignments => {
+  const a = setPieces[fieldA];
+  const b = setPieces[fieldB];
+  return setPieceMutation(setPieceMutation(setPieces, fieldA, b), fieldB, a);
+};
+
+/** Collapse duplicates from a multi-assignment list (engine-safe). */
+export const dedupePlayers = (ids: ReadonlyArray<EntityId>): EntityId[] => [...new Set(ids)];
+
+/** Individual roster of single taker fields (for name lookups). */
+export const singleTakerKeys: ReadonlyArray<keyof SetPieceAssignments> = [
+  "penaltyTaker",
+  "leftCornerTaker",
+  "rightCornerTaker",
+  "directFreeKickTaker",
+  "indirectFreeKickTaker",
+  "cornerPrimaryTarget",
+  "cornerSecondaryTarget",
+  "cornerEdgeTarget",
+  "freeKickTarget",
+  "freeKickSecondaryTarget",
+];

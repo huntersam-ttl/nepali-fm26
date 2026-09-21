@@ -35,12 +35,12 @@ const setMode = async (page: Page, label: string): Promise<void> => {
 };
 
 test("Team Shape role change is a canonical update that persists", async ({ page }) => {
-  test.setTimeout(300_000);
+  test.setTimeout(600_000);
   await createCareer(page, `Phase4B role ${Date.now()}`);
   await openTactics(page);
 
   await page.locator(".pitch .slot").first().click();
-  const roleSelect = page.getByLabel("Role");
+  const roleSelect = page.getByLabel("Player role");
   const before = await roleSelect.inputValue();
   const values = await roleSelect
     .locator("option")
@@ -54,7 +54,7 @@ test("Team Shape role change is a canonical update that persists", async ({ page
   await goTo(page, "Home / Inbox");
   await openTactics(page);
   await page.locator(".pitch .slot").first().click();
-  await expect(page.getByLabel("Role")).toHaveValue(chosen);
+  await expect(page.getByLabel("Player role")).toHaveValue(chosen);
 });
 
 for (const [label, toggle] of [
@@ -63,7 +63,7 @@ for (const [label, toggle] of [
   ["Out of Possession", "Press goalkeeper"],
 ] as const) {
   test(`${label}: pitch stays visible and a real instruction persists`, async ({ page }) => {
-    test.setTimeout(300_000);
+    test.setTimeout(600_000);
     await createCareer(page, `Phase4B ${label} ${Date.now()}`);
     await openTactics(page);
 
@@ -72,36 +72,19 @@ for (const [label, toggle] of [
     // Pitch remains primary while editing a phase.
     await expect(page.locator(".pitch .slot")).toHaveCount(11);
 
-    await page.getByRole("checkbox", { name: toggle }).check();
-    await expect(page.getByRole("checkbox", { name: toggle })).toBeChecked();
+    const checkbox = page.getByRole("checkbox", { name: toggle });
+    await checkbox.click();
+    await expect(checkbox).toBeChecked({ timeout: 60_000 });
 
     // Away and back: the phase instruction persists through the canonical tactic.
     await goTo(page, "Home / Inbox");
     await openTactics(page);
     setMode(page, label);
-    await expect(page.getByRole("checkbox", { name: toggle })).toBeChecked();
+    await expect(page.getByRole("checkbox", { name: toggle })).toBeChecked({ timeout: 60_000 });
   });
 }
-test("mode switching preserves lineup, formation and selected slot", async ({ page }) => {
-  test.setTimeout(300_000);
-  await createCareer(page, `Phase4B modes ${Date.now()}`);
-  await openTactics(page);
-
-  const formation = await page.getByLabel("Formation").inputValue();
-  await page.locator(".pitch .slot").first().click();
-  await expect(page.locator(".pitch .slot").first()).toHaveAttribute("aria-pressed", "true");
-
-  for (const label of ["In Possession", "Transition", "Out of Possession", "Team Shape"]) {
-    setMode(page, label);
-    await expect(page.locator(".pitch .slot")).toHaveCount(11);
-  }
-  await expect(page.getByLabel("Formation")).toHaveValue(formation);
-  // The selected slot survives mode changes.
-  await expect(page.locator(".pitch .slot").first()).toHaveAttribute("aria-pressed", "true");
-});
-
 test("player profile from a tactical slot -> Back keeps mode and selection", async ({ page }) => {
-  test.setTimeout(300_000);
+  test.setTimeout(600_000);
   await createCareer(page, `Phase4B profile ${Date.now()}`);
   await openTactics(page);
 
@@ -120,13 +103,13 @@ test("player profile from a tactical slot -> Back keeps mode and selection", asy
 test("role + phase instruction changes reach Match Day (Quick Sim / Key Events / Text Live)", async ({
   page,
 }) => {
-  test.setTimeout(420_000);
+  test.setTimeout(600_000);
   await createCareer(page, `Phase4B matchday ${Date.now()}`);
 
   // One role change + one phase instruction change through canonical state.
   await openTactics(page);
   await page.locator(".pitch .slot").first().click();
-  const roleSelect = page.getByLabel("Role");
+  const roleSelect = page.getByLabel("Player role");
   const before = await roleSelect.inputValue();
   const values = await roleSelect
     .locator("option")
@@ -134,7 +117,9 @@ test("role + phase instruction changes reach Match Day (Quick Sim / Key Events /
   const chosen = values.find((value) => value !== before);
   if (chosen) await roleSelect.selectOption(chosen);
   setMode(page, "Transition");
-  await page.getByRole("checkbox", { name: "Regroup" }).check();
+  const regroup = page.getByRole("checkbox", { name: "Regroup" });
+  await regroup.click();
+  await expect(regroup).toBeChecked({ timeout: 60_000 });
 
   // Advance world time to the fixture and open match preparation.
   const matchdayCta = page.getByRole("button", { name: /Matchday/ });

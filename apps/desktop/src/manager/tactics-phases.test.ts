@@ -125,7 +125,7 @@ describe("global + navigation model", () => {
 
   it("active-mode model is a closed set with Team Shape first", () => {
     expect(TACTICAL_MODES.map((m) => m.value)).toEqual([
-      "teamShape", "inPossession", "transition", "outOfPossession",
+      "teamShape", "setPieces", "inPossession", "transition", "outOfPossession",
     ]);
   });
 });

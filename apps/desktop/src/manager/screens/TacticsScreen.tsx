@@ -151,7 +151,7 @@ const TacticsBoard = ({
   // Phase 4B: tactical phases are modes around the same tactic. The pitch and
   // the selected slot are intentionally NOT reset when the phase changes.
   const [mode, setMode] = useState<
-    "teamShape" | "inPossession" | "transition" | "outOfPossession"
+    "teamShape" | "inPossession" | "transition" | "outOfPossession" | "setPieces"
   >("teamShape");
 
   const updateIn = (patch: Partial<typeof view.setup.instructions.inPossession>) =>
@@ -246,18 +246,6 @@ const TacticsBoard = ({
         
       </Panel>
 
-      <SetPiecesPanel
-        setPieces={view.setup.setPieces}
-        busy={busy}
-        players={[
-          ...view.roleFits
-            .filter((fit): fit is typeof fit & { playerId: EntityId } => Boolean(fit.playerId))
-            .map((fit) => ({ personId: fit.playerId, name: fit.playerName ?? "Unknown player" })),
-          ...view.benchCandidates.map((player) => ({ personId: player.personId, name: player.name })),
-        ].filter((player, index, all) => all.findIndex((item) => item.personId === player.personId) === index)}
-        onApply={(setPieces) => void applyCommand({ setPieces })}
-      />
-
       <div>
         <div className="pitch">
           {view.setup.formation.slots.map((slot) => {
@@ -331,6 +319,7 @@ const TacticsBoard = ({
             <label>
               Role
               <select
+                aria-label="Player role"
                 value={assignment(selectedSlot)?.roleId ?? ""}
                 disabled={busy}
                 onChange={(event) =>
@@ -583,6 +572,7 @@ const TacticsBoard = ({
       <fieldset className="tactics-modes" aria-label="Tactical phase">
         {([
           ["teamShape", "Team Shape"],
+          ["setPieces", "Set Pieces"],
           ["inPossession", "In Possession"],
           ["transition", "Transition"],
           ["outOfPossession", "Out of Possession"],
@@ -685,6 +675,20 @@ const TacticsBoard = ({
             Select a player on the pitch to edit their role, duty and personal instructions.
           </p>
         </Panel>
+      )}
+
+      {mode === "setPieces" && (
+        <SetPiecesPanel
+          setPieces={view.setup.setPieces}
+          busy={busy}
+          players={[
+            ...view.roleFits
+              .filter((fit): fit is typeof fit & { playerId: EntityId } => Boolean(fit.playerId))
+              .map((fit) => ({ personId: fit.playerId, name: fit.playerName ?? "Unknown player" })),
+            ...view.benchCandidates.map((player) => ({ personId: player.personId, name: player.name })),
+          ].filter((player, index, all) => all.findIndex((item) => item.personId === player.personId) === index)}
+          onApply={(setPieces) => void applyCommand({ setPieces })}
+        />
       )}
     </section>
   );
