@@ -148,6 +148,34 @@ const TacticsBoard = ({
       bench: view.setup.bench.filter((id) => id !== playerId),
     });
 
+  // Phase 4B: tactical phases are modes around the same tactic. The pitch and
+  // the selected slot are intentionally NOT reset when the phase changes.
+  const [mode, setMode] = useState<
+    "teamShape" | "inPossession" | "transition" | "outOfPossession"
+  >("teamShape");
+
+  const updateIn = (patch: Partial<typeof view.setup.instructions.inPossession>) =>
+    applyCommand({
+      instructions: {
+        ...view.setup.instructions,
+        inPossession: { ...view.setup.instructions.inPossession, ...patch },
+      },
+    });
+  const updateTransition = (patch: Partial<typeof view.setup.instructions.transition>) =>
+    applyCommand({
+      instructions: {
+        ...view.setup.instructions,
+        transition: { ...view.setup.instructions.transition, ...patch },
+      },
+    });
+  const updateOut = (patch: Partial<typeof view.setup.instructions.outOfPossession>) =>
+    applyCommand({
+      instructions: {
+        ...view.setup.instructions,
+        outOfPossession: { ...view.setup.instructions.outOfPossession, ...patch },
+      },
+    });
+
   return (
     <section className="tactics-layout">
       <Panel title="Shape and style">
@@ -215,85 +243,7 @@ const TacticsBoard = ({
           </label>
         </div>
 
-        {(() => {
-          const instructions = view.setup.instructions;
-          const updateIn = (patch: Partial<typeof instructions.inPossession>) =>
-            applyCommand({
-              instructions: { ...instructions, inPossession: { ...instructions.inPossession, ...patch } },
-            });
-          const updateTransition = (patch: Partial<typeof instructions.transition>) =>
-            applyCommand({
-              instructions: { ...instructions, transition: { ...instructions.transition, ...patch } },
-            });
-          const updateOut = (patch: Partial<typeof instructions.outOfPossession>) =>
-            applyCommand({
-              instructions: { ...instructions, outOfPossession: { ...instructions.outOfPossession, ...patch } },
-            });
-          return (
-            <>
-              <h3>In possession</h3>
-              <Slider label="Tempo" value={instructions.inPossession.tempo} onCommit={(value) => void updateIn({ tempo: value })} />
-              <Slider label="Passing length" value={instructions.inPossession.passingLength} onCommit={(value) => void updateIn({ passingLength: value })} />
-              <Slider label="Width" value={instructions.inPossession.width} onCommit={(value) => void updateIn({ width: value })} />
-              <Slider label="Build-up risk" value={instructions.inPossession.buildUpRisk} onCommit={(value) => void updateIn({ buildUpRisk: value })} />
-              <label>
-                <input type="checkbox" checked={instructions.inPossession.playFromBack} disabled={busy} onChange={(event) => void updateIn({ playFromBack: event.target.checked })} />{" "}
-                Play from the back
-              </label>
-              <label>
-                <input type="checkbox" checked={instructions.inPossession.workBallIntoBox} disabled={busy} onChange={(event) => void updateIn({ workBallIntoBox: event.target.checked })} />{" "}
-                Work ball into box
-              </label>
-              <label>
-                <input type="checkbox" checked={instructions.inPossession.earlyCrosses} disabled={busy} onChange={(event) => void updateIn({ earlyCrosses: event.target.checked })} />{" "}
-                Early crosses
-              </label>
-
-              <h3>Transition</h3>
-              <label>
-                <input type="checkbox" checked={instructions.transition.counterPress} disabled={busy} onChange={(event) => void updateTransition({ counterPress: event.target.checked })} />{" "}
-                Counter-press
-              </label>
-              <label>
-                <input type="checkbox" checked={instructions.transition.regroup} disabled={busy} onChange={(event) => void updateTransition({ regroup: event.target.checked })} />{" "}
-                Regroup
-              </label>
-              <label>
-                <input type="checkbox" checked={instructions.transition.counter} disabled={busy} onChange={(event) => void updateTransition({ counter: event.target.checked })} />{" "}
-                Counter
-              </label>
-              <label>
-                <input type="checkbox" checked={instructions.transition.holdShape} disabled={busy} onChange={(event) => void updateTransition({ holdShape: event.target.checked })} />{" "}
-                Hold shape
-              </label>
-              <label>
-                Goalkeeper distribution
-                <select
-                  value={instructions.transition.goalkeeperDistributionStyle}
-                  disabled={busy}
-                  onChange={(event) =>
-                    void updateTransition({
-                      goalkeeperDistributionStyle: event.target
-                        .value as typeof instructions.transition.goalkeeperDistributionStyle,
-                    })
-                  }
-                >
-                  {GK_DISTRIBUTION_OPTIONS.map((option) => (
-                    <option key={option} value={option}>
-                      {option.replace(/_/g, " ")}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <h3>Out of possession</h3>
-              <Slider label="Pressing intensity" value={instructions.outOfPossession.pressingIntensity} onCommit={(value) => void updateOut({ pressingIntensity: value })} />
-              <Slider label="Defensive line" value={instructions.outOfPossession.defensiveLine} onCommit={(value) => void updateOut({ defensiveLine: value })} />
-              <Slider label="Engagement line" value={instructions.outOfPossession.engagementLine} onCommit={(value) => void updateOut({ engagementLine: value })} />
-              <Slider label="Tackling intensity" value={instructions.outOfPossession.tacklingIntensity} onCommit={(value) => void updateOut({ tacklingIntensity: value })} />
-            </>
-          );
-        })()}
+        
       </Panel>
 
       <SetPiecesPanel
@@ -629,6 +579,113 @@ const TacticsBoard = ({
           <div className="ok">Selection is legal.</div>
         )}
       </Panel>
+
+      <fieldset className="tactics-modes" aria-label="Tactical phase">
+        {([
+          ["teamShape", "Team Shape"],
+          ["inPossession", "In Possession"],
+          ["transition", "Transition"],
+          ["outOfPossession", "Out of Possession"],
+        ] as const).map(([value, label]) => (
+          <label key={value} className={`mode-chip ${mode === value ? "mode-active" : ""}`}>
+            <input
+              type="radio"
+              name="tactics-mode"
+              value={value}
+              checked={mode === value}
+              aria-label={label}
+              onChange={() => setMode(value)}
+            />
+            {label}
+          </label>
+        ))}
+      </fieldset>
+
+      {mode === "inPossession" && (
+        <Panel title="In Possession">
+          <p className="subtle">Instructions for when the team has the ball.</p>
+          <Slider label="Tempo" value={view.setup.instructions.inPossession.tempo} onCommit={(value) => void updateIn({ tempo: value })} />
+          <Slider label="Passing length" value={view.setup.instructions.inPossession.passingLength} onCommit={(value) => void updateIn({ passingLength: value })} />
+          <Slider label="Width" value={view.setup.instructions.inPossession.width} onCommit={(value) => void updateIn({ width: value })} />
+          <Slider label="Build-up risk" value={view.setup.instructions.inPossession.buildUpRisk} onCommit={(value) => void updateIn({ buildUpRisk: value })} />
+          <fieldset className="checkbox-group">
+            <legend>Build-up behaviour</legend>
+            <label><input type="checkbox" checked={view.setup.instructions.inPossession.playFromBack} disabled={busy} onChange={(event) => void updateIn({ playFromBack: event.target.checked })} /> Play from the back</label>
+            <label><input type="checkbox" checked={view.setup.instructions.inPossession.workBallIntoBox} disabled={busy} onChange={(event) => void updateIn({ workBallIntoBox: event.target.checked })} /> Work ball into box</label>
+            <label><input type="checkbox" checked={view.setup.instructions.inPossession.earlyCrosses} disabled={busy} onChange={(event) => void updateIn({ earlyCrosses: event.target.checked })} /> Early crosses</label>
+          </fieldset>
+          <fieldset className="checkbox-group">
+            <legend>Focus</legend>
+            <label><input type="checkbox" checked={view.setup.instructions.inPossession.focusMiddle} disabled={busy} onChange={(event) => void updateIn({ focusMiddle: event.target.checked })} /> Focus middle</label>
+            <label><input type="checkbox" checked={view.setup.instructions.inPossession.focusLeft} disabled={busy} onChange={(event) => void updateIn({ focusLeft: event.target.checked })} /> Focus left</label>
+            <label><input type="checkbox" checked={view.setup.instructions.inPossession.focusRight} disabled={busy} onChange={(event) => void updateIn({ focusRight: event.target.checked })} /> Focus right</label>
+          </fieldset>
+          <fieldset className="checkbox-group">
+            <legend>Overlap / underlap</legend>
+            <label><input type="checkbox" checked={view.setup.instructions.inPossession.overlapLeft} disabled={busy} onChange={(event) => void updateIn({ overlapLeft: event.target.checked })} /> Overlap left</label>
+            <label><input type="checkbox" checked={view.setup.instructions.inPossession.overlapRight} disabled={busy} onChange={(event) => void updateIn({ overlapRight: event.target.checked })} /> Overlap right</label>
+            <label><input type="checkbox" checked={view.setup.instructions.inPossession.underlapLeft} disabled={busy} onChange={(event) => void updateIn({ underlapLeft: event.target.checked })} /> Underlap left</label>
+            <label><input type="checkbox" checked={view.setup.instructions.inPossession.underlapRight} disabled={busy} onChange={(event) => void updateIn({ underlapRight: event.target.checked })} /> Underlap right</label>
+          </fieldset>
+        </Panel>
+      )}
+
+      {mode === "transition" && (
+        <Panel title="Transition">
+          <p className="subtle">What the team does on losing or regaining the ball.</p>
+          <fieldset className="checkbox-group">
+            <legend>Transition behaviours</legend>
+            <label><input type="checkbox" checked={view.setup.instructions.transition.counterPress} disabled={busy} onChange={(event) => void updateTransition({ counterPress: event.target.checked })} /> Counter-press</label>
+            <label><input type="checkbox" checked={view.setup.instructions.transition.regroup} disabled={busy} onChange={(event) => void updateTransition({ regroup: event.target.checked })} /> Regroup</label>
+            <label><input type="checkbox" checked={view.setup.instructions.transition.counter} disabled={busy} onChange={(event) => void updateTransition({ counter: event.target.checked })} /> Counter</label>
+            <label><input type="checkbox" checked={view.setup.instructions.transition.holdShape} disabled={busy} onChange={(event) => void updateTransition({ holdShape: event.target.checked })} /> Hold shape</label>
+          </fieldset>
+          <label>
+            Goalkeeper distribution
+            <select
+              value={view.setup.instructions.transition.goalkeeperDistributionStyle}
+              disabled={busy}
+              onChange={(event) =>
+                void updateTransition({
+                  goalkeeperDistributionStyle: event.target
+                    .value as typeof view.setup.instructions.transition.goalkeeperDistributionStyle,
+                })
+              }
+            >
+              {GK_DISTRIBUTION_OPTIONS.map((option) => (
+                <option key={option} value={option}>
+                  {option.replace(/_/g, " ")}
+                </option>
+              ))}
+            </select>
+          </label>
+        </Panel>
+      )}
+
+      {mode === "outOfPossession" && (
+        <Panel title="Out of Possession">
+          <p className="subtle">Defensive instructions for when the opponent has the ball.</p>
+          <Slider label="Pressing intensity" value={view.setup.instructions.outOfPossession.pressingIntensity} onCommit={(value) => void updateOut({ pressingIntensity: value })} />
+          <Slider label="Defensive line" value={view.setup.instructions.outOfPossession.defensiveLine} onCommit={(value) => void updateOut({ defensiveLine: value })} />
+          <Slider label="Engagement line" value={view.setup.instructions.outOfPossession.engagementLine} onCommit={(value) => void updateOut({ engagementLine: value })} />
+          <Slider label="Tackling intensity" value={view.setup.instructions.outOfPossession.tacklingIntensity} onCommit={(value) => void updateOut({ tacklingIntensity: value })} />
+          <fieldset className="checkbox-group">
+            <legend>Pressing behaviour</legend>
+            <label><input type="checkbox" checked={view.setup.instructions.outOfPossession.pressGoalkeeper} disabled={busy} onChange={(event) => void updateOut({ pressGoalkeeper: event.target.checked })} /> Press goalkeeper</label>
+            <label><input type="checkbox" checked={view.setup.instructions.outOfPossession.stopShortDistribution} disabled={busy} onChange={(event) => void updateOut({ stopShortDistribution: event.target.checked })} /> Stop short, distribute</label>
+            <label><input type="checkbox" checked={view.setup.instructions.outOfPossession.forceInside} disabled={busy} onChange={(event) => void updateOut({ forceInside: event.target.checked })} /> Force inside</label>
+            <label><input type="checkbox" checked={view.setup.instructions.outOfPossession.forceOutside} disabled={busy} onChange={(event) => void updateOut({ forceOutside: event.target.checked })} /> Force outside</label>
+          </fieldset>
+        </Panel>
+      )}
+
+      {mode === "teamShape" && (
+        <Panel title="Team Shape">
+          <p className="subtle">
+            Select a player on the pitch to edit their role, duty and personal instructions.
+          </p>
+        </Panel>
+      )}
     </section>
   );
 };

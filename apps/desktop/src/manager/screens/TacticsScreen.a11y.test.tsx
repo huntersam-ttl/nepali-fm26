@@ -204,11 +204,16 @@ describe("Tactics screen — accessibility", () => {
     expect(screen.getByText("Crossing")).toBeTruthy();
   });
 
-  it("exposes the expanded team-instruction toggles (build-up, transition, GK distribution) as labelled controls", async () => {
+  it("gates team-instruction toggles behind phase modes (In Possession / Transition), all labelled", async () => {
     render(<TacticsScreen />);
     await screen.findByRole("combobox", { name: /formation/i });
-    expect(screen.getByRole("checkbox", { name: /play from the back/i })).toBeTruthy();
-    expect(screen.getByRole("checkbox", { name: /counter-press/i })).toBeTruthy();
+    // In Possession mode exposes the build-up toggles.
+    fireEvent.click(screen.getByRole("radio", { name: /in possession/i }));
+    expect(await screen.findByRole("checkbox", { name: /play from the back/i })).toBeTruthy();
+    expect(screen.queryByRole("checkbox", { name: /counter-press/i })).toBeNull();
+    // Transition mode exposes the transition toggles and GK distribution.
+    fireEvent.click(screen.getByRole("radio", { name: /transition/i }));
+    expect(await screen.findByRole("checkbox", { name: /counter-press/i })).toBeTruthy();
     expect(screen.getByRole("combobox", { name: /goalkeeper distribution/i })).toBeTruthy();
   });
 

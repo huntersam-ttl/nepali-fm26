@@ -67,3 +67,69 @@ export const hasDuplicateStarting = (setup: TacticalSetup): boolean => {
 /** Squad markers that are genuinely available (operational availability). */
 export const availablePlayers = (candidates: SquadPlayerRow[]): SquadPlayerRow[] =>
   candidates.filter((player) => player.availability === "AVAILABLE");
+
+/* ------------------------------------------------------------------
+ * Phase 4B — roles, duties and tactical phases (pure model)
+ * ------------------------------------------------------------------ */
+
+export type TacticalMode = "teamShape" | "inPossession" | "transition" | "outOfPossession";
+
+export const TACTICAL_MODES: ReadonlyArray<{ value: TacticalMode; label: string }> = [
+  { value: "teamShape", label: "Team Shape" },
+  { value: "inPossession", label: "In Possession" },
+  { value: "transition", label: "Transition" },
+  { value: "outOfPossession", label: "Out of Possession" },
+];
+
+/**
+ * Roles a slot may legally take, from the canonical role.zones constraint
+ * (empty zones means the role is unrestricted). The engine owns validity; the
+ * UI only filters, never invents hard restrictions.
+ */
+export const legalRolesForSlot = (
+  slotZone: string,
+  roles: ReadonlyArray<{ id: string; name: string; zones: string[] }>,
+): ReadonlyArray<{ id: string; name: string; zones: string[] }> =>
+  roles.filter((role) => role.zones.length === 0 || role.zones.includes(slotZone));
+
+export const currentRoleId = (setup: TacticalSetup, slotId: string): string | undefined =>
+  setup.assignments.find((item) => item.slotId === slotId)?.roleId;
+
+/** Everything three duties when the role does not restrict them. */
+export const legalDuties = (
+  role?: { allowedDuties?: ReadonlyArray<"DEFEND" | "SUPPORT" | "ATTACK"> },
+): ReadonlyArray<"DEFEND" | "SUPPORT" | "ATTACK"> =>
+  role?.allowedDuties?.length ? role.allowedDuties : ALL_DUTIES;
+
+const ALL_DUTIES = ["DEFEND", "SUPPORT", "ATTACK"] as const;
+
+/** Mutate exactly one phase of TeamInstructions, leaving the rest untouched. */
+export const updatePhase = <P extends "inPossession" | "transition" | "outOfPossession">(
+  instructions: TacticalSetup["instructions"],
+  phase: P,
+  patch: Partial<TacticalSetup["instructions"][P]>,
+): TacticalSetup["instructions"] => {
+  const next: TacticalSetup["instructions"] = { ...instructions };
+  const target = { ...instructions[phase], ...(patch as Record<string, unknown>) };
+  if (phase === "inPossession") next.inPossession = target as TacticalSetup["instructions"]["inPossession"];
+  else if (phase === "transition") next.transition = target as TacticalSetup["instructions"]["transition"];
+  else next.outOfPossession = target as TacticalSetup["instructions"]["outOfPossession"];
+  return next;
+};
+
+/** Presentation groups for the In Possession editor (all canonical keys). */
+export const IN_POSSESSION_GROUPS: ReadonlyArray<{ label: string; keys: ReadonlyArray<string> }> = [
+  { label: "Shape", keys: ["tempo", "passingLength", "width", "buildUpRisk"] },
+  { label: "Build-up", keys: ["playFromBack", "workBallIntoBox", "earlyCrosses"] },
+  { label: "Focus", keys: ["focusMiddle", "focusLeft", "focusRight"] },
+  { label: "Overlap / underlap", keys: ["overlapLeft", "overlapRight", "underlapLeft", "underlapRight"] },
+];
+
+/** Role change as a canonical assignment patch (keeps other assignments). */
+export const changeRole = (
+  setup: TacticalSetup,
+  slotId: string,
+  roleId: string,
+): Pick<TacticalSetup, "assignments"> => ({
+  assignments: setup.assignments.map((item) => (item.slotId === slotId ? { ...item, roleId } : item)),
+});
