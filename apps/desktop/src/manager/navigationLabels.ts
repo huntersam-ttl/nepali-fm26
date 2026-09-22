@@ -43,6 +43,8 @@ export const MANAGER_WORKSPACE_LABELS: Record<ManagerWorkspace, string> = {
   news: "News",
   calendar: "Calendar",
   loans: "Loans",
+  "club-overview": "Club Overview",
+  "club-profile": "Club Profile",
 };
 
 const OWNER_WORKSPACE_LABELS: Record<string, string> = {
@@ -96,7 +98,7 @@ export const MANAGER_FAMILIES: Array<{ label: string; items: string[] }> = [
   { label: "Team", items: ["home", "squad", "dressing-room", "tactics", "training", "medical"] },
   { label: "Competition", items: ["fixtures", "competition"] },
   { label: "Recruitment", items: ["recruitment-overview", "player-database", "recommendations", "recruitment-focuses", "shortlists", "squad-planner", "scouting", "transfers", "contracts"] },
-  { label: "Club", items: ["staff", "media"] },
+  { label: "Club", items: ["club-overview", "club-profile", "staff", "media"] },
 ];
 
 export const OWNER_FAMILIES: Array<{ label: string; items: string[] }> = [

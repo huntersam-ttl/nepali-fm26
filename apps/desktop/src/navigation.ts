@@ -26,6 +26,8 @@ export const MANAGER_WORKSPACES = [
   "squad-overview",
   "training",
   "loans",
+  "club-overview",
+  "club-profile",
   "dressing-room",
   "tactics",
   "training",

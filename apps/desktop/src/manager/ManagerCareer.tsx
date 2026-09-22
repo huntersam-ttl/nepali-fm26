@@ -17,6 +17,8 @@ import { RecommendationsScreen } from "./screens/RecommendationsScreen.js";
 import { RecruitmentFocusesScreen } from "./screens/RecruitmentFocusesScreen.js";
 import { ShortlistsScreen } from "./screens/ShortlistsScreen.js";
 import { SquadPlannerScreen } from "./screens/SquadPlannerScreen.js";
+import { ClubOverviewScreen } from "./screens/ClubOverviewScreen.js";
+import { ClubProfileScreen } from "./screens/ClubProfileScreen.js";
 import { TransfersScreen } from "./screens/TransfersScreen.js";
 import { ContractsScreen } from "./screens/ContractsScreen.js";
 import { StaffScreen } from "./screens/StaffScreen.js";
@@ -79,7 +81,7 @@ const NAV_GROUPS: Array<{ label: string; items: Screen[] }> = [
   { label: "Team", items: ["home", "squad", "dressing-room", "tactics", "training", "medical"] },
   { label: "Competition", items: ["fixtures", "competition"] },
   { label: "Recruitment", items: ["recruitment-overview", "player-database", "recommendations", "recruitment-focuses", "shortlists", "squad-planner", "scouting", "transfers", "contracts"] },
-  { label: "Club", items: ["staff", "media"] },
+  { label: "Club", items: ["club-overview", "club-profile", "staff", "media"] },
 ];
 
 type RoleScreen = ChairmanScreen | PresidentScreen;
@@ -144,6 +146,8 @@ const LABELS: Record<Screen, string> = {
   news: "News",
   calendar: "Calendar",
   loans: "Loans",
+  "club-overview": "Club Overview",
+  "club-profile": "Club Profile",
 };
 
 const SUBTITLES: Record<Screen, string> = {
@@ -171,6 +175,8 @@ const SUBTITLES: Record<Screen, string> = {
   news: "The latest notable stories from around the football world.",
   calendar: "Fixtures, deadlines and events in the days ahead.",
   loans: "Players out on loan and players on loan at the club.",
+  "club-overview": "The club as an institution and its current football state.",
+  "club-profile": "The club's factual identity and people.",
 };
 
 /**
@@ -782,6 +788,12 @@ export const ManagerCareer = ({
           />
         )}
         {header.activeRole === "MANAGER" && screen === "loans" && <LoansScreen onSelectPlayer={openPlayer} />}
+        {header.activeRole === "MANAGER" && screen === "club-overview" && (
+          <ClubOverviewScreen clubId={header.clubId} onOpenEntity={openEntity} />
+        )}
+        {header.activeRole === "MANAGER" && screen === "club-profile" && (
+          <ClubProfileScreen clubId={header.clubId} onOpenEntity={openEntity} />
+        )}
           </>
         )}
       </main>
