@@ -7,6 +7,7 @@ import {
   entityCategoryLabel,
   dailyOpsNavItems,
   squadNavItems,
+  clubNavItems,
   workspaceLabel,
 } from "./navigationLabels.js";
 
@@ -124,5 +125,31 @@ describe("squad family nav", () => {
 
   it("is empty outside the squad family", () => {
     expect(squadNavItems("tactics")).toEqual([]);
+  });
+});
+
+describe("club governance family nav (Phase 6B)", () => {
+  it("20. lists Overview | Profile | Finances | Board | Responsibilities with the current marked", () => {
+    const items = clubNavItems("club-finances");
+    expect(items.map((item) => item.label)).toEqual(["Overview", "Profile", "Finances", "Board", "Responsibilities"]);
+    expect(items.find((item) => item.current)?.id).toBe("club-finances");
+    expect(clubNavItems("club-board").find((item) => item.current)?.id).toBe("club-board");
+  });
+
+  it("is empty outside the club family", () => {
+    expect(clubNavItems("staff")).toEqual([]);
+    expect(clubNavItems("home")).toEqual([]);
+  });
+
+  it("labels the new governance workspaces for the manager", () => {
+    expect(workspaceLabel(ws("MANAGER", "club-finances"))).toBe("Club Finances");
+    expect(workspaceLabel(ws("MANAGER", "club-board"))).toBe("Club Board");
+    expect(workspaceLabel(ws("MANAGER", "club-responsibilities"))).toBe("Responsibilities");
+  });
+
+  it("exposes the club family through the shared contextual nav", () => {
+    const items = contextualNavItems("MANAGER", "club-board");
+    expect(items.map((item) => item.label)).toContain("Club Board");
+    expect(items.find((item) => item.current)?.id).toBe("club-board");
   });
 });

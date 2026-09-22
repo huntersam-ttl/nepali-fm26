@@ -970,6 +970,35 @@ export type StaffResponsibilityView = {
   boardApprovalGrantedUntil?: ISODate;
 };
 
+/**
+ * A candidate assignee for one responsibility domain. Deliberately restricted
+ * to assignees the club genuinely supports canonically: the Manager (always),
+ * the Board (institutional oversight), and real active staff whose role is
+ * eligible for that domain. No fabricated people or roles.
+ */
+export type ClubResponsibilityAssigneeView = {
+  ownerType: "MANAGER" | "BOARD" | "STAFF";
+  appointmentId?: EntityId;
+  personName?: string;
+  role?: string;
+};
+
+/** One responsibility row with its valid assignees, for the Club Responsibilities workspace. */
+export type ClubResponsibilityRowView = {
+  domain: string;
+  currentOwnerType: string;
+  currentOwnerName?: string;
+  boardApprovalGrantedUntil?: ISODate;
+  /** Valid assignees the Manager may delegate to (canonical eligibility). */
+  assignees: ClubResponsibilityAssigneeView[];
+};
+
+/** Read model backing the Club Responsibilities workspace. Read-only presentation
+ * of canonical delegation; mutations go through `assignStaffResponsibility`. */
+export type ClubResponsibilitiesView = {
+  rows: ClubResponsibilityRowView[];
+};
+
 export type StaffDevelopmentPlanView = {
   id: EntityId;
   personId: EntityId;
@@ -1444,6 +1473,9 @@ export type ManagerRuntimeApi = {
     ownerAppointmentId?: EntityId,
   ): Promise<unknown>;
   requestStaffBoardApproval(domain: string): Promise<unknown>;
+  // Club Responsibilities (Phase 6B): canonical delegation read over the same
+  // StaffMarket responsibility rows, with valid assignees per domain.
+  getClubResponsibilities(): Promise<unknown>;
   createStaffDevelopmentPlan(
     personId: EntityId,
     focus: string,

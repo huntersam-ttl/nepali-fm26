@@ -45,6 +45,9 @@ export const MANAGER_WORKSPACE_LABELS: Record<ManagerWorkspace, string> = {
   loans: "Loans",
   "club-overview": "Club Overview",
   "club-profile": "Club Profile",
+  "club-finances": "Club Finances",
+  "club-board": "Club Board",
+  "club-responsibilities": "Responsibilities",
 };
 
 const OWNER_WORKSPACE_LABELS: Record<string, string> = {
@@ -98,7 +101,7 @@ export const MANAGER_FAMILIES: Array<{ label: string; items: string[] }> = [
   { label: "Team", items: ["home", "squad", "dressing-room", "tactics", "training", "medical"] },
   { label: "Competition", items: ["fixtures", "competition"] },
   { label: "Recruitment", items: ["recruitment-overview", "player-database", "recommendations", "recruitment-focuses", "shortlists", "squad-planner", "scouting", "transfers", "contracts"] },
-  { label: "Club", items: ["club-overview", "club-profile", "staff", "media"] },
+  { label: "Club", items: ["club-overview", "club-profile", "club-finances", "club-board", "club-responsibilities", "staff", "media"] },
 ];
 
 export const OWNER_FAMILIES: Array<{ label: string; items: string[] }> = [
@@ -178,6 +181,28 @@ export const squadNavItems = (workspace: string): ContextualNavItem[] => {
     { id: "dressing-room", label: "Dynamics", current: workspace === "dressing-room" },
     { id: "medical", label: "Medical", current: workspace === "medical" },
     { id: "loans", label: "Loans", current: workspace === "loans" },
+  ];
+};
+
+/** The Manager Club governance family — Overview, Profile, Finances, Board,
+ * Responsibilities (the live Phase 6B destinations). Staff & Media stay listed
+ * in the primary sidebar's Club group but are not governance siblings. */
+export const CLUB_FAMILY: string[] = [
+  "club-overview",
+  "club-profile",
+  "club-finances",
+  "club-board",
+  "club-responsibilities",
+];
+
+export const clubNavItems = (workspace: string): ContextualNavItem[] => {
+  if (!CLUB_FAMILY.includes(workspace)) return [];
+  return [
+    { id: "club-overview", label: "Overview", current: workspace === "club-overview" },
+    { id: "club-profile", label: "Profile", current: workspace === "club-profile" },
+    { id: "club-finances", label: "Finances", current: workspace === "club-finances" },
+    { id: "club-board", label: "Board", current: workspace === "club-board" },
+    { id: "club-responsibilities", label: "Responsibilities", current: workspace === "club-responsibilities" },
   ];
 };
 

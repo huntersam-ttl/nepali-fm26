@@ -19,6 +19,9 @@ import { ShortlistsScreen } from "./screens/ShortlistsScreen.js";
 import { SquadPlannerScreen } from "./screens/SquadPlannerScreen.js";
 import { ClubOverviewScreen } from "./screens/ClubOverviewScreen.js";
 import { ClubProfileScreen } from "./screens/ClubProfileScreen.js";
+import { ClubFinancesScreen } from "./screens/ClubFinancesScreen.js";
+import { ClubBoardScreen } from "./screens/ClubBoardScreen.js";
+import { ClubResponsibilitiesScreen } from "./screens/ClubResponsibilitiesScreen.js";
 import { TransfersScreen } from "./screens/TransfersScreen.js";
 import { ContractsScreen } from "./screens/ContractsScreen.js";
 import { StaffScreen } from "./screens/StaffScreen.js";
@@ -30,7 +33,7 @@ import type { ChairmanScreen, PresidentScreen } from "./RoleDetailScreen.js";
 import { EntitySurface } from "./EntitySurface.js";
 import { GlobalSearch } from "./GlobalSearch.js";
 import { Breadcrumbs, ContextualNav, useEntityReferenceLabels } from "./ShellContext.js";
-import { contextTrail, workspaceLabel, entityCategoryLabel, dailyOpsNavItems, squadNavItems } from "./navigationLabels.js";
+import { contextTrail, workspaceLabel, entityCategoryLabel, dailyOpsNavItems, squadNavItems, clubNavItems } from "./navigationLabels.js";
 import { StatusChip } from "./StatusChip.js";
 import { MessagesScreen, NewsScreen, CalendarScreen } from "./DedicatedOps.js";
 import { SquadOverview } from "./SquadOverview.js";
@@ -81,7 +84,7 @@ const NAV_GROUPS: Array<{ label: string; items: Screen[] }> = [
   { label: "Team", items: ["home", "squad", "dressing-room", "tactics", "training", "medical"] },
   { label: "Competition", items: ["fixtures", "competition"] },
   { label: "Recruitment", items: ["recruitment-overview", "player-database", "recommendations", "recruitment-focuses", "shortlists", "squad-planner", "scouting", "transfers", "contracts"] },
-  { label: "Club", items: ["club-overview", "club-profile", "staff", "media"] },
+  { label: "Club", items: ["club-overview", "club-profile", "club-finances", "club-board", "club-responsibilities", "staff", "media"] },
 ];
 
 type RoleScreen = ChairmanScreen | PresidentScreen;
@@ -148,6 +151,9 @@ const LABELS: Record<Screen, string> = {
   loans: "Loans",
   "club-overview": "Club Overview",
   "club-profile": "Club Profile",
+  "club-finances": "Club Finances",
+  "club-board": "Club Board",
+  "club-responsibilities": "Responsibilities",
 };
 
 const SUBTITLES: Record<Screen, string> = {
@@ -177,6 +183,9 @@ const SUBTITLES: Record<Screen, string> = {
   loans: "Players out on loan and players on loan at the club.",
   "club-overview": "The club as an institution and its current football state.",
   "club-profile": "The club's factual identity and people.",
+  "club-finances": "What the football department can spend, and its current commitments.",
+  "club-board": "Who governs the club and how the Manager is being judged.",
+  "club-responsibilities": "Who currently owns each responsibility across the club.",
 };
 
 /**
@@ -244,6 +253,12 @@ export const ManagerCareer = ({
   const squadItems =
     header.activeRole === "MANAGER" && safeDestination.kind === "workspace"
       ? squadNavItems(String(safeDestination.workspace))
+      : [];
+  // Club governance family secondary nav (Overview | Profile | Finances | Board |
+  // Responsibilities) — only within the Club family.
+  const clubItems =
+    header.activeRole === "MANAGER" && safeDestination.kind === "workspace"
+      ? clubNavItems(String(safeDestination.workspace))
       : [];
   // NOTE: contextual SECONDARY navigation is intentionally not wired into the
   // live shell yet. The primary sidebar already lists every existing navigable
@@ -563,6 +578,9 @@ export const ManagerCareer = ({
           {squadItems.length > 1 && (
             <ContextualNav items={squadItems} onNavigate={(id) => goTo(workspaceForRole(header.activeRole, id))} />
           )}
+          {clubItems.length > 1 && (
+            <ContextualNav items={clubItems} onNavigate={(id) => goTo(workspaceForRole(header.activeRole, id))} />
+          )}
         </header>
       <main className="workspace">
         {error && <ErrorBanner error={error} />}
@@ -789,10 +807,23 @@ export const ManagerCareer = ({
         )}
         {header.activeRole === "MANAGER" && screen === "loans" && <LoansScreen onSelectPlayer={openPlayer} />}
         {header.activeRole === "MANAGER" && screen === "club-overview" && (
-          <ClubOverviewScreen clubId={header.clubId} onOpenEntity={openEntity} />
+          <ClubOverviewScreen
+            clubId={header.clubId}
+            onOpenEntity={openEntity}
+            onOpenWorkspace={(workspace) => goTo(workspaceForRole("MANAGER", workspace))}
+          />
         )}
         {header.activeRole === "MANAGER" && screen === "club-profile" && (
           <ClubProfileScreen clubId={header.clubId} onOpenEntity={openEntity} />
+        )}
+        {header.activeRole === "MANAGER" && screen === "club-finances" && (
+          <ClubFinancesScreen />
+        )}
+        {header.activeRole === "MANAGER" && screen === "club-board" && (
+          <ClubBoardScreen clubId={header.clubId} onOpenEntity={openEntity} />
+        )}
+        {header.activeRole === "MANAGER" && screen === "club-responsibilities" && (
+          <ClubResponsibilitiesScreen />
         )}
           </>
         )}

@@ -3978,3 +3978,11 @@ a.link:focus-visible {
   outline: 2px solid var(--accent-2);
   outline-offset: 1px;
 }
+/* Phase 6B — Club governance responsibilities grouping. */
+.responsibility-group {
+  margin: 0 0 1.25rem;
+}
+
+.responsibility-group .table-scroll {
+  margin-top: 0.35rem;
+}

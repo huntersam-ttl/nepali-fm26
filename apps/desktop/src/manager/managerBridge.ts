@@ -64,6 +64,7 @@ import type {
   StaffMarketView,
   StaffResponsibilityDomain,
   StaffResponsibilityOwnerType,
+  ClubResponsibilitiesView,
   TacticsUpdateCommand,
   TacticsView,
   TrainingUpdateCommand,
@@ -265,6 +266,7 @@ export const managerBridge = {
   ) => runtimeCall<StaffHierarchyView>("assignStaffResponsibility", { domain, ownerType, ownerAppointmentId }),
   requestStaffBoardApproval: (domain: StaffResponsibilityDomain) =>
     runtimeCall<StaffHierarchyView>("requestStaffBoardApproval", { domain }),
+  getClubResponsibilities: () => runtimeCall<ClubResponsibilitiesView>("getClubResponsibilities"),
   createStaffDevelopmentPlan: (
     personId: EntityId,
     focus: string,

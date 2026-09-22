@@ -7,7 +7,7 @@ import type {
   EntityReferenceType,
 } from "@nepal-football-sim/shared-types";
 import { managerBridge } from "../managerBridge.js";
-import { AsyncPanel, Panel, useRuntimeData } from "../ui.js";
+import { AsyncPanel, Panel, money, useRuntimeData } from "../ui.js";
 import { EntityRefLink } from "../RoleDetailScreen.js";
 import { ClubBadge } from "../../presentation/ClubBadge.js";
 import { buildClubBadgeDesign } from "../../presentation/clubVisualIdentity.js";
@@ -18,9 +18,11 @@ type ClubRead<T> = Promise<Awaited<ReturnType<typeof managerBridge.getClubProfil
 export const ClubOverviewScreen = ({
   clubId,
   onOpenEntity,
+  onOpenWorkspace,
 }: {
   clubId?: EntityId;
   onOpenEntity: (entityType: EntityReferenceType, id: EntityId) => void;
+  onOpenWorkspace?: (workspace: string) => void;
 }): React.ReactElement => {
   const [profile] = useRuntimeData(
     (): ClubRead<ClubProfile> =>
@@ -30,6 +32,11 @@ export const ClubOverviewScreen = ({
     (): Promise<Awaited<ReturnType<typeof managerBridge.getClubVisualIdentity>>> =>
       clubId ? managerBridge.getClubVisualIdentity(clubId) : Promise.resolve({ ok: false, error: "No club" } as never),
   );
+  // Lightweight governance summaries (finance budget + board confidence) so the
+  // Overview can link the Club governance destinations with real context without
+  // duplicating those screens. All three reads are the same canonical sources.
+  const [centre] = useRuntimeData(() => managerBridge.getTransferCentre(), []);
+  const [boardState] = useRuntimeData(() => managerBridge.getManagerDashboard(), []);
   const idv = identity as unknown as ClubVisualIdentityView | undefined;
 
   if (!clubId) {
@@ -125,6 +132,35 @@ export const ClubOverviewScreen = ({
                   )}
                 </dl>
               </Panel>
+
+              <Panel title="Governance" className="panel-wide">
+                <ul className="report-list">
+                  <li>
+                    <GovernanceLink
+                      label="Club Finances"
+                      to="club-finances"
+                      onOpenWorkspace={onOpenWorkspace}
+                      context="Football department budget"
+                    />
+                    {centre.status === "ready" && centre.data.budget ? (
+                      <span className="subtle">
+                        {" "}· {money(centre.data.budget.transferRemaining, centre.data.budget.currency)} transfer remaining
+                      </span>
+                    ) : null}
+                  </li>
+                  <li>
+                    <GovernanceLink label="Club Board" to="club-board" onOpenWorkspace={onOpenWorkspace} context="Governance and the Manager evaluation" />
+                    {boardState.status === "ready" && boardState.data.boardConfidence !== undefined ? (
+                      <span className="subtle">
+                        {" "}· board confidence {Math.round(boardState.data.boardConfidence)}/100
+                      </span>
+                    ) : null}
+                  </li>
+                  <li>
+                    <GovernanceLink label="Responsibilities" to="club-responsibilities" onOpenWorkspace={onOpenWorkspace} context="Who handles each responsibility" />
+                  </li>
+                </ul>
+              </Panel>
             </>
           );
         }}
@@ -132,3 +168,25 @@ export const ClubOverviewScreen = ({
     </section>
   );
 };
+
+/** A keyboard-accessible summary link into a Club governance destination. */
+const GovernanceLink = ({
+  label,
+  to,
+  onOpenWorkspace,
+  context,
+}: {
+  label: string;
+  to: string;
+  onOpenWorkspace?: (workspace: string) => void;
+  context: string;
+}): React.ReactElement => (
+  <button
+    type="button"
+    className="ghost small"
+    onClick={() => onOpenWorkspace?.(to)}
+  >
+    <strong>{label}</strong>
+    <span className="subtle"> — {context}</span>
+  </button>
+);

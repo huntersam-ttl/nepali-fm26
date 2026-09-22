@@ -222,6 +222,7 @@ import {
   type StaffResponsibilityDomain,
   type StaffResponsibilityOwnerType,
   type StaffResponsibilityView,
+  type ClubResponsibilitiesView,
   type StaffRowWithContract,
   type StaffSuccessionPlanView,
   type ExecutiveAuthorityDesktopView,
@@ -337,6 +338,7 @@ import {
   RESPONSIBILITY_DOMAINS,
   ResponsibilityError,
   responsibilityOwner,
+  eligibleStaffForResponsibilityDomain,
   staffCareerHistory,
   StaffActionError,
   staffHierarchyForClub,
@@ -5135,6 +5137,40 @@ export class DesktopApplicationService {
       }
       return buildStaffHierarchyView(db, context.club!.id);
     }, true);
+  }
+
+  // Club Responsibilities (Phase 6B) — read-only canonical delegation view with
+  // valid assignees per domain. Mutations still go through assignStaffResponsibility.
+  getClubResponsibilities(): AppResult<ClubResponsibilitiesView> {
+    return this.managerCommand((db, save, context) => {
+      const clubId = context.club!.id;
+      const market = new StaffMarketRepository(db);
+      const rows = RESPONSIBILITY_DOMAINS.map((domain) => {
+        const owner = responsibilityOwner(db, clubId, domain);
+        const eligibleStaff = eligibleStaffForResponsibilityDomain(db, clubId, domain).map(
+          (entry) => ({
+            ownerType: "STAFF" as const,
+            appointmentId: entry.appointmentId,
+            personName: displayName(getPerson(db, entry.personId)),
+            role: entry.role,
+          }),
+        );
+        return {
+          domain,
+          currentOwnerType: owner.ownerType,
+          currentOwnerName: owner.ownerAppointmentId
+            ? displayName(getPerson(db, market.appointmentById(owner.ownerAppointmentId)!.personId))
+            : undefined,
+          boardApprovalGrantedUntil: owner.boardApprovalGrantedUntil,
+          assignees: [
+            { ownerType: "MANAGER" as const },
+            { ownerType: "BOARD" as const },
+            ...eligibleStaff,
+          ],
+        };
+      });
+      return { rows };
+    }, false);
   }
 
   createStaffDevelopmentPlan(

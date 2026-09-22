@@ -703,6 +703,8 @@ const dispatch = (
       );
     case "requestStaffBoardApproval":
       return service.requestStaffBoardApproval(body.domain as StaffResponsibilityDomain);
+    case "getClubResponsibilities":
+      return service.getClubResponsibilities();
     case "createStaffDevelopmentPlan":
       return service.createStaffDevelopmentPlan(
         body.personId as EntityId,

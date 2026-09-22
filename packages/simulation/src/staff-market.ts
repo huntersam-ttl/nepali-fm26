@@ -2106,6 +2106,29 @@ export const RESPONSIBILITY_DOMAINS: StaffResponsibilityDomain[] = [
   "MEDICAL",
 ];
 
+/**
+ * The real, active staff members whose role qualifies them to own one
+ * responsibility domain. Derived from DOMAIN_ELIGIBLE_ROLES against the club's
+ * actual active appointments — never a fabricated person or role. The Manager
+ * and Board are always valid assignees on top of these (they are added by the
+ * Club Responsibilities read model, not here).
+ */
+export const eligibleStaffForResponsibilityDomain = (
+  db: GameDatabase,
+  clubId: EntityId,
+  domain: StaffResponsibilityDomain,
+): Array<{ appointmentId: EntityId; personId: EntityId; role: FootballStaffRole }> => {
+  const market = new StaffMarketRepository(db);
+  return market
+    .activeAppointmentsForClub(clubId)
+    .filter((appointment) => DOMAIN_ELIGIBLE_ROLES[domain].includes(appointment.role))
+    .map((appointment) => ({
+      appointmentId: appointment.id,
+      personId: appointment.personId,
+      role: appointment.role,
+    }));
+};
+
 const BOARD_APPROVAL_WINDOW_DAYS = 7;
 
 export class ResponsibilityError extends Error {
