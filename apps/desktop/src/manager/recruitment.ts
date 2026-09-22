@@ -119,3 +119,47 @@ export const provenanceText = (discovery: PlayerDiscoveryStatus): string =>
       : discovery === "SCOUTED"
         ? "Scouted"
         : "Known";
+
+/* ------------------------------------------------------------------
+ * Phase 5B — Recruitment Focuses (scouting assignments) + uncertainty
+ * ------------------------------------------------------------------ */
+
+export const ASSIGNMENT_TYPE_LABELS: Record<string, string> = {
+  PLAYER: "Player",
+  CLUB: "Club",
+  COMPETITION: "Competition",
+  REGION: "Region",
+  POSITION: "Position",
+  SHORTLIST: "Shortlist",
+};
+
+/** Exact canonical scouting-assignment types, never fabricated. */
+export const SUPPORTED_ASSIGNMENT_TYPES: readonly string[] = Object.keys(ASSIGNMENT_TYPE_LABELS);
+
+export const assignmentTypeLabel = (type: string): string =>
+  ASSIGNMENT_TYPE_LABELS[type] ?? type.toLowerCase();
+
+export const assignmentStatusText = (status: string): string => status.toLowerCase();
+
+const STATUS_ORDER: Record<string, number> = {
+  ACTIVE: 0,
+  QUEUED: 1,
+  PLANNED: 2,
+  COMPLETED: 3,
+  CANCELLED: 4,
+};
+
+/** Deterministic lifecycle ordering: active first, then by start date desc. */
+export const orderAssignments = <T extends { status: string; startedAt: string; id: string }>(
+  assignments: readonly T[],
+): T[] =>
+  [...assignments].sort(
+    (a, b) =>
+      (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9) ||
+      b.startedAt.localeCompare(a.startedAt) ||
+      a.id.localeCompare(b.id),
+  );
+
+/** The genuinely in-progress assignments (never completed/cancelled). */
+export const activeAssignments = <T extends { status: string }>(assignments: readonly T[]): T[] =>
+  assignments.filter((a) => a.status === "ACTIVE" || a.status === "QUEUED" || a.status === "PLANNED");

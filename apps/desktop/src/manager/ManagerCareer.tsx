@@ -14,6 +14,7 @@ import { ScoutingScreen } from "./screens/ScoutingScreen.js";
 import { RecruitmentOverviewScreen } from "./screens/RecruitmentOverviewScreen.js";
 import { PlayerDatabaseScreen } from "./screens/PlayerDatabaseScreen.js";
 import { RecommendationsScreen } from "./screens/RecommendationsScreen.js";
+import { RecruitmentFocusesScreen } from "./screens/RecruitmentFocusesScreen.js";
 import { TransfersScreen } from "./screens/TransfersScreen.js";
 import { ContractsScreen } from "./screens/ContractsScreen.js";
 import { StaffScreen } from "./screens/StaffScreen.js";
@@ -75,7 +76,7 @@ type Screen = ManagerWorkspace;
 const NAV_GROUPS: Array<{ label: string; items: Screen[] }> = [
   { label: "Team", items: ["home", "squad", "dressing-room", "tactics", "training", "medical"] },
   { label: "Competition", items: ["fixtures", "competition"] },
-  { label: "Recruitment", items: ["recruitment-overview", "player-database", "recommendations", "scouting", "transfers", "contracts"] },
+  { label: "Recruitment", items: ["recruitment-overview", "player-database", "recommendations", "recruitment-focuses", "scouting", "transfers", "contracts"] },
   { label: "Club", items: ["staff", "media"] },
 ];
 
@@ -129,6 +130,7 @@ const LABELS: Record<Screen, string> = {
   "recruitment-overview": "Recruitment Overview",
   "player-database": "Player Database",
   recommendations: "Recommendations",
+  "recruitment-focuses": "Recruitment Focuses",
   transfers: "Transfers",
   contracts: "Contracts",
   staff: "Staff",
@@ -153,6 +155,7 @@ const SUBTITLES: Record<Screen, string> = {
   "recruitment-overview": "What the club knows, is scouting, and is waiting on.",
   "player-database": "Discovery, filters and scouting knowledge across known players.",
   recommendations: "Current scouting recommendations and report context.",
+  "recruitment-focuses": "Track scouting assignments and their lifecycle.",
   transfers: "Manage targets, offers, and squad movement.",
   contracts: "Keep player terms aligned with the club plan.",
   staff: "Build the support team around your squad.",
@@ -739,6 +742,9 @@ export const ManagerCareer = ({
         )}
         {header.activeRole === "MANAGER" && screen === "recommendations" && (
           <RecommendationsScreen onSelectPlayer={openPlayer} />
+        )}
+        {header.activeRole === "MANAGER" && screen === "recruitment-focuses" && (
+          <RecruitmentFocusesScreen onSelectPlayer={openPlayer} onOpenClub={(id) => openEntity("CLUB", id)} />
         )}
         {header.activeRole === "MANAGER" && screen === "transfers" && (
           <TransfersScreen onSelectPlayer={openPlayer} onOpenClub={(id) => openEntity("CLUB", id)} />

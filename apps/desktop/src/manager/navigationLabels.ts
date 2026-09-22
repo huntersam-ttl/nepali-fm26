@@ -31,6 +31,7 @@ export const MANAGER_WORKSPACE_LABELS: Record<ManagerWorkspace, string> = {
   "recruitment-overview": "Recruitment Overview",
   "player-database": "Player Database",
   recommendations: "Recommendations",
+  "recruitment-focuses": "Recruitment Focuses",
   transfers: "Transfers",
   contracts: "Contracts",
   staff: "Staff",
@@ -92,7 +93,7 @@ export const entityCategoryLabel = (entityType: EntityReferenceType): string => 
 export const MANAGER_FAMILIES: Array<{ label: string; items: string[] }> = [
   { label: "Team", items: ["home", "squad", "dressing-room", "tactics", "training", "medical"] },
   { label: "Competition", items: ["fixtures", "competition"] },
-  { label: "Recruitment", items: ["recruitment-overview", "player-database", "recommendations", "scouting", "transfers", "contracts"] },
+  { label: "Recruitment", items: ["recruitment-overview", "player-database", "recommendations", "recruitment-focuses", "scouting", "transfers", "contracts"] },
   { label: "Club", items: ["staff", "media"] },
 ];
 

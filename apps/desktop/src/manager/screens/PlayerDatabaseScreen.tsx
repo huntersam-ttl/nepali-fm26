@@ -5,10 +5,10 @@ import { AsyncPanel, Badge, ErrorBanner, Panel, useRuntimeData } from "../ui.js"
 import type { AppError } from "../../appBridge.js";
 import { EntityRefLink } from "../RoleDetailScreen.js";
 import {
+  confidenceTone,
   knowledgeText,
   knowledgeTone,
   rangeText,
-  rowName,
   rowPosition,
   sortRows,
   type RecruitmentSortKey,
@@ -113,6 +113,7 @@ export const PlayerDatabaseScreen = ({
                         <th>Club</th>
                         <th>Position</th>
                         <th>Knowledge</th>
+                        <th>Confidence</th>
                         <th>Est. ability</th>
                         <th>Potential</th>
                         <th />
@@ -140,6 +141,9 @@ export const PlayerDatabaseScreen = ({
                           <td>{rowPosition(row)}</td>
                           <td>
                             <Badge tone={knowledgeTone(row.knowledge)}>{knowledgeText(row.knowledge)}</Badge>
+                          </td>
+                          <td>
+                            <Badge tone={confidenceTone(row.confidence)}>{row.confidence.toLowerCase()}</Badge>
                           </td>
                           <td>{rangeText(row.estimatedAbility)}</td>
                           <td>{row.estimatedPotential ?? "Unknown"}</td>

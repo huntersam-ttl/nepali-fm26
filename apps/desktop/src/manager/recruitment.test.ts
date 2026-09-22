@@ -2,9 +2,14 @@ import { describe, expect, it } from "vitest";
 import { MANAGER_WORKSPACES } from "../navigation.js";
 import { MANAGER_FAMILIES } from "./navigationLabels.js";
 import {
+  SUPPORTED_ASSIGNMENT_TYPES,
   UNKNOWN,
+  activeAssignments,
+  assignmentStatusText,
+  assignmentTypeLabel,
   filterByKnowledge,
   knowledgeText,
+  orderAssignments,
   provenanceText,
   rangeText,
   recommendationsOrdered,
@@ -142,5 +147,47 @@ describe("nav / role boundary", () => {
     );
     // Manager-only: no Owner/President ids leak into the family.
     expect(recruitment?.items.some((id) => id === "dashboard" || id === "finance" || id === "tenure")).toBe(false);
+  });
+});
+
+describe("focuses (scouting assignments)", () => {
+  const assignment = (over: Partial<{ status: string; startedAt: string; id: string; assignmentType: string }>) => ({
+    id: "a1",
+    status: "ACTIVE",
+    startedAt: "2026-01-02",
+    assignmentType: "PLAYER",
+    ...over,
+  });
+  it("1/2/3. maps lifecycle, status, and target type from canonical fields", () => {
+    expect(assignmentTypeLabel("PLAYER")).toBe("Player");
+    expect(assignmentTypeLabel("REGION")).toBe("Region");
+    expect(assignmentTypeLabel("BOGUS")).toBe("bogus");
+    expect(assignmentStatusText("COMPLETED")).toBe("completed");
+  });
+  it("4. deterministic ordering: active first, then by start date desc", () => {
+    const activeOld = assignment({ id: "active-old", status: "ACTIVE", startedAt: "2026-01-01" });
+    const activeNew = assignment({ id: "active-new", status: "ACTIVE", startedAt: "2026-01-03" });
+    const done = assignment({ id: "done", status: "COMPLETED", startedAt: "2025-12-01" });
+    expect(orderAssignments([done, activeOld, activeNew]).map((a) => a.id)).toEqual([
+      "active-new", "active-old", "done",
+    ]);
+    expect(activeAssignments([done, activeOld, activeNew]).map((a) => a.id)).toEqual([
+      "active-old", "active-new",
+    ]);
+  });
+  it("5. empty assignments", () => {
+    expect(orderAssignments([])).toEqual([]);
+    expect(activeAssignments([])).toEqual([]);
+  });
+  it("7. only canonical assignment types surface", () => {
+    expect(SUPPORTED_ASSIGNMENT_TYPES).toEqual(
+      expect.arrayContaining(["PLAYER", "CLUB", "COMPETITION", "REGION", "POSITION", "SHORTLIST"]),
+    );
+  });
+  it("no hidden scouting weights in focus output", () => {
+    const text = JSON.stringify(
+      SUPPORTED_ASSIGNMENT_TYPES.map((t) => assignmentTypeLabel(t)).concat([assignmentStatusText("ACTIVE")]),
+    );
+    expect(text).not.toMatch(/wonder|potential|hidden|successRate|discoverability|weight/i);
   });
 });
