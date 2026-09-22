@@ -163,3 +163,91 @@ export const orderAssignments = <T extends { status: string; startedAt: string; 
 /** The genuinely in-progress assignments (never completed/cancelled). */
 export const activeAssignments = <T extends { status: string }>(assignments: readonly T[]): T[] =>
   assignments.filter((a) => a.status === "ACTIVE" || a.status === "QUEUED" || a.status === "PLANNED");
+
+/* ------------------------------------------------------------------
+ * Phase 5C — Shortlists + Squad Planner (derived view helpers)
+ * ------------------------------------------------------------------ */
+
+export type ShortlistSortKey = "player" | "added" | "knowledge" | "ability" | "club";
+
+export const shortlistSortRows = <
+  T extends {
+    playerName?: string;
+    knowledge: PlayerKnowledgeLevel;
+    estimatedAbility?: KnowledgeRange;
+    addedAt: string;
+    clubName?: string;
+  },
+>(
+  rows: readonly T[],
+  key: ShortlistSortKey,
+): T[] =>
+  [...rows].sort((a, b) => {
+    switch (key) {
+      case "player":
+        return (a.playerName ?? "").localeCompare(b.playerName ?? "");
+      case "added":
+        return b.addedAt.localeCompare(a.addedAt);
+      case "knowledge":
+        return KNOWLEDGE_ORDER[a.knowledge] - KNOWLEDGE_ORDER[b.knowledge] || a.addedAt.localeCompare(b.addedAt);
+      case "ability": {
+        const av = abilityScale(a.estimatedAbility);
+        const bv = abilityScale(b.estimatedAbility);
+        if (av === undefined && bv === undefined) return a.addedAt.localeCompare(b.addedAt);
+        if (av === undefined) return 1;
+        if (bv === undefined) return -1;
+        return av - bv || a.addedAt.localeCompare(b.addedAt);
+      }
+      case "club":
+        return (a.clubName ?? "").localeCompare(b.clubName ?? "") || a.addedAt.localeCompare(b.addedAt);
+    }
+  });
+
+/** Position lanes derived ONLY from the canonical 10 PlayerPositions. */
+export const positionGroupFor = (position: string): string =>
+  position === "GK"
+    ? "goalkeepers"
+    : position === "RB" || position === "CB" || position === "LB"
+      ? "defenders"
+      : position === "DM" || position === "CM" || position === "AM"
+        ? "midfielders"
+        : position === "RW" || position === "LW" || position === "ST"
+          ? "attackers"
+          : "other";
+
+export const POSITION_LANES: readonly { value: string; label: string }[] = [
+  { value: "goalkeepers", label: "Goalkeepers" },
+  { value: "defenders", label: "Defenders" },
+  { value: "midfielders", label: "Midfielders" },
+  { value: "attackers", label: "Attackers" },
+];
+
+export const HORIZONS: readonly { value: number; label: string }[] = [
+  { value: 0, label: "Now" },
+  { value: 180, label: "6 months ahead" },
+  { value: 365, label: "12 months ahead" },
+];
+
+const addDays = (iso: string, days: number): string => {
+  const d = new Date(iso);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+};
+
+/**
+ * Factual classification of a player's contract at a future horizon. An
+ * expiring contract is stated as such — it is NEVER treated as a confirmed
+ * departure while renewal remains possible.
+ */
+export const classifyHorizon = (
+  player: { contractExpiry?: string },
+  horizonDays: number,
+  worldDate: string,
+): { state: "CONTRACTED" | "CONTRACT_EXPIRES" | "NO_CONTRACT"; text: string } => {
+  if (!player.contractExpiry) return { state: "NO_CONTRACT", text: "No contract expiry date recorded" };
+  const horizon = horizonDays === 0 ? worldDate : addDays(worldDate, horizonDays);
+  if (player.contractExpiry <= horizon) {
+    return { state: "CONTRACT_EXPIRES", text: "Contract expires before this horizon" };
+  }
+  return { state: "CONTRACTED", text: "Contracted at this horizon" };
+};

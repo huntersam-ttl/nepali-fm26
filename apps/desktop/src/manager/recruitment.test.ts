@@ -2,23 +2,27 @@ import { describe, expect, it } from "vitest";
 import { MANAGER_WORKSPACES } from "../navigation.js";
 import { MANAGER_FAMILIES } from "./navigationLabels.js";
 import {
+  POSITION_LANES,
   SUPPORTED_ASSIGNMENT_TYPES,
   UNKNOWN,
   activeAssignments,
   assignmentStatusText,
   assignmentTypeLabel,
+  classifyHorizon,
   filterByKnowledge,
   knowledgeText,
   orderAssignments,
+  positionGroupFor,
   provenanceText,
   rangeText,
   recommendationsOrdered,
   reportAgeDays,
   rowName,
   rowPosition,
+  shortlistSortRows,
   sortRows,
 } from "./recruitment.js";
-import type { RecruitmentRow, ScoutingReportView } from "@nepal-football-sim/shared-types";
+import type { KnowledgeRange, PlayerKnowledgeLevel, RecruitmentRow, ScoutingReportView } from "@nepal-football-sim/shared-types";
 
 const eid = (v: string) => v as unknown as RecruitmentRow["playerId"];
 
@@ -52,6 +56,20 @@ const report = (over: Omit<Partial<ScoutingReportView>, "playerId"> & { playerId
     ...rest,
   } as ScoutingReportView;
 };
+
+const shortEntry = (over: Partial<{
+  playerName?: string;
+  knowledge?: PlayerKnowledgeLevel;
+  estimatedAbility?: KnowledgeRange;
+  addedAt?: string;
+  clubName?: string;
+}>): { playerName?: string; knowledge: PlayerKnowledgeLevel; estimatedAbility?: KnowledgeRange; addedAt: string; clubName?: string } => ({
+  playerName: over.playerName ?? "B",
+  knowledge: over.knowledge ?? "BASIC",
+  addedAt: over.addedAt ?? "2026-01-01",
+  clubName: over.clubName ?? "Club",
+  estimatedAbility: over.estimatedAbility,
+});
 
 describe("database mapping", () => {
   it("1/8. maps a recruitment row to name/position carrying the canonical player id", () => {
@@ -189,5 +207,66 @@ describe("focuses (scouting assignments)", () => {
       SUPPORTED_ASSIGNMENT_TYPES.map((t) => assignmentTypeLabel(t)).concat([assignmentStatusText("ACTIVE")]),
     );
     expect(text).not.toMatch(/wonder|potential|hidden|successRate|discoverability|weight/i);
+  });
+});
+
+describe("shortlists", () => {
+  it("1/2. maps and deterministically sorts shortlist entries", () => {
+    const a = shortEntry({ playerName: "A", addedAt: "2026-01-02" });
+    const b = shortEntry({ playerName: "B", addedAt: "2026-01-01" });
+    expect(shortlistSortRows([b, a], "player").map((r) => r.playerName)).toEqual(["A", "B"]);
+    expect(shortlistSortRows([a, b], "added").map((r) => r.playerName)).toEqual(["A", "B"]);
+  });
+  it("unknown ability sorts last transparently", () => {
+    const known = shortEntry({ playerName: "Known", estimatedAbility: { min: 60, max: 70 } });
+    const unknown = shortEntry({ playerName: "Unknown", estimatedAbility: undefined });
+    const out = shortlistSortRows([unknown, known], "ability").map((r) => r.playerName);
+    expect(out).toEqual(["Known", "Unknown"]);
+  });
+  it("7. no hidden CA/PA in shortlist output", () => {
+    const text = JSON.stringify(shortlistSortRows([shortEntry({})], "player"));
+    expect(text).not.toMatch(/potential|currentAbility|hidden|wage|value/i);
+  });
+  it("6. empty shortlist sorts empty", () => {
+    expect(shortlistSortRows([], "player")).toEqual([]);
+  });
+});
+
+describe("squad planner (derived view)", () => {
+  it("9. groups canonical positions into lanes", () => {
+    expect(positionGroupFor("GK")).toBe("goalkeepers");
+    expect(positionGroupFor("CB")).toBe("defenders");
+    expect(positionGroupFor("CM")).toBe("midfielders");
+    expect(positionGroupFor("ST")).toBe("attackers");
+    expect(positionGroupFor("NOTREAL")).toBe("other");
+    expect(POSITION_LANES.map((l) => l.label)).toEqual(["Goalkeepers", "Defenders", "Midfielders", "Attackers"]);
+  });
+  it("10/14. classifies contract expiry vs the horizon", () => {
+    expect(classifyHorizon({ contractExpiry: "2026-05-31" }, 0, "2026-06-01").state).toBe("CONTRACT_EXPIRES");
+    expect(classifyHorizon({ contractExpiry: "2027-06-01" }, 365, "2026-01-01").state).toBe("CONTRACTED");
+    expect(classifyHorizon({}, 365, "2026-01-01").state).toBe("NO_CONTRACT");
+  });
+  it("13. expiring contract is NOT described as a departure", () => {
+    const text = classifyHorizon({ contractExpiry: "2026-05-31" }, 0, "2026-06-01").text;
+    expect(text).toContain("Contract expires");
+    expect(text).not.toMatch(/leaving|departed|out the door|release|sell/i);
+  });
+  it("17. no invented need severity anywhere in classification", () => {
+    expect(classifyHorizon({ contractExpiry: "2026-05-31" }, 0, "2026-06-01").text).not.toMatch(/critical|weak|priority|must sign/i);
+  });
+  it("18. no hidden ability/development prediction in derived future state", () => {
+    const text = JSON.stringify([
+      classifyHorizon({ contractExpiry: "2026-05-31" }, 365, "2026-06-01").text,
+      positionGroupFor("AM"),
+    ]);
+    expect(text).not.toMatch(/decline|potential|hiddenAbility|prediction|developmentRate/i);
+  });
+});
+
+describe("targets", () => {
+  it("19. targets carry no position mapping beyond canonical data (shortlist has none)", () => {
+    // ShortlistEntry has no position field in the canonical read; we never infer one.
+    const text = JSON.stringify(shortlistSortRows([shortEntry({})], "player"));
+    expect(text).not.toMatch(/"position"/i);
   });
 });

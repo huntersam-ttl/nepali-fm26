@@ -15,6 +15,8 @@ import { RecruitmentOverviewScreen } from "./screens/RecruitmentOverviewScreen.j
 import { PlayerDatabaseScreen } from "./screens/PlayerDatabaseScreen.js";
 import { RecommendationsScreen } from "./screens/RecommendationsScreen.js";
 import { RecruitmentFocusesScreen } from "./screens/RecruitmentFocusesScreen.js";
+import { ShortlistsScreen } from "./screens/ShortlistsScreen.js";
+import { SquadPlannerScreen } from "./screens/SquadPlannerScreen.js";
 import { TransfersScreen } from "./screens/TransfersScreen.js";
 import { ContractsScreen } from "./screens/ContractsScreen.js";
 import { StaffScreen } from "./screens/StaffScreen.js";
@@ -76,7 +78,7 @@ type Screen = ManagerWorkspace;
 const NAV_GROUPS: Array<{ label: string; items: Screen[] }> = [
   { label: "Team", items: ["home", "squad", "dressing-room", "tactics", "training", "medical"] },
   { label: "Competition", items: ["fixtures", "competition"] },
-  { label: "Recruitment", items: ["recruitment-overview", "player-database", "recommendations", "recruitment-focuses", "scouting", "transfers", "contracts"] },
+  { label: "Recruitment", items: ["recruitment-overview", "player-database", "recommendations", "recruitment-focuses", "shortlists", "squad-planner", "scouting", "transfers", "contracts"] },
   { label: "Club", items: ["staff", "media"] },
 ];
 
@@ -131,6 +133,8 @@ const LABELS: Record<Screen, string> = {
   "player-database": "Player Database",
   recommendations: "Recommendations",
   "recruitment-focuses": "Recruitment Focuses",
+  shortlists: "Shortlists",
+  "squad-planner": "Squad Planner",
   transfers: "Transfers",
   contracts: "Contracts",
   staff: "Staff",
@@ -156,6 +160,8 @@ const SUBTITLES: Record<Screen, string> = {
   "player-database": "Discovery, filters and scouting knowledge across known players.",
   recommendations: "Current scouting recommendations and report context.",
   "recruitment-focuses": "Track scouting assignments and their lifecycle.",
+  shortlists: "Curated comparison of recruitment targets.",
+  "squad-planner": "Project squad depth against contract and loan futures.",
   transfers: "Manage targets, offers, and squad movement.",
   contracts: "Keep player terms aligned with the club plan.",
   staff: "Build the support team around your squad.",
@@ -745,6 +751,12 @@ export const ManagerCareer = ({
         )}
         {header.activeRole === "MANAGER" && screen === "recruitment-focuses" && (
           <RecruitmentFocusesScreen onSelectPlayer={openPlayer} onOpenClub={(id) => openEntity("CLUB", id)} />
+        )}
+        {header.activeRole === "MANAGER" && screen === "shortlists" && (
+          <ShortlistsScreen onSelectPlayer={openPlayer} onOpenClub={(id) => openEntity("CLUB", id)} />
+        )}
+        {header.activeRole === "MANAGER" && screen === "squad-planner" && (
+          <SquadPlannerScreen onSelectPlayer={openPlayer} today={header.worldDate} />
         )}
         {header.activeRole === "MANAGER" && screen === "transfers" && (
           <TransfersScreen onSelectPlayer={openPlayer} onOpenClub={(id) => openEntity("CLUB", id)} />

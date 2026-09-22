@@ -36,6 +36,8 @@ export const MANAGER_WORKSPACES = [
   "player-database",
   "recommendations",
   "recruitment-focuses",
+  "shortlists",
+  "squad-planner",
   "transfers",
   "contracts",
   "staff",

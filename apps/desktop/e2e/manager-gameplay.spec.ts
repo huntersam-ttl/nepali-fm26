@@ -88,7 +88,7 @@ test("plays a manager career through every gameplay screen and persists it", asy
   // --- Scouting and shortlist ---------------------------------------------
   await goTo(page, "Scouting");
   await expect(page.locator(".workspace")).toContainText("Scouting coverage");
-  await page.getByRole("button", { name: "Shortlist" }).first().click();
+  await page.getByRole("button", { name: "Shortlist", exact: true }).first().click();
   await expect(page.getByRole("button", { name: "Unshortlist" }).first()).toBeVisible();
 
   // --- Transfers -----------------------------------------------------------
