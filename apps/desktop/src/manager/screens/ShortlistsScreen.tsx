@@ -15,9 +15,11 @@ import {
 export const ShortlistsScreen = ({
   onSelectPlayer,
   onOpenClub,
+  onOpenTransfers,
 }: {
   onSelectPlayer: (playerId: EntityId) => void;
   onOpenClub: (clubId: EntityId) => void;
+  onOpenTransfers?: () => void;
 }): React.ReactElement => {
   const [dashboard, refreshDashboard, replaceDashboard] = useRuntimeData(() => managerBridge.getScoutingDashboard());
   const [sortKey, setSortKey] = useState<ShortlistSortKey>("added");
@@ -53,6 +55,11 @@ export const ShortlistsScreen = ({
             <option value="ability">Est. ability</option>
           </select>
         </label>
+        {onOpenTransfers && (
+          <button className="ghost small" onClick={onOpenTransfers}>
+            Open transfer context
+          </button>
+        )}
 
         <AsyncPanel
           state={dashboard}

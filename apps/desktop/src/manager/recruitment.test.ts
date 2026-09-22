@@ -6,11 +6,15 @@ import {
   SUPPORTED_ASSIGNMENT_TYPES,
   UNKNOWN,
   activeAssignments,
+  activeOffersCount,
   assignmentStatusText,
   assignmentTypeLabel,
+  budgetFacts,
   classifyHorizon,
+  expiringBeforeSeason,
   filterByKnowledge,
   knowledgeText,
+  offerIsLoan,
   orderAssignments,
   positionGroupFor,
   provenanceText,
@@ -21,6 +25,10 @@ import {
   rowPosition,
   shortlistSortRows,
   sortRows,
+  transferActivityOrder,
+  transferDirectionText,
+  transferStatusText,
+  windowFacts,
 } from "./recruitment.js";
 import type { KnowledgeRange, PlayerKnowledgeLevel, RecruitmentRow, ScoutingReportView } from "@nepal-football-sim/shared-types";
 
@@ -268,5 +276,52 @@ describe("targets", () => {
     // ShortlistEntry has no position field in the canonical read; we never infer one.
     const text = JSON.stringify(shortlistSortRows([shortEntry({})], "player"));
     expect(text).not.toMatch(/"position"/i);
+  });
+});
+
+describe("transfers / budgets / window (Phase 5D)", () => {
+  const offer = (over: Partial<{ direction: string; status: string; submittedAt: string; id: string; loanTerms?: unknown }>) => ({
+    id: "o1",
+    direction: "OUTGOING",
+    status: "NEGOTIATING",
+    submittedAt: "2026-01-02",
+    ...over,
+  });
+  it("1/3/4. classifies direction and loan vs permanent from canonical fields", () => {
+    expect(transferDirectionText("INCOMING")).toBe("Incoming");
+    expect(transferDirectionText("OUTGOING")).toBe("Outgoing");
+    expect(offerIsLoan({ loanTerms: {} })).toBe(true);
+    expect(offerIsLoan({})).toBe(false);
+  });
+  it("2. maps canonical status to text without inventing lifecycle", () => {
+    expect(transferStatusText("COMPLETED")).toBe("completed");
+    expect(transferStatusText("COUNTERED")).toBe("countered");
+  });
+  it("5. deterministic activity ordering", () => {
+    const a = offer({ id: "a", submittedAt: "2026-01-01" });
+    const b = offer({ id: "b", submittedAt: "2026-01-03" });
+    expect(transferActivityOrder([a, b]).map((o) => o.id)).toEqual(["b", "a"]);
+  });
+  it("21/22/23. window facts come from canonical state, never hard-coded", () => {
+    expect(windowFacts({ windowOpen: true, windowCloses: "2026-08-31" }).open).toBe(true);
+    expect(windowFacts({ windowOpen: true, windowCloses: "2026-08-31" }).text).toContain("closes 2026-08-31");
+    expect(windowFacts({ windowOpen: false }).text).toBe("Transfer window closed");
+  });
+  it("12/15. budget mapping is exact, not a projection", () => {
+    expect(budgetFacts({ currency: "NPR", transferRemaining: 500000, wageRemaining: 120000 })).toContain("500,000 transfer remaining");
+    expect(budgetFacts({ currency: "NPR", transferRemaining: 500000, wageRemaining: 120000 })).toContain("wage remaining");
+  });
+  it("8/30. no hidden negotiation state or internal weights in facts", () => {
+    const text = JSON.stringify([
+      transferDirectionText("OUTGOING"),
+      transferStatusText("COMPLETED"),
+      windowFacts({ windowOpen: true }).text,
+      budgetFacts({ currency: "NPR", transferRemaining: 1, wageRemaining: 2 }),
+    ]);
+    expect(text).not.toMatch(/agentThreshold|willingness|likelihood|weight|hiddenPotential|currentAbility/i);
+  });
+  it("6. empty activity counts", () => {
+    expect(activeOffersCount({ incoming: [], outgoing: [] })).toBe(0);
+    expect(expiringBeforeSeason({ expiringContracts: [] })).toBe(0);
   });
 });

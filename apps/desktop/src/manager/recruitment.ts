@@ -251,3 +251,41 @@ export const classifyHorizon = (
   }
   return { state: "CONTRACTED", text: "Contracted at this horizon" };
 };
+
+/* ------------------------------------------------------------------
+ * Phase 5D — Transfers / budgets / window / contracts (canonical facts)
+ * ------------------------------------------------------------------ */
+
+export const transferDirectionText = (direction: string): string =>
+  direction === "INCOMING" ? "Incoming" : direction === "OUTGOING" ? "Outgoing" : direction.toLowerCase();
+
+export const transferStatusText = (status: string): string => status.toLowerCase();
+
+export const offerIsLoan = (offer: { loanTerms?: unknown }): boolean => Boolean(offer.loanTerms);
+
+/** Deterministic activity ordering: newest submitted first. */
+export const transferActivityOrder = <T extends { submittedAt: string; id: string }>(views: readonly T[]): T[] =>
+  [...views].sort(
+    (a, b) => b.submittedAt.localeCompare(a.submittedAt) || a.id.localeCompare(b.id),
+  );
+
+export const windowFacts = (centre: { windowOpen: boolean; windowCloses?: string }): {
+  open: boolean;
+  text: string;
+} =>
+  centre.windowOpen
+    ? { open: true, text: `Transfer window open${centre.windowCloses ? ` · closes ${centre.windowCloses}` : ""}` }
+    : { open: false, text: "Transfer window closed" };
+
+export const budgetFacts = (budget: {
+  currency: string;
+  transferRemaining: number;
+  wageRemaining: number;
+}): string =>
+  `${budget.currency} ${budget.transferRemaining.toLocaleString()} transfer remaining · ${budget.currency} ${budget.wageRemaining.toLocaleString()} wage remaining`;
+
+export const activeOffersCount = (centre: { incoming: unknown[]; outgoing: unknown[] }): number =>
+  centre.incoming.length + centre.outgoing.length;
+
+export const expiringBeforeSeason = (centre: { expiringContracts: unknown[] }): number =>
+  centre.expiringContracts.length;

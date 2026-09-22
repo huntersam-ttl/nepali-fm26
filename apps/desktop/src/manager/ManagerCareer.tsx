@@ -753,7 +753,11 @@ export const ManagerCareer = ({
           <RecruitmentFocusesScreen onSelectPlayer={openPlayer} onOpenClub={(id) => openEntity("CLUB", id)} />
         )}
         {header.activeRole === "MANAGER" && screen === "shortlists" && (
-          <ShortlistsScreen onSelectPlayer={openPlayer} onOpenClub={(id) => openEntity("CLUB", id)} />
+          <ShortlistsScreen
+            onSelectPlayer={openPlayer}
+            onOpenClub={(id) => openEntity("CLUB", id)}
+            onOpenTransfers={() => goTo(workspaceForRole("MANAGER", "transfers"))}
+          />
         )}
         {header.activeRole === "MANAGER" && screen === "squad-planner" && (
           <SquadPlannerScreen onSelectPlayer={openPlayer} today={header.worldDate} />

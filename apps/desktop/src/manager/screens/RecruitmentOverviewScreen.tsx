@@ -1,8 +1,8 @@
 import React from "react";
-import type { EntityId } from "@nepal-football-sim/shared-types";
+import type { EntityId, TransferCentre } from "@nepal-football-sim/shared-types";
 import { managerBridge } from "../managerBridge.js";
 import { AsyncPanel, Badge, Metrics, Panel, useRuntimeData } from "../ui.js";
-import { rangeText } from "../recruitment.js";
+import { activeOffersCount, expiringBeforeSeason, rangeText, windowFacts } from "../recruitment.js";
 
 export const RecruitmentOverviewScreen = ({
   onSelectPlayer,
@@ -10,6 +10,7 @@ export const RecruitmentOverviewScreen = ({
   onSelectPlayer: (playerId: EntityId) => void;
 }): React.ReactElement => {
   const [dashboard, refreshDashboard] = useRuntimeData(() => managerBridge.getScoutingDashboard());
+  const [transfers] = useRuntimeData(() => managerBridge.getTransferCentre());
 
   return (
     <section className="dashboard">
@@ -29,6 +30,34 @@ export const RecruitmentOverviewScreen = ({
                 { label: "Shortlisted", value: view.shortlist.length },
                 { label: "Active scouting", value: view.assignments.length },
                 { label: "Recent reports", value: view.recentReports.length },
+              ]}
+            />
+          )}
+        </AsyncPanel>
+      </Panel>
+
+      <Panel title="Transfer context">
+        <AsyncPanel
+          state={transfers}
+          isEmpty={(centre) =>
+            activeOffersCount(centre) === 0 && !centre.windowOpen && expiringBeforeSeason(centre) === 0
+          }
+          empty="No transfer activity to summarise."
+        >
+          {(centre: TransferCentre) => (
+            <Metrics
+              items={[
+                { label: "Window", value: windowFacts(centre).text },
+                {
+                  label: "Transfer remaining",
+                  value: `${centre.budget.currency} ${centre.budget.transferRemaining.toLocaleString()}`,
+                },
+                {
+                  label: "Wage remaining",
+                  value: `${centre.budget.currency} ${centre.budget.wageRemaining.toLocaleString()}`,
+                },
+                { label: "Active offers", value: activeOffersCount(centre) },
+                { label: "Expiring contracts", value: expiringBeforeSeason(centre) },
               ]}
             />
           )}
