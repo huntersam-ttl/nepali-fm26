@@ -75,6 +75,8 @@ import {
   type CareerHeader,
   type CareerRole,
   type CareerRoleState,
+  type CareerOrganizationView,
+  type CareerOverviewView,
   type ChairmanDashboard,
   type ClubFinanceMeetingOverview,
   type InvestorMeetingOverview,
@@ -1081,6 +1083,92 @@ export class DesktopApplicationService {
       const heldRoles = playableCareerRoles(db, personId);
       return { activeRole: activeCareerRole(db, personId), heldRoles };
     });
+  }
+
+  getCareerOverview(): AppResult<CareerOverviewView> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      const held = heldCareerRoles(db, personId);
+      const activeRole = activeCareerRole(db, personId);
+      const context = new CareerControlRepository(db).get(personId);
+      const baseRole = context?.baseRole;
+      const isTemporaryPresidentOffice = activeRole === "FEDERATION_PRESIDENT" && Boolean(baseRole);
+      const orgView = (role: CareerRole, targetId?: EntityId): CareerOrganizationView | undefined => {
+        if (!targetId) return undefined;
+        if (role === "FEDERATION_PRESIDENT") {
+          const fed = db
+            .prepare("SELECT name FROM federations WHERE id=?")
+            .get(targetId) as { name?: string } | undefined;
+          return fed?.name ? { label: fed.name } : undefined;
+        }
+        if (role === "MANAGER") {
+          const club = db
+            .prepare("SELECT c.id AS id, c.name FROM teams t JOIN clubs c ON c.id=t.club_id WHERE t.id=?")
+            .get(targetId) as { id: EntityId; name?: string } | undefined;
+          return club
+            ? { label: club.name ?? "", reference: buildEntityReference(db, "CLUB", club.id, "MANAGER") }
+            : undefined;
+        }
+        const club = db
+          .prepare("SELECT id, name FROM clubs WHERE id=?")
+          .get(targetId) as { id: EntityId; name?: string } | undefined;
+        return club
+          ? { label: club.name ?? "", reference: buildEntityReference(db, "CLUB", club.id, "MANAGER") }
+          : undefined;
+      };
+      const heldRoles = held.map((entry) => ({
+        role: entry.role,
+        organization: orgView(entry.role, entry.targetId),
+      }));
+      const activeTarget = held.find((entry) => entry.role === activeRole)?.targetId;
+      const currentOrganization = orgView(activeRole, activeTarget);
+      const tenure = this.careerTenure(db, personId, activeRole, activeTarget);
+      return {
+        personId,
+        name: displayName(getPerson(db, personId)),
+        activeRole,
+        baseRole,
+        isTemporaryPresidentOffice,
+        currentOrganization,
+        tenureStart: tenure.start,
+        tenureEnd: tenure.end,
+        heldRoles: heldRoles as never,
+      } as CareerOverviewView;
+    });
+  }
+
+  /** Canonical current-tenure dates for the active career role. */
+  private careerTenure(
+    db: GameDatabase,
+    personId: EntityId,
+    activeRole: CareerRole,
+    targetId?: EntityId,
+  ): { start?: string; end?: string } {
+    if (activeRole === "MANAGER") {
+      const row = db
+        .prepare(
+          "SELECT contract_start, contract_end FROM manager_contracts WHERE person_id=? AND status='ACTIVE' ORDER BY contract_start DESC, id LIMIT 1",
+        )
+        .get(personId) as { contract_start?: string; contract_end?: string } | undefined;
+      return row ? { start: row.contract_start, end: row.contract_end } : {};
+    }
+    if (activeRole === "CHAIRMAN_OWNER" && targetId) {
+      const row = db
+        .prepare(
+          "SELECT start_date, end_date FROM club_ownership_stakes WHERE holder_id=? AND club_id=? AND status='ACTIVE' LIMIT 1",
+        )
+        .get(personId, targetId) as { start_date?: string; end_date?: string } | undefined;
+      return row ? { start: row.start_date, end: row.end_date } : {};
+    }
+    if (activeRole === "FEDERATION_PRESIDENT" && targetId) {
+      const row = db
+        .prepare(
+          "SELECT term_start, term_end FROM federation_leadership_tenures WHERE person_id=? AND federation_id=? AND status IN ('ACTIVE','INTERIM') LIMIT 1",
+        )
+        .get(personId, targetId) as { term_start?: string; term_end?: string } | undefined;
+      return row ? { start: row.term_start, end: row.term_end } : {};
+    }
+    return {};
   }
 
   getExecutiveAuthority(clubId?: EntityId): AppResult<ExecutiveAuthorityDesktopView | undefined> {

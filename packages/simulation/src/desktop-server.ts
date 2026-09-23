@@ -170,6 +170,8 @@ const dispatch = (
       return service.getCareerHeader();
     case "getCareerRoles":
       return service.getCareerRoles();
+    case "getCareerOverview":
+      return service.getCareerOverview();
     case "getSecretaryOperationsDesk":
       return service.getSecretaryOperationsDesk(body.clubId as EntityId);
     case "getExecutiveRecruitmentDesk":

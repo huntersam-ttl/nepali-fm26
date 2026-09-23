@@ -31,6 +31,8 @@ import { NewsroomScreen } from "./screens/NewsroomScreen.js";
 import { MediaOutletsScreen } from "./screens/MediaOutletsScreen.js";
 import { JournalistsScreen } from "./screens/JournalistsScreen.js";
 import { PressRequestsScreen } from "./screens/PressRequestsScreen.js";
+import { CareerOverviewScreen } from "./screens/CareerOverviewScreen.js";
+import { CareerHistoryScreen } from "./screens/CareerHistoryScreen.js";
 import { TransfersScreen } from "./screens/TransfersScreen.js";
 import { ContractsScreen } from "./screens/ContractsScreen.js";
 import { StaffScreen } from "./screens/StaffScreen.js";
@@ -42,7 +44,7 @@ import type { ChairmanScreen, PresidentScreen } from "./RoleDetailScreen.js";
 import { EntitySurface } from "./EntitySurface.js";
 import { GlobalSearch } from "./GlobalSearch.js";
 import { Breadcrumbs, ContextualNav, useEntityReferenceLabels } from "./ShellContext.js";
-import { contextTrail, workspaceLabel, entityCategoryLabel, dailyOpsNavItems, squadNavItems, clubNavItems, mediaNavItems } from "./navigationLabels.js";
+import { contextTrail, workspaceLabel, entityCategoryLabel, dailyOpsNavItems, squadNavItems, clubNavItems, mediaNavItems, careerNavItems } from "./navigationLabels.js";
 import { StatusChip } from "./StatusChip.js";
 import { MessagesScreen, NewsScreen, CalendarScreen } from "./DedicatedOps.js";
 import { SquadOverview } from "./SquadOverview.js";
@@ -95,6 +97,7 @@ const NAV_GROUPS: Array<{ label: string; items: Screen[] }> = [
   { label: "Recruitment", items: ["recruitment-overview", "player-database", "recommendations", "recruitment-focuses", "shortlists", "squad-planner", "scouting", "transfers", "contracts"] },
   { label: "Club", items: ["club-overview", "club-profile", "club-finances", "club-board", "club-responsibilities", "club-facilities", "club-projects", "club-supporters", "club-commercial", "club-history", "staff", "media"] },
   { label: "Media", items: ["newsroom", "media-outlets", "media-journalists", "media-requests"] },
+  { label: "Career", items: ["career-overview", "career-history"] },
 ];
 
 type RoleScreen = ChairmanScreen | PresidentScreen;
@@ -173,6 +176,8 @@ const LABELS: Record<Screen, string> = {
   "media-outlets": "Media Outlets",
   "media-journalists": "Journalists",
   "media-requests": "Press Requests",
+  "career-overview": "Career Overview",
+  "career-history": "Career History",
 };
 
 const SUBTITLES: Record<Screen, string> = {
@@ -214,6 +219,8 @@ const SUBTITLES: Record<Screen, string> = {
   "media-outlets": "The outlets reporting on Nepali football.",
   "media-journalists": "The journalists covering the game.",
   "media-requests": "Press requests and interviews for the club.",
+  "career-overview": "The human player's identity, current role and career snapshot.",
+  "career-history": "The player's persistent appointments and honours.",
 };
 
 /**
@@ -293,6 +300,11 @@ export const ManagerCareer = ({
   const mediaItems =
     header.activeRole === "MANAGER" && safeDestination.kind === "workspace"
       ? mediaNavItems(String(safeDestination.workspace))
+      : [];
+  // Career family secondary nav (Overview | History) — within the Career family.
+  const careerItems =
+    header.activeRole === "MANAGER" && safeDestination.kind === "workspace"
+      ? careerNavItems(String(safeDestination.workspace))
       : [];
   // NOTE: contextual SECONDARY navigation is intentionally not wired into the
   // live shell yet. The primary sidebar already lists every existing navigable
@@ -618,6 +630,9 @@ export const ManagerCareer = ({
           {mediaItems.length > 1 && (
             <ContextualNav items={mediaItems} onNavigate={(id) => goTo(workspaceForRole(header.activeRole, id))} />
           )}
+          {careerItems.length > 1 && (
+            <ContextualNav items={careerItems} onNavigate={(id) => goTo(workspaceForRole(header.activeRole, id))} />
+          )}
         </header>
       <main className="workspace">
         {error && <ErrorBanner error={error} />}
@@ -888,6 +903,12 @@ export const ManagerCareer = ({
         )}
         {header.activeRole === "MANAGER" && screen === "media-requests" && (
           <PressRequestsScreen onOpenEntity={openEntity} />
+        )}
+        {header.activeRole === "MANAGER" && screen === "career-overview" && (
+          <CareerOverviewScreen onOpenEntity={openEntity} />
+        )}
+        {header.activeRole === "MANAGER" && screen === "career-history" && (
+          <CareerHistoryScreen />
         )}
           </>
         )}

@@ -161,6 +161,29 @@ export type CareerRole =
   | "GENERAL_SECRETARY";
 export type CareerStartMode = "MANAGER" | "OWNER";
 export type CareerRoleState = { activeRole: CareerRole; heldRoles: CareerRole[] };
+
+/** A career organisation (club for Manager/Owner, federation for President)
+ * with a canonical reference where a destination exists. */
+export type CareerOrganizationView = { label: string; reference?: EntityReference };
+export type CareerHeldRoleView = { role: CareerRole; organization?: CareerOrganizationView };
+
+/** Human player career snapshot (Phase 8A): identity + current/base role +
+ * temporary President office + current organisation + current tenure and the
+ * full held-role list. Never exposes contracts beyond the player's own and
+ * never includes hidden reputation/board/ownership-financial state. */
+export type CareerOverviewView = {
+  personId: EntityId;
+  name: string;
+  activeRole: CareerRole;
+  /** The persistent base career role (Manager/Owner) that survives a
+   * temporary presidency. Undefined for a wholly-unplaced person. */
+  baseRole?: Extract<CareerRole, "MANAGER" | "CHAIRMAN_OWNER">;
+  isTemporaryPresidentOffice: boolean;
+  currentOrganization?: CareerOrganizationView;
+  tenureStart?: ISODate;
+  tenureEnd?: ISODate;
+  heldRoles: CareerHeldRoleView[];
+};
 export type FounderLocationOption = {
   id: EntityId;
   province: string;
@@ -1142,6 +1165,7 @@ export type DesktopRuntimeApi = {
   getCareerHeader(): Promise<AppResult<CareerHeader>>;
   getDatasetAttribution(): Promise<AppResult<DatasetAttributionSummary>>;
   getCareerRoles(): Promise<AppResult<CareerRoleState>>;
+  getCareerOverview(): Promise<AppResult<CareerOverviewView>>;
   getExecutiveAuthority(
     clubId?: EntityId,
   ): Promise<AppResult<ExecutiveAuthorityDesktopView | undefined>>;

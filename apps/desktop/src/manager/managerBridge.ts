@@ -25,6 +25,7 @@ import type {
   LiveMatchView,
   LiveTacticsCommand,
   ManagerCareerHistoryView,
+  CareerOverviewView,
   ManagerCompetitionView,
   ManagerDashboard,
   DressingRoomView,
@@ -291,6 +292,7 @@ export const managerBridge = {
     runtimeCall<DesktopApplicationState>("acceptJobOffer", { applicationId }),
   resignFromClub: () => runtimeCall<DesktopApplicationState>("resignFromClub"),
   getCareerHistory: () => runtimeCall<ManagerCareerHistoryView>("getCareerHistory"),
+  getCareerOverview: () => runtimeCall<CareerOverviewView>("getCareerOverview"),
   getMatchSummary: (fixtureId: EntityId) =>
     runtimeCall<QuickSimSummary | undefined>("getMatchSummary", { fixtureId }),
 

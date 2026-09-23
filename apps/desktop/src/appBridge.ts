@@ -5,6 +5,7 @@ import type {
   CareerHeader,
   CareerRole,
   CareerRoleState,
+  CareerOverviewView,
   CareerStartMode,
   ChairmanDashboard,
   OwnerMatchdayView,
@@ -202,6 +203,7 @@ const bindCommands = (call: CommandCaller): DesktopRuntimeApi => ({
   closeCareer: () => call<{ closed: boolean }>("closeCareer"),
   getCareerHeader: () => call<CareerHeader>("getCareerHeader"),
   getCareerRoles: () => call<CareerRoleState>("getCareerRoles"),
+  getCareerOverview: () => call<CareerOverviewView>("getCareerOverview"),
   getExecutiveAuthority: (clubId?: EntityId) =>
     call<ExecutiveAuthorityDesktopView | undefined>("getExecutiveAuthority", { clubId }),
   getExecutiveRecruitmentDesk: (clubId: EntityId) =>

@@ -57,6 +57,8 @@ export const MANAGER_WORKSPACE_LABELS: Record<ManagerWorkspace, string> = {
   "media-outlets": "Media Outlets",
   "media-journalists": "Journalists",
   "media-requests": "Press Requests",
+  "career-overview": "Career Overview",
+  "career-history": "Career History",
 };
 
 const OWNER_WORKSPACE_LABELS: Record<string, string> = {
@@ -112,6 +114,7 @@ export const MANAGER_FAMILIES: Array<{ label: string; items: string[] }> = [
   { label: "Recruitment", items: ["recruitment-overview", "player-database", "recommendations", "recruitment-focuses", "shortlists", "squad-planner", "scouting", "transfers", "contracts"] },
   { label: "Club", items: ["club-overview", "club-profile", "club-finances", "club-board", "club-responsibilities", "club-facilities", "club-projects", "club-supporters", "club-commercial", "club-history", "staff", "media"] },
   { label: "Media", items: ["newsroom", "media-outlets", "media-journalists", "media-requests"] },
+  { label: "Career", items: ["career-overview", "career-history"] },
 ];
 
 export const OWNER_FAMILIES: Array<{ label: string; items: string[] }> = [
@@ -238,6 +241,17 @@ export const mediaNavItems = (workspace: string): ContextualNavItem[] => {
     { id: "media-outlets", label: "Media Outlets", current: workspace === "media-outlets" },
     { id: "media-journalists", label: "Journalists", current: workspace === "media-journalists" },
     { id: "media-requests", label: "Press Requests", current: workspace === "media-requests" },
+  ];
+};
+
+/** The Manager Career family — Overview | History (Phase 8A). */
+export const CAREER_FAMILY: string[] = ["career-overview", "career-history"];
+
+export const careerNavItems = (workspace: string): ContextualNavItem[] => {
+  if (!CAREER_FAMILY.includes(workspace)) return [];
+  return [
+    { id: "career-overview", label: "Overview", current: workspace === "career-overview" },
+    { id: "career-history", label: "History", current: workspace === "career-history" },
   ];
 };
 
