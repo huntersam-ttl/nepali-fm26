@@ -1270,6 +1270,10 @@ export type MediaJournalistDirectoryEntry = {
   name: string;
   outletName: string;
   beat: string;
+  /** Number of completed interviews the manager has held with this journalist. */
+  interactionCount: number;
+  /** Date of the most recent completed interview with this journalist, if any. */
+  lastInteraction?: ISODate;
 };
 
 /** The Media directory read backing the Media Outlets + Journalists

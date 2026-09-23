@@ -34,6 +34,8 @@ export const JournalistsScreen = ({
                       <th>Journalist</th>
                       <th>Outlet</th>
                       <th>Beat</th>
+                      <th>Prior interactions</th>
+                      <th>Last interaction</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -44,6 +46,8 @@ export const JournalistsScreen = ({
                         </td>
                         <td>{entry.outletName}</td>
                         <td>{entry.beat.replaceAll("_", " ").toLowerCase()}</td>
+                        <td>{entry.interactionCount}</td>
+                        <td>{entry.lastInteraction ?? "—"}</td>
                       </tr>
                     ))}
                   </tbody>

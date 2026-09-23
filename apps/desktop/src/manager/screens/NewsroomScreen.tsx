@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import type { EntityId, EntityReferenceType, MediaFeedItem, MediaSection } from "@nepal-football-sim/shared-types";
+import type { EntityId, EntityReferenceType, MediaFeedItem, MediaSection, StoryThread } from "@nepal-football-sim/shared-types";
 import { managerBridge } from "../managerBridge.js";
 import { AsyncPanel, Badge, Panel, useRuntimeData } from "../ui.js";
 import { EntityRefLink } from "../RoleDetailScreen.js";
@@ -34,6 +34,15 @@ export const filterFeed = (feed: MediaFeedItem[], section?: MediaSection): Media
 /** The lead/current story is the first (most recent) item of the filtered feed. */
 export const leadStory = (feed: MediaFeedItem[]): MediaFeedItem | undefined => feed[0];
 
+/** Threads that are still open (not collapsed), newest first (latest event). */
+export const ongoingThreads = (threads: StoryThread[]): StoryThread[] =>
+  threads
+    .filter((thread) => thread.statusLabel !== "Collapsed")
+    .sort((a, b) => (b.latestEvent.occurredOn < a.latestEvent.occurredOn ? 1 : b.latestEvent.occurredOn > a.latestEvent.occurredOn ? -1 : 0));
+
+const threadTone = (statusLabel: string): "ok" | "warn" | "bad" | "info" =>
+  statusLabel === "Resolved" ? "ok" : statusLabel === "Active" ? "warn" : statusLabel === "Collapsed" ? "bad" : "info";
+
 const importanceTone = (band: string): "ok" | "warn" | "bad" | "info" =>
   band === "BREAKING" ? "bad" : band === "MAJOR" ? "warn" : "info";
 
@@ -43,6 +52,7 @@ export const NewsroomScreen = ({
   onOpenEntity: (entityType: EntityReferenceType, id: EntityId) => void;
 }): React.ReactElement => {
   const [state] = useRuntimeData(() => managerBridge.getMediaCentre(), []);
+  const [threadsState] = useRuntimeData(() => managerBridge.getStoryThreads(), []);
   const [section, setSection] = useState<MediaSection | undefined>(undefined);
 
   return (
@@ -91,6 +101,42 @@ export const NewsroomScreen = ({
                     </ul>
                   )}
                 </Panel>
+                <AsyncPanel state={threadsState}>
+                  {(threads) => {
+                    const open = ongoingThreads(threads);
+                    return (
+                      <Panel title="Story threads" className="panel-wide">
+                        {open.length === 0 ? (
+                          <p className="empty-state">No ongoing story threads are being tracked.</p>
+                        ) : (
+                          <ul className="report-list">
+                            {open.map((thread) => (
+                              <li key={`${thread.category}-${thread.primaryEntity.id}`}>
+                                <Badge tone={threadTone(thread.statusLabel)}>{thread.statusLabel.toLowerCase()}</Badge>{" "}
+                                <Badge tone="info">{thread.category.toLowerCase()}</Badge>{" "}
+                                <strong>{thread.latestEvent.title}</strong>
+                                <span className="subtle">{" "}· {thread.events.length} report{thread.events.length === 1 ? "" : "s"} · {thread.latestEvent.occurredOn}</span>
+                                {thread.involvedEntities.length > 0 && (
+                                  <span className="subtle">
+                                    {" "}·{" "}
+                                    {thread.involvedEntities
+                                      .filter((ref) => ref.visible)
+                                      .map((ref, index) => (
+                                        <span key={`${ref.id}-${index}`}>
+                                          {index > 0 ? " · " : null}
+                                          <EntityRefLink reference={ref} onOpen={(r) => onOpenEntity(r.entityType, r.id)} />
+                                        </span>
+                                      ))}
+                                  </span>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </Panel>
+                    );
+                  }}
+                </AsyncPanel>
               </>
             )}
           </>

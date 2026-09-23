@@ -3892,7 +3892,7 @@ export class DesktopApplicationService {
   }
 
   getMediaDirectory(): AppResult<MediaDirectoryView> {
-    return this.managerCommand((db) => buildMediaDirectory(db));
+    return this.managerCommand((db, _save, context) => buildMediaDirectory(db, context.character.personId));
   }
 
   requestPressConference(storyId: EntityId): AppResult<PressConferenceView> {

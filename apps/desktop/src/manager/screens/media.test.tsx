@@ -63,6 +63,7 @@ vi.mock("../managerBridge.js", () => ({
   managerBridge: {
     getMediaCentre: vi.fn(() => ok(mediaCentre)),
     getMediaDirectory: vi.fn(() => ok(directory)),
+    getStoryThreads: vi.fn(() => ok([])),
   },
 }));
 

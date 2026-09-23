@@ -176,12 +176,13 @@ export const buildMediaCentreView = (
 };
 
 /**
- * Phase 7A — the Media directory (Media Outlets + Journalists). Public facts
+ * Phase 7A/7C — the Media directory (Media Outlets + Journalists). Public facts
  * only: persisted outlet/journalist identity, scope/beat, and published-story
- * counts. Internal reputation / reach / bias / temperament values are never
- * exposed here.
+ * counts. Journalist interaction history is the manager's own persisted
+ * completed interviews — a count and most-recent date, never the internal
+ * relationship trust value.
  */
-export const buildMediaDirectory = (db: GameDatabase): MediaDirectoryView => {
+export const buildMediaDirectory = (db: GameDatabase, managerPersonId: EntityId): MediaDirectoryView => {
   const mediaRepo = new MediaRepository(db);
   const phaseB = new MediaPhaseBRepository(db);
   const stories = mediaRepo.stories();
@@ -197,12 +198,27 @@ export const buildMediaDirectory = (db: GameDatabase): MediaDirectoryView => {
     storyCount: storyCounts.get(outlet.id) ?? 0,
   }));
   const outletNames = new Map<EntityId, string>(outlets.map((outlet) => [outlet.reference.id, outlet.name]));
-  const journalists = phaseB.journalists().map((journalist) => ({
-    reference: buildEntityReference(db, "JOURNALIST", journalist.id, "MANAGER"),
-    name: journalist.name,
-    outletName: outletNames.get(journalist.outletId) ?? "",
-    beat: journalist.beat,
-  }));
+  // Completed interviews per journalist for THIS manager — persisted prior
+  // interaction memory, not an internal scoring value.
+  const interactionByJournalist = new Map<EntityId, { count: number; last?: string }>();
+  for (const interview of phaseB.interviews(managerPersonId)) {
+    if (interview.status !== "COMPLETED") continue;
+    const entry = interactionByJournalist.get(interview.journalistId) ?? { count: 0, last: undefined };
+    entry.count += 1;
+    if (!entry.last || entry.last < interview.interviewDate) entry.last = interview.interviewDate;
+    interactionByJournalist.set(interview.journalistId, entry);
+  }
+  const journalists = phaseB.journalists().map((journalist) => {
+    const interaction = interactionByJournalist.get(journalist.id);
+    return {
+      reference: buildEntityReference(db, "JOURNALIST", journalist.id, "MANAGER"),
+      name: journalist.name,
+      outletName: outletNames.get(journalist.outletId) ?? "",
+      beat: journalist.beat,
+      interactionCount: interaction?.count ?? 0,
+      lastInteraction: interaction?.last,
+    };
+  });
   return { outlets, journalists };
 };
 
