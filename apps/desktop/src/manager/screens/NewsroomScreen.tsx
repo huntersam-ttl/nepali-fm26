@@ -46,6 +46,9 @@ const threadTone = (statusLabel: string): "ok" | "warn" | "bad" | "info" =>
 const importanceTone = (band: string): "ok" | "warn" | "bad" | "info" =>
   band === "BREAKING" ? "bad" : band === "MAJOR" ? "warn" : "info";
 
+const reactionTone = (label: string): "ok" | "warn" | "bad" | "info" =>
+  label === "POSITIVE" ? "ok" : label === "MIXED" ? "info" : label === "CRITICAL" ? "warn" : "bad";
+
 export const NewsroomScreen = ({
   onOpenEntity,
 }: {
@@ -160,6 +163,12 @@ const StoryCard = (
         {item.outletName} · {item.story.publishedOn}
       </span>
     </div>
+    {item.reaction && item.reaction.label && (
+      <p className="subtle">
+        <Badge tone={reactionTone(item.reaction.label)}>{item.reaction.label.toLowerCase()}</Badge>{" "}
+        {item.reaction.summary} <Badge tone="info">simulated reaction</Badge>
+      </p>
+    )}
     {item.entities.length > 0 && (
       <p className="subtle">
         Related:{" "}

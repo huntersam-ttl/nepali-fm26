@@ -152,4 +152,34 @@ describe("Journalist interaction context (relationships)", () => {
     expect(body).not.toMatch(/trust|temperament|hostility|agenda/i);
   });
 });
+
+describe("Public reaction (7D)", () => {
+  it("maps the canonical per-story reaction (server-derived label + summary)", () => {
+    const feedItem = mediaCentre.feed[0]!;
+    expect(feedItem.reaction.label).toBe("MIXED");
+    expect(feedItem.reaction.summary).toBe("temperate");
+  });
+
+  it("renders per-story public reaction with simulated provenance", async () => {
+    render(<newsroom.NewsroomScreen onOpenEntity={() => {}} />);
+    await screen.findByText(/simulated reaction/i);
+    const body = document.body.textContent ?? "";
+    expect(body).toMatch(/mixed/i);
+    expect(body).toMatch(/simulated reaction/i);
+  });
+
+  it("never shows fake social-network vanity metrics", async () => {
+    render(<newsroom.NewsroomScreen onOpenEntity={() => {}} />);
+    await screen.findByText(/simulated reaction/i);
+    const body = document.body.textContent ?? "";
+    expect(body).not.toMatch(/likes?|shares?|followers?|trending|reposts?|hashtag|verified|avatar/i);
+  });
+
+  it("never fabricates a direct supporter quote", async () => {
+    render(<newsroom.NewsroomScreen onOpenEntity={() => {}} />);
+    await screen.findByText(/simulated reaction/i);
+    const body = document.body.textContent ?? "";
+    expect(body).not.toMatch(/fan\s*\d+|“|”|⚽|💬/i);
+  });
+});
 afterEach(() => cleanup());
