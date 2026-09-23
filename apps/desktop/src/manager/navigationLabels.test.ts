@@ -179,11 +179,17 @@ describe("club governance family nav (Phase 6B)", () => {
   });
 });
 
-describe("media family nav (Phase 7A)", () => {
-  it("lists Newsroom | Media Outlets | Journalists with the current marked", () => {
+describe("media family nav (Phase 7A/7B)", () => {
+  it("lists Newsroom | Media Outlets | Journalists | Press Requests with the current marked", () => {
     const items = mediaNavItems("media-outlets");
-    expect(items.map((item) => item.label)).toEqual(["Newsroom", "Media Outlets", "Journalists"]);
+    expect(items.map((item) => item.label)).toEqual([
+      "Newsroom",
+      "Media Outlets",
+      "Journalists",
+      "Press Requests",
+    ]);
     expect(items.find((item) => item.current)?.id).toBe("media-outlets");
+    expect(mediaNavItems("media-requests").find((item) => item.current)?.id).toBe("media-requests");
   });
 
   it("is empty outside the media family", () => {
@@ -195,6 +201,7 @@ describe("media family nav (Phase 7A)", () => {
     expect(workspaceLabel(ws("MANAGER", "newsroom"))).toBe("Newsroom");
     expect(workspaceLabel(ws("MANAGER", "media-outlets"))).toBe("Media Outlets");
     expect(workspaceLabel(ws("MANAGER", "media-journalists"))).toBe("Journalists");
+    expect(workspaceLabel(ws("MANAGER", "media-requests"))).toBe("Press Requests");
     expect(contextualNavItems("MANAGER", "newsroom").map((item) => item.label)).toContain("Newsroom");
   });
 });

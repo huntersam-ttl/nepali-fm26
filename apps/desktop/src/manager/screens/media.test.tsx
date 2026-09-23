@@ -76,6 +76,8 @@ beforeAll(async () => {
   journalistsMod = await import("./JournalistsScreen.js");
 });
 
+afterEach(() => cleanup());
+
 describe("Newsroom", () => {
   it("1. maps the canonical feed and picks the lead (most recent) story", () => {
     expect(newsroom.leadStory(feed)?.story.id).toBe(eid("s2"));
@@ -97,7 +99,7 @@ describe("Newsroom", () => {
 
   it("4/5. story cards show date, source/outlet and simulated provenance", async () => {
     render(<newsroom.NewsroomScreen onOpenEntity={() => {}} />);
-    await screen.findByText(/ayush completes move/i);
+    await screen.findAllByText(/ayush completes move/i);
     const page = document.body.textContent ?? "";
     expect(page).toMatch(/yeti sports/i);
     expect(page).toContain("2025-09-02");
@@ -106,7 +108,7 @@ describe("Newsroom", () => {
 
   it("6. renders canonical linked entities as navigation", async () => {
     render(<newsroom.NewsroomScreen onOpenEntity={() => {}} />);
-    await screen.findByText(/ayush completes move/i);
+    await screen.findAllByText(/ayush completes move/i);
     expect(document.querySelectorAll("button.link").length).toBeGreaterThan(0);
   });
 
@@ -120,14 +122,14 @@ describe("Newsroom", () => {
 
   it("8. never fabricates quotes, sources or sensational headlines", async () => {
     render(<newsroom.NewsroomScreen onOpenEntity={() => {}} />);
-    await screen.findByText(/ayush completes move/i);
+    await screen.findAllByText(/ayush completes move/i);
     const page = document.body.textContent ?? "";
     expect(page).not.toMatch(/said|according to sources|"\S{2,}"/i);
   });
 
   it("9. does not leak private transfer/inbox detail through news", async () => {
     render(<newsroom.NewsroomScreen onOpenEntity={() => {}} />);
-    await screen.findByText(/ayush completes move/i);
+    await screen.findAllByText(/ayush completes move/i);
     const page = document.body.textContent ?? "";
     expect(page).not.toMatch(/offer|negotiation|bid|secret|private/i);
   });
@@ -179,4 +181,3 @@ describe("Journalists", () => {
     (bridge.getMediaDirectory as unknown as { mockResolvedValue: (v: unknown) => void }).mockResolvedValue(ok(directory));
   });
 });
-afterEach(() => cleanup());

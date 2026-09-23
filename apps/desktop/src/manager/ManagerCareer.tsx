@@ -30,6 +30,7 @@ import { ClubHistoryScreen } from "./screens/ClubHistoryScreen.js";
 import { NewsroomScreen } from "./screens/NewsroomScreen.js";
 import { MediaOutletsScreen } from "./screens/MediaOutletsScreen.js";
 import { JournalistsScreen } from "./screens/JournalistsScreen.js";
+import { PressRequestsScreen } from "./screens/PressRequestsScreen.js";
 import { TransfersScreen } from "./screens/TransfersScreen.js";
 import { ContractsScreen } from "./screens/ContractsScreen.js";
 import { StaffScreen } from "./screens/StaffScreen.js";
@@ -93,7 +94,7 @@ const NAV_GROUPS: Array<{ label: string; items: Screen[] }> = [
   { label: "Competition", items: ["fixtures", "competition"] },
   { label: "Recruitment", items: ["recruitment-overview", "player-database", "recommendations", "recruitment-focuses", "shortlists", "squad-planner", "scouting", "transfers", "contracts"] },
   { label: "Club", items: ["club-overview", "club-profile", "club-finances", "club-board", "club-responsibilities", "club-facilities", "club-projects", "club-supporters", "club-commercial", "club-history", "staff", "media"] },
-  { label: "Media", items: ["newsroom", "media-outlets", "media-journalists"] },
+  { label: "Media", items: ["newsroom", "media-outlets", "media-journalists", "media-requests"] },
 ];
 
 type RoleScreen = ChairmanScreen | PresidentScreen;
@@ -171,6 +172,7 @@ const LABELS: Record<Screen, string> = {
   newsroom: "Newsroom",
   "media-outlets": "Media Outlets",
   "media-journalists": "Journalists",
+  "media-requests": "Press Requests",
 };
 
 const SUBTITLES: Record<Screen, string> = {
@@ -211,6 +213,7 @@ const SUBTITLES: Record<Screen, string> = {
   newsroom: "World football media — stories, source and date.",
   "media-outlets": "The outlets reporting on Nepali football.",
   "media-journalists": "The journalists covering the game.",
+  "media-requests": "Press requests and interviews for the club.",
 };
 
 /**
@@ -882,6 +885,9 @@ export const ManagerCareer = ({
         )}
         {header.activeRole === "MANAGER" && screen === "media-journalists" && (
           <JournalistsScreen onOpenEntity={openEntity} />
+        )}
+        {header.activeRole === "MANAGER" && screen === "media-requests" && (
+          <PressRequestsScreen onOpenEntity={openEntity} />
         )}
           </>
         )}

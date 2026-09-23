@@ -39,7 +39,7 @@ const goTo = (page: Page, screen: string) =>
     .getByRole("button", { name: screen, exact: true })
     .click();
 
-const SCREENS = ["Newsroom", "Media Outlets", "Journalists"];
+const SCREENS = ["Newsroom", "Media Outlets", "Journalists", "Press Requests"];
 
 test("Media screens have no page overflow at every required width, one h1", async ({ page }) => {
   test.setTimeout(900_000);
