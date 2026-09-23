@@ -129,8 +129,8 @@ describe("squad family nav", () => {
 });
 
 describe("club governance family nav (Phase 6B)", () => {
-  it("20. lists Overview | Profile | Finances | Board | Responsibilities | Facilities | Projects with the current marked", () => {
-    const items = clubNavItems("club-finances");
+  it("30. lists the final Club family with the current marked", () => {
+    const items = clubNavItems("club-supporters");
     expect(items.map((item) => item.label)).toEqual([
       "Overview",
       "Profile",
@@ -139,14 +139,18 @@ describe("club governance family nav (Phase 6B)", () => {
       "Responsibilities",
       "Facilities",
       "Projects",
+      "Supporters",
+      "Commercial",
+      "History & Honours",
     ]);
-    expect(items.find((item) => item.current)?.id).toBe("club-finances");
+    expect(items.find((item) => item.current)?.id).toBe("club-supporters");
     expect(clubNavItems("club-board").find((item) => item.current)?.id).toBe("club-board");
   });
 
-  it("marks Facilities and Projects as current when active (Phase 6C)", () => {
-    expect(clubNavItems("club-facilities").find((item) => item.current)?.id).toBe("club-facilities");
-    expect(clubNavItems("club-projects").find((item) => item.current)?.id).toBe("club-projects");
+  it("marks Facilities, Projects, Supporters, Commercial and History current when active (6C/6D)", () => {
+    for (const id of ["club-facilities", "club-projects", "club-supporters", "club-commercial", "club-history"]) {
+      expect(clubNavItems(id).find((item) => item.current)?.id).toBe(id);
+    }
   });
 
   it("is empty outside the club family", () => {
@@ -154,12 +158,15 @@ describe("club governance family nav (Phase 6B)", () => {
     expect(clubNavItems("home")).toEqual([]);
   });
 
-  it("labels the new governance workspaces for the manager", () => {
+  it("labels the final Club workspaces for the manager", () => {
     expect(workspaceLabel(ws("MANAGER", "club-finances"))).toBe("Club Finances");
     expect(workspaceLabel(ws("MANAGER", "club-board"))).toBe("Club Board");
     expect(workspaceLabel(ws("MANAGER", "club-responsibilities"))).toBe("Responsibilities");
     expect(workspaceLabel(ws("MANAGER", "club-facilities"))).toBe("Facilities");
     expect(workspaceLabel(ws("MANAGER", "club-projects"))).toBe("Infrastructure Projects");
+    expect(workspaceLabel(ws("MANAGER", "club-supporters"))).toBe("Supporters");
+    expect(workspaceLabel(ws("MANAGER", "club-commercial"))).toBe("Commercial");
+    expect(workspaceLabel(ws("MANAGER", "club-history"))).toBe("History & Honours");
   });
 
   it("exposes the club family through the shared contextual nav", () => {
@@ -167,5 +174,6 @@ describe("club governance family nav (Phase 6B)", () => {
     expect(items.map((item) => item.label)).toContain("Club Board");
     expect(items.find((item) => item.current)?.id).toBe("club-board");
     expect(contextualNavItems("MANAGER", "club-facilities").map((item) => item.label)).toContain("Facilities");
+    expect(contextualNavItems("MANAGER", "club-commercial").map((item) => item.label)).toContain("Commercial");
   });
 });

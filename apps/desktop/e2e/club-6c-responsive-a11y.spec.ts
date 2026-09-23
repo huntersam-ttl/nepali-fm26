@@ -40,7 +40,16 @@ const goTo = (page: Page, screen: string) =>
     .getByRole("button", { name: screen, exact: true })
     .click();
 
-const SCREENS = ["Facilities", "Infrastructure Projects", "Club Finances", "Club Board", "Responsibilities"];
+const SCREENS = [
+  "Facilities",
+  "Infrastructure Projects",
+  "Supporters",
+  "Commercial",
+  "History & Honours",
+  "Club Finances",
+  "Club Board",
+  "Responsibilities",
+];
 
 test("Facilities + Projects + 6B governance screens have no page overflow at every required width, one h1", async ({ page }) => {
   test.setTimeout(900_000);

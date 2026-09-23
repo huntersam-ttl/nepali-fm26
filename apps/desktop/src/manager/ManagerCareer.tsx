@@ -24,6 +24,9 @@ import { ClubBoardScreen } from "./screens/ClubBoardScreen.js";
 import { ClubResponsibilitiesScreen } from "./screens/ClubResponsibilitiesScreen.js";
 import { ClubFacilitiesScreen } from "./screens/ClubFacilitiesScreen.js";
 import { ClubProjectsScreen } from "./screens/ClubProjectsScreen.js";
+import { ClubSupportersScreen } from "./screens/ClubSupportersScreen.js";
+import { ClubCommercialScreen } from "./screens/ClubCommercialScreen.js";
+import { ClubHistoryScreen } from "./screens/ClubHistoryScreen.js";
 import { TransfersScreen } from "./screens/TransfersScreen.js";
 import { ContractsScreen } from "./screens/ContractsScreen.js";
 import { StaffScreen } from "./screens/StaffScreen.js";
@@ -86,7 +89,7 @@ const NAV_GROUPS: Array<{ label: string; items: Screen[] }> = [
   { label: "Team", items: ["home", "squad", "dressing-room", "tactics", "training", "medical"] },
   { label: "Competition", items: ["fixtures", "competition"] },
   { label: "Recruitment", items: ["recruitment-overview", "player-database", "recommendations", "recruitment-focuses", "shortlists", "squad-planner", "scouting", "transfers", "contracts"] },
-  { label: "Club", items: ["club-overview", "club-profile", "club-finances", "club-board", "club-responsibilities", "club-facilities", "club-projects", "staff", "media"] },
+  { label: "Club", items: ["club-overview", "club-profile", "club-finances", "club-board", "club-responsibilities", "club-facilities", "club-projects", "club-supporters", "club-commercial", "club-history", "staff", "media"] },
 ];
 
 type RoleScreen = ChairmanScreen | PresidentScreen;
@@ -158,6 +161,9 @@ const LABELS: Record<Screen, string> = {
   "club-responsibilities": "Responsibilities",
   "club-facilities": "Facilities",
   "club-projects": "Infrastructure Projects",
+  "club-supporters": "Supporters",
+  "club-commercial": "Commercial",
+  "club-history": "History & Honours",
 };
 
 const SUBTITLES: Record<Screen, string> = {
@@ -192,6 +198,9 @@ const SUBTITLES: Record<Screen, string> = {
   "club-responsibilities": "Who currently owns each responsibility across the club.",
   "club-facilities": "The club's grounds, training, academy, medical and analysis facilities.",
   "club-projects": "Active and completed infrastructure projects shaping the club.",
+  "club-supporters": "How supporters feel, what they are reacting to, and how connected they are.",
+  "club-commercial": "The club's current commercial partners and commercial standing.",
+  "club-history": "The club's recorded milestones, honours and the manager's institutional record.",
 };
 
 /**
@@ -836,6 +845,15 @@ export const ManagerCareer = ({
         )}
         {header.activeRole === "MANAGER" && screen === "club-projects" && (
           <ClubProjectsScreen clubId={header.clubId} onOpenEntity={openEntity} />
+        )}
+        {header.activeRole === "MANAGER" && screen === "club-supporters" && (
+          <ClubSupportersScreen />
+        )}
+        {header.activeRole === "MANAGER" && screen === "club-commercial" && (
+          <ClubCommercialScreen clubId={header.clubId} onOpenEntity={openEntity} />
+        )}
+        {header.activeRole === "MANAGER" && screen === "club-history" && (
+          <ClubHistoryScreen clubId={header.clubId} onOpenEntity={openEntity} />
         )}
           </>
         )}

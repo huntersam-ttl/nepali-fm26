@@ -37,6 +37,9 @@ export const ClubOverviewScreen = ({
   // duplicating those screens. All three reads are the same canonical sources.
   const [centre] = useRuntimeData(() => managerBridge.getTransferCentre(), []);
   const [boardState] = useRuntimeData(() => managerBridge.getManagerDashboard(), []);
+  // Phase 6D closure summaries: supporter mood, honours count + partner count.
+  const [supportState] = useRuntimeData(() => managerBridge.getSupporterOverview(), []);
+  const [careerState] = useRuntimeData(() => managerBridge.getCareerHistory(), []);
   const idv = identity as unknown as ClubVisualIdentityView | undefined;
 
   if (!clubId) {
@@ -184,6 +187,46 @@ export const ClubOverviewScreen = ({
                       onOpenWorkspace={onOpenWorkspace}
                       context={`${view.campusProjects.length} active project${view.campusProjects.length === 1 ? "" : "s"}`}
                     />
+                  </li>
+                </ul>
+              </Panel>
+
+              <Panel title="Supporters & Beyond" className="panel-wide">
+                <ul className="report-list">
+                  <li>
+                    <GovernanceLink
+                      label="Supporters"
+                      to="club-supporters"
+                      onOpenWorkspace={onOpenWorkspace}
+                      context="Supporters mood and connection"
+                    />
+                    {supportState.status === "ready" && supportState.data ? (
+                      <span className="subtle">
+                        {" "}· {String(supportState.data.unrest ?? "unknown").toLowerCase()} · mood {Math.round(supportState.data.mood)}/100
+                      </span>
+                    ) : null}
+                  </li>
+                  <li>
+                    <GovernanceLink
+                      label="Commercial"
+                      to="club-commercial"
+                      onOpenWorkspace={onOpenWorkspace}
+                      context="Current partners and standing"
+                    />
+                    {view.activeSponsors.length > 0 ? (
+                      <span className="subtle"> · {view.activeSponsors.length} active partner{view.activeSponsors.length === 1 ? "" : "s"}</span>
+                    ) : null}
+                  </li>
+                  <li>
+                    <GovernanceLink
+                      label="History & Honours"
+                      to="club-history"
+                      onOpenWorkspace={onOpenWorkspace}
+                      context="Recorded milestones and honours"
+                    />
+                    {careerState.status === "ready" && careerState.data.trophies.length > 0 ? (
+                      <span className="subtle"> · {careerState.data.trophies.length} honour{careerState.data.trophies.length === 1 ? "" : "s"}</span>
+                    ) : null}
                   </li>
                 </ul>
               </Panel>

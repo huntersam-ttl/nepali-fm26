@@ -50,6 +50,9 @@ export const MANAGER_WORKSPACE_LABELS: Record<ManagerWorkspace, string> = {
   "club-responsibilities": "Responsibilities",
   "club-facilities": "Facilities",
   "club-projects": "Infrastructure Projects",
+  "club-supporters": "Supporters",
+  "club-commercial": "Commercial",
+  "club-history": "History & Honours",
 };
 
 const OWNER_WORKSPACE_LABELS: Record<string, string> = {
@@ -103,7 +106,7 @@ export const MANAGER_FAMILIES: Array<{ label: string; items: string[] }> = [
   { label: "Team", items: ["home", "squad", "dressing-room", "tactics", "training", "medical"] },
   { label: "Competition", items: ["fixtures", "competition"] },
   { label: "Recruitment", items: ["recruitment-overview", "player-database", "recommendations", "recruitment-focuses", "shortlists", "squad-planner", "scouting", "transfers", "contracts"] },
-  { label: "Club", items: ["club-overview", "club-profile", "club-finances", "club-board", "club-responsibilities", "club-facilities", "club-projects", "staff", "media"] },
+  { label: "Club", items: ["club-overview", "club-profile", "club-finances", "club-board", "club-responsibilities", "club-facilities", "club-projects", "club-supporters", "club-commercial", "club-history", "staff", "media"] },
 ];
 
 export const OWNER_FAMILIES: Array<{ label: string; items: string[] }> = [
@@ -197,6 +200,9 @@ export const CLUB_FAMILY: string[] = [
   "club-responsibilities",
   "club-facilities",
   "club-projects",
+  "club-supporters",
+  "club-commercial",
+  "club-history",
 ];
 
 export const clubNavItems = (workspace: string): ContextualNavItem[] => {
@@ -209,6 +215,9 @@ export const clubNavItems = (workspace: string): ContextualNavItem[] => {
     { id: "club-responsibilities", label: "Responsibilities", current: workspace === "club-responsibilities" },
     { id: "club-facilities", label: "Facilities", current: workspace === "club-facilities" },
     { id: "club-projects", label: "Projects", current: workspace === "club-projects" },
+    { id: "club-supporters", label: "Supporters", current: workspace === "club-supporters" },
+    { id: "club-commercial", label: "Commercial", current: workspace === "club-commercial" },
+    { id: "club-history", label: "History & Honours", current: workspace === "club-history" },
   ];
 };
 
