@@ -175,6 +175,7 @@ import {
   type MatchSessionRecord,
   type MatchViewMode,
   type MediaCentreView,
+  type MediaDirectoryView,
   type MediaInterview,
   type MediaResponseStance,
   type PressConferenceView,
@@ -572,6 +573,7 @@ import {
   answerManagerPressConference,
   answerManagerStructuredPressQuestion,
   buildMediaCentreView,
+  buildMediaDirectory,
   buildSupporterOverview,
   evaluateManagerPreMatchPress,
   getManagerStructuredPressConference,
@@ -3887,6 +3889,10 @@ export class DesktopApplicationService {
 
   getMediaCentre(): AppResult<MediaCentreView> {
     return this.managerCommand((db, save, context) => buildMediaCentreView(db, save, context));
+  }
+
+  getMediaDirectory(): AppResult<MediaDirectoryView> {
+    return this.managerCommand((db) => buildMediaDirectory(db));
   }
 
   requestPressConference(storyId: EntityId): AppResult<PressConferenceView> {

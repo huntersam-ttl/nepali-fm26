@@ -56,6 +56,9 @@ export const MANAGER_WORKSPACES = [
   "messages",
   "news",
   "calendar",
+  "newsroom",
+  "media-outlets",
+  "media-journalists",
 ] as const;
 export type ManagerWorkspace = (typeof MANAGER_WORKSPACES)[number];
 

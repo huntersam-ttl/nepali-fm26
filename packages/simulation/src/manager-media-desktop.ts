@@ -10,6 +10,7 @@ import type {
   MediaResponseStance,
   MediaSection,
   MediaStory,
+  MediaDirectoryView,
   PressConferenceView,
   PressResponseStance,
   SaveMetadata,
@@ -172,6 +173,37 @@ export const buildMediaCentreView = (
     pendingInterview,
     completedInterviews: interviews.filter((item) => item.status === "COMPLETED").slice(-8).reverse(),
   };
+};
+
+/**
+ * Phase 7A — the Media directory (Media Outlets + Journalists). Public facts
+ * only: persisted outlet/journalist identity, scope/beat, and published-story
+ * counts. Internal reputation / reach / bias / temperament values are never
+ * exposed here.
+ */
+export const buildMediaDirectory = (db: GameDatabase): MediaDirectoryView => {
+  const mediaRepo = new MediaRepository(db);
+  const phaseB = new MediaPhaseBRepository(db);
+  const stories = mediaRepo.stories();
+  const storyCounts = new Map<EntityId, number>();
+  for (const story of stories) {
+    if (story.status !== "PUBLISHED") continue;
+    storyCounts.set(story.outletId, (storyCounts.get(story.outletId) ?? 0) + 1);
+  }
+  const outlets = mediaRepo.outlets().map((outlet) => ({
+    reference: buildEntityReference(db, "MEDIA_OUTLET", outlet.id, "MANAGER"),
+    name: outlet.name,
+    scope: outlet.scope,
+    storyCount: storyCounts.get(outlet.id) ?? 0,
+  }));
+  const outletNames = new Map<EntityId, string>(outlets.map((outlet) => [outlet.reference.id, outlet.name]));
+  const journalists = phaseB.journalists().map((journalist) => ({
+    reference: buildEntityReference(db, "JOURNALIST", journalist.id, "MANAGER"),
+    name: journalist.name,
+    outletName: outletNames.get(journalist.outletId) ?? "",
+    beat: journalist.beat,
+  }));
+  return { outlets, journalists };
 };
 
 export const requestManagerPressConference = (

@@ -53,6 +53,9 @@ export const MANAGER_WORKSPACE_LABELS: Record<ManagerWorkspace, string> = {
   "club-supporters": "Supporters",
   "club-commercial": "Commercial",
   "club-history": "History & Honours",
+  newsroom: "Newsroom",
+  "media-outlets": "Media Outlets",
+  "media-journalists": "Journalists",
 };
 
 const OWNER_WORKSPACE_LABELS: Record<string, string> = {
@@ -107,6 +110,7 @@ export const MANAGER_FAMILIES: Array<{ label: string; items: string[] }> = [
   { label: "Competition", items: ["fixtures", "competition"] },
   { label: "Recruitment", items: ["recruitment-overview", "player-database", "recommendations", "recruitment-focuses", "shortlists", "squad-planner", "scouting", "transfers", "contracts"] },
   { label: "Club", items: ["club-overview", "club-profile", "club-finances", "club-board", "club-responsibilities", "club-facilities", "club-projects", "club-supporters", "club-commercial", "club-history", "staff", "media"] },
+  { label: "Media", items: ["newsroom", "media-outlets", "media-journalists"] },
 ];
 
 export const OWNER_FAMILIES: Array<{ label: string; items: string[] }> = [
@@ -218,6 +222,20 @@ export const clubNavItems = (workspace: string): ContextualNavItem[] => {
     { id: "club-supporters", label: "Supporters", current: workspace === "club-supporters" },
     { id: "club-commercial", label: "Commercial", current: workspace === "club-commercial" },
     { id: "club-history", label: "History & Honours", current: workspace === "club-history" },
+  ];
+};
+
+/** The Manager Media family — Newsroom | Media Outlets | Journalists
+ * (Phase 7A). Distinct from the press-conference Media workspace and the Daily
+ * Ops News workspace. */
+export const MEDIA_FAMILY: string[] = ["newsroom", "media-outlets", "media-journalists"];
+
+export const mediaNavItems = (workspace: string): ContextualNavItem[] => {
+  if (!MEDIA_FAMILY.includes(workspace)) return [];
+  return [
+    { id: "newsroom", label: "Newsroom", current: workspace === "newsroom" },
+    { id: "media-outlets", label: "Media Outlets", current: workspace === "media-outlets" },
+    { id: "media-journalists", label: "Journalists", current: workspace === "media-journalists" },
   ];
 };
 

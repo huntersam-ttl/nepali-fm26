@@ -1,5 +1,5 @@
 import type { EntityId } from "./ids.js";
-import type { AdvanceMatchCommand, FixtureRow, LiveMatchView } from "./manager-contract.js";
+import type { AdvanceMatchCommand, FixtureRow, LiveMatchView, MediaDirectoryView } from "./manager-contract.js";
 import type { OwnerPostMatchSuggestion } from "./owner-meeting-suggestion.js";
 import type {
   FixtureRecord,
@@ -1292,6 +1292,7 @@ export type DesktopRuntimeApi = {
   getStoryThreads?: () => Promise<AppResult<StoryThread[]>>;
   getStoryDetail?: (eventId: EntityId) => Promise<AppResult<StoryDetail>>;
   getEntityStoryline?: (entityId: EntityId) => Promise<AppResult<EntityStoryline>>;
+  getMediaDirectory?: () => Promise<AppResult<MediaDirectoryView>>;
   getFederationMap?: () => Promise<AppResult<FederationMap>>;
   getDistrictDetail?: (districtId: EntityId) => Promise<AppResult<DistrictDetail>>;
   /** A district's own storyline — events that canonically resolve into this

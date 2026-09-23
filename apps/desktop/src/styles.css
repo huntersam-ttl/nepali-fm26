@@ -4003,3 +4003,20 @@ a.link:focus-visible {
 .responsibility-group .table-scroll {
   margin-top: 0.35rem;
 }
+
+/* Phase 7A — Media newsroom + story cards. */
+.newsroom-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 0 0 1rem;
+}
+
+.story-card h3 {
+  margin: 0 0 0.35rem;
+}
+
+.story-card .report-list {
+  margin: 0.3rem 0 0;
+}

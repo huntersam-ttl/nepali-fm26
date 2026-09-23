@@ -727,6 +727,8 @@ const dispatch = (
       return service.getCareerHistory();
     case "getMediaCentre":
       return service.getMediaCentre();
+    case "getMediaDirectory":
+      return service.getMediaDirectory();
     case "requestPressConference":
       return service.requestPressConference(body.storyId as EntityId);
     case "answerPressConference":

@@ -29,6 +29,7 @@ import type {
   ManagerDashboard,
   DressingRoomView,
   MediaCentreView,
+  MediaDirectoryView,
   MediaResponseStance,
   PressConferenceView,
   PressResponseStance,
@@ -151,6 +152,7 @@ export const managerBridge = {
       commitment,
     }),
   getMediaCentre: () => runtimeCall<MediaCentreView>("getMediaCentre"),
+  getMediaDirectory: () => runtimeCall<MediaDirectoryView>("getMediaDirectory"),
   requestPressConference: (storyId: EntityId) =>
     runtimeCall<PressConferenceView>("requestPressConference", { storyId }),
   answerPressConference: (input: {

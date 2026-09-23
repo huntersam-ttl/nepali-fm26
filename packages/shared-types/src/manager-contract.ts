@@ -1255,6 +1255,31 @@ export type MediaFeedItem = {
   threadStatus?: "Active" | "Waiting" | "Resolved" | "Collapsed";
 };
 
+/** One media outlet in the manager's Media directory — public facts only. */
+export type MediaOutletDirectoryEntry = {
+  reference: EntityReference;
+  name: string;
+  scope: string;
+  /** Number of published stories attributed to this outlet. */
+  storyCount: number;
+};
+
+/** One journalist in the manager's Media directory — public facts only. */
+export type MediaJournalistDirectoryEntry = {
+  reference: EntityReference;
+  name: string;
+  outletName: string;
+  beat: string;
+};
+
+/** The Media directory read backing the Media Outlets + Journalists
+ * destinations. Persisted outlets/journalists with canonical references; no
+ * fabricated metadata and no internal reputation/bias/temperament values. */
+export type MediaDirectoryView = {
+  outlets: MediaOutletDirectoryEntry[];
+  journalists: MediaJournalistDirectoryEntry[];
+};
+
 export type PressConferenceQuestion = {
   id: string;
   prompt: string;

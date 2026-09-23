@@ -8,6 +8,7 @@ import {
   dailyOpsNavItems,
   squadNavItems,
   clubNavItems,
+  mediaNavItems,
   workspaceLabel,
 } from "./navigationLabels.js";
 
@@ -175,5 +176,25 @@ describe("club governance family nav (Phase 6B)", () => {
     expect(items.find((item) => item.current)?.id).toBe("club-board");
     expect(contextualNavItems("MANAGER", "club-facilities").map((item) => item.label)).toContain("Facilities");
     expect(contextualNavItems("MANAGER", "club-commercial").map((item) => item.label)).toContain("Commercial");
+  });
+});
+
+describe("media family nav (Phase 7A)", () => {
+  it("lists Newsroom | Media Outlets | Journalists with the current marked", () => {
+    const items = mediaNavItems("media-outlets");
+    expect(items.map((item) => item.label)).toEqual(["Newsroom", "Media Outlets", "Journalists"]);
+    expect(items.find((item) => item.current)?.id).toBe("media-outlets");
+  });
+
+  it("is empty outside the media family", () => {
+    expect(mediaNavItems("media")).toEqual([]);
+    expect(mediaNavItems("club-overview")).toEqual([]);
+  });
+
+  it("labels the media workspaces and exposes them via the shared contextual nav", () => {
+    expect(workspaceLabel(ws("MANAGER", "newsroom"))).toBe("Newsroom");
+    expect(workspaceLabel(ws("MANAGER", "media-outlets"))).toBe("Media Outlets");
+    expect(workspaceLabel(ws("MANAGER", "media-journalists"))).toBe("Journalists");
+    expect(contextualNavItems("MANAGER", "newsroom").map((item) => item.label)).toContain("Newsroom");
   });
 });
