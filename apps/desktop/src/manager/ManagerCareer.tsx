@@ -22,6 +22,8 @@ import { ClubProfileScreen } from "./screens/ClubProfileScreen.js";
 import { ClubFinancesScreen } from "./screens/ClubFinancesScreen.js";
 import { ClubBoardScreen } from "./screens/ClubBoardScreen.js";
 import { ClubResponsibilitiesScreen } from "./screens/ClubResponsibilitiesScreen.js";
+import { ClubFacilitiesScreen } from "./screens/ClubFacilitiesScreen.js";
+import { ClubProjectsScreen } from "./screens/ClubProjectsScreen.js";
 import { TransfersScreen } from "./screens/TransfersScreen.js";
 import { ContractsScreen } from "./screens/ContractsScreen.js";
 import { StaffScreen } from "./screens/StaffScreen.js";
@@ -84,7 +86,7 @@ const NAV_GROUPS: Array<{ label: string; items: Screen[] }> = [
   { label: "Team", items: ["home", "squad", "dressing-room", "tactics", "training", "medical"] },
   { label: "Competition", items: ["fixtures", "competition"] },
   { label: "Recruitment", items: ["recruitment-overview", "player-database", "recommendations", "recruitment-focuses", "shortlists", "squad-planner", "scouting", "transfers", "contracts"] },
-  { label: "Club", items: ["club-overview", "club-profile", "club-finances", "club-board", "club-responsibilities", "staff", "media"] },
+  { label: "Club", items: ["club-overview", "club-profile", "club-finances", "club-board", "club-responsibilities", "club-facilities", "club-projects", "staff", "media"] },
 ];
 
 type RoleScreen = ChairmanScreen | PresidentScreen;
@@ -154,6 +156,8 @@ const LABELS: Record<Screen, string> = {
   "club-finances": "Club Finances",
   "club-board": "Club Board",
   "club-responsibilities": "Responsibilities",
+  "club-facilities": "Facilities",
+  "club-projects": "Infrastructure Projects",
 };
 
 const SUBTITLES: Record<Screen, string> = {
@@ -186,6 +190,8 @@ const SUBTITLES: Record<Screen, string> = {
   "club-finances": "What the football department can spend, and its current commitments.",
   "club-board": "Who governs the club and how the Manager is being judged.",
   "club-responsibilities": "Who currently owns each responsibility across the club.",
+  "club-facilities": "The club's grounds, training, academy, medical and analysis facilities.",
+  "club-projects": "Active and completed infrastructure projects shaping the club.",
 };
 
 /**
@@ -824,6 +830,12 @@ export const ManagerCareer = ({
         )}
         {header.activeRole === "MANAGER" && screen === "club-responsibilities" && (
           <ClubResponsibilitiesScreen />
+        )}
+        {header.activeRole === "MANAGER" && screen === "club-facilities" && (
+          <ClubFacilitiesScreen clubId={header.clubId} onOpenEntity={openEntity} />
+        )}
+        {header.activeRole === "MANAGER" && screen === "club-projects" && (
+          <ClubProjectsScreen clubId={header.clubId} onOpenEntity={openEntity} />
         )}
           </>
         )}

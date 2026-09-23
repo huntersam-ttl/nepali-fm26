@@ -129,11 +129,24 @@ describe("squad family nav", () => {
 });
 
 describe("club governance family nav (Phase 6B)", () => {
-  it("20. lists Overview | Profile | Finances | Board | Responsibilities with the current marked", () => {
+  it("20. lists Overview | Profile | Finances | Board | Responsibilities | Facilities | Projects with the current marked", () => {
     const items = clubNavItems("club-finances");
-    expect(items.map((item) => item.label)).toEqual(["Overview", "Profile", "Finances", "Board", "Responsibilities"]);
+    expect(items.map((item) => item.label)).toEqual([
+      "Overview",
+      "Profile",
+      "Finances",
+      "Board",
+      "Responsibilities",
+      "Facilities",
+      "Projects",
+    ]);
     expect(items.find((item) => item.current)?.id).toBe("club-finances");
     expect(clubNavItems("club-board").find((item) => item.current)?.id).toBe("club-board");
+  });
+
+  it("marks Facilities and Projects as current when active (Phase 6C)", () => {
+    expect(clubNavItems("club-facilities").find((item) => item.current)?.id).toBe("club-facilities");
+    expect(clubNavItems("club-projects").find((item) => item.current)?.id).toBe("club-projects");
   });
 
   it("is empty outside the club family", () => {
@@ -145,11 +158,14 @@ describe("club governance family nav (Phase 6B)", () => {
     expect(workspaceLabel(ws("MANAGER", "club-finances"))).toBe("Club Finances");
     expect(workspaceLabel(ws("MANAGER", "club-board"))).toBe("Club Board");
     expect(workspaceLabel(ws("MANAGER", "club-responsibilities"))).toBe("Responsibilities");
+    expect(workspaceLabel(ws("MANAGER", "club-facilities"))).toBe("Facilities");
+    expect(workspaceLabel(ws("MANAGER", "club-projects"))).toBe("Infrastructure Projects");
   });
 
   it("exposes the club family through the shared contextual nav", () => {
     const items = contextualNavItems("MANAGER", "club-board");
     expect(items.map((item) => item.label)).toContain("Club Board");
     expect(items.find((item) => item.current)?.id).toBe("club-board");
+    expect(contextualNavItems("MANAGER", "club-facilities").map((item) => item.label)).toContain("Facilities");
   });
 });

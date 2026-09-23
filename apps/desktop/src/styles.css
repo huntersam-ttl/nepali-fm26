@@ -3978,6 +3978,23 @@ a.link:focus-visible {
   outline: 2px solid var(--accent-2);
   outline-offset: 1px;
 }
+/* Phase 6C — Club facilities hero + supporting rows. */
+.facility-hero {
+  border: 1px solid var(--border, rgba(127, 127, 127, 0.35));
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  margin: 0 0 1.25rem;
+}
+
+.facility-hero .facility-title {
+  font-size: 1.15rem;
+  margin: 0 0 0.6rem;
+}
+
+.facility-hero .report-list {
+  margin: 0.4rem 0 0;
+}
+
 /* Phase 6B — Club governance responsibilities grouping. */
 .responsibility-group {
   margin: 0 0 1.25rem;

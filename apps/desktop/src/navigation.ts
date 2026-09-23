@@ -31,6 +31,8 @@ export const MANAGER_WORKSPACES = [
   "club-finances",
   "club-board",
   "club-responsibilities",
+  "club-facilities",
+  "club-projects",
   "dressing-room",
   "tactics",
   "training",

@@ -133,10 +133,12 @@ test("Role switch drops prior-role context (Owner -> Manager -> President)", asy
   await expect(page.getByText("Club balance")).toBeVisible();
   await expect(primaryNav(page).getByRole("button", { name: "Facilities", exact: true })).toBeVisible();
 
-  // Switch to Manager: owner context is gone, single workspace, no stale trail.
+  // Switch to Manager: Owner-only workspaces are gone and the trail is clean,
+  // while the Manager's own Club-family Facilities (Phase 6C) is present.
   await page.getByLabel("Active career role").selectOption("MANAGER");
   await expect(page.locator(".page-header h2")).toHaveText("Home / Inbox");
-  await expect(primaryNav(page).getByRole("button", { name: "Facilities", exact: true })).toHaveCount(0);
+  await expect(primaryNav(page).getByRole("button", { name: "Investors", exact: true })).toHaveCount(0);
+  await expect(primaryNav(page).getByRole("button", { name: "Facilities", exact: true })).toBeVisible();
   await expect(primaryNav(page).getByRole("button", { name: "Squad", exact: true })).toBeVisible();
   await expect(breadcrumb(page)).toHaveCount(0);
 

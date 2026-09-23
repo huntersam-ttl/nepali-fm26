@@ -48,6 +48,8 @@ export const MANAGER_WORKSPACE_LABELS: Record<ManagerWorkspace, string> = {
   "club-finances": "Club Finances",
   "club-board": "Club Board",
   "club-responsibilities": "Responsibilities",
+  "club-facilities": "Facilities",
+  "club-projects": "Infrastructure Projects",
 };
 
 const OWNER_WORKSPACE_LABELS: Record<string, string> = {
@@ -101,7 +103,7 @@ export const MANAGER_FAMILIES: Array<{ label: string; items: string[] }> = [
   { label: "Team", items: ["home", "squad", "dressing-room", "tactics", "training", "medical"] },
   { label: "Competition", items: ["fixtures", "competition"] },
   { label: "Recruitment", items: ["recruitment-overview", "player-database", "recommendations", "recruitment-focuses", "shortlists", "squad-planner", "scouting", "transfers", "contracts"] },
-  { label: "Club", items: ["club-overview", "club-profile", "club-finances", "club-board", "club-responsibilities", "staff", "media"] },
+  { label: "Club", items: ["club-overview", "club-profile", "club-finances", "club-board", "club-responsibilities", "club-facilities", "club-projects", "staff", "media"] },
 ];
 
 export const OWNER_FAMILIES: Array<{ label: string; items: string[] }> = [
@@ -193,6 +195,8 @@ export const CLUB_FAMILY: string[] = [
   "club-finances",
   "club-board",
   "club-responsibilities",
+  "club-facilities",
+  "club-projects",
 ];
 
 export const clubNavItems = (workspace: string): ContextualNavItem[] => {
@@ -203,6 +207,8 @@ export const clubNavItems = (workspace: string): ContextualNavItem[] => {
     { id: "club-finances", label: "Finances", current: workspace === "club-finances" },
     { id: "club-board", label: "Board", current: workspace === "club-board" },
     { id: "club-responsibilities", label: "Responsibilities", current: workspace === "club-responsibilities" },
+    { id: "club-facilities", label: "Facilities", current: workspace === "club-facilities" },
+    { id: "club-projects", label: "Projects", current: workspace === "club-projects" },
   ];
 };
 

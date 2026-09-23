@@ -161,6 +161,32 @@ export const ClubOverviewScreen = ({
                   </li>
                 </ul>
               </Panel>
+
+              <Panel title="Facilities & Projects" className="panel-wide">
+                <ul className="report-list">
+                  <li>
+                    <GovernanceLink
+                      label="Facilities"
+                      to="club-facilities"
+                      onOpenWorkspace={onOpenWorkspace}
+                      context={view.stadium ? `Home ground ${view.stadium.name}` : "No stadium relation identified"}
+                    />
+                    {view.facilitySnapshot && (
+                      <span className="subtle">
+                        {" "}· training level {view.facilitySnapshot.trainingFacilityQuality}
+                      </span>
+                    )}
+                  </li>
+                  <li>
+                    <GovernanceLink
+                      label="Infrastructure Projects"
+                      to="club-projects"
+                      onOpenWorkspace={onOpenWorkspace}
+                      context={`${view.campusProjects.length} active project${view.campusProjects.length === 1 ? "" : "s"}`}
+                    />
+                  </li>
+                </ul>
+              </Panel>
             </>
           );
         }}
