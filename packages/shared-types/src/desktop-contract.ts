@@ -1163,6 +1163,8 @@ export type NationalTeamMatchView = {
   opponent: string;
   kind: string;
   editionId?: EntityId;
+  /** Played by the season batch although its date is after the world date. */
+  simulatedAhead?: boolean;
   competition?: string;
   stage?: string;
   group?: string;
@@ -1191,6 +1193,7 @@ export type NationalTeamCompetitionContext = {
     losses: number;
     qualificationStatus: string;
   };
+  registration?: { status: string; locked: boolean; playerCount: number; deadline: ISODate };
 };
 
 export type NationalTeamAttentionItem = {
@@ -1322,6 +1325,8 @@ export type NationalTeamCompetitionEntry = {
   registration?: NationalTeamRegistrationView;
   /** Players recorded as on duty for this competition. */
   onDutyCount: number;
+  /** Some matches were played by the season batch ahead of their scheduled dates. */
+  simulatedAhead: boolean;
 };
 
 export type NationalTeamCompetitionsView = {

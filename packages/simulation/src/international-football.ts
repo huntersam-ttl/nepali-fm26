@@ -26,6 +26,7 @@ import {
   EventRepository,
   FederationGovernanceRepository,
   InternationalFootballRepository,
+  NationalTeamManagementRepository,
   type GameDatabase,
 } from "@nepal-football-sim/database";
 import {
@@ -37,7 +38,7 @@ import {
 } from "./federation-governance.js";
 import { buildAiTacticalSetup, resolveTeamTacticalSetup } from "./ai-tactics.js";
 import { simulateMatch } from "./match-engine.js";
-import { ensureNationalTeamStaffStructure } from "./national-team-management.js";
+import { ensureNationalTeamStaffStructure, recordNationalTeamEditionEntry } from "./national-team-management.js";
 import { SeededRandom } from "./rng.js";
 
 const simulationStatus = "SIMULATION_ONLY" as const;
@@ -679,7 +680,8 @@ export const simulateInternationalMatch = (
           seed,
           date: match.matchDate,
           importance: match.importance,
-          knockout: Boolean(match.stageId),
+          // Only a knockout tie is settled by extra time and penalties; a group match can end level.
+          knockout: Boolean(match.stageId) && !match.groupName,
         });
   const played: InternationalMatch = {
     ...match,
@@ -688,6 +690,7 @@ export const simulateInternationalMatch = (
   };
   repo.upsertMatch(played);
   updateTeamProfilesAfterMatch(db, played);
+  if (nepalNationalTeamId && match.editionId) syncNationalTeamCampaign(db, match.editionId, nepalNationalTeamId);
   return played;
 };
 
@@ -723,6 +726,8 @@ export const advanceInternationalCompetition = (
   let qualified: Array<{ teamProfileId: EntityId; points: number; goalDifference: number; goalsFor: number }> = standings.flatMap((group) =>
     group.rows.slice(0, Math.max(1, firstStage.teamsToAdvance)),
   );
+  markEliminatedExcept(repo, editionId, qualified.map((team) => team.teamProfileId));
+  syncNepalCampaign(db, editionId);
   for (const stage of stages.slice(1)) {
     const stageMatches = createKnockoutMatches(repo, edition, stage, qualified);
     for (const match of stageMatches) {
@@ -738,6 +743,8 @@ export const advanceInternationalCompetition = (
       )
       .filter((id): id is EntityId => Boolean(id))
       .map((teamProfileId) => ({ teamProfileId, points: 0, goalDifference: 0, goalsFor: 0 }));
+    markEliminatedExcept(repo, editionId, qualified.map((team) => team.teamProfileId));
+    syncNepalCampaign(db, editionId);
   }
   const played = repo.matches(editionId);
   const championId =
@@ -745,14 +752,16 @@ export const advanceInternationalCompetition = (
       .filter((match) => match.winnerTeamProfileId)
       .sort((a, b) => b.matchDate.localeCompare(a.matchDate))[0]?.winnerTeamProfileId ??
     qualified[0]?.teamProfileId;
-  const participants = repo.participants(editionId);
-  participants.forEach((participant, index) => {
+  // Only the champion has a placement the record can support: the format has no
+  // final and no cross-group ranking, so nobody else gets an ordinal.
+  for (const participant of repo.participants(editionId)) {
     repo.upsertParticipant({
       ...participant,
       entryStatus: participant.teamProfileId === championId ? "CHAMPION" : "ELIMINATED",
-      finalPlacement: participant.teamProfileId === championId ? 1 : index + 2,
+      finalPlacement: participant.teamProfileId === championId ? 1 : undefined,
     });
-  });
+  }
+  syncNepalCampaign(db, editionId);
   markEdition(db, editionId, "COMPLETED");
   calculateSimulationWorldRanking(db, edition.endDate);
   recordInternationalHistory(db, editionId);
@@ -766,7 +775,76 @@ export const advanceInternationalCompetition = (
   };
 };
 
-const ensureNepalDutyForEdition = (
+/** The simulation picks and fixes an edition's squad this many days before the edition starts. */
+const EDITION_SQUAD_LEAD_DAYS = 7;
+
+/** Marks every still-alive participant that is not in `alive` as eliminated. */
+const markEliminatedExcept = (
+  repo: InternationalFootballRepository,
+  editionId: EntityId,
+  alive: EntityId[],
+): void => {
+  const stillIn = new Set(alive);
+  for (const participant of repo.participants(editionId)) {
+    if (stillIn.has(participant.teamProfileId)) continue;
+    if (participant.entryStatus === "ELIMINATED" || participant.entryStatus === "CHAMPION") continue;
+    repo.upsertParticipant({ ...participant, entryStatus: "ELIMINATED" });
+  }
+};
+
+/**
+ * Brings a national team's campaign record in line with the matches played in
+ * the edition, from the team's own side (a match level on goals is a draw), and
+ * with its participant status. Does nothing if the team has no campaign.
+ */
+const syncNationalTeamCampaign = (db: GameDatabase, editionId: EntityId, nationalTeamId: EntityId): void => {
+  const management = new NationalTeamManagementRepository(db);
+  const campaign = management.campaigns(nationalTeamId).find((item) => item.competitionEditionId === editionId);
+  if (!campaign) return;
+  const repo = new InternationalFootballRepository(db);
+  const own = repo.teamProfiles().find((profile) => profile.nationalTeamId === nationalTeamId);
+  if (!own) return;
+  const participant = repo.participants(editionId).find((item) => item.teamProfileId === own.id);
+  let wins = 0;
+  let draws = 0;
+  let losses = 0;
+  for (const match of repo.matches(editionId)) {
+    const isHome = match.homeTeamProfileId === own.id;
+    if (match.status !== "PLAYED" || (!isHome && match.awayTeamProfileId !== own.id)) continue;
+    if (match.homeGoals === undefined || match.awayGoals === undefined) continue;
+    const goalsFor = isHome ? match.homeGoals : match.awayGoals;
+    const goalsAgainst = isHome ? match.awayGoals : match.homeGoals;
+    if (goalsFor > goalsAgainst) wins += 1;
+    else if (goalsFor < goalsAgainst) losses += 1;
+    else draws += 1;
+  }
+  management.upsertCampaign({
+    ...campaign,
+    matchesPlayed: wins + draws + losses,
+    wins,
+    draws,
+    losses,
+    qualificationStatus:
+      participant?.entryStatus === "ELIMINATED" ? "ELIMINATED" : participant?.entryStatus === "CHAMPION" ? "COMPLETED" : "ACTIVE",
+  });
+};
+
+const syncNepalCampaign = (db: GameDatabase, editionId: EntityId): void => {
+  const repo = new InternationalFootballRepository(db);
+  const nepal = repo
+    .participants(editionId)
+    .map((participant) => repo.teamProfile(participant.teamProfileId))
+    .find((profile): profile is InternationalTeamProfile => Boolean(profile?.nationalTeamId));
+  if (nepal?.nationalTeamId) syncNationalTeamCampaign(db, editionId, nepal.nationalTeamId);
+};
+
+/**
+ * Enters Nepal's team for the edition: the simulation chooses the squad (the
+ * edition's final-squad size, fixed a week before the edition starts), records
+ * that squad as the team's final registration, opens its campaign and puts the
+ * players on duty. Safe to repeat: a registered squad is never replaced.
+ */
+export const ensureNepalDutyForEdition = (
   db: GameDatabase,
   edition: InternationalCompetitionEdition,
   seed: string,
@@ -780,25 +858,28 @@ const ensureNepalDutyForEdition = (
   const federation = anfaFederation(db);
   const nationalTeamId = nepal.nationalTeamId;
   if (!nationalTeamParticipationAllowed(db, federation.id)) return;
-  selectNationalTeamSquad(db, {
+  const squadDate = addDays(edition.startDate, -EDITION_SQUAD_LEAD_DAYS);
+  const firstStage = repo.stages(edition.id).sort((a, b) => a.stageOrder - b.stageOrder)[0];
+  const selected = selectNationalTeamSquad(db, {
     federationId: federation.id,
     nationalTeamId,
-    date: addDays(edition.startDate, -7),
+    date: squadDate,
     programme: edition.name,
     seed: `${seed}:edition-squad:${edition.id}`,
-    size: 26,
+    size: firstStage?.finalSquadSize ?? 26,
   });
   const callups = new FederationGovernanceRepository(db)
     .nationalTeamCallups(nationalTeamId)
     .filter((callup) => callup.callupDate <= edition.startDate && callup.status === "CALLED_UP");
   if (callups.length === 0) return;
-  createDutyForCurrentCallups(
-    db,
+  createDutyForCurrentCallups(db, nationalTeamId, edition, squadDate, addDays(edition.endDate, 3));
+  recordNationalTeamEditionEntry(db, {
+    federationId: federation.id,
     nationalTeamId,
     edition,
-    addDays(edition.startDate, -7),
-    addDays(edition.endDate, 3),
-  );
+    squadPlayerIds: selected.filter((callup) => callup.status === "CALLED_UP").map((callup) => callup.playerId),
+    registrationDeadline: squadDate,
+  });
 };
 
 export const calculateSimulationWorldRanking = (
@@ -1320,6 +1401,8 @@ const seedParticipants = (
       editionId: edition.id,
       teamProfileId: profile.id,
       entryStatus: edition.hostCountryIds.includes(profile.countryId) ? "HOST" : "ACTIVE",
+      // Only what the simulation actually knows about the entry is recorded.
+      qualificationSource: edition.hostCountryIds.includes(profile.countryId) ? "Host nation" : undefined,
       seedRating:
         profile.simulationReputation + profile.simulationStrength + profile.formRating * 0.2,
       provenanceStatus: simulationStatus,
@@ -1909,7 +1992,8 @@ const resolveWinner = (
 ): EntityId | undefined => {
   if (homeGoals > awayGoals) return match.homeTeamProfileId;
   if (awayGoals > homeGoals) return match.awayTeamProfileId;
-  if (!match.stageId) return undefined;
+  // A group-stage match can end level; only a knockout tie needs a winner.
+  if (!match.stageId || match.groupName) return undefined;
   const rng = new SeededRandom(`${seed}:penalties:${match.id}`);
   return rng.next() < 0.5 ? match.homeTeamProfileId : match.awayTeamProfileId;
 };

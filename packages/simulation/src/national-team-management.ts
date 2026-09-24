@@ -155,6 +155,49 @@ export const registerNationalTeamCampaign = (db: GameDatabase, input: { federati
   new NationalTeamManagementRepository(db).upsertCampaign(campaign); return campaign;
 };
 
+/**
+ * The simulation's own entry into a competition edition: one campaign record and
+ * one final squad registration per team and edition. Created once; never
+ * overwritten, so a later pass cannot replace a registered squad. The squad is
+ * the selection the simulation already made for the edition, not a second one.
+ */
+export const recordNationalTeamEditionEntry = (
+  db: GameDatabase,
+  input: {
+    federationId: EntityId;
+    nationalTeamId: EntityId;
+    edition: { id: EntityId; name: string; startDate: string };
+    squadPlayerIds: EntityId[];
+    registrationDeadline: string;
+  },
+): { campaign: NationalTeamCampaign; registration?: NationalTeamSquadRegistration } => {
+  const repo = new NationalTeamManagementRepository(db);
+  const campaign =
+    repo.campaigns(input.nationalTeamId).find((item) => item.competitionEditionId === input.edition.id) ??
+    registerNationalTeamCampaign(db, {
+      federationId: input.federationId,
+      nationalTeamId: input.nationalTeamId,
+      name: `${input.edition.name} campaign`,
+      startedOn: input.edition.startDate,
+      competitionEditionId: input.edition.id,
+    });
+  const existing = repo.registrations().find((item) => item.nationalTeamId === input.nationalTeamId && item.competitionEditionId === input.edition.id);
+  if (existing || input.squadPlayerIds.length === 0) return { campaign, registration: existing };
+  const registration: NationalTeamSquadRegistration = {
+    id: createStableEntityId("national-team-registration", `${input.edition.id}:${input.nationalTeamId}`),
+    federationId: input.federationId,
+    nationalTeamId: input.nationalTeamId,
+    competitionEditionId: input.edition.id,
+    registrationDeadline: input.registrationDeadline,
+    provisionalPlayerIds: input.squadPlayerIds,
+    finalPlayerIds: input.squadPlayerIds,
+    status: "FINAL",
+    provenanceStatus: status,
+  };
+  repo.upsertRegistration(registration);
+  return { campaign, registration };
+};
+
 export const planNationalTeamCampaignSquad = (db: GameDatabase, input: { federationId: EntityId; nationalTeamId: EntityId; competitionEditionId: EntityId; registrationDeadline: string; date: string; programme: string; seed: string; managerPersonId?: EntityId }): NationalTeamSquadRegistration => {
   if (input.date > input.registrationDeadline) throw new Error("Registration deadline has passed");
   const decision = selectManagedNationalTeamSquad(db, { ...input, competitionEditionId: input.competitionEditionId });

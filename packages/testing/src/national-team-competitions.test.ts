@@ -199,9 +199,9 @@ describe("campaigns, groups, knockout and registration from real editions", () =
   it("shows the squad registration separately from the current squad, with its deadline, lock state and limits", () => {
     const saff = read(ids.men).completed[0]!;
     const registration = saff.registration!;
-    expect(registration).toMatchObject({ status: "PROVISIONAL", locked: false, deadline: "2026-08-25", limits: { preliminary: 30, final: 26, matchday: 23 } });
+    expect(registration).toMatchObject({ status: "FINAL", locked: true, deadline: "2026-08-25", limits: { preliminary: 30, final: 26, matchday: 23 } });
     expect(registration.playerCount).toBeGreaterThan(0);
-    expect(registration.playerCount).toBeLessThanOrEqual(23);
+    expect(registration.playerCount).toBeLessThanOrEqual(26);
     expect(registration.players).toHaveLength(registration.playerCount);
     expect(new Set(registration.players.map((row) => row.player.id)).size).toBe(registration.playerCount);
     for (const row of registration.players) expect(row.player.entityType).toBe("PLAYER");
@@ -219,7 +219,7 @@ describe("campaigns, groups, knockout and registration from real editions", () =
     // The registration and the current squad are separate records.
     const squad = service.getNationalTeamSquad(ids.men);
     if (!squad.ok) throw new Error(squad.error.message);
-    expect(saff.campaign).toMatchObject({ name: "SAFF 2026 campaign", matchesPlayed: 0, qualificationStatus: "ACTIVE" });
+    expect(saff.campaign).toMatchObject({ name: "SAFF Championship 2026 campaign", matchesPlayed: saff.matches.filter((match) => match.status === "PLAYED").length });
     expect(saff.onDutyCount).toBeGreaterThan(0);
   }, 300_000);
 
@@ -236,7 +236,8 @@ describe("campaigns, groups, knockout and registration from real editions", () =
     expect(u23.completed).toEqual([]);
     expect(u23.upcoming).toEqual([]);
     expect(u23.active).toHaveLength(1);
-    expect(u23.active[0]!.registration).toBeUndefined();
+    expect(u23.active[0]!.registration).toMatchObject({ status: "FINAL" });
+    expect(women.upcoming[0]!.registration).toBeUndefined();
 
     for (const id of [ids.u20, ids.u17]) expect(read(id)).toMatchObject({ active: [], upcoming: [], completed: [] });
 

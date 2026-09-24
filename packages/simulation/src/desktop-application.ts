@@ -315,12 +315,12 @@ import {
   appointNationalTeamHeadCoachForPresident,
   ensureNationalTeamStaffStructure,
   FederationPersonnelError,
-  planNationalTeamCampaignSquad,
-  registerNationalTeamCampaign,
 } from "./national-team-management.js";
 import {
   advanceInternationalCompetition,
   createInternationalCompetitionEdition,
+  ensureNepalDutyForEdition,
+  processInternationalForSeasonPeriod,
   scheduleInternationalFixtures,
   seedInternationalDraw,
   simulateInternationalMatch,
@@ -2181,8 +2181,9 @@ export class DesktopApplicationService {
   /**
    * Test-only (gated by the server): runs three real competition editions through
    * the simulation's own functions — a completed senior men's SAFF Championship
-   * (with a campaign record and a provisional squad registration), a partly played
-   * Under-23 edition, and a planned senior women's edition.
+   * (the simulation writes its campaign and final squad registration), a partly
+   * played Under-23 edition (entered, first match played), and a planned senior
+   * women's edition.
    */
   seedE2ENationalTeamCompetitionFixture(): AppResult<{
     ready: true;
@@ -2206,26 +2207,11 @@ export class DesktopApplicationService {
       const men = teamOf("senior", "men");
 
       const saff = createInternationalCompetitionEdition(db, { competitionKey: "SAFF", cycle: "2026", startDate: "2026-09-01", seed });
-      registerNationalTeamCampaign(db, {
-        federationId,
-        nationalTeamId: men,
-        name: "SAFF 2026 campaign",
-        startedOn: save.worldDate,
-        competitionEditionId: saff.id,
-      });
-      planNationalTeamCampaignSquad(db, {
-        federationId,
-        nationalTeamId: men,
-        competitionEditionId: saff.id,
-        registrationDeadline: "2026-08-25",
-        date: save.worldDate,
-        programme: "SAFF 2026",
-        seed,
-      });
       advanceInternationalCompetition(db, saff.id, `${seed}:saff`);
 
       const u23 = createInternationalCompetitionEdition(db, { competitionKey: "SAFF_U23", cycle: "2026", startDate: "2026-07-07", seed });
       const u23Stage = international.stages(u23.id)[0]!;
+      ensureNepalDutyForEdition(db, u23, `${seed}:u23`);
       seedInternationalDraw(db, u23.id, u23Stage.id, "2026-06-23", seed);
       scheduleInternationalFixtures(db, u23.id, u23Stage.id, seed);
       const u23Team = teamOf("u23", "men");
@@ -2240,6 +2226,40 @@ export class DesktopApplicationService {
       createInternationalCompetitionEdition(db, { competitionKey: "SAFF_WOMEN", cycle: "2026", startDate: "2026-10-04", seed });
 
       return { ready: true as const, men, women: teamOf("senior", "women"), u23: u23Team, u20: teamOf("u20", "men"), u17: teamOf("u17", "men") };
+    });
+  }
+
+  /**
+   * Test-only (gated by the server): runs the simulation's real season-end
+   * international processing for a season, with no test-only creation of
+   * campaigns or registrations, so the workspace shows what a live save would.
+   */
+  seedE2ENationalTeamSeasonBatch(): AppResult<{
+    ready: true;
+    men: EntityId;
+    women: EntityId;
+    u23: EntityId;
+    u20: EntityId;
+    u17: EntityId;
+  }> {
+    return this.withSession((db, save) => {
+      const federationId = this.currentFederationId(db, careerPersonId(db, save));
+      const teamOf = (level: string, gender: string): EntityId => {
+        const row = db
+          .prepare("SELECT id FROM teams WHERE federation_id=? AND club_id IS NULL AND level=? AND gender=? ORDER BY id LIMIT 1")
+          .get(federationId, level, gender) as { id: EntityId } | undefined;
+        if (!row) throw appError("SAVE_CORRUPT", `No ${level} ${gender} national team is available.`);
+        return row.id;
+      };
+      processInternationalForSeasonPeriod(db, { seasonEndDate: "2027-06-30", seed: `${save.randomSeed}:e2e-season-batch` });
+      return {
+        ready: true as const,
+        men: teamOf("senior", "men"),
+        women: teamOf("senior", "women"),
+        u23: teamOf("u23", "men"),
+        u20: teamOf("u20", "men"),
+        u17: teamOf("u17", "men"),
+      };
     });
   }
 

@@ -44,7 +44,7 @@ export const buildNationalTeamCompetitions = (db: GameDatabase, teamId: EntityId
   const campaigns = management.campaigns(teamId);
   const registrations = management.registrations().filter((item) => item.nationalTeamId === teamId);
   const duties = international.duties().filter((duty) => duty.nationalTeamId === teamId);
-  const allMatches = nationalTeamMatches(db, teamId);
+  const allMatches = nationalTeamMatches(db, teamId, asOf);
   let standing: ReturnType<typeof nationalTeamPoolStanding> | undefined;
 
   const entries = international
@@ -188,6 +188,7 @@ export const buildNationalTeamCompetitions = (db: GameDatabase, teamId: EntityId
             : undefined,
           registration: registrationView,
           onDutyCount: duties.filter((duty) => duty.competitionEditionId === edition.id).length,
+          simulatedAhead: matches.some((match) => match.simulatedAhead === true),
         },
       ];
     });

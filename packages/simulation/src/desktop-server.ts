@@ -272,6 +272,13 @@ const dispatch = (
             ok: false,
             error: { code: "ROLE_NOT_AUTHORIZED", message: "The E2E role fixture is disabled." },
           };
+    case "seedE2ENationalTeamSeasonBatch":
+      return process.env.NEPAL_E2E_ROLE_FIXTURE === "1"
+        ? service.seedE2ENationalTeamSeasonBatch()
+        : {
+            ok: false,
+            error: { code: "ROLE_NOT_AUTHORIZED", message: "The E2E role fixture is disabled." },
+          };
     case "getNationalTeamPlayerPool":
       return service.getNationalTeamPlayerPool(
         body.nationalTeamId as EntityId,

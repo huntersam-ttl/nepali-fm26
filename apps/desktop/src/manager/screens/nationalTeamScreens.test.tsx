@@ -52,7 +52,7 @@ const overviewFor = (id: string) =>
         squad: { squadSize: 23, selectedCount: 23, unavailableCount: 2, captain: ref("p1", "Anjan Bista", "PLAYER"), currentWindow: "2026-08-01" },
         nextMatch: match({ id: "m2", opponent: "Maldives", status: "SCHEDULED", goalsFor: undefined, goalsAgainst: undefined, result: undefined, venueSide: "NOT_RECORDED", kind: "FRIENDLY", date: "2026-11-01" }),
         recent: [match()],
-        competitions: [{ edition: "SAFF Championship 2026", status: "SCHEDULED", startDate: "2026-09-01", endDate: "2026-09-20", entryStatus: "QUALIFIED", group: "Group A", campaign: { name: "c", matchesPlayed: 2, wins: 1, draws: 1, losses: 0, qualificationStatus: "ACTIVE" } }],
+        competitions: [{ edition: "SAFF Championship 2026", status: "SCHEDULED", startDate: "2026-09-01", endDate: "2026-09-20", entryStatus: "QUALIFIED", group: "Group A", campaign: { name: "c", matchesPlayed: 2, wins: 1, draws: 1, losses: 0, qualificationStatus: "ACTIVE" }, registration: { status: "FINAL", locked: true, playerCount: 26, deadline: "2026-08-25" } }],
         attention: [{ key: "availability", text: "2 called-up players are injured or suspended", target: "squad" }, { key: "match", text: "Next match: Maldives on 2026-11-01", target: "fixtures" }],
         asOf: "2026-08-01",
         provenanceStatus: "SIMULATION_ONLY",
@@ -459,6 +459,58 @@ describe("National team squad, staff and fixtures", () => {
     await screen.findByText("This team is not entered in a recorded competition.");
     expect(bridge.getNationalTeamCompetitions).toHaveBeenCalledWith("women");
     expect(document.body.textContent).not.toMatch(/SAFF/);
+  });
+
+  it("flags matches simulated ahead of their date and says when a knockout tie has only a recorded winner", async () => {
+    bridge.getNationalTeamFixtures.mockImplementationOnce((id: string) =>
+      ok({
+        team: identity(id, "Nepal Senior Men", "Senior men"),
+        upcoming: [],
+        results: [
+          match({ id: "a1", opponent: "Bhutan", goalsFor: 1, goalsAgainst: 1, result: "WIN", stage: "Semi-Final and Final", competition: "SAFF Championship 2026", simulatedAhead: true, date: "2026-09-20" }),
+          match({ id: "a2", opponent: "India", goalsFor: 2, goalsAgainst: 2, result: "DRAW", stage: "Group Stage", date: "2026-07-01" }),
+          match({ id: "a3", opponent: "Maldives", goalsFor: 1, goalsAgainst: 1, result: "LOSS", penaltiesFor: 3, penaltiesAgainst: 4, date: "2026-07-02" }),
+        ],
+        asOf: "2026-08-01",
+        provenanceStatus: "SIMULATION_ONLY",
+      } as never),
+    );
+    render(<mod.NationalTeamFixturesScreen {...props()} />);
+    const results = await screen.findByRole("table", { name: "National-team results" });
+    const rows = within(results).getAllByRole("row").slice(1);
+    expect(rows[0]!.textContent).toMatch(/Simulated ahead of its date/);
+    expect(rows[0]!.textContent).toMatch(/Level after play — winner recorded/);
+    expect(rows[1]!.textContent).not.toMatch(/Simulated ahead|winner recorded/);
+    // A recorded shootout is shown as it was, not described as a bare winner.
+    expect(rows[2]!.textContent).toMatch(/1–1 \(3–4 on penalties\)/);
+    expect(rows[2]!.textContent).not.toMatch(/winner recorded/);
+  });
+
+  it("shows the registration state on the overview and the ahead-of-calendar note on the competition", async () => {
+    render(<mod.NationalTeamOverviewScreen {...props()} />);
+    await screen.findByText("Coach Rai");
+    expect(document.body.textContent).toMatch(/Squad registration/);
+    cleanup();
+    bridge.getNationalTeamCompetitions.mockImplementationOnce((id: string) =>
+      ok({
+        team: identity(id, "Nepal Senior Men", "Senior men"),
+        active: [],
+        upcoming: [],
+        completed: [
+          {
+            editionId: "e9", competition: "SAFF Championship", edition: "SAFF Championship 2027", cycle: "2027", competitionType: "REGIONAL_CHAMPIONSHIP", hosts: [], status: "COMPLETED",
+            startDate: "2027-09-01", endDate: "2027-09-19", entryStatus: "ELIMINATED", group: "A",
+            outcome: { key: "ELIMINATED", label: "Eliminated in Group Stage", stageReached: "Group Stage" }, qualificationLinks: [], stages: [], knockout: [], matches: [],
+            onDutyCount: 0, simulatedAhead: true,
+          },
+        ],
+        asOf: "2026-08-01",
+        provenanceStatus: "SIMULATION_ONLY",
+      } as never),
+    );
+    render(<mod.NationalTeamCompetitionsScreen {...props()} />);
+    await screen.findByRole("heading", { name: "SAFF Championship 2027", level: 2 });
+    expect(screen.getByRole("note").textContent).toMatch(/already played matches of this competition/);
   });
 
   it("links the overview to Competitions", async () => {

@@ -227,9 +227,23 @@ const MatchTable = ({ caption, matches, empty }: { caption: string; matches: Nat
                 {VENUE_SIDE_LABEL[match.venueSide]}
                 {match.venue ? ` · ${match.venue}` : ""}
               </td>
-              <td>{humanizeToken(match.status)}</td>
+              <td>
+                {humanizeToken(match.status)}
+                {match.simulatedAhead && (
+                  <>
+                    {" "}
+                    <Badge tone="info">Simulated ahead of its date</Badge>
+                  </>
+                )}
+              </td>
               <td>{scoreText(match)}</td>
-              <td>{match.result ? <Badge tone={RESULT_TONE[match.result]}>{RESULT_LABEL[match.result]}</Badge> : "—"}</td>
+              <td>
+                {match.result ? <Badge tone={RESULT_TONE[match.result]}>{RESULT_LABEL[match.result]}</Badge> : "—"}
+                {match.result &&
+                  match.result !== "DRAW" &&
+                  match.goalsFor === match.goalsAgainst &&
+                  match.penaltiesFor === undefined && <span className="subtle"> Level after play — winner recorded</span>}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -348,6 +362,7 @@ const OverviewBody = ({
                       <th scope="col">Entry</th>
                       <th scope="col">Group</th>
                       <th scope="col">Campaign</th>
+                      <th scope="col">Squad registration</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -364,6 +379,11 @@ const OverviewBody = ({
                           {item.campaign
                             ? `${item.campaign.wins}W ${item.campaign.draws}D ${item.campaign.losses}L (${item.campaign.matchesPlayed} played) · ${humanizeToken(item.campaign.qualificationStatus)}`
                             : "—"}
+                        </td>
+                        <td>
+                          {item.registration
+                            ? `${humanizeToken(item.registration.status)} · ${item.registration.locked ? "Locked" : "Open"} · ${item.registration.playerCount} players`
+                            : "Not recorded"}
                         </td>
                       </tr>
                     ))}
@@ -1019,6 +1039,12 @@ const CompetitionDetail = ({
           <Badge tone="info">simulated</Badge> Competitions are run by the simulation. Nothing here estimates a team&rsquo;s
           chances.
         </p>
+        {entry.simulatedAhead && (
+          <p className="subtle" role="note">
+            The season simulation has already played matches of this competition. Their dates are the scheduled dates, which
+            are after today&rsquo;s date.
+          </p>
+        )}
       </Panel>
 
       <Panel title="Stages and squad rules" className="panel-wide">

@@ -6,7 +6,7 @@ import { createExistingClubOwner } from "./support/owner-harness.js";
 /**
  * Phase 10C — national-team competitions. The gated fixture runs three real
  * editions through the simulation's own functions: a completed senior men's SAFF
- * Championship (with a campaign record and a provisional squad registration), a
+ * Championship (with the campaign and final squad registration the simulation writes), a
  * partly played Under-23 edition and a planned senior women's edition. Under-20
  * and Under-17 have no competition, which is what the isolation checks rely on.
  */
@@ -137,10 +137,11 @@ test("4. Registration is a separate, read-only record with its deadline, lock st
   await openCompetitions(page);
   const saff = (await competitions(page, teams.men)).completed[0];
   const registration = saff.registration;
-  expect(registration.status).toBe("PROVISIONAL");
+  expect(registration.status).toBe("FINAL");
+  expect(registration.locked).toBe(true);
   const main = page.locator("main");
-  await expect(main).toContainText("Provisional");
-  await expect(main).toContainText("Open");
+  await expect(main).toContainText("Final");
+  await expect(main).toContainText("Locked");
   await expect(main).toContainText(registration.deadline);
   await expect(main).toContainText("separate record from the current squad");
   const players = page.getByRole("table", { name: "Players registered for this competition" });

@@ -84,7 +84,10 @@ const venueName = (db: GameDatabase, venueId?: EntityId): string | undefined =>
  * (where the national side's goals are stored first). A federation fixture that
  * mirrors a competition match is dropped, so nothing appears twice.
  */
-export const nationalTeamMatches = (db: GameDatabase, teamId: EntityId): NationalTeamMatchView[] => {
+export const nationalTeamMatches = (db: GameDatabase, teamId: EntityId, asOf?: string): NationalTeamMatchView[] => {
+  // The season batch plays a season's matches in one pass, so a played match can carry a date after the
+  // world date. It is flagged instead of being presented as if it had already happened.
+  const ahead = (status: string, date: string): true | undefined => (asOf !== undefined && status === "PLAYED" && date > asOf ? true : undefined);
   const international = new InternationalFootballRepository(db);
   const profiles = international.teamProfiles();
   const own = profiles.find((profile) => profile.nationalTeamId === teamId);
@@ -120,6 +123,7 @@ export const nationalTeamMatches = (db: GameDatabase, teamId: EntityId): Nationa
         opponent: profileName.get(isHome ? match.awayTeamProfileId : match.homeTeamProfileId) ?? "Unknown opponent",
         kind: match.importance,
         editionId: match.editionId,
+        simulatedAhead: ahead(match.status, match.matchDate),
         competition: match.editionId ? editions.get(match.editionId)?.name : undefined,
         stage: match.stageId ? stages.get(match.stageId)?.name : undefined,
         group: match.groupName,
@@ -146,6 +150,7 @@ export const nationalTeamMatches = (db: GameDatabase, teamId: EntityId): Nationa
       date: fixture.fixtureDate,
       opponent: fixture.opponentName,
       kind: fixture.fixtureType,
+      simulatedAhead: ahead(fixture.status, fixture.fixtureDate),
       venueSide: "NOT_RECORDED",
       venue: venueName(db, fixture.venueId),
       status: fixture.status,
@@ -201,7 +206,7 @@ const latestFirst = (a: NationalTeamMatchView, b: NationalTeamMatchView): number
   b.date.localeCompare(a.date) || a.id.localeCompare(b.id);
 
 export const buildNationalTeamFixtures = (db: GameDatabase, teamId: EntityId, asOf: string): NationalTeamFixturesView => {
-  const matches = nationalTeamMatches(db, teamId);
+  const matches = nationalTeamMatches(db, teamId, asOf);
   return {
     team: nationalTeamIdentity(db, teamId),
     upcoming: matches.filter((match) => match.status === "SCHEDULED").sort(upcomingFirst),
@@ -247,7 +252,9 @@ const competitionContexts = (db: GameDatabase, teamId: EntityId): NationalTeamCo
   const own = international.teamProfiles().find((profile) => profile.nationalTeamId === teamId);
   if (!own) return [];
   const editions = new Map(international.editions().map((edition) => [edition.id, edition]));
-  const campaigns = new NationalTeamManagementRepository(db).campaigns(teamId);
+  const management = new NationalTeamManagementRepository(db);
+  const campaigns = management.campaigns(teamId);
+  const registrations = management.registrations().filter((item) => item.nationalTeamId === teamId);
   return international
     .participants()
     .filter((participant) => participant.teamProfileId === own.id)
@@ -255,6 +262,7 @@ const competitionContexts = (db: GameDatabase, teamId: EntityId): NationalTeamCo
       const edition = editions.get(participant.editionId);
       if (!edition) return [];
       const campaign = campaigns.find((item) => item.competitionEditionId === edition.id);
+      const registration = registrations.find((item) => item.competitionEditionId === edition.id);
       return [
         {
           edition: edition.name,
@@ -273,6 +281,14 @@ const competitionContexts = (db: GameDatabase, teamId: EntityId): NationalTeamCo
                 qualificationStatus: campaign.qualificationStatus,
               }
             : undefined,
+          registration: registration
+            ? {
+                status: registration.status,
+                locked: registration.status !== "PROVISIONAL",
+                playerCount: (registration.finalPlayerIds ?? registration.provisionalPlayerIds).length,
+                deadline: registration.registrationDeadline,
+              }
+            : undefined,
         },
       ];
     })
@@ -287,7 +303,7 @@ export const buildNationalTeamOverview = (db: GameDatabase, teamId: EntityId, as
   const team = nationalTeamIdentity(db, teamId);
   const staff = buildNationalTeamStaff(db, teamId);
   const squad = buildNationalTeamSquad(db, teamId, asOf, ROLE);
-  const matches = nationalTeamMatches(db, teamId);
+  const matches = nationalTeamMatches(db, teamId, asOf);
   const nextMatch = matches.filter((match) => match.status === "SCHEDULED").sort(upcomingFirst)[0];
   const recent = matches.filter((match) => match.status === "PLAYED").sort(latestFirst).slice(0, 5);
 
