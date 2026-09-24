@@ -19,9 +19,10 @@ import { AsyncPanel, Badge, Panel, useRuntimeData } from "../ui.js";
  * React-only state. Interview scoring and candidate ranking are backend-only and
  * hidden. Salary is not shown: the read model carries an unlabelled amount.
  *
- * Apply and Accept are offered only while unemployed. The backend does not close
- * a current contract when an offer is accepted, so a move while employed is not
- * a supported transition.
+ * Accepting an offer while employed ends the current appointment (recorded as
+ * resigned) inside the same backend command, so the move is confirmed first.
+ * Resignation is the canonical resignFromClub command. Every command is also
+ * authorised by the backend: only the active Manager career may use them.
  */
 
 export const sortedVacancies = (vacancies: JobVacancyView[]): JobVacancyView[] =>
@@ -59,6 +60,10 @@ export const CareerJobsScreen = ({
   const [dashboard, reloadDashboard] = useRuntimeData(() => managerBridge.getManagerDashboard(), [refreshKey]);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [confirm, setConfirm] = useState<
+    { kind: "resign" } | { kind: "accept"; applicationId: string; clubName: string } | null
+  >(null);
+  const currentClub = dashboard.status === "ready" ? dashboard.data.clubName : undefined;
 
   const run = async (
     key: string,
@@ -66,6 +71,7 @@ export const CareerJobsScreen = ({
   ): Promise<void> => {
     setBusy(key);
     setError(null);
+    setConfirm(null);
     const result = await command();
     setBusy(null);
     if (!result.ok) {
@@ -93,13 +99,51 @@ export const CareerJobsScreen = ({
                 You are currently unemployed. You can apply for open vacancies and respond to offers.
               </p>
             ) : (
-              <p>
-                You are currently employed{view.clubName ? ` at ${view.clubName}` : ""}. The market is shown for
-                reference. Applications and offers are available between appointments.
-              </p>
+              <>
+                <p>
+                  You are currently employed{view.clubName ? ` at ${view.clubName}` : ""}. You can apply for other
+                  jobs. Accepting an offer ends your current appointment.
+                </p>
+                <div className="button-row">
+                  <button
+                    className="ghost small"
+                    disabled={busy !== null}
+                    onClick={() => setConfirm({ kind: "resign" })}
+                  >
+                    {busy === "resign" ? "Resigning…" : `Resign${view.clubName ? ` from ${view.clubName}` : ""}`}
+                  </button>
+                </div>
+              </>
             )
           }
         </AsyncPanel>
+        {confirm && (
+          <div className="warning" role="group" aria-label="Confirm career move">
+            <p>
+              {confirm.kind === "resign"
+                ? `Resigning ends your appointment${currentClub ? ` at ${currentClub}` : ""}. It is recorded as resigned and you will be unemployed.`
+                : `Accepting this offer ends your appointment${currentClub ? ` at ${currentClub}` : ""}, recorded as resigned, and starts your new appointment at ${confirm.clubName}.`}
+            </p>
+            <div className="button-row">
+              <button
+                className="primary small"
+                disabled={busy !== null}
+                onClick={() =>
+                  void (confirm.kind === "resign"
+                    ? run("resign", () => managerBridge.resignFromClub())
+                    : run(`accept-${confirm.applicationId}`, () =>
+                        managerBridge.acceptJobOffer(confirm.applicationId as EntityId),
+                      ))
+                }
+              >
+                {confirm.kind === "resign" ? "Confirm resignation" : "Confirm move"}
+              </button>
+              <button className="ghost small" disabled={busy !== null} onClick={() => setConfirm(null)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
         <AsyncPanel state={centre}>
           {(view: JobCentreView) => (
             <p className="subtle">
@@ -169,7 +213,7 @@ export const CareerJobsScreen = ({
                                 <button
                                   className="ghost small"
                                   aria-label={`Apply to ${vacancy.clubName}`}
-                                  disabled={!vacancy.eligible || employed || hasOffer || busy !== null}
+                                  disabled={!vacancy.eligible || hasOffer || busy !== null}
                                   onClick={() =>
                                     void run(`apply-${vacancy.id}`, () => managerBridge.applyForJob(vacancy.id as EntityId))
                                   }
@@ -224,11 +268,17 @@ export const CareerJobsScreen = ({
                                   <button
                                     className="primary small"
                                     aria-label={`Accept offer from ${application.clubName}`}
-                                    disabled={employed || busy !== null}
+                                    disabled={busy !== null}
                                     onClick={() =>
-                                      void run(`accept-${application.id}`, () =>
-                                        managerBridge.acceptJobOffer(application.id as EntityId),
-                                      )
+                                      employed
+                                        ? setConfirm({
+                                            kind: "accept",
+                                            applicationId: application.id,
+                                            clubName: application.clubName,
+                                          })
+                                        : void run(`accept-${application.id}`, () =>
+                                            managerBridge.acceptJobOffer(application.id as EntityId),
+                                          )
                                     }
                                   >
                                     {busy === `accept-${application.id}` ? "Accepting…" : "Accept"}

@@ -3893,6 +3893,7 @@ export class DesktopApplicationService {
 
   applyForJob(vacancyId: EntityId): AppResult<JobCentreView> {
     return this.withSession((db, save) => {
+      requireActiveManagerRole(db, save);
       const managerProfile = requirePlayerManagerProfile(db, save);
       try {
         applyForJobCommand(db, save, managerProfile, vacancyId);
@@ -3907,9 +3908,10 @@ export class DesktopApplicationService {
 
   declineJobOffer(applicationId: EntityId): AppResult<JobCentreView> {
     return this.withSession((db, save) => {
+      requireActiveManagerRole(db, save);
       const managerProfile = requirePlayerManagerProfile(db, save);
       try {
-        declineJobOfferCommand(db, save, applicationId);
+        declineJobOfferCommand(db, save, applicationId, managerProfile.id);
       } catch (error) {
         if (error instanceof JobOfferError) throw appError("INVALID_SELECTION", error.message);
         throw error;
@@ -3920,6 +3922,7 @@ export class DesktopApplicationService {
 
   acceptJobOffer(applicationId: EntityId): AppResult<DesktopApplicationState> {
     return this.withSession((db, save, filePath) => {
+      requireActiveManagerRole(db, save);
       const managerProfile = requirePlayerManagerProfile(db, save);
       try {
         acceptJobOfferCommand(db, save, managerProfile, applicationId);
@@ -3935,6 +3938,11 @@ export class DesktopApplicationService {
 
   resignFromClub(): AppResult<DesktopApplicationState> {
     return this.withSession((db, save, filePath) => {
+      requireActiveManagerRole(db, save);
+      const managerProfile = requirePlayerManagerProfile(db, save);
+      if (!new ManagerRepository(db).activeContract(managerProfile.id)) {
+        throw appError("INVALID_SELECTION", "You are not currently employed as a manager.");
+      }
       const context = managerContext(db, save);
       resignFromClubCommand(db, save, context.contract);
       const updated = { ...save, lastSavedAt: new Date().toISOString() };
@@ -5629,6 +5637,17 @@ const careerPersonId = (db: GameDatabase, save: SaveMetadata): EntityId => {
   const character = new WorldRepository(db).getCareerCharacter(save.playerCharacterId);
   if (!character) throw appError("SAVE_CORRUPT", "Career character record is missing.");
   return character.personId;
+};
+
+/** Job-market and resignation commands belong to the active Manager career only:
+ * an Owner, or a President in temporary office, must return to it first. */
+const requireActiveManagerRole = (db: GameDatabase, save: SaveMetadata): void => {
+  if (activeCareerRole(db, careerPersonId(db, save)) !== "MANAGER") {
+    throw appError(
+      "ROLE_NOT_AUTHORIZED",
+      "Job applications and resignation are only available while your active career is Manager.",
+    );
+  }
 };
 
 const managerContext = (db: GameDatabase, save: SaveMetadata) => {

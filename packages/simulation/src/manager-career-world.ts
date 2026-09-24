@@ -401,6 +401,7 @@ export const sackManager = (
   save: SaveMetadata,
   contract: ManagerContract,
   reason: Extract<JobVacancyReason, "SACKED" | "RESIGNED" | "EXPIRED">,
+  options: { movingToNewJob?: boolean } = {},
 ): void => {
   const managers = new ManagerRepository(db);
   const careerWorld = new CareerWorldRepository(db);
@@ -468,7 +469,9 @@ export const sackManager = (
           body:
             reason === "SACKED"
               ? "The board has lost confidence in your management. You are now unemployed."
-              : "You have left the club and are now unemployed.",
+              : options.movingToNewJob
+                ? "You have left the club to take up a new appointment."
+                : "You have left the club and are now unemployed.",
           read: false,
         });
       }
@@ -949,6 +952,33 @@ export const acceptJobOffer = (
     );
   }
 
+  // Ending the current appointment and opening the new one must be one unit:
+  // a failure part-way may never leave a closed contract with no successor,
+  // nor two ACTIVE manager contracts.
+  db.exec("SAVEPOINT accept_job_offer");
+  try {
+    const current = managers.activeContract(managerProfile.id);
+    if (current) sackManager(db, save, current, "RESIGNED", { movingToNewJob: true });
+    const contract = finalizeJobAcceptance(db, save, managerProfile, application, vacancy);
+    db.exec("RELEASE accept_job_offer");
+    return contract;
+  } catch (error) {
+    db.exec("ROLLBACK TO accept_job_offer");
+    db.exec("RELEASE accept_job_offer");
+    throw error;
+  }
+};
+
+/** Everything that follows a genuinely accepted offer; runs inside acceptJobOffer's savepoint. */
+const finalizeJobAcceptance = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  managerProfile: ManagerProfile,
+  application: JobApplication,
+  vacancy: JobVacancy,
+): ManagerContract => {
+  const careerWorld = new CareerWorldRepository(db);
+  const managers = new ManagerRepository(db);
   const contract = createManagerContract({
     managerProfileId: managerProfile.id,
     personId: managerProfile.personId,
@@ -1104,10 +1134,15 @@ export const declineJobOffer = (
   db: GameDatabase,
   save: SaveMetadata,
   applicationId: EntityId,
+  managerProfileId?: EntityId,
 ): void => {
   const careerWorld = new CareerWorldRepository(db);
   const application = careerWorld.application(applicationId);
-  if (!application || application.status !== "OFFERED") {
+  if (
+    !application ||
+    application.status !== "OFFERED" ||
+    (managerProfileId && application.managerProfileId !== managerProfileId)
+  ) {
     throw new JobOfferError("OFFER_NOT_PENDING", "That offer is no longer available.");
   }
   careerWorld.insertApplication({ ...application, status: "DECLINED", decidedOn: save.worldDate });

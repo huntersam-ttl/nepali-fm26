@@ -42,6 +42,7 @@ const bridge = {
   applyForJob: vi.fn(() => ok(centre)),
   acceptJobOffer: vi.fn(() => ok({})),
   declineJobOffer: vi.fn(() => ok(centre)),
+  resignFromClub: vi.fn(() => ok({})),
 };
 
 vi.mock("../managerBridge.js", () => ({ managerBridge: bridge }));
@@ -142,14 +143,44 @@ describe("Career Jobs screen", () => {
     await waitFor(() => expect(bridge.declineJobOffer).toHaveBeenCalledWith("a1"));
   });
 
-  it("is read-only for applying and accepting while employed", async () => {
+  it("lets an employed manager apply, and asks for confirmation before an offer ends the current job", async () => {
     dashboard = { employmentStatus: "EMPLOYED", clubName: "Some United" } as unknown as ManagerDashboard;
+    centre = { ...centre, applications: [application({ vacancyId: id("v9") })] };
     renderScreen();
     await screen.findByText(/You are currently employed at Some United/i);
-    const apply = (await screen.findByRole("button", { name: "Apply to Alpha FC" })) as HTMLButtonElement;
-    const accept = (await screen.findByRole("button", { name: "Accept offer from Alpha FC" })) as HTMLButtonElement;
-    expect(apply.disabled).toBe(true);
-    expect(accept.disabled).toBe(true);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Accept offer from Church Boys United" }));
+    // Nothing is sent until the move is confirmed.
+    expect(bridge.acceptJobOffer).not.toHaveBeenCalled();
+    const group = await screen.findByRole("group", { name: "Confirm career move" });
+    expect(group.textContent).toMatch(/ends your appointment at Some United, recorded as resigned/i);
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirm move" }));
+    await waitFor(() => expect(bridge.acceptJobOffer).toHaveBeenCalledWith("a1"));
+  });
+
+  it("can cancel a pending move without sending a command", async () => {
+    dashboard = { employmentStatus: "EMPLOYED", clubName: "Some United" } as unknown as ManagerDashboard;
+    renderScreen();
+    fireEvent.click(await screen.findByRole("button", { name: "Accept offer from Alpha FC" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Cancel" }));
+    expect(bridge.acceptJobOffer).not.toHaveBeenCalled();
+    expect(screen.queryByRole("group", { name: "Confirm career move" })).toBeNull();
+  });
+
+  it("resigns through the canonical command only after confirmation, and only while employed", async () => {
+    dashboard = { employmentStatus: "EMPLOYED", clubName: "Some United" } as unknown as ManagerDashboard;
+    renderScreen();
+    fireEvent.click(await screen.findByRole("button", { name: "Resign from Some United" }));
+    expect(bridge.resignFromClub).not.toHaveBeenCalled();
+    fireEvent.click(await screen.findByRole("button", { name: "Confirm resignation" }));
+    await waitFor(() => expect(bridge.resignFromClub).toHaveBeenCalledTimes(1));
+
+    cleanup();
+    dashboard = { employmentStatus: "UNEMPLOYED" } as unknown as ManagerDashboard;
+    renderScreen();
+    await screen.findByText(/You are currently unemployed/i);
+    expect(screen.queryByRole("button", { name: /^Resign/ })).toBeNull();
   });
 
   it("shows honest empty states", async () => {
