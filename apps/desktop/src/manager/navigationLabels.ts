@@ -81,6 +81,8 @@ const OWNER_WORKSPACE_LABELS: Record<string, string> = {
 
 const PRESIDENT_WORKSPACE_LABELS: Record<string, string> = {
   dashboard: "Dashboard",
+  "federation-overview": "Federation Overview",
+  "federation-projects": "Federation Projects",
   governance: "Governance",
   finance: "Federation Finance",
   commercial: "Commercial",
@@ -130,7 +132,7 @@ export const OWNER_FAMILIES: Array<{ label: string; items: string[] }> = [
 ];
 
 export const PRESIDENT_FAMILIES: Array<{ label: string; items: string[] }> = [
-  { label: "Federation", items: ["dashboard", "governance", "finance", "commercial"] },
+  { label: "Federation", items: ["dashboard", "federation-overview", "governance", "federation-projects", "finance", "commercial"] },
   { label: "Football", items: ["national-teams", "national-development", "competition-pyramid", "nepal-map"] },
   { label: "External relations", items: ["government-relations"] },
   { label: "Career", items: ["tenure"] },

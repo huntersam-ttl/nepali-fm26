@@ -126,7 +126,7 @@ const CHAIRMAN_NAV: Array<{ group: string; items: Array<{ id: ChairmanScreen; la
   { group: "External relations", items: [{ id: "bank", label: "Bank" }] },
 ];
 const PRESIDENT_NAV: Array<{ group: string; items: Array<{ id: PresidentScreen; label: string }> }> = [
-  { group: "Federation", items: [{ id: "dashboard", label: "Dashboard" }, { id: "governance", label: "Governance" }, { id: "finance", label: "Finance" }, { id: "commercial", label: "Commercial" }] },
+  { group: "Federation", items: [{ id: "dashboard", label: "Dashboard" }, { id: "federation-overview", label: "Federation Overview" }, { id: "governance", label: "Governance" }, { id: "federation-projects", label: "Federation Projects" }, { id: "finance", label: "Finance" }, { id: "commercial", label: "Commercial" }] },
   { group: "Football", items: [{ id: "national-teams", label: "National Teams" }, { id: "national-development", label: "National Development" }, { id: "competition-pyramid", label: "Domestic Pyramid" }, { id: "nepal-map", label: "Nepal Map" }] },
   { group: "External relations", items: [{ id: "government-relations", label: "Government" }] },
   { group: "Career", items: [{ id: "tenure", label: "Election / Tenure" }] },

@@ -26,6 +26,11 @@ describe("destination labels", () => {
     expect(workspaceLabel(ws("MANAGER", "home"))).toBe("Home / Inbox");
     expect(workspaceLabel(ws("CHAIRMAN_OWNER", "finance"))).toBe("Finances");
     expect(workspaceLabel(ws("FEDERATION_PRESIDENT", "finance"))).toBe("Federation Finance");
+    expect(workspaceLabel(ws("FEDERATION_PRESIDENT", "federation-overview"))).toBe("Federation Overview");
+    expect(workspaceLabel(ws("FEDERATION_PRESIDENT", "federation-projects"))).toBe("Federation Projects");
+    expect(
+      contextualNavItems("FEDERATION_PRESIDENT", "federation-overview").map((item) => item.label),
+    ).toEqual(expect.arrayContaining(["Federation Overview", "Governance", "Federation Projects"]));
     expect(workspaceLabel(ws("CEO", "dashboard"))).toBe("Dashboard");
   });
 

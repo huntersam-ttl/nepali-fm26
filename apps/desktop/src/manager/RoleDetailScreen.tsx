@@ -76,6 +76,8 @@ import type {
 import type { EntityId } from "@nepal-football-sim/shared-types";
 import type { AppError, AppResult, DesktopRuntimeApi } from "../appBridge.js";
 import { AsyncPanel, Badge, ErrorBanner, Metrics, Panel, money, useRuntimeData } from "./ui.js";
+import { FederationOverviewScreen } from "./screens/FederationOverviewScreen.js";
+import { FederationProjectsScreen } from "./screens/FederationProjectsScreen.js";
 import {
   MeetingBrief,
   MeetingOptions,
@@ -129,6 +131,8 @@ export type ChairmanScreen =
   | "club-store";
 export type PresidentScreen =
   | "dashboard"
+  | "federation-overview"
+  | "federation-projects"
   | "governance"
   | "finance"
   | "commercial"
@@ -182,6 +186,14 @@ const SECTION_TITLES: Record<string, { title: string; subtitle: string }> = {
     subtitle: "Who holds each executive role, their authority, and where it stands vacant.",
   },
   governance: { title: "Governance", subtitle: "Proposals, policy, and federation decisions." },
+  "federation-overview": {
+    title: "Federation overview",
+    subtitle: "The institution you govern, your current term, and what needs your attention.",
+  },
+  "federation-projects": {
+    title: "Federation projects",
+    subtitle: "The federation's national programmes, their status and funding.",
+  },
   "national-teams": {
     title: "National teams",
     subtitle: "Squads, staff, and international programme.",
@@ -1951,6 +1963,18 @@ const PresidentDetail = ({
       {(dashboard) => {
         if (screen === "dashboard")
           return <p className="subtle">Select a federation-office section from the sidebar.</p>;
+        if (screen === "federation-overview")
+          return (
+            <section className="role-detail">
+              <FederationOverviewScreen dashboard={dashboard} bridge={bridge} onNavigate={onNavigate} />
+            </section>
+          );
+        if (screen === "federation-projects")
+          return (
+            <section className="role-detail">
+              <FederationProjectsScreen dashboard={dashboard} />
+            </section>
+          );
         if (screen === "governance")
           return <Governance dashboard={dashboard} bridge={bridge} refresh={refresh} />;
         if (screen === "finance") return <FederationFinance dashboard={dashboard} bridge={bridge} />;
