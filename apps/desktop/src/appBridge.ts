@@ -46,6 +46,9 @@ import type {
   NationalTeamOverview,
   NationalTeamStaffView,
   NationalTeamFixturesView,
+  NationalTeamPlayerPool,
+  NationalTeamPlayerPoolQuery,
+  NationalTeamCoachCandidatesView,
   FederationPresidentDashboard,
   FederationCandidacyAssessment,
   FederationGovernanceProposal,
@@ -342,6 +345,15 @@ const bindCommands = (call: CommandCaller): DesktopRuntimeApi => ({
     call<NationalTeamStaffView>("getNationalTeamStaff", { nationalTeamId }),
   getNationalTeamFixtures: (nationalTeamId: EntityId) =>
     call<NationalTeamFixturesView>("getNationalTeamFixtures", { nationalTeamId }),
+  getNationalTeamPlayerPool: (nationalTeamId: EntityId, query: NationalTeamPlayerPoolQuery = {}) =>
+    call<NationalTeamPlayerPool>("getNationalTeamPlayerPool", { nationalTeamId, query }),
+  getNationalTeamCoachCandidates: (nationalTeamId: EntityId) =>
+    call<NationalTeamCoachCandidatesView>("getNationalTeamCoachCandidates", { nationalTeamId }),
+  appointNationalTeamHeadCoach: (nationalTeamId: EntityId, candidatePersonId: EntityId) =>
+    call<{ appointedPersonId: EntityId; nationalTeamId: EntityId }>("appointNationalTeamHeadCoach", {
+      nationalTeamId,
+      candidatePersonId,
+    }),
   getFederationTenure: () => call<FederationTenureView>("getFederationTenure"),
   getFederationExternalContext: () => call<FederationExternalContext>("getFederationExternalContext"),
   getFederationCompetitionGovernance: () =>

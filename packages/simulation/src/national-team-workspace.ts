@@ -161,6 +161,37 @@ export const nationalTeamMatches = (db: GameDatabase, teamId: EntityId): Nationa
   return views;
 };
 
+/**
+ * Played-match results for one federation's national teams, from each team's own
+ * side (a win is more goals for the national team, whichever side it was
+ * drawn on). A drawn match settled on penalties counts as a draw here.
+ */
+export const nationalTeamOutcomes = (
+  db: GameDatabase,
+  federationId: EntityId,
+): Array<{ teamId: EntityId; goalsFor: number; goalsAgainst: number; result: "WIN" | "DRAW" | "LOSS" }> => {
+  const teams = db
+    .prepare("SELECT id FROM teams WHERE federation_id=? AND club_id IS NULL ORDER BY id")
+    .all(federationId) as Array<{ id: EntityId }>;
+  return teams.flatMap((team) =>
+    nationalTeamMatches(db, team.id).flatMap((match) =>
+      match.status === "PLAYED" && match.goalsFor !== undefined && match.goalsAgainst !== undefined
+        ? [
+            {
+              teamId: team.id,
+              goalsFor: match.goalsFor,
+              goalsAgainst: match.goalsAgainst,
+              result: (match.goalsFor > match.goalsAgainst ? "WIN" : match.goalsFor < match.goalsAgainst ? "LOSS" : "DRAW") as
+                | "WIN"
+                | "DRAW"
+                | "LOSS",
+            },
+          ]
+        : [],
+    ),
+  );
+};
+
 const upcomingFirst = (a: NationalTeamMatchView, b: NationalTeamMatchView): number =>
   a.date.localeCompare(b.date) || a.id.localeCompare(b.id);
 const latestFirst = (a: NationalTeamMatchView, b: NationalTeamMatchView): number =>

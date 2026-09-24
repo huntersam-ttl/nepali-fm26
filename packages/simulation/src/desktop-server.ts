@@ -42,6 +42,7 @@ import type {
   OwnerManagerMeetingStance,
   OwnerManagerMeetingTopic,
   OwnerPlayerRequestIntent,
+  NationalTeamPlayerPoolQuery,
 } from "@nepal-football-sim/shared-types";
 import { DesktopApplicationService, type DesktopRuntimeOptions } from "./desktop-application.js";
 
@@ -262,6 +263,15 @@ const dispatch = (
       return service.getNationalTeamStaff(body.nationalTeamId as EntityId);
     case "getNationalTeamFixtures":
       return service.getNationalTeamFixtures(body.nationalTeamId as EntityId);
+    case "getNationalTeamPlayerPool":
+      return service.getNationalTeamPlayerPool(
+        body.nationalTeamId as EntityId,
+        (body.query as NationalTeamPlayerPoolQuery | undefined) ?? {},
+      );
+    case "getNationalTeamCoachCandidates":
+      return service.getNationalTeamCoachCandidates(body.nationalTeamId as EntityId);
+    case "appointNationalTeamHeadCoach":
+      return service.appointNationalTeamHeadCoach(body.nationalTeamId as EntityId, body.candidatePersonId as EntityId);
     case "seedE2ENationalTeamFixture":
       return process.env.NEPAL_E2E_ROLE_FIXTURE === "1"
         ? service.seedE2ENationalTeamFixture()

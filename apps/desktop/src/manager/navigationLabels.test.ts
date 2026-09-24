@@ -235,16 +235,18 @@ describe("career family nav (Phase 8A)", () => {
 });
 
 describe("national-team workspace family (Phase 10A)", () => {
-  it("is exactly Overview | Squad | Staff | Fixtures, each labelled, and not a sidebar item", () => {
+  it("is exactly Overview | Squad | Player pool | Staff | Fixtures, each labelled, and not a sidebar item", () => {
     expect(NATIONAL_TEAM_FAMILY).toEqual([
       "national-team-overview",
       "national-team-squad",
+      "national-team-pool",
       "national-team-staff",
       "national-team-fixtures",
     ]);
     expect(NATIONAL_TEAM_FAMILY.map((id) => workspaceLabel(ws("FEDERATION_PRESIDENT", id)))).toEqual([
       "National Team",
       "National Team Squad",
+      "National Team Player Pool",
       "National Team Staff",
       "National Team Fixtures",
     ]);

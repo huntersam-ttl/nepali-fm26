@@ -114,6 +114,9 @@ import {
   type FederationExternalContext,
   type NationalTeamOverview,
   type NationalTeamStaffView,
+  type NationalTeamPlayerPool,
+  type NationalTeamPlayerPoolQuery,
+  type NationalTeamCoachCandidatesView,
   type NationalTeamFixturesView,
   type FederationDevelopmentProgrammes,
   type FederationBudget,
@@ -534,6 +537,7 @@ import {
   buildNationalTeamStaff,
   isFederationNationalTeam,
 } from "./national-team-workspace.js";
+import { buildNationalTeamCoachCandidates, buildNationalTeamPlayerPool } from "./national-team-operations.js";
 import {
   buildFederationCompetitionGovernance,
   buildFederationDevelopmentProgrammes,
@@ -2154,6 +2158,28 @@ export class DesktopApplicationService {
     });
   }
 
+  /** Read-only: the national-team player pool with the eligibility the selection itself applies. */
+  getNationalTeamPlayerPool(
+    nationalTeamId: EntityId,
+    query: NationalTeamPlayerPoolQuery = {},
+  ): AppResult<NationalTeamPlayerPool> {
+    return this.withSession((db, save) => {
+      this.presidentNationalTeam(db, save, nationalTeamId);
+      return buildNationalTeamPlayerPool(db, nationalTeamId, save.worldDate, {
+        position: typeof query.position === "string" && query.position ? query.position : undefined,
+        onlyEligible: query.onlyEligible === true,
+      });
+    });
+  }
+
+  /** Read-only: eligible unemployed coaches for a vacant head-coach seat. */
+  getNationalTeamCoachCandidates(nationalTeamId: EntityId): AppResult<NationalTeamCoachCandidatesView> {
+    return this.withSession((db, save) => {
+      this.presidentNationalTeam(db, save, nationalTeamId);
+      return buildNationalTeamCoachCandidates(db, nationalTeamId, save.worldDate);
+    });
+  }
+
   /** Test-only (gated by the server): gives the senior men's team a real squad and
    * two friendlies through the domain functions the simulation itself uses. */
   seedE2ENationalTeamFixture(): AppResult<{ ready: true; nationalTeamId: EntityId }> {
@@ -2168,6 +2194,54 @@ export class DesktopApplicationService {
         .all(federationId) as Array<{ id: EntityId }>;
       for (const national of allTeams) {
         ensureNationalTeamStaffStructure(db, { federationId, nationalTeamId: national.id, date: save.worldDate });
+      }
+      // The Under-17 head-coach seat is left vacant, with one eligible candidate on the market.
+      const vacantTeam = db
+        .prepare("SELECT id FROM teams WHERE federation_id=? AND club_id IS NULL AND level='u17' AND gender='men' ORDER BY id LIMIT 1")
+        .get(federationId) as { id: EntityId } | undefined;
+      if (vacantTeam) {
+        db.prepare(
+          "UPDATE staff_appointments SET employment_status='FORMER', end_date=? WHERE team_id=? AND role='NATIONAL_TEAM_HEAD_COACH' AND employment_status='ACTIVE'",
+        ).run(save.worldDate, vacantTeam.id);
+        const candidateId = createStableEntityId("person", "e2e-national-coach-candidate");
+        const world = new WorldRepository(db);
+        if (!world.getPerson(candidateId)) {
+          const countryId = (db.prepare("SELECT country_id FROM federations WHERE id=?").get(federationId) as { country_id: EntityId })
+            .country_id;
+          world.insertPerson({
+            id: candidateId,
+            fullName: "Bikash Coach Candidate",
+            displayName: "Bikash Candidate",
+            dateOfBirth: "1976-03-04",
+            nationalityCountryId: countryId,
+            genderPresentation: "unknown",
+            languages: ["Nepali"],
+          });
+          world.insertPersonRole({
+            id: createStableEntityId("person-role", `${candidateId}:STAFF`),
+            personId: candidateId,
+            role: "STAFF",
+            activeFrom: save.worldDate,
+          });
+          world.insertStaffProfile({
+            id: createStableEntityId("staff-profile", candidateId),
+            personId: candidateId,
+            preferredRole: "NATIONAL_TEAM_HEAD_COACH",
+            salaryExpectation: "NATIONAL_TEAM_SCALE",
+            reputation: "SIMULATION_ONLY",
+            countryKnowledge: [countryId],
+            clubKnowledge: [],
+            availability: "AVAILABLE",
+            workEligibilityStatus: "ELIGIBLE",
+          });
+          world.insertStaffLicence({
+            id: createStableEntityId("staff-licence", candidateId),
+            personId: candidateId,
+            licenceType: "AFC_B",
+            issuer: "ANFA",
+            status: "VERIFIED",
+          });
+        }
       }
       selectNationalTeamSquad(db, {
         federationId,
@@ -2695,31 +2769,25 @@ export class DesktopApplicationService {
     });
   }
 
+  /** The head-coach seat is the President's own decision (SENIOR_APPOINTMENTS); squad, friendlies and matches are not. */
   appointNationalTeamHeadCoach(
     nationalTeamId: EntityId,
     candidatePersonId: EntityId,
-  ): AppResult<StaffAppointment> {
+  ): AppResult<{ appointedPersonId: EntityId; nationalTeamId: EntityId }> {
     return this.withSession((db, save) => {
       const presidentPersonId = careerPersonId(db, save);
-      if (activeCareerRole(db, presidentPersonId) !== "FEDERATION_PRESIDENT") {
-        throw appError(
-          "ROLE_NOT_AUTHORIZED",
-          "Only the active federation president may appoint national-team staff.",
-        );
-      }
-      const federationId = db
-        .prepare("SELECT federation_id FROM teams WHERE id=?")
-        .get(nationalTeamId) as { federation_id?: EntityId } | undefined;
-      if (!federationId?.federation_id)
-        throw appError("INVALID_SELECTION", "The national team was not found.");
+      const federationId = this.currentFederationId(db, presidentPersonId);
+      if (!isFederationNationalTeam(db, nationalTeamId, federationId))
+        throw appError("INVALID_SELECTION", "That is not a national team of your federation.");
       try {
-        return appointNationalTeamHeadCoachForPresident(db, {
-          federationId: federationId.federation_id,
+        const appointment = appointNationalTeamHeadCoachForPresident(db, {
+          federationId,
           nationalTeamId,
           presidentPersonId,
           candidatePersonId,
           date: save.worldDate,
         });
+        return { appointedPersonId: appointment.personId, nationalTeamId };
       } catch (error) {
         if (error instanceof FederationPersonnelError && error.code === "NOT_AUTHORIZED")
           throw appError("ROLE_NOT_AUTHORIZED", error.message);

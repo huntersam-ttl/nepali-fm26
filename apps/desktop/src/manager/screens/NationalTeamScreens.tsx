@@ -6,8 +6,11 @@ import type {
   FederationPresidentDashboard,
   NationalTeamAttentionItem,
   NationalTeamFixturesView,
+  NationalTeamCoachCandidate,
+  NationalTeamCoachCandidatesView,
   NationalTeamMatchView,
   NationalTeamOverview,
+  NationalTeamPlayerPool,
   NationalTeamSquadReadModel,
   NationalTeamStaffView,
 } from "@nepal-football-sim/shared-types";
@@ -20,9 +23,10 @@ import { getSelectedNationalTeam, resolveNationalTeam, selectNationalTeam } from
 /**
  * Phase 10A — the national-team workspace for the Federation President.
  *
- * Read-only. Everything is recorded state read from the runtime: identity,
- * staff, squad, matches and competition context. There is no selection, call-up
- * or appointment control here, so nothing on these screens can change a team.
+ * Recorded state read from the runtime: identity, staff, squad, player pool,
+ * matches and competition context. The one thing the President decides here is
+ * the head-coach seat, when it is vacant. Squad selection, friendlies and match
+ * play belong to the simulation, so there is no control for them.
  * Matches are shown from the team's own perspective, and home or away is stated
  * only where the record says it. Hidden simulation values are never shown.
  */
@@ -30,6 +34,7 @@ import { getSelectedNationalTeam, resolveNationalTeam, selectNationalTeam } from
 export type NationalTeamScreen =
   | "national-team-overview"
   | "national-team-squad"
+  | "national-team-pool"
   | "national-team-staff"
   | "national-team-fixtures";
 
@@ -48,6 +53,7 @@ type Common = {
 export const NATIONAL_TEAM_SCREENS: Array<{ id: NationalTeamScreen; label: string }> = [
   { id: "national-team-overview", label: "Team overview" },
   { id: "national-team-squad", label: "Squad" },
+  { id: "national-team-pool", label: "Player pool" },
   { id: "national-team-staff", label: "Staff" },
   { id: "national-team-fixtures", label: "Fixtures" },
 ];
@@ -371,7 +377,7 @@ export const NationalTeamSquadScreen = (props: Common): React.ReactElement => (
   </Frame>
 );
 
-const SquadBody = ({ teamId, bridge, onOpenEntity }: Common & { teamId: EntityId }): React.ReactElement => {
+const SquadBody = ({ teamId, bridge, onOpenEntity, onNavigate }: Common & { teamId: EntityId }): React.ReactElement => {
   const [state] = useRuntimeData(
     () =>
       bridge.getNationalTeamSquad
@@ -447,7 +453,10 @@ const SquadBody = ({ teamId, bridge, onOpenEntity }: Common & { teamId: EntityId
               )}
               <p className="subtle">
                 Squads are chosen by the simulation from the eligible players. Selection cannot be changed from this
-                screen.
+                screen.{" "}
+                <button className="link" onClick={() => onNavigate("national-team-pool")}>
+                  See who is eligible in the player pool
+                </button>
               </p>
             </Panel>
 
@@ -507,14 +516,250 @@ const SquadBody = ({ teamId, bridge, onOpenEntity }: Common & { teamId: EntityId
   );
 };
 
+const ELIGIBILITY_TONE = {
+  ELIGIBLE: "ok",
+  DOCUMENTATION_REQUIRED: "warn",
+  CAP_TIED: "bad",
+  INELIGIBLE: "bad",
+  OVER_AGE: "info",
+  SENIOR_SQUAD: "info",
+  RETIRED_INTERNATIONAL: "info",
+} as const;
+
+export const NationalTeamPoolScreen = (props: Common): React.ReactElement => (
+  <Frame teams={props.teams} current="national-team-pool" onNavigate={props.onNavigate}>
+    {(team) => <PoolBody teamId={team.id} {...props} />}
+  </Frame>
+);
+
+const PoolBody = ({ teamId, bridge, onOpenEntity }: Common & { teamId: EntityId }): React.ReactElement => {
+  const [position, setPosition] = useState("");
+  const [onlyEligible, setOnlyEligible] = useState(true);
+  const [state] = useRuntimeData(
+    () =>
+      bridge.getNationalTeamPlayerPool
+        ? bridge.getNationalTeamPlayerPool(teamId, { position: position || undefined, onlyEligible })
+        : Promise.resolve({
+            ok: false as const,
+            error: { code: "RUNTIME_UNAVAILABLE" as const, message: "The player pool is unavailable right now." },
+          }),
+    [teamId, position, onlyEligible],
+  );
+  const positions = state.status === "ready" ? state.data.positions : [];
+  return (
+    <Panel title="Player pool" className="panel-wide">
+      <div className="button-row">
+        <label>
+          Position{" "}
+          <select aria-label="Position filter" value={position} onChange={(event) => setPosition(event.target.value)}>
+            <option value="">All positions</option>
+            {positions.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+            {position && !positions.includes(position) && <option value={position}>{position}</option>}
+          </select>
+        </label>
+        <label>
+          <input type="checkbox" checked={onlyEligible} onChange={(event) => setOnlyEligible(event.target.checked)} /> Eligible
+          players only
+        </label>
+      </div>
+      <AsyncPanel state={state}>
+        {(pool: NationalTeamPlayerPool) => (
+          <>
+            <Metrics
+              items={[
+                { label: "In pool", value: pool.poolCount },
+                { label: "Could be selected now", value: pool.selectableCount },
+                { label: "Matching this filter", value: pool.matchingCount },
+                { label: "As of", value: pool.asOf },
+              ]}
+            />
+            {pool.players.length === 0 ? (
+              <p className="empty-state">No players match this filter.</p>
+            ) : (
+              <div className="table-scroll" role="region" aria-label="Player pool" tabIndex={0}>
+                <table>
+                  <caption className="visually-hidden">Players who hold this nation's nationality in this team's category</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Player</th>
+                      <th scope="col">Position</th>
+                      <th scope="col">Age</th>
+                      <th scope="col">Club</th>
+                      <th scope="col">Eligibility</th>
+                      <th scope="col">Availability</th>
+                      <th scope="col">Selection</th>
+                      <th scope="col">Caps</th>
+                      <th scope="col">Goals</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pool.players.map((row) => (
+                      <tr key={row.player.id}>
+                        <th scope="row">
+                          <EntityLink reference={row.player} onOpenEntity={onOpenEntity} />
+                        </th>
+                        <td>{row.position ?? "—"}</td>
+                        <td>{row.age ?? "—"}</td>
+                        <td>{row.club ? <EntityLink reference={row.club} onOpenEntity={onOpenEntity} /> : "Unattached"}</td>
+                        <td>
+                          <Badge tone={ELIGIBILITY_TONE[row.eligibility]}>{humanizeToken(row.eligibility)}</Badge>{" "}
+                          <span className="subtle">{row.eligibilityNote}</span>
+                        </td>
+                        <td>
+                          <Badge tone={AVAILABILITY_TONE[row.availability]}>{humanizeToken(row.availability)}</Badge>
+                        </td>
+                        <td>{humanizeToken(row.selection)}</td>
+                        <td>{row.caps}</td>
+                        <td>{row.goals}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {pool.matchingCount > pool.players.length && (
+              <p className="subtle">
+                Showing {pool.players.length} of {pool.matchingCount} matching players — called-up players first. Narrow the
+                filter to see the rest.
+              </p>
+            )}
+            <p className="subtle">
+              <Badge tone="info">simulated</Badge> The simulation picks each squad from this pool. Selection cannot be changed
+              from this screen.
+            </p>
+          </>
+        )}
+      </AsyncPanel>
+    </Panel>
+  );
+};
+
 export const NationalTeamStaffScreen = (props: Common): React.ReactElement => (
   <Frame teams={props.teams} current="national-team-staff" onNavigate={props.onNavigate}>
     {(team) => <StaffBody teamId={team.id} {...props} />}
   </Frame>
 );
 
-const StaffBody = ({ teamId, bridge, onOpenEntity }: Common & { teamId: EntityId }): React.ReactElement => {
+const HeadCoachAppointment = ({
+  teamId,
+  teamName,
+  bridge,
+  onOpenEntity,
+  onAppointed,
+}: Pick<Common, "bridge" | "onOpenEntity"> & {
+  teamId: EntityId;
+  teamName: string;
+  onAppointed: () => void;
+}): React.ReactElement => {
+  const [pending, setPending] = useState<NationalTeamCoachCandidate | undefined>();
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState<string | undefined>();
   const [state] = useRuntimeData(
+    () =>
+      bridge.getNationalTeamCoachCandidates
+        ? bridge.getNationalTeamCoachCandidates(teamId)
+        : Promise.resolve({
+            ok: false as const,
+            error: { code: "RUNTIME_UNAVAILABLE" as const, message: "Coach candidates are unavailable right now." },
+          }),
+    [teamId],
+  );
+  const confirm = async (): Promise<void> => {
+    if (!pending || !bridge.appointNationalTeamHeadCoach) return;
+    setBusy(true);
+    setFailure(undefined);
+    const result = await bridge.appointNationalTeamHeadCoach(teamId, pending.person.id);
+    setBusy(false);
+    if (result.ok) {
+      setPending(undefined);
+      onAppointed();
+    } else setFailure(result.error.message);
+  };
+  return (
+    <Panel title="Appoint a head coach" className="panel-wide">
+      <AsyncPanel state={state}>
+        {(view: NationalTeamCoachCandidatesView) =>
+          view.candidates.length === 0 ? (
+            <p className="empty-state">No eligible, unemployed coaches are available right now.</p>
+          ) : (
+            <>
+              <div className="table-scroll" role="region" aria-label="Head-coach candidates" tabIndex={0}>
+                <table>
+                  <caption className="visually-hidden">Coaches who could be appointed as head coach</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Coach</th>
+                      <th scope="col">Nationality</th>
+                      <th scope="col">Licence</th>
+                      <th scope="col">Preferred role</th>
+                      <th scope="col">Availability</th>
+                      <th scope="col">Notes</th>
+                      <th scope="col">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {view.candidates.map((candidate) => (
+                      <tr key={candidate.person.id}>
+                        <th scope="row">
+                          <EntityLink reference={candidate.person} onOpenEntity={onOpenEntity} />
+                        </th>
+                        <td>{candidate.nationality ?? "—"}</td>
+                        <td>{candidate.licence ?? "—"}</td>
+                        <td>{candidate.preferredRole ? humanizeToken(candidate.preferredRole) : "—"}</td>
+                        <td>{humanizeToken(candidate.availability)}</td>
+                        <td>{candidate.note ?? "—"}</td>
+                        <td>
+                          <button
+                            className="ghost small"
+                            aria-label={`Appoint ${candidate.person.label} as head coach`}
+                            onClick={() => {
+                              setFailure(undefined);
+                              setPending(candidate);
+                            }}
+                          >
+                            Appoint
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {pending && (
+                <div role="group" aria-label="Confirm head-coach appointment" className="warning">
+                  <p>
+                    Appoint <strong>{pending.person.label}</strong> as head coach of {teamName}? The appointment takes effect
+                    immediately.
+                  </p>
+                  <div className="button-row">
+                    <button className="primary small" disabled={busy} onClick={() => void confirm()}>
+                      Confirm appointment
+                    </button>
+                    <button className="ghost small" disabled={busy} onClick={() => setPending(undefined)}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+              {failure && (
+                <p className="warning" role="alert">
+                  {failure}
+                </p>
+              )}
+            </>
+          )
+        }
+      </AsyncPanel>
+    </Panel>
+  );
+};
+
+const StaffBody = ({ teamId, bridge, onOpenEntity }: Common & { teamId: EntityId }): React.ReactElement => {
+  const [state, refresh] = useRuntimeData(
     () =>
       bridge.getNationalTeamStaff
         ? bridge.getNationalTeamStaff(teamId)
@@ -527,10 +772,11 @@ const StaffBody = ({ teamId, bridge, onOpenEntity }: Common & { teamId: EntityId
   return (
     <AsyncPanel state={state}>
       {(view: NationalTeamStaffView) => (
+        <>
         <Panel title="Staff" className="panel-wide">
           {view.headCoachVacant && (
             <p className="warning" role="status">
-              This team has no head coach. Appointing one is not available from this screen yet.
+              This team has no head coach. Choose one of the eligible coaches below.
             </p>
           )}
           {view.members.length === 0 ? (
@@ -563,9 +809,20 @@ const StaffBody = ({ teamId, bridge, onOpenEntity }: Common & { teamId: EntityId
             </div>
           )}
           <p className="subtle">
-            <Badge tone="info">simulated</Badge> Staff appointments are generated by the simulation.
+            <Badge tone="info">simulated</Badge> The simulation fills the other staff roles. The head-coach seat is yours to
+            fill when it is vacant.
           </p>
         </Panel>
+        {view.headCoachVacant && (
+          <HeadCoachAppointment
+            teamId={teamId}
+            teamName={view.team.name}
+            bridge={bridge}
+            onOpenEntity={onOpenEntity}
+            onAppointed={refresh}
+          />
+        )}
+        </>
       )}
     </AsyncPanel>
   );

@@ -171,7 +171,7 @@ test("5. Switching teams never leaks one team's state into another, and the choi
   await page.locator("main select:not([aria-label])").selectOption({ label: "Nepal U17 Men (Youth · U17)" });
   await expect(page.locator("main")).toContainText("No results are recorded yet");
   await family(page, "Staff").click();
-  await expect(page.locator("main")).toContainText("Head coach");
+  await expect(page.locator("main")).toContainText(/head coach/i);
   await family(page, "Team overview").click();
   await expect(page.getByRole("heading", { name: "Nepal U17 Men", level: 2 })).toBeVisible();
 });
@@ -184,16 +184,103 @@ test("6. Manager and Owner cannot use the national-team workspace, and the Presi
   for (const role of ["MANAGER", "CHAIRMAN_OWNER"]) {
     await page.getByLabel("Active career role").selectOption(role);
     await expect(nav(page, "National Teams")).toHaveCount(0);
-    for (const command of ["getNationalTeamOverview", "getNationalTeamStaff", "getNationalTeamFixtures", "seedE2ENationalTeamFixture"]) {
+    for (const command of [
+      "getNationalTeamOverview",
+      "getNationalTeamStaff",
+      "getNationalTeamFixtures",
+      "getNationalTeamPlayerPool",
+      "getNationalTeamCoachCandidates",
+      "appointNationalTeamHeadCoach",
+      "seedE2ENationalTeamFixture",
+    ]) {
       const result = await runtime(page, command, { nationalTeamId: teamId });
       expect(result.ok, `${command} as ${role}`).toBe(false);
       expect(result.error?.code, `${command} as ${role}`).toBe("ROLE_NOT_AUTHORIZED");
     }
   }
   await page.getByLabel("Active career role").selectOption("FEDERATION_PRESIDENT");
-  const clubTeam = await runtime(page, "getNationalTeamOverview", { nationalTeamId: "not-a-national-team" });
-  expect(clubTeam.ok).toBe(false);
-  expect(clubTeam.error?.code).toBe("INVALID_SELECTION");
+  for (const command of ["getNationalTeamOverview", "getNationalTeamPlayerPool", "getNationalTeamCoachCandidates", "appointNationalTeamHeadCoach"]) {
+    const invalid = await runtime(page, command, { nationalTeamId: "not-a-national-team", candidatePersonId: "nobody" });
+    expect(invalid.ok, command).toBe(false);
+    expect(invalid.error?.code, command).toBe("INVALID_SELECTION");
+  }
+});
+
+test("9. The player pool shows who is eligible, selected first, with no selection controls", async ({ page }) => {
+  test.setTimeout(500_000);
+  await becomePresident(page);
+  const teamId = await seedNationalTeam(page);
+  await openTeam(page, "Nepal Senior Men");
+  await family(page, "Squad").click();
+  await page.getByRole("button", { name: "See who is eligible in the player pool" }).click();
+  await expect(sectionTitle(page)).toHaveText("National team player pool");
+  const pool = (await runtime(page, "getNationalTeamPlayerPool", { nationalTeamId: teamId, query: { onlyEligible: true } })).data;
+  expect(pool.players.length).toBeGreaterThan(0);
+  expect(pool.selectableCount).toBeGreaterThanOrEqual(pool.players.filter((row: any) => row.selection === "CALLED_UP").length);
+  const table = page.getByRole("table", { name: "Players who hold this nation's nationality in this team's category" });
+  await expect(table.locator("tbody tr")).toHaveCount(pool.players.length);
+  // Called-up players lead the pool.
+  const firstRow = pool.players[0];
+  expect(firstRow.selection).toBe("CALLED_UP");
+  await expect(table.locator("tbody tr").first()).toContainText("Called Up");
+  await expect(page.locator("main")).toContainText("Selection cannot be changed");
+  await expect(page.locator("main").getByRole("button", { name: /call up|drop|replace|select player|add player/i })).toHaveCount(0);
+  expect(await page.locator("main").innerText()).not.toMatch(/\b(ability|potential|rating|score|strength)\b/i);
+
+  // The position filter is answered by the backend.
+  const position = pool.positions[0] as string;
+  await page.getByRole("combobox", { name: "Position filter" }).selectOption(position);
+  const filtered = (await runtime(page, "getNationalTeamPlayerPool", { nationalTeamId: teamId, query: { onlyEligible: true, position } })).data;
+  await expect(table.locator("tbody tr")).toHaveCount(filtered.players.length);
+  for (const row of filtered.players) expect(row.position).toBe(position);
+
+  // A player opens their own page, and Back returns to the same pool.
+  const name = filtered.players[0].player.label as string;
+  await table.getByRole("button", { name, exact: true }).first().click();
+  await expect(page.getByRole("button", { name: "Go back" })).toBeVisible();
+  await page.getByRole("button", { name: "Go back" }).click();
+  await expect(sectionTitle(page)).toHaveText("National team player pool");
+});
+
+test("10. The President appoints a head coach to a vacant seat, only after confirming", async ({ page }) => {
+  test.setTimeout(500_000);
+  await becomePresident(page);
+  await seedNationalTeam(page);
+  await openTeam(page, "Nepal Senior Men");
+  await page.locator("main select:not([aria-label])").selectOption({ label: "Nepal U17 Men (Youth · U17)" });
+  await family(page, "Staff").click();
+  await expect(sectionTitle(page)).toHaveText("National team staff");
+  await expect(page.locator("main")).toContainText("This team has no head coach");
+  const dashboard = (await runtime(page, "getFederationPresidentDashboard")).data;
+  const u17 = dashboard.nationalTeams.find((team: any) => team.level === "u17");
+  const candidates = (await runtime(page, "getNationalTeamCoachCandidates", { nationalTeamId: u17.id })).data;
+  expect(candidates.vacant).toBe(true);
+  expect(candidates.candidates.length).toBeGreaterThan(0);
+  const coach = candidates.candidates[0].person.label as string;
+
+  // Cancelling changes nothing.
+  await page.getByRole("button", { name: `Appoint ${coach} as head coach` }).click();
+  await expect(page.getByRole("group", { name: "Confirm head-coach appointment" })).toContainText(coach);
+  await page.getByRole("button", { name: "Cancel" }).click();
+  expect((await runtime(page, "getNationalTeamStaff", { nationalTeamId: u17.id })).data.headCoachVacant).toBe(true);
+
+  // Confirming appoints exactly one head coach.
+  await page.getByRole("button", { name: `Appoint ${coach} as head coach` }).click();
+  await page.getByRole("button", { name: "Confirm appointment" }).click();
+  await expect(page.locator("main")).not.toContainText("This team has no head coach");
+  const staffTable = page.getByRole("table", { name: "Current staff of this national team" });
+  await expect(staffTable).toContainText("Head coach");
+  await expect(staffTable.getByRole("button", { name: coach, exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Appoint /})).toHaveCount(0);
+  const after = (await runtime(page, "getNationalTeamStaff", { nationalTeamId: u17.id })).data;
+  expect(after.headCoachVacant).toBe(false);
+  expect(after.members.filter((member: any) => member.role === "NATIONAL_TEAM_HEAD_COACH")).toHaveLength(1);
+  expect(after.members.find((member: any) => member.role === "NATIONAL_TEAM_HEAD_COACH").person.label).toBe(coach);
+
+  // A second appointment is refused by the backend.
+  const second = await runtime(page, "appointNationalTeamHeadCoach", { nationalTeamId: u17.id, candidatePersonId: candidates.candidates[1]?.person.id ?? "x" });
+  expect(second.ok).toBe(false);
+  expect(second.error?.code).toBe("INVALID_SELECTION");
 });
 
 test("7. National Teams and the Federation Overview link to each other", async ({ page }) => {
@@ -233,6 +320,7 @@ test("8. Every national-team screen: no overflow at every width, one h1, axe cle
     [null, "National teams"],
     ["Team overview", "National team"],
     ["Squad", "National team squad"],
+    ["Player pool", "National team player pool"],
     ["Staff", "National team staff"],
     ["Fixtures", "National team fixtures"],
   ];

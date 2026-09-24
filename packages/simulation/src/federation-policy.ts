@@ -22,6 +22,7 @@ import {
   type GameDatabase,
 } from "@nepal-football-sim/database";
 import { refereeGovernanceSummary } from "./federation-strategy.js";
+import { nationalTeamOutcomes } from "./national-team-workspace.js";
 
 const status = "SIMULATION_ONLY" as const;
 const clamp = (value: number, min = 0, max = 100): number => Math.max(min, Math.min(max, value));
@@ -63,16 +64,13 @@ const federationOutcomes = (db: GameDatabase, federationId: EntityId): Federatio
     );
   }
   const outcomes = { senior: emptyRecord(), youth: emptyRecord(), women: emptyRecord() };
-  const fixtures = new FederationGovernanceRepository(db)
-    .nationalTeamFixtures()
-    .filter((fixture) => fixture.federationId === federationId && fixture.status === "PLAYED");
-  for (const fixture of fixtures) {
-    const kind = teamKinds.get(fixture.nationalTeamId);
-    if (!kind || fixture.homeGoals === undefined || fixture.awayGoals === undefined) continue;
+  for (const played of nationalTeamOutcomes(db, federationId)) {
+    const kind = teamKinds.get(played.teamId);
+    if (!kind) continue;
     const result = outcomes[kind];
     result.fixtures += 1;
-    if (fixture.homeGoals > fixture.awayGoals) result.wins += 1;
-    else if (fixture.homeGoals === fixture.awayGoals) result.draws += 1;
+    if (played.result === "WIN") result.wins += 1;
+    else if (played.result === "DRAW") result.draws += 1;
     else result.losses += 1;
   }
   const nationalAppearances = new FederationGovernanceRepository(db)

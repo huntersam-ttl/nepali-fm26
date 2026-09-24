@@ -83,6 +83,7 @@ import { FederationTenureScreen } from "./screens/FederationTenureScreen.js";
 import {
   NationalTeamFixturesScreen,
   NationalTeamOverviewScreen,
+  NationalTeamPoolScreen,
   NationalTeamSquadScreen,
   NationalTeamStaffScreen,
   NationalTeamsHub,
@@ -149,6 +150,7 @@ export type PresidentScreen =
   | "national-teams"
   | "national-team-overview"
   | "national-team-squad"
+  | "national-team-pool"
   | "national-team-staff"
   | "national-team-fixtures"
   | "national-development"
@@ -221,9 +223,13 @@ const SECTION_TITLES: Record<string, { title: string; subtitle: string }> = {
     title: "National team squad",
     subtitle: "Who is called up, where they play and whether they are available.",
   },
+  "national-team-pool": {
+    title: "National team player pool",
+    subtitle: "Who is eligible for the team, and who the simulation could select.",
+  },
   "national-team-staff": {
     title: "National team staff",
-    subtitle: "The coaching, medical and analysis staff of the team.",
+    subtitle: "The coaching, medical and analysis staff of the team, and the head-coach seat.",
   },
   "national-team-fixtures": {
     title: "National team fixtures",
@@ -2040,6 +2046,10 @@ const PresidentDetail = ({
         if (screen === "national-team-squad")
           return (
             <NationalTeamSquadScreen teams={dashboard.nationalTeams} bridge={bridge} onNavigate={onNavigate} onOpenEntity={onOpenEntity} />
+          );
+        if (screen === "national-team-pool")
+          return (
+            <NationalTeamPoolScreen teams={dashboard.nationalTeams} bridge={bridge} onNavigate={onNavigate} onOpenEntity={onOpenEntity} />
           );
         if (screen === "national-team-staff")
           return (

@@ -132,6 +132,13 @@ const ROLE_LICENCE_REQUIREMENT: Partial<Record<FootballStaffRole, number>> = {
   NATIONAL_TEAM_HEAD_COACH: 3,
 };
 
+/** The highest-ranked recognised licence a person holds, if any. */
+export const highestLicence = (licences: StaffLicence[]): { type: string; rank: number } | undefined =>
+  licences
+    .map((licence) => ({ type: licence.licenceType, rank: LICENCE_RANK[licence.licenceType] ?? 0 }))
+    .filter((licence) => licence.rank > 0)
+    .sort((a, b) => b.rank - a.rank)[0];
+
 const licenceRankOf = (licences: StaffLicence[]): number =>
   licences.reduce((max, licence) => Math.max(max, LICENCE_RANK[licence.licenceType] ?? 0), 0);
 

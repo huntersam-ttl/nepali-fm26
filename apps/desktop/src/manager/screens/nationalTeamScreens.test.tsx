@@ -95,6 +95,36 @@ const bridge = {
       provenanceStatus: "SIMULATION_ONLY",
     } as never),
   ),
+  getNationalTeamCoachCandidates: vi.fn((id: string) =>
+    ok({
+      team: identity(id, "Nepal Senior Women", "Senior women"),
+      vacant: true,
+      candidates: [
+        { person: ref("cand1", "Bikash Rai", "STAFF"), preferredRole: "NATIONAL_TEAM_HEAD_COACH", nationality: "Nepal", licence: "AFC B", availability: "AVAILABLE" },
+      ],
+      asOf: "2026-08-01",
+      provenanceStatus: "SIMULATION_ONLY",
+    } as never),
+  ),
+  appointNationalTeamHeadCoach: vi.fn((id: string, person: string) => ok({ appointedPersonId: person, nationalTeamId: id } as never)),
+  getNationalTeamPlayerPool: vi.fn((id: string, query: { position?: string; onlyEligible?: boolean } = {}) =>
+    ok({
+      team: identity(id, "Nepal Senior Men", "Senior men"),
+      players: [
+        { player: ref("p1", "Anjan Bista", "PLAYER"), position: "GK", club: ref("club1", "Three Star Club", "CLUB"), age: 29, selection: "CALLED_UP", availability: "AVAILABLE", eligibility: "ELIGIBLE", eligibilityNote: "Eligible for this team", selectable: true, caps: 12, goals: 0 },
+        ...(query.onlyEligible
+          ? []
+          : [{ player: ref("p9", "Old Timer", "PLAYER"), position: "ST", age: 38, selection: "NOT_SELECTED", availability: "INJURED", eligibility: "RETIRED_INTERNATIONAL", eligibilityNote: "Retired from international football with this team", selectable: false, caps: 40, goals: 11 }]),
+      ],
+      matchingCount: query.onlyEligible ? 1 : 2,
+      selectableCount: 1,
+      poolCount: 2,
+      positions: ["GK", "ST"],
+      limit: 150,
+      asOf: "2026-08-01",
+      provenanceStatus: "SIMULATION_ONLY",
+    } as never),
+  ),
   getNationalTeamSquad: vi.fn((id: string) =>
     ok({
       nationalTeam: { id, label: "Nepal Senior Men", entityReference: ref(id, "Nepal Senior Men", "NATIONAL_TEAM") },
@@ -230,7 +260,7 @@ describe("National team overview", () => {
     const nav = screen.getByRole("navigation", { name: "National team sections" });
     expect(within(nav).getByRole("button", { name: "Squad" }).getAttribute("aria-current")).toBe("page");
     expect(within(nav).getByRole("button", { name: "Staff" }).getAttribute("aria-current")).toBeNull();
-    expect(within(nav).getAllByRole("button").map((button) => button.textContent)).toEqual(["All teams", "Team overview", "Squad", "Staff", "Fixtures"]);
+    expect(within(nav).getAllByRole("button").map((button) => button.textContent)).toEqual(["All teams", "Team overview", "Squad", "Player pool", "Staff", "Fixtures"]);
   });
 });
 
@@ -251,6 +281,39 @@ describe("National team squad, staff and fixtures", () => {
     expect(screen.getByRole("region", { name: "Called-up players" }).getAttribute("tabindex")).toBe("0");
   });
 
+  it("shows the player pool with eligibility, availability and links, and filters through the backend", async () => {
+    const p = props();
+    render(<mod.NationalTeamPoolScreen {...p} />);
+    const table = await screen.findByRole("table", { name: "Players who hold this nation's nationality in this team's category" });
+    expect(bridge.getNationalTeamPlayerPool).toHaveBeenLastCalledWith("men", { position: undefined, onlyEligible: true });
+    expect(table.textContent).toMatch(/Anjan Bista/);
+    expect(table.textContent).toMatch(/Eligible for this team/);
+    expect(table.textContent).not.toMatch(/Old Timer/);
+    expect(document.body.textContent).toMatch(/Could be selected now1/);
+    fireEvent.click(within(table).getByRole("button", { name: "Anjan Bista" }));
+    expect(p.onOpenEntity).toHaveBeenCalledWith("PLAYER", "p1");
+    expect(screen.queryByRole("button", { name: /call up|drop|replace|select player|add player/i })).toBeNull();
+    expect(document.body.textContent).toMatch(/Selection cannot be changed\s+from this screen/);
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /Eligible players only/ }));
+    await screen.findByText("Old Timer", { selector: "button" });
+    expect(bridge.getNationalTeamPlayerPool).toHaveBeenLastCalledWith("men", { position: undefined, onlyEligible: false });
+    expect(document.body.textContent).toMatch(/Retired from international football with this team/);
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Position filter" }), { target: { value: "ST" } });
+    await waitFor(() => expect(bridge.getNationalTeamPlayerPool).toHaveBeenLastCalledWith("men", { position: "ST", onlyEligible: false }));
+    expect(screen.getByRole("region", { name: "Player pool" }).getAttribute("tabindex")).toBe("0");
+    expect(document.body.textContent).not.toMatch(/\b(ability|potential|rating|score)\b/i);
+  });
+
+  it("is honest when nothing matches the pool filter", async () => {
+    bridge.getNationalTeamPlayerPool.mockImplementationOnce((id: string) =>
+      ok({ team: identity(id, "Nepal Senior Men", "Senior men"), players: [], matchingCount: 0, selectableCount: 0, poolCount: 0, positions: [], limit: 150, asOf: "2026-08-01", provenanceStatus: "SIMULATION_ONLY" } as never),
+    );
+    render(<mod.NationalTeamPoolScreen {...props()} />);
+    await screen.findByText("No players match this filter.");
+  });
+
   it("shows an honest empty squad", async () => {
     selection.selectNationalTeam("women" as never);
     render(<mod.NationalTeamSquadScreen {...props()} />);
@@ -258,7 +321,7 @@ describe("National team squad, staff and fixtures", () => {
     expect(document.body.textContent).toMatch(/No clubs are represented yet/);
   });
 
-  it("shows staff with contract dates, links people, and states a vacancy without a hire control", async () => {
+  it("shows staff with contract dates and links people, and offers no appointment when the seat is filled", async () => {
     const p = props();
     render(<mod.NationalTeamStaffScreen {...p} />);
     await screen.findByText("Asst Gurung");
@@ -266,12 +329,57 @@ describe("National team squad, staff and fixtures", () => {
     expect(document.body.textContent).toMatch(/No contract end recorded/);
     fireEvent.click(screen.getByRole("button", { name: "Coach Rai" }));
     expect(p.onOpenEntity).toHaveBeenCalledWith("STAFF", "c1");
-    cleanup();
+    expect(screen.queryByRole("button", { name: /appoint|hire|sack|dismiss/i })).toBeNull();
+    expect(bridge.getNationalTeamCoachCandidates).not.toHaveBeenCalled();
+  });
+
+  it("appoints a head coach only after confirmation, then reloads the staff", async () => {
     selection.selectNationalTeam("women" as never);
     render(<mod.NationalTeamStaffScreen {...props()} />);
     await screen.findByText(/no head coach/i);
     expect(document.body.textContent).toMatch(/No staff are recorded for this team/);
-    expect(screen.queryByRole("button", { name: /appoint|hire|sack|dismiss/i })).toBeNull();
+    const table = await screen.findByRole("table", { name: "Coaches who could be appointed as head coach" });
+    expect(table.textContent).toMatch(/AFC B/);
+    expect(table.textContent).toMatch(/Nepal/);
+    expect(document.body.textContent).not.toMatch(/\b(fit|rating|score|ability)\b/i);
+
+    fireEvent.click(screen.getByRole("button", { name: "Appoint Bikash Rai as head coach" }));
+    const group = screen.getByRole("group", { name: "Confirm head-coach appointment" });
+    expect(group.textContent).toMatch(/Bikash Rai/);
+    expect(bridge.appointNationalTeamHeadCoach).not.toHaveBeenCalled();
+    fireEvent.click(within(group).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("group", { name: "Confirm head-coach appointment" })).toBeNull();
+    expect(bridge.appointNationalTeamHeadCoach).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Appoint Bikash Rai as head coach" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm appointment" }));
+    await waitFor(() => expect(bridge.appointNationalTeamHeadCoach).toHaveBeenCalledWith("women", "cand1"));
+    await waitFor(() => expect(bridge.getNationalTeamStaff).toHaveBeenCalledTimes(2));
+  });
+
+  it("shows the backend's refusal and does not reload when an appointment fails", async () => {
+    bridge.appointNationalTeamHeadCoach.mockResolvedValueOnce({
+      ok: false as const,
+      error: { code: "INVALID_SELECTION", message: "The national team already has a head coach." },
+    } as never);
+    selection.selectNationalTeam("women" as never);
+    render(<mod.NationalTeamStaffScreen {...props()} />);
+    await screen.findByRole("table", { name: "Coaches who could be appointed as head coach" });
+    fireEvent.click(screen.getByRole("button", { name: "Appoint Bikash Rai as head coach" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm appointment" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toMatch(/already has a head coach/);
+    expect(bridge.getNationalTeamStaff).toHaveBeenCalledTimes(1);
+  });
+
+  it("says so when no eligible coach is available", async () => {
+    bridge.getNationalTeamCoachCandidates.mockImplementationOnce((id: string) =>
+      ok({ team: identity(id, "Nepal Senior Women", "Senior women"), vacant: true, candidates: [], asOf: "2026-08-01", provenanceStatus: "SIMULATION_ONLY" } as never),
+    );
+    selection.selectNationalTeam("women" as never);
+    render(<mod.NationalTeamStaffScreen {...props()} />);
+    await screen.findByText(/No eligible, unemployed coaches are available/);
+    expect(screen.queryByRole("button", { name: /^Appoint/ })).toBeNull();
   });
 
   it("shows upcoming matches and results from the team's side", async () => {

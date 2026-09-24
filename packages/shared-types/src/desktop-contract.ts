@@ -1240,6 +1240,64 @@ export type NationalTeamFixturesView = {
   provenanceStatus: "SIMULATION_ONLY";
 };
 
+export type NationalTeamPoolEligibility =
+  | "ELIGIBLE"
+  | "DOCUMENTATION_REQUIRED"
+  | "CAP_TIED"
+  | "INELIGIBLE"
+  | "OVER_AGE"
+  | "SENIOR_SQUAD"
+  | "RETIRED_INTERNATIONAL";
+
+export type NationalTeamPoolPlayer = {
+  player: EntityReference;
+  position?: string;
+  club?: EntityReference;
+  age?: number;
+  selection: "CALLED_UP" | "WITHDRAWN" | "DECLINED" | "NOT_SELECTED";
+  availability: "AVAILABLE" | "INJURED" | "SUSPENDED" | "UNAVAILABLE";
+  eligibility: NationalTeamPoolEligibility;
+  eligibilityNote: string;
+  /** Whether the simulation's own selection could pick this player right now. */
+  selectable: boolean;
+  caps: number;
+  goals: number;
+};
+
+export type NationalTeamPlayerPoolQuery = { position?: string; onlyEligible?: boolean };
+
+export type NationalTeamPlayerPool = {
+  team: NationalTeamIdentity;
+  players: NationalTeamPoolPlayer[];
+  /** Players matching the filter before the display limit. */
+  matchingCount: number;
+  /** Players who could be selected right now, across the whole pool. */
+  selectableCount: number;
+  /** Everyone of the right nationality and category, before any filter. */
+  poolCount: number;
+  positions: string[];
+  limit: number;
+  asOf: ISODate;
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+export type NationalTeamCoachCandidate = {
+  person: EntityReference;
+  preferredRole?: string;
+  nationality?: string;
+  licence?: string;
+  availability: string;
+  note?: string;
+};
+
+export type NationalTeamCoachCandidatesView = {
+  team: NationalTeamIdentity;
+  vacant: boolean;
+  candidates: NationalTeamCoachCandidate[];
+  asOf: ISODate;
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
 export type FederationNationalTeamSummary = {
   id: EntityId;
   name: string;
@@ -1559,6 +1617,15 @@ export type DesktopRuntimeApi = {
   getNationalTeamOverview?: (nationalTeamId: EntityId) => Promise<AppResult<NationalTeamOverview>>;
   getNationalTeamStaff?: (nationalTeamId: EntityId) => Promise<AppResult<NationalTeamStaffView>>;
   getNationalTeamFixtures?: (nationalTeamId: EntityId) => Promise<AppResult<NationalTeamFixturesView>>;
+  getNationalTeamPlayerPool?: (
+    nationalTeamId: EntityId,
+    query?: NationalTeamPlayerPoolQuery,
+  ) => Promise<AppResult<NationalTeamPlayerPool>>;
+  getNationalTeamCoachCandidates?: (nationalTeamId: EntityId) => Promise<AppResult<NationalTeamCoachCandidatesView>>;
+  appointNationalTeamHeadCoach?: (
+    nationalTeamId: EntityId,
+    candidatePersonId: EntityId,
+  ) => Promise<AppResult<{ appointedPersonId: EntityId; nationalTeamId: EntityId }>>;
   getFederationTenure?: () => Promise<AppResult<FederationTenureView>>;
   getFederationExternalContext?: () => Promise<AppResult<FederationExternalContext>>;
   getFederationCompetitionGovernance?: () => Promise<AppResult<FederationCompetitionGovernance>>;

@@ -58,6 +58,7 @@ import { simulateMatch } from "./match-engine.js";
 import { PLAYABLE_CLUB_PREDICATE } from "./playable-world.js";
 import { SeededRandom } from "./rng.js";
 import { buildEntityReference } from "./entity-reference.js";
+import { nationalTeamOutcomes } from "./national-team-workspace.js";
 import { recordFederationDevelopmentSnapshot } from "./federation-scorecard.js";
 
 const currency = "NPR";
@@ -2197,13 +2198,7 @@ const updateFederationKpis = (
     ["NATIONAL_TEAM_REPUTATION", profile.reputation],
     [
       "INTERNATIONAL_WINS",
-      repo
-        .nationalTeamFixtures()
-        .filter(
-          (fixture) =>
-            fixture.federationId === federationId &&
-            (fixture.homeGoals ?? 0) > (fixture.awayGoals ?? 0),
-        ).length,
+      nationalTeamOutcomes(db, federationId).filter((played) => played.result === "WIN").length,
     ],
     ["INFRASTRUCTURE_SCORE", profile.infrastructureLevel],
     [
@@ -2304,9 +2299,7 @@ const federationReport = (
       .filter((project) => project.status === "COMPLETED").length,
     clubGrants: repo.grantDistributions(federationId).length,
     nationalTeamFixtures: fixtures.length,
-    nationalTeamWins: fixtures.filter(
-      (fixture) => (fixture.homeGoals ?? 0) > (fixture.awayGoals ?? 0),
-    ).length,
+    nationalTeamWins: nationalTeamOutcomes(db, federationId).filter((played) => played.result === "WIN").length,
     callups: repo.nationalTeamCallups().length,
     coachGraduates: repo
       .coachEducationProgrammes(federationId)
@@ -2429,7 +2422,7 @@ const eligiblePlayerAttributes = (
   });
 };
 
-const eligibleForNationalTeamAge = (
+export const eligibleForNationalTeamAge = (
   dateOfBirth: string | undefined | null,
   level: Team["level"],
   referenceDate: string,
