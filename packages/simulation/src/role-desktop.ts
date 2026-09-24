@@ -15,6 +15,7 @@ import type {
 import { getClubFinancialSummary } from "./club-economy.js";
 import { getFederationFinances, getFederationOverview } from "./federation-governance.js";
 import { heldCareerRoles } from "./career-control.js";
+import { nationalTeamMatches } from "./national-team-workspace.js";
 import { buildOwnershipInvestorMarket } from "./ownership.js";
 import { roleInboxItems } from "./media.js";
 import { ownerPressInboxItems } from "./owner-media-desktop.js";
@@ -105,14 +106,14 @@ export const buildFederationPresidentDashboard = (db: GameDatabase, save: SaveMe
         .filter((callup) => callup.callupDate <= save.worldDate && callup.status !== "DECLINED")
         .map((callup) => callup.playerId),
     ).size;
-    const next = db
-      .prepare("SELECT opponent_name, fixture_date FROM national_team_fixtures WHERE national_team_id=? AND fixture_date>=? ORDER BY fixture_date LIMIT 1")
-      .get(team.id, save.worldDate) as { opponent_name: string; fixture_date: string } | undefined;
-    const recent = db
-      .prepare(
-        "SELECT opponent_name, home_goals, away_goals FROM national_team_fixtures WHERE national_team_id=? AND fixture_date<? AND status='PLAYED' ORDER BY fixture_date DESC LIMIT 1",
-      )
-      .get(team.id, save.worldDate) as { opponent_name: string; home_goals?: number; away_goals?: number } | undefined;
+    // From the team's own perspective: a competition match records the home and away sides.
+    const matches = nationalTeamMatches(db, team.id);
+    const next = matches
+      .filter((match) => match.status === "SCHEDULED" && match.date >= save.worldDate)
+      .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))[0];
+    const recent = matches
+      .filter((match) => match.status === "PLAYED" && match.date < save.worldDate)
+      .sort((a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id))[0];
     return {
       id: team.id,
       name: team.name,
@@ -120,10 +121,10 @@ export const buildFederationPresidentDashboard = (db: GameDatabase, save: SaveMe
       gender: team.gender,
       headCoach: coach?.person_id ? personName(db, coach.person_id) : undefined,
       squadSize,
-      nextFixture: next ? { opponent: next.opponent_name, date: next.fixture_date } : undefined,
+      nextFixture: next ? { opponent: next.opponent, date: next.date } : undefined,
       recentResult:
-        recent && recent.home_goals != null && recent.away_goals != null
-          ? { opponent: recent.opponent_name, result: `${recent.home_goals}-${recent.away_goals}` }
+        recent && recent.goalsFor != null && recent.goalsAgainst != null
+          ? { opponent: recent.opponent, result: `${recent.goalsFor}-${recent.goalsAgainst}` }
           : undefined,
     };
   });

@@ -73,13 +73,20 @@ import type {
   StoryThreadCategory,
   EntityStoryline,
 } from "@nepal-football-sim/shared-types";
-import type { EntityId } from "@nepal-football-sim/shared-types";
+import type { EntityId, EntityReferenceType } from "@nepal-football-sim/shared-types";
 import type { AppError, AppResult, DesktopRuntimeApi } from "../appBridge.js";
 import { AsyncPanel, Badge, ErrorBanner, Metrics, Panel, money, useRuntimeData } from "./ui.js";
 import { FederationOverviewScreen } from "./screens/FederationOverviewScreen.js";
 import { FederationProjectsScreen } from "./screens/FederationProjectsScreen.js";
 import { FederationFundingPanels } from "./screens/FederationFundingPanels.js";
 import { FederationTenureScreen } from "./screens/FederationTenureScreen.js";
+import {
+  NationalTeamFixturesScreen,
+  NationalTeamOverviewScreen,
+  NationalTeamSquadScreen,
+  NationalTeamStaffScreen,
+  NationalTeamsHub,
+} from "./screens/NationalTeamScreens.js";
 import { CompetitionGovernancePanels, DevelopmentProgrammesPanel } from "./screens/FederationGovernancePanels.js";
 import {
   MeetingBrief,
@@ -140,6 +147,10 @@ export type PresidentScreen =
   | "finance"
   | "commercial"
   | "national-teams"
+  | "national-team-overview"
+  | "national-team-squad"
+  | "national-team-staff"
+  | "national-team-fixtures"
   | "national-development"
   | "government-relations"
   | "nepal-map"
@@ -152,6 +163,7 @@ type Props = {
   roles: CareerRoleState;
   bridge: DesktopRuntimeApi;
   onNavigate: (screen: ChairmanScreen | PresidentScreen) => void;
+  onOpenEntity?: (entityType: EntityReferenceType, entityId: EntityId) => void;
 };
 
 /*
@@ -201,6 +213,22 @@ const SECTION_TITLES: Record<string, { title: string; subtitle: string }> = {
     title: "National teams",
     subtitle: "Squads, staff, and international programme.",
   },
+  "national-team-overview": {
+    title: "National team",
+    subtitle: "Identity, coach, squad, matches and competition context.",
+  },
+  "national-team-squad": {
+    title: "National team squad",
+    subtitle: "Who is called up, where they play and whether they are available.",
+  },
+  "national-team-staff": {
+    title: "National team staff",
+    subtitle: "The coaching, medical and analysis staff of the team.",
+  },
+  "national-team-fixtures": {
+    title: "National team fixtures",
+    subtitle: "Upcoming matches and recorded results.",
+  },
   "national-development": {
     title: "National development",
     subtitle: "Grassroots, pathway, and federation-wide development outcomes.",
@@ -245,13 +273,19 @@ export const RoleDetailScreen = ({
   roles,
   bridge,
   onNavigate,
+  onOpenEntity,
 }: Props): React.ReactElement => (
   <>
     <SectionHeader screen={screen} role={header.activeRole} />
     {header.activeRole === "CHAIRMAN_OWNER" ? (
       <ChairmanDetail screen={screen as ChairmanScreen} bridge={bridge} onNavigate={onNavigate} />
     ) : (
-      <PresidentDetail screen={screen as PresidentScreen} bridge={bridge} onNavigate={onNavigate} />
+      <PresidentDetail
+        screen={screen as PresidentScreen}
+        bridge={bridge}
+        onNavigate={onNavigate}
+        onOpenEntity={onOpenEntity}
+      />
     )}
   </>
 );
@@ -1955,10 +1989,12 @@ const PresidentDetail = ({
   screen,
   bridge,
   onNavigate,
+  onOpenEntity,
 }: {
   screen: PresidentScreen;
   bridge: DesktopRuntimeApi;
   onNavigate: Props["onNavigate"];
+  onOpenEntity?: Props["onOpenEntity"];
 }): React.ReactElement => {
   const [state, refresh] = useRuntimeData(() => bridge.getFederationPresidentDashboard());
   // A refresh briefly unmounts the section, so a confirmation lives up here.
@@ -1996,7 +2032,23 @@ const PresidentDetail = ({
           );
         if (screen === "commercial") return <PresidentCommercial bridge={bridge} />;
         if (screen === "national-teams")
-          return <NationalTeams dashboard={dashboard} bridge={bridge} />;
+          return <NationalTeamsHub teams={dashboard.nationalTeams} onNavigate={onNavigate} />;
+        if (screen === "national-team-overview")
+          return (
+            <NationalTeamOverviewScreen teams={dashboard.nationalTeams} bridge={bridge} onNavigate={onNavigate} onOpenEntity={onOpenEntity} />
+          );
+        if (screen === "national-team-squad")
+          return (
+            <NationalTeamSquadScreen teams={dashboard.nationalTeams} bridge={bridge} onNavigate={onNavigate} onOpenEntity={onOpenEntity} />
+          );
+        if (screen === "national-team-staff")
+          return (
+            <NationalTeamStaffScreen teams={dashboard.nationalTeams} bridge={bridge} onNavigate={onNavigate} onOpenEntity={onOpenEntity} />
+          );
+        if (screen === "national-team-fixtures")
+          return (
+            <NationalTeamFixturesScreen teams={dashboard.nationalTeams} bridge={bridge} onNavigate={onNavigate} onOpenEntity={onOpenEntity} />
+          );
         if (screen === "national-development") return <NationalDevelopment bridge={bridge} onNavigate={onNavigate} />;
         if (screen === "government-relations") return <GovernmentRelations bridge={bridge} />;
         if (screen === "nepal-map") return <NepalFootballMap bridge={bridge} />;
@@ -2765,56 +2817,6 @@ export const PresidentCommercial = ({ bridge }: { bridge: DesktopRuntimeApi }): 
         );
       }}
     </AsyncPanel>
-  );
-};
-const NationalTeams = ({
-  dashboard,
-  bridge,
-}: {
-  dashboard: FederationPresidentDashboard;
-  bridge: DesktopRuntimeApi;
-}): React.ReactElement => {
-  const [squadTeamId, setSquadTeamId] = useState<EntityId | undefined>(undefined);
-  const programmeLabel = (team: FederationPresidentDashboard["nationalTeams"][number]): string =>
-    team.gender === "women" ? "Women & Girls" : team.level === "senior" ? "Senior Men" : `Youth · ${team.level.toUpperCase()}`;
-  return (
-    <section className="role-detail">
-      <div className="facility-lifecycle-grid">
-        {dashboard.nationalTeams.map((team) => (
-          <article key={team.id} className="facility-project-card">
-            <header>
-              <strong>{team.name}</strong>
-              <Badge tone="info">{programmeLabel(team)}</Badge>
-            </header>
-            <p className="subtle">Coach: {team.headCoach ?? "Not recorded"}</p>
-            <Metrics
-              items={[
-                { label: "Squad", value: team.squadSize },
-                {
-                  label: "Next fixture",
-                  value: team.nextFixture ? `${team.nextFixture.opponent} · ${team.nextFixture.date}` : "None scheduled",
-                },
-                {
-                  label: "Recent result",
-                  value: team.recentResult ? `${team.recentResult.opponent} ${team.recentResult.result}` : "No result recorded",
-                },
-              ]}
-            />
-            <button className="link" onClick={() => setSquadTeamId(team.id)}>
-              View squad
-            </button>
-          </article>
-        ))}
-      </div>
-      {squadTeamId && (
-        <NationalTeamSquadPanel
-          bridge={bridge}
-          teams={dashboard.nationalTeams}
-          initialTeamId={squadTeamId}
-          onClose={() => setSquadTeamId(undefined)}
-        />
-      )}
-    </section>
   );
 };
 

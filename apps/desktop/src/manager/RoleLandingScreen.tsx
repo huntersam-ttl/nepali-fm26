@@ -5,6 +5,7 @@ import type {
   CareerRoleState,
   ClubBudgetCategory,
   EntityId,
+  EntityReferenceType,
   EntityReference,
   ExecutiveAuthorityDesktopView,
   FederationPresidentDashboard,
@@ -61,12 +62,14 @@ export const RoleLandingScreen = ({
   bridge,
   screen,
   onNavigate,
+  onOpenEntity,
 }: {
   header: CareerHeader;
   roles: CareerRoleState;
   bridge: DesktopRuntimeApi;
   screen: ChairmanScreen | PresidentScreen;
   onNavigate: (screen: ChairmanScreen | PresidentScreen) => void;
+  onOpenEntity?: (entityType: EntityReferenceType, entityId: EntityId) => void;
 }): React.ReactElement =>
   EXECUTIVE_ROLES.includes(header.activeRole) ? (
     <ExecutiveDashboardScreen header={header} roles={roles} bridge={bridge} />
@@ -77,6 +80,7 @@ export const RoleLandingScreen = ({
       roles={roles}
       bridge={bridge}
       onNavigate={onNavigate}
+      onOpenEntity={onOpenEntity}
     />
   ) : header.activeRole === "CHAIRMAN_OWNER" ? (
     <ChairmanDashboardScreen header={header} roles={roles} bridge={bridge} />

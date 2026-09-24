@@ -1144,6 +1144,102 @@ export type NationalTeamSquadReadModel = {
   unsupportedReason?: string;
 };
 
+/** Who a national team is, as recorded. */
+export type NationalTeamIdentity = {
+  id: EntityId;
+  name: string;
+  level: string;
+  gender: string;
+  programme: "SENIOR_MENS" | "WOMENS_GIRLS" | "YOUTH";
+  typeLabel: string;
+  federation: { id: EntityId; name: string };
+};
+
+/** One national-team match from the team's own perspective. Only recorded
+ * facts: home/away is stated only where the record says it. */
+export type NationalTeamMatchView = {
+  id: EntityId;
+  date: ISODate;
+  opponent: string;
+  kind: string;
+  competition?: string;
+  stage?: string;
+  group?: string;
+  venueSide: "HOME" | "AWAY" | "NEUTRAL" | "NOT_RECORDED";
+  venue?: string;
+  status: "SCHEDULED" | "PLAYED" | "CANCELLED";
+  goalsFor?: number;
+  goalsAgainst?: number;
+  result?: "WIN" | "DRAW" | "LOSS";
+  penaltiesFor?: number;
+  penaltiesAgainst?: number;
+};
+
+export type NationalTeamCompetitionContext = {
+  edition: string;
+  status: string;
+  startDate: ISODate;
+  endDate: ISODate;
+  entryStatus?: string;
+  group?: string;
+  campaign?: {
+    name: string;
+    matchesPlayed: number;
+    wins: number;
+    draws: number;
+    losses: number;
+    qualificationStatus: string;
+  };
+};
+
+export type NationalTeamAttentionItem = {
+  key: string;
+  text: string;
+  target: "squad" | "staff" | "fixtures";
+};
+
+export type NationalTeamOverview = {
+  team: NationalTeamIdentity;
+  headCoach?: EntityReference;
+  staffCount: number;
+  squad: {
+    squadSize: number;
+    selectedCount: number;
+    unavailableCount: number;
+    captain?: EntityReference;
+    currentWindow?: ISODate;
+  };
+  nextMatch?: NationalTeamMatchView;
+  recent: NationalTeamMatchView[];
+  competitions: NationalTeamCompetitionContext[];
+  attention: NationalTeamAttentionItem[];
+  asOf: ISODate;
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+export type NationalTeamStaffMember = {
+  person: EntityReference;
+  role: string;
+  roleLabel: string;
+  startDate: ISODate;
+  contractEnd?: ISODate;
+};
+
+export type NationalTeamStaffView = {
+  team: NationalTeamIdentity;
+  members: NationalTeamStaffMember[];
+  headCoachVacant: boolean;
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+export type NationalTeamFixturesView = {
+  team: NationalTeamIdentity;
+  upcoming: NationalTeamMatchView[];
+  results: NationalTeamMatchView[];
+  asOf: ISODate;
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
 export type FederationNationalTeamSummary = {
   id: EntityId;
   name: string;
@@ -1460,6 +1556,9 @@ export type DesktopRuntimeApi = {
   submitGovernmentSupportCase?: (applicationId: EntityId) => Promise<AppResult<GovernmentFundingApplication>>;
   getFederationPresidentDashboard(): Promise<AppResult<FederationPresidentDashboard>>;
   getFederationGrants?: () => Promise<AppResult<FederationGrantView[]>>;
+  getNationalTeamOverview?: (nationalTeamId: EntityId) => Promise<AppResult<NationalTeamOverview>>;
+  getNationalTeamStaff?: (nationalTeamId: EntityId) => Promise<AppResult<NationalTeamStaffView>>;
+  getNationalTeamFixtures?: (nationalTeamId: EntityId) => Promise<AppResult<NationalTeamFixturesView>>;
   getFederationTenure?: () => Promise<AppResult<FederationTenureView>>;
   getFederationExternalContext?: () => Promise<AppResult<FederationExternalContext>>;
   getFederationCompetitionGovernance?: () => Promise<AppResult<FederationCompetitionGovernance>>;

@@ -43,6 +43,9 @@ import type {
   FederationDevelopmentProgrammes,
   FederationTenureView,
   FederationExternalContext,
+  NationalTeamOverview,
+  NationalTeamStaffView,
+  NationalTeamFixturesView,
   FederationPresidentDashboard,
   FederationCandidacyAssessment,
   FederationGovernanceProposal,
@@ -333,6 +336,12 @@ const bindCommands = (call: CommandCaller): DesktopRuntimeApi => ({
   getFederationPresidentDashboard: () =>
     call<FederationPresidentDashboard>("getFederationPresidentDashboard"),
   getFederationGrants: () => call<FederationGrantView[]>("getFederationGrants"),
+  getNationalTeamOverview: (nationalTeamId: EntityId) =>
+    call<NationalTeamOverview>("getNationalTeamOverview", { nationalTeamId }),
+  getNationalTeamStaff: (nationalTeamId: EntityId) =>
+    call<NationalTeamStaffView>("getNationalTeamStaff", { nationalTeamId }),
+  getNationalTeamFixtures: (nationalTeamId: EntityId) =>
+    call<NationalTeamFixturesView>("getNationalTeamFixtures", { nationalTeamId }),
   getFederationTenure: () => call<FederationTenureView>("getFederationTenure"),
   getFederationExternalContext: () => call<FederationExternalContext>("getFederationExternalContext"),
   getFederationCompetitionGovernance: () =>

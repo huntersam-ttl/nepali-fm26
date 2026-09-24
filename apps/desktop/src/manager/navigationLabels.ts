@@ -87,6 +87,10 @@ const PRESIDENT_WORKSPACE_LABELS: Record<string, string> = {
   finance: "Federation Finance",
   commercial: "Commercial",
   "national-teams": "National Teams",
+  "national-team-overview": "National Team",
+  "national-team-squad": "National Team Squad",
+  "national-team-staff": "National Team Staff",
+  "national-team-fixtures": "National Team Fixtures",
   "national-development": "National Development",
   "competition-pyramid": "Domestic Pyramid",
   "nepal-map": "Nepal Map",
@@ -129,6 +133,14 @@ export const OWNER_FAMILIES: Array<{ label: string; items: string[] }> = [
   { label: "Commercial", items: ["sponsorship", "supporters", "club-store"] },
   { label: "Club", items: ["identity"] },
   { label: "External relations", items: ["bank"] },
+];
+
+/** The national-team workspace: opened from the National Teams list, so it is not a sidebar family. */
+export const NATIONAL_TEAM_FAMILY: string[] = [
+  "national-team-overview",
+  "national-team-squad",
+  "national-team-staff",
+  "national-team-fixtures",
 ];
 
 export const PRESIDENT_FAMILIES: Array<{ label: string; items: string[] }> = [

@@ -46,7 +46,7 @@ import type { ChairmanScreen, PresidentScreen } from "./RoleDetailScreen.js";
 import { EntitySurface } from "./EntitySurface.js";
 import { GlobalSearch } from "./GlobalSearch.js";
 import { Breadcrumbs, ContextualNav, useEntityReferenceLabels } from "./ShellContext.js";
-import { contextTrail, workspaceLabel, entityCategoryLabel, dailyOpsNavItems, squadNavItems, clubNavItems, mediaNavItems, careerNavItems } from "./navigationLabels.js";
+import { contextTrail, workspaceLabel, entityCategoryLabel, dailyOpsNavItems, squadNavItems, clubNavItems, mediaNavItems, careerNavItems, NATIONAL_TEAM_FAMILY } from "./navigationLabels.js";
 import { StatusChip } from "./StatusChip.js";
 import { MessagesScreen, NewsScreen, CalendarScreen } from "./DedicatedOps.js";
 import { SquadOverview } from "./SquadOverview.js";
@@ -572,7 +572,7 @@ export const ManagerCareer = ({
           )) : (header.activeRole === "CHAIRMAN_OWNER" ? CHAIRMAN_NAV : EXECUTIVE_ROLES.includes(header.activeRole) ? EXECUTIVE_NAV : PRESIDENT_NAV).map((group) => (
             <div className="nav-group" key={group.group}>
               <span className="nav-label">{group.group}</span>
-              {group.items.map((item) => <button key={item.id} className={roleScreen === item.id ? "active" : ""} onClick={() => goTo(workspaceForRole(header.activeRole, item.id))}>{item.label}</button>)}
+              {group.items.map((item) => <button key={item.id} className={roleScreen === item.id || (header.activeRole === "FEDERATION_PRESIDENT" && item.id === "national-teams" && NATIONAL_TEAM_FAMILY.includes(String(roleScreen))) ? "active" : ""} onClick={() => goTo(workspaceForRole(header.activeRole, item.id))}>{item.label}</button>)}
             </div>
           ))}
         </nav>
@@ -758,7 +758,7 @@ export const ManagerCareer = ({
         ) : (
           <>
         {header.activeRole !== "MANAGER" ? (
-          <RoleLandingScreen header={header} roles={roles} bridge={bridge} screen={roleScreen} onNavigate={(s) => goTo(workspaceForRole(header.activeRole, s))} />
+          <RoleLandingScreen header={header} roles={roles} bridge={bridge} screen={roleScreen} onNavigate={(s) => goTo(workspaceForRole(header.activeRole, s))} onOpenEntity={openEntity} />
         ) : (
           <header className="page-header">
             <div>

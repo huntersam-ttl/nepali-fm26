@@ -10,6 +10,7 @@ import {
   clubNavItems,
   mediaNavItems,
   careerNavItems,
+  NATIONAL_TEAM_FAMILY,
   PRESIDENT_FAMILIES,
   workspaceLabel,
 } from "./navigationLabels.js";
@@ -231,6 +232,26 @@ describe("career family nav (Phase 8A)", () => {
     expect(contextualNavItems("MANAGER", "career-overview").map((item) => item.label)).toContain("Career Overview");
   });
 });
+});
+
+describe("national-team workspace family (Phase 10A)", () => {
+  it("is exactly Overview | Squad | Staff | Fixtures, each labelled, and not a sidebar item", () => {
+    expect(NATIONAL_TEAM_FAMILY).toEqual([
+      "national-team-overview",
+      "national-team-squad",
+      "national-team-staff",
+      "national-team-fixtures",
+    ]);
+    expect(NATIONAL_TEAM_FAMILY.map((id) => workspaceLabel(ws("FEDERATION_PRESIDENT", id)))).toEqual([
+      "National Team",
+      "National Team Squad",
+      "National Team Staff",
+      "National Team Fixtures",
+    ]);
+    const sidebar = PRESIDENT_FAMILIES.flatMap((family) => family.items);
+    for (const id of NATIONAL_TEAM_FAMILY) expect(sidebar).not.toContain(id);
+    expect(sidebar).toContain("national-teams");
+  });
 });
 
 describe("final Federation President family (Phase 9D)", () => {

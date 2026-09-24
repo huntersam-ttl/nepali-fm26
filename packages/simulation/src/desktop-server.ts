@@ -256,6 +256,19 @@ const dispatch = (
       return service.getGovernmentOverview();
     case "getFederationGrants":
       return service.getFederationGrants();
+    case "getNationalTeamOverview":
+      return service.getNationalTeamOverview(body.nationalTeamId as EntityId);
+    case "getNationalTeamStaff":
+      return service.getNationalTeamStaff(body.nationalTeamId as EntityId);
+    case "getNationalTeamFixtures":
+      return service.getNationalTeamFixtures(body.nationalTeamId as EntityId);
+    case "seedE2ENationalTeamFixture":
+      return process.env.NEPAL_E2E_ROLE_FIXTURE === "1"
+        ? service.seedE2ENationalTeamFixture()
+        : {
+            ok: false,
+            error: { code: "ROLE_NOT_AUTHORIZED", message: "The E2E role fixture is disabled." },
+          };
     case "getFederationTenure":
       return service.getFederationTenure();
     case "getFederationExternalContext":

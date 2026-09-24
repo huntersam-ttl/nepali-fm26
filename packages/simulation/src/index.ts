@@ -25,6 +25,7 @@ export * from "./federation-governance.js";
 export * from "./federation-budget-command.js";
 export * from "./federation-governance-view.js";
 export * from "./federation-tenure-view.js";
+export * from "./national-team-workspace.js";
 export * from "./federation-scorecard.js";
 export * from "./federation-referee-context.js";
 export * from "./federation-map.js";

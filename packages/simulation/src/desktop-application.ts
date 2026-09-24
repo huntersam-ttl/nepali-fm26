@@ -112,6 +112,9 @@ import {
   type FederationCompetitionGovernance,
   type FederationTenureView,
   type FederationExternalContext,
+  type NationalTeamOverview,
+  type NationalTeamStaffView,
+  type NationalTeamFixturesView,
   type FederationDevelopmentProgrammes,
   type FederationBudget,
   type FederationBudgetCategory,
@@ -305,6 +308,7 @@ import {
 import { appealFromMerchandiseTrade, shirtSalesFromRevenue } from "./club-retail.js";
 import {
   appointNationalTeamHeadCoachForPresident,
+  ensureNationalTeamStaffStructure,
   FederationPersonnelError,
 } from "./national-team-management.js";
 import {
@@ -501,6 +505,9 @@ import {
   initializeFederationGovernanceForSave,
   federationCommercialOverview,
   createFederationProject,
+  playNationalTeamFixture,
+  scheduleFriendly,
+  selectNationalTeamSquad,
 } from "./federation-governance.js";
 import {
   awardCommercialRightsForPresident,
@@ -521,6 +528,12 @@ import { buildDistrictStoryline } from "./story-territory.js";
 import { roleInboxEvents } from "./media.js";
 import { buildCompetitionPyramid } from "./competition-pyramid-view.js";
 import { buildFederationExternalContext, buildFederationTenure } from "./federation-tenure-view.js";
+import {
+  buildNationalTeamFixtures,
+  buildNationalTeamOverview,
+  buildNationalTeamStaff,
+  isFederationNationalTeam,
+} from "./national-team-workspace.js";
 import {
   buildFederationCompetitionGovernance,
   buildFederationDevelopmentProgrammes,
@@ -2107,6 +2120,81 @@ export class DesktopApplicationService {
     return this.withSession((db, save) => {
       const role = activeCareerRole(db, careerPersonId(db, save));
       return buildDistrictStoryline(db, districtId, role);
+    });
+  }
+
+  /** A national team of the President's own federation; anything else is not selectable. */
+  private presidentNationalTeam(db: GameDatabase, save: SaveMetadata, nationalTeamId: EntityId): void {
+    const federationId = this.currentFederationId(db, careerPersonId(db, save));
+    if (!isFederationNationalTeam(db, nationalTeamId, federationId))
+      throw appError("INVALID_SELECTION", "That is not a national team of your federation.");
+  }
+
+  /** Read-only: identity, coach, squad summary, matches and competition context. */
+  getNationalTeamOverview(nationalTeamId: EntityId): AppResult<NationalTeamOverview> {
+    return this.withSession((db, save) => {
+      this.presidentNationalTeam(db, save, nationalTeamId);
+      return buildNationalTeamOverview(db, nationalTeamId, save.worldDate);
+    });
+  }
+
+  /** Read-only: the national team's current staff and any head-coach vacancy. */
+  getNationalTeamStaff(nationalTeamId: EntityId): AppResult<NationalTeamStaffView> {
+    return this.withSession((db, save) => {
+      this.presidentNationalTeam(db, save, nationalTeamId);
+      return buildNationalTeamStaff(db, nationalTeamId);
+    });
+  }
+
+  /** Read-only: upcoming matches and recorded results from the team's perspective. */
+  getNationalTeamFixtures(nationalTeamId: EntityId): AppResult<NationalTeamFixturesView> {
+    return this.withSession((db, save) => {
+      this.presidentNationalTeam(db, save, nationalTeamId);
+      return buildNationalTeamFixtures(db, nationalTeamId, save.worldDate);
+    });
+  }
+
+  /** Test-only (gated by the server): gives the senior men's team a real squad and
+   * two friendlies through the domain functions the simulation itself uses. */
+  seedE2ENationalTeamFixture(): AppResult<{ ready: true; nationalTeamId: EntityId }> {
+    return this.withSession((db, save) => {
+      const federationId = this.currentFederationId(db, careerPersonId(db, save));
+      const team = db
+        .prepare("SELECT id FROM teams WHERE federation_id=? AND club_id IS NULL AND level='senior' AND gender='men' ORDER BY id LIMIT 1")
+        .get(federationId) as { id: EntityId } | undefined;
+      if (!team) throw appError("SAVE_CORRUPT", "No senior men's national team is available.");
+      const allTeams = db
+        .prepare("SELECT id FROM teams WHERE federation_id=? AND club_id IS NULL ORDER BY id")
+        .all(federationId) as Array<{ id: EntityId }>;
+      for (const national of allTeams) {
+        ensureNationalTeamStaffStructure(db, { federationId, nationalTeamId: national.id, date: save.worldDate });
+      }
+      selectNationalTeamSquad(db, {
+        federationId,
+        nationalTeamId: team.id,
+        date: save.worldDate,
+        programme: "SENIOR_MENS",
+        seed: `${save.randomSeed}:e2e-national-squad`,
+        size: 23,
+      });
+      const played = scheduleFriendly(db, {
+        federationId,
+        nationalTeamId: team.id,
+        opponentName: "Bhutan",
+        date: save.worldDate,
+        seed: `${save.randomSeed}:e2e-national-played`,
+      });
+      playNationalTeamFixture(db, played.id, `${save.randomSeed}:e2e-national-played`);
+      const nextDate = new Date(`${save.worldDate}T00:00:00Z`);
+      nextDate.setUTCDate(nextDate.getUTCDate() + 21);
+      scheduleFriendly(db, {
+        federationId,
+        nationalTeamId: team.id,
+        opponentName: "Maldives",
+        date: nextDate.toISOString().slice(0, 10),
+        seed: `${save.randomSeed}:e2e-national-next`,
+      });
+      return { ready: true as const, nationalTeamId: team.id };
     });
   }
 
