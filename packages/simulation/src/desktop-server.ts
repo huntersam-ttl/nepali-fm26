@@ -263,6 +263,15 @@ const dispatch = (
       return service.getNationalTeamStaff(body.nationalTeamId as EntityId);
     case "getNationalTeamFixtures":
       return service.getNationalTeamFixtures(body.nationalTeamId as EntityId);
+    case "getNationalTeamCompetitions":
+      return service.getNationalTeamCompetitions(body.nationalTeamId as EntityId);
+    case "seedE2ENationalTeamCompetitionFixture":
+      return process.env.NEPAL_E2E_ROLE_FIXTURE === "1"
+        ? service.seedE2ENationalTeamCompetitionFixture()
+        : {
+            ok: false,
+            error: { code: "ROLE_NOT_AUTHORIZED", message: "The E2E role fixture is disabled." },
+          };
     case "getNationalTeamPlayerPool":
       return service.getNationalTeamPlayerPool(
         body.nationalTeamId as EntityId,

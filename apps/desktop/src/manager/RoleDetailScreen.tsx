@@ -83,6 +83,7 @@ import { FederationTenureScreen } from "./screens/FederationTenureScreen.js";
 import {
   NationalTeamFixturesScreen,
   NationalTeamOverviewScreen,
+  NationalTeamCompetitionsScreen,
   NationalTeamPoolScreen,
   NationalTeamSquadScreen,
   NationalTeamStaffScreen,
@@ -153,6 +154,7 @@ export type PresidentScreen =
   | "national-team-pool"
   | "national-team-staff"
   | "national-team-fixtures"
+  | "national-team-competitions"
   | "national-development"
   | "government-relations"
   | "nepal-map"
@@ -234,6 +236,10 @@ const SECTION_TITLES: Record<string, { title: string; subtitle: string }> = {
   "national-team-fixtures": {
     title: "National team fixtures",
     subtitle: "Upcoming matches and recorded results.",
+  },
+  "national-team-competitions": {
+    title: "National team competitions",
+    subtitle: "What the team is entered in, where it stands, and how its squad is registered.",
   },
   "national-development": {
     title: "National development",
@@ -2054,6 +2060,10 @@ const PresidentDetail = ({
         if (screen === "national-team-staff")
           return (
             <NationalTeamStaffScreen teams={dashboard.nationalTeams} bridge={bridge} onNavigate={onNavigate} onOpenEntity={onOpenEntity} />
+          );
+        if (screen === "national-team-competitions")
+          return (
+            <NationalTeamCompetitionsScreen teams={dashboard.nationalTeams} bridge={bridge} onNavigate={onNavigate} onOpenEntity={onOpenEntity} />
           );
         if (screen === "national-team-fixtures")
           return (

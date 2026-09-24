@@ -1162,6 +1162,7 @@ export type NationalTeamMatchView = {
   date: ISODate;
   opponent: string;
   kind: string;
+  editionId?: EntityId;
   competition?: string;
   stage?: string;
   group?: string;
@@ -1236,6 +1237,98 @@ export type NationalTeamFixturesView = {
   team: NationalTeamIdentity;
   upcoming: NationalTeamMatchView[];
   results: NationalTeamMatchView[];
+  asOf: ISODate;
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+export type NationalTeamCompetitionStandingRow = {
+  team: string;
+  isThisTeam: boolean;
+  played: number;
+  won: number;
+  drawn: number;
+  lost: number;
+  goalsFor: number;
+  goalsAgainst: number;
+  goalDifference: number;
+  points: number;
+};
+
+export type NationalTeamCompetitionStage = {
+  name: string;
+  order: number;
+  format: string;
+  groupCount: number;
+  /** How many teams the stage records as advancing (per group in a group stage). */
+  teamsToAdvance: number;
+  legs: number;
+  extraTime: boolean;
+  penalties: boolean;
+};
+
+export type NationalTeamKnockoutRound = { round: string; matches: NationalTeamMatchView[] };
+
+export type NationalTeamRegistrationPlayer = {
+  player: EntityReference;
+  position?: string;
+  /** Standing today under the same rules as the player pool; "NOT_IN_POOL" if the player does not qualify for this team's category. */
+  eligibility: NationalTeamPoolEligibility | "NOT_IN_POOL";
+  availability: "AVAILABLE" | "INJURED" | "SUSPENDED" | "UNAVAILABLE";
+};
+
+export type NationalTeamRegistrationView = {
+  status: "PROVISIONAL" | "FINAL" | "REPLACEMENT_WINDOW_CLOSED";
+  locked: boolean;
+  deadline: ISODate;
+  playerCount: number;
+  /** Squad-size limits recorded on the competition's first stage. */
+  limits?: { preliminary: number; final: number; matchday: number };
+  players: NationalTeamRegistrationPlayer[];
+};
+
+export type NationalTeamCompetitionEntry = {
+  editionId: EntityId;
+  competition: string;
+  edition: string;
+  cycle: string;
+  competitionType: string;
+  confederation?: string;
+  region?: string;
+  hosts: string[];
+  status: string;
+  startDate: ISODate;
+  endDate: ISODate;
+  entryStatus: string;
+  group?: string;
+  /** Where the recorded state puts the team: not started, competing, eliminated or champion. */
+  outcome: { key: "NOT_STARTED" | "COMPETING" | "ELIMINATED" | "CHAMPION"; label: string; stageReached?: string };
+  /** How the team entered, only where the record says. */
+  qualificationSource?: string;
+  qualificationLinks: Array<{ fromEdition: string; condition: string; slots: number }>;
+  stages: NationalTeamCompetitionStage[];
+  groupTable?: { name: string; advanceCount: number; rows: NationalTeamCompetitionStandingRow[] };
+  knockout: NationalTeamKnockoutRound[];
+  matches: NationalTeamMatchView[];
+  nextMatch?: NationalTeamMatchView;
+  campaign?: {
+    name: string;
+    startedOn: ISODate;
+    matchesPlayed: number;
+    wins: number;
+    draws: number;
+    losses: number;
+    qualificationStatus: string;
+  };
+  registration?: NationalTeamRegistrationView;
+  /** Players recorded as on duty for this competition. */
+  onDutyCount: number;
+};
+
+export type NationalTeamCompetitionsView = {
+  team: NationalTeamIdentity;
+  active: NationalTeamCompetitionEntry[];
+  upcoming: NationalTeamCompetitionEntry[];
+  completed: NationalTeamCompetitionEntry[];
   asOf: ISODate;
   provenanceStatus: "SIMULATION_ONLY";
 };
@@ -1617,6 +1710,7 @@ export type DesktopRuntimeApi = {
   getNationalTeamOverview?: (nationalTeamId: EntityId) => Promise<AppResult<NationalTeamOverview>>;
   getNationalTeamStaff?: (nationalTeamId: EntityId) => Promise<AppResult<NationalTeamStaffView>>;
   getNationalTeamFixtures?: (nationalTeamId: EntityId) => Promise<AppResult<NationalTeamFixturesView>>;
+  getNationalTeamCompetitions?: (nationalTeamId: EntityId) => Promise<AppResult<NationalTeamCompetitionsView>>;
   getNationalTeamPlayerPool?: (
     nationalTeamId: EntityId,
     query?: NationalTeamPlayerPoolQuery,

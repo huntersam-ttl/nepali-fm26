@@ -95,6 +95,72 @@ const bridge = {
       provenanceStatus: "SIMULATION_ONLY",
     } as never),
   ),
+  getNationalTeamCompetitions: vi.fn((id: string) => {
+    const entry = (over: Record<string, unknown>) => ({
+      editionId: "e1",
+      competition: "SAFF Championship",
+      edition: "SAFF Championship 2026",
+      cycle: "2026",
+      competitionType: "REGIONAL_CHAMPIONSHIP",
+      confederation: "AFC",
+      region: "SAFF",
+      hosts: [],
+      status: "COMPLETED",
+      startDate: "2026-09-01",
+      endDate: "2026-09-19",
+      entryStatus: "ELIMINATED",
+      group: "A",
+      outcome: { key: "ELIMINATED", label: "Eliminated in Group Stage", stageReached: "Group Stage" },
+      qualificationLinks: [],
+      stages: [
+        { name: "Group Stage", order: 1, format: "GROUP_STAGE", groupCount: 2, teamsToAdvance: 2, legs: 1, extraTime: false, penalties: false },
+        { name: "Semi-Final and Final", order: 2, format: "SINGLE_ELIMINATION", groupCount: 1, teamsToAdvance: 1, legs: 1, extraTime: true, penalties: true },
+      ],
+      groupTable: {
+        name: "A",
+        advanceCount: 2,
+        rows: [
+          { team: "India Senior Men", isThisTeam: false, played: 3, won: 3, drawn: 0, lost: 0, goalsFor: 6, goalsAgainst: 1, goalDifference: 5, points: 9 },
+          { team: "Nepal Senior Men", isThisTeam: true, played: 3, won: 1, drawn: 1, lost: 1, goalsFor: 3, goalsAgainst: 3, goalDifference: 0, points: 4 },
+          { team: "Bhutan Senior Men", isThisTeam: false, played: 3, won: 0, drawn: 1, lost: 2, goalsFor: 1, goalsAgainst: 4, goalDifference: -3, points: 1 },
+        ],
+      },
+      knockout: [],
+      matches: [match({ id: "g1", competition: "SAFF Championship 2026", stage: "Group Stage", group: "A", opponent: "India Senior Men", venueSide: "AWAY", goalsFor: 0, goalsAgainst: 2, result: "LOSS", date: "2026-09-01" })],
+      nextMatch: undefined,
+      campaign: undefined,
+      registration: undefined,
+      onDutyCount: 26,
+      ...over,
+    });
+    if (id === "men")
+      return ok({
+        team: identity(id, "Nepal Senior Men", "Senior men"),
+        active: [entry({ editionId: "e2", edition: "SAFF U23 2026", status: "IN_PROGRESS", entryStatus: "ACTIVE", outcome: { key: "COMPETING", label: "Competing in Group Stage" }, nextMatch: match({ id: "g9", opponent: "Bhutan", status: "SCHEDULED", goalsFor: undefined, goalsAgainst: undefined, result: undefined, date: "2026-07-13" }) })],
+        upcoming: [],
+        completed: [
+          entry({
+            campaign: { name: "SAFF 2026 campaign", startedOn: "2026-08-01", matchesPlayed: 2, wins: 1, draws: 0, losses: 1, qualificationStatus: "ACTIVE" },
+            qualificationSource: "Group runner-up",
+            knockout: [{ round: "Semi-Final and Final", matches: [match({ id: "k1", stage: "Semi-Final and Final", competition: "SAFF Championship 2026", penaltiesFor: 4, penaltiesAgainst: 5, goalsFor: 1, goalsAgainst: 1, result: "LOSS", venueSide: "NEUTRAL" })] }],
+            registration: {
+              status: "PROVISIONAL",
+              locked: false,
+              deadline: "2026-08-25",
+              playerCount: 2,
+              limits: { preliminary: 30, final: 26, matchday: 23 },
+              players: [
+                { player: ref("p1", "Anjan Bista", "PLAYER"), position: "GK", eligibility: "ELIGIBLE", availability: "AVAILABLE" },
+                { player: ref("p7", "Late Joiner", "PLAYER"), eligibility: "NOT_IN_POOL", availability: "AVAILABLE" },
+              ],
+            },
+          }),
+        ],
+        asOf: "2026-08-01",
+        provenanceStatus: "SIMULATION_ONLY",
+      } as never);
+    return ok({ team: identity(id, "Nepal Team", "Team"), active: [], upcoming: [], completed: [], asOf: "2026-08-01", provenanceStatus: "SIMULATION_ONLY" } as never);
+  }),
   getNationalTeamCoachCandidates: vi.fn((id: string) =>
     ok({
       team: identity(id, "Nepal Senior Women", "Senior women"),
@@ -260,7 +326,7 @@ describe("National team overview", () => {
     const nav = screen.getByRole("navigation", { name: "National team sections" });
     expect(within(nav).getByRole("button", { name: "Squad" }).getAttribute("aria-current")).toBe("page");
     expect(within(nav).getByRole("button", { name: "Staff" }).getAttribute("aria-current")).toBeNull();
-    expect(within(nav).getAllByRole("button").map((button) => button.textContent)).toEqual(["All teams", "Team overview", "Squad", "Player pool", "Staff", "Fixtures"]);
+    expect(within(nav).getAllByRole("button").map((button) => button.textContent)).toEqual(["All teams", "Team overview", "Squad", "Player pool", "Staff", "Fixtures", "Competitions"]);
   });
 });
 
@@ -312,6 +378,95 @@ describe("National team squad, staff and fixtures", () => {
     );
     render(<mod.NationalTeamPoolScreen {...props()} />);
     await screen.findByText("No players match this filter.");
+  });
+
+  it("lists active and completed competitions for the team and shows the first as the detail", async () => {
+    render(<mod.NationalTeamCompetitionsScreen {...props()} />);
+    await screen.findByRole("region", { name: "Active competitions" });
+    expect(screen.getByRole("region", { name: "Completed competitions" })).toBeTruthy();
+    const body = document.body.textContent ?? "";
+    expect(body).toMatch(/Competing in Group Stage/);
+    expect(body).toMatch(/Eliminated in Group Stage/);
+    expect(body).toMatch(/Bhutan · 2026-07-13/);
+    // The first active competition is the detail by default.
+    expect(screen.getByRole("heading", { name: "SAFF U23 2026", level: 2 })).toBeTruthy();
+    expect(bridge.getNationalTeamCompetitions).toHaveBeenCalledWith("men");
+  });
+
+  it("shows the exact group table, the recorded advance rule and no invented cut for an unfinished group", async () => {
+    render(<mod.NationalTeamCompetitionsScreen {...props()} />);
+    await screen.findByRole("region", { name: "Active competitions" });
+    const table = screen.getByRole("table", { name: "Standings of group A" });
+    const rows = within(table).getAllByRole("row").slice(1);
+    // Place, team, then P W D L GF GA GD Pts.
+    expect(rows.map((row) => row.textContent)).toEqual([
+      "1India Senior Men33006159",
+      "2Nepal Senior Men (this team)31113304",
+      "3Bhutan Senior Men301214-31",
+    ]);
+    expect(document.body.textContent).toMatch(/The top 2 of each group advance to the next stage/);
+    // Not finished: no advancing-place badge yet.
+    expect(screen.queryByText("Advancing place")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Show SAFF Championship 2026" }));
+    await screen.findByRole("heading", { name: "SAFF Championship 2026", level: 2 });
+    expect(screen.getAllByText("Advancing place")).toHaveLength(2);
+  });
+
+  it("shows knockout rounds with penalties, the campaign, the recorded route and honest 'not recorded' values", async () => {
+    render(<mod.NationalTeamCompetitionsScreen {...props()} />);
+    await screen.findByRole("region", { name: "Active competitions" });
+    fireEvent.click(screen.getByRole("button", { name: "Show SAFF Championship 2026" }));
+    await screen.findByRole("heading", { name: "SAFF Championship 2026", level: 2 });
+    const body = document.body.textContent ?? "";
+    expect(body).toMatch(/Semi-Final and Final/);
+    expect(body).toMatch(/1–1 \(4–5 on penalties\)/);
+    expect(body).toMatch(/1W 0D 1L/);
+    expect(body).toMatch(/Qualification routeGroup runner-up/);
+    expect(body).toMatch(/HostsNot recorded/);
+    expect(body).not.toMatch(/\b(probability|chance to qualify|odds|seed rating)\b/i);
+  });
+
+  it("says when there is no knockout match, no campaign and no registration, without inventing a deadline", async () => {
+    render(<mod.NationalTeamCompetitionsScreen {...props()} />);
+    await screen.findByRole("region", { name: "Active competitions" });
+    expect(screen.getByText("This team has no knockout match in this competition.")).toBeTruthy();
+    expect(screen.getByText("No campaign record exists for this competition.")).toBeTruthy();
+    expect(screen.getByText(/No squad registration is recorded for this competition\. Deadline: Not recorded\./)).toBeTruthy();
+    expect(document.body.textContent).toMatch(/Players recorded on duty for this competition: 26/);
+  });
+
+  it("shows the squad registration as a separate record with its deadline, lock state, limits and linked players, and no controls", async () => {
+    const p = props();
+    render(<mod.NationalTeamCompetitionsScreen {...p} />);
+    await screen.findByRole("region", { name: "Active competitions" });
+    fireEvent.click(screen.getByRole("button", { name: "Show SAFF Championship 2026" }));
+    const table = await screen.findByRole("table", { name: "Players registered for this competition" });
+    const body = document.body.textContent ?? "";
+    expect(body).toMatch(/StatusProvisional/);
+    expect(body).toMatch(/RegistrationOpen/);
+    expect(body).toMatch(/Deadline2026-08-25/);
+    expect(body).toMatch(/Preliminary 30 · Final 26 · Matchday 23/);
+    expect(body).toMatch(/separate record from the current squad/);
+    expect(table.textContent).toMatch(/Not in this team's pool/);
+    fireEvent.click(within(table).getByRole("button", { name: "Anjan Bista" }));
+    expect(p.onOpenEntity).toHaveBeenCalledWith("PLAYER", "p1");
+    expect(screen.queryByRole("button", { name: /register|amend|finalis|finaliz|withdraw|enter competition/i })).toBeNull();
+  });
+
+  it("is honest for a team that is not entered in any competition, and reads only that team", async () => {
+    selection.selectNationalTeam("women" as never);
+    render(<mod.NationalTeamCompetitionsScreen {...props()} />);
+    await screen.findByText("This team is not entered in a recorded competition.");
+    expect(bridge.getNationalTeamCompetitions).toHaveBeenCalledWith("women");
+    expect(document.body.textContent).not.toMatch(/SAFF/);
+  });
+
+  it("links the overview to Competitions", async () => {
+    const p = props();
+    render(<mod.NationalTeamOverviewScreen {...p} />);
+    await screen.findByText("Coach Rai");
+    fireEvent.click(screen.getByRole("button", { name: "Open Competitions" }));
+    expect(p.onNavigate).toHaveBeenCalledWith("national-team-competitions");
   });
 
   it("shows an honest empty squad", async () => {

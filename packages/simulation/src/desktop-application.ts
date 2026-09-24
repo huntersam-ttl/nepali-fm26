@@ -3,6 +3,7 @@ import { basename, dirname, join } from "node:path";
 import {
   CareerControlRepository,
   CareerWorldRepository,
+  InternationalFootballRepository,
   ClubEconomyRepository,
   CommercialRightsRepository,
   EventRepository,
@@ -117,6 +118,7 @@ import {
   type NationalTeamPlayerPool,
   type NationalTeamPlayerPoolQuery,
   type NationalTeamCoachCandidatesView,
+  type NationalTeamCompetitionsView,
   type NationalTeamFixturesView,
   type FederationDevelopmentProgrammes,
   type FederationBudget,
@@ -313,7 +315,17 @@ import {
   appointNationalTeamHeadCoachForPresident,
   ensureNationalTeamStaffStructure,
   FederationPersonnelError,
+  planNationalTeamCampaignSquad,
+  registerNationalTeamCampaign,
 } from "./national-team-management.js";
+import {
+  advanceInternationalCompetition,
+  createInternationalCompetitionEdition,
+  scheduleInternationalFixtures,
+  seedInternationalDraw,
+  simulateInternationalMatch,
+} from "./international-football.js";
+import { buildNationalTeamCompetitions } from "./national-team-competitions.js";
 import {
   appointCaptaincy,
   CaptaincyActionError,
@@ -2155,6 +2167,79 @@ export class DesktopApplicationService {
     return this.withSession((db, save) => {
       this.presidentNationalTeam(db, save, nationalTeamId);
       return buildNationalTeamFixtures(db, nationalTeamId, save.worldDate);
+    });
+  }
+
+  /** Read-only: the team's competition entries, group tables, knockout matches, campaign and squad registration. */
+  getNationalTeamCompetitions(nationalTeamId: EntityId): AppResult<NationalTeamCompetitionsView> {
+    return this.withSession((db, save) => {
+      this.presidentNationalTeam(db, save, nationalTeamId);
+      return buildNationalTeamCompetitions(db, nationalTeamId, save.worldDate);
+    });
+  }
+
+  /**
+   * Test-only (gated by the server): runs three real competition editions through
+   * the simulation's own functions — a completed senior men's SAFF Championship
+   * (with a campaign record and a provisional squad registration), a partly played
+   * Under-23 edition, and a planned senior women's edition.
+   */
+  seedE2ENationalTeamCompetitionFixture(): AppResult<{
+    ready: true;
+    men: EntityId;
+    women: EntityId;
+    u23: EntityId;
+    u20: EntityId;
+    u17: EntityId;
+  }> {
+    return this.withSession((db, save) => {
+      const federationId = this.currentFederationId(db, careerPersonId(db, save));
+      const teamOf = (level: string, gender: string): EntityId => {
+        const row = db
+          .prepare("SELECT id FROM teams WHERE federation_id=? AND club_id IS NULL AND level=? AND gender=? ORDER BY id LIMIT 1")
+          .get(federationId, level, gender) as { id: EntityId } | undefined;
+        if (!row) throw appError("SAVE_CORRUPT", `No ${level} ${gender} national team is available.`);
+        return row.id;
+      };
+      const seed = `${save.randomSeed}:e2e-competitions`;
+      const international = new InternationalFootballRepository(db);
+      const men = teamOf("senior", "men");
+
+      const saff = createInternationalCompetitionEdition(db, { competitionKey: "SAFF", cycle: "2026", startDate: "2026-09-01", seed });
+      registerNationalTeamCampaign(db, {
+        federationId,
+        nationalTeamId: men,
+        name: "SAFF 2026 campaign",
+        startedOn: save.worldDate,
+        competitionEditionId: saff.id,
+      });
+      planNationalTeamCampaignSquad(db, {
+        federationId,
+        nationalTeamId: men,
+        competitionEditionId: saff.id,
+        registrationDeadline: "2026-08-25",
+        date: save.worldDate,
+        programme: "SAFF 2026",
+        seed,
+      });
+      advanceInternationalCompetition(db, saff.id, `${seed}:saff`);
+
+      const u23 = createInternationalCompetitionEdition(db, { competitionKey: "SAFF_U23", cycle: "2026", startDate: "2026-07-07", seed });
+      const u23Stage = international.stages(u23.id)[0]!;
+      seedInternationalDraw(db, u23.id, u23Stage.id, "2026-06-23", seed);
+      scheduleInternationalFixtures(db, u23.id, u23Stage.id, seed);
+      const u23Team = teamOf("u23", "men");
+      const u23Profile = international.teamProfiles().find((profile) => profile.nationalTeamId === u23Team);
+      const firstNepalMatch = international
+        .matches(u23.id)
+        .filter((match) => match.homeTeamProfileId === u23Profile?.id || match.awayTeamProfileId === u23Profile?.id)
+        .sort((a, b) => a.matchDate.localeCompare(b.matchDate))[0];
+      if (firstNepalMatch) simulateInternationalMatch(db, firstNepalMatch.id, `${seed}:u23-first`);
+      international.upsertEdition({ ...u23, status: "IN_PROGRESS" });
+
+      createInternationalCompetitionEdition(db, { competitionKey: "SAFF_WOMEN", cycle: "2026", startDate: "2026-10-04", seed });
+
+      return { ready: true as const, men, women: teamOf("senior", "women"), u23: u23Team, u20: teamOf("u20", "men"), u17: teamOf("u17", "men") };
     });
   }
 

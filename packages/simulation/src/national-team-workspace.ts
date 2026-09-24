@@ -100,10 +100,12 @@ export const nationalTeamMatches = (db: GameDatabase, teamId: EntityId): Nationa
       const played = match.status === "PLAYED";
       const goalsFor = played ? (isHome ? match.homeGoals : match.awayGoals) : undefined;
       const goalsAgainst = played ? (isHome ? match.awayGoals : match.homeGoals) : undefined;
+      // A recorded winner only decides a knockout tie; a group-stage match level on goals is a draw.
+      const inGroupStage = match.stageId ? stages.get(match.stageId)?.formatType === "GROUP_STAGE" : false;
       const result: NationalTeamMatchView["result"] =
         !played || goalsFor === undefined || goalsAgainst === undefined
           ? undefined
-          : match.winnerTeamProfileId
+          : match.winnerTeamProfileId && !inGroupStage
             ? match.winnerTeamProfileId === own.id
               ? "WIN"
               : "LOSS"
@@ -117,6 +119,7 @@ export const nationalTeamMatches = (db: GameDatabase, teamId: EntityId): Nationa
         date: match.matchDate,
         opponent: profileName.get(isHome ? match.awayTeamProfileId : match.homeTeamProfileId) ?? "Unknown opponent",
         kind: match.importance,
+        editionId: match.editionId,
         competition: match.editionId ? editions.get(match.editionId)?.name : undefined,
         stage: match.stageId ? stages.get(match.stageId)?.name : undefined,
         group: match.groupName,

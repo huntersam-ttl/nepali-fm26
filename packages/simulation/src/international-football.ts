@@ -720,7 +720,7 @@ export const advanceInternationalCompetition = (
     simulateInternationalMatch(db, match.id, `${seed}:match:${match.id}`);
   }
   const standings = groupStandings(repo, editionId, firstStage.id);
-  let qualified = standings.flatMap((group) =>
+  let qualified: Array<{ teamProfileId: EntityId; points: number; goalDifference: number; goalsFor: number }> = standings.flatMap((group) =>
     group.rows.slice(0, Math.max(1, firstStage.teamsToAdvance)),
   );
   for (const stage of stages.slice(1)) {
@@ -1550,35 +1550,42 @@ const createKnockoutMatches = (
   return matches.length > 0 ? matches : [];
 };
 
-const groupStandings = (
+export type GroupStandingRow = {
+  teamProfileId: EntityId;
+  played: number;
+  won: number;
+  drawn: number;
+  lost: number;
+  points: number;
+  goalDifference: number;
+  goalsFor: number;
+  goalsAgainst: number;
+};
+
+/** Group tables, computed from played group-stage matches and ordered by points, goal difference, goals scored. */
+export const groupStandings = (
   repo: InternationalFootballRepository,
   editionId: EntityId,
   stageId: EntityId,
 ): Array<{
   groupName: string;
-  rows: Array<{
-    teamProfileId: EntityId;
-    points: number;
-    goalDifference: number;
-    goalsFor: number;
-  }>;
+  rows: GroupStandingRow[];
 }> => {
   const teams = repo.participants(editionId);
-  const byGroup = new Map<
-    string,
-    Map<
-      EntityId,
-      { teamProfileId: EntityId; points: number; goalDifference: number; goalsFor: number }
-    >
-  >();
+  const byGroup = new Map<string, Map<EntityId, GroupStandingRow>>();
   for (const participant of teams) {
     const groupName = participant.groupName ?? "A";
     if (!byGroup.has(groupName)) byGroup.set(groupName, new Map());
     byGroup.get(groupName)!.set(participant.teamProfileId, {
       teamProfileId: participant.teamProfileId,
+      played: 0,
+      won: 0,
+      drawn: 0,
+      lost: 0,
       points: 0,
       goalDifference: 0,
       goalsFor: 0,
+      goalsAgainst: 0,
     });
   }
   for (const match of repo
@@ -1589,15 +1596,27 @@ const groupStandings = (
     const home = group.get(match.homeTeamProfileId);
     const away = group.get(match.awayTeamProfileId);
     if (!home || !away || match.homeGoals === undefined || match.awayGoals === undefined) continue;
+    home.played += 1;
+    away.played += 1;
     home.goalsFor += match.homeGoals;
     away.goalsFor += match.awayGoals;
+    home.goalsAgainst += match.awayGoals;
+    away.goalsAgainst += match.homeGoals;
     home.goalDifference += match.homeGoals - match.awayGoals;
     away.goalDifference += match.awayGoals - match.homeGoals;
-    if (match.homeGoals > match.awayGoals) home.points += 3;
-    else if (match.awayGoals > match.homeGoals) away.points += 3;
-    else {
+    if (match.homeGoals > match.awayGoals) {
+      home.points += 3;
+      home.won += 1;
+      away.lost += 1;
+    } else if (match.awayGoals > match.homeGoals) {
+      away.points += 3;
+      away.won += 1;
+      home.lost += 1;
+    } else {
       home.points += 1;
       away.points += 1;
+      home.drawn += 1;
+      away.drawn += 1;
     }
   }
   return [...byGroup.entries()].map(([groupName, rows]) => ({

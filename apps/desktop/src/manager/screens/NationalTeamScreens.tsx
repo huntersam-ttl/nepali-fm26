@@ -8,6 +8,8 @@ import type {
   NationalTeamFixturesView,
   NationalTeamCoachCandidate,
   NationalTeamCoachCandidatesView,
+  NationalTeamCompetitionEntry,
+  NationalTeamCompetitionsView,
   NationalTeamMatchView,
   NationalTeamOverview,
   NationalTeamPlayerPool,
@@ -36,7 +38,8 @@ export type NationalTeamScreen =
   | "national-team-squad"
   | "national-team-pool"
   | "national-team-staff"
-  | "national-team-fixtures";
+  | "national-team-fixtures"
+  | "national-team-competitions";
 
 export type NationalTeamTarget = NationalTeamScreen | "national-teams" | "federation-overview";
 
@@ -56,6 +59,7 @@ export const NATIONAL_TEAM_SCREENS: Array<{ id: NationalTeamScreen; label: strin
   { id: "national-team-pool", label: "Player pool" },
   { id: "national-team-staff", label: "Staff" },
   { id: "national-team-fixtures", label: "Fixtures" },
+  { id: "national-team-competitions", label: "Competitions" },
 ];
 
 const VENUE_SIDE_LABEL: Record<NationalTeamMatchView["venueSide"], string> = {
@@ -325,6 +329,11 @@ const OverviewBody = ({
           </Panel>
 
           <Panel title="Competitions" className="panel-wide">
+            <div className="button-row">
+              <button className="ghost small" onClick={() => onNavigate("national-team-competitions")}>
+                Open Competitions
+              </button>
+            </div>
             {overview.competitions.length === 0 ? (
               <p className="empty-state">This team is not entered in a recorded competition.</p>
             ) : (
@@ -862,5 +871,329 @@ const FixturesBody = ({ teamId, bridge }: Common & { teamId: EntityId }): React.
         </>
       )}
     </AsyncPanel>
+  );
+};
+
+const PHASE_TONE = { active: "ok", upcoming: "info", completed: "warn" } as const;
+const OUTCOME_TONE = { NOT_STARTED: "info", COMPETING: "ok", ELIMINATED: "bad", CHAMPION: "ok" } as const;
+const REGISTRATION_STATUS_LABEL = {
+  PROVISIONAL: "Provisional",
+  FINAL: "Final",
+  REPLACEMENT_WINDOW_CLOSED: "Replacement window closed",
+} as const;
+
+const eligibilityLabel = (value: string): string => (value === "NOT_IN_POOL" ? "Not in this team's pool" : humanizeToken(value));
+
+export const NationalTeamCompetitionsScreen = (props: Common): React.ReactElement => (
+  <Frame teams={props.teams} current="national-team-competitions" onNavigate={props.onNavigate}>
+    {(team) => <CompetitionsBody teamId={team.id} {...props} />}
+  </Frame>
+);
+
+const CompetitionsBody = ({ teamId, bridge, onOpenEntity }: Common & { teamId: EntityId }): React.ReactElement => {
+  const [selectedId, setSelectedId] = useState<EntityId | undefined>();
+  const [state] = useRuntimeData(
+    () =>
+      bridge.getNationalTeamCompetitions
+        ? bridge.getNationalTeamCompetitions(teamId)
+        : Promise.resolve({
+            ok: false as const,
+            error: { code: "RUNTIME_UNAVAILABLE" as const, message: "National-team competitions are unavailable right now." },
+          }),
+    [teamId],
+  );
+  return (
+    <AsyncPanel state={state}>
+      {(view: NationalTeamCompetitionsView) => {
+        const groups: Array<{ key: "active" | "upcoming" | "completed"; title: string; entries: NationalTeamCompetitionEntry[] }> = [
+          { key: "active", title: "Active competitions", entries: view.active },
+          { key: "upcoming", title: "Upcoming competitions", entries: view.upcoming },
+          { key: "completed", title: "Completed competitions", entries: view.completed },
+        ];
+        const all = groups.flatMap((group) => group.entries);
+        if (all.length === 0)
+          return (
+            <Panel title="Competitions" className="panel-wide">
+              <p className="empty-state">This team is not entered in a recorded competition.</p>
+              <p className="subtle">
+                <Badge tone="info">simulated</Badge> Competitions appear here once the simulation enters the team in one.
+              </p>
+            </Panel>
+          );
+        const selected = all.find((entry) => entry.editionId === selectedId) ?? all[0]!;
+        return (
+          <>
+            {groups.map((group) => (
+              <Panel key={group.key} title={group.title} className="panel-wide">
+                {group.entries.length === 0 ? (
+                  <p className="empty-state">None.</p>
+                ) : (
+                  <div className="table-scroll" role="region" aria-label={group.title} tabIndex={0}>
+                    <table>
+                      <caption className="visually-hidden">{group.title} of this national team</caption>
+                      <thead>
+                        <tr>
+                          <th scope="col">Competition</th>
+                          <th scope="col">Status</th>
+                          <th scope="col">Where the team stands</th>
+                          <th scope="col">Dates</th>
+                          <th scope="col">Next match</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {group.entries.map((entry) => (
+                          <tr key={entry.editionId}>
+                            <th scope="row">
+                              <button
+                                className="link"
+                                aria-pressed={entry.editionId === selected.editionId}
+                                aria-label={`Show ${entry.edition}`}
+                                onClick={() => setSelectedId(entry.editionId)}
+                              >
+                                {entry.edition}
+                              </button>
+                            </th>
+                            <td>
+                              <Badge tone={PHASE_TONE[group.key]}>{humanizeToken(entry.status)}</Badge>
+                            </td>
+                            <td>
+                              <Badge tone={OUTCOME_TONE[entry.outcome.key]}>{entry.outcome.label}</Badge>
+                            </td>
+                            <td>
+                              {entry.startDate} – {entry.endDate}
+                            </td>
+                            <td>{entry.nextMatch ? `${entry.nextMatch.opponent} · ${entry.nextMatch.date}` : "None scheduled"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </Panel>
+            ))}
+            <CompetitionDetail entry={selected} onOpenEntity={onOpenEntity} />
+          </>
+        );
+      }}
+    </AsyncPanel>
+  );
+};
+
+const CompetitionDetail = ({
+  entry,
+  onOpenEntity,
+}: {
+  entry: NationalTeamCompetitionEntry;
+  onOpenEntity?: Common["onOpenEntity"];
+}): React.ReactElement => {
+  const table = entry.groupTable;
+  const finished = entry.status === "COMPLETED";
+  return (
+    <>
+      <Panel title={entry.edition} className="panel-wide">
+        <Metrics
+          items={[
+            { label: "Competition", value: entry.competition },
+            { label: "Cycle", value: entry.cycle },
+            { label: "Format", value: humanizeToken(entry.competitionType) },
+            ...(entry.confederation ? [{ label: "Confederation", value: entry.confederation }] : []),
+            ...(entry.region ? [{ label: "Region", value: humanizeToken(entry.region) }] : []),
+            { label: "Hosts", value: entry.hosts.length > 0 ? entry.hosts.join(", ") : "Not recorded" },
+            { label: "Status", value: humanizeToken(entry.status) },
+            { label: "Entry", value: humanizeToken(entry.entryStatus) },
+            { label: "Group", value: entry.group ?? "Not drawn" },
+            { label: "Where the team stands", value: entry.outcome.label },
+            { label: "Qualification route", value: entry.qualificationSource ?? "Not recorded" },
+          ]}
+        />
+        {entry.qualificationLinks.length > 0 && (
+          <ul className="report-list">
+            {entry.qualificationLinks.map((link) => (
+              <li key={`${link.fromEdition}-${link.condition}`}>
+                {humanizeToken(link.condition)} from {link.fromEdition} · {link.slots} {link.slots === 1 ? "place" : "places"}
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="subtle">
+          <Badge tone="info">simulated</Badge> Competitions are run by the simulation. Nothing here estimates a team&rsquo;s
+          chances.
+        </p>
+      </Panel>
+
+      <Panel title="Stages and squad rules" className="panel-wide">
+        <div className="table-scroll" role="region" aria-label="Competition stages" tabIndex={0}>
+          <table>
+            <caption className="visually-hidden">Stages of this competition and their recorded rules</caption>
+            <thead>
+              <tr>
+                <th scope="col">Stage</th>
+                <th scope="col">Format</th>
+                <th scope="col">Advancing</th>
+                <th scope="col">Legs</th>
+                <th scope="col">Extra time</th>
+                <th scope="col">Penalties</th>
+              </tr>
+            </thead>
+            <tbody>
+              {entry.stages.map((stage) => (
+                <tr key={stage.order}>
+                  <th scope="row">{stage.name}</th>
+                  <td>{humanizeToken(stage.format)}</td>
+                  <td>{stage.groupCount > 1 ? `${stage.teamsToAdvance} per group` : stage.teamsToAdvance}</td>
+                  <td>{stage.legs}</td>
+                  <td>{stage.extraTime ? "Yes" : "No"}</td>
+                  <td>{stage.penalties ? "Yes" : "No"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Panel>
+
+      {table && (
+        <Panel title={`Group ${table.name}`} className="panel-wide">
+          <div className="table-scroll" role="region" aria-label={`Group ${table.name} table`} tabIndex={0}>
+            <table>
+              <caption className="visually-hidden">Standings of group {table.name}</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Place</th>
+                  <th scope="col">Team</th>
+                  <th scope="col"><abbr title="Played">P</abbr></th>
+                  <th scope="col"><abbr title="Won">W</abbr></th>
+                  <th scope="col"><abbr title="Drawn">D</abbr></th>
+                  <th scope="col"><abbr title="Lost">L</abbr></th>
+                  <th scope="col"><abbr title="Goals for">GF</abbr></th>
+                  <th scope="col"><abbr title="Goals against">GA</abbr></th>
+                  <th scope="col"><abbr title="Goal difference">GD</abbr></th>
+                  <th scope="col"><abbr title="Points">Pts</abbr></th>
+                </tr>
+              </thead>
+              <tbody>
+                {table.rows.map((row, index) => (
+                  <tr key={row.team}>
+                    <td>
+                      {index + 1}
+                      {finished && index < table.advanceCount ? <> <Badge tone="ok">Advancing place</Badge></> : null}
+                    </td>
+                    <th scope="row">
+                      {row.isThisTeam ? <strong>{row.team} (this team)</strong> : row.team}
+                    </th>
+                    <td>{row.played}</td>
+                    <td>{row.won}</td>
+                    <td>{row.drawn}</td>
+                    <td>{row.lost}</td>
+                    <td>{row.goalsFor}</td>
+                    <td>{row.goalsAgainst}</td>
+                    <td>{row.goalDifference}</td>
+                    <td>{row.points}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="subtle">
+            The top {table.advanceCount} of each group advance to the next stage. Teams are ordered by points, goal
+            difference, then goals scored.
+          </p>
+        </Panel>
+      )}
+
+      <Panel title="Knockout" className="panel-wide">
+        {entry.knockout.length === 0 ? (
+          <p className="empty-state">This team has no knockout match in this competition.</p>
+        ) : (
+          entry.knockout.map((round) => (
+            <div key={round.round}>
+              <h3>{round.round}</h3>
+              <MatchTable caption={`${round.round} matches`} matches={round.matches} empty="No matches." />
+            </div>
+          ))
+        )}
+      </Panel>
+
+      <Panel title="Team matches in this competition" className="panel-wide">
+        <MatchTable caption={`Matches in ${entry.edition}`} matches={entry.matches} empty="No matches are recorded for this competition." />
+      </Panel>
+
+      <Panel title="Campaign" className="panel-wide">
+        {entry.campaign ? (
+          <Metrics
+            items={[
+              { label: "Campaign", value: entry.campaign.name },
+              { label: "Started", value: entry.campaign.startedOn },
+              { label: "Played", value: entry.campaign.matchesPlayed },
+              { label: "Record", value: `${entry.campaign.wins}W ${entry.campaign.draws}D ${entry.campaign.losses}L` },
+              { label: "Qualification status", value: humanizeToken(entry.campaign.qualificationStatus) },
+            ]}
+          />
+        ) : (
+          <p className="empty-state">No campaign record exists for this competition.</p>
+        )}
+      </Panel>
+
+      <Panel title="Squad registration" className="panel-wide">
+        {entry.registration ? (
+          <>
+            <Metrics
+              items={[
+                { label: "Status", value: REGISTRATION_STATUS_LABEL[entry.registration.status] },
+                { label: "Registration", value: entry.registration.locked ? "Locked" : "Open" },
+                { label: "Deadline", value: entry.registration.deadline },
+                { label: "Registered players", value: entry.registration.playerCount },
+                ...(entry.registration.limits
+                  ? [
+                      {
+                        label: "Squad limits",
+                        value: `Preliminary ${entry.registration.limits.preliminary} · Final ${entry.registration.limits.final} · Matchday ${entry.registration.limits.matchday}`,
+                      },
+                    ]
+                  : []),
+              ]}
+            />
+            <div className="table-scroll" role="region" aria-label="Registered players" tabIndex={0}>
+              <table>
+                <caption className="visually-hidden">Players registered for this competition</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Player</th>
+                    <th scope="col">Position</th>
+                    <th scope="col">Eligibility today</th>
+                    <th scope="col">Availability</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {entry.registration.players.map((row) => (
+                    <tr key={row.player.id}>
+                      <th scope="row">
+                        <EntityLink reference={row.player} onOpenEntity={onOpenEntity} />
+                      </th>
+                      <td>{row.position ?? "—"}</td>
+                      <td>{eligibilityLabel(row.eligibility)}</td>
+                      <td>
+                        <Badge tone={AVAILABILITY_TONE[row.availability]}>{humanizeToken(row.availability)}</Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="subtle">
+              The registered squad is a separate record from the current squad. Registration is handled by the coaching
+              staff and the simulation, so it cannot be changed here.
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="empty-state">No squad registration is recorded for this competition. Deadline: Not recorded.</p>
+            <p className="subtle">
+              Players recorded on duty for this competition: {entry.onDutyCount}. Registration is handled by the coaching
+              staff and the simulation.
+            </p>
+          </>
+        )}
+      </Panel>
+    </>
   );
 };

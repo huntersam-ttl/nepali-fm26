@@ -92,6 +92,7 @@ const PRESIDENT_WORKSPACE_LABELS: Record<string, string> = {
   "national-team-pool": "National Team Player Pool",
   "national-team-staff": "National Team Staff",
   "national-team-fixtures": "National Team Fixtures",
+  "national-team-competitions": "National Team Competitions",
   "national-development": "National Development",
   "competition-pyramid": "Domestic Pyramid",
   "nepal-map": "Nepal Map",
@@ -143,6 +144,7 @@ export const NATIONAL_TEAM_FAMILY: string[] = [
   "national-team-pool",
   "national-team-staff",
   "national-team-fixtures",
+  "national-team-competitions",
 ];
 
 export const PRESIDENT_FAMILIES: Array<{ label: string; items: string[] }> = [

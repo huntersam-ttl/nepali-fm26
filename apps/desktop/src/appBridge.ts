@@ -49,6 +49,7 @@ import type {
   NationalTeamPlayerPool,
   NationalTeamPlayerPoolQuery,
   NationalTeamCoachCandidatesView,
+  NationalTeamCompetitionsView,
   FederationPresidentDashboard,
   FederationCandidacyAssessment,
   FederationGovernanceProposal,
@@ -345,6 +346,8 @@ const bindCommands = (call: CommandCaller): DesktopRuntimeApi => ({
     call<NationalTeamStaffView>("getNationalTeamStaff", { nationalTeamId }),
   getNationalTeamFixtures: (nationalTeamId: EntityId) =>
     call<NationalTeamFixturesView>("getNationalTeamFixtures", { nationalTeamId }),
+  getNationalTeamCompetitions: (nationalTeamId: EntityId) =>
+    call<NationalTeamCompetitionsView>("getNationalTeamCompetitions", { nationalTeamId }),
   getNationalTeamPlayerPool: (nationalTeamId: EntityId, query: NationalTeamPlayerPoolQuery = {}) =>
     call<NationalTeamPlayerPool>("getNationalTeamPlayerPool", { nationalTeamId, query }),
   getNationalTeamCoachCandidates: (nationalTeamId: EntityId) =>

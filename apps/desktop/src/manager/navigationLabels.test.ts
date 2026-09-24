@@ -235,13 +235,14 @@ describe("career family nav (Phase 8A)", () => {
 });
 
 describe("national-team workspace family (Phase 10A)", () => {
-  it("is exactly Overview | Squad | Player pool | Staff | Fixtures, each labelled, and not a sidebar item", () => {
+  it("is exactly Overview | Squad | Player pool | Staff | Fixtures | Competitions, each labelled, and not a sidebar item", () => {
     expect(NATIONAL_TEAM_FAMILY).toEqual([
       "national-team-overview",
       "national-team-squad",
       "national-team-pool",
       "national-team-staff",
       "national-team-fixtures",
+      "national-team-competitions",
     ]);
     expect(NATIONAL_TEAM_FAMILY.map((id) => workspaceLabel(ws("FEDERATION_PRESIDENT", id)))).toEqual([
       "National Team",
@@ -249,6 +250,7 @@ describe("national-team workspace family (Phase 10A)", () => {
       "National Team Player Pool",
       "National Team Staff",
       "National Team Fixtures",
+      "National Team Competitions",
     ]);
     const sidebar = PRESIDENT_FAMILIES.flatMap((family) => family.items);
     for (const id of NATIONAL_TEAM_FAMILY) expect(sidebar).not.toContain(id);

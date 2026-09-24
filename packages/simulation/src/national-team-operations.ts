@@ -52,12 +52,17 @@ const ELIGIBILITY_NOTES: Record<NationalTeamPoolEligibility, string> = {
  * eligibility state the selection itself applies. Read-only: it never records
  * anything, and it exposes no ability, ranking or selection score.
  */
-export const buildNationalTeamPlayerPool = (
-  db: GameDatabase,
-  teamId: EntityId,
-  asOf: string,
-  query: NationalTeamPlayerPoolQuery = {},
-): NationalTeamPlayerPool => {
+export type PoolRow = {
+  id: EntityId;
+  name: string;
+  position?: string;
+  age?: number;
+  eligibility: NationalTeamPoolEligibility;
+  availability: NationalTeamPoolPlayer["availability"];
+  selectable: boolean;
+};
+
+const loadPool = (db: GameDatabase, teamId: EntityId, asOf: string) => {
   const team = nationalTeamIdentity(db, teamId);
   const country = db.prepare("SELECT country_id FROM federations WHERE id=?").get(team.federation.id) as
     | { country_id: EntityId }
@@ -144,16 +149,7 @@ export const buildNationalTeamPlayerPool = (
     primary_position?: string | null;
   }>;
 
-  type Row = {
-    id: EntityId;
-    name: string;
-    position?: string;
-    age?: number;
-    eligibility: NationalTeamPoolEligibility;
-    availability: NationalTeamPoolPlayer["availability"];
-    selectable: boolean;
-  };
-  const pool: Row[] = rows.map((row) => {
+  const pool: PoolRow[] = rows.map((row) => {
     const derived = row.nationality_country_id === country.country_id ? "ELIGIBLE" : "DOCUMENTATION_REQUIRED";
     const status = prior.get(row.person_id);
     const standing: NationalTeamPoolEligibility =
@@ -187,7 +183,23 @@ export const buildNationalTeamPlayerPool = (
       selectable: eligibility === "ELIGIBLE" && availability !== "INJURED" && availability !== "UNAVAILABLE",
     };
   });
+  return { team, pool, latestCallup, caps, clubByPlayer };
+};
 
+/** Where each player stands for this team today: the same eligibility the pool and the selection apply. */
+export const nationalTeamPoolStanding = (
+  db: GameDatabase,
+  teamId: EntityId,
+  asOf: string,
+): Map<EntityId, PoolRow> => new Map(loadPool(db, teamId, asOf).pool.map((row) => [row.id, row]));
+
+export const buildNationalTeamPlayerPool = (
+  db: GameDatabase,
+  teamId: EntityId,
+  asOf: string,
+  query: NationalTeamPlayerPoolQuery = {},
+): NationalTeamPlayerPool => {
+  const { team, pool, latestCallup, caps, clubByPlayer } = loadPool(db, teamId, asOf);
   const isCalledUp = (id: EntityId): boolean => latestCallup.get(id)?.status === "CALLED_UP";
   const matching = pool
     .filter((row) => (query.position ? row.position === query.position : true))
