@@ -60,6 +60,21 @@ test("3. Career History lists appointments and honours (or honest empties)", asy
   expect(/no prior roles are on record/i.test(body) || /current/i.test(body)).toBe(true);
 });
 
+test("5. Career Reputation shows distinct measures and never a combined or hidden score", async ({ page }) => {
+  test.setTimeout(700_000);
+  await createCareer(page, `Reputation ${Date.now()}`);
+  await goTo(page, "Career Reputation");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+  await expect(page.getByRole("heading", { name: "Career Reputation", level: 2 }).last()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Professional standing", level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Board confidence", level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Supporter approval", level: 2 })).toBeVisible();
+  const body = await page.locator("main").innerText();
+  expect(body.replace(/not combined into a single career score/i, "")).not.toMatch(
+    /career score|overall reputation|journalist trust|hostility|tension/i,
+  );
+});
+
 test("4. Back returns from Career History to Career Overview", async ({ page }) => {
   test.setTimeout(700_000);
   await createCareer(page, `Career nav ${Date.now()}`);

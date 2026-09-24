@@ -33,6 +33,7 @@ import { JournalistsScreen } from "./screens/JournalistsScreen.js";
 import { PressRequestsScreen } from "./screens/PressRequestsScreen.js";
 import { CareerOverviewScreen } from "./screens/CareerOverviewScreen.js";
 import { CareerHistoryScreen } from "./screens/CareerHistoryScreen.js";
+import { CareerReputationScreen } from "./screens/CareerReputationScreen.js";
 import { TransfersScreen } from "./screens/TransfersScreen.js";
 import { ContractsScreen } from "./screens/ContractsScreen.js";
 import { StaffScreen } from "./screens/StaffScreen.js";
@@ -97,7 +98,7 @@ const NAV_GROUPS: Array<{ label: string; items: Screen[] }> = [
   { label: "Recruitment", items: ["recruitment-overview", "player-database", "recommendations", "recruitment-focuses", "shortlists", "squad-planner", "scouting", "transfers", "contracts"] },
   { label: "Club", items: ["club-overview", "club-profile", "club-finances", "club-board", "club-responsibilities", "club-facilities", "club-projects", "club-supporters", "club-commercial", "club-history", "staff", "media"] },
   { label: "Media", items: ["newsroom", "media-outlets", "media-journalists", "media-requests"] },
-  { label: "Career", items: ["career-overview", "career-history"] },
+  { label: "Career", items: ["career-overview", "career-history", "career-reputation"] },
 ];
 
 type RoleScreen = ChairmanScreen | PresidentScreen;
@@ -178,6 +179,7 @@ const LABELS: Record<Screen, string> = {
   "media-requests": "Press Requests",
   "career-overview": "Career Overview",
   "career-history": "Career History",
+  "career-reputation": "Career Reputation",
 };
 
 const SUBTITLES: Record<Screen, string> = {
@@ -221,6 +223,7 @@ const SUBTITLES: Record<Screen, string> = {
   "media-requests": "Press requests and interviews for the club.",
   "career-overview": "The human player's identity, current role and career snapshot.",
   "career-history": "The player's persistent appointments and honours.",
+  "career-reputation": "How the board, supporters and your career profile currently regard you, kept separate.",
 };
 
 /**
@@ -909,6 +912,9 @@ export const ManagerCareer = ({
         )}
         {header.activeRole === "MANAGER" && screen === "career-history" && (
           <CareerHistoryScreen />
+        )}
+        {header.activeRole === "MANAGER" && screen === "career-reputation" && (
+          <CareerReputationScreen />
         )}
           </>
         )}

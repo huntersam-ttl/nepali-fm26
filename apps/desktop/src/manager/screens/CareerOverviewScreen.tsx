@@ -7,6 +7,7 @@ import type {
   ManagerCareerHistoryView,
 } from "@nepal-football-sim/shared-types";
 import { managerBridge } from "../managerBridge.js";
+import { humanizeToken } from "../storyHumanizer.js";
 import { AsyncPanel, Badge, Metrics, Panel, useRuntimeData } from "../ui.js";
 import { EntityRefLink } from "../RoleDetailScreen.js";
 
@@ -109,6 +110,9 @@ export const CareerOverviewScreen = ({
                     items={[
                       { label: "Roles / jobs held", value: `${history.history.length}` },
                       { label: "Honours", value: `${history.trophies.length}` },
+                      ...(history.reputationProfile
+                        ? [{ label: "Reputation", value: humanizeToken(history.reputationProfile) }]
+                        : []),
                     ]}
                   />
                 )}
