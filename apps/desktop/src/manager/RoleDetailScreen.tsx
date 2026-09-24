@@ -78,6 +78,7 @@ import type { AppError, AppResult, DesktopRuntimeApi } from "../appBridge.js";
 import { AsyncPanel, Badge, ErrorBanner, Metrics, Panel, money, useRuntimeData } from "./ui.js";
 import { FederationOverviewScreen } from "./screens/FederationOverviewScreen.js";
 import { FederationProjectsScreen } from "./screens/FederationProjectsScreen.js";
+import { FederationFundingPanels } from "./screens/FederationFundingPanels.js";
 import {
   MeetingBrief,
   MeetingOptions,
@@ -1958,6 +1959,9 @@ const PresidentDetail = ({
   onNavigate: Props["onNavigate"];
 }): React.ReactElement => {
   const [state, refresh] = useRuntimeData(() => bridge.getFederationPresidentDashboard());
+  // A refresh briefly unmounts the section, so a confirmation lives up here.
+  const [financeNotice, setFinanceNotice] = useState<string | null>(null);
+  useEffect(() => setFinanceNotice(null), [screen]);
   return (
     <AsyncPanel state={state}>
       {(dashboard) => {
@@ -1972,12 +1976,22 @@ const PresidentDetail = ({
         if (screen === "federation-projects")
           return (
             <section className="role-detail">
-              <FederationProjectsScreen dashboard={dashboard} />
+              <FederationProjectsScreen dashboard={dashboard} onNavigate={onNavigate} />
             </section>
           );
         if (screen === "governance")
           return <Governance dashboard={dashboard} bridge={bridge} refresh={refresh} />;
-        if (screen === "finance") return <FederationFinance dashboard={dashboard} bridge={bridge} />;
+        if (screen === "finance")
+          return (
+            <FederationFinance
+              dashboard={dashboard}
+              bridge={bridge}
+              refresh={refresh}
+              onNavigate={onNavigate}
+              notice={financeNotice}
+              onNotice={setFinanceNotice}
+            />
+          );
         if (screen === "commercial") return <PresidentCommercial bridge={bridge} />;
         if (screen === "national-teams")
           return <NationalTeams dashboard={dashboard} bridge={bridge} />;
@@ -2148,9 +2162,17 @@ const FinanceSourceUsePanel = ({
 const FederationFinance = ({
   dashboard,
   bridge,
+  refresh,
+  onNavigate,
+  notice,
+  onNotice,
 }: {
   dashboard: FederationPresidentDashboard;
   bridge: DesktopRuntimeApi;
+  refresh: () => void;
+  onNavigate: Props["onNavigate"];
+  notice: string | null;
+  onNotice: (text: string) => void;
 }): React.ReactElement => {
   const [openStoryRef, setOpenStoryRef] = useState<{ entityType: ProfileEntityType; entityId: EntityId } | null>(null);
   const openStoryReference = (reference: EntityReference): void =>
@@ -2200,6 +2222,14 @@ const FederationFinance = ({
           ]}
         />
       </Panel>
+      <FederationFundingPanels
+        dashboard={dashboard}
+        bridge={bridge}
+        refresh={refresh}
+        onNavigate={onNavigate}
+        notice={notice}
+        onNotice={onNotice}
+      />
       <EntityStorylinePanel
         bridge={bridge}
         entityId={dashboard.federation.id}
@@ -3419,7 +3449,7 @@ const NationalDevelopmentView = ({
             {summary.governmentRelationship.toLowerCase()}
           </Badge>
         </p>
-        <div className="metrics">
+        <dl className="metrics">
           {Object.entries(summary.dimensions).map(([key, band]) => (
             <div key={key}>
               <dt>{DEVELOPMENT_DIMENSION_LABELS[key] ?? key}</dt>
@@ -3428,7 +3458,7 @@ const NationalDevelopmentView = ({
               </dd>
             </div>
           ))}
-        </div>
+        </dl>
       </Panel>
 
       <EntityStorylinePanel bridge={bridge} entityId={summary.federationId} onOpenReference={openStoryReference} />

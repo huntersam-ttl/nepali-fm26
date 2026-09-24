@@ -29,6 +29,12 @@ const dashboardWith = (over: Record<string, unknown> = {}): FederationPresidentD
     role: "FEDERATION_PRESIDENT",
     federation: { id: "f1", name: "All Nepal Football Association" },
     profile: { reputation: 71, governanceStability: 40 },
+    finances: {
+      account: { cashBalance: 15_000_000, restrictedFunds: 4_800_000, currency: "NPR", financialHealth: "STABLE" },
+      budgets: [],
+      ledgerEntries: [],
+      statements: [],
+    },
     tenure: { id: "t1", personId: "person", federationId: "f1", role: "FEDERATION_PRESIDENT", termStart: "2026-08-01", termEnd: "2030-01-01", status: "ACTIVE" },
     proposals: [],
     projects: [],
@@ -128,6 +134,16 @@ describe("Federation Overview (Phase 9A)", () => {
     const body = document.body.textContent ?? "";
     expect(body).not.toMatch(/election|probability|coalition|influence|support base|voting|confidence|stability/i);
     expect(body).not.toMatch(/\b71\b|\b40\b/);
+  });
+
+  it("summarises real funds and links to Finance without becoming a finance page", async () => {
+    const onNavigate = vi.fn();
+    render(<overview.FederationOverviewScreen dashboard={dashboardWith()} bridge={bridge} onNavigate={onNavigate} />);
+    await screen.findByText(/same person across every role/i);
+    expect(document.body.textContent).toMatch(/NPR 15,000,000/);
+    expect(document.body.textContent).toMatch(/NPR 4,800,000/);
+    fireEvent.click(screen.getByRole("button", { name: "Open Finance" }));
+    expect(onNavigate).toHaveBeenCalledWith("finance");
   });
 });
 

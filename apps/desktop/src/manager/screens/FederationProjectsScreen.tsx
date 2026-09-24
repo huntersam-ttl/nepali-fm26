@@ -70,8 +70,10 @@ const ProjectTable = ({ projects, caption }: { projects: Project[]; caption: str
 
 export const FederationProjectsScreen = ({
   dashboard,
+  onNavigate,
 }: {
   dashboard: Pick<FederationPresidentDashboard, "projects">;
+  onNavigate?: (target: "finance") => void;
 }): React.ReactElement => {
   const all = sortedProjects(dashboard.projects);
   const open = all.filter(isOpenProject);
@@ -88,6 +90,13 @@ export const FederationProjectsScreen = ({
           <Badge tone="info">simulated</Badge> Programmes appear here when the federation implements an approved
           governance proposal.
         </p>
+        {onNavigate && (
+          <div className="button-row">
+            <button className="ghost small" onClick={() => onNavigate("finance")}>
+              Open Finance
+            </button>
+          </div>
+        )}
       </Panel>
       <Panel title="Completed and cancelled" className="panel-wide">
         {closed.length === 0 ? (

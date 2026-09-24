@@ -7,6 +7,7 @@ import {
   CommercialRightsRepository,
   EventRepository,
   FacilityPlanningRepository,
+  FederationComplianceRepository,
   FederationGovernanceRepository,
   ClubLicensingRepository,
   CompetitionRepository,
@@ -107,6 +108,9 @@ import {
   type GovernmentSupportMeetingContext,
   type GovernmentFundingType,
   type FederationPresidentDashboard,
+  type FederationGrantView,
+  type FederationBudget,
+  type FederationBudgetCategory,
   type E2ERoleFixtureResult,
   type E2EDecisionPresentationFixtureResult,
   type FederationGovernanceProposal,
@@ -519,6 +523,7 @@ import {
   declareFederationElectionCandidacy,
   implementFederationGovernanceProposalCommand,
 } from "./federation-politics.js";
+import { FederationBudgetError, setFederationBudgetCommand } from "./federation-budget-command.js";
 import {
   acceptSponsorOfferCommand,
   counterSponsorOffer,
@@ -1963,6 +1968,50 @@ export class DesktopApplicationService {
         throw appError("ROLE_NOT_AUTHORIZED", "You are not the active Federation President.");
       }
       return buildFederationPresidentDashboard(db, save);
+    });
+  }
+
+  /** The federation's grants, as the President may see them: source, purpose,
+   * restriction, status, period and amounts. Conditions, milestones, reporting
+   * requirements and history stay backend-only. */
+  getFederationGrants(): AppResult<FederationGrantView[]> {
+    return this.withSession((db, save) => {
+      const federationId = this.currentFederationId(db, careerPersonId(db, save));
+      return new FederationComplianceRepository(db).grantsForFederation(federationId).map((grant) => ({
+        id: grant.id,
+        sourceInstitution: grant.sourceInstitution,
+        purpose: grant.purpose,
+        restrictionType: grant.restrictionType,
+        status: grant.status,
+        fundingPeriodStart: grant.fundingPeriodStart,
+        fundingPeriodEnd: grant.fundingPeriodEnd,
+        currency: grant.currency,
+        approvedAmount: grant.approvedAmount,
+        receivedAmount: grant.receivedAmount,
+        remainingAmount: grant.remainingAmount,
+        provenanceStatus: grant.provenanceStatus,
+      }));
+    });
+  }
+
+  /** FEDERATION_BUDGETS: set this season's allocation for one budget category. */
+  setFederationBudget(category: FederationBudgetCategory, amount: number): AppResult<FederationBudget> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      const federationId = this.currentFederationId(db, personId);
+      try {
+        return setFederationBudgetCommand(db, {
+          federationId,
+          personId,
+          callerRole: "FEDERATION_PRESIDENT",
+          date: save.worldDate,
+          category,
+          amount,
+        });
+      } catch (error) {
+        if (error instanceof FederationBudgetError) throw appError("INVALID_SELECTION", error.message);
+        throw error;
+      }
     });
   }
 

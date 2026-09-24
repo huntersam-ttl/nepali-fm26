@@ -22,6 +22,7 @@ export * from "./territorial-football.js";
 export * from "./universal-interactions.js";
 export * from "./universal-interaction-adapters.js";
 export * from "./federation-governance.js";
+export * from "./federation-budget-command.js";
 export * from "./federation-scorecard.js";
 export * from "./federation-referee-context.js";
 export * from "./federation-map.js";

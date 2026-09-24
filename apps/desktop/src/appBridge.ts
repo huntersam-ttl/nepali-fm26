@@ -37,6 +37,8 @@ import type {
   ClubDebt,
   SponsorMeetingOverview,
   FederationCommercialOverview,
+  FederationBudget,
+  FederationGrantView,
   FederationPresidentDashboard,
   FederationCandidacyAssessment,
   FederationGovernanceProposal,
@@ -326,6 +328,9 @@ const bindCommands = (call: CommandCaller): DesktopRuntimeApi => ({
     call<GovernmentFundingApplication>("submitGovernmentSupportCase", { applicationId }),
   getFederationPresidentDashboard: () =>
     call<FederationPresidentDashboard>("getFederationPresidentDashboard"),
+  getFederationGrants: () => call<FederationGrantView[]>("getFederationGrants"),
+  setFederationBudget: (category: FederationBudget["category"], amount: number) =>
+    call<FederationBudget>("setFederationBudget", { category, amount }),
   getNationalDevelopment: () => call<FederationDevelopmentSummary>("getNationalDevelopment"),
   getNationDevelopmentScorecard: () => call<NationDevelopmentScorecard>("getNationDevelopmentScorecard"),
   getFederationRefereeContext: () => call<FederationRefereeContext>("getFederationRefereeContext"),

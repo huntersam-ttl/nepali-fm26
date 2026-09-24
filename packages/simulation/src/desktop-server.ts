@@ -3,6 +3,7 @@ import type { AddressInfo } from "node:net";
 import type {
   AppResult,
   CareerRole,
+  FederationBudgetCategory,
   CareerCreationCommand,
   AdvanceMatchCommand,
   ConcernResponseAction,
@@ -253,6 +254,13 @@ const dispatch = (
       return service.getCompetitionPyramid();
     case "getGovernmentOverview":
       return service.getGovernmentOverview();
+    case "getFederationGrants":
+      return service.getFederationGrants();
+    case "setFederationBudget":
+      return service.setFederationBudget(
+        body.category as FederationBudgetCategory,
+        Number(body.amount),
+      );
     case "requestGovernmentFunding":
       return service.requestGovernmentFunding(
         body.institutionId as EntityId,

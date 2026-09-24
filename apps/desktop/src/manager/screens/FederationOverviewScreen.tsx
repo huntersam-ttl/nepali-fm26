@@ -5,7 +5,7 @@ import type {
 } from "@nepal-football-sim/shared-types";
 import type { DesktopRuntimeApi } from "../../appBridge.js";
 import { humanizeToken } from "../storyHumanizer.js";
-import { AsyncPanel, Badge, Metrics, Panel, useRuntimeData } from "../ui.js";
+import { AsyncPanel, Badge, Metrics, Panel, money, useRuntimeData } from "../ui.js";
 
 /**
  * Phase 9A — Federation Overview (President, read-only).
@@ -88,7 +88,7 @@ export const FederationOverviewScreen = ({
 }: {
   dashboard: FederationPresidentDashboard;
   bridge: Pick<DesktopRuntimeApi, "getCareerOverview">;
-  onNavigate: (target: FederationTarget | "commercial" | "government-relations") => void;
+  onNavigate: (target: FederationTarget | "commercial" | "government-relations" | "finance") => void;
 }): React.ReactElement => {
   const [career] = useRuntimeData(() => bridge.getCareerOverview(), []);
   const attention = attentionItems(dashboard);
@@ -145,6 +145,8 @@ export const FederationOverviewScreen = ({
       <Panel title="National football system" className="panel-wide">
         <Metrics
           items={[
+            { label: "Cash balance", value: money(dashboard.finances.account.cashBalance, dashboard.finances.account.currency) },
+            { label: "Restricted funds", value: money(dashboard.finances.account.restrictedFunds, dashboard.finances.account.currency) },
             { label: "National teams", value: dashboard.nationalTeams.length },
             { label: "Programmes in progress", value: programmes.filter(isActiveProject).length },
             { label: "Programmes completed", value: programmes.filter((p) => p.status === "COMPLETED").length },
@@ -178,6 +180,9 @@ export const FederationOverviewScreen = ({
           </div>
         )}
         <div className="button-row">
+          <button className="ghost small" onClick={() => onNavigate("finance")}>
+            Open Finance
+          </button>
           <button className="ghost small" onClick={() => onNavigate("national-teams")}>
             Open National Teams
           </button>

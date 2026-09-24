@@ -60,6 +60,12 @@ import type {
   SecretaryOperationsDesk,
 } from "./executive-roles.js";
 import type { FederationDevelopmentSummary, NationDevelopmentScorecard } from "./federation-policy.js";
+import type {
+  FederationFundingSource,
+  FederationGrantStatus,
+  FederationProvenanceStatus,
+  FederationRestrictionPurpose,
+} from "./federation-compliance.js";
 import type { FederationRefereeContext } from "./referee-development.js";
 import type { DistrictDetail, FederationMap } from "./territorial-football.js";
 import type { UniversalInteraction } from "./universal-interactions.js";
@@ -1045,6 +1051,27 @@ export type FederationPresidentDashboard = {
   latestStory?: InfrastructureStoryEntry;
 };
 
+/**
+ * Player-facing view of one federation grant. It carries the grant's own
+ * source, purpose, restriction, status, period and amounts. Conditions,
+ * milestones, reporting requirements, audit flags and history stay
+ * backend-only.
+ */
+export type FederationGrantView = {
+  id: EntityId;
+  sourceInstitution: FederationFundingSource;
+  purpose: string;
+  restrictionType: FederationRestrictionPurpose;
+  status: FederationGrantStatus;
+  fundingPeriodStart: string;
+  fundingPeriodEnd: string;
+  currency: string;
+  approvedAmount: number;
+  receivedAmount: number;
+  remainingAmount: number;
+  provenanceStatus: FederationProvenanceStatus;
+};
+
 export type FederationCandidacyAssessment = {
   eligible: boolean;
   reasons: string[];
@@ -1309,6 +1336,11 @@ export type DesktopRuntimeApi = {
    * to trigger it instead of only ever reaching it from a test. */
   submitGovernmentSupportCase?: (applicationId: EntityId) => Promise<AppResult<GovernmentFundingApplication>>;
   getFederationPresidentDashboard(): Promise<AppResult<FederationPresidentDashboard>>;
+  getFederationGrants?: () => Promise<AppResult<FederationGrantView[]>>;
+  setFederationBudget?: (
+    category: FederationBudget["category"],
+    amount: number,
+  ) => Promise<AppResult<FederationBudget>>;
   getNationalDevelopment(): Promise<AppResult<FederationDevelopmentSummary>>;
   getNationDevelopmentScorecard?: () => Promise<AppResult<NationDevelopmentScorecard>>;
   getFederationRefereeContext?: () => Promise<AppResult<FederationRefereeContext>>;
