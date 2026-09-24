@@ -34,7 +34,7 @@ const goTo = (page: Page, screen: string) =>
     .getByRole("button", { name: screen, exact: true })
     .click();
 
-const SCREENS = ["Career Overview", "Career History", "Career Reputation"];
+const SCREENS = ["Career Overview", "Career History", "Career Reputation", "Career Jobs"];
 
 test("Career screens have no page overflow at every required width, one h1", async ({ page }) => {
   test.setTimeout(900_000);

@@ -63,6 +63,7 @@ export const MANAGER_WORKSPACES = [
   "career-overview",
   "career-history",
   "career-reputation",
+  "career-jobs",
 ] as const;
 export type ManagerWorkspace = (typeof MANAGER_WORKSPACES)[number];
 

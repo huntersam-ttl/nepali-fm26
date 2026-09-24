@@ -60,6 +60,7 @@ export const MANAGER_WORKSPACE_LABELS: Record<ManagerWorkspace, string> = {
   "career-overview": "Career Overview",
   "career-history": "Career History",
   "career-reputation": "Career Reputation",
+  "career-jobs": "Career Jobs",
 };
 
 const OWNER_WORKSPACE_LABELS: Record<string, string> = {
@@ -115,7 +116,7 @@ export const MANAGER_FAMILIES: Array<{ label: string; items: string[] }> = [
   { label: "Recruitment", items: ["recruitment-overview", "player-database", "recommendations", "recruitment-focuses", "shortlists", "squad-planner", "scouting", "transfers", "contracts"] },
   { label: "Club", items: ["club-overview", "club-profile", "club-finances", "club-board", "club-responsibilities", "club-facilities", "club-projects", "club-supporters", "club-commercial", "club-history", "staff", "media"] },
   { label: "Media", items: ["newsroom", "media-outlets", "media-journalists", "media-requests"] },
-  { label: "Career", items: ["career-overview", "career-history", "career-reputation"] },
+  { label: "Career", items: ["career-overview", "career-history", "career-reputation", "career-jobs"] },
 ];
 
 export const OWNER_FAMILIES: Array<{ label: string; items: string[] }> = [
@@ -245,8 +246,8 @@ export const mediaNavItems = (workspace: string): ContextualNavItem[] => {
   ];
 };
 
-/** The Manager Career family — Overview | History | Reputation (Phase 8A/8B). */
-export const CAREER_FAMILY: string[] = ["career-overview", "career-history", "career-reputation"];
+/** The Manager Career family — Overview | History | Reputation | Jobs (Phase 8A-8C). */
+export const CAREER_FAMILY: string[] = ["career-overview", "career-history", "career-reputation", "career-jobs"];
 
 export const careerNavItems = (workspace: string): ContextualNavItem[] => {
   if (!CAREER_FAMILY.includes(workspace)) return [];
@@ -254,6 +255,7 @@ export const careerNavItems = (workspace: string): ContextualNavItem[] => {
     { id: "career-overview", label: "Overview", current: workspace === "career-overview" },
     { id: "career-history", label: "History", current: workspace === "career-history" },
     { id: "career-reputation", label: "Reputation", current: workspace === "career-reputation" },
+    { id: "career-jobs", label: "Jobs", current: workspace === "career-jobs" },
   ];
 };
 

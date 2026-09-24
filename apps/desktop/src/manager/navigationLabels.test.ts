@@ -206,9 +206,9 @@ describe("media family nav (Phase 7A/7B)", () => {
     expect(contextualNavItems("MANAGER", "newsroom").map((item) => item.label)).toContain("Newsroom");
   });
 describe("career family nav (Phase 8A)", () => {
-  it("lists Overview | History | Reputation with the current marked", () => {
+  it("lists Overview | History | Reputation | Jobs with the current marked", () => {
     const items = careerNavItems("career-history");
-    expect(items.map((item) => item.label)).toEqual(["Overview", "History", "Reputation"]);
+    expect(items.map((item) => item.label)).toEqual(["Overview", "History", "Reputation", "Jobs"]);
     expect(items.find((item) => item.current)?.id).toBe("career-history");
   });
 
@@ -221,6 +221,7 @@ describe("career family nav (Phase 8A)", () => {
     expect(workspaceLabel(ws("MANAGER", "career-overview"))).toBe("Career Overview");
     expect(workspaceLabel(ws("MANAGER", "career-history"))).toBe("Career History");
     expect(workspaceLabel(ws("MANAGER", "career-reputation"))).toBe("Career Reputation");
+    expect(workspaceLabel(ws("MANAGER", "career-jobs"))).toBe("Career Jobs");
     expect(contextualNavItems("MANAGER", "career-overview").map((item) => item.label)).toContain("Career Overview");
   });
 });
