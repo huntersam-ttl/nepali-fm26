@@ -110,6 +110,8 @@ import {
   type FederationPresidentDashboard,
   type FederationGrantView,
   type FederationCompetitionGovernance,
+  type FederationTenureView,
+  type FederationExternalContext,
   type FederationDevelopmentProgrammes,
   type FederationBudget,
   type FederationBudgetCategory,
@@ -518,6 +520,7 @@ import { buildStoryDetail } from "./story-detail.js";
 import { buildDistrictStoryline } from "./story-territory.js";
 import { roleInboxEvents } from "./media.js";
 import { buildCompetitionPyramid } from "./competition-pyramid-view.js";
+import { buildFederationExternalContext, buildFederationTenure } from "./federation-tenure-view.js";
 import {
   buildFederationCompetitionGovernance,
   buildFederationDevelopmentProgrammes,
@@ -527,6 +530,7 @@ import { publishMediaForDate } from "./media.js";
 import {
   assessFederationCandidacy,
   declareFederationElectionCandidacy,
+  ensureFederationLeadershipContinuity,
   implementFederationGovernanceProposalCommand,
 } from "./federation-politics.js";
 import { FederationBudgetError, setFederationBudgetCommand } from "./federation-budget-command.js";
@@ -2106,6 +2110,36 @@ export class DesktopApplicationService {
     });
   }
 
+  /** Read-only: this President's tenure history and the public election record. */
+  getFederationTenure(): AppResult<FederationTenureView> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      return buildFederationTenure(db, this.currentFederationId(db, personId), personId);
+    });
+  }
+
+  /** Read-only: compliance standing and sanctions imposed on the federation. */
+  getFederationExternalContext(): AppResult<FederationExternalContext> {
+    return this.withSession((db, save) =>
+      buildFederationExternalContext(db, this.currentFederationId(db, careerPersonId(db, save))),
+    );
+  }
+
+  /** Test-only (gated by the server): ends the current presidency term through
+   * the real leadership-continuity routine, as the season-end batch would. */
+  seedE2EExpirePresidency(): AppResult<{ ready: true }> {
+    return this.withSession((db, save) => {
+      const personId = careerPersonId(db, save);
+      const federationId = this.currentFederationId(db, personId);
+      const past = "2026-07-01";
+      db.prepare(
+        "UPDATE federation_leadership_tenures SET term_end=? WHERE person_id=? AND federation_id=? AND status IN ('ACTIVE','INTERIM')",
+      ).run(past, personId, federationId);
+      ensureFederationLeadershipContinuity(db, { date: "2026-07-28", seed: `${save.randomSeed}:e2e-expire` });
+      return { ready: true as const };
+    });
+  }
+
   /** Read-only: competitions, recorded reforms and club licensing for the President. */
   getFederationCompetitionGovernance(): AppResult<FederationCompetitionGovernance> {
     return this.withSession((db, save) =>
@@ -2159,13 +2193,17 @@ export class DesktopApplicationService {
         (entry) => entry.role === "FEDERATION_PRESIDENT",
       )?.targetId;
       if (!federationId) throw appError("ROLE_NOT_AUTHORIZED", "No federation is available.");
-      return requestGovernmentFunding(db, {
-        federationId,
-        institutionId,
-        fundingType,
-        requestedAmount,
-        date: save.worldDate,
-      });
+      try {
+        return requestGovernmentFunding(db, {
+          federationId,
+          institutionId,
+          fundingType,
+          requestedAmount,
+          date: save.worldDate,
+        });
+      } catch (error) {
+        throw appError("INVALID_SELECTION", error instanceof Error ? error.message : "The request was not valid.");
+      }
     });
   }
 

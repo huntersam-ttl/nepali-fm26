@@ -10,6 +10,7 @@ import {
   clubNavItems,
   mediaNavItems,
   careerNavItems,
+  PRESIDENT_FAMILIES,
   workspaceLabel,
 } from "./navigationLabels.js";
 
@@ -230,4 +231,40 @@ describe("career family nav (Phase 8A)", () => {
     expect(contextualNavItems("MANAGER", "career-overview").map((item) => item.label)).toContain("Career Overview");
   });
 });
+});
+
+describe("final Federation President family (Phase 9D)", () => {
+  it("is exactly the supported destinations, each labelled, with no placeholder", () => {
+    expect(PRESIDENT_FAMILIES.flatMap((family) => family.items)).toEqual([
+      "dashboard",
+      "federation-overview",
+      "governance",
+      "federation-projects",
+      "finance",
+      "commercial",
+      "national-teams",
+      "national-development",
+      "competition-pyramid",
+      "nepal-map",
+      "government-relations",
+      "tenure",
+    ]);
+    const labels = PRESIDENT_FAMILIES.flatMap((family) => family.items).map((id) =>
+      workspaceLabel(ws("FEDERATION_PRESIDENT", id)),
+    );
+    expect(labels).toEqual([
+      "Dashboard",
+      "Federation Overview",
+      "Governance",
+      "Federation Projects",
+      "Federation Finance",
+      "Commercial",
+      "National Teams",
+      "National Development",
+      "Domestic Pyramid",
+      "Nepal Map",
+      "Government",
+      "Election / Tenure",
+    ]);
+  });
 });

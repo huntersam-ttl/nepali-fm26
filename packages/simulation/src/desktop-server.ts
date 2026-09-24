@@ -256,6 +256,17 @@ const dispatch = (
       return service.getGovernmentOverview();
     case "getFederationGrants":
       return service.getFederationGrants();
+    case "getFederationTenure":
+      return service.getFederationTenure();
+    case "getFederationExternalContext":
+      return service.getFederationExternalContext();
+    case "seedE2EExpirePresidency":
+      return process.env.NEPAL_E2E_ROLE_FIXTURE === "1"
+        ? service.seedE2EExpirePresidency()
+        : {
+            ok: false,
+            error: { code: "ROLE_NOT_AUTHORIZED", message: "The E2E role fixture is disabled." },
+          };
     case "getFederationCompetitionGovernance":
       return service.getFederationCompetitionGovernance();
     case "getFederationDevelopmentProgrammes":

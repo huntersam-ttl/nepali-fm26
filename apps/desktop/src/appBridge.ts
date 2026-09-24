@@ -41,6 +41,8 @@ import type {
   FederationGrantView,
   FederationCompetitionGovernance,
   FederationDevelopmentProgrammes,
+  FederationTenureView,
+  FederationExternalContext,
   FederationPresidentDashboard,
   FederationCandidacyAssessment,
   FederationGovernanceProposal,
@@ -331,6 +333,8 @@ const bindCommands = (call: CommandCaller): DesktopRuntimeApi => ({
   getFederationPresidentDashboard: () =>
     call<FederationPresidentDashboard>("getFederationPresidentDashboard"),
   getFederationGrants: () => call<FederationGrantView[]>("getFederationGrants"),
+  getFederationTenure: () => call<FederationTenureView>("getFederationTenure"),
+  getFederationExternalContext: () => call<FederationExternalContext>("getFederationExternalContext"),
   getFederationCompetitionGovernance: () =>
     call<FederationCompetitionGovernance>("getFederationCompetitionGovernance"),
   getFederationDevelopmentProgrammes: () =>

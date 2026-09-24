@@ -228,6 +228,16 @@ export const governmentOverview = (db: GameDatabase, federationId: EntityId): Go
  * request raised this way (see CODEX_UI_BRIDGE_NEEDED in the UI layer), so
  * the application sits at PROPOSED until a future review path picks it up.
  */
+const FUNDING_TYPES: readonly GovernmentFundingType[] = [
+  "FEDERATION_OPERATIONS",
+  "NATIONAL_TEAM_PREPARATION",
+  "INFRASTRUCTURE",
+  "REGIONAL_GROUND",
+  "WOMENS_FOOTBALL",
+  "YOUTH_GRASSROOTS",
+  "MUNICIPAL_LAND_OR_VENUE",
+];
+
 export const requestGovernmentFunding = (
   db: GameDatabase,
   input: { federationId: EntityId; institutionId: EntityId; fundingType: GovernmentFundingType; requestedAmount: number; date: string },
@@ -235,6 +245,20 @@ export const requestGovernmentFunding = (
   const repo = new GovernmentRepository(db);
   if (!repo.institution(input.institutionId)) throw new Error(`Government institution missing: ${input.institutionId}`);
   if (!Number.isFinite(input.requestedAmount) || input.requestedAmount <= 0) throw new Error("Requested amount must be a positive number");
+  if (!FUNDING_TYPES.includes(input.fundingType)) throw new Error("That is not a government funding purpose");
+  if (!Number.isSafeInteger(Math.round(input.requestedAmount)) || input.requestedAmount > 1_000_000_000_000)
+    throw new Error("Requested amount is too large");
+  // Same-day requests share an id, so a second one would silently keep the first amount.
+  const open = repo
+    .applications()
+    .some(
+      (item) =>
+        item.federationId === input.federationId &&
+        item.institutionId === input.institutionId &&
+        item.fundingType === input.fundingType &&
+        (item.status === "PROPOSED" || item.status === "SUBMITTED"),
+    );
+  if (open) throw new Error("A request for this purpose is already open with this institution");
   return proposeGovernmentFunding(db, {
     institutionId: input.institutionId,
     federationId: input.federationId,

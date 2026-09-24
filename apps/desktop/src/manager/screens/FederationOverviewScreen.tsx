@@ -5,6 +5,7 @@ import type {
   FederationPresidentDashboard,
 } from "@nepal-football-sim/shared-types";
 import type { DesktopRuntimeApi } from "../../appBridge.js";
+import { ExternalBodiesPanel } from "./FederationTenureScreen.js";
 import { licenceCasesNeedingAttention, reformsAwaitingImplementation } from "./federationGovernanceLogic.js";
 import { humanizeToken } from "../storyHumanizer.js";
 import { AsyncPanel, Badge, Metrics, Panel, money, useRuntimeData } from "../ui.js";
@@ -106,7 +107,10 @@ export const FederationOverviewScreen = ({
   onNavigate,
 }: {
   dashboard: FederationPresidentDashboard;
-  bridge: Pick<DesktopRuntimeApi, "getCareerOverview" | "getFederationCompetitionGovernance">;
+  bridge: Pick<
+    DesktopRuntimeApi,
+    "getCareerOverview" | "getFederationCompetitionGovernance" | "getFederationExternalContext"
+  >;
   onNavigate: (target: FederationTarget | "commercial" | "government-relations" | "finance") => void;
 }): React.ReactElement => {
   const [career] = useRuntimeData(() => bridge.getCareerOverview(), []);
@@ -218,6 +222,8 @@ export const FederationOverviewScreen = ({
           </button>
         </div>
       </Panel>
+
+      <ExternalBodiesPanel bridge={bridge} onNavigate={onNavigate} />
 
       <Panel title="What this office governs" className="panel-wide">
         <p className="subtle">

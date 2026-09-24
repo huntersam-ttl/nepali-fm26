@@ -938,6 +938,47 @@ export type FederationDevelopmentProgrammes = {
   provenanceStatus: "SIMULATION_ONLY";
 };
 
+/** One presidency of this person, as recorded. */
+export type FederationTenureEntry = {
+  id: EntityId;
+  status: "ACTIVE" | "INTERIM" | "FORMER";
+  termStart: ISODate;
+  termEnd?: ISODate;
+};
+
+/** The President's own tenure and the public election record. Vote shares,
+ * candidate scores, committee influence and coalition support stay backend-only. */
+export type FederationTenureView = {
+  current?: FederationTenureEntry;
+  history: FederationTenureEntry[];
+  election: {
+    upcoming?: { electionDate: ISODate; nominationStart: ISODate; status: string };
+    latest?: { decidedAt: ISODate; winnerName: string; youWon: boolean; termYears: number };
+  };
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+export type FederationExternalSanction = {
+  id: EntityId;
+  authority: "FIFA" | "AFC" | "DOMESTIC";
+  category: string;
+  reason: string;
+  startDate: ISODate;
+  reviewState: "ACTIVE" | "UNDER_REVIEW" | "RESOLVED";
+  resolvedOn?: ISODate;
+  consequences: string[];
+  requirementsForResolution: string[];
+  affectedProgrammes: string[];
+};
+
+/** Public compliance standing and sanctions. Compliance dimension scores and
+ * review history stay backend-only. */
+export type FederationExternalContext = {
+  compliance?: { status: string; lastReviewedOn: ISODate };
+  sanctions: FederationExternalSanction[];
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
 /** One real national-team programme this player has actually been called
  * up to — never a fabricated selection guarantee. */
 export type PlayerPathwayStage = {
@@ -1419,6 +1460,8 @@ export type DesktopRuntimeApi = {
   submitGovernmentSupportCase?: (applicationId: EntityId) => Promise<AppResult<GovernmentFundingApplication>>;
   getFederationPresidentDashboard(): Promise<AppResult<FederationPresidentDashboard>>;
   getFederationGrants?: () => Promise<AppResult<FederationGrantView[]>>;
+  getFederationTenure?: () => Promise<AppResult<FederationTenureView>>;
+  getFederationExternalContext?: () => Promise<AppResult<FederationExternalContext>>;
   getFederationCompetitionGovernance?: () => Promise<AppResult<FederationCompetitionGovernance>>;
   getFederationDevelopmentProgrammes?: () => Promise<AppResult<FederationDevelopmentProgrammes>>;
   setFederationBudget?: (

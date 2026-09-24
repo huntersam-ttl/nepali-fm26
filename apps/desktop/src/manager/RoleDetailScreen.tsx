@@ -79,6 +79,7 @@ import { AsyncPanel, Badge, ErrorBanner, Metrics, Panel, money, useRuntimeData }
 import { FederationOverviewScreen } from "./screens/FederationOverviewScreen.js";
 import { FederationProjectsScreen } from "./screens/FederationProjectsScreen.js";
 import { FederationFundingPanels } from "./screens/FederationFundingPanels.js";
+import { FederationTenureScreen } from "./screens/FederationTenureScreen.js";
 import { CompetitionGovernancePanels, DevelopmentProgrammesPanel } from "./screens/FederationGovernancePanels.js";
 import {
   MeetingBrief,
@@ -216,7 +217,7 @@ const SECTION_TITLES: Record<string, { title: string; subtitle: string }> = {
     title: "Domestic pyramid",
     subtitle: "Divisions, competitions, recorded reforms, and club licensing.",
   },
-  tenure: { title: "Tenure", subtitle: "Term, mandate, and election standing." },
+  tenure: { title: "Tenure", subtitle: "Term, election record, and presidency history." },
 };
 
 const SectionHeader = ({ screen, role }: { screen: string; role: CareerRole }): React.ReactElement | null => {
@@ -2000,7 +2001,7 @@ const PresidentDetail = ({
         if (screen === "government-relations") return <GovernmentRelations bridge={bridge} />;
         if (screen === "nepal-map") return <NepalFootballMap bridge={bridge} />;
         if (screen === "competition-pyramid") return <CompetitionPyramidView bridge={bridge} onNavigate={onNavigate} />;
-        return <Tenure dashboard={dashboard} />;
+        return <FederationTenureScreen dashboard={dashboard} bridge={bridge} />;
       }}
     </AsyncPanel>
   );
@@ -3102,26 +3103,6 @@ const NationalTeamSquadLauncher = ({
   );
 };
 
-const Tenure = ({ dashboard }: { dashboard: FederationPresidentDashboard }): React.ReactElement => (
-  <section className="role-detail">
-    <Panel title="Presidency and tenure">
-      <Metrics
-        items={[
-          { label: "Federation", value: dashboard.federation.name },
-          {
-            label: "Current term",
-            value: dashboard.tenure
-              ? `${dashboard.tenure.termStart} – ${dashboard.tenure.termEnd ?? "current"}`
-              : "Not recorded",
-          },
-          { label: "Status", value: humanizeEnum(dashboard.tenure?.status, "Unknown") },
-          { label: "Candidacy", value: "See ANFA Presidency Path on Home" },
-        ]}
-      />
-    </Panel>
-  </section>
-);
-
 const DEVELOPMENT_DIMENSION_LABELS: Record<string, string> = {
   youth: "Youth development",
   schoolFootball: "School football",
@@ -3946,6 +3927,10 @@ const GovernmentRelationsView = ({
             route to helping fund a stadium, training ground, or academy site. There is no separate
             purchase-versus-lease structure modelled yet, so a request is a single funding amount
             tied to one of these purposes.
+          </p>
+          <p>
+            A federation request is recorded as Proposed. It is not reviewed automatically, so it stays Proposed
+            until a decision is recorded, and only one request per purpose can be open with an institution.
           </p>
         </MeetingBrief>
         <div className="inline-form">
