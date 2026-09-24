@@ -856,6 +856,88 @@ export type CompetitionPyramid = {
   provenanceStatus: "SIMULATION_ONLY";
 };
 
+/** One domestic competition of the federation, with its latest season and the
+ * canonical rule set of that season. Nothing here is scored or ranked. */
+export type FederationCompetitionRow = {
+  competition: EntityReference;
+  category?: string;
+  seasonName?: string;
+  seasonStatus?: "Upcoming" | "In progress" | "Concluded";
+  seasonStart?: ISODate;
+  seasonEnd?: ISODate;
+  teamCount: number;
+  format?: string;
+  rounds?: number;
+  promotionSlots?: number;
+  relegationSlots?: number;
+};
+
+/** A competition reform as recorded. The registration-policy payload stays
+ * backend-only. */
+export type FederationReformView = {
+  id: EntityId;
+  competition: EntityReference;
+  effectiveSeason: string;
+  changes: {
+    teamCount?: number;
+    rounds?: number;
+    promotionSlots?: number;
+    relegationSlots?: number;
+    format?: string;
+    calendarStart?: ISODate;
+    calendarEnd?: ISODate;
+  };
+  status: "PROPOSED" | "APPROVED" | "REJECTED" | "IMPLEMENTED";
+  proposedAt: ISODate;
+  decidedAt?: ISODate;
+};
+
+export type FederationLicenceCaseView = {
+  id: EntityId;
+  club: EntityReference;
+  seasonLabel: string;
+  status: "PENDING" | "PASSED" | "CONDITIONAL" | "FAILED" | "APPEALED" | "RESOLVED";
+  openRequirements: Array<{ requirement: string; deadline: ISODate }>;
+  sanctions: string[];
+  reviewedAt: ISODate;
+};
+
+export type FederationCompetitionGovernance = {
+  competitions: FederationCompetitionRow[];
+  reforms: FederationReformView[];
+  licensing: { seasonLabel?: string; cases: FederationLicenceCaseView[] };
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
+export type FederationProgrammeView = {
+  id: EntityId;
+  kind: "COACH_EDUCATION" | "REFEREE";
+  label: string;
+  startDate: ISODate;
+  endDate: ISODate;
+  capacity: number;
+  cost: number;
+  currency: string;
+  outcome: number;
+  outcomeLabel: "Graduates" | "Officials advanced";
+  status: "PLANNED" | "RUNNING" | "COMPLETED";
+};
+
+export type FederationProgrammeBudget = {
+  category: string;
+  seasonLabel: string;
+  amount: number;
+  usedAmount: number;
+  currency: string;
+};
+
+export type FederationDevelopmentProgrammes = {
+  coachEducation: FederationProgrammeView[];
+  referee: FederationProgrammeView[];
+  budgets: FederationProgrammeBudget[];
+  provenanceStatus: "SIMULATION_ONLY";
+};
+
 /** One real national-team programme this player has actually been called
  * up to — never a fabricated selection guarantee. */
 export type PlayerPathwayStage = {
@@ -1337,6 +1419,8 @@ export type DesktopRuntimeApi = {
   submitGovernmentSupportCase?: (applicationId: EntityId) => Promise<AppResult<GovernmentFundingApplication>>;
   getFederationPresidentDashboard(): Promise<AppResult<FederationPresidentDashboard>>;
   getFederationGrants?: () => Promise<AppResult<FederationGrantView[]>>;
+  getFederationCompetitionGovernance?: () => Promise<AppResult<FederationCompetitionGovernance>>;
+  getFederationDevelopmentProgrammes?: () => Promise<AppResult<FederationDevelopmentProgrammes>>;
   setFederationBudget?: (
     category: FederationBudget["category"],
     amount: number,

@@ -1,9 +1,11 @@
 import React from "react";
 import type {
   CareerOverviewView,
+  FederationCompetitionGovernance,
   FederationPresidentDashboard,
 } from "@nepal-football-sim/shared-types";
 import type { DesktopRuntimeApi } from "../../appBridge.js";
+import { licenceCasesNeedingAttention, reformsAwaitingImplementation } from "./federationGovernanceLogic.js";
 import { humanizeToken } from "../storyHumanizer.js";
 import { AsyncPanel, Badge, Metrics, Panel, money, useRuntimeData } from "../ui.js";
 
@@ -18,7 +20,7 @@ import { AsyncPanel, Badge, Metrics, Panel, money, useRuntimeData } from "../ui.
  * federation's simulation profile are hidden and never shown.
  */
 
-export type FederationTarget = "governance" | "federation-projects" | "national-teams";
+export type FederationTarget = "governance" | "federation-projects" | "national-teams" | "competition-pyramid";
 
 export type AttentionItem = { key: string; text: string; target: FederationTarget };
 
@@ -30,6 +32,7 @@ export const isActiveProject = (project: { status: string }): boolean => !TERMIN
 
 export const attentionItems = (
   dashboard: Pick<FederationPresidentDashboard, "proposals" | "projects">,
+  competitions?: Pick<FederationCompetitionGovernance, "reforms" | "licensing">,
 ): AttentionItem[] => {
   const items: AttentionItem[] = [];
   const approved = dashboard.proposals.filter((proposal) => proposal.status === "APPROVED").length;
@@ -65,6 +68,22 @@ export const attentionItems = (
       text: `${plural(unfunded, "programme", "programmes")} not yet fully funded`,
       target: "federation-projects",
     });
+  if (competitions) {
+    const reforms = reformsAwaitingImplementation(competitions.reforms);
+    if (reforms > 0)
+      items.push({
+        key: "reforms",
+        text: `${plural(reforms, "competition reform", "competition reforms")} approved but not yet implemented`,
+        target: "competition-pyramid",
+      });
+    const licences = licenceCasesNeedingAttention(competitions.licensing.cases);
+    if (licences > 0)
+      items.push({
+        key: "licences",
+        text: `${plural(licences, "club licence", "club licences")} failed or conditional`,
+        target: "competition-pyramid",
+      });
+  }
   return items;
 };
 
@@ -87,11 +106,18 @@ export const FederationOverviewScreen = ({
   onNavigate,
 }: {
   dashboard: FederationPresidentDashboard;
-  bridge: Pick<DesktopRuntimeApi, "getCareerOverview">;
+  bridge: Pick<DesktopRuntimeApi, "getCareerOverview" | "getFederationCompetitionGovernance">;
   onNavigate: (target: FederationTarget | "commercial" | "government-relations" | "finance") => void;
 }): React.ReactElement => {
   const [career] = useRuntimeData(() => bridge.getCareerOverview(), []);
-  const attention = attentionItems(dashboard);
+  const [competitions] = useRuntimeData(
+    () =>
+      bridge.getFederationCompetitionGovernance
+        ? bridge.getFederationCompetitionGovernance()
+        : Promise.resolve({ ok: false as const, error: { code: "RUNTIME_UNAVAILABLE" as const, message: "Unavailable" } }),
+    [],
+  );
+  const attention = attentionItems(dashboard, competitions.status === "ready" ? competitions.data : undefined);
   const programmes = dashboard.projects;
   const term = dashboard.tenure
     ? `${dashboard.tenure.termStart} – ${dashboard.tenure.termEnd ?? "current"}`
@@ -134,7 +160,11 @@ export const FederationOverviewScreen = ({
               <li key={item.key}>
                 {item.text}{" "}
                 <button className="ghost small" onClick={() => onNavigate(item.target)}>
-                  {item.target === "governance" ? "Open Governance" : "Open Projects"}
+                  {item.target === "governance"
+                    ? "Open Governance"
+                    : item.target === "competition-pyramid"
+                      ? "Open Domestic Pyramid"
+                      : "Open Projects"}
                 </button>
               </li>
             ))}

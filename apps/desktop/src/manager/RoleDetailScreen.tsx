@@ -79,6 +79,7 @@ import { AsyncPanel, Badge, ErrorBanner, Metrics, Panel, money, useRuntimeData }
 import { FederationOverviewScreen } from "./screens/FederationOverviewScreen.js";
 import { FederationProjectsScreen } from "./screens/FederationProjectsScreen.js";
 import { FederationFundingPanels } from "./screens/FederationFundingPanels.js";
+import { CompetitionGovernancePanels, DevelopmentProgrammesPanel } from "./screens/FederationGovernancePanels.js";
 import {
   MeetingBrief,
   MeetingOptions,
@@ -213,7 +214,7 @@ const SECTION_TITLES: Record<string, { title: string; subtitle: string }> = {
   },
   "competition-pyramid": {
     title: "Domestic pyramid",
-    subtitle: "Every real division, its leading club, and promotion/relegation shape.",
+    subtitle: "Divisions, competitions, recorded reforms, and club licensing.",
   },
   tenure: { title: "Tenure", subtitle: "Term, mandate, and election standing." },
 };
@@ -1995,10 +1996,10 @@ const PresidentDetail = ({
         if (screen === "commercial") return <PresidentCommercial bridge={bridge} />;
         if (screen === "national-teams")
           return <NationalTeams dashboard={dashboard} bridge={bridge} />;
-        if (screen === "national-development") return <NationalDevelopment bridge={bridge} />;
+        if (screen === "national-development") return <NationalDevelopment bridge={bridge} onNavigate={onNavigate} />;
         if (screen === "government-relations") return <GovernmentRelations bridge={bridge} />;
         if (screen === "nepal-map") return <NepalFootballMap bridge={bridge} />;
-        if (screen === "competition-pyramid") return <CompetitionPyramidView bridge={bridge} />;
+        if (screen === "competition-pyramid") return <CompetitionPyramidView bridge={bridge} onNavigate={onNavigate} />;
         return <Tenure dashboard={dashboard} />;
       }}
     </AsyncPanel>
@@ -3327,7 +3328,13 @@ const PYRAMID_ARROW = "↓ promotion / relegation ↓";
 
 /** A stacked, real domestic-pyramid board — every tier genuinely exists in
  * the dataset (identified from real competition names, never invented). */
-const CompetitionPyramidView = ({ bridge }: { bridge: DesktopRuntimeApi }): React.ReactElement => {
+const CompetitionPyramidView = ({
+  bridge,
+  onNavigate,
+}: {
+  bridge: DesktopRuntimeApi;
+  onNavigate: Props["onNavigate"];
+}): React.ReactElement => {
   const [state] = useRuntimeData(
     () =>
       bridge.getCompetitionPyramid
@@ -3339,6 +3346,7 @@ const CompetitionPyramidView = ({ bridge }: { bridge: DesktopRuntimeApi }): Reac
   const openReference = (reference: EntityReference): void =>
     setOpenOrgId({ entityType: reference.entityType as ProfileEntityType, entityId: reference.id });
   return (
+    <>
     <AsyncPanel state={state}>
       {(pyramid) =>
         pyramid.tiers.length === 0 ? (
@@ -3380,26 +3388,40 @@ const CompetitionPyramidView = ({ bridge }: { bridge: DesktopRuntimeApi }): Reac
                 {index < pyramid.tiers.length - 1 && <p className="pyramid-arrow">{PYRAMID_ARROW}</p>}
               </React.Fragment>
             ))}
-            {openOrgId && (
-              <OrganizationProfilePanel
-                bridge={bridge}
-                entityType={openOrgId.entityType}
-                entityId={openOrgId.entityId}
-                onClose={() => setOpenOrgId(null)}
-              />
-            )}
           </section>
         )
       }
     </AsyncPanel>
+    <section className="role-detail">
+      <CompetitionGovernancePanels
+        bridge={bridge}
+        onNavigate={(target) => onNavigate(target)}
+        onOpenReference={openReference}
+      />
+    </section>
+    {openOrgId && (
+      <OrganizationProfilePanel
+        bridge={bridge}
+        entityType={openOrgId.entityType}
+        entityId={openOrgId.entityId}
+        onClose={() => setOpenOrgId(null)}
+      />
+    )}
+    </>
   );
 };
 
-const NationalDevelopment = ({ bridge }: { bridge: DesktopRuntimeApi }): React.ReactElement => {
+const NationalDevelopment = ({
+  bridge,
+  onNavigate,
+}: {
+  bridge: DesktopRuntimeApi;
+  onNavigate: Props["onNavigate"];
+}): React.ReactElement => {
   const [state] = useRuntimeData(() => bridge.getNationalDevelopment());
   return (
     <AsyncPanel state={state}>
-      {(summary) => <NationalDevelopmentView summary={summary} bridge={bridge} />}
+      {(summary) => <NationalDevelopmentView summary={summary} bridge={bridge} onNavigate={onNavigate} />}
     </AsyncPanel>
   );
 };
@@ -3407,9 +3429,11 @@ const NationalDevelopment = ({ bridge }: { bridge: DesktopRuntimeApi }): React.R
 const NationalDevelopmentView = ({
   summary,
   bridge,
+  onNavigate,
 }: {
   summary: FederationDevelopmentSummary;
   bridge: DesktopRuntimeApi;
+  onNavigate: Props["onNavigate"];
 }): React.ReactElement => {
   const { outcomes } = summary;
   const [openStoryRef, setOpenStoryRef] = useState<{ entityType: ProfileEntityType; entityId: EntityId } | null>(null);
@@ -3618,6 +3642,7 @@ const NationalDevelopmentView = ({
         </Panel>
       </div>
       <RefereeCoachingContextPanel bridge={bridge} />
+      <DevelopmentProgrammesPanel bridge={bridge} onNavigate={(target) => onNavigate(target)} />
       {openStoryRef && (
         <OrganizationProfilePanel
           bridge={bridge}
@@ -3702,16 +3727,6 @@ const FEDERATION_PROJECT_CATEGORY: Record<string, string> = {
   DIGITAL_BROADCAST: "Commercial",
   CLUB_SUPPORT_PROGRAMME: "Competitions",
 };
-const FEDERATION_PROJECT_PROGRESS: Record<string, number> = {
-  IDEA: 0,
-  PLANNING: 15,
-  FINANCING: 25,
-  CONSTRUCTION: 55,
-  IMPLEMENTATION: 80,
-  COMPLETED: 100,
-  CANCELLED: 0,
-};
-
 /** Every project grouped by the real programme category its own type
  * implies — no invented league-table of "national development areas". */
 const ProjectList = ({
@@ -3732,8 +3747,6 @@ const ProjectList = ({
           <h3>{category}</h3>
           <div className="facility-lifecycle-grid">
             {items.map((project) => {
-              const percent = FEDERATION_PROJECT_PROGRESS[project.status] ?? 0;
-              const terminal = project.status === "COMPLETED" || project.status === "CANCELLED";
               return (
                 <article key={project.id} className="facility-project-card">
                   <header>
@@ -3741,9 +3754,9 @@ const ProjectList = ({
                     <Badge tone="info">{category}</Badge>
                   </header>
                   <p className="subtle">{band(project.projectType)}</p>
-                  {!terminal && <ProjectProgressTimeline percent={percent} status={project.status} />}
                   <Metrics
                     items={[
+                      { label: "Status", value: humanizeToken(project.status) },
                       { label: "Capital cost", value: money(project.capitalCost, project.currency) },
                       { label: "Funding", value: project.fundingStatus ? band(project.fundingStatus) : "—" },
                       {

@@ -109,6 +109,8 @@ import {
   type GovernmentFundingType,
   type FederationPresidentDashboard,
   type FederationGrantView,
+  type FederationCompetitionGovernance,
+  type FederationDevelopmentProgrammes,
   type FederationBudget,
   type FederationBudgetCategory,
   type E2ERoleFixtureResult,
@@ -516,6 +518,10 @@ import { buildStoryDetail } from "./story-detail.js";
 import { buildDistrictStoryline } from "./story-territory.js";
 import { roleInboxEvents } from "./media.js";
 import { buildCompetitionPyramid } from "./competition-pyramid-view.js";
+import {
+  buildFederationCompetitionGovernance,
+  buildFederationDevelopmentProgrammes,
+} from "./federation-governance-view.js";
 import { governmentOverview, requestGovernmentFunding, requestClubInfrastructureGovernmentSupport, requestFacilitySiteGovernmentSupport, resolveGovernmentInstitutionForClub, clubInfrastructureGovernmentContext, advanceGovernmentApplications, buildGovernmentSupportMeeting, submitGovernmentFunding } from "./government.js";
 import { publishMediaForDate } from "./media.js";
 import {
@@ -2098,6 +2104,24 @@ export class DesktopApplicationService {
       const role = activeCareerRole(db, careerPersonId(db, save));
       return buildDistrictStoryline(db, districtId, role);
     });
+  }
+
+  /** Read-only: competitions, recorded reforms and club licensing for the President. */
+  getFederationCompetitionGovernance(): AppResult<FederationCompetitionGovernance> {
+    return this.withSession((db, save) =>
+      buildFederationCompetitionGovernance(
+        db,
+        this.currentFederationId(db, careerPersonId(db, save)),
+        save.worldDate,
+      ),
+    );
+  }
+
+  /** Read-only: coach-education and referee programmes plus their budgets. */
+  getFederationDevelopmentProgrammes(): AppResult<FederationDevelopmentProgrammes> {
+    return this.withSession((db, save) =>
+      buildFederationDevelopmentProgrammes(db, this.currentFederationId(db, careerPersonId(db, save))),
+    );
   }
 
   getCompetitionPyramid(): AppResult<CompetitionPyramid> {

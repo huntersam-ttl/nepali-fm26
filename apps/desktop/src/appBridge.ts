@@ -39,6 +39,8 @@ import type {
   FederationCommercialOverview,
   FederationBudget,
   FederationGrantView,
+  FederationCompetitionGovernance,
+  FederationDevelopmentProgrammes,
   FederationPresidentDashboard,
   FederationCandidacyAssessment,
   FederationGovernanceProposal,
@@ -329,6 +331,10 @@ const bindCommands = (call: CommandCaller): DesktopRuntimeApi => ({
   getFederationPresidentDashboard: () =>
     call<FederationPresidentDashboard>("getFederationPresidentDashboard"),
   getFederationGrants: () => call<FederationGrantView[]>("getFederationGrants"),
+  getFederationCompetitionGovernance: () =>
+    call<FederationCompetitionGovernance>("getFederationCompetitionGovernance"),
+  getFederationDevelopmentProgrammes: () =>
+    call<FederationDevelopmentProgrammes>("getFederationDevelopmentProgrammes"),
   setFederationBudget: (category: FederationBudget["category"], amount: number) =>
     call<FederationBudget>("setFederationBudget", { category, amount }),
   getNationalDevelopment: () => call<FederationDevelopmentSummary>("getNationalDevelopment"),

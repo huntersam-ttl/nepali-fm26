@@ -256,6 +256,10 @@ const dispatch = (
       return service.getGovernmentOverview();
     case "getFederationGrants":
       return service.getFederationGrants();
+    case "getFederationCompetitionGovernance":
+      return service.getFederationCompetitionGovernance();
+    case "getFederationDevelopmentProgrammes":
+      return service.getFederationDevelopmentProgrammes();
     case "setFederationBudget":
       return service.setFederationBudget(
         body.category as FederationBudgetCategory,

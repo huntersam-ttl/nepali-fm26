@@ -24,7 +24,7 @@ export const buildCompetitionPyramid = (db: GameDatabase, federationId: EntityId
   const tiers: CompetitionPyramidTier[] = [];
   for (const { level, label, pattern } of TIER_PATTERNS) {
     const competition = db
-      .prepare("SELECT id, name FROM competitions WHERE federation_id=? AND scope='domestic' AND lower(name) LIKE ? ORDER BY id LIMIT 1")
+      .prepare("SELECT id, name FROM competitions WHERE federation_id=? AND scope='domestic' AND lower(name) LIKE ? ORDER BY (SELECT COUNT(*) FROM competition_seasons cs WHERE cs.competition_id = competitions.id) DESC, id LIMIT 1")
       .get(federationId, pattern) as { id: EntityId; name: string } | undefined;
     if (!competition) continue;
     const season = db
@@ -38,6 +38,18 @@ export const buildCompetitionPyramid = (db: GameDatabase, federationId: EntityId
           : "In progress"
       : undefined;
     const standings = season ? repository.standings(season.id) : [];
+    // Standings are empty until a match is played, so the registered members give the team count.
+    const memberCount = season
+      ? Number(
+          (
+            db
+              .prepare(
+                "SELECT COUNT(DISTINCT club_id) AS count FROM club_memberships WHERE competition_season_id=? AND status NOT IN ('WITHDRAWN','SUSPENDED','INELIGIBLE')",
+              )
+              .get(season.id) as { count?: number } | undefined
+          )?.count ?? 0,
+        )
+      : 0;
     const clubIdForTeam = db.prepare("SELECT club_id FROM teams WHERE id=?");
     const leadingTeam = standings[0];
     const leadingClub = leadingTeam
@@ -51,7 +63,7 @@ export const buildCompetitionPyramid = (db: GameDatabase, federationId: EntityId
       competition: buildEntityReference(db, "COMPETITION", competition.id, role),
       currentSeasonName: season?.name,
       seasonStatus,
-      teamCount: standings.length,
+      teamCount: standings.length > 0 ? standings.length : memberCount,
       leadingClub: leadingClub ? buildEntityReference(db, "CLUB", leadingClub, role) : undefined,
       leadingClubPoints: leadingTeam?.points,
       promotionSlots: ruleSet?.promotionEnabled ? ruleSet.promotionSlots : undefined,
