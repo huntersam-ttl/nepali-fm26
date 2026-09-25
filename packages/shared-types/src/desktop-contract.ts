@@ -128,6 +128,8 @@ export type DesktopErrorCode =
   | "MATCH_ALREADY_PLAYED"
   /** The selected fixture is not the manager's unresolved current matchday. */
   | "MATCHDAY_REQUIRED"
+  /** The season transition was requested before every competition finished. */
+  | "SEASON_NOT_COMPLETE"
   // Interactive matchday failures.
   | "MATCH_NOT_ACTIVE"
   | "MATCH_ALREADY_COMPLETE"
@@ -1514,6 +1516,36 @@ export type ManagerHomeReadModel = {
   position?: string;
 };
 
+/**
+ * Where the world's season stands. The season is complete when every
+ * competition has played all its fixtures; the next season only exists once the
+ * staged season transition has run to its end.
+ */
+export type SeasonStatusView = {
+  phase: "IN_PROGRESS" | "COMPLETE" | "TRANSITIONING" | "TRANSITION_FAILED";
+  seasonName?: string;
+  seasonEndDate?: ISODate;
+  competitions: { total: number; completed: number };
+  transition?: {
+    status: "RUNNING" | "FAILED";
+    completedStages: number;
+    totalStages: number;
+    currentStageKey?: string;
+    currentStageLabel?: string;
+    error?: string;
+  };
+  /** Every transition stage in order, so progress can be shown as a list. */
+  stages: Array<{ key: string; label: string; state: "DONE" | "CURRENT" | "PENDING" | "FAILED"; durationMs?: number }>;
+  /** What the finished season came to, only from stored results. */
+  summary?: {
+    competition: string;
+    champion?: string;
+    humanClubPosition?: number;
+    humanClub?: string;
+    teams: number;
+  };
+};
+
 export type DesktopApplicationState = {
   save: SaveMetadata;
   header: CareerHeader;
@@ -1524,6 +1556,14 @@ export type DesktopApplicationState = {
   activeTactic?: TacticalSetup;
   fixtures: FixtureReadModel[];
   competition: CompetitionView;
+  seasonStatus?: SeasonStatusView;
+};
+
+/** One step of the season transition: the status afterwards, and the refreshed state once it is finished. */
+export type SeasonTransitionStep = {
+  seasonStatus: SeasonStatusView;
+  finished: boolean;
+  state?: DesktopApplicationState;
 };
 
 /**
@@ -1901,6 +1941,8 @@ export type DesktopRuntimeApi = {
   ): Promise<AppResult<ProcurementOrder>>;
   getHomeDashboard(): Promise<AppResult<DesktopApplicationState>>;
   continueCareer(): Promise<AppResult<DesktopApplicationState>>;
+  getSeasonStatus?: () => Promise<AppResult<SeasonStatusView>>;
+  advanceSeasonTransition?: () => Promise<AppResult<SeasonTransitionStep>>;
   quickSimMatch(fixtureId?: EntityId): Promise<AppResult<DesktopApplicationState>>;
   saveTactic(tactic: TacticalSetup): Promise<AppResult<TacticalSetup>>;
   saveCareer(): Promise<AppResult<SaveCatalogEntry>>;

@@ -24,6 +24,7 @@ import {
   normalizeTacticalSetup,
   roleById,
   tacticalPositionToPlayerPosition,
+  validateSelection,
 } from "./tactics.js";
 
 /**
@@ -381,6 +382,23 @@ export const resolveTeamTacticalSetup = (
       };
       managers.insertTacticalSetup(reseeded);
       return reseeded;
+    }
+    // Rosters turn over between seasons; a saved lineup that names players who
+    // have since left is re-picked from the current squad through the same
+    // builder, at the same bounded familiarity cost as any tactic change.
+    if (!validateSelection({ setup: normalized, players, benchLimit: 7 }).isValid) {
+      const managerProfile = currentManagerProfileId ? managers.getProfile(currentManagerProfileId) : undefined;
+      const rebuilt = buildAiTacticalSetup(teamId, players, {
+        managerProfileId: currentManagerProfileId ?? normalized.managerProfileId,
+        manager: managerProfile,
+      });
+      const repicked: TacticalSetup = {
+        ...rebuilt,
+        id: normalized.id,
+        familiarity: familiarityAfterTacticChange(normalized, rebuilt),
+      };
+      managers.insertTacticalSetup(repicked);
+      return repicked;
     }
     if (normalized !== existing) managers.insertTacticalSetup(normalized);
     return normalized;

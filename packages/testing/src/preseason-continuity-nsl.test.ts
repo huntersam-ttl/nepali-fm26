@@ -98,7 +98,7 @@ describe("release: Nepal Super League preseason squad continuity", () => {
     db.close();
   });
 
-  it("does not pull a non-core competition (Martyr's Memorial C-Division League) into continuity repair", () => {
+  it("keeps the Martyr's Memorial C-Division League in continuity repair so its clubs still field squads", () => {
     const db = openSave();
     const { seasonId, teamId } = competitionSeasonId(db, "Martyr's Memorial C-Division League");
 
@@ -116,10 +116,11 @@ describe("release: Nepal Super League preseason squad continuity", () => {
       seed: "nsl-continuity-context-only",
     });
 
-    // A non-core competition must be skipped entirely — no report emitted,
-    // and critically, no repair applied to its depleted club either.
-    expect(reports).toHaveLength(0);
-    expect(players.attributesForTeam(teamId)).toHaveLength(0);
+    // The C-Division is a division a career can start in and where promoted
+    // and relegated clubs meet, so a drained club must be repaired.
+    expect(reports).toHaveLength(1);
+    expect(reports[0].clubsRepaired).toBeGreaterThan(0);
+    expect(players.attributesForTeam(teamId).length).toBeGreaterThanOrEqual(11);
     db.close();
   });
 });

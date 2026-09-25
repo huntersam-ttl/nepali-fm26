@@ -119,6 +119,8 @@ import {
   type NationalTeamPlayerPoolQuery,
   type NationalTeamCoachCandidatesView,
   type NationalTeamCompetitionsView,
+  type SeasonStatusView,
+  type SeasonTransitionStep,
   type NationalTeamFixturesView,
   type FederationDevelopmentProgrammes,
   type FederationBudget,
@@ -326,6 +328,14 @@ import {
   simulateInternationalMatch,
 } from "./international-football.js";
 import { buildNationalTeamCompetitions } from "./national-team-competitions.js";
+import {
+  SeasonTransitionError,
+  advanceSeasonTransition,
+  catchUpWorld,
+  getSeasonStatus,
+  prepareWorldForPlay,
+  worldOnlyStep,
+} from "./world-progression.js";
 import {
   appointCaptaincy,
   CaptaincyActionError,
@@ -3794,6 +3804,17 @@ export class DesktopApplicationService {
       let updated: SaveMetadata;
       let stopReason: string | undefined;
 
+      // Time does not move past a finished season until its staged transition
+      // has run, and never while one is under way or has failed.
+      if (getSeasonStatus(db, context?.team.id).phase !== "IN_PROGRESS") {
+        const state = this.buildState(db, save, filePath);
+        this.writeCatalogEntry(state.catalogEntry);
+        return state;
+      }
+      // Every competition's schedule must exist, and officiating supply must be
+      // sized for all of them, before the calendar first moves.
+      prepareWorldForPlay(db, save);
+
       if (!context) {
         const personId = careerPersonId(db, save);
         const ownerRole =
@@ -3848,35 +3869,49 @@ export class DesktopApplicationService {
           stopReason = "MATCHDAY";
         } else {
           if (!nextFixtureForTeam(context.fixtures, context.team.id, save.worldDate)) {
-            throw appError("FIXTURE_MISSING", "There is no further fixture to advance to.");
-          }
-          ensureManagerSystems(db, save, context);
-          db.exec("BEGIN;");
-          try {
-            // Day-by-day advance that runs scouting and training and stops at the
-            // first meaningful decision, rather than jumping blindly to the fixture.
-            const outcome = advanceManagerCareer(db, save, context);
-            stopReason = outcome.stopReason;
-            updated = {
-              ...save,
-              worldDate: outcome.worldDate,
-              lastSavedAt: new Date().toISOString(),
-            };
+            // The manager's own fixtures are done. The rest of the world still has
+            // matches to play, so time moves on until the whole season is complete.
+            const step = worldOnlyStep(db, save.worldDate);
+            updated = { ...save, worldDate: step.worldDate, lastSavedAt: new Date().toISOString() };
             new SaveRepository(db).upsert(updated);
+            stopReason = "WORLD_ADVANCE";
             new ManagerRepository(db).insertInboxItem({
               id: createEntityId(),
               createdOn: updated.worldDate,
-              type:
-                outcome.stopReason === "NEXT_FIXTURE" ? "FIXTURE_UPCOMING" : "COMPETITION_UPDATE",
-              title: continueTitle(outcome.stopReason),
-              body: outcome.message,
-              relatedEntity: { type: "team", id: context.team.id },
+              type: "COMPETITION_UPDATE",
+              title: "Time passes",
+              body: "Your matches are done for now. The rest of the league is still playing its fixtures.",
               read: false,
             });
-            db.exec("COMMIT;");
-          } catch (error) {
-            db.exec("ROLLBACK;");
-            throw error;
+          } else {
+            ensureManagerSystems(db, save, context);
+            db.exec("BEGIN;");
+            try {
+              // Day-by-day advance that runs scouting and training and stops at the
+              // first meaningful decision, rather than jumping blindly to the fixture.
+              const outcome = advanceManagerCareer(db, save, context);
+              stopReason = outcome.stopReason;
+              updated = {
+                ...save,
+                worldDate: outcome.worldDate,
+                lastSavedAt: new Date().toISOString(),
+              };
+              new SaveRepository(db).upsert(updated);
+              new ManagerRepository(db).insertInboxItem({
+                id: createEntityId(),
+                createdOn: updated.worldDate,
+                type:
+                  outcome.stopReason === "NEXT_FIXTURE" ? "FIXTURE_UPCOMING" : "COMPETITION_UPDATE",
+                title: continueTitle(outcome.stopReason),
+                body: outcome.message,
+                relatedEntity: { type: "team", id: context.team.id },
+                read: false,
+              });
+              db.exec("COMMIT;");
+            } catch (error) {
+              db.exec("ROLLBACK;");
+              throw error;
+            }
           }
           // World-level tick: AI clubs fill vacancies, boards judge every
           // manager (including the player) on results. May end the player's
@@ -4021,6 +4056,21 @@ export class DesktopApplicationService {
         }
       }
 
+      // The world moves on whoever the human is: every fixture that has come
+      // due is played (the human's own excepted) and each month that has come
+      // round is processed once. The human's club fixtures stay with the human.
+      const heldOwnerClub =
+        activeCareerRole(db, personId) === "CHAIRMAN_OWNER"
+          ? heldCareerRoles(db, personId).find((role) => role.role === "CHAIRMAN_OWNER")?.targetId
+          : undefined;
+      catchUpWorld(db, updated, {
+        humanTeamIds: context ? [context.team.id] : [],
+        ownerTeamIds: heldOwnerClub
+          ? (db.prepare("SELECT id FROM teams WHERE club_id = ?").all(heldOwnerClub) as Array<{ id: EntityId }>).map((row) => row.id)
+          : [],
+      });
+      if (getSeasonStatus(db, context?.team.id).phase === "COMPLETE") stopReason = "SEASON_COMPLETE";
+
       advanceMacroEconomyForWorldDate(db, { date: updated.worldDate, seed: save.randomSeed });
 
       // Autosave foundation: after a configurable number of in-game days, or
@@ -4055,6 +4105,42 @@ export class DesktopApplicationService {
    * Explicit checkpoint: stamp lastSavedAt, force a WAL checkpoint so the .sqlite
    * file alone is complete, and refresh the catalog entry.
    */
+  /** Where the season stands: in progress, complete and waiting for its transition, or mid-transition. */
+  getSeasonStatus(): AppResult<SeasonStatusView> {
+    return this.withSession((db, save) => getSeasonStatus(db, tryManagerContext(db, save)?.team.id));
+  }
+
+  /**
+   * Runs the next stage of the season transition (starting it when the season is
+   * complete). One stage per call, so a caller can show progress between stages;
+   * a stage that fails is rolled back and reported, and calling again retries it.
+   */
+  advanceSeasonTransition(): AppResult<SeasonTransitionStep> {
+    return this.withSession((db, save, filePath) => {
+      let progress: ReturnType<typeof advanceSeasonTransition>;
+      try {
+        progress = advanceSeasonTransition(db, save);
+      } catch (error) {
+        if (error instanceof SeasonTransitionError) throw appError("SEASON_NOT_COMPLETE", error.message);
+        throw error;
+      }
+      if (!progress.finished) return { seasonStatus: progress.status, finished: false };
+      let refreshed = loadSave(db, save.id);
+      if (this.autosaveEnabled) {
+        try {
+          performAutosave(db, this.savesDirectory, refreshed.id, AUTOSAVE_SLOT_COUNT);
+          refreshed = withAutosaveStamp(refreshed, refreshed.worldDate);
+          new SaveRepository(db).upsert(refreshed);
+        } catch {
+          // An autosave failure must never undo a finished season.
+        }
+      }
+      const state = this.buildState(db, refreshed, filePath);
+      this.writeCatalogEntry(state.catalogEntry);
+      return { seasonStatus: state.seasonStatus ?? progress.status, finished: true, state };
+    });
+  }
+
   saveCareer(): AppResult<SaveCatalogEntry> {
     return this.withSession((db, save, filePath) => {
       const stamped = { ...save, lastSavedAt: new Date().toISOString() };
@@ -5771,6 +5857,7 @@ export class DesktopApplicationService {
       activeTactic: tactics[0],
       fixtures,
       competition: competitionView(db, context),
+      seasonStatus: getSeasonStatus(db, context.team.id),
     };
   }
 
@@ -5798,6 +5885,7 @@ export class DesktopApplicationService {
       tactics: [],
       fixtures: [],
       competition: { name: "Unemployed", table: [] },
+      seasonStatus: getSeasonStatus(db),
     };
   }
 
@@ -5989,6 +6077,7 @@ const seasonForTeam = (db: GameDatabase, teamId: EntityId): CompetitionSeason =>
       JOIN competition_seasons cs ON cs.id = cm.competition_season_id
       JOIN competitions c ON c.id = cs.competition_id
       WHERE cm.team_id = ? AND cm.status = 'ACTIVE'
+        AND NOT EXISTS (SELECT 1 FROM competition_season_states s WHERE s.competition_season_id = cs.id AND s.status = 'ROLLED_OVER')
       ORDER BY CASE WHEN lower(c.name) LIKE '%a-division%' OR lower(c.name) LIKE '%b-division%' OR lower(c.name) LIKE '%c-division%' THEN 0 ELSE 1 END, cs.start_date LIMIT 1`,
     )
     .get(teamId) as Record<string, string> | undefined;
@@ -7345,6 +7434,7 @@ const DESKTOP_ERROR_CODES = new Set<string>([
   "ROLE_NOT_AUTHORIZED",
   "MATCH_ALREADY_PLAYED",
   "MATCHDAY_REQUIRED",
+  "SEASON_NOT_COMPLETE",
   "MATCH_NOT_ACTIVE",
   "MATCH_ALREADY_COMPLETE",
   "INVALID_SUBSTITUTION",

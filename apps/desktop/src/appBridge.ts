@@ -50,6 +50,8 @@ import type {
   NationalTeamPlayerPoolQuery,
   NationalTeamCoachCandidatesView,
   NationalTeamCompetitionsView,
+  SeasonStatusView,
+  SeasonTransitionStep,
   FederationPresidentDashboard,
   FederationCandidacyAssessment,
   FederationGovernanceProposal,
@@ -531,6 +533,8 @@ const bindCommands = (call: CommandCaller): DesktopRuntimeApi => ({
     call("purchaseEquipment", { category, quantity }),
   getHomeDashboard: () => call<DesktopApplicationState>("getHomeDashboard"),
   continueCareer: () => call<DesktopApplicationState>("continueCareer"),
+  getSeasonStatus: () => call<SeasonStatusView>("getSeasonStatus"),
+  advanceSeasonTransition: () => call<SeasonTransitionStep>("advanceSeasonTransition"),
   quickSimMatch: (fixtureId?: EntityId) =>
     call<DesktopApplicationState>("quickSimMatch", { fixtureId }),
   saveTactic: (tactic: TacticalSetup) => call<TacticalSetup>("saveTactic", { tactic }),

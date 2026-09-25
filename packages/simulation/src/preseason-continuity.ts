@@ -534,6 +534,9 @@ const isCoreContinuityCompetition = (name: string): boolean =>
   name === "Nepal Super League" ||
   name === "Martyr's Memorial A-Division League" ||
   name === "Martyr's Memorial B-Division League" ||
+  // The C-Division is a division a player can start a career in and where
+  // promoted and relegated clubs meet, so it must keep fielding squads.
+  name === "Martyr's Memorial C-Division League" ||
   name === "Nepal Women's League";
 
 const emergencyAttributes = (

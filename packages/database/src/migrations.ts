@@ -3883,6 +3883,37 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       CREATE INDEX IF NOT EXISTS idx_club_kit_history_club ON club_kit_history(club_id);
     `,
   },
+  {
+    version: 101,
+    sql: `
+      -- One row per season-end transition of a real save. It records how far the
+      -- staged transition got, so an interrupted or failed transition resumes at
+      -- the stage it stopped on and a finished one can never run twice.
+      CREATE TABLE IF NOT EXISTS season_transitions (
+        id TEXT PRIMARY KEY,
+        season_key TEXT NOT NULL UNIQUE,
+        from_season_end_date TEXT NOT NULL,
+        season_ids_json TEXT NOT NULL DEFAULT '[]',
+        status TEXT NOT NULL,
+        total_stages INTEGER NOT NULL,
+        completed_stages INTEGER NOT NULL DEFAULT 0,
+        current_stage TEXT,
+        stage_timings_json TEXT NOT NULL DEFAULT '[]',
+        error_message TEXT,
+        started_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        completed_at TEXT
+      );
+
+      -- How far the world's monthly processing has got (last month handled per
+      -- system), so months are handled once each as the world date moves on.
+      CREATE TABLE IF NOT EXISTS world_progress_cursors (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+    `,
+  },
 ];
 
 export const migrateDatabase = (db: GameDatabase): number => {

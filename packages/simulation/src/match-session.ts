@@ -37,7 +37,8 @@ import {
   type RuntimeTeam,
   type SimulateMatchInput,
 } from "./match-engine.js";
-import { calculateStandings, summarizePlayerStats, summarizeTeamStats } from "./standings.js";
+import { summarizePlayerStats } from "./standings.js";
+import { accumulatePlayerStat, recomputeSeasonStandings } from "./stored-results.js";
 import { progressFamiliarity } from "./tactics.js";
 import {
   applyMatchSupporterOutcome,
@@ -301,18 +302,23 @@ export const finalizeMatch = (
       competition.insertMatchEvent(event);
     }
 
-    const standings = calculateStandings({
+    // The table is the whole season's table, rebuilt from every stored match
+    // (other clubs' matches included), never just this one result.
+    recomputeSeasonStandings(db, {
       competitionSeasonId: context.fixture.competitionSeasonId!,
       teamIds: context.competitionTeamIds,
       ruleSet: context.ruleSet,
-      results: [result],
     });
-    for (const standing of standings) competition.upsertStanding(standing);
-    for (const stat of summarizeTeamStats(context.fixture.competitionSeasonId!, standings)) {
-      competition.upsertTeamSeasonStat(stat);
-    }
     for (const stat of summarizePlayerStats(context.fixture.competitionSeasonId!, [result])) {
-      competition.upsertPlayerSeasonStat(stat);
+      accumulatePlayerStat(db, stat);
+    }
+    // Suspensions already served by these players count down before this
+    // match's own dismissals are recorded below.
+    for (const player of [...state.home.states, ...state.away.states]) {
+      db.prepare(
+        `UPDATE suspensions SET matches_remaining = MAX(0, matches_remaining - 1)
+         WHERE competition_season_id = ? AND person_id = ? AND matches_remaining > 0`,
+      ).run(context.fixture.competitionSeasonId!, player.personId);
     }
 
     persistMatchRatings(db, state);

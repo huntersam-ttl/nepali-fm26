@@ -216,8 +216,12 @@ const reviewAiLoanRecalls = (
   return diagnostics;
 };
 
-export const runClubAiSeasonPlanning = (db: GameDatabase, input: { date: string; seed: string }): ClubAiDecision[] => {
+export const runClubAiSeasonPlanning = (
+  db: GameDatabase,
+  input: { date: string; seed: string; /** Clubs a human runs: the AI never plans for these. */ excludeClubIds?: readonly EntityId[] },
+): ClubAiDecision[] => {
   if (!input.date.endsWith("-08-28")) return [];
+  const excluded = new Set(input.excludeClubIds ?? []);
   const economy = new ClubEconomyRepository(db);
   const market = new TransferMarketRepository(db);
   const decisions: ClubAiDecision[] = [];
@@ -237,6 +241,7 @@ export const runClubAiSeasonPlanning = (db: GameDatabase, input: { date: string;
     )
     .all() as Array<{ id: EntityId }>;
   for (const { id: clubId } of clubs) {
+    if (excluded.has(clubId)) continue;
     const account = economy.financialAccount(clubId);
     const policy = economy.boardPolicy(clubId);
     if (!account || !policy) continue;

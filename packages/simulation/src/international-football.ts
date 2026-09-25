@@ -40,6 +40,7 @@ import { buildAiTacticalSetup, resolveTeamTacticalSetup } from "./ai-tactics.js"
 import { simulateMatch } from "./match-engine.js";
 import { ensureNationalTeamStaffStructure, recordNationalTeamEditionEntry } from "./national-team-management.js";
 import { SeededRandom } from "./rng.js";
+import { findHomeFootballContext } from "./home-context.js";
 
 const simulationStatus = "SIMULATION_ONLY" as const;
 const factualIdentityStatus = "VERIFIED" as const;
@@ -2055,13 +2056,8 @@ const countryIdByIso = (db: GameDatabase, isoCode: string): EntityId => {
 };
 
 const anfaFederation = (db: GameDatabase): Federation => {
-  const row = db
-    .prepare(
-      `SELECT f.* FROM federations f JOIN countries c ON c.id = f.country_id
-       WHERE c.iso_code IN ('NPL', 'NP')
-       ORDER BY CASE WHEN c.iso_code = 'NPL' THEN 0 ELSE 1 END, f.name LIMIT 1`,
-    )
-    .get() as any;
+  const home = findHomeFootballContext(db);
+  const row = home ? (db.prepare("SELECT * FROM federations WHERE id = ?").get(home.federationId) as any) : undefined;
   if (!row) throw new Error("No federation found");
   return {
     id: row.id,

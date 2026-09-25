@@ -27,6 +27,8 @@ export * from "./federation-governance-view.js";
 export * from "./federation-tenure-view.js";
 export * from "./national-team-workspace.js";
 export * from "./national-team-operations.js";
+export * from "./world-progression.js";
+export * from "./home-context.js";
 export * from "./national-team-competitions.js";
 export * from "./federation-scorecard.js";
 export * from "./federation-referee-context.js";

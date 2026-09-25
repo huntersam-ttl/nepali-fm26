@@ -33,6 +33,7 @@ import {
   processClubEconomyMonth,
 } from "./club-economy.js";
 import { generateLeagueFixtures } from "./fixture-generation.js";
+import { matchResultsForStandings } from "./stored-results.js";
 import {
   closeFederationFinancialSeason,
   initializeFederationGovernanceForSave,
@@ -195,7 +196,7 @@ export type SkippedCompetitionReport = {
   clubsWithoutGoalkeeper: number;
 };
 
-type RunnableSeason = {
+export type RunnableSeason = {
   season: CompetitionSeason;
   competitionName: string;
   ruleSet: CompetitionRuleSet;
@@ -216,6 +217,63 @@ export const processCareerExternalWorldSeason = (input: {
 };
 
 const entityCache = new WeakMap<GameDatabase, { persons: Set<EntityId>; teams: Set<EntityId> }>();
+
+/**
+ * Brings every world system a season depends on into existence. Each
+ * initialiser is idempotent, so this is safe on a save that already has them
+ * and is the one place both the offline batch and a real save do it.
+ */
+export const ensureWorldSystems = (
+  db: GameDatabase,
+  input: {
+    worldDate: string;
+    seed: string;
+    competitionSeasonId?: EntityId;
+    economyEnabled: boolean;
+    federationEnabled: boolean;
+    internationalEnabled: boolean;
+    youthEnabled: boolean;
+    transfersEnabled: boolean;
+  },
+): PreseasonContinuityReport[] => {
+  ensureRecruitmentFoundation(db, input.worldDate, input.seed);
+  if (input.federationEnabled) {
+    initializeFederationGovernanceForSave({ db, worldDate: input.worldDate, seed: input.seed });
+    initializeFederationComplianceForSave(db, input.worldDate);
+  }
+  if (input.internationalEnabled) {
+    initializeInternationalFootballForSave({ db, worldDate: input.worldDate, seed: input.seed });
+  }
+  // An applied global dataset is the authoritative external world for this
+  // save. Legacy saves without the marker retain the generated 11-market
+  // bootstrap for backwards compatibility.
+  const hasAppliedGlobalDataset = Boolean(
+    db.prepare("SELECT 1 FROM global_dataset_imports WHERE status = 'ACTIVE' LIMIT 1").get() as
+      | { 1?: number }
+      | undefined,
+  );
+  if (!hasAppliedGlobalDataset) {
+    initializeForeignFootballWorldForSave({ db, worldDate: input.worldDate, seed: `${input.seed}:foreign-world` });
+  }
+  if (input.economyEnabled) {
+    advanceMacroEconomyForWorldDate(db, { date: input.worldDate, seed: input.seed });
+    initializeClubEconomyForSave({ db, worldDate: input.worldDate, seed: input.seed });
+    initializeSupporterCultureForSave({ db, worldDate: input.worldDate, seed: input.seed });
+  }
+  if (input.youthEnabled) {
+    initializeYouthSystemForSave({ db, worldDate: input.worldDate, seed: input.seed });
+  }
+  if (input.transfersEnabled) {
+    initializeTransferMarketForSave({ db, worldDate: input.worldDate, seed: input.seed });
+  }
+  ensureWomensFootballWorldForSave(db, { worldDate: input.worldDate });
+  return repairPreseasonContinuity({
+    db,
+    competitionSeasonIds: pendingCompetitionSeasonIds(db, input.competitionSeasonId),
+    date: input.worldDate,
+    seed: `${input.seed}:preseason:initial`,
+  });
+};
 
 export const simulateNepalCareer = (input: {
   db: GameDatabase;
@@ -241,59 +299,16 @@ export const simulateNepalCareer = (input: {
   const federationEnabled = input.federationEnabled !== false;
   const internationalEnabled = input.internationalEnabled !== false;
 
-  ensureRecruitmentFoundation(input.db, save.worldDate, input.seed);
-  if (federationEnabled) {
-    initializeFederationGovernanceForSave({
-      db: input.db,
-      worldDate: save.worldDate,
-      seed: input.seed,
-    });
-    initializeFederationComplianceForSave(input.db, save.worldDate);
-  }
-  if (internationalEnabled) {
-    initializeInternationalFootballForSave({
-      db: input.db,
-      worldDate: save.worldDate,
-      seed: input.seed,
-    });
-  }
-  // An applied global dataset is the authoritative external world for this
-  // save. Legacy saves without the marker retain the generated 11-market
-  // bootstrap for backwards compatibility.
-  const hasAppliedGlobalDataset = Boolean(
-    input.db
-      .prepare("SELECT 1 FROM global_dataset_imports WHERE status = 'ACTIVE' LIMIT 1")
-      .get() as { 1?: number } | undefined,
-  );
-  if (!hasAppliedGlobalDataset) {
-    initializeForeignFootballWorldForSave({
-      db: input.db,
-      worldDate: save.worldDate,
-      seed: `${input.seed}:foreign-world`,
-    });
-  }
-  if (economyEnabled) {
-    advanceMacroEconomyForWorldDate(input.db, { date: save.worldDate, seed: input.seed });
-    initializeClubEconomyForSave({ db: input.db, worldDate: save.worldDate, seed: input.seed });
-    initializeSupporterCultureForSave({
-      db: input.db,
-      worldDate: save.worldDate,
-      seed: input.seed,
-    });
-  }
-  if (input.youthEnabled) {
-    initializeYouthSystemForSave({ db: input.db, worldDate: save.worldDate, seed: input.seed });
-  }
-  if (input.transfersEnabled) {
-    initializeTransferMarketForSave({ db: input.db, worldDate: save.worldDate, seed: input.seed });
-  }
-  ensureWomensFootballWorldForSave(input.db, { worldDate: save.worldDate });
   preseasonReports.push(
-    ...repairPreseasonContinuity({
-      db: input.db,
-      competitionSeasonIds: pendingCompetitionSeasonIds(input.db, input.competitionSeasonId),
-      date: save.worldDate,
-      seed: `${input.seed}:preseason:initial`,
+    ...ensureWorldSystems(input.db, {
+      worldDate: save.worldDate,
+      seed: input.seed,
+      competitionSeasonId: input.competitionSeasonId,
+      economyEnabled,
+      federationEnabled,
+      internationalEnabled,
+      youthEnabled: Boolean(input.youthEnabled),
+      transfersEnabled: Boolean(input.transfersEnabled),
     }),
   );
 
@@ -357,49 +372,7 @@ export const simulateNepalCareer = (input: {
       break;
     }
 
-    const nextSeasons = createNextSeasons(input.db, activeSeasons);
-    const licensingEligible = new Set<EntityId>();
-    for (const item of completed) {
-      const licensing = processClubLicensingForSeason(input.db, {
-        competitionSeasonId: item.season.id,
-        date: item.season.endDate,
-        seasonLabel: item.season.startDate.slice(0, 4),
-      });
-      for (const clubId of licensing.eligibleClubIds) licensingEligible.add(clubId);
-    }
-    const movementCounts = applyProgression(
-      input.db,
-      activeSeasons,
-      completed,
-      nextSeasons,
-      licensingEligible,
-    );
-    const movements = completed.flatMap((item) =>
-      new CompetitionRepository(input.db)
-        .movements(item.season.id)
-        .filter((movement) => movement.status === "APPLIED"),
-    );
-    for (const item of completed) {
-      const standings = item.standings;
-      for (const [position, standing] of standings.entries()) {
-        const clubId = clubIdForTeam(input.db, standing.teamId);
-        if (!clubId) continue;
-        const movement = movements.find(
-          (candidate) =>
-            candidate.fromCompetitionSeasonId === item.season.id && candidate.clubId === clubId,
-        );
-        const profile = new SupporterCultureRepository(input.db).profile(clubId, "men");
-        if (!profile) continue;
-        evolveSupporterCultureSeason(input.db, clubId, {
-          date: item.season.endDate,
-          tier: profile.tier,
-          finishShare: position / Math.max(1, standings.length - 1),
-          promoted: movement?.movementType === "PROMOTION",
-          relegated: movement?.movementType === "RELEGATION",
-          trophies: standing.teamId === item.standings[0]?.teamId ? 1 : 0,
-        });
-      }
-    }
+    const { nextSeasons, movementCounts } = rolloverCompetitions(input.db, activeSeasons, completed);
     for (const report of reports.slice(-activeSeasons.length)) {
       const counts = movementCounts.get(report.seasonId);
       if (counts) {
@@ -407,44 +380,20 @@ export const simulateNepalCareer = (input: {
         report.relegations = counts.relegations;
       }
     }
-    for (const season of activeSeasons) {
-      markSeasonState(input.db, season.season, "ROLLED_OVER", {
-        rolledOverAt: season.ruleSet.seasonEndDate,
-      });
-    }
     if (input.transfersEnabled) {
       phaseStartedAt = Date.now();
-      simulateTransferWindow({
-        db: input.db,
-        worldDate: addDays(latestSeasonEnd(activeSeasons), 1),
+      runTransferWindowStage(input.db, {
+        seasonEndDate: latestSeasonEnd(activeSeasons),
         seed: `${input.seed}:transfers:${index}`,
-        maxClubActions: 10,
       });
       markPhase("transfers", phaseStartedAt);
     }
     if (input.youthEnabled) {
       phaseStartedAt = Date.now();
-      const youthDate = addDays(latestSeasonEnd(activeSeasons), 45);
-      completeYouthDevelopmentPartnerships(input.db, youthDate);
-      const youthClubs = input.db
-        .prepare(
-          "SELECT DISTINCT club_id FROM youth_player_statuses WHERE club_id IS NOT NULL ORDER BY club_id",
-        )
-        .all() as Array<{ club_id: EntityId }>;
-      for (const youthClub of youthClubs) {
-        planYouthDevelopmentPartnerships(input.db, {
-          clubId: youthClub.club_id,
-          worldDate: youthDate,
-        });
-      }
       youthReports.push(
-        runAnnualYouthAndRetirementCycle({
-          db: input.db,
-          worldDate: youthDate,
+        runYouthStage(input.db, {
+          seasonEndDate: latestSeasonEnd(activeSeasons),
           seed: `${input.seed}:youth:${index}`,
-          seasonLabel: String(
-            new Date(`${latestSeasonEnd(activeSeasons)}T00:00:00.000Z`).getUTCFullYear(),
-          ),
         }),
       );
       markPhase("workforce_youth", phaseStartedAt);
@@ -481,16 +430,12 @@ export const simulateNepalCareer = (input: {
     });
     markPhase("external_world", phaseStartedAt);
     phaseStartedAt = Date.now();
-    advanceTerritorialDevelopment(input.db, {
-      date: latestSeasonEnd(activeSeasons),
-      seed: `${input.seed}:territorial:${index}`,
-    });
     preseasonReports.push(
-      ...repairPreseasonContinuity({
-        db: input.db,
-        competitionSeasonIds: [...nextSeasons.values()].map((season) => season.id),
-        date: addDays(latestSeasonEnd(activeSeasons), 60),
-        seed: `${input.seed}:preseason:${index}`,
+      ...runTerritorialAndPreseasonStage(input.db, {
+        seasonEndDate: latestSeasonEnd(activeSeasons),
+        territorialSeed: `${input.seed}:territorial:${index}`,
+        preseasonSeed: `${input.seed}:preseason:${index}`,
+        nextSeasonIds: [...nextSeasons.values()].map((season) => season.id),
       }),
     );
     markPhase("history_media_persistence", phaseStartedAt);
@@ -527,88 +472,182 @@ export const simulateNepalCareer = (input: {
   };
 };
 
-const latestSeasonEnd = (seasons: readonly RunnableSeason[]): string =>
+export const latestSeasonEnd = (seasons: readonly RunnableSeason[]): string =>
   seasons
     .map((season) => season.ruleSet.seasonEndDate)
     .sort()
     .at(-1) ?? "2026-08-01";
 
-const processEconomyForSeasonPeriod = (
+/**
+ * Season-end competition rollover: the next seasons, club licensing,
+ * promotion and relegation, supporter culture, and marking the finished seasons
+ * rolled over. Shared by the offline batch and a real save's season transition.
+ */
+export const rolloverCompetitions = (
   db: GameDatabase,
-  save: SaveMetadata,
-  input: { seasonEndDate: string; seed: string },
-): void => {
-  const endYear = Number(input.seasonEndDate.slice(0, 4));
-  const startYear = endYear - 1;
-  for (const month of [8, 9, 10, 11, 12]) {
-    if (month === 8)
-      advanceMacroEconomyForWorldDate(db, { date: `${startYear}-08-01`, seed: input.seed });
-    processClubEconomyMonth(db, {
-      date: `${startYear}-${String(month).padStart(2, "0")}-28`,
-      seed: `${input.seed}:${month}`,
+  activeSeasons: readonly RunnableSeason[],
+  completed: Array<{
+    season: CompetitionSeason;
+    ruleSet: CompetitionRuleSet;
+    standings: readonly LeagueStanding[];
+  }>,
+): {
+  nextSeasons: Map<EntityId, CompetitionSeason>;
+  movementCounts: Map<EntityId, { promotions: number; relegations: number }>;
+} => {
+  const nextSeasons = createNextSeasons(db, activeSeasons);
+  const licensingEligible = new Set<EntityId>();
+  for (const item of completed) {
+    const licensing = processClubLicensingForSeason(db, {
+      competitionSeasonId: item.season.id,
+      date: item.season.endDate,
+      seasonLabel: item.season.startDate.slice(0, 4),
     });
-    if (month === 8)
-      processExternalFootballWorldSeason(db, { seasonLabel: String(startYear), seed: input.seed });
-    runClubAiSeasonPlanning(db, {
-      date: `${startYear}-${String(month).padStart(2, "0")}-28`,
-      seed: input.seed,
-    });
-    if (month === 8) {
-      runAiStaffPlanning(db, save, `${startYear}-${String(month).padStart(2, "0")}-28`);
+    for (const clubId of licensing.eligibleClubIds) licensingEligible.add(clubId);
+  }
+  const movementCounts = applyProgression(db, activeSeasons, completed, nextSeasons, licensingEligible);
+  const movements = completed.flatMap((item) =>
+    new CompetitionRepository(db)
+      .movements(item.season.id)
+      .filter((movement) => movement.status === "APPLIED"),
+  );
+  for (const item of completed) {
+    const standings = item.standings;
+    for (const [position, standing] of standings.entries()) {
+      const clubId = clubIdForTeam(db, standing.teamId);
+      if (!clubId) continue;
+      const movement = movements.find(
+        (candidate) =>
+          candidate.fromCompetitionSeasonId === item.season.id && candidate.clubId === clubId,
+      );
+      const profile = new SupporterCultureRepository(db).profile(clubId, "men");
+      if (!profile) continue;
+      evolveSupporterCultureSeason(db, clubId, {
+        date: item.season.endDate,
+        tier: profile.tier,
+        finishShare: position / Math.max(1, standings.length - 1),
+        promoted: movement?.movementType === "PROMOTION",
+        relegated: movement?.movementType === "RELEGATION",
+        trophies: standing.teamId === item.standings[0]?.teamId ? 1 : 0,
+      });
     }
   }
-  for (const month of [1, 2, 3, 4, 5, 6, 7]) {
-    if (month === 1)
-      advanceMacroEconomyForWorldDate(db, { date: `${endYear}-01-01`, seed: input.seed });
-    processClubEconomyMonth(db, {
-      date: `${endYear}-${String(month).padStart(2, "0")}-28`,
-      seed: `${input.seed}:${month}`,
-    });
-    if (month === 1)
-      processExternalFootballWorldSeason(db, { seasonLabel: String(endYear), seed: input.seed });
-    runClubAiSeasonPlanning(db, {
-      date: `${endYear}-${String(month).padStart(2, "0")}-28`,
-      seed: input.seed,
+  for (const season of activeSeasons) {
+    markSeasonState(db, season.season, "ROLLED_OVER", {
+      rolledOverAt: season.ruleSet.seasonEndDate,
     });
   }
+  return { nextSeasons, movementCounts };
+};
+
+/** The AI transfer window that follows a season. */
+export const runTransferWindowStage = (
+  db: GameDatabase,
+  input: { seasonEndDate: string; seed: string },
+): void => {
+  simulateTransferWindow({
+    db,
+    worldDate: addDays(input.seasonEndDate, 1),
+    seed: input.seed,
+    maxClubActions: 10,
+  });
+};
+
+/** The annual youth intake, ageing and retirement cycle. */
+export const runYouthStage = (
+  db: GameDatabase,
+  input: { seasonEndDate: string; seed: string },
+): YouthAnnualReport => {
+  const youthDate = addDays(input.seasonEndDate, 45);
+  completeYouthDevelopmentPartnerships(db, youthDate);
+  const youthClubs = db
+    .prepare(
+      "SELECT DISTINCT club_id FROM youth_player_statuses WHERE club_id IS NOT NULL ORDER BY club_id",
+    )
+    .all() as Array<{ club_id: EntityId }>;
+  for (const youthClub of youthClubs) {
+    planYouthDevelopmentPartnerships(db, { clubId: youthClub.club_id, worldDate: youthDate });
+  }
+  return runAnnualYouthAndRetirementCycle({
+    db,
+    worldDate: youthDate,
+    seed: input.seed,
+    seasonLabel: String(new Date(`${input.seasonEndDate}T00:00:00.000Z`).getUTCFullYear()),
+  });
+};
+
+/** Regional development and the next season's squad registrations. */
+export const runTerritorialAndPreseasonStage = (
+  db: GameDatabase,
+  input: { seasonEndDate: string; territorialSeed: string; preseasonSeed: string; nextSeasonIds: EntityId[] },
+): PreseasonContinuityReport[] => {
+  advanceTerritorialDevelopment(db, { date: input.seasonEndDate, seed: input.territorialSeed });
+  return repairPreseasonContinuity({
+    db,
+    competitionSeasonIds: input.nextSeasonIds,
+    date: addDays(input.seasonEndDate, 60),
+    seed: input.preseasonSeed,
+  });
+};
+
+/** The months of one season period in processing order: August of the start year to July of the end year. */
+const seasonPeriodMonths = (endYear: number): string[] => [
+  ...[8, 9, 10, 11, 12].map((month) => `${endYear - 1}-${String(month).padStart(2, "0")}`),
+  ...[1, 2, 3, 4, 5, 6, 7].map((month) => `${endYear}-${String(month).padStart(2, "0")}`),
+];
+
+/** One month of club-economy world processing, for the month `YYYY-MM` (its date is the 28th). */
+export const processEconomyMonthTick = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  input: { month: string; seed: string; protectedClubIds?: readonly EntityId[] },
+): void => {
+  const calendarMonth = Number(input.month.slice(5, 7));
+  const year = Number(input.month.slice(0, 4));
+  const date = `${input.month}-28`;
+  const seasonBoundary = calendarMonth === 8 || calendarMonth === 1;
+  if (seasonBoundary) advanceMacroEconomyForWorldDate(db, { date: `${input.month}-01`, seed: input.seed });
+  processClubEconomyMonth(db, { date, seed: `${input.seed}:${calendarMonth}` });
+  if (seasonBoundary) processExternalFootballWorldSeason(db, { seasonLabel: String(year), seed: input.seed });
+  runClubAiSeasonPlanning(db, { date, seed: input.seed, excludeClubIds: input.protectedClubIds });
+  if (calendarMonth === 8) runAiStaffPlanning(db, save, date, input.protectedClubIds?.[0]);
+};
+
+/** One month of federation world processing, for the month `YYYY-MM` (its date is the 28th). */
+export const processFederationMonthTick = (
+  db: GameDatabase,
+  input: { month: string; seed: string; protectedFederationIds?: readonly EntityId[] },
+): void => {
+  const calendarMonth = Number(input.month.slice(5, 7));
+  const date = `${input.month}-28`;
+  ensureFederationLeadershipContinuity(db, { date, seed: `${input.seed}:federation-leadership` });
+  processFederationMonth(db, { date, seed: `${input.seed}:${calendarMonth}` });
+  if (calendarMonth === 8) proposeAnnualGovernmentFunding(db, { date, seed: input.seed });
+  runFederationComplianceAiForAllFederations(db, date, input.protectedFederationIds);
+};
+
+/** The season's economy months that a live save has not already processed, then the season close. */
+export const closeEconomySeasonPeriod = (
+  db: GameDatabase,
+  input: { seasonEndDate: string; seed: string },
+): void => {
   closeClubFinancialSeason(db, {
-    seasonLabel: String(endYear),
+    seasonLabel: String(Number(input.seasonEndDate.slice(0, 4))),
     date: input.seasonEndDate,
   });
   processOwnershipContinuity(db, { date: input.seasonEndDate, seed: `${input.seed}:ownership` });
 };
 
-const runAiStaffPlanning = (db: GameDatabase, save: SaveMetadata, date: string): void => {
-  const planningSave = { ...save, worldDate: date };
-  evaluateAllStaffContracts(db, planningSave);
-  ensureAiStaffAssigned(db, planningSave, undefined);
-};
-
-const processFederationForSeasonPeriod = (
+export const closeFederationSeasonPeriod = (
   db: GameDatabase,
-  input: { seasonEndDate: string; seed: string },
+  input: { seasonEndDate: string },
 ): void => {
-  const endYear = Number(input.seasonEndDate.slice(0, 4));
-  const startYear = endYear - 1;
-  for (const month of [8, 9, 10, 11, 12]) {
-    const date = `${startYear}-${String(month).padStart(2, "0")}-28`;
-    ensureFederationLeadershipContinuity(db, { date, seed: `${input.seed}:federation-leadership` });
-    processFederationMonth(db, { date, seed: `${input.seed}:${month}` });
-    if (month === 8) proposeAnnualGovernmentFunding(db, { date, seed: input.seed });
-    runFederationComplianceAiForAllFederations(db, date);
-  }
-  for (const month of [1, 2, 3, 4, 5, 6, 7]) {
-    const date = `${endYear}-${String(month).padStart(2, "0")}-28`;
-    ensureFederationLeadershipContinuity(db, { date, seed: `${input.seed}:federation-leadership` });
-    processFederationMonth(db, { date, seed: `${input.seed}:${month}` });
-    runFederationComplianceAiForAllFederations(db, date);
-  }
   closeFederationFinancialSeason(db, {
-    seasonLabel: String(endYear),
+    seasonLabel: String(Number(input.seasonEndDate.slice(0, 4))),
     date: input.seasonEndDate,
   });
   // Policy outcomes are seasonal, not monthly.  This is the single
-  // progression point for every Nepal federation in the career world and is
+  // progression point for every federation in the career world and is
   // intentionally after the federation's financial close.
   const federations = db.prepare("SELECT id FROM federations ORDER BY id").all() as Array<{
     id: EntityId;
@@ -621,20 +660,61 @@ const processFederationForSeasonPeriod = (
   }
 };
 
-const simulateCompetitionSeason = (
+export const seasonPeriodMonthList = seasonPeriodMonths;
+
+const processEconomyForSeasonPeriod = (
+  db: GameDatabase,
+  save: SaveMetadata,
+  input: { seasonEndDate: string; seed: string },
+): void => {
+  const endYear = Number(input.seasonEndDate.slice(0, 4));
+  for (const month of seasonPeriodMonths(endYear)) {
+    processEconomyMonthTick(db, save, { month, seed: input.seed });
+  }
+  closeEconomySeasonPeriod(db, input);
+};
+
+const runAiStaffPlanning = (db: GameDatabase, save: SaveMetadata, date: string, humanClubId?: EntityId): void => {
+  const planningSave = { ...save, worldDate: date };
+  evaluateAllStaffContracts(db, planningSave);
+  ensureAiStaffAssigned(db, planningSave, humanClubId);
+};
+
+const processFederationForSeasonPeriod = (
+  db: GameDatabase,
+  input: { seasonEndDate: string; seed: string },
+): void => {
+  const endYear = Number(input.seasonEndDate.slice(0, 4));
+  for (const month of seasonPeriodMonths(endYear)) {
+    processFederationMonthTick(db, { month, seed: input.seed });
+  }
+  closeFederationSeasonPeriod(db, input);
+};
+
+export const simulateCompetitionSeason = (
   db: GameDatabase,
   input: RunnableSeason & {
     seed: string;
     save: SaveMetadata;
     maxFixtures?: number;
     economyEnabled?: boolean;
+    /** Play only fixtures dated on or before this day (a real save catching up to its world date). */
+    untilDate?: string;
+    /** Fixtures a human is playing themselves; the world never plays these. */
+    excludeFixtureIds?: ReadonlySet<EntityId>;
+    /** Called repeatedly as time passes rather than once per season: end-of-season work runs only at completion. */
+    incremental?: boolean;
   },
 ): CareerSeasonReport => {
   const competitions = new CompetitionRepository(db);
   const players = new PlayerRepository(db);
+  const stateBefore = seasonState(db, input.season.id)?.status;
+  const alreadyCompleted = stateBefore === "COMPLETED" || stateBefore === "ROLLED_OVER";
   ensureSeasonState(db, input.season);
   const fixtures = ensureFixtures(db, input);
-  markSeasonState(db, input.season, "SCHEDULED", { currentRound: 0 });
+  if (stateBefore === undefined || stateBefore === "NOT_STARTED") {
+    markSeasonState(db, input.season, "SCHEDULED", { currentRound: 0 });
+  }
 
   let playedThisRun = 0;
   const allResults: MatchResult[] = [];
@@ -704,6 +784,8 @@ const simulateCompetitionSeason = (
     if (fixture.status === "played" || completedFixtureIds.has(fixture.id)) {
       continue;
     }
+    if (input.excludeFixtureIds?.has(fixture.id)) continue;
+    if (input.untilDate !== undefined && fixture.scheduledDate > input.untilDate) continue;
     if (input.maxFixtures !== undefined && playedThisRun >= input.maxFixtures) {
       break;
     }
@@ -800,9 +882,11 @@ const simulateCompetitionSeason = (
 
   const finalPlayerStats = playerSeasonStats(db, input.season.id);
   const champion = standings[0];
-  if (
-    fixtures.every((fixture) => fixture.status === "played" || completedFixtureIds.has(fixture.id))
-  ) {
+  const allFixturesPlayed = fixtures.every(
+    (fixture) => fixture.status === "played" || completedFixtureIds.has(fixture.id),
+  );
+  const completesNow = allFixturesPlayed && !alreadyCompleted;
+  if (completesNow) {
     persistChampionAndAwards(db, input, champion, finalPlayerStats);
     recordCompetitionSeasonHistory(db, {
       seasonId: input.season.id,
@@ -930,10 +1014,9 @@ const simulateCompetitionSeason = (
     playerOfSeason: awardFromStats(finalPlayerStats, "averageRating"),
     pointsSpread: sorted.length > 1 ? sorted[0]!.points - sorted[sorted.length - 1]!.points : 0,
     playerAppearances: finalPlayerStats.reduce((total, stat) => total + stat.appearances, 0),
-    developedPlayers:
-      playedThisRun > 0
-        ? developPlayers(db, input.season.id, input.ruleSet.seasonEndDate, input.seed)
-        : 0,
+    developedPlayers: (input.incremental ? completesNow : playedThisRun > 0)
+      ? developPlayers(db, input.season.id, input.ruleSet.seasonEndDate, input.seed)
+      : 0,
     promotions: 0,
     relegations: 0,
     squadHealth,
@@ -985,7 +1068,7 @@ function recordMatchKnowledge(
   }
 }
 
-const ensureFixtures = (
+export const ensureFixtures = (
   db: GameDatabase,
   input: RunnableSeason & { seed: string },
 ): FixtureRecord[] => {
@@ -1094,7 +1177,7 @@ const persistMatchResult = (
   }
 };
 
-const runnableSeasons = (
+export const runnableSeasons = (
   db: GameDatabase,
   requestedSeasonId: EntityId | undefined,
   skipped: CareerSimulationReport["skippedCompetitions"],
@@ -1193,7 +1276,7 @@ const pendingCompetitionSeasonIds = (
     .filter((season) => seasonState(db, season.id)?.status !== "ROLLED_OVER")
     .map((season) => season.id);
 
-const createNextSeasons = (
+export const createNextSeasons = (
   db: GameDatabase,
   seasons: readonly RunnableSeason[],
 ): Map<EntityId, CompetitionSeason> => {
@@ -1219,7 +1302,7 @@ const createNextSeasons = (
   return new Map([...nextByCompetition.values()].map((season) => [season.id, season]));
 };
 
-const applyProgression = (
+export const applyProgression = (
   db: GameDatabase,
   seasons: readonly RunnableSeason[],
   completed: Array<{
@@ -1270,7 +1353,7 @@ function ensureSeasonState(db: GameDatabase, season: CompetitionSeason): void {
   ).run(season.id, season.competitionId, season.name, season.startDate, season.endDate);
 }
 
-function markSeasonState(
+export function markSeasonState(
   db: GameDatabase,
   season: CompetitionSeason,
   status: CompetitionSeasonLifecycleStatus,
@@ -1299,7 +1382,7 @@ function markSeasonState(
   );
 }
 
-function seasonState(
+export function seasonState(
   db: GameDatabase,
   seasonId: EntityId,
 ): { status: CompetitionSeasonLifecycleStatus } | undefined {
@@ -1318,57 +1401,6 @@ function allCompetitionSeasons(db: GameDatabase): CompetitionSeason[] {
       name: row.name,
       startDate: row.start_date,
       endDate: row.end_date,
-    }));
-}
-
-function matchResultsForStandings(db: GameDatabase, competitionSeasonId: EntityId): MatchResult[] {
-  return db
-    .prepare(
-      `SELECT m.*, f.home_team_id, f.away_team_id
-      FROM matches m
-      JOIN fixtures f ON f.id = m.fixture_id
-      WHERE f.competition_season_id = ?
-      ORDER BY f.scheduled_date, f.round, f.id`,
-    )
-    .all(competitionSeasonId)
-    .map((row: any) => ({
-      match: {
-        id: row.id,
-        fixtureId: row.fixture_id,
-        playedDate: row.played_date ?? undefined,
-        homeGoals: row.home_goals,
-        awayGoals: row.away_goals,
-      },
-      events: [],
-      homeStats: {
-        teamId: row.home_team_id,
-        goals: row.home_goals,
-        shots: 0,
-        shotsOnTarget: 0,
-        xg: 0,
-        possession: 50,
-        corners: 0,
-        fouls: 0,
-        yellowCards: 0,
-        redCards: 0,
-        passesCompleted: 0,
-        saves: 0,
-      },
-      awayStats: {
-        teamId: row.away_team_id,
-        goals: row.away_goals,
-        shots: 0,
-        shotsOnTarget: 0,
-        xg: 0,
-        possession: 50,
-        corners: 0,
-        fouls: 0,
-        yellowCards: 0,
-        redCards: 0,
-        passesCompleted: 0,
-        saves: 0,
-      },
-      playerStates: [],
     }));
 }
 
@@ -1770,7 +1802,7 @@ function decrementSuspensions(
   }
 }
 
-function clubIdForTeam(db: GameDatabase, teamId: EntityId): EntityId | undefined {
+export function clubIdForTeam(db: GameDatabase, teamId: EntityId): EntityId | undefined {
   return (
     db.prepare("SELECT club_id AS clubId FROM teams WHERE id = ?").get(teamId) as
       { clubId?: EntityId } | undefined

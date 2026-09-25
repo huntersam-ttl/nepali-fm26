@@ -150,10 +150,17 @@ export const applyFederationComplianceSnapshot = (
  * and starts corrective action under any active sanction. Every step
  * reuses the lifecycle functions above — no separate AI-only logic path.
  */
-export const runFederationComplianceAiForAllFederations = (db: GameDatabase, date: string): void => {
+export const runFederationComplianceAiForAllFederations = (
+  db: GameDatabase,
+  date: string,
+  /** Federations a human presides over: the AI does not run their grants and reports. */
+  excludeFederationIds: readonly EntityId[] = [],
+): void => {
   const repo = new FederationComplianceRepository(db);
   const financeRepo = new FederationGovernanceRepository(db);
-  const federationIds = (db.prepare("SELECT id FROM federations ORDER BY id").all() as Array<{ id: EntityId }>).map((row) => row.id);
+  const federationIds = (db.prepare("SELECT id FROM federations ORDER BY id").all() as Array<{ id: EntityId }>)
+    .map((row) => row.id)
+    .filter((id) => !excludeFederationIds.includes(id));
 
   for (const federationId of federationIds) {
     for (const grant of repo.grantsForFederation(federationId)) {

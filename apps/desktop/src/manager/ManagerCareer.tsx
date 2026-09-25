@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import type { AutosaveStatusView, CareerHeader, CareerRole, CareerRoleState, EntityId, EntityReference, EntityReferenceType, FixtureRow } from "@nepal-football-sim/shared-types";
+import type { AutosaveStatusView, CareerHeader, CareerRole, CareerRoleState, EntityId, EntityReference, EntityReferenceType, FixtureRow, SeasonStatusView } from "@nepal-football-sim/shared-types";
+import { SeasonTransitionPanel } from "./SeasonTransitionPanel.js";
 import type { AppError, DesktopRuntimeApi } from "../appBridge.js";
 import { managerBridge } from "./managerBridge.js";
 import { ErrorBanner, useRuntimeData } from "./ui.js";
@@ -329,6 +330,15 @@ export const ManagerCareer = ({
   const [matchdayFixture, setMatchdayFixture] = useState<FixtureRow | null>(null);
   const [presentationOpen, setPresentationOpen] = useState(false);
 
+  const [seasonStatus, setSeasonStatus] = useState<SeasonStatusView | null>(null);
+  useEffect(() => {
+    if (!bridge.getSeasonStatus) return;
+    void bridge.getSeasonStatus().then((result) => {
+      if (result.ok) setSeasonStatus(result.data);
+    });
+  }, [bridge, header.worldDate, header.activeRole, refreshKey]);
+  const seasonBlocksTime = seasonStatus !== null && seasonStatus.phase !== "IN_PROGRESS";
+
   const refreshAutosave = async (): Promise<void> => {
     const result = await bridge.getAutosaveStatus();
     if (result.ok) setAutosave(result.data);
@@ -642,6 +652,18 @@ export const ManagerCareer = ({
         </header>
       <main className="workspace">
         {error && <ErrorBanner error={error} />}
+        {seasonStatus && (
+          <SeasonTransitionPanel
+            status={seasonStatus}
+            bridge={bridge}
+            onStatus={setSeasonStatus}
+            onFinished={async () => {
+              await refreshHeader();
+              setRefreshKey((key) => key + 1);
+              setNotice("A new season has begun.");
+            }}
+          />
+        )}
         {pendingMatch && !matchFixtureId && (
           <div className="notice" role="status">
             A match is in progress.
@@ -713,7 +735,7 @@ export const ManagerCareer = ({
                 Matchday · {matchdayFixture.homeAway === "home" ? "vs" : "at"} {matchdayFixture.opponent}
               </button>
             )}
-            <button className="primary" disabled={busy || !["MANAGER", "CHAIRMAN_OWNER"].includes(header.activeRole) || Boolean(matchdayFixture)} onClick={() => void advance()}>
+            <button className="primary" disabled={busy || seasonBlocksTime || Boolean(matchdayFixture)} onClick={() => void advance()}>
               {busy ? "Working…" : "Continue"}
             </button>
             <button

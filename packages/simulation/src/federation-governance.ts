@@ -59,6 +59,7 @@ import { PLAYABLE_CLUB_PREDICATE } from "./playable-world.js";
 import { SeededRandom } from "./rng.js";
 import { buildEntityReference } from "./entity-reference.js";
 import { nationalTeamOutcomes } from "./national-team-workspace.js";
+import { findHomeFootballContext } from "./home-context.js";
 import { recordFederationDevelopmentSnapshot } from "./federation-scorecard.js";
 
 const currency = "NPR";
@@ -2714,12 +2715,9 @@ const allClubs = (db: GameDatabase): Club[] =>
     }));
 
 const anfaFederation = (db: GameDatabase): Federation => {
+  const home = findHomeFootballContext(db);
   const row =
-    (db
-      .prepare(
-        "SELECT * FROM federations WHERE name LIKE '%ANFA%' OR name LIKE '%Nepal%' ORDER BY name LIMIT 1",
-      )
-      .get() as any) ??
+    (home ? (db.prepare("SELECT * FROM federations WHERE id = ?").get(home.federationId) as any) : undefined) ??
     (db.prepare("SELECT * FROM federations ORDER BY name LIMIT 1").get() as any);
   if (!row) throw new Error("No federation found in save");
   return mapFederation(row);

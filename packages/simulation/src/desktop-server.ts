@@ -519,6 +519,10 @@ const dispatch = (
       return service.getHomeDashboard();
     case "continueCareer":
       return service.continueCareer();
+    case "getSeasonStatus":
+      return service.getSeasonStatus();
+    case "advanceSeasonTransition":
+      return service.advanceSeasonTransition();
     case "quickSimMatch":
       return service.quickSimMatch(body.fixtureId as EntityId | undefined);
     case "saveTactic":

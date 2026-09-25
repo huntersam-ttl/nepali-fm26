@@ -17,5 +17,9 @@ export const openGameDatabase = (filePath: string): GameDatabase => {
   const db = new SqliteDatabaseSync(filePath);
   db.exec("PRAGMA foreign_keys = ON;");
   db.exec("PRAGMA journal_mode = WAL;");
+  // In WAL mode NORMAL cannot corrupt the file: a crash can lose only the most
+  // recent commits, never leave a half-written state. FULL fsyncs after every
+  // statement, which made a full simulated season about six times slower.
+  db.exec("PRAGMA synchronous = NORMAL;");
   return db;
 };
