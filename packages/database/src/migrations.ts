@@ -4017,6 +4017,14 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
         SELECT competition_id, MIN(depth) AS tier FROM chain GROUP BY competition_id;
     `,
   },
+  {
+    version: 104,
+    sql: `
+      -- Phase 11D: squads are read team by team every match day; player_availability_states was
+      -- only keyed by person. The reads ORDER BY person_id (the primary key), so the order is unchanged.
+      CREATE INDEX IF NOT EXISTS idx_player_availability_team ON player_availability_states(team_id, person_id);
+    `,
+  },
 ];
 
 /** The schema version a fully migrated save carries: always the newest migration. */

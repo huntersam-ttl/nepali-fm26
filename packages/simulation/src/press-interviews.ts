@@ -1114,7 +1114,7 @@ export const answerPressQuestion = (
   input: { interviewId: EntityId; stance: PressResponseStance; teamId?: EntityId; date: string },
 ): MediaInterview => {
   const repo = new MediaPhaseBRepository(db);
-  const interview = repo.interviews().find((item) => item.id === input.interviewId);
+  const interview = repo.interview(input.interviewId);
   if (!interview) throw new Error("Press conference not found");
   if (interview.status !== "OPEN" || !interview.structuredQuestions) return interview;
   const index = interview.currentQuestionIndex ?? 0;
@@ -1213,7 +1213,7 @@ const publishMaterialPressEvent = (db: GameDatabase, interview: MediaInterview, 
   const question = interview.structuredQuestions?.find((item) => item.id === material.questionId);
   const eventId = createStableEntityId("historical-event", `press-conference:${interview.id}:${material.questionId}`);
   const eventRepo = new EventRepository(db);
-  if (eventRepo.historicalEvents().some((event) => event.id === eventId)) return;
+  if (eventRepo.hasHistoricalEvent(eventId)) return;
   eventRepo.insertHistoricalEvent({
     id: eventId,
     occurredOn: interview.interviewDate,
@@ -1248,7 +1248,7 @@ export const answerPressQuestionAsAi = (
   db: GameDatabase,
   input: { interviewId: EntityId; teamId: EntityId; date: string; seed: string },
 ): MediaInterview => {
-  const interview = new MediaPhaseBRepository(db).interviews().find((item) => item.id === input.interviewId);
+  const interview = new MediaPhaseBRepository(db).interview(input.interviewId);
   if (!interview || !interview.structuredQuestions) throw new Error("Structured press conference not found");
   const index = interview.currentQuestionIndex ?? 0;
   const question = interview.structuredQuestions[index];

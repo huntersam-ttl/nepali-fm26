@@ -37,7 +37,7 @@ import {
   type TransferOffer,
 } from "@nepal-football-sim/shared-types";
 import { executiveHasAuthority } from "./executive-roles.js";
-import { homeCurrency, seasonEndDate, seasonStartDate } from "./home-context.js";
+import { homeCountryId, homeCurrency, seasonEndDate, seasonStartDate } from "./home-context.js";
 import {
   ClubEconomyRepository,
   ClubNetworkRepository,
@@ -1655,7 +1655,7 @@ export const postMatchdayEconomy = (
     capacity,
     ticketPrice,
     seed: `${seed}:${fixture.id}`,
-    countryId: nepalCountryId(db),
+    countryId: homeCountryId(db),
     opponentReputation: awaySupport?.footballReputation,
     stakes: fixture.round >= 20 ? 60 : fixture.round <= 2 ? 25 : 35,
     competitionImportance: 55,
@@ -2717,7 +2717,7 @@ const seedSponsorPool = (db: GameDatabase, date: string, seed: string): void => 
     ["Everest Health Clinics", "Healthcare", undefined, "SIMULATION_ONLY"],
   ];
   const rng = new SeededRandom(`${seed}:sponsor-pool:${date}`);
-  const nepalId = nepalCountryId(db);
+  const nepalId = homeCountryId(db);
   for (const [name, industry, sourceUrl, identityProvenance] of names) {
     economy.upsertSponsor({
       id: createStableEntityId("sponsor-organisation", name),
@@ -2868,9 +2868,6 @@ const venueCapacity = (db: GameDatabase, venueId?: EntityId): number | undefined
   const row = db.prepare("SELECT capacity FROM venues WHERE id = ?").get(venueId) as any;
   return row?.capacity ?? undefined;
 };
-
-const nepalCountryId = (db: GameDatabase): EntityId | undefined =>
-  (db.prepare("SELECT id FROM countries WHERE iso_code = 'NPL' LIMIT 1").get() as any)?.id;
 
 const economicTypeForClub = (club: Club): ClubEconomicType => {
   const key = club.canonicalExternalId ?? "";

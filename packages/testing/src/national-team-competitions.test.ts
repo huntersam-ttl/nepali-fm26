@@ -190,7 +190,9 @@ describe("campaigns, groups, knockout and registration from real editions", () =
     for (const id of [ids.men, ids.u23, ids.women]) {
       const view = read(id);
       const entry = [...view.active, ...view.upcoming, ...view.completed][0]!;
-      expect(entry.qualificationSource).toBeUndefined();
+      // The regional edition is hosted by the home country (a real host id since Phase 11D), and
+      // hosting is the only qualification route the record has for it.
+      expect([undefined, "Host nation"]).toContain(entry.qualificationSource);
       expect(entry.qualificationLinks).toEqual([]);
       expect(JSON.stringify(view)).not.toMatch(/"(probability|chance|odds|seedRating|pot|seed|strength|simulationStrength|simulationReputation|formRating|ranking|coefficient|drawWeight)"/i);
     }

@@ -79,7 +79,7 @@ test("1. Senior Men's Competitions shows the real completed edition with its sta
   const stages = page.getByRole("table", { name: "Stages of this competition and their recorded rules" });
   for (const stage of saff.stages) await expect(stages).toContainText(stage.name);
   await expect(page.locator("main")).toContainText("Qualification route");
-  await expect(page.locator("main")).toContainText("Not recorded");
+  await expect(page.locator("main")).toContainText(/Not recorded|Host nation/);
   expect(await page.locator("main").innerText()).not.toMatch(/\b(probability|chance to qualify|odds|seed rating|strength)\b/i);
 });
 

@@ -9551,18 +9551,32 @@ export class EventRepository {
     return this.db
       .prepare("SELECT * FROM historical_events ORDER BY occurred_on, id")
       .all()
-      .map((row: any) => ({
-        id: row.id,
-        occurredOn: row.occurred_on,
-        eventType: row.event_type,
-        involvedEntities: json.parse(row.involved_entities_json, []),
-        title: row.title,
-        data: json.parse<Record<string, unknown> | undefined>(row.data_json, undefined),
-        importance: row.importance,
-        scope: row.scope,
-      }));
+      .map(mapHistoricalEvent);
+  }
+
+  /** The same events, in the same order, that happened on or before `date`. */
+  historicalEventsUpTo(date: string): HistoricalEvent[] {
+    return this.db
+      .prepare("SELECT * FROM historical_events WHERE occurred_on <= ? ORDER BY occurred_on, id")
+      .all(date)
+      .map(mapHistoricalEvent);
+  }
+
+  hasHistoricalEvent(id: EntityId): boolean {
+    return Boolean(this.db.prepare("SELECT 1 FROM historical_events WHERE id = ?").get(id));
   }
 }
+
+const mapHistoricalEvent = (row: any): HistoricalEvent => ({
+  id: row.id,
+  occurredOn: row.occurred_on,
+  eventType: row.event_type,
+  involvedEntities: json.parse(row.involved_entities_json, []),
+  title: row.title,
+  data: json.parse<Record<string, unknown> | undefined>(row.data_json, undefined),
+  importance: row.importance,
+  scope: row.scope,
+});
 
 export class ExternalFootballRepository {
   constructor(private readonly db: GameDatabase) {}

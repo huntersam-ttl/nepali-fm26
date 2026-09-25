@@ -208,16 +208,32 @@ export const ensureWomensGirlsDevelopmentPartnerPackage = (
 ): FederationCommercialRightsPackage =>
   ensureNationalProgrammePartnerPackage(db, { federationId, date, programme: "WOMENS_GIRLS" });
 
+const DIVISION_TIER = { A: 1, B: 2, C: 3 } as const;
+
+/**
+ * The federation's domestic competition at a pyramid tier (1 = top). The tier comes from the
+ * promotion/relegation relationships, and where a dataset carries the same competition twice
+ * the one that actually has seasons wins, so a duplicate row can never be chosen.
+ */
+const divisionCompetition = (
+  db: GameDatabase,
+  federationId: EntityId,
+  tier: number,
+): { id?: EntityId; name?: string } | undefined =>
+  db
+    .prepare(
+      `SELECT c.id, c.name FROM competitions c JOIN competition_tiers t ON t.competition_id = c.id
+       WHERE c.federation_id = ? AND c.scope = 'domestic' AND t.tier = ?
+       ORDER BY (SELECT COUNT(*) FROM competition_seasons cs WHERE cs.competition_id = c.id) DESC, c.id LIMIT 1`,
+    )
+    .get(federationId, tier) as { id?: EntityId; name?: string } | undefined;
+
 export const ensureADivisionTitleSponsorPackage = (
   db: GameDatabase,
   federationId: EntityId,
   date: string,
 ): FederationCommercialRightsPackage => {
-  const competition = db
-    .prepare(
-      "SELECT id, name FROM competitions WHERE federation_id=? AND scope='domestic' AND lower(name) LIKE '%a-division%' ORDER BY id LIMIT 1",
-    )
-    .get(federationId) as { id?: EntityId; name?: string } | undefined;
+  const competition = divisionCompetition(db, federationId, 1);
   if (!competition?.id || !competition.name)
     throw new Error("A Division title sponsorship requires a supported A Division competition");
   const packageId = createStableEntityId(
@@ -246,12 +262,7 @@ export const ensureDivisionTitleSponsorPackage = (
   db: GameDatabase,
   input: { federationId: EntityId; division: "A" | "B" | "C"; date: string },
 ): FederationCommercialRightsPackage => {
-  const competition = db
-    .prepare(
-      "SELECT id, name FROM competitions WHERE federation_id=? AND scope='domestic' AND lower(name) LIKE ? ORDER BY id LIMIT 1",
-    )
-    .get(input.federationId, `%${input.division.toLowerCase()}-division%`) as
-    { id?: EntityId; name?: string } | undefined;
+  const competition = divisionCompetition(db, input.federationId, DIVISION_TIER[input.division]);
   if (!competition?.id || !competition.name)
     throw new Error(
       `${input.division} Division title sponsorship requires a supported competition`,
@@ -729,9 +740,9 @@ const currentDivisionSeasonId = (
 ): EntityId | undefined => {
   const row = db
     .prepare(
-      "SELECT cs.id FROM competition_seasons cs JOIN competitions c ON c.id=cs.competition_id WHERE c.federation_id=? AND c.scope='domestic' AND lower(c.name) LIKE ? ORDER BY cs.end_date DESC, cs.id DESC LIMIT 1",
+      "SELECT cs.id FROM competition_seasons cs JOIN competitions c ON c.id=cs.competition_id JOIN competition_tiers t ON t.competition_id=c.id WHERE c.federation_id=? AND c.scope='domestic' AND t.tier = ? ORDER BY cs.end_date DESC, cs.id DESC LIMIT 1",
     )
-    .get(federationId, `%${division.toLowerCase()}-division%`) as { id?: EntityId } | undefined;
+    .get(federationId, DIVISION_TIER[division]) as { id?: EntityId } | undefined;
   return row?.id;
 };
 

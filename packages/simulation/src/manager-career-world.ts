@@ -359,6 +359,13 @@ const confidenceDelta = (expectation: string, tertile: "TOP" | "MIDDLE" | "BOTTO
 };
 
 const MIN_TENURE_DAYS_BEFORE_SACKING = 60;
+// The board tick runs daily, but a board judges a manager once per interval, against the table
+// of the manager's own league, and only once enough matches have been played for the table to
+// mean something. A new contract starts at the default confidence and is first judged a month
+// later. (Applying a whole evaluation's swing every day sacked bottom-third managers in ~2 months.)
+export const BOARD_EVALUATION_INTERVAL_DAYS = 14;
+const MIN_MATCHES_BEFORE_TABLE_COUNTS = 5;
+const DEFAULT_BOARD_CONFIDENCE = 60;
 const VACANCY_GRACE_DAYS = 30;
 const MAX_CANDIDATES_PER_VACANCY = 60;
 const MIN_TENURE_DAYS_BEFORE_APPROACH = 365;
@@ -385,9 +392,21 @@ export const evaluateBoardConfidence = (
   const managers = new ManagerRepository(db);
   const careerWorld = new CareerWorldRepository(db);
   const competitions = new CompetitionRepository(db);
-  const seasonId = currentSeasonId(db, save.worldDate);
-  const standings = seasonId ? competitions.standings(seasonId) : [];
-  const totalTeams = standings.length;
+  const tables = new Map<EntityId, ReturnType<CompetitionRepository["standings"]>>();
+  const tableForTeam = (teamId: EntityId): ReturnType<CompetitionRepository["standings"]> => {
+    const season = db
+      .prepare(
+        `SELECT cs.id AS id FROM club_memberships m JOIN competition_seasons cs ON cs.id = m.competition_season_id
+         WHERE m.team_id = ? AND m.status = 'ACTIVE' AND cs.start_date <= ? ORDER BY cs.start_date DESC LIMIT 1`,
+      )
+      .get(teamId, save.worldDate) as { id?: EntityId } | undefined;
+    if (!season?.id) return [];
+    const cached = tables.get(season.id);
+    if (cached) return cached;
+    const standings = competitions.standings(season.id);
+    tables.set(season.id, standings);
+    return standings;
+  };
   const sacked: ManagerContract[] = [];
 
   for (const contract of managers.allActiveContracts()) {
@@ -395,32 +414,42 @@ export const evaluateBoardConfidence = (
     evaluateStructuredCommitments(db, save, contract.teamId);
     const tenureDays = daysBetween(contract.contractStart, save.worldDate);
     const expectation = expectationForClub(db, contract.clubId);
-    const position = standings.findIndex((row) => row.teamId === contract.teamId) + 1;
-    const tertile = position > 0 ? positionTertile(position, totalTeams) : "MIDDLE";
     const existing = careerWorld.boardConfidence(contract.clubId);
-    const baseline = existing && existing.contractId === contract.id ? existing.confidence : 60;
-    /* Supporter sentiment is one contextual factor only: finances and club
-     * objectives stay authoritative, and supporters never sack anyone alone. */
-    const supporters = new SupporterCultureRepository(db).profile(contract.clubId, "men");
-    const supporterPressure = supporters ? supporterBoardPressureModifier(supporters) : 0;
-    const next = Math.max(
-      0,
-      Math.min(100, baseline + confidenceDelta(expectation, tertile) + supporterPressure),
-    );
-
-    careerWorld.upsertBoardConfidence({
-      clubId: contract.clubId,
-      contractId: contract.id,
-      confidence: next,
-      expectation,
-      lastEvaluatedOn: save.worldDate,
-    });
+    const sameContract = Boolean(existing && existing.contractId === contract.id);
+    const due = sameContract && daysBetween(existing!.lastEvaluatedOn, save.worldDate) >= BOARD_EVALUATION_INTERVAL_DAYS;
+    let next = sameContract ? existing!.confidence : DEFAULT_BOARD_CONFIDENCE;
+    if (!sameContract) {
+      careerWorld.upsertBoardConfidence({
+        clubId: contract.clubId,
+        contractId: contract.id,
+        confidence: next,
+        expectation,
+        lastEvaluatedOn: save.worldDate,
+      });
+    } else if (due) {
+      const table = tableForTeam(contract.teamId);
+      const position = table.findIndex((row) => row.teamId === contract.teamId) + 1;
+      const played = position > 0 ? table[position - 1]!.played : 0;
+      const tertile = position > 0 && played >= MIN_MATCHES_BEFORE_TABLE_COUNTS ? positionTertile(position, table.length) : "MIDDLE";
+      /* Supporter sentiment is one contextual factor only: finances and club
+       * objectives stay authoritative, and supporters never sack anyone alone. */
+      const supporters = new SupporterCultureRepository(db).profile(contract.clubId, "men");
+      const supporterPressure = supporters ? supporterBoardPressureModifier(supporters) : 0;
+      next = Math.max(0, Math.min(100, next + confidenceDelta(expectation, tertile) + supporterPressure));
+      careerWorld.upsertBoardConfidence({
+        clubId: contract.clubId,
+        contractId: contract.id,
+        confidence: next,
+        expectation,
+        lastEvaluatedOn: save.worldDate,
+      });
+    }
     const managerProfile = managers.getProfile(contract.managerProfileId);
     if (managerProfile) {
       refreshManagerBoardRelationship(db, contract.clubId, managerProfile, save.worldDate);
     }
 
-    if (next <= 0 && tenureDays >= MIN_TENURE_DAYS_BEFORE_SACKING) {
+    if (due && next <= 0 && tenureDays >= MIN_TENURE_DAYS_BEFORE_SACKING) {
       sackManager(db, save, contract, "SACKED");
       sacked.push(contract);
     }

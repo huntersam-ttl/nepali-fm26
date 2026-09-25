@@ -462,7 +462,7 @@ export const publishMediaForDate = (
   initializeMediaForSave(db);
   const threshold = input.minimumImportance ?? 4;
   const published: MediaStory[] = [];
-  const events = eventRepo.historicalEvents().filter((item) => item.occurredOn <= input.date);
+  const events = eventRepo.historicalEventsUpTo(input.date);
   for (const event of events) routeHistoricalEvent(db, event);
   const newlyPublishable = events.filter(
     (item) => importance(item) >= threshold && !repo.hasStory(item.id),
@@ -588,7 +588,7 @@ export const answerMediaInterview = (
   input: { interviewId: EntityId; stance: MediaResponseStance; response: string },
 ): MediaInterview => {
   const repo = new MediaPhaseBRepository(db);
-  const interview = repo.interviews().find((item) => item.id === input.interviewId);
+  const interview = repo.interview(input.interviewId);
   if (!interview || interview.status !== "OPEN") throw new Error("Media interview is unavailable");
   const journalist = repo.journalists().find((item) => item.id === interview.journalistId);
   const previous = repo
@@ -633,9 +633,7 @@ export const answerMediaInterviewAsAi = (
   db: GameDatabase,
   input: { interviewId: EntityId; seed: string },
 ): MediaInterview => {
-  const interview = new MediaPhaseBRepository(db)
-    .interviews()
-    .find((item) => item.id === input.interviewId);
+  const interview = new MediaPhaseBRepository(db).interview(input.interviewId);
   if (!interview) throw new Error("Media interview not found");
   const stance: MediaResponseStance =
     interview.context === "POST_MATCH"

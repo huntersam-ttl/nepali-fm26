@@ -509,7 +509,7 @@ export const createInternationalCompetitionEdition = (
     startDate: input.startDate,
     endDate,
     status: "PLANNED",
-    hostCountryIds: hostCountries(input.competitionKey),
+    hostCountryIds: hostCountries(db, input.competitionKey),
     qualificationLinks: [],
     ruleProvenanceStatus: simulationStatus,
     ruleNotes:
@@ -2076,12 +2076,22 @@ const competitionByKey = (
     key,
   );
 
-const hostCountries = (
-  key: InternationalCompetitionKey,
-): EntityId[] => {
-  if (isRegionalCompetition(key)) return [createStableEntityId("country", "NP")];
-  if (key === "ASIAN_CUP") return [createStableEntityId("country", "QA")];
-  if (key === "WORLD_CUP") return [createStableEntityId("country", "US")];
+/**
+ * The host country of an edition, resolved from the countries the save actually has: the home
+ * country hosts the regional championships; the host of a continental or world edition is looked
+ * up by ISO code and left out if the save has no such country (a host must exist to be referenced).
+ */
+const hostCountries = (db: GameDatabase, key: InternationalCompetitionKey): EntityId[] => {
+  const byIso = (isoCode: string): EntityId[] => {
+    const row = db.prepare("SELECT id FROM countries WHERE iso_code = ? LIMIT 1").get(isoCode) as { id: EntityId } | undefined;
+    return row ? [row.id] : [];
+  };
+  if (isRegionalCompetition(key)) {
+    const home = homeCountryId(db);
+    return home ? [home] : [];
+  }
+  if (key === "ASIAN_CUP") return byIso("QA");
+  if (key === "WORLD_CUP") return byIso("US");
   return [];
 };
 
