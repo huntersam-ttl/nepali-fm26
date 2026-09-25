@@ -1,9 +1,9 @@
 import { createStableEntityId, type EntityId, type FederationComplianceDimensions, type FederationComplianceProfile, type FederationComplianceSnapshotSeed, type FederationCorrectiveAction, type FederationGrant, type FederationGrantExpenditure, type FederationGrantHistoryEvent, type FederationGrantStatus, type FederationRestrictionPurpose, type FederationSanction } from "@nepal-football-sim/shared-types";
 import { FederationComplianceRepository, FederationGovernanceRepository, type GameDatabase } from "@nepal-football-sim/database";
 import { postFederationTransaction } from "./federation-governance.js";
+import { homeCurrency } from "./home-context.js";
 
 const simulationStatus = "SIMULATION_ONLY" as const;
-const currency = "NPR";
 const restrictedPurposes = new Set<FederationRestrictionPurpose>(["PITCH_PROJECT", "TECHNICAL_CENTRE", "DISTRICT_DEVELOPMENT", "WOMENS_FOOTBALL", "YOUTH", "GRASSROOTS", "REFEREE_DEVELOPMENT", "COACH_EDUCATION", "NATIONAL_TEAM_SUPPORT"]);
 const ledgerCategoryFor = (purpose: FederationRestrictionPurpose): "INFRASTRUCTURE" | "YOUTH_DEVELOPMENT" | "GRASSROOTS" | "COACH_EDUCATION" | "REFEREE_DEVELOPMENT" | "NATIONAL_TEAM_COST" | "OTHER" => purpose === "PITCH_PROJECT" || purpose === "TECHNICAL_CENTRE" ? "INFRASTRUCTURE" : purpose === "WOMENS_FOOTBALL" || purpose === "YOUTH" ? "YOUTH_DEVELOPMENT" : purpose === "GRASSROOTS" || purpose === "DISTRICT_DEVELOPMENT" ? "GRASSROOTS" : purpose === "COACH_EDUCATION" ? "COACH_EDUCATION" : purpose === "REFEREE_DEVELOPMENT" ? "REFEREE_DEVELOPMENT" : purpose === "NATIONAL_TEAM_SUPPORT" ? "NATIONAL_TEAM_COST" : "OTHER";
 const addHistory = (grant: FederationGrant, date: string, action: string, note: string): FederationGrantHistoryEvent[] => [...grant.history, { date, action, note }];
@@ -186,7 +186,7 @@ export const runFederationComplianceAiForAllFederations = (
         createFederationGrant(db, {
           federationId,
           sourceInstitution: "AFC_DEVELOPMENT",
-          currency: "NPR",
+          currency: homeCurrency(db),
           approvedAmount: 500000,
           fundingPeriodStart: date,
           fundingPeriodEnd: date,

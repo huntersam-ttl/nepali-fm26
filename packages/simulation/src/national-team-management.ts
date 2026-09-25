@@ -2,6 +2,7 @@ import { createStableEntityId, type DiasporaRecruitment, type EntityId, type Foo
 import { FederationGovernanceRepository, InternationalFootballRepository, NationalTeamManagementRepository, StaffMarketRepository, WorldRepository, type GameDatabase } from "@nepal-football-sim/database";
 import { type StaffEmploymentContract, type StaffAppointment } from "@nepal-football-sim/shared-types";
 import { scheduleFriendly, selectNationalTeamSquad } from "./federation-governance.js";
+import { homeCurrency, homeFootballContext, isHomeFederation } from "./home-context.js";
 import { staffEligibility } from "./staff-market.js";
 
 const status = "SIMULATION_ONLY" as const;
@@ -27,9 +28,8 @@ export const appointNationalTeamHeadCoachForPresident = (
   input: { federationId: EntityId; nationalTeamId: EntityId; presidentPersonId: EntityId; candidatePersonId: EntityId; date: string },
 ): StaffAppointment => {
   const governance = new FederationGovernanceRepository(db);
-  const country = db.prepare("SELECT iso_code FROM countries WHERE id=(SELECT country_id FROM federations WHERE id=?)").get(input.federationId) as { iso_code?: string } | undefined;
   const presidency = governance.leadershipTenures(input.federationId).some((tenure) => tenure.personId === input.presidentPersonId && tenure.role === "FEDERATION_PRESIDENT" && tenure.status === "ACTIVE");
-  if (!presidency || country?.iso_code !== "NP" && country?.iso_code !== "NPL") throw new FederationPersonnelError("NOT_AUTHORIZED", "Only the active Nepal federation president may appoint national-team staff.");
+  if (!presidency || !isHomeFederation(db, input.federationId)) throw new FederationPersonnelError("NOT_AUTHORIZED", `Only the active ${homeFootballContext(db).countryName} federation president may appoint national-team staff.`);
 
   const team = db.prepare("SELECT federation_id, club_id FROM teams WHERE id=?").get(input.nationalTeamId) as { federation_id?: EntityId; club_id?: EntityId } | undefined;
   if (!team || team.federation_id !== input.federationId || team.club_id) throw new FederationPersonnelError("INVALID_TARGET", "The target must be a Nepal national team in this federation.");
@@ -43,7 +43,7 @@ export const appointNationalTeamHeadCoachForPresident = (
   if (!eligibility.eligible) throw new FederationPersonnelError("NOT_ELIGIBLE", eligibility.note ?? "The candidate is not eligible for this role.");
 
   const appointment: StaffAppointment = { id: createStableEntityId("staff-appointment", `${input.nationalTeamId}:national-head-coach:${input.candidatePersonId}`), personId: input.candidatePersonId, organisationType: "NATIONAL_TEAM", teamId: input.nationalTeamId, federationId: input.federationId, role: "NATIONAL_TEAM_HEAD_COACH", startDate: input.date, employmentStatus: "ACTIVE" };
-  const contract: StaffEmploymentContract = { id: createStableEntityId("staff-contract", appointment.id), personId: appointment.personId, appointmentId: appointment.id, teamId: input.nationalTeamId, role: appointment.role, contractStart: input.date, contractEnd: addDays(input.date, 24 * 30), salaryAmountMinor: 400_000, currency: "NPR", status: "ACTIVE" };
+  const contract: StaffEmploymentContract = { id: createStableEntityId("staff-contract", appointment.id), personId: appointment.personId, appointmentId: appointment.id, teamId: input.nationalTeamId, role: appointment.role, contractStart: input.date, contractEnd: addDays(input.date, 24 * 30), salaryAmountMinor: 400_000, currency: homeCurrency(db), status: "ACTIVE" };
   appointment.contractId = contract.id;
   const world = new WorldRepository(db);
   world.insertStaffAppointment(appointment);

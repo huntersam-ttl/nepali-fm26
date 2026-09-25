@@ -1,3 +1,4 @@
+import { isHomeFederation } from "./home-context.js";
 import {
   createStableEntityId,
   type EntityId,
@@ -55,7 +56,7 @@ const nepaliFederationIds = (db: GameDatabase): Set<EntityId> =>
     (
       db
         .prepare(
-          "SELECT f.id FROM federations f JOIN countries c ON c.id=f.country_id WHERE c.iso_code IN ('NP','NPL')",
+          "SELECT f.id FROM federations f JOIN countries c ON c.id=f.country_id WHERE c.id = (SELECT country_id FROM home_football_country LIMIT 1)",
         )
         .all() as Array<{ id: EntityId }>
     ).map((row) => row.id),
@@ -633,12 +634,7 @@ export const submitFederationGovernanceProposalCommand = (
   if (input.callerRole !== "FEDERATION_PRESIDENT") {
     throw new Error("Only the federation president may submit a governance proposal");
   }
-  const country = db
-    .prepare(
-      "SELECT co.iso_code FROM federations f JOIN countries co ON co.id = f.country_id WHERE f.id = ?",
-    )
-    .get(input.federationId) as { iso_code?: string } | undefined;
-  if (!country || !["NP", "NPL"].includes(country.iso_code ?? "")) {
+  if (!isHomeFederation(db, input.federationId)) {
     throw new Error("Governance commands are unavailable for context-only federations");
   }
   return createFederationGovernanceProposal(db, input);
@@ -762,12 +758,7 @@ export const implementFederationGovernanceProposalCommand = (
     .proposals()
     .find((item) => item.id === input.proposalId);
   if (!proposal) throw new Error("Governance proposal not found");
-  const country = db
-    .prepare(
-      "SELECT co.iso_code FROM federations f JOIN countries co ON co.id=f.country_id WHERE f.id=?",
-    )
-    .get(proposal.federationId) as { iso_code?: string } | undefined;
-  if (!country || !["NP", "NPL"].includes(country.iso_code ?? ""))
+  if (!isHomeFederation(db, proposal.federationId))
     throw new Error("Governance commands are unavailable for context-only federations");
   const active = new FederationGovernanceRepository(db)
     .leadershipTenures(proposal.federationId)

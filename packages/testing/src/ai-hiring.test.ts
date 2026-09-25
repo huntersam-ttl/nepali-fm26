@@ -71,6 +71,7 @@ const buildWorld = (teamCount: number, risk: "LOW" | "BALANCED" = "LOW") => {
   migrateDatabase(db);
   const world = new WorldRepository(db);
   world.insertCountry(country);
+  world.insertFederation({ id: createStableEntityId("federation", "hiring-fa"), countryId: country.id, name: "Hiring Football Association" });
   world.insertCompetition({ id: competitionId, name: "Hiring League", scope: "domestic" });
   world.insertCompetitionSeason({ id: seasonId, competitionId, name: "2026 Hiring League", startDate: "2026-08-01", endDate: "2027-05-31" });
   const teams: Team[] = [];

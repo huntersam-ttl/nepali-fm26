@@ -8,6 +8,7 @@ import {
   type GameDatabase,
 } from "@nepal-football-sim/database";
 import { publishHistoricalEvent } from "./historical-events.js";
+import { homeCurrency } from "./home-context.js";
 import {
   createStableEntityId,
   type ClubOwnershipModel,
@@ -124,7 +125,7 @@ export const ensureOwnerPersonalFinancialProfile = (
     assets: cash,
     liabilities: 0,
     netWorth: cash,
-    currency: "NPR",
+    currency: homeCurrency(db),
     lastUpdatedAt: date,
     status: "SIMULATION_ONLY",
   });
@@ -157,7 +158,7 @@ export const calculateAcquisitionValuationBreakdown = (
   const midpoint = calculateAcquisitionValuation(db, clubId, date);
   return {
     clubId,
-    currency: "NPR",
+    currency: homeCurrency(db),
     midpoint,
     negotiationRange: { min: Math.round(midpoint * 0.85), max: Math.round(midpoint * 1.15) },
     factors: {
@@ -1420,7 +1421,7 @@ const generateOwnershipCandidate = (
       assets: Math.max(Math.round(valuation * 1.25), 3000000),
       liabilities: 0,
       netWorth: Math.max(Math.round(valuation * 1.25), 3000000),
-      currency: "NPR",
+      currency: homeCurrency(db),
       lastUpdatedAt: date,
       status,
     });

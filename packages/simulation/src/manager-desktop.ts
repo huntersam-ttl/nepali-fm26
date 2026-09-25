@@ -87,6 +87,7 @@ import {
   type TransferLoanCommand,
 } from "@nepal-football-sim/shared-types";
 import { initializeClubEconomyForSave } from "./club-economy.js";
+import { homeCurrency } from "./home-context.js";
 import { buildEntityReference } from "./entity-reference.js";
 import { structuredPressInboxItems } from "./manager-media-desktop.js";
 import { activeConcernCount, validActionsForConcern } from "./squad-dynamics.js";
@@ -1757,7 +1758,7 @@ const budgetView = (
     wageBudget: allocatedWage,
     committedWages: committed,
     wageRemaining: Math.max(0, allocatedWage - committed),
-    currency: financial?.currency ?? "NPR",
+    currency: financial?.currency ?? homeCurrency(db),
   };
 };
 

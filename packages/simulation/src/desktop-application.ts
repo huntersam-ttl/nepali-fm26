@@ -274,9 +274,12 @@ import {
   type TransferRequestResponseCommand,
   type TransferLoanCommand,
 } from "@nepal-football-sim/shared-types";
-import { validateNepalWorldDataset, type NepalWorldDataset } from "@nepal-football-sim/data-import";
+import { validateCountryWorldDataset, type CountryWorldDataset } from "@nepal-football-sim/data-import";
+import { countryPack } from "./country-pack.js";
+import { NEPAL_PACK_ID } from "./country-packs/nepal.js";
+import { homeCountryId, homeFederationAbbreviation, homeFootballContext, homeCurrency } from "./home-context.js";
 import { generateLeagueFixtures } from "./fixture-generation.js";
-import { importNepalWorld } from "./nepal-save.js";
+import { importCountryWorld } from "./nepal-save.js";
 import { applyCanonicalGlobalDatasetSeed } from "./global-football-seed.js";
 import { createCareerCharacter, createManagerContract, testLicence } from "./manager-career.js";
 import {
@@ -300,7 +303,7 @@ import {
   quickSimManagerMatch,
   userMatchRequiresAction,
 } from "./manager-flow.js";
-import { ensureNepalFounderLocations, NEPAL_PROVINCE_DISTRICTS } from "./territorial-football.js";
+import { NEPAL_PROVINCE_DISTRICTS } from "./territorial-football.js";
 import { ensureLowerLeaguePlayableWorld, reconcileWorkforceSupply } from "./workforce-supply.js";
 import { initializePeopleFoundation } from "./people-foundation.js";
 import { reconcilePlayablePlayerProfilesOnce } from "./player-profile-reconciliation.js";
@@ -544,7 +547,6 @@ import { federationDevelopmentSummary } from "./federation-policy.js";
 import { buildNationDevelopmentScorecard } from "./federation-scorecard.js";
 import { buildFederationRefereeContext } from "./federation-referee-context.js";
 import { buildFederationMap, buildDistrictDetail } from "./federation-map.js";
-import { initializeNepalTerritorialStructure } from "./territorial-football.js";
 import { SeededRandom } from "./rng.js";
 import { PLAUSIBLE_CLUB_LOCALITY_HUBS } from "./club-location.js";
 import { buildPlayerPathway } from "./player-pathway.js";
@@ -656,6 +658,8 @@ export type DesktopRuntimeOptions = {
   /** Configurable autosave cadence, in in-game days. Also autosaves on season transitions regardless. */
   autosaveIntervalDays?: number;
   autosaveEnabled?: boolean;
+  /** The country pack new saves are created for. Defaults to the launch country. */
+  countryPackId?: string;
 };
 
 /** Raw sqlite row. Column access is unchecked, exactly as in the repositories. */
@@ -682,7 +686,8 @@ export class DesktopApplicationService {
   private readonly gameVersion: string;
   private readonly autosaveIntervalDays: number;
   private readonly autosaveEnabled: boolean;
-  private dataset?: NepalWorldDataset;
+  private readonly countryPackId: string;
+  private dataset?: CountryWorldDataset;
   private session?: CareerSession;
   /** Test-only deterministic fault injection for setClubVisualIdentity,
    * armed via armE2ENextIdentitySaveFailure — itself gated behind
@@ -700,6 +705,7 @@ export class DesktopApplicationService {
     this.gameVersion = options.gameVersion ?? GAME_VERSION;
     this.autosaveIntervalDays = options.autosaveIntervalDays ?? DEFAULT_AUTOSAVE_INTERVAL_DAYS;
     this.autosaveEnabled = options.autosaveEnabled ?? true;
+    this.countryPackId = options.countryPackId ?? NEPAL_PACK_ID;
   }
 
   getDatasetAttribution(): AppResult<DatasetAttributionSummary> {
@@ -771,15 +777,11 @@ export class DesktopApplicationService {
       if (!club?.id) return [];
       const vacancy = db
         .prepare(
-          "SELECT j.id, c.name AS competition_name FROM manager_job_vacancies j JOIN teams t ON t.id=j.team_id LEFT JOIN club_memberships cm ON cm.team_id=t.id AND cm.status='ACTIVE' LEFT JOIN competition_seasons cs ON cs.id=cm.competition_season_id LEFT JOIN competitions c ON c.id=cs.competition_id WHERE j.club_id=? AND j.status='OPEN' ORDER BY j.opened_on LIMIT 1",
+          "SELECT j.id, (SELECT tier FROM competition_tiers WHERE competition_id = c.id) AS tier FROM manager_job_vacancies j JOIN teams t ON t.id=j.team_id LEFT JOIN club_memberships cm ON cm.team_id=t.id AND cm.status='ACTIVE' LEFT JOIN competition_seasons cs ON cs.id=cm.competition_season_id LEFT JOIN competitions c ON c.id=cs.competition_id WHERE j.club_id=? AND j.status='OPEN' ORDER BY j.opened_on LIMIT 1",
         )
-        .get(club.id) as { id?: EntityId; competition_name?: string } | undefined;
+        .get(club.id) as { id?: EntityId; tier?: number | null } | undefined;
       if (!vacancy?.id) return [];
-      const division = vacancy.competition_name?.toLowerCase().includes("a-division")
-        ? "A"
-        : vacancy.competition_name?.toLowerCase().includes("b-division")
-          ? "B"
-          : "C";
+      const division = vacancy.tier === 1 ? "A" : vacancy.tier === 2 ? "B" : "C";
       const wageExpectation =
         division === "A" ? 8_000_000 : division === "B" ? 5_000_000 : 2_500_000;
       return new ManagerRepository(db)
@@ -810,11 +812,11 @@ export class DesktopApplicationService {
 
   createCareer(command: CareerCreationCommand): AppResult<DesktopApplicationState> {
     let filePath: string;
-    let dataset: NepalWorldDataset;
+    let dataset: CountryWorldDataset;
     try {
       dataset = this.worldDataset();
     } catch (error) {
-      return fail("WORLD_DATA_UNAVAILABLE", "Could not read the Nepal world dataset.", error);
+      return fail("WORLD_DATA_UNAVAILABLE", `Could not read the ${countryPack(this.countryPackId).countryName} world dataset.`, error);
     }
 
     const options = startingClubOptions(dataset);
@@ -848,18 +850,14 @@ export class DesktopApplicationService {
       migrateDatabase(db);
       db.exec("BEGIN;");
       try {
-        importNepalWorld(db, dataset);
-        initializeNepalTerritorialStructure(db, `${dataset.meta.targetDatabaseDate}-01`);
-        ensureNepalFounderLocations(db);
+        importCountryWorld(db, dataset, countryPack(this.countryPackId), `${dataset.meta.targetDatabaseDate}-01`);
         ensurePlayableClubVenues(db, `${dataset.meta.targetDatabaseDate}-01`);
-        const candidateCountry = db
-          .prepare("SELECT id FROM countries WHERE iso_code IN ('NP','NPL') ORDER BY id LIMIT 1")
-          .get() as { id?: EntityId } | undefined;
-        if (candidateCountry?.id)
+        const homeCountry = homeCountryId(db);
+        if (homeCountry)
           ensureOwnerManagerCandidateSupply(db, {
             date: `${dataset.meta.targetDatabaseDate}-01`,
             seed: `career:${command.saveName}`,
-            countryId: candidateCountry.id,
+            countryId: homeCountry,
           });
         ensureLowerLeaguePlayableWorld({
           db,
@@ -877,7 +875,7 @@ export class DesktopApplicationService {
           : (() => {
               const row = db!
                 .prepare(
-                  `SELECT cs.* FROM competition_seasons cs JOIN competitions c ON c.id=cs.competition_id WHERE lower(c.name) LIKE '%c-division%' ORDER BY cs.start_date LIMIT 1`,
+                  `SELECT cs.* FROM competition_seasons cs JOIN competitions c ON c.id=cs.competition_id WHERE (SELECT tier FROM competition_tiers WHERE competition_id = c.id) = 3 ORDER BY cs.start_date LIMIT 1`,
                 )
                 .get() as Record<string, string> | undefined;
               if (!row)
@@ -934,7 +932,7 @@ export class DesktopApplicationService {
           const founder = command.founder!;
           const location = db
             .prepare(
-              "SELECT id FROM locations WHERE country_id=(SELECT id FROM countries WHERE iso_code IN ('NP','NPL') ORDER BY id LIMIT 1) AND kind='district' AND lower(name)=lower(?) LIMIT 1",
+              "SELECT id FROM locations WHERE country_id=(SELECT country_id FROM home_football_country LIMIT 1) AND kind='district' AND lower(name)=lower(?) LIMIT 1",
             )
             .get(founder.locationName ?? founder.clubName) as { id?: EntityId } | undefined;
           if (!location?.id)
@@ -2127,7 +2125,7 @@ export class DesktopApplicationService {
       // structure was wired into career creation: upsertDistrict/Province
       // never overwrite an existing row's tracked stats, so this is a
       // no-op on any save that already has the structure.
-      initializeNepalTerritorialStructure(db, save.worldDate);
+      countryPack(homeFootballContext(db).packId).ensureTerritorialStructure?.(db, save.worldDate);
       return buildFederationMap(db, federationId);
     });
   }
@@ -2136,7 +2134,7 @@ export class DesktopApplicationService {
     return this.withSession((db, save) => {
       const personId = careerPersonId(db, save);
       const federationId = this.currentFederationId(db, personId);
-      initializeNepalTerritorialStructure(db, save.worldDate);
+      countryPack(homeFootballContext(db).packId).ensureTerritorialStructure?.(db, save.worldDate);
       const detail = buildDistrictDetail(db, federationId, districtId, "FEDERATION_PRESIDENT");
       if (!detail) throw appError("INVALID_SELECTION", "That district is not on record.");
       return detail;
@@ -2354,7 +2352,7 @@ export class DesktopApplicationService {
             id: createStableEntityId("staff-licence", candidateId),
             personId: candidateId,
             licenceType: "AFC_B",
-            issuer: "ANFA",
+            issuer: homeFederationAbbreviation(db),
             status: "VERIFIED",
           });
         }
@@ -2642,7 +2640,7 @@ export class DesktopApplicationService {
         expectedCompletion: "2027-01-01",
         capitalCost: 5_000_000,
         ongoingCost: 100_000,
-        currency: "NPR",
+        currency: homeCurrency(db),
         status: "APPROVED",
         financingJson: {},
         provenanceStatus: "SIMULATION_ONLY",
@@ -2823,7 +2821,7 @@ export class DesktopApplicationService {
       const location = db
         .prepare(
           `SELECT l.id FROM locations l JOIN countries co ON co.id = l.country_id
-         WHERE co.iso_code IN ('NP', 'NPL') AND l.kind IN ('district', 'municipality', 'city')
+         WHERE co.id = (SELECT country_id FROM home_football_country LIMIT 1) AND l.kind IN ('district', 'municipality', 'city')
            AND lower(trim(l.name)) = lower(trim(?)) ORDER BY l.id LIMIT 1`,
         )
         .get(locationName) as { id?: EntityId } | undefined;
@@ -5817,10 +5815,10 @@ export class DesktopApplicationService {
     }
   }
 
-  private worldDataset(): NepalWorldDataset {
+  private worldDataset(): CountryWorldDataset {
     if (!this.dataset) {
       const raw = JSON.parse(readFileSync(this.worldDatasetPath, "utf8")) as unknown;
-      this.dataset = validateNepalWorldDataset(raw);
+      this.dataset = validateCountryWorldDataset(raw);
     }
     return this.dataset;
   }
@@ -5993,7 +5991,7 @@ const estimatedClubLocality = (clubKey: string): string => {
   return `${PLAUSIBLE_CLUB_LOCALITY_HUBS[index]} (estimated)`;
 };
 
-export const startingClubOptions = (dataset: NepalWorldDataset): StartingClubOption[] => {
+export const startingClubOptions = (dataset: CountryWorldDataset): StartingClubOption[] => {
   const squadSizes = new Map<string, number>();
   for (const assignment of dataset.teamPersonAssignments) {
     if (assignment.role !== "PLAYER") continue;
@@ -6079,7 +6077,7 @@ const seasonForTeam = (db: GameDatabase, teamId: EntityId): CompetitionSeason =>
       JOIN competitions c ON c.id = cs.competition_id
       WHERE cm.team_id = ? AND cm.status = 'ACTIVE'
         AND NOT EXISTS (SELECT 1 FROM competition_season_states s WHERE s.competition_season_id = cs.id AND s.status = 'ROLLED_OVER')
-      ORDER BY CASE WHEN lower(c.name) LIKE '%a-division%' OR lower(c.name) LIKE '%b-division%' OR lower(c.name) LIKE '%c-division%' THEN 0 ELSE 1 END, cs.start_date LIMIT 1`,
+      ORDER BY CASE WHEN (SELECT tier FROM competition_tiers WHERE competition_id = c.id) = 1 OR (SELECT tier FROM competition_tiers WHERE competition_id = c.id) = 2 OR (SELECT tier FROM competition_tiers WHERE competition_id = c.id) = 3 THEN 0 ELSE 1 END, cs.start_date LIMIT 1`,
     )
     .get(teamId) as Record<string, string> | undefined;
   if (!row) {

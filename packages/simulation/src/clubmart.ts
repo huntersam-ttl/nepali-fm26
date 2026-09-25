@@ -1,9 +1,9 @@
 import { createStableEntityId, type EntityId, type ProcurementCategory, type ProcurementContract, type ProcurementOffer, type ProcurementOrder, type ProcurementRequest, type ProcurementServiceRecord, type ProcurementSupplier } from "@nepal-football-sim/shared-types";
 import { ClubEconomyRepository, ProcurementRepository, type GameDatabase } from "@nepal-football-sim/database";
 import { postClubTransaction } from "./club-economy.js";
+import { homeCurrency } from "./home-context.js";
 import { SeededRandom } from "./rng.js";
 
-const currency = "NPR";
 const addDays = (date: string, days: number): string => { const value = new Date(`${date}T00:00:00Z`); value.setUTCDate(value.getUTCDate() + days); return value.toISOString().slice(0, 10); };
 const budgetFor = (category: ProcurementCategory): "ACADEMY_BUDGET" | "FACILITY_BUDGET" | "SCOUTING_BUDGET" => category === "ANALYSIS_SCOUTING" ? "SCOUTING_BUDGET" : category === "KITS_TRAINING_WEAR" || category === "FOOTBALL_EQUIPMENT" ? "ACADEMY_BUDGET" : "FACILITY_BUDGET";
 const suppliers: Array<Omit<ProcurementSupplier, "id">> = [
@@ -132,7 +132,7 @@ export const advanceProcurementOrders = (db: GameDatabase, input: { date: string
     const delivered = Boolean(offer && rng.next() <= offer.reliability);
     const next = delivered ? { ...order, status: "DELIVERED" as const, deliveredOn: input.date } : { ...order, status: "FAILED" as const };
     repo.upsertOrder(next); repo.upsertRequest({ ...repo.requests().find((item) => item.id === order.requestId)!, status: delivered ? "DELIVERED" : "FAILED", statusText: delivered ? "Delivered" : "Delivery failed" });
-    if (delivered) new ClubEconomyRepository(db).upsertAsset({ id: createStableEntityId("procurement-asset", order.id), clubId: order.clubId, assetType: "EQUIPMENT", ownership: "OWNED", estimatedValue: Math.round(order.totalCost * order.quality / 10), currency, status: "SIMULATION_ONLY", effect: equipmentEffect(order.category, order.quality) });
+    if (delivered) new ClubEconomyRepository(db).upsertAsset({ id: createStableEntityId("procurement-asset", order.id), clubId: order.clubId, assetType: "EQUIPMENT", ownership: "OWNED", estimatedValue: Math.round(order.totalCost * order.quality / 10), currency: homeCurrency(db), status: "SIMULATION_ONLY", effect: equipmentEffect(order.category, order.quality) });
     updated.push(next);
   }
   return updated;

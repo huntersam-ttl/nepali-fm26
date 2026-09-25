@@ -22,6 +22,7 @@ import {
 } from "@nepal-football-sim/database";
 import { PLAYABLE_CLUB_PREDICATE } from "./playable-world.js";
 import { SeededRandom } from "./rng.js";
+import { homeCountryId, homeFederationAbbreviation, homeNamePool } from "./home-context.js";
 import { generateYouthCohort } from "./youth-intake.js";
 import { generateAiStaff } from "./staff-market.js";
 
@@ -77,8 +78,8 @@ const playableNepalLeagueClubs = (
         `
     SELECT DISTINCT c.id AS club_id, t.id AS team_id,
       CASE
-        WHEN lower(comp.name) LIKE '%a-division%' THEN 'A'
-        WHEN lower(comp.name) LIKE '%b-division%' THEN 'B'
+        WHEN (SELECT tier FROM competition_tiers WHERE competition_id = comp.id) = 1 THEN 'A'
+        WHEN (SELECT tier FROM competition_tiers WHERE competition_id = comp.id) = 2 THEN 'B'
         ELSE 'C'
       END AS division
     FROM club_memberships cm
@@ -88,7 +89,7 @@ const playableNepalLeagueClubs = (
     WHERE cm.status='ACTIVE'
       AND t.level='senior' AND t.gender='men'
       AND ${PLAYABLE_CLUB}
-      AND (lower(comp.name) LIKE '%a-division%' OR lower(comp.name) LIKE '%b-division%' OR lower(comp.name) LIKE '%c-division%')
+      AND ((SELECT tier FROM competition_tiers WHERE competition_id = comp.id) = 1 OR (SELECT tier FROM competition_tiers WHERE competition_id = comp.id) = 2 OR (SELECT tier FROM competition_tiers WHERE competition_id = comp.id) = 3)
     ORDER BY c.id
   `,
       )
@@ -99,18 +100,12 @@ const playableNepalLeagueClubs = (
 // World counting helpers (indexed queries only - no per-day full scans)
 // ---------------------------------------------------------------------------
 
+/** The home country. A world with no home country at all (a hand-built fixture, never a real save) works in its first country. */
+const workforceCountryId = (db: GameDatabase): EntityId | undefined =>
+  homeCountryId(db) ?? (db.prepare("SELECT id FROM countries ORDER BY id LIMIT 1").get() as { id?: EntityId } | undefined)?.id;
+
 const scalar = (db: GameDatabase, sql: string, ...params: unknown[]): number =>
   Number((db.prepare(sql).get(...(params as [])) as { n?: number } | undefined)?.n ?? 0);
-
-const nepalCountryId = (db: GameDatabase): EntityId | undefined =>
-  (
-    db.prepare("SELECT id FROM countries WHERE iso_code = 'NPL' LIMIT 1").get() as
-      { id?: EntityId } | undefined
-  )?.id ??
-  (
-    db.prepare("SELECT id FROM countries ORDER BY id LIMIT 1").get() as
-      { id?: EntityId } | undefined
-  )?.id;
 
 /*
  * The detailed Nepal world is not every club in the database. The canonical
@@ -375,38 +370,6 @@ export const demandLine = (
 // Officiating supply
 // ---------------------------------------------------------------------------
 
-const OFFICIAL_FIRST_NAMES = [
-  "Bhim",
-  "Chandra",
-  "Dipak",
-  "Gopal",
-  "Hari",
-  "Indra",
-  "Keshav",
-  "Madhav",
-  "Narayan",
-  "Padam",
-  "Ramesh",
-  "Santosh",
-  "Tek",
-  "Umesh",
-];
-const OFFICIAL_FEMALE_FIRST_NAMES = ["Anjana", "Bhawana", "Kamala", "Menuka", "Sarita", "Sunita"];
-const OFFICIAL_SURNAMES = [
-  "Adhikari",
-  "Bhandari",
-  "Chaudhary",
-  "Gurung",
-  "Karki",
-  "Lama",
-  "Magar",
-  "Poudel",
-  "Rai",
-  "Shrestha",
-  "Tamang",
-  "Thapa",
-];
-
 /**
  * Creates one entry-level official. New officials always start at the bottom
  * domestic level with modest quality - the world never generates a ready-made
@@ -427,8 +390,9 @@ export const generateOfficial = (input: {
   const key = `${input.seasonLabel}:${input.role}:${gender}:${input.index}`;
   const rng = new SeededRandom(`official:${key}`);
   const personId = createStableEntityId("person-generated-official", key);
-  const first = rng.pick(gender === "female" ? OFFICIAL_FEMALE_FIRST_NAMES : OFFICIAL_FIRST_NAMES);
-  const fullName = `${first} ${rng.pick(OFFICIAL_SURNAMES)}`;
+  const names = homeNamePool(input.db);
+  const first = rng.pick(gender === "female" ? names.officials.femaleFirst : names.officials.maleFirst);
+  const fullName = `${first} ${rng.pick(names.officials.surnames)}`;
   const environment = clamp(input.developmentEnvironment ?? 35, 0, 100);
   const age = 22 + rng.integer(0, 8);
   const birthYear = Number(input.date.slice(0, 4)) - age;
@@ -441,7 +405,7 @@ export const generateOfficial = (input: {
     dateOfBirth: `${birthYear}-${String(1 + rng.integer(0, 11)).padStart(2, "0")}-${String(1 + rng.integer(0, 27)).padStart(2, "0")}`,
     nationalityCountryId: input.countryId,
     genderPresentation: gender,
-    languages: ["Nepali"],
+    languages: [...names.languageNames],
   };
   if (!world.getPerson(personId)) world.insertPerson(person);
   /* Officials are football workforce, not players: the person-role vocabulary
@@ -615,7 +579,7 @@ export const reconcileWorkforceSupply = (input: {
   const db = input.db;
   const seasonLabel = input.seasonLabel ?? input.date.slice(0, 4);
   const workforce = new WorkforceSupplyRepository(db);
-  const countryId = nepalCountryId(db);
+  const countryId = workforceCountryId(db);
   const report: WorkforceReconciliationReport = {
     date: input.date,
     seasonLabel,
@@ -700,6 +664,8 @@ export const reconcileWorkforceSupply = (input: {
       input.date,
       countryId,
       role,
+      homeNamePool(db),
+      homeFederationAbbreviation(db),
     );
     if (!world.getPerson(generated.person.id)) world.insertPerson(generated.person);
     world.insertPersonRole({
@@ -846,7 +812,7 @@ export const initializeWorkforceSupplyForSave = (input: {
   worldDate: string;
   seed: string;
 }): number => {
-  const countryId = nepalCountryId(input.db);
+  const countryId = workforceCountryId(input.db);
   if (!countryId) return 0;
   const workforce = new WorkforceSupplyRepository(input.db);
   const seasonLabel = input.worldDate.slice(0, 4);
@@ -937,7 +903,7 @@ export const ensureLowerLeaguePlayableWorld = (input: {
   targetSquadSize?: number;
 }): LowerLeagueClubCoverage[] => {
   const db = input.db;
-  const countryId = nepalCountryId(db);
+  const countryId = workforceCountryId(db);
   if (!countryId) return [];
   db.exec(
     `CREATE TABLE IF NOT EXISTS lower_league_bootstrap (club_id TEXT PRIMARY KEY, completed_on TEXT NOT NULL, generated_count INTEGER NOT NULL, provenance_status TEXT NOT NULL)`,
@@ -1157,19 +1123,19 @@ export const lowerLeagueCoverageReport = (input: {
     .reduce((sum, club) => sum + club.realPlayers, 0);
   const aDivisionHeadCoaches = scalar(
     db,
-    "SELECT COUNT(DISTINCT sa.person_id) AS n FROM staff_appointments sa JOIN club_memberships cm ON cm.club_id=sa.club_id JOIN competitions c ON c.id=cm.competition_id WHERE sa.role='HEAD_COACH' AND sa.employment_status='ACTIVE' AND lower(c.name) LIKE '%a-division%'",
+    "SELECT COUNT(DISTINCT sa.person_id) AS n FROM staff_appointments sa JOIN club_memberships cm ON cm.club_id=sa.club_id JOIN competitions c ON c.id=cm.competition_id WHERE sa.role='HEAD_COACH' AND sa.employment_status='ACTIVE' AND (SELECT tier FROM competition_tiers WHERE competition_id = c.id) = 1",
   );
   const bDivisionHeadCoaches = scalar(
     db,
-    "SELECT COUNT(DISTINCT sa.person_id) AS n FROM staff_appointments sa JOIN club_memberships cm ON cm.club_id=sa.club_id JOIN competitions c ON c.id=cm.competition_id WHERE sa.role='HEAD_COACH' AND sa.employment_status='ACTIVE' AND lower(c.name) LIKE '%b-division%'",
+    "SELECT COUNT(DISTINCT sa.person_id) AS n FROM staff_appointments sa JOIN club_memberships cm ON cm.club_id=sa.club_id JOIN competitions c ON c.id=cm.competition_id WHERE sa.role='HEAD_COACH' AND sa.employment_status='ACTIVE' AND (SELECT tier FROM competition_tiers WHERE competition_id = c.id) = 2",
   );
   const cDivisionHeadCoaches = scalar(
     db,
-    "SELECT COUNT(DISTINCT sa.person_id) AS n FROM staff_appointments sa JOIN club_memberships cm ON cm.club_id=sa.club_id JOIN competitions c ON c.id=cm.competition_id WHERE sa.role='HEAD_COACH' AND sa.employment_status='ACTIVE' AND lower(c.name) LIKE '%c-division%'",
+    "SELECT COUNT(DISTINCT sa.person_id) AS n FROM staff_appointments sa JOIN club_memberships cm ON cm.club_id=sa.club_id JOIN competitions c ON c.id=cm.competition_id WHERE sa.role='HEAD_COACH' AND sa.employment_status='ACTIVE' AND (SELECT tier FROM competition_tiers WHERE competition_id = c.id) = 3",
   );
   const generatedLowerLeagueManagers = scalar(
     db,
-    "SELECT COUNT(DISTINCT sa.person_id) AS n FROM staff_appointments sa JOIN staff_simulation_profiles ssp ON ssp.person_id=sa.person_id JOIN club_memberships cm ON cm.club_id=sa.club_id JOIN competitions c ON c.id=cm.competition_id WHERE sa.role='HEAD_COACH' AND sa.employment_status='ACTIVE' AND (lower(c.name) LIKE '%a-division%' OR lower(c.name) LIKE '%b-division%' OR lower(c.name) LIKE '%c-division%')",
+    "SELECT COUNT(DISTINCT sa.person_id) AS n FROM staff_appointments sa JOIN staff_simulation_profiles ssp ON ssp.person_id=sa.person_id JOIN club_memberships cm ON cm.club_id=sa.club_id JOIN competitions c ON c.id=cm.competition_id WHERE sa.role='HEAD_COACH' AND sa.employment_status='ACTIVE' AND ((SELECT tier FROM competition_tiers WHERE competition_id = c.id) = 1 OR (SELECT tier FROM competition_tiers WHERE competition_id = c.id) = 2 OR (SELECT tier FROM competition_tiers WHERE competition_id = c.id) = 3)",
   );
   return {
     generatedOn: input.date,

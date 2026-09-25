@@ -1,3 +1,4 @@
+import { isHomeCountry } from "./home-context.js";
 import { MediaPhaseBRepository, MediaRepository } from "@nepal-football-sim/database";
 import type { GameDatabase } from "@nepal-football-sim/database";
 import type {
@@ -168,12 +169,13 @@ const organizationContext = (
 ): OrganizationProfile["organizationContext"] => {
   if (provenance === "CONTEXT_ONLY") return "CONTEXT_ONLY";
   const row = type === "LENDER"
-    ? db.prepare("SELECT c.iso_code FROM club_lenders l LEFT JOIN countries c ON c.id=l.country_id WHERE l.id=?").get(organizationId) as Row | undefined
+    ? db.prepare("SELECT c.id AS country_id FROM club_lenders l LEFT JOIN countries c ON c.id=l.country_id WHERE l.id=?").get(organizationId) as Row | undefined
     : type === "SPONSOR"
-      ? db.prepare("SELECT c.iso_code FROM sponsor_organisations s LEFT JOIN countries c ON c.id=s.country_id WHERE s.id=?").get(organizationId) as Row | undefined
-      : db.prepare("SELECT c.iso_code FROM persons p LEFT JOIN countries c ON c.id=p.nationality_country_id WHERE p.id=?").get(organizationId) as Row | undefined;
-  if (!row?.iso_code) return "UNKNOWN";
-  return row.iso_code === "NP" ? "NEPAL" : "MULTINATIONAL";
+      ? db.prepare("SELECT c.id AS country_id FROM sponsor_organisations s LEFT JOIN countries c ON c.id=s.country_id WHERE s.id=?").get(organizationId) as Row | undefined
+      : db.prepare("SELECT c.id AS country_id FROM persons p LEFT JOIN countries c ON c.id=p.nationality_country_id WHERE p.id=?").get(organizationId) as Row | undefined;
+  if (!row?.country_id) return "UNKNOWN";
+  // "NEPAL" is the stored label for the home country's own organisations.
+  return isHomeCountry(db, row.country_id as EntityId) ? "NEPAL" : "MULTINATIONAL";
 };
 
 const rightsDeals = (db: GameDatabase, organizationId: EntityId): OrganizationCommercialDeal[] => {

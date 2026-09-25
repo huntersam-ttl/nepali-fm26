@@ -21,6 +21,7 @@ import {
 import { initializeTransferMarketForSave } from "./transfer-market.js";
 import { generateYouthCohort } from "./youth-intake.js";
 import { SeededRandom } from "./rng.js";
+import { homeCountryId, homeFederationAbbreviation, homeNamePool } from "./home-context.js";
 import { considerForeignInternationalTrials } from "./international-trials.js";
 import { createInitialDevelopmentState, updatePlayerDevelopment } from "./player-development.js";
 import { generateSimulationPlayerProfile } from "./player-profile-generation.js";
@@ -356,9 +357,7 @@ const produceDiasporaPlayers = (
     contextKey: "nepal-diaspora",
     date: input.seasonEndDate,
   })) return;
-  const nepal = input.db
-    .prepare("SELECT id FROM countries WHERE iso_code IN ('NP', 'NPL') ORDER BY CASE iso_code WHEN 'NP' THEN 0 ELSE 1 END LIMIT 1")
-    .get() as { id?: EntityId } | undefined;
+  const nepal = { id: homeCountryId(input.db) } as { id?: EntityId };
   if (!nepal?.id) return;
   const ordered = [...clubs].sort((a, b) => {
     const left = new SeededRandom(`${input.seed}:diaspora:${year}:${a.club_id}`).next();
@@ -772,7 +771,7 @@ export const updateForeignScoutingInterest = (db: GameDatabase, input: { date: s
     const existing = knownPlayers.get(player.player_id);
     if (club) contexts.upsertPlayer({ playerId: player.player_id, clubId: player.club_id, region: existing?.region ?? club.recruitmentRegions[0] ?? "WIDER_ASIA", reputation: existing?.reputation ?? startingReputationFor(db, new PlayerRepository(db), new WorldRepository(db), player.player_id, club.reputation, input.date), interestLevel: existing?.interestLevel ?? "UNKNOWN", careerState: "ACTIVE", updatedOn: input.date });
   }
-  const targets = db.prepare(`SELECT p.player_id AS player_id, p.current_club_id AS club_id FROM player_factual_profiles p JOIN clubs c ON c.id = p.current_club_id JOIN countries country ON country.id = c.country_id WHERE country.iso_code IN ('NPL','NP') ORDER BY p.player_id LIMIT 12`).all() as Array<{ player_id: EntityId; club_id: EntityId }>;
+  const targets = db.prepare(`SELECT p.player_id AS player_id, p.current_club_id AS club_id FROM player_factual_profiles p JOIN clubs c ON c.id = p.current_club_id JOIN countries country ON country.id = c.country_id WHERE country.id = (SELECT country_id FROM home_football_country LIMIT 1) ORDER BY p.player_id LIMIT 12`).all() as Array<{ player_id: EntityId; club_id: EntityId }>;
   for (const club of contexts.clubs().filter((item) => item.scoutingReach >= 40)) {
     for (const target of targets.slice(0, club.scoutingReach >= 60 ? 2 : 1)) {
       const score = Math.max(0, Math.min(100, club.scoutingReach * 0.45 + 35));
@@ -798,7 +797,7 @@ const seedForeignStaff = (
   const world = new WorldRepository(db);
   for (const role of FOREIGN_ROLES) {
     const key = `${seed}:foreign-staff:${clubId}:${role}`;
-    const generated = generateAiStaff(key, date, countryId, role);
+    const generated = generateAiStaff(key, date, countryId, role, homeNamePool(db), homeFederationAbbreviation(db));
     if (!world.getPerson(generated.person.id)) {
       world.insertPerson(generated.person);
       world.insertPersonRole({

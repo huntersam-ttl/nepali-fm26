@@ -14,6 +14,7 @@ import {
 } from "@nepal-football-sim/shared-types";
 import { calculateClubValuation, postClubTransaction, setClubBudget } from "./club-economy.js";
 import { executiveHasAuthority } from "./executive-roles.js";
+import { homeCountryId, homeCurrency } from "./home-context.js";
 
 export class ClubFinanceAuthorityError extends Error {
   constructor(
@@ -62,7 +63,6 @@ const assertClubFinanceAuthority = (
   );
 };
 
-const currency = "NPR";
 const status = "SIMULATION_ONLY" as const;
 const addMonths = (date: string, months: number): string => {
   const value = new Date(`${date}T00:00:00Z`);
@@ -78,12 +78,9 @@ const lenders: Array<Omit<ClubLender, "id" | "countryId">> = [
   { name: "Muktinath Bikas Bank Limited", institutionType: "DEVELOPMENT_BANK", sourceUrl: "https://www.nrb.org.np/bfr/bfis-list-in-english-mid-january-2026/", status: "VERIFIED" },
 ];
 
-const nepalCountryId = (db: GameDatabase): EntityId | undefined =>
-  (db.prepare("SELECT id FROM countries WHERE iso_code IN ('NP','NPL') ORDER BY id LIMIT 1").get() as { id?: EntityId } | undefined)?.id;
-
 export const initializeClubFinanceMarkets = (db: GameDatabase): ClubLender[] => {
   const economy = new ClubEconomyRepository(db);
-  const countryId = nepalCountryId(db);
+  const countryId = homeCountryId(db);
   for (const lender of lenders) {
     economy.upsertLender({ ...lender, id: createStableEntityId("club-lender", lender.name), countryId });
   }
@@ -125,7 +122,7 @@ export const applyForClubLoan = (db: GameDatabase, input: { clubId: EntityId; le
   const scheduledPayment = Math.ceil((principal * (1 + interestRate * termMonths / 12)) / termMonths);
   const debt: ClubDebt = {
     id: createStableEntityId("club-debt", application.id), clubId: input.clubId, lenderType: "BANK", lenderId: input.lenderId,
-    principal, outstandingPrincipal: principal, interestRate, currency, startDate: input.date,
+    principal, outstandingPrincipal: principal, interestRate, currency: homeCurrency(db), startDate: input.date,
     maturityDate: addMonths(input.date, termMonths), nextPaymentDate: addMonths(input.date, 1), scheduledPayment,
     repaymentSchedule: "MONTHLY", purpose: input.purpose, status: "ACTIVE", provenanceStatus: status,
   };

@@ -15,6 +15,7 @@ import {
   type GameDatabase,
 } from "@nepal-football-sim/database";
 import { createInitialDevelopmentState } from "./player-development.js";
+import { homeCurrency } from "./home-context.js";
 import { SeededRandom } from "./rng.js";
 
 export type PreseasonContinuityReport = {
@@ -72,7 +73,6 @@ type Candidate = {
 const minimumSquadSize = 11;
 const healthySquadSize = 22;
 const goalkeeperTarget = 2;
-const currency = "NPR";
 
 export const repairPreseasonContinuity = (input: {
   db: GameDatabase;
@@ -83,7 +83,7 @@ export const repairPreseasonContinuity = (input: {
   const reports: PreseasonContinuityReport[] = [];
   for (const seasonId of input.competitionSeasonIds) {
     const meta = competitionSeasonMeta(input.db, seasonId);
-    if (!meta || !isCoreContinuityCompetition(meta.competitionName)) {
+    if (!meta || !isCoreContinuityCompetition(meta)) {
       continue;
     }
     const clubs = memberClubs(input.db, seasonId);
@@ -363,7 +363,7 @@ const ensureRepairContract = (
     cleanSheetBonus: 0,
     signingBonus: 0,
     loyaltyBonus: 0,
-    currency,
+    currency: homeCurrency(db),
     squadRole,
     status: "ACTIVE",
     provenance: {
@@ -456,16 +456,18 @@ const createEmergencyPlayer = (
 const competitionSeasonMeta = (
   db: GameDatabase,
   seasonId: EntityId,
-): { competitionName: string; startDate: string } | undefined => {
+): { competitionName: string; startDate: string; category: string | null; homeMembers: number } | undefined => {
   const row = db
     .prepare(
-      `SELECT c.name AS competition_name, cs.start_date
+      `SELECT c.name AS competition_name, cs.start_date, c.category AS category,
+        (SELECT COUNT(*) FROM club_memberships m JOIN clubs cl ON cl.id = m.club_id
+          WHERE m.competition_season_id = cs.id AND cl.country_id = (SELECT country_id FROM home_football_country LIMIT 1)) AS home_members
       FROM competition_seasons cs
       JOIN competitions c ON c.id = cs.competition_id
       WHERE cs.id = ?`,
     )
     .get(seasonId) as any;
-  return row ? { competitionName: row.competition_name, startDate: row.start_date } : undefined;
+  return row ? { competitionName: row.competition_name, startDate: row.start_date, category: row.category ?? null, homeMembers: Number(row.home_members ?? 0) } : undefined;
 };
 
 const memberClubs = (db: GameDatabase, seasonId: EntityId): RepairClub[] =>
@@ -529,15 +531,15 @@ const shallowestPosition = (db: GameDatabase, club: RepairClub): string | undefi
   )[0];
 };
 
-const isCoreContinuityCompetition = (name: string): boolean =>
-  name === "ANFA National League" ||
-  name === "Nepal Super League" ||
-  name === "Martyr's Memorial A-Division League" ||
-  name === "Martyr's Memorial B-Division League" ||
-  // The C-Division is a division a player can start a career in and where
-  // promoted and relegated clubs meet, so it must keep fielding squads.
-  name === "Martyr's Memorial C-Division League" ||
-  name === "Nepal Women's League";
+/**
+ * A competition is core to continuity when it is a domestic league (of any format) played by
+ * the home country's clubs. The C-Division is a division a player can start a career in and
+ * where promoted and relegated clubs meet, so it must keep fielding squads. Membership, not
+ * the competition's federation link, decides "home": some datasets leave the link empty.
+ */
+const DOMESTIC_LEAGUE_CATEGORIES = ["PYRAMID_LEAGUE", "SPECIAL_NATIONAL_LEAGUE", "FRANCHISE_LEAGUE", "WOMENS_LEAGUE"];
+const isCoreContinuityCompetition = (meta: { category: string | null; homeMembers: number }): boolean =>
+  meta.homeMembers > 0 && DOMESTIC_LEAGUE_CATEGORIES.includes(meta.category ?? "");
 
 const emergencyAttributes = (
   personId: EntityId,

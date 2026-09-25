@@ -1,17 +1,12 @@
 import type { CareerRole, CompetitionPyramid, CompetitionPyramidTier, EntityId } from "@nepal-football-sim/shared-types";
 import { CompetitionCommercialRepository, CompetitionRepository, type GameDatabase } from "@nepal-football-sim/database";
 import { buildEntityReference } from "./entity-reference.js";
+import { homeFootballContext } from "./home-context.js";
 
-/** Real domestic tiers are identified by name today (there is no explicit
- * tier-number column on `competitions`) — the same pattern already used by
- * commercial-rights.ts to find the league title-sponsor competition. Only
- * recognizes tiers that genuinely exist in the dataset; never invents a
- * division that isn't there. */
-const TIER_PATTERNS: Array<{ level: number; label: string; pattern: string }> = [
-  { level: 1, label: "A Division", pattern: "%a-division%" },
-  { level: 2, label: "B Division", pattern: "%b-division%" },
-  { level: 3, label: "C Division", pattern: "%c-division%" },
-];
+/** Real domestic tiers come from the promotion/relegation relationships between the
+ * federation's competitions (the `competition_tiers` view), labelled by the country
+ * pack. Only tiers that genuinely exist in the dataset appear; a division that isn't
+ * there is never invented. */
 
 /**
  * The domestic competition pyramid — every tier the dataset actually
@@ -22,10 +17,17 @@ const TIER_PATTERNS: Array<{ level: number; label: string; pattern: string }> = 
 export const buildCompetitionPyramid = (db: GameDatabase, federationId: EntityId, role: CareerRole, worldDate: string): CompetitionPyramid => {
   const repository = new CompetitionRepository(db);
   const tiers: CompetitionPyramidTier[] = [];
-  for (const { level, label, pattern } of TIER_PATTERNS) {
+  const labels = homeFootballContext(db).tierLabels;
+  const levels = (
+    db
+      .prepare("SELECT DISTINCT t.tier AS tier FROM competition_tiers t JOIN competitions c ON c.id = t.competition_id WHERE c.federation_id = ? AND c.scope = 'domestic' ORDER BY t.tier")
+      .all(federationId) as Array<{ tier: number }>
+  ).map((row) => row.tier);
+  for (const level of levels) {
+    const label = labels[level - 1] ?? `Tier ${level}`;
     const competition = db
-      .prepare("SELECT id, name FROM competitions WHERE federation_id=? AND scope='domestic' AND lower(name) LIKE ? ORDER BY (SELECT COUNT(*) FROM competition_seasons cs WHERE cs.competition_id = competitions.id) DESC, id LIMIT 1")
-      .get(federationId, pattern) as { id: EntityId; name: string } | undefined;
+      .prepare("SELECT id, name FROM competitions WHERE federation_id=? AND scope='domestic' AND (SELECT tier FROM competition_tiers WHERE competition_id = competitions.id) = ? ORDER BY (SELECT COUNT(*) FROM competition_seasons cs WHERE cs.competition_id = competitions.id) DESC, id LIMIT 1")
+      .get(federationId, level) as { id: EntityId; name: string } | undefined;
     if (!competition) continue;
     const season = db
       .prepare("SELECT id, name, start_date, end_date FROM competition_seasons WHERE competition_id=? ORDER BY end_date DESC, id DESC LIMIT 1")

@@ -194,6 +194,8 @@ test("6. Manager and Owner cannot read competitions or run the season batch; the
     }
   }
   await page.getByLabel("Active career role").selectOption("FEDERATION_PRESIDENT");
+  // The role switch is asynchronous; wait for the President-only navigation before calling.
+  await expect(nav(page, "National Teams")).toBeVisible();
   const invalid = await runtime(page, "getNationalTeamCompetitions", { nationalTeamId: "not-a-national-team" });
   expect(invalid.error?.code).toBe("INVALID_SELECTION");
 });

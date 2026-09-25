@@ -39,6 +39,8 @@ import {
   type Team,
 } from "@nepal-football-sim/shared-types";
 import { SeededRandom } from "./rng.js";
+import type { NamePool } from "./country-pack.js";
+import { homeCountryId, homeFederationAbbreviation, homeNamePool, homeCurrency, requireHomeCountryId } from "./home-context.js";
 import {
   assessStaffCooperation,
   assessStaffDeparture,
@@ -76,22 +78,9 @@ const seniorTeams = (db: GameDatabase, worldDate: string): Team[] => {
   return new WorldRepository(db).teamsForCompetitionSeason(seasonId);
 };
 
-const firstCountryId = (db: GameDatabase): EntityId => {
-  const row = db.prepare("SELECT id FROM countries ORDER BY name LIMIT 1").get() as
-    SqlRow | undefined;
-  if (!row) throw new Error("The world has no country records.");
-  return row.id;
-};
-
-const nepalCountryId = (db: GameDatabase): EntityId | undefined => {
-  const row = db.prepare("SELECT id FROM countries WHERE iso_code IN ('NP','NPL')").get() as
-    SqlRow | undefined;
-  return row?.id;
-};
-
 /** Domestic vs foreign availability: unknown nationality is treated as domestic (never blocks a candidate we can't classify). */
 export const isDomesticPerson = (db: GameDatabase, personId: EntityId): boolean => {
-  const nepal = nepalCountryId(db);
+  const nepal = homeCountryId(db);
   if (!nepal) return true;
   const row = db
     .prepare("SELECT nationality_country_id FROM persons WHERE id = ?")
@@ -252,19 +241,6 @@ const adjustClubWageSpend = (
 // AI candidate generation — deterministic, SIMULATION_ONLY
 // ---------------------------------------------------------------------------
 
-const NAME_POOL = [
-  "Suresh Thapa",
-  "Bikash Gurung",
-  "Anil Rai",
-  "Dipesh Shrestha",
-  "Nabin Magar",
-  "Ramesh Tamang",
-  "Kiran Bhandari",
-  "Sujan Karki",
-  "Prakash Lama",
-  "Rajan Basnet",
-];
-
 /**
  * Bounded generated staff person. Exported so the workforce-supply layer can
  * replenish the domestic staff market through this one generator rather than
@@ -275,6 +251,8 @@ export const generateAiStaff = (
   worldDate: string,
   countryId: EntityId,
   role: FootballStaffRole,
+  namePool: NamePool,
+  issuer: string,
 ): {
   person: Person;
   profile: StaffProfile;
@@ -282,7 +260,7 @@ export const generateAiStaff = (
   licences: StaffLicence[];
 } => {
   const rng = new SeededRandom(seedKey);
-  const fullName = rng.pick(NAME_POOL);
+  const fullName = rng.pick(namePool.staffFullNames);
   const personId = createStableEntityId("ai-staff-person", seedKey);
   const profileId = createStableEntityId("ai-staff-profile", seedKey);
   const base = 5 + rng.integer(0, 4);
@@ -296,13 +274,13 @@ export const generateAiStaff = (
             licenceType:
               Object.entries(LICENCE_RANK).find(([, rank]) => rank === requiredRank)?.[0] ??
               "AFC_C",
-            issuer: "ANFA",
+            issuer,
             status: "UNKNOWN",
           },
         ]
       : [];
   return {
-    person: { id: personId, fullName, nationalityCountryId: countryId, languages: ["ne"] },
+    person: { id: personId, fullName, nationalityCountryId: countryId, languages: [...namePool.languageCodes] },
     profile: {
       id: profileId,
       personId,
@@ -455,7 +433,7 @@ export const hireStaff = (
     contractStart: worldDate,
     contractEnd: addDays(worldDate, contractMonths * 30),
     salaryAmountMinor,
-    currency: "NPR",
+    currency: homeCurrency(db),
     status: "ACTIVE",
   };
   appointment.contractId = contract.id;
@@ -743,12 +721,14 @@ export const ensureAiStaffAssigned = (
           freeAgent.reputation,
         );
       } else {
-        countryId ??= firstCountryId(db);
+        countryId ??= requireHomeCountryId(db);
         const generated = generateAiStaff(
           `ai-staff:${clubId}:${role}:${worldDate}`,
           worldDate,
           countryId,
           role,
+          homeNamePool(db),
+          homeFederationAbbreviation(db),
         );
         if (!world.getPerson(generated.person.id)) world.insertPerson(generated.person);
         world.insertStaffProfile(generated.profile);
@@ -971,6 +951,8 @@ const generateExternalStaffCandidate = (
     worldDate,
     club.country_id,
     vacancy.role,
+    homeNamePool(db),
+          homeFederationAbbreviation(db),
   );
   const world = new WorldRepository(db);
   if (!world.getPerson(generated.person.id)) {
@@ -1845,7 +1827,7 @@ export const evaluateLicenceCourses = (
       id: createEntityId(),
       personId: course.personId,
       licenceType: course.targetLicenceType,
-      issuer: "ANFA",
+      issuer: homeFederationAbbreviation(db),
       issueDate: worldDate,
       status: "VERIFIED",
     });

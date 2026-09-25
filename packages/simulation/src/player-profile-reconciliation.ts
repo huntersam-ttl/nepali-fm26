@@ -45,8 +45,8 @@ const playableNepalPlayers = (db: GameDatabase): PlayerRow[] =>
     LEFT JOIN clubs club ON club.id = team.club_id
     LEFT JOIN countries club_country ON club_country.id = club.country_id
     LEFT JOIN countries country ON country.id = p.nationality_country_id
-    WHERE club_country.iso_code IN ('NP', 'NPL')
-       OR (assignment.person_id IS NULL AND country.iso_code IN ('NP', 'NPL'))
+    WHERE club_country.id = (SELECT country_id FROM home_football_country LIMIT 1)
+       OR (assignment.person_id IS NULL AND country.id = (SELECT country_id FROM home_football_country LIMIT 1))
     ORDER BY p.id
   `,
     )
@@ -176,7 +176,7 @@ export const reconcilePlayablePlayerProfiles = (
     LEFT JOIN competition_seasons season ON season.start_date <= (SELECT world_date FROM saves LIMIT 1) AND season.end_date >= (SELECT world_date FROM saves LIMIT 1)
     LEFT JOIN club_memberships membership ON membership.team_id = team.id AND membership.competition_season_id = season.id AND membership.status = 'ACTIVE'
     LEFT JOIN competitions competition ON competition.id = season.competition_id
-    WHERE assignment.role = 'PLAYER' AND assignment.ended_on IS NULL AND country.iso_code IN ('NP','NPL')
+    WHERE assignment.role = 'PLAYER' AND assignment.ended_on IS NULL AND country.id = (SELECT country_id FROM home_football_country LIMIT 1)
     GROUP BY division
   `,
     )

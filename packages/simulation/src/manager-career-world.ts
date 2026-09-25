@@ -29,6 +29,8 @@ import { createManagerContract } from "./manager-career.js";
 import { supporterBoardPressureModifier } from "./supporter-culture.js";
 import { interviewManagerForApplication } from "./manager-interviews.js";
 import { SeededRandom } from "./rng.js";
+import type { NamePool } from "./country-pack.js";
+import { homeNamePool, requireHomeCountryId } from "./home-context.js";
 import { isContextOnlyClub } from "./foreign-football-world.js";
 import { refreshManagerBoardRelationship } from "./club-vision-politics.js";
 import { publishMediaForDate } from "./media.js";
@@ -60,21 +62,6 @@ const seniorTeams = (db: GameDatabase, worldDate: string): Team[] => {
 const getClubRow = (db: GameDatabase, clubId: EntityId): SqlRow | undefined =>
   db.prepare("SELECT * FROM clubs WHERE id = ?").get(clubId) as SqlRow | undefined;
 
-const NAME_POOL = [
-  "Bikash Thapa",
-  "Suman Gurung",
-  "Nirajan Rai",
-  "Sagar Khadka",
-  "Prakash Basnet",
-  "Rohit Chettri",
-  "Deepak Shrestha",
-  "Milan Tamang",
-  "Kiran Magar",
-  "Anup Karki",
-  "Bishal Lama",
-  "Ramesh Bhandari",
-];
-
 const REPUTATION_PROFILES = [
   "LOCAL_UNKNOWN",
   "LOCAL_RESPECTED",
@@ -82,21 +69,15 @@ const REPUTATION_PROFILES = [
   "EDUCATED_COACH",
 ] as const;
 
-const firstCountryId = (db: GameDatabase): EntityId => {
-  const row = db.prepare("SELECT id FROM countries ORDER BY name LIMIT 1").get() as
-    SqlRow | undefined;
-  if (!row) throw new Error("The world has no country records.");
-  return row.id;
-};
-
 /** Deterministic, lightweight AI manager. Not a full career character. */
 export const generateAiManager = (
   seedKey: string,
   worldDate: string,
   countryId: EntityId,
+  namePool: NamePool,
 ): { person: Person; profile: ManagerProfile } => {
   const rng = new SeededRandom(seedKey);
-  const fullName = rng.pick(NAME_POOL);
+  const fullName = rng.pick(namePool.managerFullNames);
   const reputationProfile = rng.pick(REPUTATION_PROFILES);
   const personId = createStableEntityId("ai-manager-person", seedKey);
   const profileId = createStableEntityId("ai-manager-profile", seedKey);
@@ -140,7 +121,7 @@ export const generateAiManager = (
       id: personId,
       fullName,
       nationalityCountryId: countryId,
-      languages: ["ne"],
+      languages: [...namePool.languageCodes],
     },
     profile: {
       id: profileId,
@@ -165,6 +146,7 @@ export const ensureOwnerManagerCandidateSupply = (
       `${input.seed}:owner-candidate:${index}`,
       input.date,
       input.countryId,
+      homeNamePool(db),
     );
     if (!new WorldRepository(db).getPerson(generated.person.id))
       new WorldRepository(db).insertPerson(generated.person);
@@ -223,7 +205,7 @@ export const ensureAiManagersAssigned = (
       id: createStableEntityId("manager-job-vacancy", `${team.id}:${save.worldDate}`),
       clubId: team.clubId,
       teamId: team.id,
-      countryId: countryId ?? firstCountryId(db),
+      countryId: countryId ?? requireHomeCountryId(db),
       openedOn: save.worldDate,
       reason: "NEW_CLUB" as const,
       boardExpectation: team.clubId ? expectationForClub(db, team.clubId) : "SURVIVE",
@@ -277,11 +259,12 @@ export const ensureAiManagersAssigned = (
     // widens the search with one new candidate a day, up to a bounded number of
     // candidates per vacancy.
     if (available.length === 0 && closedForVacancy.size < MAX_CANDIDATES_PER_VACANCY) {
-      countryId ??= firstCountryId(db);
+      countryId ??= requireHomeCountryId(db);
       const generated = generateAiManager(
         `ai-manager:${team.id}:${save.worldDate}`,
         save.worldDate,
         countryId,
+        homeNamePool(db),
       );
       if (!world.getPerson(generated.person.id)) {
         world.insertPerson(generated.person);
@@ -1122,7 +1105,7 @@ export const appointManagerForChairman = (
     .prepare(
       `
     SELECT c.id FROM clubs c JOIN countries co ON co.id = c.country_id
-    WHERE c.id = ? AND co.iso_code IN ('NP', 'NPL')
+    WHERE c.id = ? AND co.id = (SELECT country_id FROM home_football_country LIMIT 1)
   `,
     )
     .get(vacancy.clubId) as { id?: EntityId } | undefined;

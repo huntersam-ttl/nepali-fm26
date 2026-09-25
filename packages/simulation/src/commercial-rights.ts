@@ -458,7 +458,7 @@ const aDivisionSeason = (
 ) => {
   const row = db
     .prepare(
-      "SELECT cs.id, c.id AS competition_id, c.name, c.federation_id FROM competition_seasons cs JOIN competitions c ON c.id=cs.competition_id WHERE cs.id=? AND c.federation_id=? AND c.scope='domestic' AND lower(c.name) LIKE '%a-division%'",
+      "SELECT cs.id, c.id AS competition_id, c.name, c.federation_id FROM competition_seasons cs JOIN competitions c ON c.id=cs.competition_id WHERE cs.id=? AND c.federation_id=? AND c.scope='domestic' AND (SELECT tier FROM competition_tiers WHERE competition_id = c.id) = 1",
     )
     .get(competitionSeasonId, federationId) as
     | { id?: EntityId; competition_id?: EntityId; name?: string; federation_id?: EntityId }

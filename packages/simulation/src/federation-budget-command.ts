@@ -1,3 +1,4 @@
+import { isHomeFederation } from "./home-context.js";
 import { FederationGovernanceRepository, type GameDatabase } from "@nepal-football-sim/database";
 import type {
   EntityId,
@@ -43,12 +44,7 @@ export const setFederationBudgetCommand = (
 ): FederationBudget => {
   if (input.callerRole !== "FEDERATION_PRESIDENT")
     throw new FederationBudgetError("Only the federation president may set a federation budget");
-  const country = db
-    .prepare(
-      "SELECT co.iso_code FROM federations f JOIN countries co ON co.id=f.country_id WHERE f.id=?",
-    )
-    .get(input.federationId) as { iso_code?: string } | undefined;
-  if (!country || !["NP", "NPL"].includes(country.iso_code ?? ""))
+  if (!isHomeFederation(db, input.federationId))
     throw new FederationBudgetError("Budget commands are unavailable for context-only federations");
 
   const repo = new FederationGovernanceRepository(db);

@@ -59,10 +59,9 @@ import { PLAYABLE_CLUB_PREDICATE } from "./playable-world.js";
 import { SeededRandom } from "./rng.js";
 import { buildEntityReference } from "./entity-reference.js";
 import { nationalTeamOutcomes } from "./national-team-workspace.js";
-import { findHomeFootballContext } from "./home-context.js";
+import { findHomeFootballContext, homeCurrency, homeFederation, seasonEndDate } from "./home-context.js";
 import { recordFederationDevelopmentSnapshot } from "./federation-scorecard.js";
 
-const currency = "NPR";
 const simulationStatus = "SIMULATION_ONLY" as const;
 
 export type FederationOverview = {
@@ -126,7 +125,7 @@ export const initializeFederationGovernanceForSave = (input: {
       const cash = Math.round(12500000 + seeded(input.seed, federation.id).next() * 5500000);
       repo.upsertFinancialAccount({
         federationId: federation.id,
-        currency,
+        currency: homeCurrency(input.db),
         cashBalance: cash,
         restrictedFunds: Math.round(cash * 0.32),
         receivables: 0,
@@ -153,7 +152,7 @@ export const initializeFederationGovernanceForSave = (input: {
 
 export const getFederationOverview = (
   db: GameDatabase,
-  federationId = anfaFederation(db).id,
+  federationId = homeFederation(db).id,
 ): FederationOverview => {
   const repo = new FederationGovernanceRepository(db);
   const federation = federationById(db, federationId);
@@ -176,7 +175,7 @@ export const getFederationOverview = (
 
 export const getFederationFinances = (
   db: GameDatabase,
-  federationId = anfaFederation(db).id,
+  federationId = homeFederation(db).id,
 ): {
   account: FederationFinancialAccount;
   ledgerEntries: FederationLedgerEntry[];
@@ -218,7 +217,7 @@ export const postFederationTransaction = (
     category: input.category,
     direction: input.direction,
     amount: Math.max(0, Math.round(input.amount)),
-    currency,
+    currency: homeCurrency(db),
     description: input.description,
     relatedEntityId: input.relatedEntityId,
     restrictionTag: input.restrictionTag,
@@ -253,7 +252,7 @@ export const setFederationBudget = (
     category: input.category,
     amount: Math.round(input.amount),
     usedAmount: previous?.usedAmount ?? 0,
-    currency,
+    currency: homeCurrency(db),
     status: "ACTIVE",
     provenanceStatus: simulationStatus,
   };
@@ -339,7 +338,7 @@ export const distributeClubGrant = (
     date: input.date,
     grantType: input.grantType,
     amount: Math.round(input.amount),
-    currency,
+    currency: homeCurrency(db),
     federationLedgerEntryId: fedEntry.id,
     clubLedgerEntryId: clubEntry.id,
     status: "POSTED",
@@ -425,7 +424,7 @@ export const createFederationProject = (
     expectedCompletion: addDays(input.date, 180 + rng.integer(0, 240)),
     capitalCost,
     annualOperatingCost: Math.round(capitalCost * 0.035),
-    currency,
+    currency: homeCurrency(db),
     status: "PLANNING",
     impactJson: projectImpact(input.projectType),
     fundingJson,
@@ -527,7 +526,7 @@ export const advanceFederationProjects = (
         locationId: project.locationId,
         academyId: project.academyId,
         estimatedValue: Math.round(project.capitalCost * 0.8),
-        currency,
+        currency: homeCurrency(db),
         status: simulationStatus,
       });
       applyProjectImpact(db, next, input.date);
@@ -841,7 +840,7 @@ export const scheduleFriendly = (
     status: participationAllowed ? "SCHEDULED" : "CANCELLED",
     estimatedCost: Math.round(850000 + rng.next() * 350000),
     estimatedRevenue: Math.round(550000 + rng.next() * 500000),
-    currency,
+    currency: homeCurrency(db),
     provenanceStatus: simulationStatus,
   };
   new FederationGovernanceRepository(db).upsertNationalTeamFixture(fixture);
@@ -978,7 +977,7 @@ export const runCoachEducationProgramme = (
     capacity,
     cost,
     graduates: Math.round(capacity * (0.72 + rng.next() * 0.2)),
-    currency,
+    currency: homeCurrency(db),
     status: "COMPLETED",
     provenanceStatus: simulationStatus,
   };
@@ -1021,7 +1020,7 @@ export const runRefereeProgramme = (
     capacity,
     cost,
     refereesAdvanced: Math.round(capacity * (0.62 + rng.next() * 0.22)),
-    currency,
+    currency: homeCurrency(db),
     status: "COMPLETED",
     provenanceStatus: simulationStatus,
   };
@@ -1047,7 +1046,7 @@ const runFederationRefereeDevelopment = (
   seed: string,
 ): void => {
   if (!date.endsWith("-09-28")) return;
-  if (federation.id !== anfaFederation(db).id) return;
+  if (federation.id !== homeFederation(db).id) return;
   const governance = new FederationGovernanceRepository(db);
   const existing = governance
     .refereeDevelopmentProgrammes(federation.id)
@@ -1107,7 +1106,7 @@ const runFederationRefereeDevelopment = (
 
 export const getFederationKPIs = (
   db: GameDatabase,
-  federationId = anfaFederation(db).id,
+  federationId = homeFederation(db).id,
 ): FederationKPI[] => new FederationGovernanceRepository(db).kpis(federationId);
 
 export const runFederationAiSeasonPlanning = (
@@ -1300,7 +1299,7 @@ export const runFederationDiagnostic = (input: {
     worldDate: input.startDate,
     seed: input.seed,
   });
-  const federation = anfaFederation(input.db);
+  const federation = homeFederation(input.db);
   if (input.youthInvestment === "HIGH") {
     setFederationBudget(input.db, {
       federationId: federation.id,
@@ -1388,7 +1387,7 @@ export const runFederationDiagnostic = (input: {
     }
     closeFederationFinancialSeason(input.db, {
       seasonLabel: activeSeason,
-      date: `${year + 1}-07-31`,
+      date: seasonEndDate(input.db, year),
     });
   }
   return federationReport(input.db, federation.id, input.startDate, input.seasons);
@@ -1400,7 +1399,7 @@ export const runFederationPresidentDemo = (input: {
   worldDate: string;
 }): PresidentDemoReport => {
   initializeFederationGovernanceForSave(input);
-  const federation = anfaFederation(input.db);
+  const federation = homeFederation(input.db);
   const president = createDemoPresident(input.db, federation, input.worldDate);
   const team = seniorMenNationalTeam(input.db, federation.id);
   const before = getFederationFinances(input.db, federation.id).account.cashBalance;
@@ -1733,7 +1732,7 @@ const ensureFederationSponsorship = (
     startDate: date,
     endDate: addYears(date, 1),
     annualValue: Math.round(2200000 + rng.next() * 900000),
-    currency,
+    currency: homeCurrency(db),
     status: "ACTIVE",
     provenanceStatus: simulationStatus,
   });
@@ -1929,7 +1928,7 @@ const seedFederationSponsors = (db: GameDatabase, date: string, seed: string): v
       id: createStableEntityId("sponsor-organisation", name),
       name,
       industry,
-      countryId: anfaFederation(db).countryId,
+      countryId: homeFederation(db).countryId,
       reputation: round(4 + rng.next() * 3),
       budgetTier: "NATIONAL",
       status: simulationStatus,
@@ -2713,15 +2712,6 @@ const allClubs = (db: GameDatabase): Club[] =>
       parentOrganisation: row.parent_organisation ?? undefined,
       foundedYear: row.founded_year ?? undefined,
     }));
-
-const anfaFederation = (db: GameDatabase): Federation => {
-  const home = findHomeFootballContext(db);
-  const row =
-    (home ? (db.prepare("SELECT * FROM federations WHERE id = ?").get(home.federationId) as any) : undefined) ??
-    (db.prepare("SELECT * FROM federations ORDER BY name LIMIT 1").get() as any);
-  if (!row) throw new Error("No federation found in save");
-  return mapFederation(row);
-};
 
 const federationById = (db: GameDatabase, federationId: EntityId): Federation => {
   const row = db.prepare("SELECT * FROM federations WHERE id = ?").get(federationId) as any;

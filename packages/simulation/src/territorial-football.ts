@@ -1,3 +1,4 @@
+import { homeCountryId } from "./home-context.js";
 import {
   createStableEntityId,
   type DistrictDevelopmentProject,
@@ -241,7 +242,7 @@ export const initializeNepalTerritorialStructure = (
 
 /** Ensures the complete canonical 77-district chooser exists in a save. */
 export const ensureNepalFounderLocations = (db: GameDatabase): void => {
-  const country = db.prepare("SELECT id FROM countries WHERE iso_code IN ('NP','NPL') ORDER BY id LIMIT 1").get() as { id?: EntityId } | undefined;
+  const country = { id: homeCountryId(db) } as { id?: EntityId };
   if (!country?.id) return;
   const world = new WorldRepository(db);
   for (const [provinceName, districtNames] of NEPAL_PROVINCE_DISTRICTS) {
@@ -985,7 +986,8 @@ export const simulateTerritorialFixture = (
   return result;
 };
 
-export const rollNepalPyramidSeason = (
+/** Rolls a pyramid into its next season from the promotion/relegation relationships (country-neutral). */
+export const rollPyramidSeason = (
   db: GameDatabase,
   input: {
     completedSeasons: readonly CompletedCompetitionSeason[];

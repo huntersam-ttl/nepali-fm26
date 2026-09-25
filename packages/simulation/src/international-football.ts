@@ -40,11 +40,11 @@ import { buildAiTacticalSetup, resolveTeamTacticalSetup } from "./ai-tactics.js"
 import { simulateMatch } from "./match-engine.js";
 import { ensureNationalTeamStaffStructure, recordNationalTeamEditionEntry } from "./national-team-management.js";
 import { SeededRandom } from "./rng.js";
-import { findHomeFootballContext } from "./home-context.js";
+import { findHomeFootballContext, homeCountryId, homeCurrency, homeFederation, homeNationalTeams, seasonEndInYear } from "./home-context.js";
+import { countryPack } from "./country-pack.js";
 
 const simulationStatus = "SIMULATION_ONLY" as const;
 const factualIdentityStatus = "VERIFIED" as const;
-const currency = "NPR";
 
 type RegistryTeam = {
   isoCode: string;
@@ -70,14 +70,6 @@ export type InternationalCompetitionKey =
   | "SAFF_U20"
   | "SAFF_U17";
 
-const supportedNationalTeamTypes: NationalTeamType[] = [
-  "SENIOR_MEN",
-  "SENIOR_WOMEN",
-  "U23",
-  "U20",
-  "U17",
-];
-
 const teamTypeForCompetitionKey = (key: InternationalCompetitionKey): NationalTeamType => {
   if (key === "SAFF_WOMEN" || key === "AFC_WOMENS_ASIAN_CUP_QUALIFICATION") {
     return "SENIOR_WOMEN";
@@ -91,17 +83,6 @@ const teamTypeForCompetitionKey = (key: InternationalCompetitionKey): NationalTe
 const isRegionalCompetition = (key: InternationalCompetitionKey): boolean =>
   key === "SAFF" || key.startsWith("SAFF_");
 
-const profileName = (countryName: string, teamType: NationalTeamType): string =>
-  `${countryName} ${
-    teamType === "SENIOR_MEN"
-      ? "Senior Men"
-      : teamType === "SENIOR_WOMEN"
-        ? "Senior Women"
-        : `${teamType} Men`
-  }`;
-
-const profileStrengthMultiplier = (teamType: NationalTeamType): number =>
-  teamType === "SENIOR_WOMEN" ? 0.84 : teamType === "U23" ? 0.91 : teamType === "U20" ? 0.86 : teamType === "U17" ? 0.8 : 1;
 
 export type FastExternalMatchResult = {
   homeGoals: number;
@@ -461,14 +442,15 @@ export const initializeInternationalFootballForSave = (input: {
   ensureExternalCountries(input.db);
   for (const item of registry) {
     const countryId = countryIdByIso(input.db, item.isoCode);
-    for (const teamType of supportedNationalTeamTypes) {
-      const multiplier = profileStrengthMultiplier(teamType);
+    for (const definition of homeNationalTeams(input.db)) {
+      const teamType = definition.teamType;
+      const multiplier = definition.strengthMultiplier;
       const profile: InternationalTeamProfile = {
         id: createStableEntityId("international-team-profile", `${item.isoCode}:${teamType}`),
         countryId,
         nationalTeamId:
-          item.isoCode === "NP" ? nationalTeamIdForType(input.db, teamType) : undefined,
-        name: profileName(item.countryName, teamType),
+          countryId === homeCountryId(input.db) ? nationalTeamIdForType(input.db, teamType) : undefined,
+        name: `${item.countryName} ${definition.label}`,
         teamType,
         confederation: item.confederation,
         region: item.region,
@@ -478,12 +460,12 @@ export const initializeInternationalFootballForSave = (input: {
         developmentLevel: Math.round(item.development * multiplier),
         formRating: 50,
         lastUpdated: input.worldDate,
-        provenanceStatus: item.isoCode === "NP" ? factualIdentityStatus : simulationStatus,
+        provenanceStatus: countryId === homeCountryId(input.db) ? factualIdentityStatus : simulationStatus,
       };
       repo.upsertTeamProfile(profile);
       if (profile.nationalTeamId) {
         ensureNationalTeamStaffStructure(input.db, {
-          federationId: anfaFederation(input.db).id,
+          federationId: homeFederation(input.db).id,
           nationalTeamId: profile.nationalTeamId,
           date: input.worldDate,
         });
@@ -856,7 +838,7 @@ export const ensureNepalDutyForEdition = (
     .map((participant) => repo.teamProfile(participant.teamProfileId))
     .find((profile): profile is InternationalTeamProfile => Boolean(profile?.nationalTeamId));
   if (!nepal?.nationalTeamId) return;
-  const federation = anfaFederation(db);
+  const federation = homeFederation(db);
   const nationalTeamId = nepal.nationalTeamId;
   if (!nationalTeamParticipationAllowed(db, federation.id)) return;
   const squadDate = addDays(edition.startDate, -EDITION_SQUAD_LEAD_DAYS);
@@ -889,7 +871,7 @@ export const calculateSimulationWorldRanking = (
 ): SimulationWorldRanking[] => {
   const repo = new InternationalFootballRepository(db);
   const rankings: SimulationWorldRanking[] = [];
-  for (const teamType of supportedNationalTeamTypes) {
+  for (const { teamType } of homeNationalTeams(db)) {
     const points = repo
       .teamProfiles()
       .filter((profile) => profile.teamType === teamType)
@@ -952,7 +934,7 @@ export const runNationalTeamCamp = (
     endDate: input.endDate,
     focus: input.focus,
     cost: Math.round(150000 + rng.next() * 140000),
-    currency,
+    currency: homeCurrency(db),
     status: "COMPLETED",
     cohesionGain: round(1.5 + rng.next() * 2.5),
     provenanceStatus: simulationStatus,
@@ -1127,7 +1109,7 @@ export const processInternationalForSeasonPeriod = (
       .find((profile): profile is InternationalTeamProfile => Boolean(profile?.nationalTeamId));
     if (nationalTeam?.nationalTeamId) {
       runNationalTeamCamp(db, {
-        federationId: anfaFederation(db).id,
+        federationId: homeFederation(db).id,
         nationalTeamId: nationalTeam.nationalTeamId,
         competitionEditionId: edition.id,
         startDate: addDays(edition.startDate, -6),
@@ -1156,17 +1138,17 @@ export const runInternationalDiagnostic = (input: {
   const startYear = Number(input.startDate.slice(0, 4));
   for (let yearOffset = 0; yearOffset < input.years; yearOffset += 1) {
     processInternationalForSeasonPeriod(input.db, {
-      seasonEndDate: `${startYear + yearOffset}-07-31`,
+      seasonEndDate: seasonEndInYear(input.db, startYear + yearOffset),
       seed: `${input.seed}:year:${yearOffset}`,
     });
     closeFederationFinancialSeason(input.db, {
       seasonLabel: String(startYear + yearOffset),
-      date: `${startYear + yearOffset}-07-31`,
+      date: seasonEndInYear(input.db, startYear + yearOffset),
     });
   }
   const history = getNationalTeamHistory(input.db);
   const repo = new InternationalFootballRepository(input.db);
-  const nepal = nepalProfile(repo);
+  const nepal = homeProfile(input.db, repo);
   const matches = history.matches;
   const wins = matches.filter((match) => isWin(match, nepal.id)).length;
   const draws = matches.filter(
@@ -1176,7 +1158,7 @@ export const runInternationalDiagnostic = (input: {
   const latestRanking = nepalRanking(input.db, `${startYear + input.years - 1}-07-31`);
   const peak = history.records.rankingPeak?.rank ?? latestRanking?.rank ?? startRanking;
   const federationLedger = new FederationGovernanceRepository(input.db).ledgerEntries(
-    anfaFederation(input.db).id,
+    homeFederation(input.db).id,
   );
   const income = federationLedger
     .filter((entry) => entry.category === "MATCH_REVENUE" && entry.direction === "CREDIT")
@@ -1374,7 +1356,7 @@ const seedParticipants = (
 ): void => {
   const repo = new InternationalFootballRepository(db);
   const teamType = teamTypeForCompetitionKey(key);
-  const federation = anfaFederation(db);
+  const federation = homeFederation(db);
   const profiles = repo
     .teamProfiles()
     .filter((profile) => {
@@ -1418,7 +1400,7 @@ const simulateNepalInternationalMatch = (
   away: InternationalTeamProfile,
   seed: string,
 ): FastExternalMatchResult => {
-  const federation = anfaFederation(db);
+  const federation = homeFederation(db);
   const nationalTeamId = home.nationalTeamId ?? away.nationalTeamId;
   if (!nationalTeamId) throw new Error("Nepal international match is missing its national team");
   selectNationalTeamSquad(db, {
@@ -1714,12 +1696,8 @@ export const groupStandings = (
 
 const ensureExternalCountries = (db: GameDatabase): void => {
   for (const item of registry) {
-    if (
-      item.isoCode === "NP" &&
-      db.prepare("SELECT 1 FROM countries WHERE iso_code = 'NPL' LIMIT 1").get()
-    ) {
-      continue;
-    }
+    const home = findHomeFootballContext(db);
+    if (home && countryPack(home.packId).isoCodes.includes(item.isoCode)) continue;
     db.prepare("INSERT OR IGNORE INTO countries (id, name, iso_code) VALUES (?, ?, ?)").run(
       createStableEntityId("country", item.isoCode),
       item.countryName,
@@ -1811,7 +1789,7 @@ const persistNationalFixtureAndAppearances = (
     awayGoals,
     estimatedCost: 0,
     estimatedRevenue: 0,
-    currency,
+    currency: homeCurrency(db),
     provenanceStatus: simulationStatus,
   };
   const repo = new FederationGovernanceRepository(db);
@@ -2042,29 +2020,13 @@ const recordInternationalHistory = (db: GameDatabase, editionId: EntityId): void
   });
 };
 
+/** The country row for a registry ISO code. The home country is found through the home context, so its alternative ISO forms all resolve to it. */
 const countryIdByIso = (db: GameDatabase, isoCode: string): EntityId => {
-  const row = db
-    .prepare(
-      `SELECT id FROM countries
-       WHERE iso_code = ? OR (? = 'NP' AND iso_code = 'NPL')
-       ORDER BY CASE WHEN iso_code = 'NPL' THEN 0 ELSE 1 END
-       LIMIT 1`,
-    )
-    .get(isoCode, isoCode) as { id: EntityId } | undefined;
+  const home = findHomeFootballContext(db);
+  if (home && countryPack(home.packId).isoCodes.includes(isoCode)) return home.countryId;
+  const row = db.prepare("SELECT id FROM countries WHERE iso_code = ? LIMIT 1").get(isoCode) as { id: EntityId } | undefined;
   if (!row) throw new Error(`Country ${isoCode} missing`);
   return row.id;
-};
-
-const anfaFederation = (db: GameDatabase): Federation => {
-  const home = findHomeFootballContext(db);
-  const row = home ? (db.prepare("SELECT * FROM federations WHERE id = ?").get(home.federationId) as any) : undefined;
-  if (!row) throw new Error("No federation found");
-  return {
-    id: row.id,
-    countryId: row.country_id,
-    name: row.name,
-    foundedYear: row.founded_year ?? undefined,
-  };
 };
 
 const seniorMenNationalTeamId = (db: GameDatabase): EntityId => {
@@ -2072,33 +2034,32 @@ const seniorMenNationalTeamId = (db: GameDatabase): EntityId => {
     .prepare(
       "SELECT id FROM teams WHERE federation_id = ? AND club_id IS NULL AND level = 'senior' AND gender = 'men' ORDER BY name LIMIT 1",
     )
-    .get(anfaFederation(db).id) as { id: EntityId } | undefined;
+    .get(homeFederation(db).id) as { id: EntityId } | undefined;
   if (!row) throw new Error("Senior men's national team missing");
   return row.id;
 };
 
 const nationalTeamIdForType = (db: GameDatabase, teamType: NationalTeamType): EntityId => {
-  if (teamType === "SENIOR_MEN") return seniorMenNationalTeamId(db);
-  const level = teamType === "SENIOR_WOMEN" ? "senior" : teamType.toLowerCase();
-  const gender = teamType === "SENIOR_WOMEN" ? "women" : "men";
+  const definition = homeNationalTeams(db).find((item) => item.teamType === teamType);
+  if (!definition) throw new Error(`${teamType} is not part of the home national-team structure`);
   const row = db
     .prepare(
       "SELECT id FROM teams WHERE federation_id = ? AND club_id IS NULL AND level = ? AND gender = ? ORDER BY name LIMIT 1",
     )
-    .get(anfaFederation(db).id, level, gender) as { id: EntityId } | undefined;
+    .get(homeFederation(db).id, definition.level, definition.gender) as { id: EntityId } | undefined;
   if (!row) throw new Error(`${teamType} national team missing`);
   return row.id;
 };
 
-const nepalProfile = (repo: InternationalFootballRepository): InternationalTeamProfile =>
+const homeProfile = (db: GameDatabase, repo: InternationalFootballRepository): InternationalTeamProfile =>
   required(
-    repo.teamProfiles().find((profile) => profile.name === "Nepal Senior Men"),
-    "Nepal profile",
+    repo.teamProfiles().find((profile) => profile.countryId === homeCountryId(db) && profile.teamType === "SENIOR_MEN"),
+    "Home country profile",
   );
 
 const nepalRanking = (db: GameDatabase, date: string): SimulationWorldRanking | undefined => {
   const repo = new InternationalFootballRepository(db);
-  const nepal = nepalProfile(repo);
+  const nepal = homeProfile(db, repo);
   return repo.rankings(date).find((ranking) => ranking.teamProfileId === nepal.id);
 };
 

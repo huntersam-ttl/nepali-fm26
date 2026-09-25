@@ -24,6 +24,7 @@ import {
   type PersonRelationship,
 } from "@nepal-football-sim/shared-types";
 import { upsertPersonRelationship } from "./people-foundation.js";
+import { homeCurrency } from "./home-context.js";
 
 const clamp = (value: number): number => Math.max(0, Math.min(100, Math.round(value)));
 export const agentReputationLabel = (reputation: number): AgentCareerProfile["reputationLabel"] =>
@@ -67,7 +68,7 @@ export const createAgentCareer = (
       assets: 0,
       liabilities: 0,
       netWorth: 0,
-      currency: "NPR",
+      currency: homeCurrency(db),
       lastUpdatedAt: input.date,
       status: "SIMULATION_ONLY",
     });
@@ -254,7 +255,7 @@ export const settleAgentFee = (
       assets: 0,
       liabilities: 0,
       netWorth: 0,
-      currency: account?.currency ?? "NPR",
+      currency: account?.currency ?? homeCurrency(db),
       lastUpdatedAt: input.date,
       status: "SIMULATION_ONLY",
     });
@@ -265,7 +266,7 @@ export const settleAgentFee = (
     playerId: input.playerId,
     payerClubId: input.payerClubId,
     amount,
-    currency: account?.currency ?? profile?.currency ?? "NPR",
+    currency: account?.currency ?? profile?.currency ?? homeCurrency(db),
     eventType: input.eventType,
     sourceEntityId: input.sourceEntityId,
     settledOn: input.date,

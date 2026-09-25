@@ -19,6 +19,7 @@ import {
   type VenueRelationship,
 } from "@nepal-football-sim/shared-types";
 import { repairPreseasonContinuity } from "./preseason-continuity.js";
+import { homeCurrency } from "./home-context.js";
 import { SeededRandom } from "./rng.js";
 import { initializeSupporterCultureForSave } from "./supporter-culture.js";
 
@@ -96,7 +97,7 @@ export type CreateSimulationClubInput = {
 /** Give every playable Nepal league club a canonical or simulation-only venue relationship. */
 export const ensurePlayableClubVenues = (db: GameDatabase, date: string): void => {
   const world = new WorldRepository(db);
-  const clubs = db.prepare(`SELECT DISTINCT c.id, c.name, c.country_id, c.location_id, lower(co.name) AS competition_name FROM clubs c JOIN countries country ON country.id=c.country_id AND country.iso_code IN ('NP','NPL') JOIN club_memberships cm ON cm.club_id=c.id AND cm.status='ACTIVE' JOIN competition_seasons cs ON cs.id=cm.competition_season_id JOIN competitions co ON co.id=cs.competition_id WHERE lower(co.name) LIKE '%a-division%' OR lower(co.name) LIKE '%b-division%' OR lower(co.name) LIKE '%c-division%'`).all() as Array<{ id: EntityId; name: string; country_id: EntityId; location_id?: EntityId; competition_name: string }>;
+  const clubs = db.prepare(`SELECT DISTINCT c.id, c.name, c.country_id, c.location_id, lower(co.name) AS competition_name FROM clubs c JOIN countries country ON country.id=c.country_id AND country.id = (SELECT country_id FROM home_football_country LIMIT 1) JOIN club_memberships cm ON cm.club_id=c.id AND cm.status='ACTIVE' JOIN competition_seasons cs ON cs.id=cm.competition_season_id JOIN competitions co ON co.id=cs.competition_id WHERE (SELECT tier FROM competition_tiers WHERE competition_id = co.id) = 1 OR (SELECT tier FROM competition_tiers WHERE competition_id = co.id) = 2 OR (SELECT tier FROM competition_tiers WHERE competition_id = co.id) = 3`).all() as Array<{ id: EntityId; name: string; country_id: EntityId; location_id?: EntityId; competition_name: string }>;
   for (const club of clubs) {
     if (db.prepare("SELECT 1 FROM venue_relationships WHERE club_id=? AND status!='CLOSED' LIMIT 1").get(club.id)) continue;
     const existing = club.location_id ? db.prepare("SELECT id FROM venues WHERE location_id=? AND status!='CLOSED' ORDER BY capacity DESC LIMIT 1").get(club.location_id) as { id?: EntityId } | undefined : undefined;
@@ -116,7 +117,7 @@ export const createSimulationClub = (
     .get(input.locationId) as
     { id: EntityId; country_id: EntityId; name: string; kind: string } | undefined;
   if (!location) throw new Error("Club location does not exist");
-  const nepal = db.prepare("SELECT id FROM countries WHERE iso_code = 'NP'").get() as
+  const nepal = db.prepare("SELECT country_id AS id FROM home_football_country LIMIT 1").get() as
     { id: EntityId } | undefined;
   if (!nepal || location.country_id !== nepal.id)
     throw new Error("Simulation clubs must be founded in Nepal");
@@ -164,7 +165,7 @@ export const createSimulationClub = (
   const economy = new ClubEconomyRepository(db);
   economy.upsertFinancialAccount({
     clubId,
-    currency: "NPR",
+    currency: homeCurrency(db),
     cashBalance: 350000,
     restrictedCash: 0,
     receivables: 0,
@@ -186,7 +187,7 @@ export const createSimulationClub = (
     analyticsFacilityQuality: 1,
     academyCapacity: 8,
     monthlyOperatingCost: 18000,
-    currency: "NPR",
+    currency: homeCurrency(db),
     status,
   });
   economy.upsertCommercialProfile({
@@ -213,7 +214,7 @@ export const createSimulationClub = (
     commercialReputation: 1,
     sentiment: "NEUTRAL",
     standardTicketPrice: 100,
-    currency: "NPR",
+    currency: homeCurrency(db),
     status,
   });
   initializeSupporterCultureForSave({ db, worldDate: input.foundedOn, seed: input.seed });
@@ -289,7 +290,7 @@ export const foundSimulationClub = (
     .prepare(
       `SELECT c.id FROM clubs c
        JOIN countries co ON co.id = c.country_id
-       WHERE co.iso_code IN ('NP', 'NPL') AND lower(trim(c.name)) = lower(trim(?))
+       WHERE co.id = (SELECT country_id FROM home_football_country LIMIT 1) AND lower(trim(c.name)) = lower(trim(?))
        LIMIT 1`,
     )
     .get(input.name);

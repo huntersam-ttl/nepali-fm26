@@ -147,7 +147,7 @@ export const proposeAnnualGovernmentFunding = (
   const federation = db.prepare(`
     SELECT f.id FROM federations f
     JOIN countries c ON c.id = f.country_id
-    WHERE c.iso_code IN ('NP', 'NPL')
+    WHERE c.id = (SELECT country_id FROM home_football_country LIMIT 1)
     ORDER BY f.id LIMIT 1
   `).get() as { id?: EntityId } | undefined;
   if (!federation?.id) return undefined;

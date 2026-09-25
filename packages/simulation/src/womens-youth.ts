@@ -1,3 +1,4 @@
+import { homeFootballContext, seasonEndDate, seasonStartDate } from "./home-context.js";
 import { ClubCreationRepository, ClubEconomyRepository, CompetitionRepository, EventRepository, FederationGovernanceRepository, PlayerRepository, TransferMarketRepository, WorldRepository, YouthRepository, type GameDatabase } from "@nepal-football-sim/database";
 import { createStableEntityId, type ClubDevelopmentProgramme, type CompetitionRegistration, type CompetitionRuleSet, type CompetitionSeason, type EntityId, type Team, type VenueRelationship } from "@nepal-football-sim/shared-types";
 import { runAnnualYouthAndRetirementCycle, type YouthAnnualReport } from "./youth-intake.js";
@@ -10,18 +11,20 @@ const venueFor = (db: GameDatabase, clubId: EntityId): { id: EntityId } | undefi
 
 export const ensureWomensFootballWorldForSave = (db: GameDatabase, input: { worldDate: string }): { competitionSeason: CompetitionSeason; ruleSet: CompetitionRuleSet; teamIds: EntityId[] } => {
   const year = Number(input.worldDate.slice(0, 4));
-  const startDate = `${year}-08-01`;
-  const endDate = `${year + 1}-07-31`;
-  const competitionId = createStableEntityId("competition", "nepal-womens-league");
+  const home = homeFootballContext(db);
+  const startDate = seasonStartDate(db, year);
+  const endDate = seasonEndDate(db, year);
+  const leagueName = `${home.countryName} Women's League`;
+  const competitionId = createStableEntityId("competition", `${home.countryName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-womens-league`);
   const seasonId = createStableEntityId("competition-season", `${competitionId}:${startDate}`);
   const ruleId = createStableEntityId("competition-rule", seasonId);
-  const federation = db.prepare("SELECT id FROM federations WHERE country_id = (SELECT id FROM countries WHERE iso_code IN ('NP','NPL') LIMIT 1) ORDER BY id LIMIT 1").get() as { id?: EntityId } | undefined;
+  const federation = { id: home.federationId } as { id?: EntityId };
   const world = new WorldRepository(db);
   const competitions = new CompetitionRepository(db);
   if (!db.prepare("SELECT 1 FROM competitions WHERE id = ?").get(competitionId)) {
-    world.insertCompetition({ id: competitionId, federationId: federation?.id, name: "Nepal Women's League", scope: "domestic", category: "WOMENS_LEAGUE" });
+    world.insertCompetition({ id: competitionId, federationId: federation?.id, name: leagueName, scope: "domestic", category: "WOMENS_LEAGUE" });
   }
-  if (!world.getCompetitionSeason(seasonId)) world.insertCompetitionSeason({ id: seasonId, competitionId, name: `Nepal Women's League ${year}`, startDate, endDate });
+  if (!world.getCompetitionSeason(seasonId)) world.insertCompetitionSeason({ id: seasonId, competitionId, name: `${leagueName} ${year}`, startDate, endDate });
   if (!competitions.getRuleSet(seasonId)) competitions.insertRuleSet({ id: ruleId, competitionSeasonId: seasonId, competitionType: "DOUBLE_ROUND_ROBIN", pointsForWin: 3, pointsForDraw: 1, pointsForLoss: 0, tiebreakers: ["points", "goalDifference", "goalsScored", "wins"], numberOfRounds: 2, homeAwayStructure: "double", seasonStartDate: startDate, seasonEndDate: endDate, roundSpacingDays: 7, promotionSlots: 0, relegationSlots: 0, continentalQualificationSlots: 0, promotionEnabled: false, relegationEnabled: false });
   const teams = db.prepare("SELECT id, club_id FROM teams WHERE level = 'senior' AND gender = 'women' AND club_id IS NOT NULL ORDER BY id").all() as Array<{ id: EntityId; club_id: EntityId }>;
   for (const team of teams) {
@@ -33,7 +36,7 @@ export const ensureWomensFootballWorldForSave = (db: GameDatabase, input: { worl
   }
   const ruleSet = competitions.getRuleSet(seasonId);
   if (!ruleSet) throw new Error("Women's competition rule set was not created");
-  return { competitionSeason: { id: seasonId, competitionId, name: `Nepal Women's League ${year}`, startDate, endDate }, ruleSet, teamIds: teams.map((team) => team.id) };
+  return { competitionSeason: { id: seasonId, competitionId, name: `${leagueName} ${year}`, startDate, endDate }, ruleSet, teamIds: teams.map((team) => team.id) };
 };
 
 export const createWomensFootballProgramme = (db: GameDatabase, input: { clubId: EntityId; date: string; annualBudget: number; competitionSeasonId?: EntityId }): ClubDevelopmentProgramme => {

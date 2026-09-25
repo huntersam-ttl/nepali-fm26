@@ -44,6 +44,7 @@ import {
   recordTransferEconomy,
 } from "./club-economy.js";
 import { applySupporterTransferOutcome } from "./supporter-culture.js";
+import { homeCurrency, homeIsoCodes, isHomeIso } from "./home-context.js";
 import {
   applyPlayerLifestyleEvent,
   applyPlayerRelationshipEvent,
@@ -111,7 +112,6 @@ export type TransferWindowSimulationReport = {
   sampleNegotiationTimeline: NegotiationRound[];
 };
 
-const currency = "NPR";
 
 const clubName = (db: GameDatabase, clubId: EntityId): string =>
   (db.prepare("SELECT name FROM clubs WHERE id=?").get(clubId) as { name?: string } | undefined)?.name ?? "The club";
@@ -153,7 +153,7 @@ export const initializeTransferMarketForSave = (input: {
     const employment = employmentProfile(club);
     market.upsertClubEmploymentProfile(employment);
     market.upsertClubFinancialProfile({
-      ...financialProfile(club, input.seed, playerCounts.get(club.id) ?? 0),
+      ...financialProfile(club, input.seed, playerCounts.get(club.id) ?? 0, homeCurrency(input.db)),
       currentWageSpend: 0,
     });
   }
@@ -188,7 +188,7 @@ export const initializeTransferMarketForSave = (input: {
     if (!club) {
       continue;
     }
-    const domesticClub = ["NP", "NPL"].includes(countryCodes.get(club.countryId) ?? "");
+    const domesticClub = isHomeIso(input.db, countryCodes.get(club.countryId));
     // Imported context clubs have factual identities but no real contract
     // terms. Give their players deterministic simulation-only agreements so
     // the global loan and purchase pathways can see them without claiming
@@ -217,7 +217,7 @@ export const rebalanceNewNepalSaveSquads = (db: GameDatabase, worldDate: string)
   let released = 0;
   const clubs = db
     .prepare(
-      `SELECT DISTINCT c.id AS club_id, CASE WHEN lower(comp.name) LIKE '%a-division%' THEN 25 WHEN lower(comp.name) LIKE '%b-division%' THEN 22 WHEN lower(comp.name) LIKE '%c-division%' THEN 20 ELSE 0 END AS target FROM clubs c JOIN countries co ON co.id=c.country_id JOIN club_memberships cm ON cm.club_id=c.id JOIN competitions comp ON comp.id=cm.competition_id WHERE co.iso_code IN ('NP','NPL') AND cm.status='ACTIVE' AND lower(comp.name) LIKE '%division%' ORDER BY c.id`,
+      `SELECT DISTINCT c.id AS club_id, CASE WHEN (SELECT tier FROM competition_tiers WHERE competition_id = comp.id) = 1 THEN 25 WHEN (SELECT tier FROM competition_tiers WHERE competition_id = comp.id) = 2 THEN 22 WHEN (SELECT tier FROM competition_tiers WHERE competition_id = comp.id) = 3 THEN 20 ELSE 0 END AS target FROM clubs c JOIN countries co ON co.id=c.country_id JOIN club_memberships cm ON cm.club_id=c.id JOIN competitions comp ON comp.id=cm.competition_id WHERE co.id = (SELECT country_id FROM home_football_country LIMIT 1) AND cm.status='ACTIVE' AND comp.id IN (SELECT competition_id FROM competition_tiers) ORDER BY c.id`,
     )
     .all() as Array<{ club_id: EntityId; target: number }>;
   for (const club of clubs) {
@@ -493,7 +493,7 @@ const processBoundedForeignInterest = (
     FROM foreign_scouting_interest interest
     JOIN player_factual_profiles profile ON profile.player_id = interest.target_player_id
     JOIN clubs seller ON seller.id = profile.current_club_id
-    WHERE interest.score >= 55 AND seller.country_id IN (SELECT id FROM countries WHERE iso_code IN ('NPL','NP'))
+    WHERE interest.score >= 55 AND seller.country_id = (SELECT country_id FROM home_football_country LIMIT 1)
     GROUP BY interest.target_player_id
     ORDER BY MAX(interest.score) DESC, interest.external_club_id, interest.target_player_id
     LIMIT 3
@@ -635,7 +635,7 @@ export const createTransferOffer = (
     submittedAt: input.submittedAt,
     expiresAt: addDays(input.submittedAt, 14),
     status: "SUBMITTED",
-    currency,
+    currency: homeCurrency(db),
     askingRange: input.sellingClubId ? valuation.askingRange : undefined,
     agentFee: representative ? Math.round(fee * (0.025 + representative.feeExpectation / 500)) : 0,
     signingFee: Math.round(fee * 0.08),
@@ -950,7 +950,7 @@ export const createLoanOffer = (
     submittedAt: input.submittedAt,
     expiresAt: addDays(input.submittedAt, 10),
     status: "SUBMITTED",
-    currency,
+    currency: homeCurrency(db),
     agentFee: 0,
     signingFee: 0,
     loanTerms: {
@@ -1756,7 +1756,7 @@ export const negotiatePlayerTerms = (
   const overseasScore =
     prefs.prefersOverseas === undefined
       ? 0
-      : prefs.prefersOverseas === (destinationCountry !== "NP")
+      : prefs.prefersOverseas === !isHomeIso(db, destinationCountry)
         ? 14
         : -14;
   const preferenceScore = (countryPreferred ? 10 : 0) + overseasScore;
@@ -1973,7 +1973,7 @@ export const negotiatePlayerContract = (
     cleanSheetBonus: Math.round(salary * 0.1),
     signingBonus: offer.signingFee,
     loyaltyBonus: 0,
-    currency,
+    currency: homeCurrency(db),
     squadRole: role,
     releaseClause: Math.round((offer.transferFee + salary * 6) * 2),
     status: "ACTIVE",
@@ -2796,7 +2796,7 @@ export const signFreeAgent = (
     seed,
     isNepalClub(db, clubId)
       ? {
-          preferredCountries: ["NP", "NPL"],
+          preferredCountries: [...homeIsoCodes(db)],
           prefersOverseas: false,
           expectedPlayingTime: "FIRST_TEAM",
           minimumClubLevel: 0,
@@ -3301,7 +3301,7 @@ const isNepalClub = (db: GameDatabase, clubId: EntityId): boolean =>
   Boolean(
     db
       .prepare(
-        "SELECT 1 FROM clubs c JOIN countries country ON country.id=c.country_id WHERE c.id=? AND country.iso_code IN ('NP','NPL')",
+        "SELECT 1 FROM clubs c JOIN countries country ON country.id=c.country_id WHERE c.id=? AND country.id = (SELECT country_id FROM home_football_country LIMIT 1)",
       )
       .get(clubId),
   );
@@ -3511,7 +3511,7 @@ const startingContract = (
     cleanSheetBonus: Math.round(salary * 0.08),
     signingBonus: Math.round(salary * 0.4),
     loyaltyBonus: 0,
-    currency,
+    currency: homeCurrency(db),
     squadRole: role,
     releaseClause: role === "KEY_PLAYER" ? Math.round(salary * 18) : undefined,
     status: "ACTIVE",
@@ -3523,6 +3523,7 @@ const financialProfile = (
   club: MarketClub,
   seed: string,
   playerCount: number,
+  currency: string,
 ): ClubFinancialProfile => {
   const rng = new SeededRandom(`${seed}:finance:${club.id}`);
   const multiplier = clubSalaryMultiplier(club);
@@ -3573,7 +3574,7 @@ const employmentProfile = (club: MarketClub): ClubEmploymentProfile => {
 
 const seedTransferWindows = (db: GameDatabase, worldDate: string): void => {
   const country = db
-    .prepare("SELECT id FROM countries WHERE iso_code IN ('NP', 'NPL') LIMIT 1")
+    .prepare("SELECT country_id AS id FROM home_football_country LIMIT 1")
     .get() as { id: EntityId } | undefined;
   if (!country) return;
   const market = new TransferMarketRepository(db);
@@ -3607,7 +3608,7 @@ const seedAgents = (db: GameDatabase, seed: string, worldDate: string): void => 
   const market = new TransferMarketRepository(db);
   const existing = market.agents();
   const country = db
-    .prepare("SELECT id FROM countries WHERE iso_code IN ('NP', 'NPL') LIMIT 1")
+    .prepare("SELECT country_id AS id FROM home_football_country LIMIT 1")
     .get() as { id: EntityId } | undefined;
   if (existing.length === 0) {
     for (let index = 0; index < 8; index += 1) {
@@ -4214,7 +4215,7 @@ const foreignInterestCount = (db: GameDatabase, playerId: EntityId, worldDate: s
         JOIN clubs buyer ON buyer.id = offer.buying_club_id
         JOIN countries country ON country.id = buyer.country_id
         WHERE offer.player_id = ? AND offer.submitted_at <= ?
-          AND country.iso_code NOT IN ('NP', 'NPL')`,
+          AND country.id IS NOT (SELECT country_id FROM home_football_country LIMIT 1)`,
       )
       .get(playerId, worldDate) as { count: number }
   ).count;
@@ -4229,7 +4230,7 @@ const isForeignBased = (db: GameDatabase, clubId?: EntityId): boolean => {
       WHERE club.id = ?`,
     )
     .get(clubId) as { isoCode?: string } | undefined;
-  return Boolean(row?.isoCode && !["NP", "NPL"].includes(row.isoCode));
+  return Boolean(row?.isoCode && !isHomeIso(db, row.isoCode));
 };
 
 const positionGroup = (position: string): string => {

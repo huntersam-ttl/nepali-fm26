@@ -170,6 +170,7 @@ describe("manager career world: board confidence, sacking and AI reassignment", 
   beforeAll(() => {
     const world = new WorldRepository(db);
     world.insertCountry(country);
+    world.insertFederation({ id: createStableEntityId("federation", "ai-fa"), countryId: country.id, name: "AI Football Association" });
     world.insertClub(club);
     world.insertTeam(team);
     world.insertCompetition({ id: competitionId, name: "Test League", scope: "domestic" });

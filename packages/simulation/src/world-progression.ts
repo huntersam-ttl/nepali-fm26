@@ -1,3 +1,4 @@
+import { seasonEndMonth } from "./home-context.js";
 import {
   CompetitionRepository,
   ManagerRepository,
@@ -399,7 +400,7 @@ export const SEASON_TRANSITION_STAGES: TransitionStageDefinition[] = [
     label: "Club and federation months",
     run: ({ db, save, seasonEndDate }) => {
       // Every month of the season period is processed exactly once, whether live or here.
-      while (processWorldMonths(db, save, `${seasonEndDate.slice(0, 4)}-07`).length > 0) {
+      while (processWorldMonths(db, save, `${seasonEndDate.slice(0, 4)}-${seasonEndMonth(db)}`).length > 0) {
         // keep going until the cursor reaches July
       }
     },

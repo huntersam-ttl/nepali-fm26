@@ -209,7 +209,7 @@ const federationOutcomes = (db: GameDatabase, federationId: EntityId): Federatio
                  JOIN clubs c ON c.id = the.related_club_id
                  JOIN countries co ON co.id = c.country_id
                  WHERE the.event_type = 'TRANSFER_COMPLETED'
-                   AND co.iso_code NOT IN ('NP', 'NPL')
+                   AND co.id IS NOT (SELECT country_id FROM home_football_country LIMIT 1)
                    AND the.player_id IN (${cohort.map(() => "?").join(",")})`,
                 )
                 .all(...cohort) as Array<{ player_id: EntityId }>

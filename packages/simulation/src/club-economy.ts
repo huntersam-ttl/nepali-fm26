@@ -37,6 +37,7 @@ import {
   type TransferOffer,
 } from "@nepal-football-sim/shared-types";
 import { executiveHasAuthority } from "./executive-roles.js";
+import { homeCurrency, seasonEndDate, seasonStartDate } from "./home-context.js";
 import {
   ClubEconomyRepository,
   ClubNetworkRepository,
@@ -102,7 +103,6 @@ export type ChairmanDemoReport = {
   permissions: string[];
 };
 
-const currency = "NPR";
 const simulationStatus = "SIMULATION_ONLY" as const;
 
 export const initializeClubEconomyForSave = (input: {
@@ -116,7 +116,7 @@ export const initializeClubEconomyForSave = (input: {
     const profile = generatedClubEconomy(club, input.seed);
     economy.upsertFinancialAccount({
       clubId: club.id,
-      currency,
+      currency: homeCurrency(input.db),
       cashBalance: profile.cash,
       restrictedCash: Math.round(profile.cash * profile.restrictedCashShare),
       receivables: 0,
@@ -130,15 +130,15 @@ export const initializeClubEconomyForSave = (input: {
       lastUpdatedAt: input.worldDate,
       status: simulationStatus,
     });
-    for (const budget of generatedBudgets(club, profile, input.worldDate)) {
+    for (const budget of generatedBudgets(club, profile, input.worldDate, homeCurrency(input.db))) {
       economy.upsertBudget(budget);
     }
     economy.upsertOwnershipStake(generatedOwnershipStake(club, input.worldDate));
-    economy.upsertSupporterProfile(generatedSupporterProfile(club, profile, input.seed));
+    economy.upsertSupporterProfile(generatedSupporterProfile(club, profile, input.seed, homeCurrency(input.db)));
     economy.upsertCommercialProfile(
       generatedCommercialProfile(club, profile, input.seed, input.worldDate),
     );
-    economy.upsertFacilityProfile(generatedFacilityProfile(club, profile, input.seed));
+    economy.upsertFacilityProfile(generatedFacilityProfile(club, profile, input.seed, homeCurrency(input.db)));
     economy.upsertBoardPolicy(generatedBoardPolicy(club, input.worldDate));
     economy.upsertValuation(calculateClubValuation(input.db, club.id, input.worldDate));
     if (profile.debt > 0) {
@@ -149,7 +149,7 @@ export const initializeClubEconomyForSave = (input: {
         principal: profile.debt,
         outstandingPrincipal: profile.debt,
         interestRate: profile.economicType === "DEPARTMENTAL_CLUB" ? 0.02 : 0.08,
-        currency,
+        currency: homeCurrency(input.db),
         startDate: input.worldDate,
         maturityDate: addYears(input.worldDate, 3),
         repaymentSchedule: "SEASONAL",
@@ -227,7 +227,7 @@ export const createSeasonMembership = (
   economy.upsertSeasonMembership(membership);
   postClubTransaction(db, {
     clubId: input.clubId,
-    date: `${input.seasonLabel}-08-01`,
+    date: seasonStartDate(db, Number(input.seasonLabel)),
     category: "MATCHDAY_REVENUE",
     direction: "CREDIT",
     amount: membership.revenue,
@@ -238,7 +238,7 @@ export const createSeasonMembership = (
   economy.insertCommercialHistory({
     id: createStableEntityId("commercial-history", `${membership.id}:membership`),
     clubId: input.clubId,
-    date: `${input.seasonLabel}-08-01`,
+    date: seasonStartDate(db, Number(input.seasonLabel)),
     eventType: "SEASON_MEMBERSHIP",
     amount: membership.revenue,
     audienceImpact: memberCount,
@@ -494,7 +494,7 @@ export const postClubTransaction = (
     category: input.category,
     direction: input.direction,
     amount: Math.max(0, Math.round(input.amount)),
-    currency,
+    currency: homeCurrency(db),
     description: input.description,
     relatedEntityId: input.relatedEntityId,
     status: simulationStatus,
@@ -526,7 +526,7 @@ export const setClubBudget = (
         .budgets(input.clubId)
         .find((item) => item.seasonLabel === input.seasonLabel && item.category === input.category)
         ?.usedAmount ?? 0,
-    currency,
+    currency: homeCurrency(db),
     status: "ACTIVE",
     provenanceStatus: simulationStatus,
   };
@@ -551,7 +551,7 @@ export const setClubBudgetCommand = (
     throw new Error("Only the active chairman/owner may set a club budget");
   const club = db
     .prepare(
-      "SELECT c.id FROM clubs c JOIN countries co ON co.id=c.country_id WHERE c.id=? AND co.iso_code IN ('NP','NPL')",
+      "SELECT c.id FROM clubs c JOIN countries co ON co.id=c.country_id WHERE c.id=? AND co.id = (SELECT country_id FROM home_football_country LIMIT 1)",
     )
     .get(input.clubId) as { id?: EntityId } | undefined;
   if (!club) throw new Error("Club budget commands are unavailable for context-only clubs");
@@ -604,7 +604,7 @@ export const investPersonalFunds = (
     clubId: input.clubId,
     date: input.date,
     amount: input.amount,
-    currency,
+    currency: homeCurrency(db),
     form: input.form,
     personalLedgerEntryId: createStableEntityId(
       "personal-ledger-placeholder",
@@ -791,7 +791,7 @@ export const generateSponsorOffers = (
         endDate: addYears(input.date, type === "SHIRT_MAIN" || type === "KIT_SUPPLIER" ? 2 : 1),
         annualValue: Math.round(value),
         bonuses: { champion: Math.round(value * 0.12), promotion: Math.round(value * 0.08) },
-        currency,
+        currency: homeCurrency(db),
         status: "OFFERED",
         exclusivityGroup: type === "LOCAL_PARTNER" ? "LOCAL_SERVICES" : type,
         expectations: {
@@ -877,7 +877,7 @@ export const acceptSponsorOfferCommand = (
     throw new Error("Only the active chairman/owner may approve sponsorships");
   const club = db
     .prepare(
-      "SELECT c.id FROM clubs c JOIN countries co ON co.id=c.country_id WHERE c.id=? AND co.iso_code IN ('NP','NPL')",
+      "SELECT c.id FROM clubs c JOIN countries co ON co.id=c.country_id WHERE c.id=? AND co.id = (SELECT country_id FROM home_football_country LIMIT 1)",
     )
     .get(input.clubId) as { id?: EntityId } | undefined;
   if (
@@ -934,7 +934,7 @@ export const rejectSponsorOfferCommand = (
     throw new Error("Only the active chairman/owner may reject sponsorships");
   const club = db
     .prepare(
-      "SELECT c.id FROM clubs c JOIN countries co ON co.id=c.country_id WHERE c.id=? AND co.iso_code IN ('NP','NPL')",
+      "SELECT c.id FROM clubs c JOIN countries co ON co.id=c.country_id WHERE c.id=? AND co.id = (SELECT country_id FROM home_football_country LIMIT 1)",
     )
     .get(input.clubId) as { id?: EntityId } | undefined;
   if (
@@ -1110,7 +1110,7 @@ export const createInfrastructureProject = (
     expectedCompletion: addDays(input.date, 90 + rng.integer(0, 160)),
     capitalCost: Math.round(baseCost * (0.85 + rng.next() * 0.35)),
     ongoingCost: Math.round(baseCost * 0.015),
-    currency,
+    currency: homeCurrency(db),
     status: "PLANNING",
     financingJson,
     siteRights,
@@ -1136,7 +1136,7 @@ export const createInfrastructureProject = (
       principal: debtAmount,
       outstandingPrincipal: debtAmount,
       interestRate: 0.075,
-      currency,
+      currency: homeCurrency(db),
       startDate: input.date,
       maturityDate: addYears(input.date, 5),
       repaymentSchedule: "SEASONAL",
@@ -1176,7 +1176,7 @@ export const createInfrastructureProjectCommand = (
     throw new Error("Only the active chairman/owner may approve infrastructure projects");
   const club = db
     .prepare(
-      "SELECT c.id FROM clubs c JOIN countries co ON co.id=c.country_id WHERE c.id=? AND co.iso_code IN ('NP','NPL')",
+      "SELECT c.id FROM clubs c JOIN countries co ON co.id=c.country_id WHERE c.id=? AND co.id = (SELECT country_id FROM home_football_country LIMIT 1)",
     )
     .get(input.clubId) as { id?: EntityId } | undefined;
   if (!club) throw new Error("Infrastructure commands are unavailable for context-only clubs");
@@ -1351,7 +1351,7 @@ export const advanceInfrastructureProjects = (
         locationId: project.locationId,
         venueId: project.venueId,
         estimatedValue: Math.round(project.capitalCost * 0.8),
-        currency,
+        currency: homeCurrency(db),
         status: simulationStatus,
       });
       const facility = economy.facilityProfile(project.clubId);
@@ -1512,7 +1512,7 @@ export const calculateClubValuation = (
   const result: ClubValuation = {
     clubId,
     valuation,
-    currency,
+    currency: homeCurrency(db),
     calculatedAt: date,
     method: "SIMULATION_FOUNDATION",
     status: simulationStatus,
@@ -2057,7 +2057,7 @@ export const generateCompetitionMediaRightsOffer = (
       : "Nepal Football Streaming Pool",
     annualValue,
     streamingShare: 0.35,
-    currency,
+    currency: homeCurrency(db),
     rightsType: (season?.name ?? "").toLowerCase().includes("league")
       ? "DOMESTIC_AND_STREAMING"
       : "STREAMING",
@@ -2141,7 +2141,7 @@ export const postCompetitionMediaRights = (
       : "Nepal Football Streaming Pool",
     annualValue,
     streamingShare: 0.35,
-    currency,
+    currency: homeCurrency(db),
     rightsType: "DOMESTIC_AND_STREAMING",
     startDate: undefined,
     endDate: undefined,
@@ -2179,7 +2179,7 @@ export const postCompetitionPrizeMoney = (
 ): void => {
   const rows = db
     .prepare(
-      `SELECT ranked.team_id, ranked.position, c.name AS competition_name
+      `SELECT ranked.team_id, ranked.position, c.name AS competition_name, c.category AS category
       FROM (
         SELECT ls.team_id,
           ROW_NUMBER() OVER (
@@ -2196,11 +2196,12 @@ export const postCompetitionPrizeMoney = (
     team_id: EntityId;
     position: number;
     competition_name: string;
+    category: string | null;
   }>;
   for (const row of rows) {
     const clubId = clubIdForTeam(db, row.team_id);
     if (!clubId) continue;
-    const amount = prizeAmount(row.competition_name, row.position);
+    const amount = prizeAmount(row.category, row.position);
     if (amount <= 0) continue;
     postClubTransaction(db, {
       clubId,
@@ -2368,7 +2369,7 @@ export const runEconomyDiagnostic = (input: {
     }
     closeClubFinancialSeason(input.db, {
       seasonLabel: String(year + 1),
-      date: `${year + 1}-07-31`,
+      date: seasonEndDate(input.db, year),
     });
   }
   return economyReport(input.db, input.startDate, input.seasons);
@@ -2395,7 +2396,7 @@ export const runChairmanDemo = (input: {
     assets: 15000000,
     liabilities: 0,
     netWorth: 50000000,
-    currency,
+    currency: homeCurrency(input.db),
     lastUpdatedAt: input.worldDate,
     status: simulationStatus,
   });
@@ -2530,6 +2531,7 @@ const generatedBudgets = (
   club: Club,
   profile: ReturnType<typeof generatedClubEconomy>,
   worldDate: string,
+  currency: string,
 ): ClubBudget[] => {
   const season = seasonLabel(worldDate);
   const wage = Math.round(profile.cash * 0.95 + profile.scale * 2600000);
@@ -2597,6 +2599,7 @@ const generatedSupporterProfile = (
   club: Club,
   profile: ReturnType<typeof generatedClubEconomy>,
   seed: string,
+  currency: string,
 ): ClubSupporterProfile => {
   const rng = new SeededRandom(`${seed}:supporters:${club.id}`);
   const base = Math.round(700 + profile.scale * 850 + rng.next() * 1600);
@@ -2643,6 +2646,7 @@ const generatedFacilityProfile = (
   club: Club,
   profile: ReturnType<typeof generatedClubEconomy>,
   seed: string,
+  currency: string,
 ): ClubFacilityProfile => {
   const rng = new SeededRandom(`${seed}:facilities:${club.id}`);
   const quality = 2.5 + profile.scale * 1.4 + rng.next() * 2;
@@ -2904,8 +2908,8 @@ const financialHealth = (cash: number, debt: number): ClubFinancialHealth => {
 const reserveFloor = (account: ClubFinancialAccount): number =>
   account.financialHealth === "DISTRESSED" || account.financialHealth === "INSOLVENT" ? 0 : 250000;
 
-const prizeAmount = (competitionName: string, position: number): number => {
-  const base = competitionName === "ANFA National League" ? 900000 : 450000;
+const prizeAmount = (category: string | null, position: number): number => {
+  const base = category === "SPECIAL_NATIONAL_LEAGUE" ? 900000 : 450000;
   if (position === 1) return base;
   if (position === 2) return Math.round(base * 0.55);
   if (position === 3) return Math.round(base * 0.3);

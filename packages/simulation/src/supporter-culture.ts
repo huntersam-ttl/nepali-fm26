@@ -1196,15 +1196,13 @@ export const territorialEventInterest = (input: {
 const tierForClub = (db: GameDatabase, clubId: EntityId): number => {
   const row = db
     .prepare(
-      `SELECT c.name AS name FROM club_memberships m
+      `SELECT (SELECT tier FROM competition_tiers WHERE competition_id = c.id) AS tier FROM club_memberships m
        JOIN competition_seasons s ON s.id = m.competition_season_id
        JOIN competitions c ON c.id = s.competition_id
        WHERE m.club_id = ? ORDER BY c.name LIMIT 1`,
     )
-    .get(clubId) as { name?: string } | undefined;
-  const name = row?.name ?? "";
-  if (name.includes("A-Division") || name.includes("A Division")) return 1;
-  if (name.includes("B-Division") || name.includes("B Division")) return 2;
+    .get(clubId) as { tier?: number | null } | undefined;
+  if (row?.tier === 1 || row?.tier === 2) return row.tier;
   return 3;
 };
 

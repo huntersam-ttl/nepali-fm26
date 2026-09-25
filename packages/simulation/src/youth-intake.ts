@@ -33,6 +33,8 @@ import {
 import { createInitialDevelopmentState } from "./player-development.js";
 import { PLAYABLE_CLUB_PREDICATE } from "./playable-world.js";
 import { SeededRandom } from "./rng.js";
+import type { NamePool } from "./country-pack.js";
+import { homeCountryId, homeCurrency, homeNamePool, homeSeasonRules } from "./home-context.js";
 import { initializeTransferMarketForSave } from "./transfer-market.js";
 
 type YouthClub = {
@@ -99,15 +101,13 @@ export type YouthDiagnosticReport = {
   };
 };
 
-const currency = "NPR";
-
 export const initializeYouthSystemForSave = (input: {
   db: GameDatabase;
   worldDate: string;
   seed: string;
 }): void => {
   const youth = new YouthRepository(input.db);
-  const country = nepalCountry(input.db);
+  const country = homeCountry(input.db);
   if (!country) return;
   /* The profile id is keyed by year while the conflict target is
    * (country, effective_from), so re-initialising on a different date in the
@@ -154,8 +154,8 @@ export const runAnnualYouthAndRetirementCycle = (input: {
   if (youth.hasIntakeForSeason(seasonLabel)) {
     return summarizeExistingSeason(input.db, seasonLabel, input.worldDate);
   }
-  const intakeDate = nepalIntakeDateFor(input.worldDate);
-  const country = nepalCountry(input.db);
+  const intakeDate = intakeDateFor(input.db, input.worldDate);
+  const country = homeCountry(input.db);
   if (!country) {
     return blankAnnualReport(intakeDate, seasonLabel);
   }
@@ -486,7 +486,7 @@ const createGeneratedYouth = (input: {
   const gender = input.gender ?? "male";
   const key = `${input.seasonLabel}:${input.club?.id ?? "free"}:${input.academy?.id ?? "district"}:${gender}:${input.cohortKey ?? "academy"}:${input.index}`;
   const personId = createStableEntityId("person-generated-youth", key);
-  const name = generatedNepaliName(input.rng, input.seenNames, gender);
+  const name = generatedName(homeNamePool(input.db), input.rng, input.seenNames, gender);
   const age = weightedAge(input.rng, input.ageRange);
   const position = generatedPosition(input.rng);
   const archetype = archetypeFor(position, input.rng);
@@ -504,7 +504,7 @@ const createGeneratedYouth = (input: {
     genderPresentation: gender,
     placeOfBirthLocationId: locationId,
     hometownLocationId: locationId,
-    languages: ["Nepali"],
+    languages: [...homeNamePool(input.db).languageNames],
   };
   const world = new WorldRepository(input.db);
   world.insertPerson(person);
@@ -585,7 +585,7 @@ const createGeneratedYouth = (input: {
     assignYouthToClub(input.db, personId, input.club, youthStatus, input.date);
   }
   if (input.club) {
-    const contract = youthContract(personId, input.club.id, input.date, age, youthStatus);
+    const contract = youthContract(personId, input.club.id, input.date, age, youthStatus, homeCurrency(input.db));
     new TransferMarketRepository(input.db).upsertPlayerContract(contract);
     seedOwnClubKnowledge(
       input.db,
@@ -820,6 +820,7 @@ const youthContract = (
   date: string,
   age: number,
   status: YouthPlayerStatus,
+  currency: string,
 ): PlayerContractRecord => ({
   id: createStableEntityId("player-contract", `${playerId}:${clubId}:youth`),
   playerId,
@@ -973,102 +974,15 @@ const originTypeFor = (
  */
 export type GeneratedYouthGender = "male" | "female";
 
-const FEMALE_FIRST_NAMES = [
-  "Anita",
-  "Anjali",
-  "Asmita",
-  "Bimala",
-  "Deepa",
-  "Dipa",
-  "Gita",
-  "Kabita",
-  "Manisha",
-  "Nirmala",
-  "Pooja",
-  "Prabha",
-  "Preeti",
-  "Rachana",
-  "Rekha",
-  "Renuka",
-  "Sabitra",
-  "Samjhana",
-  "Sanju",
-  "Saru",
-  "Sarita",
-  "Sunita",
-  "Susmita",
-  "Rasila",
-];
-
-const generatedNepaliName = (
+const generatedName = (
+  pool: NamePool,
   rng: SeededRandom,
   seenNames: Set<string>,
   gender: GeneratedYouthGender = "male",
 ): { firstName: string; middleName?: string; surname: string; fullName: string } => {
-  const first =
-    gender === "female"
-      ? FEMALE_FIRST_NAMES
-      : [
-          "Aarav",
-          "Aashish",
-          "Abinash",
-          "Anish",
-          "Arjun",
-          "Bikash",
-          "Bimal",
-          "Bibek",
-          "Deepak",
-          "Dinesh",
-          "Kiran",
-          "Manish",
-          "Nabin",
-          "Niraj",
-          "Prabin",
-          "Prakash",
-          "Rabin",
-          "Rajan",
-          "Ramesh",
-          "Ritesh",
-          "Roshan",
-          "Sagar",
-          "Sandesh",
-          "Sanjog",
-          "Suman",
-          "Suraj",
-          "Sushil",
-          "Utsav",
-          "Yogesh",
-        ];
-  const middle =
-    gender === "female"
-      ? ["Kumari", "Devi", "Maya", "Laxmi"]
-      : ["Bahadur", "Kumar", "Raj", "Prasad", "Man", "Bir"];
-  const surnames = [
-    "Adhikari",
-    "Ale",
-    "Basnet",
-    "Bhandari",
-    "Bista",
-    "Budha",
-    "Chaudhary",
-    "Ghale",
-    "Gurung",
-    "Karki",
-    "Khadka",
-    "Lama",
-    "Limbu",
-    "Magar",
-    "Maharjan",
-    "Poudel",
-    "Rai",
-    "Shahi",
-    "Sharma",
-    "Sherpa",
-    "Shrestha",
-    "Tamang",
-    "Thapa",
-    "Yadav",
-  ];
+  const first = gender === "female" ? pool.players.femaleFirst : pool.players.maleFirst;
+  const middle = gender === "female" ? pool.players.femaleMiddle : pool.players.maleMiddle;
+  const surnames = pool.players.surnames;
   for (let attempt = 0; attempt < 12; attempt += 1) {
     const firstName = rng.pick(first);
     const middleName = rng.next() < 0.16 ? rng.pick(middle) : undefined;
@@ -1318,13 +1232,11 @@ const academies = (db: GameDatabase): YouthAcademy[] =>
 const academyForClub = (academyRows: YouthAcademy[], clubId: EntityId): YouthAcademy | undefined =>
   academyRows.find((academy) => academy.linkedClubId === clubId || academy.parentClubId === clubId);
 
-const nepalCountry = (db: GameDatabase): { id: EntityId; name: string } | undefined => {
-  const row = db
-    .prepare(
-      "SELECT id, name FROM countries WHERE iso_code IN ('NP', 'NPL') OR name = 'Nepal' LIMIT 1",
-    )
-    .get() as any;
-  return row ? { id: row.id, name: row.name } : undefined;
+const homeCountry = (db: GameDatabase): { id: EntityId; name: string } | undefined => {
+  const id = homeCountryId(db);
+  if (!id) return undefined;
+  const row = db.prepare("SELECT name FROM countries WHERE id = ?").get(id) as { name: string } | undefined;
+  return row ? { id, name: row.name } : undefined;
 };
 
 const squadNeedBoost = (db: GameDatabase, clubId: EntityId): number => {
@@ -1521,7 +1433,7 @@ const summarizeExistingSeason = (
   seasonLabel: string,
   date: string,
 ): YouthAnnualReport => {
-  const report = blankAnnualReport(nepalIntakeDateFor(date), seasonLabel);
+  const report = blankAnnualReport(intakeDateFor(db, date), seasonLabel);
   // Squad repair during save creation is not the club's annual intake.
   const events = new YouthRepository(db).annualIntakeEvents(seasonLabel);
   report.intakeEvents = events.length;
@@ -1642,7 +1554,7 @@ const birthDateForAge = (date: string, age: number, rng: SeededRandom): string =
   return parsed.toISOString().slice(0, 10);
 };
 
-const nepalIntakeDateFor = (date: string): string => `${date.slice(0, 4)}-08-15`;
+const intakeDateFor = (db: GameDatabase, date: string): string => `${date.slice(0, 4)}-${homeSeasonRules(db).youthIntake}`;
 
 const addYears = (date: string, years: number): string => {
   const parsed = new Date(`${date}T00:00:00.000Z`);

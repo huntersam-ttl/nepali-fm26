@@ -1,3 +1,4 @@
+import { midSeasonMonthNumber, seasonPeriodMonthsFor, seasonStartMonthNumber } from "./home-context.js";
 import {
   createStableEntityId,
   type CompetitionRuleSet,
@@ -590,12 +591,6 @@ export const runTerritorialAndPreseasonStage = (
   });
 };
 
-/** The months of one season period in processing order: August of the start year to July of the end year. */
-const seasonPeriodMonths = (endYear: number): string[] => [
-  ...[8, 9, 10, 11, 12].map((month) => `${endYear - 1}-${String(month).padStart(2, "0")}`),
-  ...[1, 2, 3, 4, 5, 6, 7].map((month) => `${endYear}-${String(month).padStart(2, "0")}`),
-];
-
 /** One month of club-economy world processing, for the month `YYYY-MM` (its date is the 28th). */
 export const processEconomyMonthTick = (
   db: GameDatabase,
@@ -605,12 +600,12 @@ export const processEconomyMonthTick = (
   const calendarMonth = Number(input.month.slice(5, 7));
   const year = Number(input.month.slice(0, 4));
   const date = `${input.month}-28`;
-  const seasonBoundary = calendarMonth === 8 || calendarMonth === 1;
+  const seasonBoundary = calendarMonth === seasonStartMonthNumber(db) || calendarMonth === midSeasonMonthNumber(db);
   if (seasonBoundary) advanceMacroEconomyForWorldDate(db, { date: `${input.month}-01`, seed: input.seed });
   processClubEconomyMonth(db, { date, seed: `${input.seed}:${calendarMonth}` });
   if (seasonBoundary) processExternalFootballWorldSeason(db, { seasonLabel: String(year), seed: input.seed });
   runClubAiSeasonPlanning(db, { date, seed: input.seed, excludeClubIds: input.protectedClubIds });
-  if (calendarMonth === 8) runAiStaffPlanning(db, save, date, input.protectedClubIds?.[0]);
+  if (calendarMonth === seasonStartMonthNumber(db)) runAiStaffPlanning(db, save, date, input.protectedClubIds?.[0]);
 };
 
 /** One month of federation world processing, for the month `YYYY-MM` (its date is the 28th). */
@@ -622,7 +617,7 @@ export const processFederationMonthTick = (
   const date = `${input.month}-28`;
   ensureFederationLeadershipContinuity(db, { date, seed: `${input.seed}:federation-leadership` });
   processFederationMonth(db, { date, seed: `${input.seed}:${calendarMonth}` });
-  if (calendarMonth === 8) proposeAnnualGovernmentFunding(db, { date, seed: input.seed });
+  if (calendarMonth === seasonStartMonthNumber(db)) proposeAnnualGovernmentFunding(db, { date, seed: input.seed });
   runFederationComplianceAiForAllFederations(db, date, input.protectedFederationIds);
 };
 
@@ -660,15 +655,13 @@ export const closeFederationSeasonPeriod = (
   }
 };
 
-export const seasonPeriodMonthList = seasonPeriodMonths;
-
 const processEconomyForSeasonPeriod = (
   db: GameDatabase,
   save: SaveMetadata,
   input: { seasonEndDate: string; seed: string },
 ): void => {
   const endYear = Number(input.seasonEndDate.slice(0, 4));
-  for (const month of seasonPeriodMonths(endYear)) {
+  for (const month of seasonPeriodMonthsFor(db, endYear)) {
     processEconomyMonthTick(db, save, { month, seed: input.seed });
   }
   closeEconomySeasonPeriod(db, input);
@@ -685,7 +678,7 @@ const processFederationForSeasonPeriod = (
   input: { seasonEndDate: string; seed: string },
 ): void => {
   const endYear = Number(input.seasonEndDate.slice(0, 4));
-  for (const month of seasonPeriodMonths(endYear)) {
+  for (const month of seasonPeriodMonthsFor(db, endYear)) {
     processFederationMonthTick(db, { month, seed: input.seed });
   }
   closeFederationSeasonPeriod(db, input);

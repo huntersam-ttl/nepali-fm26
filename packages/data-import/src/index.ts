@@ -1072,6 +1072,13 @@ export const nepalWorldDatasetSchema = z.object({
 
 export type ImportRecordInput = z.infer<typeof importRecordSchema>;
 export type NepalWorldDataset = z.infer<typeof nepalWorldDatasetSchema>;
+/**
+ * The country world dataset contract (docs/architecture/country-dataset-contract.md). The
+ * shape is not Nepal-specific; the Nepal-named exports are the same contract under the
+ * name the launch country was built with.
+ */
+export const countryWorldDatasetSchema = nepalWorldDatasetSchema;
+export type CountryWorldDataset = NepalWorldDataset;
 export type ProvenanceStatus = z.infer<typeof provenanceStatusSchema>;
 
 export const validateImportRecord = (input: unknown): ImportRecordInput =>
@@ -1079,6 +1086,7 @@ export const validateImportRecord = (input: unknown): ImportRecordInput =>
 
 export const validateNepalWorldDataset = (input: unknown): NepalWorldDataset =>
   nepalWorldDatasetSchema.parse(input);
+export const validateCountryWorldDataset = validateNepalWorldDataset;
 
 export type DatasetReferenceIssue = {
   path: string;
@@ -1730,3 +1738,5 @@ const requireValidAltitude = (
     issues.push({ path, message: `Invalid altitudeMeters: ${altitude.value}` });
   }
 };
+
+export const validateCountryWorldReferences = validateNepalWorldReferences;

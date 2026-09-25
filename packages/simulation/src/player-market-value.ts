@@ -1,6 +1,7 @@
 import { PlayerRepository, TransferMarketRepository, type GameDatabase } from "@nepal-football-sim/database";
 import { createStableEntityId, type EntityId, type PlayerMarketValueView } from "@nepal-football-sim/shared-types";
 import { calculateTransferValuation } from "./transfer-market.js";
+import { homeCurrency } from "./home-context.js";
 
 export type { PlayerMarketValueView };
 
@@ -52,7 +53,7 @@ export const computePlayerMarketValue = (
     ).length;
   return {
     playerId,
-    currency: "NPR",
+    currency: homeCurrency(db),
     currentValue: Math.round((valuation.internalValue.min + valuation.internalValue.max) / 2),
     valuationMin: valuation.internalValue.min,
     valuationMax: valuation.internalValue.max,

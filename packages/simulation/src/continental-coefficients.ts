@@ -1,3 +1,4 @@
+import { homeCountryId } from "./home-context.js";
 import { ContinentalCareerRepository, type GameDatabase } from "@nepal-football-sim/database";
 import {
   createStableEntityId,
@@ -104,7 +105,7 @@ export const processCompletedContinentalSeason = (
     .prepare(
       `SELECT c.federation_id AS association_id, cs.start_date, f.id AS fixture_id,
       m.home_goals, m.away_goals, m.played_date, hc.id AS home_club_id, ac.id AS away_club_id,
-      hcountry.iso_code AS home_iso, acountry.iso_code AS away_iso
+      hcountry.id AS home_country_id, acountry.id AS away_country_id
     FROM fixtures f JOIN matches m ON m.fixture_id=f.id
     JOIN competition_seasons cs ON cs.id=f.competition_season_id
     JOIN competitions c ON c.id=cs.competition_id
@@ -112,19 +113,20 @@ export const processCompletedContinentalSeason = (
     JOIN clubs hc ON hc.id=ht.club_id JOIN clubs ac ON ac.id=at.club_id
     JOIN countries hcountry ON hcountry.id=hc.country_id JOIN countries acountry ON acountry.id=ac.country_id
     WHERE f.competition_season_id=? AND c.scope='continental'
-      AND (hcountry.iso_code IN ('NP','NPL') OR acountry.iso_code IN ('NP','NPL'))
+      AND (hcountry.id = (SELECT country_id FROM home_football_country LIMIT 1) OR acountry.id = (SELECT country_id FROM home_football_country LIMIT 1))
     ORDER BY f.id`,
     )
     .all(input.competitionSeasonId) as Array<Record<string, unknown>>;
   if (rows.length === 0 || !rows[0]!.association_id) return undefined;
+  const homeCountry = homeCountryId(db);
   const associationId = rows[0]!.association_id as EntityId;
   const seasonLabel = String(rows[0]!.start_date).slice(0, 4);
   const byClub = new Map<EntityId, ContinentalResult>();
   for (const row of rows) {
     const homeGoals = Number(row.home_goals ?? 0);
     const awayGoals = Number(row.away_goals ?? 0);
-    const homeNepal = ["NP", "NPL"].includes(String(row.home_iso));
-    const awayNepal = ["NP", "NPL"].includes(String(row.away_iso));
+    const homeNepal = row.home_country_id === homeCountry;
+    const awayNepal = row.away_country_id === homeCountry;
     const date = String(row.played_date ?? input.calculatedOn);
     const add = (clubId: EntityId, points: number) => {
       const previous = byClub.get(clubId);

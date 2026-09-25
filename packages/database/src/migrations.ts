@@ -3959,6 +3959,64 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       ) WITHOUT ROWID;
     `,
   },
+  {
+    version: 103,
+    sql: `
+      -- Phase 11C: the football country a save is played in. One row per save; every
+      -- country-sensitive system asks for this instead of looking a country up itself.
+      -- config_json carries the country pack's season rules, national-team structure and
+      -- tier labels as they were when the save was made (NULL = use the pack's defaults).
+      CREATE TABLE IF NOT EXISTS home_football_contexts (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        pack_id TEXT NOT NULL,
+        country_id TEXT NOT NULL REFERENCES countries(id),
+        federation_id TEXT REFERENCES federations(id),
+        currency TEXT NOT NULL,
+        locale TEXT NOT NULL,
+        config_json TEXT,
+        established_on TEXT NOT NULL
+      );
+
+      -- Saves made before the context existed were all Nepal saves: infer it once, from the
+      -- canonical country and its federation (by ISO code and relationship, never by name).
+      -- This is the only place the legacy Nepal identity is inferred.
+      INSERT OR IGNORE INTO home_football_contexts
+        (id, pack_id, country_id, federation_id, currency, locale, config_json, established_on)
+      SELECT 1, 'nepal-v1', c.id, f.id, 'NPR', 'en-IN', NULL,
+             COALESCE((SELECT world_date FROM saves LIMIT 1), '2026-08-01')
+      FROM countries c LEFT JOIN federations f ON f.country_id = c.id
+      WHERE c.iso_code IN ('NPL', 'NP')
+      ORDER BY CASE c.iso_code WHEN 'NPL' THEN 0 ELSE 1 END, f.name
+      LIMIT 1;
+
+      -- The home country id for raw SQL: the stored context, or (for a database that has
+      -- not had one established yet, e.g. a hand-built test world) the same legacy inference.
+      CREATE VIEW IF NOT EXISTS home_football_country AS
+        SELECT country_id FROM home_football_contexts
+        UNION ALL
+        SELECT id FROM (
+          SELECT id FROM countries WHERE iso_code IN ('NPL', 'NP')
+          ORDER BY CASE iso_code WHEN 'NPL' THEN 0 ELSE 1 END LIMIT 1
+        )
+        WHERE NOT EXISTS (SELECT 1 FROM home_football_contexts);
+
+      -- The pyramid tier of every competition that sits in a promotion/relegation chain
+      -- (1 = top). It is read from the relationships between competitions, so no
+      -- engine code needs to recognise a division by its name.
+      CREATE VIEW IF NOT EXISTS competition_tiers AS
+        WITH RECURSIVE higher(lower_id, higher_id) AS (
+          SELECT from_competition_id, to_competition_id FROM competition_relationships WHERE movement_type = 'PROMOTION'
+          UNION
+          SELECT to_competition_id, from_competition_id FROM competition_relationships WHERE movement_type = 'RELEGATION'
+        ),
+        chain(competition_id, depth) AS (
+          SELECT DISTINCT higher_id, 1 FROM higher WHERE higher_id NOT IN (SELECT lower_id FROM higher)
+          UNION ALL
+          SELECT h.lower_id, c.depth + 1 FROM chain c JOIN higher h ON h.higher_id = c.competition_id WHERE c.depth < 12
+        )
+        SELECT competition_id, MIN(depth) AS tier FROM chain GROUP BY competition_id;
+    `,
+  },
 ];
 
 /** The schema version a fully migrated save carries: always the newest migration. */

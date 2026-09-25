@@ -1,7 +1,7 @@
 import {
-  validateNepalWorldDataset,
-  validateNepalWorldReferences,
-  type NepalWorldDataset,
+  validateCountryWorldDataset,
+  validateCountryWorldReferences,
+  type CountryWorldDataset,
 } from "@nepal-football-sim/data-import";
 import {
   createNewSave,
@@ -26,10 +26,9 @@ import { applyFederationComplianceSnapshot } from "./federation-compliance.js";
 import { ensureLowerLeaguePlayableWorld } from "./workforce-supply.js";
 import { advanceMacroEconomyForWorldDate } from "./macro-economy.js";
 import { initializeSupporterCultureForSave } from "./supporter-culture.js";
-import {
-  ensureNepalFounderLocations,
-  initializeNepalTerritorialStructure,
-} from "./territorial-football.js";
+import { countryPack, type CountryPack } from "./country-pack.js";
+import { NEPAL_PACK_ID } from "./country-packs/nepal.js";
+import { establishHomeFootballContext } from "./home-context.js";
 import { ensurePlayableClubVenues } from "./club-creation.js";
 import { applyCanonicalGlobalDatasetSeed } from "./global-football-seed.js";
 import { reconcilePlayablePlayerProfilesOnce } from "./player-profile-reconciliation.js";
@@ -96,12 +95,19 @@ type EntityMaps = {
   trainingHistoryEvents: Map<string, EntityId>;
 };
 
-export const createNepalSave = (input: CreateNepalSaveInput): NepalSaveResult => {
-  const dataset = validateNepalWorldDataset(input.dataset);
-  const referenceIssues = validateNepalWorldReferences(dataset);
+export type CreateCountrySaveInput = CreateNepalSaveInput & {
+  /** The country pack the dataset belongs to, e.g. "nepal-v1". */
+  packId: string;
+};
+
+/** Creates a save for the country a dataset and its pack describe. This is the one save-creation path. */
+export const createCountrySave = (input: CreateCountrySaveInput): NepalSaveResult => {
+  const pack = countryPack(input.packId);
+  const dataset = validateCountryWorldDataset(input.dataset);
+  const referenceIssues = validateCountryWorldReferences(dataset);
   if (referenceIssues.length > 0) {
     throw new Error(
-      `Nepal world dataset has invalid references: ${referenceIssues
+      `${pack.countryName} world dataset has invalid references: ${referenceIssues
         .map((issue) => `${issue.path} ${issue.message}`)
         .join("; ")}`,
     );
@@ -112,17 +118,12 @@ export const createNepalSave = (input: CreateNepalSaveInput): NepalSaveResult =>
   try {
     db.exec("BEGIN;");
     const save = createNewSave(db, {
-      name: input.saveName ?? `Nepal ${dataset.meta.targetDatabaseDate}`,
+      name: input.saveName ?? `${pack.countryName} ${dataset.meta.targetDatabaseDate}`,
       worldDate: input.worldDate ?? `${dataset.meta.targetDatabaseDate}-01`,
       gameVersion: input.gameVersion,
       randomSeed: input.randomSeed,
     });
-    importNepalWorld(db, dataset);
-    initializeNepalTerritorialStructure(
-      db,
-      input.worldDate ?? `${dataset.meta.targetDatabaseDate}-01`,
-    );
-    ensureNepalFounderLocations(db);
+    importCountryWorld(db, dataset, pack, input.worldDate ?? `${dataset.meta.targetDatabaseDate}-01`);
     ensurePlayableClubVenues(db, save.worldDate);
     advanceMacroEconomyForWorldDate(db, { date: save.worldDate, seed: input.randomSeed });
     ensureLowerLeaguePlayableWorld({ db, date: save.worldDate, seed: input.randomSeed });
@@ -158,6 +159,10 @@ export const createNepalSave = (input: CreateNepalSaveInput): NepalSaveResult =>
   }
 };
 
+/** Creates a Nepal save: the launch country, through the generic country-save path. */
+export const createNepalSave = (input: CreateNepalSaveInput): NepalSaveResult =>
+  createCountrySave({ ...input, packId: NEPAL_PACK_ID });
+
 export const inspectNepalSave = (databasePath: string): NepalSaveResult => {
   const db = openGameDatabase(databasePath);
   migrateDatabase(db);
@@ -172,7 +177,18 @@ export const inspectNepalSave = (databasePath: string): NepalSaveResult => {
   };
 };
 
-export const importNepalWorld = (db: GameDatabase, dataset: NepalWorldDataset): void => {
+/**
+ * Imports a country's dataset, records the save's home football context from the country pack
+ * and builds the pack's country-specific structures. The context is established right after
+ * the import so everything that follows can ask for the home country and federation.
+ */
+export const importCountryWorld = (db: GameDatabase, dataset: CountryWorldDataset, pack: CountryPack, date: string): void => {
+  importWorldRecords(db, dataset);
+  establishHomeFootballContext(db, pack, date);
+  pack.initialiseTerritory?.(db, date);
+};
+
+const importWorldRecords = (db: GameDatabase, dataset: CountryWorldDataset): void => {
   const world = new WorldRepository(db);
   const competitions = new CompetitionRepository(db);
   const players = new PlayerRepository(db);
@@ -849,7 +865,7 @@ export const importNepalWorld = (db: GameDatabase, dataset: NepalWorldDataset): 
   }
 };
 
-const buildEntityMaps = (dataset: NepalWorldDataset): EntityMaps => ({
+const buildEntityMaps = (dataset: CountryWorldDataset): EntityMaps => ({
   countries: mapKeys("country", dataset.countries),
   locations: mapKeys("location", dataset.locations),
   venues: mapKeys("venue", dataset.venues),
@@ -898,10 +914,10 @@ const buildEntityMaps = (dataset: NepalWorldDataset): EntityMaps => ({
 });
 
 const orderLocationsForImport = (
-  locations: NepalWorldDataset["locations"],
-): NepalWorldDataset["locations"] => {
+  locations: CountryWorldDataset["locations"],
+): CountryWorldDataset["locations"] => {
   const pending = new Map(locations.map((location) => [location.key, location]));
-  const ordered: NepalWorldDataset["locations"] = [];
+  const ordered: CountryWorldDataset["locations"] = [];
   const inserted = new Set<string>();
 
   while (pending.size > 0) {
