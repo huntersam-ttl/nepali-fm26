@@ -38,6 +38,8 @@ const { DatabaseSync } = createRequire(import.meta.url)("node:sqlite") as { Data
 type QueryStat = { calls: number; ms: number };
 let phase = "setup";
 const stats = new Map<string, Map<string, QueryStat>>();
+const HIRING_SQL = /manager_job_|universal_interactions|interaction_memories|manager_contracts|manager_profiles|manager_job_negotiations/i;
+const hiringStats = new Map<string, QueryStat>();
 const originalPrepare = DatabaseSync.prototype.prepare;
 const normalise = (sql: string): string => sql.replace(/\s+/g, " ").trim().slice(0, 160);
 if (seasons > 0) DatabaseSync.prototype.prepare = function patched(this: DatabaseSync, sql: string): unknown {
@@ -50,6 +52,12 @@ if (seasons > 0) DatabaseSync.prototype.prepare = function patched(this: Databas
       try {
         return original(...args);
       } finally {
+        if (HIRING_SQL.test(key)) {
+          const hiring = hiringStats.get(phase) ?? { calls: 0, ms: 0 };
+          hiring.calls += 1;
+          hiring.ms += performance.now() - started;
+          hiringStats.set(phase, hiring);
+        }
         const bucket = stats.get(phase) ?? new Map<string, QueryStat>();
         stats.set(phase, bucket);
         const entry = bucket.get(key) ?? { calls: 0, ms: 0 };
@@ -91,7 +99,24 @@ const snapshot = (savePath: string) => {
       .map((index) => ({ name: index.name, table: index.tbl, bytes: bytes.get(index.name) ?? 0 }))
       .sort((a, b) => b.bytes - a.bytes)
       .slice(0, 20);
+    const one = (sql: string) => Object.values(db.prepare(sql).get() as Record<string, number | null>)[0] ?? 0;
+    const hiring = {
+      vacancies: one("SELECT COUNT(*) FROM manager_job_vacancies"),
+      filled: one("SELECT COUNT(*) FROM manager_job_vacancies WHERE status = 'FILLED'"),
+      open: one("SELECT COUNT(*) FROM manager_job_vacancies WHERE status = 'OPEN'"),
+      avgDaysToFill: one("SELECT ROUND(AVG(julianday(filled_on) - julianday(opened_on)), 1) FROM manager_job_vacancies WHERE status = 'FILLED'"),
+      applications: one("SELECT COUNT(*) FROM manager_job_applications"),
+      applicationsByStatus: db.prepare("SELECT status, COUNT(*) AS n FROM manager_job_applications GROUP BY status").all(),
+      maxApplicationsPerVacancyCandidate: one("SELECT MAX(n) FROM (SELECT COUNT(*) AS n FROM manager_job_applications GROUP BY vacancy_id, manager_profile_id)"),
+      candidates: one("SELECT COUNT(DISTINCT manager_profile_id) FROM manager_job_applications"),
+      profiles: one("SELECT COUNT(*) FROM manager_profiles"),
+      activeContracts: one("SELECT COUNT(*) FROM manager_contracts WHERE status = 'ACTIVE'"),
+      teamsWithMultipleActive: one("SELECT COUNT(*) FROM (SELECT team_id FROM manager_contracts WHERE status = 'ACTIVE' GROUP BY team_id HAVING COUNT(*) > 1)"),
+      profilesWithMultipleActive: one("SELECT COUNT(*) FROM (SELECT manager_profile_id FROM manager_contracts WHERE status = 'ACTIVE' GROUP BY manager_profile_id HAVING COUNT(*) > 1)"),
+      filledWithoutActiveContract: one("SELECT COUNT(*) FROM manager_job_vacancies v WHERE v.status = 'FILLED' AND NOT EXISTS (SELECT 1 FROM manager_contracts c WHERE c.id = v.filled_by_contract_id)"),
+    };
     return {
+      hiring,
       fileMB: +(statSync(savePath).size / 1048576).toFixed(1),
       pageSize: pragma("page_size"),
       pageCount: pragma("page_count"),
@@ -162,6 +187,8 @@ describe.skipIf(seasons === 0)("long save profile", () => {
       service.closeCareer();
       checkpoints.push({ label: `S${season}-rolled`, transitionSeconds, stages, ...snapshot(savePath) });
       service.loadCareerByPath(savePath);
+      report[`hiringStatements-play-${season}`] = { ...(hiringStats.get(`play-${season}`) ?? { calls: 0, ms: 0 }), ms: Math.round(hiringStats.get(`play-${season}`)?.ms ?? 0) };
+      report[`hiringStatements-transition-${season}`] = { ...(hiringStats.get(`transition-${season}`) ?? { calls: 0, ms: 0 }), ms: Math.round(hiringStats.get(`transition-${season}`)?.ms ?? 0) };
       report[`topQueries-play-${season}`] = topQueries(`play-${season}`);
       report[`topQueries-transition-${season}`] = topQueries(`transition-${season}`);
       writeFileSync(outFile, JSON.stringify(report));

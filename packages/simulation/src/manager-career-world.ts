@@ -15,7 +15,6 @@ import {
   createStableEntityId,
   type EntityId,
   type JobApplication,
-  type JobApplicationStatus,
   type ManagerJobNegotiation,
   type JobVacancy,
   type JobVacancyReason,
@@ -199,7 +198,18 @@ export const ensureAiManagersAssigned = (
     ? managers.getProfileByPerson(playerCharacter.personId)?.id
     : undefined;
 
-  for (const team of teams) {
+  // Teams that already have an open vacancy stay in play even when they are not in the
+  // competition season picked above (several seasons start on the same date), so a job
+  // that has been advertised is always worked until it is filled.
+  const inPlay = new Set(teams.map((team) => team.id));
+  const targets: Array<{ id: EntityId; clubId?: EntityId }> = [
+    ...teams,
+    ...careerWorld
+      .openVacancies()
+      .filter((vacancy) => !inPlay.has(vacancy.teamId))
+      .map((vacancy) => ({ id: vacancy.teamId, clubId: vacancy.clubId })),
+  ];
+  for (const team of targets) {
     if (team.id === playerTeamId) continue;
     if (managers.activeContractForTeam(team.id)) continue;
 
@@ -221,12 +231,37 @@ export const ensureAiManagersAssigned = (
     };
     if (!openVacancy) careerWorld.insertVacancy(vacancy);
 
+    const applications = careerWorld.applicationsForVacancy(vacancy.id);
+    // A human's pending offer for this job is theirs to accept or decline: the board
+    // never appoints someone else over it, and never silently retires it.
+    if (
+      playerManagerProfileId &&
+      applications.some(
+        (application) =>
+          application.managerProfileId === playerManagerProfileId && application.status === "OFFERED",
+      )
+    ) {
+      continue;
+    }
+    // A candidate is interviewed once per vacancy. Anyone already turned down (or who
+    // turned the job down) for this vacancy is not brought back for it; a candidate
+    // whose offer is still being negotiated carries on where they left off.
+    const closedForVacancy = new Set(
+      applications
+        .filter((application) => application.status !== "OFFERED" && application.status !== "PENDING")
+        .map((application) => application.managerProfileId),
+    );
     const available = managers
       .managerProfiles(64)
       .filter((profile) => profile.id !== playerManagerProfileId)
+      .filter((profile) => !closedForVacancy.has(profile.id))
       .filter((profile) => {
         const current = managers.activeContract(profile.id);
         if (!current) return true;
+        // A manager who has only just taken a job is not approached for another one,
+        // otherwise the same ambitious manager is hired at one vacancy and poached for
+        // the next on the same day, and every job they leave is open again.
+        if (daysBetween(current.contractStart, save.worldDate) < MIN_TENURE_DAYS_BEFORE_APPROACH) return false;
         // Only approach employed managers who have a deterministic reason to
         // consider moving; there is no silent universal poaching.
         const personality = profile.attributes.personality;
@@ -238,7 +273,10 @@ export const ensureAiManagersAssigned = (
           left.id.localeCompare(right.id),
       )
       .slice(0, 4);
-    if (available.length === 0) {
+    // When every known candidate has already been considered for this job, the board
+    // widens the search with one new candidate a day, up to a bounded number of
+    // candidates per vacancy.
+    if (available.length === 0 && closedForVacancy.size < MAX_CANDIDATES_PER_VACANCY) {
       countryId ??= firstCountryId(db);
       const generated = generateAiManager(
         `ai-manager:${team.id}:${save.worldDate}`,
@@ -253,24 +291,34 @@ export const ensureAiManagersAssigned = (
     }
     for (const profile of available) {
       if (careerWorld.vacancy(vacancy.id)?.status !== "OPEN") break;
+      const pending = applications.find(
+        (application) => application.managerProfileId === profile.id && application.status === "OFFERED",
+      );
       let application: JobApplication;
-      try {
-        application = applyForJob(db, save, profile, vacancy.id);
-      } catch (error) {
-        // A candidate whose earlier offer for this vacancy is still being negotiated
-        // is picked again by the same deterministic ranking; move on to the next one.
-        if (error instanceof JobApplicationError && error.code === "ALREADY_APPLIED") continue;
-        throw error;
+      if (pending) {
+        application = pending;
+      } else {
+        try {
+          application = applyForJob(db, save, profile, vacancy.id);
+        } catch (error) {
+          if (error instanceof JobApplicationError && error.code === "ALREADY_APPLIED") continue;
+          throw error;
+        }
       }
       if (application.status !== "OFFERED") continue;
-      const negotiation = negotiateManagerJobOfferAsAi({
-        db,
-        save,
-        managerProfile: profile,
-        applicationId: application.id,
-        seed: `${save.randomSeed}:${vacancy.id}:${profile.id}`,
-      });
-      if (negotiation.stage !== "ACCEPTED") continue;
+      // An offer whose terms were already agreed goes straight to appointment; any other
+      // open offer takes its next negotiation round.
+      const agreed = careerWorld.managerJobNegotiation(application.id)?.stage === "ACCEPTED";
+      const negotiation = agreed
+        ? undefined
+        : negotiateManagerJobOfferAsAi({
+            db,
+            save,
+            managerProfile: profile,
+            applicationId: application.id,
+            seed: `${save.randomSeed}:${vacancy.id}:${profile.id}`,
+          });
+      if (negotiation && negotiation.stage !== "ACCEPTED") continue;
       try {
         const currentContract = managers.activeContract(profile.id);
         if (currentContract && currentContract.teamId !== vacancy.teamId) {
@@ -329,6 +377,8 @@ const confidenceDelta = (expectation: string, tertile: "TOP" | "MIDDLE" | "BOTTO
 
 const MIN_TENURE_DAYS_BEFORE_SACKING = 60;
 const VACANCY_GRACE_DAYS = 30;
+const MAX_CANDIDATES_PER_VACANCY = 60;
+const MIN_TENURE_DAYS_BEFORE_APPROACH = 365;
 
 const daysBetween = (from: string, to: string): number =>
   Math.round(
@@ -820,8 +870,10 @@ export const negotiateManagerJobOffer = (input: {
   const round = current.round + 1;
   const ambition = input.managerProfile.attributes.personality.ambition;
   const acceptablePremium = 0.08 + ambition * 0.01;
+  // Rounded like the amounts it is compared with: a counter made at exactly the
+  // club's ceiling is otherwise refused by floating-point error alone.
   const accepted =
-    requestedSalary <= current.offeredSalaryMinor * (1 + acceptablePremium) &&
+    requestedSalary <= Math.round(current.offeredSalaryMinor * (1 + acceptablePremium)) &&
     round <= current.maxRounds;
   if (accepted) {
     const updatedApplication = {
