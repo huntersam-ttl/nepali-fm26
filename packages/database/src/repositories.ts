@@ -1322,6 +1322,17 @@ export class CareerWorldRepository {
       .map(mapJobApplication);
   }
 
+  /** Whether this manager already holds an offered or accepted application for the vacancy. */
+  hasLiveApplication(managerProfileId: EntityId, vacancyId: EntityId): boolean {
+    return Boolean(
+      this.db
+        .prepare(
+          "SELECT 1 FROM manager_job_applications WHERE manager_profile_id = ? AND vacancy_id = ? AND status IN ('OFFERED', 'ACCEPTED') LIMIT 1",
+        )
+        .get(managerProfileId, vacancyId),
+    );
+  }
+
   applicationsForVacancy(vacancyId: EntityId): JobApplication[] {
     return this.db
       .prepare(

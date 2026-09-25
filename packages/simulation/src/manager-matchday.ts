@@ -19,6 +19,7 @@ import type {
   TacticalSetup,
 } from "@nepal-football-sim/shared-types";
 import { commentaryTimeline, type CommentaryLine } from "./match-commentary.js";
+import { compactedTeamSummaries, type TeamMatchSummary } from "./storage-policy.js";
 import {
   applyPossession,
   orderedEvents,
@@ -455,10 +456,23 @@ export const buildPostMatchReport = (
       }
     : undefined;
 
-  const teamStats = (teamId: EntityId, type: string) =>
-    events.filter((event) => String(event.teamId) === String(teamId) && event.type === type).length;
+  const compacted = compactedTeamSummaries(db, match.id as EntityId);
+  const compactedCount: Record<string, keyof TeamMatchSummary> = {
+    SHOT: "shots",
+    SHOT_ON_TARGET: "shotsOnTarget",
+    CORNER: "corners",
+    FOUL: "fouls",
+  };
+  const teamStats = (teamId: EntityId, type: string) => {
+    const summary = compacted?.get(teamId);
+    const field = compactedCount[type];
+    if (summary && field) return Number(summary[field]);
+    return events.filter((event) => String(event.teamId) === String(teamId) && event.type === type).length;
+  };
   const xgFor = (teamId: EntityId) =>
-    Math.round(
+    compacted?.has(teamId)
+      ? Math.round(compacted.get(teamId)!.xg * 100) / 100
+      : Math.round(
       events
         .filter((event) => String(event.teamId) === String(teamId) && event.type === "SHOT")
         .reduce((total, event) => total + Number(event.data?.xg ?? 0), 0) * 100,

@@ -140,6 +140,7 @@ describe("the staged season transition", () => {
       "international",
       "external-world",
       "next-season",
+      "storage",
       "finalize",
     ]);
     const dateBefore = (service.continueCareer() as { ok: true; data: { save: { worldDate: string } } }).data.save.worldDate;

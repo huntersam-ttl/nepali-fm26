@@ -29,6 +29,7 @@ export * from "./national-team-workspace.js";
 export * from "./national-team-operations.js";
 export * from "./world-progression.js";
 export * from "./home-context.js";
+export * from "./storage-policy.js";
 export * from "./national-team-competitions.js";
 export * from "./federation-scorecard.js";
 export * from "./federation-referee-context.js";

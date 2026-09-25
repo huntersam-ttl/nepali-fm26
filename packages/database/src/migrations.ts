@@ -1,7 +1,5 @@
 import type { GameDatabase } from "./connection.js";
 
-export const CURRENT_DATABASE_VERSION = 91;
-
 const migrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
     version: 1,
@@ -3914,7 +3912,57 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       );
     `,
   },
+  {
+    version: 102,
+    sql: `
+      -- Phase 11B: long-save growth and cost. Every index below was added because
+      -- a measured repeated query scanned its whole table (docs/architecture/save-growth-policy.md).
+      -- Each one is chosen so that the rows a query returns come back in exactly the
+      -- order they did before: several gameplay loops iterate unordered result sets,
+      -- so an index that reordered ties would change outcomes. Plain single-column
+      -- indexes keep rowid order within a key; the applications index is DESC so it
+      -- matches the old "ORDER BY created_on DESC" tie order.
+      CREATE INDEX IF NOT EXISTS idx_match_events_match ON match_events(match_id);
+      CREATE INDEX IF NOT EXISTS idx_team_person_assignments_team ON team_person_assignments(team_id);
+      CREATE INDEX IF NOT EXISTS idx_manager_job_applications_profile
+        ON manager_job_applications(manager_profile_id, created_on DESC);
+      CREATE INDEX IF NOT EXISTS idx_manager_job_applications_vacancy
+        ON manager_job_applications(manager_profile_id, vacancy_id);
+      CREATE INDEX IF NOT EXISTS idx_media_stories_source ON media_stories(source_entity_id);
+      CREATE INDEX IF NOT EXISTS idx_player_potentials_player ON player_potentials(player_id);
+
+      -- Once a match is old enough, its verbose event detail (fouls, shots, saves,
+      -- free kicks, corners) is compacted. The team totals those events produced are
+      -- kept here so statistics for the match read exactly as before.
+      CREATE TABLE IF NOT EXISTS match_team_summaries (
+        match_id TEXT NOT NULL REFERENCES matches(id),
+        team_id TEXT NOT NULL,
+        goals INTEGER NOT NULL DEFAULT 0,
+        shots INTEGER NOT NULL DEFAULT 0,
+        shots_on_target INTEGER NOT NULL DEFAULT 0,
+        xg REAL NOT NULL DEFAULT 0,
+        corners INTEGER NOT NULL DEFAULT 0,
+        fouls INTEGER NOT NULL DEFAULT 0,
+        yellow_cards INTEGER NOT NULL DEFAULT 0,
+        red_cards INTEGER NOT NULL DEFAULT 0,
+        free_kicks INTEGER NOT NULL DEFAULT 0,
+        saves INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (match_id, team_id)
+      ) WITHOUT ROWID;
+
+      CREATE TABLE IF NOT EXISTS match_event_compactions (
+        match_id TEXT PRIMARY KEY REFERENCES matches(id),
+        compacted_on TEXT NOT NULL,
+        events_before INTEGER NOT NULL,
+        events_removed INTEGER NOT NULL,
+        policy TEXT NOT NULL
+      ) WITHOUT ROWID;
+    `,
+  },
 ];
+
+/** The schema version a fully migrated save carries: always the newest migration. */
+export const CURRENT_DATABASE_VERSION = migrations[migrations.length - 1]!.version;
 
 export const migrateDatabase = (db: GameDatabase): number => {
   db.exec(
@@ -3940,6 +3988,10 @@ export const migrateDatabase = (db: GameDatabase): number => {
       }
     }
   }
+  db.prepare("UPDATE saves SET database_version = ? WHERE database_version < ?").run(
+    CURRENT_DATABASE_VERSION,
+    CURRENT_DATABASE_VERSION,
+  );
   return CURRENT_DATABASE_VERSION;
 };
 

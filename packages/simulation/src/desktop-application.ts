@@ -45,6 +45,7 @@ import {
   withAutosaveStamp,
 } from "./save-management.js";
 import { advanceMacroEconomyForWorldDate } from "./macro-economy.js";
+import { compactedTeamSummaries, type TeamMatchSummary } from "./storage-policy.js";
 import {
   advanceInfrastructureProjects,
   KIT_SUPPLIER_ROYALTY_SHARE,
@@ -6766,7 +6767,7 @@ const postMatchReadModel = (db: GameDatabase, matchId: EntityId): PostMatchReadM
     })) as unknown as MatchEvent[];
   const homeTeam = getTeam(db, fixture.home_team_id);
   const awayTeam = getTeam(db, fixture.away_team_id);
-  const stats = teamStatsFromEvents(events, homeTeam.id, awayTeam.id);
+  const stats = teamStatsFromEvents(events, homeTeam.id, awayTeam.id, compactedTeamSummaries(db, matchId));
   return {
     match: {
       id: match.id,
@@ -6958,22 +6959,24 @@ const teamStatsFromEvents = (
   events: readonly MatchEvent[],
   homeTeamId: EntityId,
   awayTeamId: EntityId,
+  compacted?: ReadonlyMap<EntityId, TeamMatchSummary>,
 ): Pick<PostMatchReadModel, "homeStats" | "awayStats"> => {
   const stats = (teamId: EntityId) => ({
     teamId,
     possession: 50,
-    shots: events.filter((event) => event.teamId === teamId && event.type === "SHOT").length,
-    shotsOnTarget: events.filter(
+    shots: compacted?.has(teamId) ? compacted.get(teamId)!.shots : events.filter((event) => event.teamId === teamId && event.type === "SHOT").length,
+    shotsOnTarget: compacted?.has(teamId) ? compacted.get(teamId)!.shotsOnTarget : events.filter(
       (event) => event.teamId === teamId && event.type === "SHOT_ON_TARGET",
     ).length,
-    xg:
-      Math.round(
+    xg: compacted?.has(teamId)
+      ? Math.round(compacted.get(teamId)!.xg * 100) / 100
+      : Math.round(
         events
           .filter((event) => event.teamId === teamId && event.type === "SHOT")
           .reduce((total, event) => total + Number(event.data?.xg ?? 0), 0) * 100,
       ) / 100,
-    corners: events.filter((event) => event.teamId === teamId && event.type === "CORNER").length,
-    fouls: events.filter((event) => event.teamId === teamId && event.type === "FOUL").length,
+    corners: compacted?.has(teamId) ? compacted.get(teamId)!.corners : events.filter((event) => event.teamId === teamId && event.type === "CORNER").length,
+    fouls: compacted?.has(teamId) ? compacted.get(teamId)!.fouls : events.filter((event) => event.teamId === teamId && event.type === "FOUL").length,
     yellowCards: events.filter((event) => event.teamId === teamId && event.type === "YELLOW_CARD")
       .length,
     redCards: events.filter((event) => event.teamId === teamId && event.type === "RED_CARD").length,

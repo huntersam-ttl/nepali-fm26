@@ -8,6 +8,7 @@ import {
 } from "@nepal-football-sim/database";
 import { buildAiTacticalSetup } from "./ai-tactics.js";
 import { heldCareerRoles } from "./career-control.js";
+import { compactOldMatchEvents, compactResolvedInterviews } from "./storage-policy.js";
 import { familiarityAfterTacticChange, validateSelection } from "./tactics.js";
 import {
   createStableEntityId,
@@ -458,6 +459,14 @@ export const SEASON_TRANSITION_STAGES: TransitionStageDefinition[] = [
           seasonLabel: next[0]!.ruleSet.seasonStartDate.slice(0, 4),
         });
       }
+    },
+  },
+  {
+    key: "storage",
+    label: "Tidying older match detail",
+    run: ({ db, seasonEndDate }) => {
+      compactOldMatchEvents(db, seasonEndDate);
+      compactResolvedInterviews(db, seasonEndDate);
     },
   },
   {

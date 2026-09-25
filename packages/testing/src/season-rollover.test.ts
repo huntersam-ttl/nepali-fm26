@@ -138,7 +138,7 @@ describe("a real desktop save across three seasons", () => {
       const transitionStartedAt = Date.now();
       const { stages, state } = runTransition(service);
       const transitionSeconds = Math.round((Date.now() - transitionStartedAt) / 1000);
-      expect(stages.map((stage) => stage.done)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, -1].slice(0, stages.length));
+      expect(stages.map((stage) => stage.done)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, -1].slice(0, stages.length));
       expect(state.seasonStatus?.phase).toBe("IN_PROGRESS");
 
       // The same transition cannot run a second time.

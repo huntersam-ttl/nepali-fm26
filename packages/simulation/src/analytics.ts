@@ -4,6 +4,7 @@ import type {
   TeamAnalyticsSummary,
 } from "@nepal-football-sim/shared-types";
 import type { GameDatabase } from "@nepal-football-sim/database";
+import { compactedTeamSummaries } from "./storage-policy.js";
 
 type SqlRow = Record<string, any>;
 
@@ -86,6 +87,16 @@ export const matchAnalytics = (
       const data = JSON.parse(event.data_json) as { xg?: unknown };
       if (event.type === "SHOT" && typeof data.xg === "number") team.xg += data.xg;
     }
+  }
+  // Old background matches keep team totals instead of every shot, foul and corner.
+  for (const [teamId, summary] of compactedTeamSummaries(db, matchId) ?? []) {
+    const team = teams.get(teamId);
+    if (!team) continue;
+    team.shots = summary.shots;
+    team.shotsOnTarget = summary.shotsOnTarget;
+    team.xg = summary.xg;
+    team.corners = summary.corners;
+    team.fouls = summary.fouls;
   }
   const playerLines = (
     db

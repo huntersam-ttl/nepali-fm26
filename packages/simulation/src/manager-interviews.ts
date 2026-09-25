@@ -29,7 +29,7 @@ export const createManagerInterview = (db: GameDatabase, input: { vacancy: JobVa
   if (!input.vacancy.clubId) throw new Error("Manager interview requires a club authority");
   const repo = new UniversalInteractionRepository(db);
   const cycle = input.cycle ?? input.date;
-  const existing = repo.all().find((item) => item.interactionType === "MANAGER_INTERVIEW" && item.linkedReference?.canonicalId === input.vacancy.id && item.initiator.entityId === input.profile.personId && item.linkedReference?.stage === cycle);
+  const existing = repo.ofType("MANAGER_INTERVIEW", input.vacancy.id).find((item) => item.interactionType === "MANAGER_INTERVIEW" && item.linkedReference?.canonicalId === input.vacancy.id && item.initiator.entityId === input.profile.personId && item.linkedReference?.stage === cycle);
   if (existing) return existing;
   return openInteraction(db, {
     interactionType: "MANAGER_INTERVIEW",

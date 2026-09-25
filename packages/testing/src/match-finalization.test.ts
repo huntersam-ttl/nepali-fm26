@@ -136,13 +136,22 @@ describe("match finalization", () => {
           .prepare("SELECT event_type FROM historical_events WHERE id = ?")
           .get(createStableEntityId("history", `MATCH:${match.id}`)),
       ).toEqual({ event_type: "MATCH_COMPLETED" });
-      if (Number(match.home_goals) !== Number(match.away_goals)) {
-        expect(
-          db
-            .prepare("SELECT COUNT(*) AS count FROM football_record_history WHERE source_id = ?")
-            .get(match.id),
-        ).toMatchObject({ count: 1 });
-      }
+      // The biggest-win record is only written when a margin beats the world record, and
+      // the world now plays every club's fixtures, so a decisive match writes a row only
+      // if nothing else in the save had a margin as large.
+      const margin = Math.abs(Number(match.home_goals) - Number(match.away_goals));
+      const largestOther = (
+        db
+          .prepare("SELECT MAX(ABS(home_goals - away_goals)) AS m FROM matches WHERE id != ?")
+          .get(match.id) as { m: number | null }
+      ).m ?? 0;
+      const recordRows = (
+        db.prepare("SELECT COUNT(*) AS count FROM football_record_history WHERE source_id = ?").get(match.id) as {
+          count: number;
+        }
+      ).count;
+      if (margin > largestOther) expect(recordRows).toBe(1);
+      else expect(recordRows).toBeLessThanOrEqual(1);
       const fixture = db
         .prepare("SELECT home_team_id, away_team_id FROM fixtures WHERE id = ?")
         .get(target.id) as { home_team_id: EntityId; away_team_id: EntityId };
@@ -172,7 +181,7 @@ describe("match finalization", () => {
 
   it("surfaces a stored rivalry through match history and production media", () => {
     const fixtures = service.getFixtures();
-    expect(fixtures.ok).toBe(true);
+    expect(fixtures.ok, JSON.stringify(fixtures)).toBe(true);
     if (!fixtures.ok) return;
     const target = fixtures.data.upcoming[0]!;
     advanceToMatchday(target.date);
@@ -366,11 +375,18 @@ const openSaveWhileClosed = (): GameDatabase => {
   return openSave();
 };
 
+/**
+ * The manager's own latest match. The world also plays every other club's fixtures as
+ * time passes, so the newest match in the save is often a background one; the manager's
+ * is the one that went through a match session.
+ */
 const latestMatch = (db: GameDatabase): Record<string, never> =>
-  db.prepare("SELECT * FROM matches ORDER BY played_date DESC, id DESC LIMIT 1").get() as Record<
-    string,
-    never
-  >;
+  db
+    .prepare(
+      `SELECT m.* FROM matches m JOIN match_sessions s ON s.match_id = m.id
+       ORDER BY m.played_date DESC, m.id DESC LIMIT 1`,
+    )
+    .get() as Record<string, never>;
 
 const latestFixtureId = (db: GameDatabase): string =>
   String((latestMatch(db) as unknown as { fixture_id: string }).fixture_id);

@@ -21,5 +21,10 @@ export const openGameDatabase = (filePath: string): GameDatabase => {
   // recent commits, never leave a half-written state. FULL fsyncs after every
   // statement, which made a full simulated season about six times slower.
   db.exec("PRAGMA synchronous = NORMAL;");
+  // Memory only, no durability effect: a 64 MB page cache (the default is 2 MB, far
+  // smaller than a multi-season save) and in-memory temporary sort/group structures.
+  // Measured on a real save: about 8% off season play and 30% off the season transition.
+  db.exec("PRAGMA cache_size = -65536;");
+  db.exec("PRAGMA temp_store = MEMORY;");
   return db;
 };

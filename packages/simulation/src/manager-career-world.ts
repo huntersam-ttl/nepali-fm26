@@ -253,7 +253,15 @@ export const ensureAiManagersAssigned = (
     }
     for (const profile of available) {
       if (careerWorld.vacancy(vacancy.id)?.status !== "OPEN") break;
-      const application = applyForJob(db, save, profile, vacancy.id);
+      let application: JobApplication;
+      try {
+        application = applyForJob(db, save, profile, vacancy.id);
+      } catch (error) {
+        // A candidate whose earlier offer for this vacancy is still being negotiated
+        // is picked again by the same deterministic ranking; move on to the next one.
+        if (error instanceof JobApplicationError && error.code === "ALREADY_APPLIED") continue;
+        throw error;
+      }
       if (application.status !== "OFFERED") continue;
       const negotiation = negotiateManagerJobOfferAsAi({
         db,
@@ -624,14 +632,7 @@ export const applyForJob = (
     );
   }
 
-  const alreadyApplied = careerWorld
-    .applicationsForManager(managerProfile.id)
-    .some(
-      (application) =>
-        application.vacancyId === vacancyId &&
-        (application.status === "OFFERED" || application.status === "ACCEPTED"),
-    );
-  if (alreadyApplied) {
+  if (careerWorld.hasLiveApplication(managerProfile.id, vacancyId)) {
     throw new JobApplicationError("ALREADY_APPLIED", "You already have an offer for this job.");
   }
   const check = eligibility(managerProfile, vacancy);
@@ -993,7 +994,7 @@ const finalizeJobAcceptance = (
   careerWorld.insertApplication({ ...application, status: "ACCEPTED", decidedOn: save.worldDate });
 
   const interview = new UniversalInteractionRepository(db)
-    .all()
+    .ofType("MANAGER_INTERVIEW", vacancy.id)
     .find(
       (item) =>
         item.interactionType === "MANAGER_INTERVIEW" &&
