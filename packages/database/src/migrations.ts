@@ -4025,6 +4025,25 @@ const migrations: ReadonlyArray<{ version: number; sql: string }> = [
       CREATE INDEX IF NOT EXISTS idx_player_availability_team ON player_availability_states(team_id, person_id);
     `,
   },
+  {
+    version: 105,
+    sql: `
+      -- Phase 11F: one country, many codes. countries.iso_code keeps the single code a row was
+      -- created with (its source's code system, never rewritten); every other code a country is
+      -- known by is registered here. A (system, code) pair belongs to one country. Existing rows
+      -- are not seeded: their stored codes do not say which standard they follow, and guessing
+      -- would be wrong. Aliases are added by country packs, the registry and imports from now on.
+      CREATE TABLE IF NOT EXISTS country_codes (
+        country_id TEXT NOT NULL REFERENCES countries(id),
+        code TEXT NOT NULL,
+        code_system TEXT NOT NULL CHECK (code_system IN ('ISO_ALPHA2', 'ISO_ALPHA3', 'FIFA', 'DATASET', 'LEGACY')),
+        source TEXT,
+        PRIMARY KEY (code_system, code)
+      ) WITHOUT ROWID;
+      CREATE INDEX IF NOT EXISTS idx_country_codes_code ON country_codes(code);
+      CREATE INDEX IF NOT EXISTS idx_country_codes_country ON country_codes(country_id);
+    `,
+  },
 ];
 
 /** The schema version a fully migrated save carries: always the newest migration. */

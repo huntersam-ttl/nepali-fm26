@@ -55,7 +55,18 @@ export type RiskLevel = "LOW" | "MEDIUM" | "HIGH" | "UNKNOWN";
 export type Country = {
   id: EntityId;
   name: string;
+  /** The code the country row was created with, in its source's code system. Unique; see CountryCodeAlias for the others. */
   isoCode: string;
+};
+
+/** Which standard a country code belongs to. LEGACY: a code a country pack lists without naming its standard. DATASET: a code an imported dataset uses. */
+export type CountryCodeSystem = "ISO_ALPHA2" | "ISO_ALPHA3" | "FIFA" | "DATASET" | "LEGACY";
+
+export type CountryCodeAlias = {
+  countryId: EntityId;
+  code: string;
+  system: CountryCodeSystem;
+  source?: string;
 };
 
 export type Location = {

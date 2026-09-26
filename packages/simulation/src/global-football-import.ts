@@ -1,4 +1,4 @@
-import { GlobalFootballContextRepository, type GameDatabase, WorldRepository } from "@nepal-football-sim/database";
+import { CountryCodeRepository, GlobalFootballContextRepository, type GameDatabase, WorldRepository } from "@nepal-football-sim/database";
 import { createStableEntityId, type EntityId, type ExternalFederationContext, type FootballStaffRole } from "@nepal-football-sim/shared-types";
 import type { GlobalImportPlan, WorkbookRow } from "@nepal-football-sim/data-import";
 
@@ -13,10 +13,14 @@ const existingByName = (db: GameDatabase, table: "countries" | "federations" | "
 };
 
 const upsertCountry = (db: GameDatabase, name: string): EntityId => {
-  const existing = db.prepare("SELECT id FROM countries WHERE lower(name)=lower(?) OR iso_code=? LIMIT 1").get(name, isoFor(name)) as { id?: EntityId } | undefined;
-  if (existing?.id) return existing.id;
-  const id = createStableEntityId("import-country", isoFor(name));
-  db.prepare("INSERT OR IGNORE INTO countries (id,name,iso_code) VALUES (?,?,?)").run(id, name, isoFor(name));
+  const codes = new CountryCodeRepository(db);
+  const code = isoFor(name);
+  const existing =
+    codes.resolveByCode(code) ??
+    (db.prepare("SELECT id FROM countries WHERE lower(name)=lower(?) ORDER BY id LIMIT 1").get(name) as { id?: EntityId } | undefined)?.id;
+  const id = existing ?? createStableEntityId("import-country", code);
+  if (!existing) db.prepare("INSERT OR IGNORE INTO countries (id,name,iso_code) VALUES (?,?,?)").run(id, name, code);
+  codes.addAliasIfFree({ countryId: id, code, system: "DATASET", source: "global-import" });
   return id;
 };
 

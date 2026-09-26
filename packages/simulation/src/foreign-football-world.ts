@@ -21,6 +21,7 @@ import {
 import { initializeTransferMarketForSave } from "./transfer-market.js";
 import { generateYouthCohort } from "./youth-intake.js";
 import { SeededRandom } from "./rng.js";
+import { ensureEngineCountry } from "./country-identity.js";
 import { homeCountryId, homeFederationAbbreviation, homeNamePool } from "./home-context.js";
 import { considerForeignInternationalTrials } from "./international-trials.js";
 import { createInitialDevelopmentState, updatePlayerDevelopment } from "./player-development.js";
@@ -813,12 +814,4 @@ const seedForeignStaff = (
   }
 };
 
-const countryIdFor = (db: GameDatabase, isoCode: string, name: string): EntityId => {
-  const existing = db
-    .prepare("SELECT id FROM countries WHERE iso_code = ? LIMIT 1")
-    .get(isoCode) as { id: EntityId } | undefined;
-  if (existing) return existing.id;
-  const id = createStableEntityId("country", isoCode);
-  new WorldRepository(db).insertCountry({ id, name, isoCode });
-  return id;
-};
+const countryIdFor = (db: GameDatabase, isoCode: string, name: string): EntityId => ensureEngineCountry(db, { isoAlpha2: isoCode, name });

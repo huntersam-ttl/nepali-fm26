@@ -1,4 +1,4 @@
-import type { GameDatabase } from "@nepal-football-sim/database";
+import { CountryCodeRepository, type GameDatabase } from "@nepal-football-sim/database";
 import type { EntityId, Federation } from "@nepal-football-sim/shared-types";
 import {
   countryPack,
@@ -100,6 +100,8 @@ export const establishHomeFootballContext = (
     )
     .get(...pack.isoCodes, ...pack.isoCodes) as { country_id: EntityId; federation_id: EntityId | null } | undefined;
   if (!row) throw new Error(`The dataset has no country and federation for pack "${pack.packId}".`);
+  const codes = new CountryCodeRepository(db);
+  for (const code of pack.isoCodes) codes.addAliasIfFree({ countryId: row.country_id, code, system: "LEGACY", source: pack.packId });
   const config: StoredHomeConfig = {
     federationAbbreviation: pack.federationAbbreviation,
     seasonRules: pack.seasonRules,

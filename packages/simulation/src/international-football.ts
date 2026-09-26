@@ -42,6 +42,7 @@ import { ensureNationalTeamStaffStructure, recordNationalTeamEditionEntry } from
 import { SeededRandom } from "./rng.js";
 import { findHomeFootballContext, homeFootballContext, homeCountryId, homeCurrency, homeFederation, homeNationalTeams, seasonEndInYear } from "./home-context.js";
 import { countryPack } from "./country-pack.js";
+import { ensureEngineCountry, findEngineCountry } from "./country-identity.js";
 
 const simulationStatus = "SIMULATION_ONLY" as const;
 const factualIdentityStatus = "VERIFIED" as const;
@@ -1712,14 +1713,10 @@ export const groupStandings = (
 };
 
 const ensureExternalCountries = (db: GameDatabase, nations: readonly RegistryTeam[]): void => {
+  const home = findHomeFootballContext(db);
   for (const item of nations) {
-    const home = findHomeFootballContext(db);
     if (home && countryPack(home.packId).isoCodes.includes(item.isoCode)) continue;
-    db.prepare("INSERT OR IGNORE INTO countries (id, name, iso_code) VALUES (?, ?, ?)").run(
-      createStableEntityId("country", item.isoCode),
-      item.countryName,
-      item.isoCode,
-    );
+    ensureEngineCountry(db, { isoAlpha2: item.isoCode, name: item.countryName });
   }
 };
 
@@ -2041,9 +2038,9 @@ const recordInternationalHistory = (db: GameDatabase, editionId: EntityId): void
 const countryIdByIso = (db: GameDatabase, isoCode: string): EntityId => {
   const home = findHomeFootballContext(db);
   if (home && countryPack(home.packId).isoCodes.includes(isoCode)) return home.countryId;
-  const row = db.prepare("SELECT id FROM countries WHERE iso_code = ? LIMIT 1").get(isoCode) as { id: EntityId } | undefined;
-  if (!row) throw new Error(`Country ${isoCode} missing`);
-  return row.id;
+  const id = findEngineCountry(db, isoCode);
+  if (!id) throw new Error(`Country ${isoCode} missing`);
+  return id;
 };
 
 const seniorMenNationalTeamId = (db: GameDatabase): EntityId => {
@@ -2100,8 +2097,8 @@ const competitionByKey = (
  */
 const hostCountries = (db: GameDatabase, key: InternationalCompetitionKey): EntityId[] => {
   const byIso = (isoCode: string): EntityId[] => {
-    const row = db.prepare("SELECT id FROM countries WHERE iso_code = ? LIMIT 1").get(isoCode) as { id: EntityId } | undefined;
-    return row ? [row.id] : [];
+    const id = findEngineCountry(db, isoCode);
+    return id ? [id] : [];
   };
   if (isRegionalCompetition(key)) {
     const home = homeCountryId(db);
