@@ -138,7 +138,7 @@ export const createCountrySave = (input: CreateCountrySaveInput): NepalSaveResul
      * this one. Existing careers are untouched: this runs only at save
      * creation, and the dataset version is recorded on the save's world.
      */
-    if (input.globalSeedPath !== null) {
+    if (input.globalSeedPath !== null && (input.globalSeedPath !== undefined || pack.canonicalGlobalSeed)) {
       applyCanonicalGlobalDatasetSeed(db, { seedPath: input.globalSeedPath });
     }
     reconcilePlayablePlayerProfilesOnce(db, { worldDate: save.worldDate, seed: input.randomSeed });

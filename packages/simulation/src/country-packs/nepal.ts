@@ -10,6 +10,10 @@ export const NEPAL_PACK_ID = "nepal-v1";
 
 /** Nepal's name lists, exactly as the generators used them before names became a pack concern. */
 export const NEPAL_NAME_POOL: NamePool = {
+  emergencyPlayers: {
+    first: ["Aashish", "Bibek", "Deepak", "Kiran", "Nabin", "Prabin", "Rabin", "Roshan", "Sagar", "Suman"],
+    surnames: ["Adhikari", "Basnet", "Gurung", "Karki", "Khadka", "Lama", "Magar", "Rai", "Shrestha", "Thapa"],
+  },
   id: "nepal-names-v1",
   languageCodes: ["ne"],
   languageNames: ["Nepali"],
@@ -83,6 +87,7 @@ export const nepalPack: CountryPack = registerCountryPack({
   tierLabels: ["A Division", "B Division", "C Division"],
   namePool: NEPAL_NAME_POOL,
   geography: NEPAL_GEOGRAPHY,
+  canonicalGlobalSeed: true,
   economy: { priceLevel: 1, wageLevel: 1, ticketPriceLevel: 1 },
   commercial: NEPAL_COMMERCIAL,
   media: NEPAL_MEDIA,

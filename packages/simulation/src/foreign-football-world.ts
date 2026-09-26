@@ -23,7 +23,8 @@ import {
 import { initializeTransferMarketForSave } from "./transfer-market.js";
 import { generateYouthCohort } from "./youth-intake.js";
 import { SeededRandom } from "./rng.js";
-import { ensureEngineCountry } from "./country-identity.js";
+import { ensureEngineCountry, findEngineCountry } from "./country-identity.js";
+import { homeCountryPack } from "./home-context.js";
 import { homeCountryId, homeFederationAbbreviation, homeNamePool } from "./home-context.js";
 import { considerForeignInternationalTrials } from "./international-trials.js";
 import { createInitialDevelopmentState, updatePlayerDevelopment } from "./player-development.js";
@@ -68,6 +69,9 @@ const FOREIGN_SEASON_KIND = "FOREIGN_WORLD_SEASON";
 const DIASPORA_SEASON_KIND = "FOREIGN_WORLD_DIASPORA_PRODUCTION";
 const DIASPORA_ANNUAL_CAP = 2;
 
+/** Foreign markets simulated at a higher standing (reputation, finances, academy and scouting reach). Data, by ISO alpha-2. */
+const STRONG_FOREIGN_MARKETS: ReadonlySet<string> = new Set(["JP"]);
+
 const confederationFor = (isoCode: string): "AFC" | "CAF" | "CONCACAF" | "CONMEBOL" | "OFC" | "UEFA" =>
   ["NG", "GH"].includes(isoCode) ? "CAF" : ["IN", "BD", "BT", "MV", "PK", "LK", "AF", "JP", "AE"].includes(isoCode) ? "AFC" : "UEFA";
 
@@ -84,12 +88,12 @@ const ensureExternalLeagueContext = (db: GameDatabase, input: { isoCode: string;
   if (!db.prepare("SELECT 1 FROM federations WHERE id = ?").get(federationId)) {
     world.insertFederation({ id: federationId, countryId: input.countryId, name: `${input.countryName} Football Association` });
   }
-  contexts.upsertFederation({ federationId, countryId: input.countryId, confederation: confederationFor(input.isoCode), reputation: input.isoCode === "JP" ? 7 : 4, simulationDepth: "CONTEXT_ONLY", updatedOn: input.date });
+  contexts.upsertFederation({ federationId, countryId: input.countryId, confederation: confederationFor(input.isoCode), reputation: STRONG_FOREIGN_MARKETS.has(input.isoCode) ? 7 : 4, simulationDepth: "CONTEXT_ONLY", updatedOn: input.date });
   const leagueId = createStableEntityId("external-league", input.isoCode);
   if (!db.prepare("SELECT 1 FROM competitions WHERE id = ?").get(leagueId)) {
     world.insertCompetition({ id: leagueId, federationId, name: `${input.countryName} Context League`, scope: "domestic", category: "PYRAMID_LEAGUE" });
   }
-  contexts.upsertLeague({ leagueId, federationId, countryId: input.countryId, tier: 1, reputation: input.isoCode === "JP" ? 7 : 4, simulationDepth: "CONTEXT_ONLY", continentalQualification: true });
+  contexts.upsertLeague({ leagueId, federationId, countryId: input.countryId, tier: 1, reputation: STRONG_FOREIGN_MARKETS.has(input.isoCode) ? 7 : 4, simulationDepth: "CONTEXT_ONLY", continentalQualification: true });
   return { federationId, leagueId };
 };
 
@@ -153,6 +157,8 @@ export const initializeForeignFootballWorldForSave = (input: {
   const foreignClubs: Array<{ clubId: EntityId; teamId: EntityId; countryId: EntityId; federationId: EntityId; leagueId: EntityId }> = [];
 
   for (const [isoCode, countryName] of FOREIGN_MARKETS) {
+    // The home country is not a foreign market, whichever country that is.
+    if (findEngineCountry(input.db, isoCode) === homeCountryId(input.db)) continue;
     const countryId = countryIdFor(input.db, isoCode, countryName);
     const externalLeague = ensureExternalLeagueContext(input.db, { isoCode, countryId, countryName, date: input.worldDate });
     const canonicalExternalId = `SIM-FOREIGN-${isoCode}`;
@@ -186,7 +192,7 @@ export const initializeForeignFootballWorldForSave = (input: {
       .prepare("SELECT id FROM teams WHERE club_id = ? AND level = 'senior' ORDER BY id LIMIT 1")
       .get(club.id) as { id: EntityId } | undefined;
     if (!team) continue;
-    new GlobalFootballContextRepository(input.db).upsertClub({ clubId: club.id, leagueId: externalLeague.leagueId, federationId: externalLeague.federationId, countryId, reputation: isoCode === "JP" ? 70 : 45, financialBand: isoCode === "JP" ? "HIGH" : "MEDIUM", academyStrength: isoCode === "JP" ? 70 : 45, scoutingReach: isoCode === "JP" ? 65 : 40, recruitmentRegions: ["SOUTH_ASIA", "WIDER_ASIA"], simulationDepth: "CONTEXT_ONLY" });
+    new GlobalFootballContextRepository(input.db).upsertClub({ clubId: club.id, leagueId: externalLeague.leagueId, federationId: externalLeague.federationId, countryId, reputation: STRONG_FOREIGN_MARKETS.has(isoCode) ? 70 : 45, financialBand: STRONG_FOREIGN_MARKETS.has(isoCode) ? "HIGH" : "MEDIUM", academyStrength: STRONG_FOREIGN_MARKETS.has(isoCode) ? 70 : 45, scoutingReach: STRONG_FOREIGN_MARKETS.has(isoCode) ? 65 : 40, recruitmentRegions: ["SOUTH_ASIA", "WIDER_ASIA"], simulationDepth: "CONTEXT_ONLY" });
     foreignClubs.push({ clubId: club.id, teamId: team.id, countryId, federationId: externalLeague.federationId, leagueId: externalLeague.leagueId });
   }
 
@@ -357,7 +363,7 @@ const produceDiasporaPlayers = (
   if (!claimForeignCycle(input.db, {
     seasonLabel: year,
     kind: DIASPORA_SEASON_KIND,
-    contextKey: "nepal-diaspora",
+    contextKey: `${homeCountryPack(input.db).countryName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-diaspora`,
     date: input.seasonEndDate,
   })) return;
   const nepal = { id: homeCountryId(input.db) } as { id?: EntityId };

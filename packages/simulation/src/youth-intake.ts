@@ -34,7 +34,7 @@ import { createInitialDevelopmentState } from "./player-development.js";
 import { PLAYABLE_CLUB_PREDICATE } from "./playable-world.js";
 import { SeededRandom } from "./rng.js";
 import type { NamePool } from "./country-pack.js";
-import { homeCountryId, homeCurrency, homeNamePool, homeSeasonRules } from "./home-context.js";
+import { homeCountryId, homeCountryPack, homeCurrency, homeNamePool, homeSeasonRules } from "./home-context.js";
 import { initializeTransferMarketForSave } from "./transfer-market.js";
 
 type YouthClub = {
@@ -439,7 +439,7 @@ const generateIntakeForSource = (input: {
     status: "SIMULATION_ONLY",
     seedKey: input.seed,
     data: {
-      model: "nepal-simulation-youth-v1",
+      model: `${homeCountryPack(input.db).countryName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-simulation-youth-v1`,
       profile: input.profile,
       note: "Generated youth are simulation-only people, not real researched players.",
     },
@@ -553,8 +553,8 @@ const createGeneratedYouth = (input: {
     },
     sourceNotes:
       gender === "female"
-        ? "Generated simulation-only Nepal women's youth player"
-        : "Generated simulation-only Nepal youth player",
+        ? `Generated simulation-only ${homeCountryPack(input.db).countryName} women's youth player`
+        : `Generated simulation-only ${homeCountryPack(input.db).countryName} youth player`,
   };
   youth.insertGeneratedPlayerOrigin(origin);
   youth.upsertYouthStatus({
@@ -585,7 +585,7 @@ const createGeneratedYouth = (input: {
     assignYouthToClub(input.db, personId, input.club, youthStatus, input.date);
   }
   if (input.club) {
-    const contract = youthContract(personId, input.club.id, input.date, age, youthStatus, homeCurrency(input.db));
+    const contract = youthContract(personId, input.club.id, input.date, age, youthStatus, homeCurrency(input.db), homeCountryPack(input.db).countryName);
     new TransferMarketRepository(input.db).upsertPlayerContract(contract);
     seedOwnClubKnowledge(
       input.db,
@@ -821,6 +821,7 @@ const youthContract = (
   age: number,
   status: YouthPlayerStatus,
   currency: string,
+  countryName: string,
 ): PlayerContractRecord => ({
   id: createStableEntityId("player-contract", `${playerId}:${clubId}:youth`),
   playerId,
@@ -838,7 +839,7 @@ const youthContract = (
   squadRole: status === "FIRST_TEAM_PROSPECT" ? "PROSPECT" : "YOUTH",
   status: "ACTIVE",
   provenance: {
-    sourceName: "Nepal youth intake simulation",
+    sourceName: `${countryName} youth intake simulation`,
     confidence: 1,
     confidenceLevel: "HIGH",
     status: "SIMULATION_ONLY",

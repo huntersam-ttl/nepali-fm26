@@ -1,5 +1,6 @@
 import type { HistoricalEvent } from "@nepal-football-sim/shared-types";
 import type { GameDatabase } from "@nepal-football-sim/database";
+import { findHomeFootballContext } from "./home-context.js";
 
 /**
  * The single deterministic presentation layer for story headlines.
@@ -35,6 +36,8 @@ export type StoryHeadlineNames = {
   project?: string;
   opponent?: string;
   result?: string;
+  /** The home country, for headlines about its national teams. */
+  nation?: string;
 };
 
 export type StoryHeadlineInput = {
@@ -128,7 +131,7 @@ const FAMILIES: readonly { match: RegExp; build: (names: StoryHeadlineNames | un
   { match: /^SPONSORSHIP_EXPIRED$/, build: (n) => (n?.sponsor ? `${subjectClub(n)} part ways with ${n.sponsor}` : `${subjectClub(n)} see a sponsorship deal expire`) },
   { match: /^FEDERATION_COMMERCIAL_RIGHTS_AWARDED$/, build: (n) => (n?.sponsor ? `The federation awards commercial rights to ${n.sponsor}` : "The federation awards a commercial rights package") },
   // ---- NATIONAL TEAM ---------------------------------------------------
-  { match: /^NATIONAL_TEAM_CALLUP$/, build: (n) => `Nepal call up ${subjectPlayer(n)} for ${n?.programme ?? "the national squad"}` },
+  { match: /^NATIONAL_TEAM_CALLUP$/, build: (n) => `${n?.nation ?? "The national team"} call up ${subjectPlayer(n)} for ${n?.programme ?? "the national squad"}` },
   {
     match: /^NATIONAL_TEAM_DEBUT$/,
     build: (n) => `${subjectPlayer(n)} earns a first ${n?.programme ?? "international"} appearance`.replace(/^./, (c) => c.toUpperCase()),
@@ -218,5 +221,5 @@ export const storyHeadline = (db: GameDatabase, event: HistoricalEvent): string 
   presentStoryHeadline({
     eventType: event.eventType,
     title: event.title,
-    names: resolveStoryHeadlineNames(db, event),
+    names: { ...resolveStoryHeadlineNames(db, event), nation: findHomeFootballContext(db)?.countryName },
   });

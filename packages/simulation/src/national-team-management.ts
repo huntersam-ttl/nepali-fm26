@@ -2,7 +2,7 @@ import { createStableEntityId, type DiasporaRecruitment, type EntityId, type Foo
 import { FederationGovernanceRepository, InternationalFootballRepository, NationalTeamManagementRepository, StaffMarketRepository, WorldRepository, type GameDatabase } from "@nepal-football-sim/database";
 import { type StaffEmploymentContract, type StaffAppointment } from "@nepal-football-sim/shared-types";
 import { scheduleFriendly, selectNationalTeamSquad } from "./federation-governance.js";
-import { homeCurrency, homeFootballContext, isHomeFederation } from "./home-context.js";
+import { homeCountryPack, homeCurrency, homeFootballContext, homeNamePool, isHomeFederation } from "./home-context.js";
 import { staffEligibility } from "./staff-market.js";
 
 const status = "SIMULATION_ONLY" as const;
@@ -52,7 +52,7 @@ export const appointNationalTeamHeadCoachForPresident = (
   return appointment;
 };
 
-const staffPerson = (db: GameDatabase, id: EntityId, name: string, countryId: EntityId, date: string): Person => { const world = new WorldRepository(db); const existing = world.getPerson(id); if (existing) return existing; const person: Person = { id, fullName: name, displayName: name, dateOfBirth: "1978-01-01", nationalityCountryId: countryId, genderPresentation: "unknown", languages: ["Nepali", "English"] }; world.insertPerson(person); world.insertPersonRole({ id: createStableEntityId("person-role", `${id}:STAFF`), personId: id, role: "STAFF", activeFrom: date }); return person; };
+const staffPerson = (db: GameDatabase, id: EntityId, name: string, countryId: EntityId, date: string): Person => { const world = new WorldRepository(db); const existing = world.getPerson(id); if (existing) return existing; const person: Person = { id, fullName: name, displayName: name, dateOfBirth: "1978-01-01", nationalityCountryId: countryId, genderPresentation: "unknown", languages: [...homeNamePool(db).languageNames, "English"] }; world.insertPerson(person); world.insertPersonRole({ id: createStableEntityId("person-role", `${id}:STAFF`), personId: id, role: "STAFF", activeFrom: date }); return person; };
 
 export const ensureNationalTeamStaffStructure = (db: GameDatabase, input: { federationId: EntityId; nationalTeamId: EntityId; date: string }): Array<{ role: FootballStaffRole; personId: EntityId }> => {
   const countryId = (db.prepare("SELECT country_id FROM federations WHERE id=?").get(input.federationId) as { country_id: EntityId } | undefined)?.country_id;
@@ -60,7 +60,7 @@ export const ensureNationalTeamStaffStructure = (db: GameDatabase, input: { fede
   const team = db.prepare("SELECT name, level, gender FROM teams WHERE id=?").get(input.nationalTeamId) as { name: string; level: string; gender: string } | undefined;
   if (!team) throw new Error("National team not found");
   const organisationNames = [team.name];
-  if (team.level === "senior" && team.gender === "women") organisationNames.push("Nepal Women's Senior National Team");
+  if (team.level === "senior" && team.gender === "women") organisationNames.push(`${homeCountryPack(db).countryName} Women's Senior National Team`);
   const useImportedSeniorMenCoach = team.level === "senior" && team.gender === "men";
   const roles: Array<[FootballStaffRole, string]> = [["NATIONAL_TEAM_HEAD_COACH", "National Team Head Coach"], ["NATIONAL_TEAM_ASSISTANT", "National Team Assistant"], ["SPORTS_SCIENTIST", "National Team Performance Coach"], ["NATIONAL_TEAM_PHYSIO", "National Team Medical Lead"], ["NATIONAL_TEAM_ANALYST", "National Team Scout Analyst"]];
   const world = new WorldRepository(db);

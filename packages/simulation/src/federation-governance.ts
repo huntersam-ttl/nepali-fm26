@@ -60,7 +60,7 @@ import { PLAYABLE_CLUB_PREDICATE } from "./playable-world.js";
 import { SeededRandom } from "./rng.js";
 import { buildEntityReference } from "./entity-reference.js";
 import { nationalTeamOutcomes } from "./national-team-workspace.js";
-import { homeCountryPack, homeCurrency, homeFederation, seasonEndDate } from "./home-context.js";
+import { homeCountryPack, homeCurrency, homeFederation, homeFederationAbbreviation, homeFootballContext, homeNamePool, seasonEndDate } from "./home-context.js";
 import { countryEconomicProfile, scaleAmount, scalePrice } from "./economic-profile.js";
 import { ensureNationalTeamRows } from "./national-team-identity.js";
 import { recordFederationDevelopmentSnapshot } from "./federation-scorecard.js";
@@ -700,7 +700,7 @@ export const appointNationalTeamStaff = (
           dateOfBirth: "1978-01-01",
           nationalityCountryId: countryId,
           genderPresentation: "unknown",
-          languages: ["Nepali"],
+          languages: [...homeNamePool(db).languageNames],
         };
   if (!world.getPerson(person.id)) {
     world.insertPerson(person);
@@ -794,7 +794,7 @@ export const selectNationalTeamSquad = (
             { id: team.id, type: "team" },
             { id: player.personId, type: "person" },
           ],
-          title: `Nepal call up ${playerName} for ${programmeLabel}`,
+          title: `${homeFootballContext(db).countryName} call up ${playerName} for ${programmeLabel}`,
           data: { teamId: team.id, playerId: player.personId, programme: programmeLabel, federationId: team.federationId },
           importance: "medium",
           scope: "federation",
@@ -2170,12 +2170,12 @@ const createDemoPresident = (db: GameDatabase, federation: Federation, date: str
   const world = new WorldRepository(db);
   const person: Person = {
     id: createStableEntityId("person", `federation-president-demo:${federation.id}`),
-    fullName: "ANFA President Demo",
+    fullName: `${homeFederationAbbreviation(db)} President Demo`,
     displayName: "President Demo",
     dateOfBirth: "1975-01-01",
     nationalityCountryId: federation.countryId,
     genderPresentation: "unknown",
-    languages: ["Nepali", "English"],
+    languages: [...homeNamePool(db).languageNames, "English"],
   };
   if (!world.getPerson(person.id)) {
     world.insertPerson(person);

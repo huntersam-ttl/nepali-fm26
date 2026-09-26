@@ -44,7 +44,7 @@ import {
   recordTransferEconomy,
 } from "./club-economy.js";
 import { applySupporterTransferOutcome } from "./supporter-culture.js";
-import { findHomeFootballContext, homeCurrency, homeIsoCodes, isHomeIso } from "./home-context.js";
+import { findHomeFootballContext, homeCountryPack, homeCurrency, homeIsoCodes, isHomeIso } from "./home-context.js";
 import { isoAlpha2Of } from "./country-identity.js";
 import { countryEconomicProfile, scaleAmount, scalePrice, scaleWage } from "./economic-profile.js";
 import {
@@ -1986,7 +1986,7 @@ export const negotiatePlayerContract = (
     squadRole: role,
     releaseClause: Math.round((offer.transferFee + salary * 6) * 2),
     status: "ACTIVE",
-    provenance: simulationOnlyProvenance("Generated player contract negotiation terms"),
+    provenance: simulationOnlyProvenance(db, "Generated player contract negotiation terms"),
   };
 };
 
@@ -2666,7 +2666,7 @@ const renewContract = (
     endDate: addMonths(worldDate, 8 + Math.floor(rng.next() * 12)),
     salary: Math.round(contract.salary * (1.02 + rng.next() * 0.12)),
     status: "ACTIVE",
-    provenance: simulationOnlyProvenance("Generated renewal terms"),
+    provenance: simulationOnlyProvenance(db, "Generated renewal terms"),
   };
   market.upsertPlayerContract(renewed);
   market.insertTransferHistoryEvent({
@@ -3525,7 +3525,7 @@ const startingContract = (
     squadRole: role,
     releaseClause: role === "KEY_PLAYER" ? Math.round(salary * 18) : undefined,
     status: "ACTIVE",
-    provenance: simulationOnlyProvenance("Generated starting contract; real terms unavailable"),
+    provenance: simulationOnlyProvenance(db, "Generated starting contract; real terms unavailable"),
   };
 };
 
@@ -3604,7 +3604,8 @@ const seedTransferWindows = (db: GameDatabase, worldDate: string): void => {
       registrationDeadline: closeDate,
       status: openDate <= worldDate && closeDate >= worldDate ? "OPEN" : "SCHEDULED",
       provenance: simulationOnlyProvenance(
-        "Nepal transfer-window dates unavailable; generated for gameplay",
+        db,
+        `${homeCountryPack(db).countryName} transfer-window dates unavailable; generated for gameplay`,
       ),
       rules: {
         freeAgentsAllowedOutsideWindow: true,
@@ -4262,8 +4263,8 @@ const positionGroup = (position: string): string => {
   return "FORWARD";
 };
 
-const simulationOnlyProvenance = (summary: string) => ({
-  sourceName: "Nepal football simulation",
+const simulationOnlyProvenance = (db: GameDatabase, summary: string) => ({
+  sourceName: `${homeCountryPack(db).countryName} football simulation`,
   lastVerifiedDate: "2026-08-01",
   confidence: 0,
   confidenceLevel: "LOW" as const,

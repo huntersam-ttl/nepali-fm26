@@ -17,6 +17,7 @@ const NAMES = {
   season: "A-Division 2026",
   programme: "Senior Men",
   project: "training ground",
+  nation: "Nepal",
 };
 
 /** [family, eventType, expected headline with full canonical names]. */

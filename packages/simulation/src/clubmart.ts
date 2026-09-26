@@ -1,21 +1,14 @@
 import { createStableEntityId, type EntityId, type ProcurementCategory, type ProcurementContract, type ProcurementOffer, type ProcurementOrder, type ProcurementRequest, type ProcurementServiceRecord, type ProcurementSupplier } from "@nepal-football-sim/shared-types";
 import { ClubEconomyRepository, ProcurementRepository, type GameDatabase } from "@nepal-football-sim/database";
 import { postClubTransaction } from "./club-economy.js";
-import { homeCurrency } from "./home-context.js";
+import { homeCountryPack, homeCurrency } from "./home-context.js";
 import { SeededRandom } from "./rng.js";
 
 const addDays = (date: string, days: number): string => { const value = new Date(`${date}T00:00:00Z`); value.setUTCDate(value.getUTCDate() + days); return value.toISOString().slice(0, 10); };
 const budgetFor = (category: ProcurementCategory): "ACADEMY_BUDGET" | "FACILITY_BUDGET" | "SCOUTING_BUDGET" => category === "ANALYSIS_SCOUTING" ? "SCOUTING_BUDGET" : category === "KITS_TRAINING_WEAR" || category === "FOOTBALL_EQUIPMENT" ? "ACADEMY_BUDGET" : "FACILITY_BUDGET";
-const suppliers: Array<Omit<ProcurementSupplier, "id">> = [
-  { name: "Kathmandu Football Supply", region: "Nepal", reputation: 6.4, priceLevel: 0.92, reliability: 0.86, foreign: false, status: "SIMULATION_ONLY" },
-  { name: "Himalayan Sports Cooperative", region: "Nepal", reputation: 5.8, priceLevel: 0.78, reliability: 0.72, foreign: false, status: "SIMULATION_ONLY" },
-  { name: "South Asia Performance Group", region: "South Asia", reputation: 7.2, priceLevel: 1.08, reliability: 0.82, foreign: true, status: "SIMULATION_ONLY" },
-  { name: "AsiaPro Football Systems", region: "Wider Asia", reputation: 8.1, priceLevel: 1.24, reliability: 0.91, foreign: true, status: "SIMULATION_ONLY" },
-];
-
 export const initializeClubMartForSave = (db: GameDatabase): ProcurementSupplier[] => {
   const repo = new ProcurementRepository(db);
-  for (const supplier of suppliers) repo.upsertSupplier({ ...supplier, id: createStableEntityId("procurement-supplier", supplier.name) });
+  for (const supplier of homeCountryPack(db).commercial?.suppliers ?? []) repo.upsertSupplier({ ...supplier, id: createStableEntityId("procurement-supplier", supplier.name) });
   return repo.suppliers();
 };
 

@@ -1,4 +1,4 @@
-import { isHomeFederation } from "./home-context.js";
+import { homeNamePool, isHomeFederation } from "./home-context.js";
 import {
   createStableEntityId,
   type EntityId,
@@ -202,7 +202,7 @@ const ensurePerson = (
     dateOfBirth: "1968-01-01",
     nationalityCountryId: countryId,
     genderPresentation: "unknown",
-    languages: ["Nepali", "English"],
+    languages: [...homeNamePool(db).languageNames, "English"],
   };
   world.insertPerson(person);
   world.insertPersonRole({

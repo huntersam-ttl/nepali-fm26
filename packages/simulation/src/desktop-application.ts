@@ -275,7 +275,7 @@ import {
   type TransferLoanCommand,
 } from "@nepal-football-sim/shared-types";
 import { validateCountryWorldDataset, type CountryWorldDataset } from "@nepal-football-sim/data-import";
-import { countryPack } from "./country-pack.js";
+import { countryPack, type CountryPack } from "./country-pack.js";
 import { NEPAL_PACK_ID } from "./country-packs/nepal.js";
 import { homeCountryId, homeFederationAbbreviation, homeFootballContext, homeCurrency } from "./home-context.js";
 import { generateLeagueFixtures } from "./fixture-generation.js";
@@ -304,7 +304,6 @@ import {
   userMatchRequiresAction,
 } from "./manager-flow.js";
 import { founderLocationOptions } from "./administrative-geography.js";
-import { NEPAL_GEOGRAPHY } from "./country-packs/nepal-geography.js";
 import { ensureLowerLeaguePlayableWorld, reconcileWorkforceSupply } from "./workforce-supply.js";
 import { initializePeopleFoundation } from "./people-foundation.js";
 import { reconcilePlayablePlayerProfilesOnce } from "./player-profile-reconciliation.js";
@@ -716,7 +715,7 @@ export class DesktopApplicationService {
         "Factual seed data retains source and provenance classifications; it is not a claim of unrestricted redistribution rights.",
       simulationOnlyNotice:
         "Generated businesses, offers, estimates, and other generated terms are SIMULATION_ONLY and are not factual claims.",
-      externalWorldPolicy: "Nepal is simulated in full; outside-Nepal entities and outcomes remain CONTEXT_ONLY unless explicitly supported.",
+      externalWorldPolicy: `${countryPack(this.countryPackId).countryName} is simulated in full; outside-${countryPack(this.countryPackId).countryName} entities and outcomes remain CONTEXT_ONLY unless explicitly supported.`,
       licensingNotice:
         "Source-specific redistribution permissions remain UNKNOWN or UNRESOLVED. Review the full attribution and licensing record before redistribution.",
       fullDocumentLabel: "Dataset Attribution and Licensing",
@@ -741,9 +740,9 @@ export class DesktopApplicationService {
 
   listStartingClubs(): AppResult<StartingClubOption[]> {
     try {
-      return ok(startingClubOptions(this.worldDataset()));
+      return ok(startingClubOptions(this.worldDataset(), countryPack(this.countryPackId)));
     } catch (error) {
-      return fail("WORLD_DATA_UNAVAILABLE", "Could not read the Nepal world dataset.", error);
+      return fail("WORLD_DATA_UNAVAILABLE", `Could not read the ${countryPack(this.countryPackId).countryName} world dataset.`, error);
     }
   }
 
@@ -826,7 +825,7 @@ export class DesktopApplicationService {
       return fail("WORLD_DATA_UNAVAILABLE", `Could not read the ${countryPack(this.countryPackId).countryName} world dataset.`, error);
     }
 
-    const options = startingClubOptions(dataset);
+    const options = startingClubOptions(dataset, countryPack(this.countryPackId));
     const founderMode = command.careerMode === "OWNER" && Boolean(command.founder);
     const target = command.joinTeamId
       ? options.find((option) => option.teamId === command.joinTeamId)
@@ -836,7 +835,7 @@ export class DesktopApplicationService {
     if (!target && !founderMode) {
       return fail(
         "INVALID_SELECTION",
-        "The selected starting club is not a playable Nepal club in this world.",
+        `The selected starting club is not a playable ${countryPack(this.countryPackId).countryName} club in this world.`,
       );
     }
 
@@ -888,7 +887,7 @@ export class DesktopApplicationService {
               if (!row)
                 throw appError(
                   "SAVE_CORRUPT",
-                  "The lowest supported Nepal division is unavailable.",
+                  `The lowest supported ${countryPack(this.countryPackId).countryName} division is unavailable.`,
                 );
               return {
                 id: row.id as EntityId,
@@ -943,7 +942,7 @@ export class DesktopApplicationService {
             )
             .get(founder.locationName ?? founder.clubName) as { id?: EntityId } | undefined;
           if (!location?.id)
-            throw appError("INVALID_SELECTION", "Choose one of Nepal's canonical districts.");
+            throw appError("INVALID_SELECTION", "Choose one of the listed founding locations.");
           const founded = foundSimulationClub(db, {
             name: founder.clubName,
             locationId: location.id,
@@ -1059,7 +1058,7 @@ export class DesktopApplicationService {
       // so this can never duplicate world data. A world built without the
       // committed dataset artifact present (e.g. a stripped-down test
       // environment) simply stays Nepal-only rather than failing the career.
-      applyCanonicalGlobalDatasetSeed(db);
+      if (countryPack(this.countryPackId).canonicalGlobalSeed) applyCanonicalGlobalDatasetSeed(db);
 
       const opened = loadSave(db);
       this.session = { saveId: opened.id, filePath, db };
@@ -2792,7 +2791,7 @@ export class DesktopApplicationService {
         squadRole: previousContract?.squadRole ?? "ROTATION",
         status: "ACTIVE",
         provenance: {
-          sourceName: "Nepal football simulation",
+          sourceName: `${homeFootballContext(db).countryName} football simulation`,
           lastVerifiedDate: save.worldDate,
           confidence: 0,
           confidenceLevel: "LOW",
@@ -2833,7 +2832,7 @@ export class DesktopApplicationService {
         )
         .get(locationName) as { id?: EntityId } | undefined;
       if (!location?.id)
-        throw appError("INVALID_SELECTION", "Choose a Nepal district, municipality, or city.");
+        throw appError("INVALID_SELECTION", `Choose a district, municipality, or city of ${homeFootballContext(db).countryName}.`);
       const person = db
         .prepare("SELECT display_name, full_name FROM persons WHERE id = ?")
         .get(personId) as { display_name?: string; full_name?: string } | undefined;
@@ -5992,14 +5991,17 @@ export class DesktopApplicationService {
  * SIMULATION_ONLY intent as presentClubLocation's fallback (club-location.ts),
  * keyed by dataset club key here since no database row exists yet at setup
  * time. The same club key always gets the same plausible hub. */
-const estimatedClubLocality = (clubKey: string): string => {
+const estimatedClubLocality = (clubKey: string, hubs: readonly string[]): string | undefined => {
+  if (hubs.length === 0) return undefined;
   const random = new SeededRandom(`club-locality-estimate:${clubKey}`);
-  const hubs = NEPAL_GEOGRAPHY.clubLocalityHubs!;
   const index = Math.floor(random.next() * hubs.length);
   return `${hubs[index]} (estimated)`;
 };
 
-export const startingClubOptions = (dataset: CountryWorldDataset): StartingClubOption[] => {
+export const startingClubOptions = (dataset: CountryWorldDataset, pack: CountryPack): StartingClubOption[] => {
+  // Places a club with no recorded location can plausibly be shown in: the pack's hubs, else the dataset's own districts or cities.
+  const datasetPlaces = (kinds: string[]): string[] => dataset.locations.filter((place) => kinds.includes(place.kind)).map((place) => place.name).sort();
+  const hubs: readonly string[] = pack.geography?.clubLocalityHubs ?? (datasetPlaces(["district"]).length > 0 ? datasetPlaces(["district"]) : datasetPlaces(["city", "municipality"]));
   const squadSizes = new Map<string, number>();
   for (const assignment of dataset.teamPersonAssignments) {
     if (assignment.role !== "PLAYER") continue;
@@ -6034,17 +6036,17 @@ export const startingClubOptions = (dataset: CountryWorldDataset): StartingClubO
       const locationName =
         (club?.locationKey.value
           ? dataset.locations.find((item) => item.key === club.locationKey.value)?.name
-          : undefined) ?? (clubKey ? estimatedClubLocality(clubKey) : undefined);
+          : undefined) ?? (clubKey ? estimatedClubLocality(clubKey, hubs) : undefined);
       return {
         teamId: createStableEntityId("team", team.key),
         clubId: clubKey ? createStableEntityId("club", clubKey) : undefined,
         clubName: (clubKey ? clubNames.get(clubKey) : undefined) ?? team.name,
         teamName: team.name,
         competitionName:
-          membership.name ?? competitionNames.get(membership.competitionKey) ?? "Nepal football",
+          membership.name ?? competitionNames.get(membership.competitionKey) ?? `${pack.countryName} football`,
         squadSize: squadSizes.get(team.key) ?? 0,
         division:
-          membership.name.match(/([ABC])-DIVISION/i)?.[1] ?? "Other playable Nepal competition",
+          membership.name.match(/([ABC])-DIVISION/i)?.[1] ?? `Other playable ${pack.countryName} competition`,
         locationName,
         professionalStatus: club?.ownershipType.value === "DEPARTMENTAL" ? "Departmental" : "Club",
       };
@@ -6627,7 +6629,7 @@ const buildUnemployedDashboard = (db: GameDatabase, save: SaveMetadata): Manager
   return {
     employmentStatus: "UNEMPLOYED",
     teamName: "Unemployed",
-    competitionName: "Nepal football",
+    competitionName: `${homeFootballContext(db).countryName} football`,
     worldDate: save.worldDate as ManagerDashboard["worldDate"],
     played: 0,
     points: 0,

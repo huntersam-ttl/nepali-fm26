@@ -8,7 +8,7 @@ import {
   type GameDatabase,
 } from "@nepal-football-sim/database";
 import { publishHistoricalEvent } from "./historical-events.js";
-import { homeCurrency } from "./home-context.js";
+import { homeCurrency, homeNamePool } from "./home-context.js";
 import {
   createStableEntityId,
   type ClubOwnershipModel,
@@ -1401,7 +1401,7 @@ const generateOwnershipCandidate = (
     placeOfBirthLocationId: club.location_id,
     hometownLocationId: club.location_id,
     genderPresentation: "unknown",
-    languages: ["Nepali"],
+    languages: [...homeNamePool(db).languageNames],
   };
   const world = new WorldRepository(db);
   if (!world.getPerson(id)) {

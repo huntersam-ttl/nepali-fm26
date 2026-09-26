@@ -37,7 +37,7 @@ import {
   type TransferOffer,
 } from "@nepal-football-sim/shared-types";
 import { executiveHasAuthority } from "./executive-roles.js";
-import { homeCountryId, homeCountryPack, homeCurrency, seasonEndDate, seasonStartDate } from "./home-context.js";
+import { homeCountryId, homeCountryPack, homeCurrency, homeNamePool, seasonEndDate, seasonStartDate } from "./home-context.js";
 import { countryEconomicProfile, scaleAmount, scalePrice, scaleTicketPrice } from "./economic-profile.js";
 import {
   ClubEconomyRepository,
@@ -2060,8 +2060,8 @@ export const generateCompetitionMediaRightsOffer = (
     id: createStableEntityId("competition-media-rights", input.competitionSeasonId),
     competitionSeasonId: input.competitionSeasonId,
     rightsPartner: (season?.name ?? "Domestic competition").toLowerCase().includes("league")
-      ? "Nepal Football Broadcast Network"
-      : "Nepal Football Streaming Pool",
+      ? `${homeCountryPack(db).countryName} Football Broadcast Network`
+      : `${homeCountryPack(db).countryName} Football Streaming Pool`,
     annualValue,
     streamingShare: 0.35,
     currency: homeCurrency(db),
@@ -2717,7 +2717,7 @@ const createDemoChairman = (db: GameDatabase, club: Club, date: string): Person 
     dateOfBirth: "1980-01-01",
     nationalityCountryId: club.countryId,
     genderPresentation: "unknown",
-    languages: ["Nepali"],
+    languages: [...homeNamePool(db).languageNames],
   };
   const world = new WorldRepository(db);
   if (!world.getPerson(person.id)) {

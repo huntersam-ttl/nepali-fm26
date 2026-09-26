@@ -30,6 +30,12 @@ export const NEPAL_COMMERCIAL: PackCommercial = {
     { name: "Terai Agro Markets", industry: "Agriculture", identityProvenance: "SIMULATION_ONLY" },
     { name: "Everest Health Clinics", industry: "Healthcare", identityProvenance: "SIMULATION_ONLY" },
   ],
+  suppliers: [
+    { name: "Kathmandu Football Supply", region: "Nepal", reputation: 6.4, priceLevel: 0.92, reliability: 0.86, foreign: false, status: "SIMULATION_ONLY" },
+    { name: "Himalayan Sports Cooperative", region: "Nepal", reputation: 5.8, priceLevel: 0.78, reliability: 0.72, foreign: false, status: "SIMULATION_ONLY" },
+    { name: "South Asia Performance Group", region: "South Asia", reputation: 7.2, priceLevel: 1.08, reliability: 0.82, foreign: true, status: "SIMULATION_ONLY" },
+    { name: "AsiaPro Football Systems", region: "Wider Asia", reputation: 8.1, priceLevel: 1.24, reliability: 0.91, foreign: true, status: "SIMULATION_ONLY" },
+  ],
   federationSponsors: [
     { name: "Nepal Football Development Partner", industry: "Development services" },
     { name: "Himal Broadcast Network", industry: "Broadcasting" },

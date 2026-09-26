@@ -1176,12 +1176,13 @@ export const validateNepalWorldReferences = (
       );
     }
     if (location.kind === "city" || location.kind === "municipality") {
+      // A country's hierarchy may have no district layer: a city sits under a district or directly under a province.
       requireOptionalLocationKind(
         issues,
         `locations.${index}.parentLocationKey`,
         location.parentLocationKey,
         locationKinds,
-        ["district"],
+        ["district", "province"],
       );
     }
     if (location.kind === "neighbourhood" || location.kind === "airport") {

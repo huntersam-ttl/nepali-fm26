@@ -1,4 +1,4 @@
-import type { ClubLender, FootballConfederation, FootballRegion, MediaJournalist, MediaOutlet, NationalTeamType } from "@nepal-football-sim/shared-types";
+import type { ProcurementSupplier, ClubLender, FootballConfederation, FootballRegion, MediaJournalist, MediaOutlet, NationalTeamType } from "@nepal-football-sim/shared-types";
 import type { GameDatabase } from "@nepal-football-sim/database";
 
 /*
@@ -34,6 +34,8 @@ export type NationalTeamDefinition = {
 
 export type NamePool = {
   id: string;
+  /** Names for an emergency-repair player, when a squad is short; absent, the ordinary male player names are used. */
+  emergencyPlayers?: { first: readonly string[]; surnames: readonly string[] };
   /** ISO 639 codes stamped on generated managers and staff. */
   languageCodes: readonly string[];
   /** Language names stamped on generated players and officials. */
@@ -98,6 +100,8 @@ export type PackCommercial = {
   sponsors?: readonly PackSponsor[];
   /** Sponsors of the national federation. */
   federationSponsors?: ReadonlyArray<{ name: string; industry: string }>;
+  /** Suppliers clubs buy equipment and services from (Clubmart). */
+  suppliers?: readonly Omit<ProcurementSupplier, "id">[];
 };
 
 /** The country's football media: outlets and the journalists who write for them (dealt to outlets in order). */
@@ -148,6 +152,12 @@ export type CountryPack = {
   namePool: NamePool;
   /** Optional: administrative places to guarantee and build territorial football from. Absent, the save's own locations are used. */
   geography?: PackGeography;
+  /**
+   * Whether the repository's canonical global dataset is applied when a save is created. That
+   * dataset is authored around one playable country (Nepal), so only that country's pack opts in;
+   * for any other pack it would add the launch country's league, federation and people to the world.
+   */
+  canonicalGlobalSeed?: boolean;
   /** Optional: money scale. Absent means neutral (1), never Nepal's. */
   economy?: PackEconomy;
   /** Optional: banks, sponsors. Absent, the country has none; nothing is inherited from another country. */

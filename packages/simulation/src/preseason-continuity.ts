@@ -15,7 +15,7 @@ import {
   type GameDatabase,
 } from "@nepal-football-sim/database";
 import { createInitialDevelopmentState } from "./player-development.js";
-import { homeCurrency } from "./home-context.js";
+import { homeCountryPack, homeCurrency, homeNamePool } from "./home-context.js";
 import { SeededRandom } from "./rng.js";
 
 export type PreseasonContinuityReport = {
@@ -367,7 +367,7 @@ const ensureRepairContract = (
     squadRole,
     status: "ACTIVE",
     provenance: {
-      sourceName: "Nepal preseason squad repair",
+      sourceName: `${homeCountryPack(db).countryName} preseason squad repair`,
       confidence: 1,
       confidenceLevel: "HIGH",
       status: "SIMULATION_ONLY",
@@ -394,7 +394,7 @@ const createEmergencyPlayer = (
     assignPlayer(db, club, personId, date, "emergency-repair");
     return;
   }
-  const name = emergencyName(rng);
+  const name = emergencyName(db, rng);
   const person: Person = {
     id: personId,
     fullName: name,
@@ -404,7 +404,7 @@ const createEmergencyPlayer = (
     genderPresentation: club.gender === "women" ? "female" : "male",
     placeOfBirthLocationId: club.locationId,
     hometownLocationId: club.locationId,
-    languages: ["Nepali"],
+    languages: [...homeNamePool(db).languageNames],
   };
   const world = new WorldRepository(db);
   world.insertPerson(person);
@@ -602,31 +602,10 @@ const emergencyAttributes = (
   };
 };
 
-const emergencyName = (rng: SeededRandom): string => {
-  const first = [
-    "Aashish",
-    "Bibek",
-    "Deepak",
-    "Kiran",
-    "Nabin",
-    "Prabin",
-    "Rabin",
-    "Roshan",
-    "Sagar",
-    "Suman",
-  ];
-  const surname = [
-    "Adhikari",
-    "Basnet",
-    "Gurung",
-    "Karki",
-    "Khadka",
-    "Lama",
-    "Magar",
-    "Rai",
-    "Shrestha",
-    "Thapa",
-  ];
+const emergencyName = (db: GameDatabase, rng: SeededRandom): string => {
+  const pool = homeNamePool(db);
+  const first = pool.emergencyPlayers?.first ?? pool.players.maleFirst;
+  const surname = pool.emergencyPlayers?.surnames ?? pool.players.surnames;
   return `${rng.pick(first)} ${rng.pick(surname)}`;
 };
 
