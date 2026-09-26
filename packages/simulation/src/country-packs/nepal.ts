@@ -1,3 +1,4 @@
+import { createStableEntityId, type CountryDevelopmentProfile, type EntityId } from "@nepal-football-sim/shared-types";
 import type { NamePool, NationalTeamDefinition, CountryPack } from "../country-pack.js";
 import { registerCountryPack } from "../country-pack.js";
 import {
@@ -8,6 +9,19 @@ import {
 } from "../territorial-football.js";
 
 export const NEPAL_PACK_ID = "nepal-v1";
+
+export const nepalDevelopmentProfile = (countryId: EntityId, date: string): CountryDevelopmentProfile => ({
+  id: createStableEntityId("country-development-profile", `${countryId}:${date.slice(0, 4)}`),
+  countryId,
+  effectiveFrom: date,
+  footballPopularity: 0.58,
+  grassrootsReach: 0.42,
+  coachingQuality: 0.36,
+  youthInfrastructure: 0.32,
+  talentConversion: 0.34,
+  status: "SIMULATION_ONLY",
+  notes: "Calibrated Nepal youth environment for gameplay; not a researched score.",
+});
 
 /** Nepal's name lists, exactly as the generators used them before names became a pack concern. */
 export const NEPAL_NAME_POOL: NamePool = {
@@ -84,6 +98,7 @@ export const nepalPack: CountryPack = registerCountryPack({
   tierLabels: ["A Division", "B Division", "C Division"],
   namePool: NEPAL_NAME_POOL,
   founderLocations: () => founderLocationOptionsFromDistricts(NEPAL_PROVINCE_DISTRICTS),
+  developmentProfile: nepalDevelopmentProfile,
   initialiseTerritory: (db, date) => {
     initializeNepalTerritorialStructure(db, date);
     ensureNepalFounderLocations(db);

@@ -18,6 +18,7 @@ Stored in `home_football_contexts` (one row per save) and read through
 | `seasonRules` | `seasonStart`, `seasonEnd`, `youthIntake` as MM-DD. |
 | `nationalTeams` | The home national-team structure (team type, level, gender, label, strength multiplier). |
 | `tierLabels` | Display labels for pyramid tiers, top first. |
+| `developmentProfile` | Optional youth-development calibration; packs without one use a neutral simulation fallback. |
 
 Resolvers: `homeFootballContext`, `homeCountryId`, `isHomeCountry`, `homeFederation`,
 `isHomeFederation`, `homeCurrency`, `homeLocale`, `homeSeasonRules` (+ `seasonStartDate`,
@@ -35,7 +36,8 @@ appear in exactly two places: the Nepal pack and that legacy inference.
 
 A pack (`country-pack.ts`; Nepal's is `country-packs/nepal.ts`) is the configuration that
 goes with a country dataset: ISO codes, currency, locale, federation abbreviation, season
-rules, national-team structure, tier labels, a name pool, and optional territory
+rules, national-team structure, tier labels, a name pool, optional youth-development
+calibration, and optional territory
 initialisers. It is registered with `registerCountryPack`. A save stores a copy of the
 parts it needs (`config_json`), so it stays playable if the pack later changes.
 
@@ -87,8 +89,7 @@ those are the ones to check first for country #2.
   initialization (`NEPAL_PROVINCE_DISTRICTS`; founder-location choices are now exposed by the
   country pack), Nepali banks (`club-finance-markets`), sponsor
   pools, media outlets, the registry of international nations, SAFF/AFC competition keys and
-  cycles, the foreign-market region lists in `transfer-market`/`scouting`, the youth
-  `nepalDevelopmentProfile`.
+  cycles, and the foreign-market region lists in `transfer-market`/`scouting`.
 - **Money scale**: wages, fees and budgets are calibrated in Nepali-rupee magnitudes. The
   currency *label* is configurable; a second currency also needs a price-level factor.
 - **Closed vocabularies**: `NationalTeamType` (`SENIOR_MEN` … `U17`) and the shared-type

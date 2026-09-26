@@ -1,4 +1,6 @@
 import type {
+  CountryDevelopmentProfile,
+  EntityId,
   FootballConfederation,
   FootballRegion,
   FounderLocationOption,
@@ -89,6 +91,8 @@ export type CountryPack = {
   namePool: NamePool;
   /** Founder-location choices exposed by the country pack, when the pack supports that career flow. */
   founderLocations?: readonly FounderLocationOption[] | (() => readonly FounderLocationOption[]);
+  /** Youth-development calibration for this country, when the pack has one. */
+  developmentProfile?: (countryId: EntityId, date: string) => CountryDevelopmentProfile;
   /** Country-specific structures that must exist once the dataset is imported (geography, founder locations). */
   initialiseTerritory?: (db: GameDatabase, date: string) => void;
   /** Idempotent check that the territorial structure exists, for saves that predate it. */

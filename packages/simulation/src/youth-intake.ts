@@ -34,7 +34,8 @@ import { createInitialDevelopmentState } from "./player-development.js";
 import { PLAYABLE_CLUB_PREDICATE } from "./playable-world.js";
 import { SeededRandom } from "./rng.js";
 import type { NamePool } from "./country-pack.js";
-import { homeCountryId, homeCurrency, homeNamePool, homeSeasonRules } from "./home-context.js";
+import { countryPack } from "./country-pack.js";
+import { homeCountryId, homeCurrency, homeFootballContext, homeNamePool, homeSeasonRules } from "./home-context.js";
 import { initializeTransferMarketForSave } from "./transfer-market.js";
 
 type YouthClub = {
@@ -113,7 +114,9 @@ export const initializeYouthSystemForSave = (input: {
    * (country, effective_from), so re-initialising on a different date in the
    * same year would collide on the primary key. One profile per year is the
    * intended shape, so skip when this year is already seeded. */
-  const developmentProfile = nepalDevelopmentProfile(country.id, input.worldDate);
+  const developmentProfile =
+    countryPack(homeFootballContext(input.db).packId).developmentProfile?.(country.id, input.worldDate) ??
+    defaultDevelopmentProfile(country.id, input.worldDate);
   const seededYear = input.db
     .prepare("SELECT id FROM country_development_profiles WHERE id = ?")
     .get(developmentProfile.id) as { id?: string } | undefined;
@@ -886,17 +889,17 @@ const seedOwnClubKnowledge = (
   new RecruitmentRepository(db).upsertPlayerKnowledge(knowledge);
 };
 
-const nepalDevelopmentProfile = (countryId: EntityId, date: string): CountryDevelopmentProfile => ({
+const defaultDevelopmentProfile = (countryId: EntityId, date: string): CountryDevelopmentProfile => ({
   id: createStableEntityId("country-development-profile", `${countryId}:${date.slice(0, 4)}`),
   countryId,
   effectiveFrom: date,
-  footballPopularity: 0.58,
-  grassrootsReach: 0.42,
-  coachingQuality: 0.36,
-  youthInfrastructure: 0.32,
-  talentConversion: 0.34,
+  footballPopularity: 0.5,
+  grassrootsReach: 0.5,
+  coachingQuality: 0.5,
+  youthInfrastructure: 0.5,
+  talentConversion: 0.5,
   status: "SIMULATION_ONLY",
-  notes: "Calibrated Nepal youth environment for gameplay; not a researched score.",
+  notes: "Neutral youth environment used because this country pack has no calibration.",
 });
 
 const academyProfile = (academy: YouthAcademy, seed: string): AcademySimulationProfile => {
