@@ -1,4 +1,4 @@
-import { createStableEntityId, type CountryDevelopmentProfile, type EntityId } from "@nepal-football-sim/shared-types";
+import { createStableEntityId, type ClubLender, type CountryDevelopmentProfile, type EntityId } from "@nepal-football-sim/shared-types";
 import type { NamePool, NationalTeamDefinition, CountryPack } from "../country-pack.js";
 import { registerCountryPack } from "../country-pack.js";
 import {
@@ -22,6 +22,14 @@ export const nepalDevelopmentProfile = (countryId: EntityId, date: string): Coun
   status: "SIMULATION_ONLY",
   notes: "Calibrated Nepal youth environment for gameplay; not a researched score.",
 });
+
+export const NEPAL_CLUB_LENDERS: readonly Omit<ClubLender, "id" | "countryId">[] = [
+  { name: "Nabil Bank Limited", institutionType: "COMMERCIAL_BANK", sourceUrl: "https://www.nabilbank.com/aboutus", status: "VERIFIED" },
+  { name: "Nepal Bank Limited", institutionType: "COMMERCIAL_BANK", sourceUrl: "https://www.nrb.org.np/bfr/bfis-list-in-english-mid-january-2026/", status: "VERIFIED" },
+  { name: "Agriculture Development Bank Limited", institutionType: "COMMERCIAL_BANK", sourceUrl: "https://www.nrb.org.np/bfr/bfis-list-in-english-mid-january-2026/", status: "VERIFIED" },
+  { name: "Himalayan Bank Limited", institutionType: "COMMERCIAL_BANK", sourceUrl: "https://www.nrb.org.np/bfr/bfis-list-in-english-mid-january-2026/", status: "VERIFIED" },
+  { name: "Muktinath Bikas Bank Limited", institutionType: "DEVELOPMENT_BANK", sourceUrl: "https://www.nrb.org.np/bfr/bfis-list-in-english-mid-january-2026/", status: "VERIFIED" },
+];
 
 /** Nepal's name lists, exactly as the generators used them before names became a pack concern. */
 export const NEPAL_NAME_POOL: NamePool = {
@@ -99,6 +107,7 @@ export const nepalPack: CountryPack = registerCountryPack({
   namePool: NEPAL_NAME_POOL,
   founderLocations: () => founderLocationOptionsFromDistricts(NEPAL_PROVINCE_DISTRICTS),
   developmentProfile: nepalDevelopmentProfile,
+  lenders: NEPAL_CLUB_LENDERS,
   initialiseTerritory: (db, date) => {
     initializeNepalTerritorialStructure(db, date);
     ensureNepalFounderLocations(db);

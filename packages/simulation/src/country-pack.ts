@@ -1,5 +1,6 @@
 import type {
   CountryDevelopmentProfile,
+  ClubLender,
   EntityId,
   FootballConfederation,
   FootballRegion,
@@ -93,6 +94,8 @@ export type CountryPack = {
   founderLocations?: readonly FounderLocationOption[] | (() => readonly FounderLocationOption[]);
   /** Youth-development calibration for this country, when the pack has one. */
   developmentProfile?: (countryId: EntityId, date: string) => CountryDevelopmentProfile;
+  /** Country-owned lenders available to the club-finance market. */
+  lenders?: readonly Omit<ClubLender, "id" | "countryId">[];
   /** Country-specific structures that must exist once the dataset is imported (geography, founder locations). */
   initialiseTerritory?: (db: GameDatabase, date: string) => void;
   /** Idempotent check that the territorial structure exists, for saves that predate it. */

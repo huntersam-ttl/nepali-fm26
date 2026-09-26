@@ -19,6 +19,7 @@ Stored in `home_football_contexts` (one row per save) and read through
 | `nationalTeams` | The home national-team structure (team type, level, gender, label, strength multiplier). |
 | `tierLabels` | Display labels for pyramid tiers, top first. |
 | `developmentProfile` | Optional youth-development calibration; packs without one use a neutral simulation fallback. |
+| `lenders` | Optional country-owned club-finance lenders; existing save rows remain readable when absent. |
 
 Resolvers: `homeFootballContext`, `homeCountryId`, `isHomeCountry`, `homeFederation`,
 `isHomeFederation`, `homeCurrency`, `homeLocale`, `homeSeasonRules` (+ `seasonStartDate`,
@@ -87,7 +88,7 @@ those are the ones to check first for country #2.
 - **Product and UI**: the name, imagery, copy and sponsor/place names are Nepal's by design.
 - **Data still in code, to move into the dataset/pack**: the 77-district territorial
   initialization (`NEPAL_PROVINCE_DISTRICTS`; founder-location choices are now exposed by the
-  country pack), Nepali banks (`club-finance-markets`), sponsor
+  country pack), sponsor
   pools, media outlets, the registry of international nations, SAFF/AFC competition keys and
   cycles, and the foreign-market region lists in `transfer-market`/`scouting`.
 - **Money scale**: wages, fees and budgets are calibrated in Nepali-rupee magnitudes. The
