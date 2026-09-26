@@ -1,4 +1,6 @@
-import { homeCountryId } from "./home-context.js";
+import { findHomeFootballContext } from "./home-context.js";
+import type { PackAdministrativeArea, PackGeography } from "./country-pack.js";
+import { cleanPlaceName, homeGeography, homeLocationsOfKind, locationAncestry, nearestOfKind } from "./administrative-geography.js";
 import {
   createStableEntityId,
   type DistrictDevelopmentProject,
@@ -19,7 +21,6 @@ import {
   FederationGovernanceRepository,
   PlayerRepository,
   TerritorialFootballRepository,
-  WorldRepository,
   type GameDatabase,
 } from "@nepal-football-sim/database";
 import { generateKnockoutFixtures, generateLeagueFixtures } from "./fixture-generation.js";
@@ -40,112 +41,6 @@ import type {
   MacroEconomicState,
 } from "@nepal-football-sim/shared-types";
 
-export const NEPAL_PROVINCE_DISTRICTS: Array<[string, string[]]> = [
-  [
-    "Koshi",
-    [
-      "Taplejung",
-      "Panchthar",
-      "Ilam",
-      "Jhapa",
-      "Morang",
-      "Sunsari",
-      "Dhankuta",
-      "Terhathum",
-      "Sankhuwasabha",
-      "Bhojpur",
-      "Solukhumbu",
-      "Okhaldhunga",
-      "Khotang",
-      "Udayapur",
-    ],
-  ],
-  [
-    "Madhesh",
-    ["Saptari", "Siraha", "Dhanusha", "Mahottari", "Sarlahi", "Rautahat", "Bara", "Parsa"],
-  ],
-  [
-    "Bagmati",
-    [
-      "Dolakha",
-      "Ramechhap",
-      "Sindhuli",
-      "Kavrepalanchok",
-      "Sindhupalchok",
-      "Rasuwa",
-      "Nuwakot",
-      "Dhading",
-      "Kathmandu",
-      "Bhaktapur",
-      "Lalitpur",
-      "Makwanpur",
-      "Chitwan",
-    ],
-  ],
-  [
-    "Gandaki",
-    [
-      "Gorkha",
-      "Manang",
-      "Mustang",
-      "Myagdi",
-      "Kaski",
-      "Lamjung",
-      "Tanahun",
-      "Syangja",
-      "Parbat",
-      "Baglung",
-      "Nawalpur",
-    ],
-  ],
-  [
-    "Lumbini",
-    [
-      "Rupandehi",
-      "Kapilvastu",
-      "Palpa",
-      "Arghakhanchi",
-      "Gulmi",
-      "Dang",
-      "Pyuthan",
-      "Rolpa",
-      "Rukum East",
-      "Banke",
-      "Bardiya",
-      "Nawalparasi West",
-    ],
-  ],
-  [
-    "Karnali",
-    [
-      "Dolpa",
-      "Humla",
-      "Jumla",
-      "Kalikot",
-      "Mugu",
-      "Surkhet",
-      "Dailekh",
-      "Jajarkot",
-      "Salyan",
-      "Rukum West",
-    ],
-  ],
-  [
-    "Sudurpashchim",
-    [
-      "Bajura",
-      "Bajhang",
-      "Doti",
-      "Achham",
-      "Kailali",
-      "Kanchanpur",
-      "Dadeldhura",
-      "Baitadi",
-      "Darchula",
-    ],
-  ],
-];
-const clean = (value: string) => value.toLowerCase().replace(/ district| province|\s+/g, "");
 const clamp = (value: number) => Math.max(0, Math.min(100, Math.round(value)));
 const monthNumber = (date: string) => Number(date.slice(5, 7));
 const monthsBetween = (from: string, to: string) =>
@@ -161,41 +56,69 @@ export const lowerLeagueFinanceMultiplier = (
   );
 };
 
-export const initializeNepalTerritorialStructure = (
+type TerritorialArea = { name: string; remote: boolean; locationId?: EntityId; districts: Array<{ name: string; remote: boolean; locationId?: EntityId }> };
+
+/**
+ * The provinces and districts territorial football is built from: the home pack's geography when
+ * it has one, else the save's own province and district places (a district belongs to its nearest
+ * province ancestor; a district with none is left out rather than given a made-up province).
+ */
+const territorialAreas = (db: GameDatabase, geography: PackGeography | undefined): { namespace: string; areas: TerritorialArea[] } => {
+  if (geography) {
+    const areas: TerritorialArea[] = [];
+    const collectDistricts = (children: readonly PackAdministrativeArea[] | undefined, out: TerritorialArea["districts"]): void => {
+      for (const child of children ?? []) {
+        if (child.kind === "district") out.push({ name: child.name, remote: Boolean(child.remote) });
+        collectDistricts(child.children, out);
+      }
+    };
+    for (const area of geography.areas.filter((item) => item.kind === "province")) {
+      const districts: TerritorialArea["districts"] = [];
+      collectDistricts(area.children, districts);
+      areas.push({ name: area.name, remote: false, districts });
+    }
+    return { namespace: geography.idNamespace, areas };
+  }
+  const namespace = findHomeFootballContext(db)?.packId ?? "home";
+  const areas = homeLocationsOfKind(db, "province").map((province): TerritorialArea => ({ name: province.name, remote: false, locationId: province.id, districts: [] }));
+  const byId = new Map(areas.map((area) => [area.locationId, area] as const));
+  for (const district of homeLocationsOfKind(db, "district")) {
+    const province = nearestOfKind(locationAncestry(db, district.parentId), "province");
+    const area = province ? byId.get(province.id) : undefined;
+    if (area) area.districts.push({ name: district.name, remote: false, locationId: district.id });
+  }
+  return { namespace, areas };
+};
+
+/** How many provinces the home country is expected to have before territorial football starts: its pack's list, else what the save has. */
+const expectedProvinceCount = (db: GameDatabase): number => {
+  const geography = homeGeography(db);
+  return geography ? geography.areas.filter((area) => area.kind === "province").length : homeLocationsOfKind(db, "province").length;
+};
+
+/**
+ * Builds the province and district units of territorial football (once; existing units are kept as
+ * they are). Districts are matched to their location by name among the home country's districts.
+ */
+export const initializeTerritorialStructure = (
   db: GameDatabase,
   date: string,
+  geography: PackGeography | undefined = homeGeography(db),
 ): { districts: DistrictFootballUnit[]; provinces: ProvinceFootballUnit[] } => {
   const repo = new TerritorialFootballRepository(db);
-  const locations = db
-    .prepare("SELECT id,name FROM locations WHERE kind='district'")
-    .all() as Array<{ id: EntityId; name: string }>;
-  const byName = new Map(locations.map((location) => [clean(location.name), location]));
-  const result: DistrictFootballUnit[] = [];
-  for (const [provinceName, names] of NEPAL_PROVINCE_DISTRICTS) {
-    const provinceId = createStableEntityId("nepal-province", provinceName);
-    const districts = names.map((name) => {
-      const location = byName.get(clean(name));
-      const remoteness = [
-        "Manang",
-        "Mustang",
-        "Dolpa",
-        "Humla",
-        "Mugu",
-        "Jumla",
-        "Kalikot",
-        "Bajura",
-        "Bajhang",
-        "Darchula",
-        "Solukhumbu",
-      ].includes(name)
-        ? 80
-        : 35;
+  const locations = homeLocationsOfKind(db, "district");
+  const byName = new Map(locations.map((location) => [cleanPlaceName(location.name), location]));
+  const { namespace, areas } = territorialAreas(db, geography);
+  for (const area of areas) {
+    const provinceId = createStableEntityId(`${namespace}-province`, area.name);
+    const districts = area.districts.map((entry) => {
+      const location = entry.locationId ? { id: entry.locationId } : byName.get(cleanPlaceName(entry.name));
       const seededDistrict: DistrictFootballUnit = {
-        id: createStableEntityId("nepal-district", name),
-        name,
+        id: createStableEntityId(`${namespace}-district`, entry.name),
+        name: entry.name,
         provinceId,
         locationId: location?.id,
-        remoteness,
+        remoteness: entry.remote ? 80 : 35,
         developmentStatus: "DEVELOPING",
         affiliationStatus: location ? "UNKNOWN" : "DEVELOPING",
         developmentReputation: 20,
@@ -219,12 +142,11 @@ export const initializeNepalTerritorialStructure = (
       };
       const district = repo.district(seededDistrict.id) ?? seededDistrict;
       repo.upsertDistrict(district);
-      result.push(district);
       return district;
     });
     const provincial: ProvinceFootballUnit = {
       id: provinceId,
-      name: provinceName,
+      name: area.name,
       districtIds: districts.map((district) => district.id),
       footballStrength: 10,
       infrastructure: 20,
@@ -238,23 +160,6 @@ export const initializeNepalTerritorialStructure = (
     repo.upsertProvince(repo.province(provinceId) ?? provincial);
   }
   return { districts: repo.districts(), provinces: repo.provinces() };
-};
-
-/** Ensures the complete canonical 77-district chooser exists in a save. */
-export const ensureNepalFounderLocations = (db: GameDatabase): void => {
-  const country = { id: homeCountryId(db) } as { id?: EntityId };
-  if (!country?.id) return;
-  const world = new WorldRepository(db);
-  for (const [provinceName, districtNames] of NEPAL_PROVINCE_DISTRICTS) {
-    const province = db.prepare("SELECT id FROM locations WHERE country_id=? AND kind='province' AND lower(name)=lower(?) LIMIT 1").get(country.id, provinceName) as { id?: EntityId } | undefined;
-    const provinceId = province?.id ?? createStableEntityId("nepal-founder-province", provinceName);
-    if (!province?.id) world.insertLocation({ id: provinceId, canonicalExternalId: `NP-PROV-${clean(provinceName).toUpperCase()}`, countryId: country.id, name: provinceName, kind: "province" });
-    for (const districtName of districtNames) {
-      const existing = db.prepare("SELECT id FROM locations WHERE country_id=? AND kind='district' AND lower(name)=lower(?) LIMIT 1").get(country.id, districtName) as { id?: EntityId } | undefined;
-      if (existing?.id) continue;
-      world.insertLocation({ id: createStableEntityId("nepal-founder-district", districtName), canonicalExternalId: `NP-DIST-${clean(districtName).toUpperCase()}`, countryId: country.id, name: districtName, kind: "district", parentLocationId: provinceId });
-    }
-  }
 };
 
 const territorialCompetitionConfig = (input: {
@@ -368,11 +273,10 @@ const productionTerritorialCompetitions = (db: GameDatabase, date: string, seed:
 };
 
 export const advanceTerritorialDevelopment = (db: GameDatabase, input: { date: string; seed: string }): void => {
-  const provinceCount = Number(
-    (db.prepare("SELECT COUNT(*) AS count FROM locations WHERE kind='province'").get() as { count?: number } | undefined)?.count ?? 0,
-  );
-  if (provinceCount < NEPAL_PROVINCE_DISTRICTS.length) return;
-  const state = initializeNepalTerritorialStructure(db, input.date);
+  const expected = expectedProvinceCount(db);
+  if (expected === 0 || homeLocationsOfKind(db, "province").length < expected) return;
+  const state = initializeTerritorialStructure(db, input.date);
+  if (state.districts.length === 0) return;
   if (state.districts.some((district) => district.history.some((event) => event.event === "DEVELOPMENT_REVIEW" && event.date === input.date))) return;
   for (const district of state.districts) updateDistrictDevelopment(db, { districtId: district.id, date: input.date, funding: 0, reportedWell: true });
   productionTerritorialProject(db, input.date, input.seed);
@@ -733,7 +637,7 @@ export const initializeTerritorialCompetition = (
     participantTeamIds?: readonly EntityId[];
   },
 ): TerritorialCompetitionSeason => {
-  initializeNepalTerritorialStructure(db, input.config.seasonStartDate);
+  initializeTerritorialStructure(db, input.config.seasonStartDate);
   const seasonId = createStableEntityId(
     "territorial-season",
     `${input.config.id}:${input.seasonLabel}`,

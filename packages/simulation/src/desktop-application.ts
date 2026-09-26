@@ -303,7 +303,8 @@ import {
   quickSimManagerMatch,
   userMatchRequiresAction,
 } from "./manager-flow.js";
-import { NEPAL_PROVINCE_DISTRICTS } from "./territorial-football.js";
+import { founderLocationOptions } from "./administrative-geography.js";
+import { NEPAL_GEOGRAPHY } from "./country-packs/nepal-geography.js";
 import { ensureLowerLeaguePlayableWorld, reconcileWorkforceSupply } from "./workforce-supply.js";
 import { initializePeopleFoundation } from "./people-foundation.js";
 import { reconcilePlayablePlayerProfilesOnce } from "./player-profile-reconciliation.js";
@@ -548,7 +549,6 @@ import { buildNationDevelopmentScorecard } from "./federation-scorecard.js";
 import { buildFederationRefereeContext } from "./federation-referee-context.js";
 import { buildFederationMap, buildDistrictDetail } from "./federation-map.js";
 import { SeededRandom } from "./rng.js";
-import { PLAUSIBLE_CLUB_LOCALITY_HUBS } from "./club-location.js";
 import { buildPlayerPathway } from "./player-pathway.js";
 import { roleStoryThreads, deriveStoryThreadsFromEvents, findThreadForEvent, buildEntityStoryline, currentEntityThread } from "./story-threads.js";
 import { buildStoryDetail } from "./story-detail.js";
@@ -748,17 +748,24 @@ export class DesktopApplicationService {
   }
 
   listFounderLocations(): AppResult<FounderLocationOption[]> {
-    return ok(
-      NEPAL_PROVINCE_DISTRICTS.flatMap(([province, districts]) =>
-        districts.map((district) => ({
-          id: createStableEntityId("location", district.toLowerCase().replace(/[^a-z0-9]+/g, "-")),
-          province,
-          district,
-          locality: district,
-          provenanceStatus: "REPORTED" as const,
-        })),
-      ),
-    );
+    try {
+      const pack = countryPack(this.countryPackId);
+      const dataset = pack.geography ? undefined : this.worldDataset();
+      return ok(
+        founderLocationOptions({
+          geography: pack.geography,
+          countryName: pack.countryName,
+          datasetLocations: dataset?.locations.map((location) => ({
+            key: location.key,
+            name: location.name,
+            kind: location.kind,
+            parentKey: location.parentLocationKey?.value ?? undefined,
+          })),
+        }),
+      );
+    } catch (error) {
+      return fail("WORLD_DATA_UNAVAILABLE", "Could not read the world dataset's places.", error);
+    }
   }
 
   listOwnerManagerCandidates(): AppResult<OwnerManagerCandidate[]> {
@@ -5987,8 +5994,9 @@ export class DesktopApplicationService {
  * time. The same club key always gets the same plausible hub. */
 const estimatedClubLocality = (clubKey: string): string => {
   const random = new SeededRandom(`club-locality-estimate:${clubKey}`);
-  const index = Math.floor(random.next() * PLAUSIBLE_CLUB_LOCALITY_HUBS.length);
-  return `${PLAUSIBLE_CLUB_LOCALITY_HUBS[index]} (estimated)`;
+  const hubs = NEPAL_GEOGRAPHY.clubLocalityHubs!;
+  const index = Math.floor(random.next() * hubs.length);
+  return `${hubs[index]} (estimated)`;
 };
 
 export const startingClubOptions = (dataset: CountryWorldDataset): StartingClubOption[] => {

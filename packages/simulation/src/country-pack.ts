@@ -54,6 +54,31 @@ export type NamePool = {
   };
 };
 
+/** A named administrative place in a pack's geography, with the places directly beneath it. Any depth; any kinds the location table uses. */
+export type PackAdministrativeArea = {
+  name: string;
+  /** A `locations.kind`: "province", "district", "city", ... */
+  kind: string;
+  /** A place the territorial model treats as remote. */
+  remote?: boolean;
+  children?: readonly PackAdministrativeArea[];
+};
+
+/**
+ * Administrative geography a country's own data may not fully carry. The `locations` table is the
+ * source of truth; a pack lists the places a new save must have (they are added when missing)
+ * and the places its territorial football is built from.
+ */
+export type PackGeography = {
+  /** Namespace of the stable ids the pack's places and territorial units are given ("nepal" gives "nepal-province"). */
+  idNamespace: string;
+  /** Prefix of the places' canonical external ids ("NP" gives "NP-DIST-KASKI"). */
+  codePrefix: string;
+  areas: readonly PackAdministrativeArea[];
+  /** Places a club with no recorded location can plausibly be shown in. */
+  clubLocalityHubs?: readonly string[];
+};
+
 export type CountryPack = {
   /** Stable identifier of the country dataset + configuration, e.g. "nepal-v1". Never a display name. */
   packId: string;
@@ -82,6 +107,8 @@ export type CountryPack = {
   /** Display labels for pyramid tiers, top tier first. */
   tierLabels: readonly string[];
   namePool: NamePool;
+  /** Optional: administrative places to guarantee and build territorial football from. Absent, the save's own locations are used. */
+  geography?: PackGeography;
   /** Country-specific structures that must exist once the dataset is imported (geography, founder locations). */
   initialiseTerritory?: (db: GameDatabase, date: string) => void;
   /** Idempotent check that the territorial structure exists, for saves that predate it. */

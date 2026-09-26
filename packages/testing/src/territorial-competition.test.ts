@@ -6,7 +6,7 @@ import {
   openGameDatabase,
 } from "@nepal-football-sim/database";
 import {
-  initializeNepalTerritorialStructure,
+  initializeTerritorialStructure,
   initializeTerritorialCompetition,
 } from "@nepal-football-sim/simulation";
 import type { EntityId, TerritorialCompetitionConfig } from "@nepal-football-sim/shared-types";
@@ -36,7 +36,7 @@ describe("territorial representative competition pathway", () => {
     db.prepare(
       "INSERT INTO federations (id,country_id,name) VALUES ('fed','np','Simulation Federation')",
     ).run();
-    initializeNepalTerritorialStructure(db, "2027-01-01");
+    initializeTerritorialStructure(db, "2027-01-01");
     const first = initializeTerritorialCompetition(db, {
       config,
       seasonLabel: "2027",

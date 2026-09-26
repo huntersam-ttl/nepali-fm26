@@ -8,7 +8,7 @@ import {
   createInfrastructureProject,
   createNepalSave,
   initializeClubEconomyForSave,
-  initializeNepalTerritorialStructure,
+  initializeTerritorialStructure,
   requestClubInfrastructureGovernmentSupport,
   resolveGovernmentInstitutionForClub,
   resolveStoryTerritory,
@@ -34,7 +34,7 @@ afterEach(() => dirs.splice(0).forEach((dir) => rmSync(dir, { recursive: true, f
 
 const setUp = (name: string) => {
   const db = openGameDatabase(makeSave(name));
-  initializeNepalTerritorialStructure(db, "2026-08-01");
+  initializeTerritorialStructure(db, "2026-08-01");
   initializeClubEconomyForSave({ db, worldDate: "2026-08-01", seed: name });
   const club = db
     .prepare("SELECT id, location_id FROM clubs WHERE location_id IS NOT NULL LIMIT 1")

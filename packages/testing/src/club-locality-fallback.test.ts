@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { validateNepalWorldDataset } from "@nepal-football-sim/data-import";
-import { PLAUSIBLE_CLUB_LOCALITY_HUBS, startingClubOptions } from "@nepal-football-sim/simulation";
+import { NEPAL_GEOGRAPHY, startingClubOptions } from "@nepal-football-sim/simulation";
 
 /**
  * The starting-club setup screen must never show a bare "Location unknown"
@@ -32,7 +32,7 @@ describe("starting-club locality fallback", () => {
     expect(estimated.length).toBeGreaterThan(0);
     for (const option of estimated) {
       const hub = option.locationName!.replace(/ \(estimated\)$/, "");
-      expect(PLAUSIBLE_CLUB_LOCALITY_HUBS).toContain(hub);
+      expect(NEPAL_GEOGRAPHY.clubLocalityHubs).toContain(hub);
     }
   });
 

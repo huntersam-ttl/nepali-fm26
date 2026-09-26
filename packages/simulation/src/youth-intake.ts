@@ -1352,6 +1352,7 @@ const originLocation = (
                 MAX(1, school_participation + youth_participation + coach_supply + ground_availability) AS weight
          FROM territorial_districts
          WHERE location_id IS NOT NULL
+           AND location_id IN (SELECT id FROM locations WHERE country_id = (SELECT country_id FROM home_football_country LIMIT 1))
          ORDER BY location_id`,
       )
       .all() as Array<{ locationId: EntityId; weight: number }>;
@@ -1366,7 +1367,7 @@ const originLocation = (
   }
   const rows = db
     .prepare(
-      "SELECT id FROM locations WHERE kind IN ('district', 'city', 'municipality') ORDER BY name",
+      "SELECT id FROM locations WHERE kind IN ('district', 'city', 'municipality') AND country_id = (SELECT country_id FROM home_football_country LIMIT 1) ORDER BY name",
     )
     .all() as Array<{ id: EntityId }>;
   return rows.length > 0 ? rng.pick(rows).id : (club?.locationId ?? academy?.locationId);
