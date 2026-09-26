@@ -66,9 +66,9 @@ describe("global football context", () => {
   });
 
   it("keeps recruitment corridors regional and bounded", () => {
-    const africanPath = evaluateForeignRecruitmentCorridor({ sourceRegion: "AFRICA", destinationRegion: "NEPAL", playerReputation: 55, clubReputation: 45, scoutingReach: 60 });
-    const elitePath = evaluateForeignRecruitmentCorridor({ sourceRegion: "EUROPE", destinationRegion: "NEPAL", playerReputation: 95, clubReputation: 95, scoutingReach: 95 });
-    expect(africanPath.corridor).toBe("AFRICA_TO_NEPAL");
+    const africanPath = evaluateForeignRecruitmentCorridor({ sourceRegion: "AFRICA", destinationRegion: "HOME_COUNTRY", playerReputation: 55, clubReputation: 45, scoutingReach: 60 });
+    const elitePath = evaluateForeignRecruitmentCorridor({ sourceRegion: "EUROPE", destinationRegion: "HOME_COUNTRY", playerReputation: 95, clubReputation: 95, scoutingReach: 95 });
+    expect(africanPath.corridor).toEqual({ sourceRegion: "AFRICA", destination: "HOME_COUNTRY", key: "AFRICA_TO_HOME_COUNTRY" });
     expect(africanPath.score).toBeLessThanOrEqual(100);
     expect(elitePath.score).toBeLessThanOrEqual(100);
   });

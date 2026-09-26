@@ -1,6 +1,8 @@
-import { createStableEntityId, type EntityId, type ExternalFootballRegion, type ExternalFootballRegionProfile } from "@nepal-football-sim/shared-types";
+import { createStableEntityId, type ExternalFootballRegion, type ExternalFootballRegionProfile } from "@nepal-football-sim/shared-types";
 import { ClubEconomyRepository, ExternalFootballRepository, FederationGovernanceRepository, type GameDatabase } from "@nepal-football-sim/database";
 import { SeededRandom } from "./rng.js";
+import { findHomeFootballContext } from "./home-context.js";
+import { homeMarketRegion } from "./market-regions.js";
 
 const regions: Array<{ region: ExternalFootballRegion; economic: number; football: number; clubs: number; national: number }> = [
   { region: "SOUTH_ASIA", economic: 3.4, football: 4.2, clubs: 4.3, national: 4.5 },
@@ -14,7 +16,8 @@ const clamp = (value: number): number => Math.max(0, Math.min(10, Number(value.t
 export const processExternalFootballWorldSeason = (db: GameDatabase, input: { seasonLabel: string; seed: string }): ExternalFootballRegionProfile[] => {
   const external = new ExternalFootballRepository(db);
   if (external.profiles(input.seasonLabel).length === regions.length) return external.profiles(input.seasonLabel);
-  const federationId = (db.prepare("SELECT id FROM federations ORDER BY id LIMIT 1").get() as { id: EntityId } | undefined)?.id;
+  const federationId = findHomeFootballContext(db)?.federationId;
+  const homeRegion = homeMarketRegion(db);
   const federation = federationId ? new FederationGovernanceRepository(db).profile(federationId) : undefined;
   const clubs = new ClubEconomyRepository(db).financialAccounts();
   const averageCommercial = clubs.length === 0 ? 0 : clubs.reduce((total, account) => total + (new ClubEconomyRepository(db).commercialProfile(account.clubId)?.brandStrength ?? 0), 0) / clubs.length;
@@ -22,9 +25,9 @@ export const processExternalFootballWorldSeason = (db: GameDatabase, input: { se
   for (const base of regions) {
     const previous = external.profiles().filter((profile) => profile.region === base.region).at(-1);
     const rng = new SeededRandom(`${input.seed}:external:${base.region}:${input.seasonLabel}`);
-    const nepalLift = base.region === "SOUTH_ASIA" ? ((federation?.reputation ?? 4) + (federation?.infrastructureLevel ?? 3)) * 0.018 : 0;
+    const homeLift = base.region === homeRegion ? ((federation?.reputation ?? 4) + (federation?.infrastructureLevel ?? 3)) * 0.018 : 0;
     const economicStrength = clamp((previous?.economicStrength ?? base.economic) + (rng.next() - 0.45) * 0.22);
-    const footballReputation = clamp((previous?.footballReputation ?? base.football) + (economicStrength - base.economic) * 0.08 + nepalLift * 0.35 + (rng.next() - 0.5) * 0.16);
+    const footballReputation = clamp((previous?.footballReputation ?? base.football) + (economicStrength - base.economic) * 0.08 + homeLift * 0.35 + (rng.next() - 0.5) * 0.16);
     const clubStrength = clamp((previous?.clubStrength ?? base.clubs) + (economicStrength - base.economic) * 0.1 + (rng.next() - 0.5) * 0.14);
     const nationalTeamStrength = clamp((previous?.nationalTeamStrength ?? base.national) + (footballReputation - base.football) * 0.08 + (rng.next() - 0.5) * 0.12);
     const profile: ExternalFootballRegionProfile = {
@@ -34,7 +37,7 @@ export const processExternalFootballWorldSeason = (db: GameDatabase, input: { se
       economicStrength,
       footballReputation,
       clubStrength,
-      transferDemand: clamp(footballReputation * 0.62 + (base.region === "SOUTH_ASIA" ? nepalLift * 2 : 0)),
+      transferDemand: clamp(footballReputation * 0.62 + (base.region === homeRegion ? homeLift * 2 : 0)),
       foreignRecruitmentAppeal: clamp(economicStrength * 0.58 + footballReputation * 0.32),
       nationalTeamStrength,
       commercialGrowth: clamp((previous?.commercialGrowth ?? base.economic * 0.45) + averageCommercial * 0.012 + (rng.next() - 0.48) * 0.16),

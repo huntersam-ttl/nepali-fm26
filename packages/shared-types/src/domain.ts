@@ -2666,7 +2666,8 @@ export type ClubFinancialStatement = {
 };
 
 export type AgentNegotiationStyle = "BALANCED" | "AGGRESSIVE" | "LOYAL" | "CAREER_FIRST";
-export type AgentNetworkScope = "NEPAL_DOMESTIC" | "SOUTH_ASIA" | "WIDER_ASIA" | "EUROPE_GLOBAL";
+/** How far an agent's network reaches, narrowest first. HOME_DOMESTIC is the home country's own market (older saves stored it as "NEPAL_DOMESTIC"; the repository reads that as HOME_DOMESTIC). The wider tiers are named for the launch country's geography. */
+export type AgentNetworkScope = "HOME_DOMESTIC" | "SOUTH_ASIA" | "WIDER_ASIA" | "EUROPE_GLOBAL";
 
 export type AgentProfile = {
   id: EntityId;

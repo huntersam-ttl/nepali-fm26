@@ -18,6 +18,7 @@ import {
   searchRegionalCandidatesForClubCached,
 } from "./scouting.js";
 import { createTransferOffer } from "./transfer-market.js";
+import { sameCountryIdentity } from "./market-regions.js";
 
 export const MAX_INTERNATIONAL_TRIAL_DAYS = 28;
 const KNOWLEDGE_RANK: Record<PlayerKnowledgeLevel, number> = {
@@ -49,16 +50,8 @@ const isoDate = (value: string): number => {
 const daysBetween = (from: string, to: string): number =>
   Math.floor((isoDate(to) - isoDate(from)) / 86_400_000);
 
-const clubCountry = (db: GameDatabase, clubId: EntityId): string | undefined =>
-  (
-    db
-      .prepare(
-        `SELECT co.iso_code AS iso_code
-         FROM clubs c JOIN countries co ON co.id = c.country_id
-         WHERE c.id = ?`,
-      )
-      .get(clubId) as { iso_code?: string } | undefined
-  )?.iso_code;
+const clubCountry = (db: GameDatabase, clubId: EntityId): EntityId | undefined =>
+  (db.prepare("SELECT country_id FROM clubs WHERE id = ?").get(clubId) as { country_id?: EntityId } | undefined)?.country_id;
 
 const playerContext = (
   db: GameDatabase,
@@ -66,26 +59,24 @@ const playerContext = (
 ):
   | {
       currentClubId?: EntityId;
-      countryCode?: string;
+      countryId?: EntityId;
     }
   | undefined => {
   const row = db
     .prepare(
       `SELECT p.id AS player_id,
               COALESCE(pfp.current_club_id, pc.club_id) AS current_club_id,
-              COALESCE(current_country.iso_code, nationality.iso_code) AS country_code
+              COALESCE(current_club.country_id, p.nationality_country_id) AS country_id
        FROM persons p
        LEFT JOIN player_factual_profiles pfp ON pfp.player_id = p.id
        LEFT JOIN player_contracts pc ON pc.player_id = p.id AND pc.status = 'ACTIVE'
        LEFT JOIN clubs current_club ON current_club.id = COALESCE(pfp.current_club_id, pc.club_id)
-       LEFT JOIN countries current_country ON current_country.id = current_club.country_id
-       LEFT JOIN countries nationality ON nationality.id = p.nationality_country_id
        WHERE p.id = ?`,
     )
     .get(playerId) as
-    { player_id?: EntityId; current_club_id?: EntityId; country_code?: string } | undefined;
+    { player_id?: EntityId; current_club_id?: EntityId; country_id?: EntityId } | undefined;
   return row?.player_id
-    ? { currentClubId: row.current_club_id, countryCode: row.country_code }
+    ? { currentClubId: row.current_club_id, countryId: row.country_id }
     : undefined;
 };
 
@@ -136,7 +127,7 @@ const validateInvitation = (
     throw new Error("Parent-club permission is required for a contracted player trial");
   }
   const hostCountry = clubCountry(db, input.hostClubId);
-  if (!hostCountry || !context.countryCode || hostCountry === context.countryCode) {
+  if (!hostCountry || !context.countryId || sameCountryIdentity(db, hostCountry, context.countryId)) {
     throw new Error("International trial requires a cross-border host club");
   }
   if (context.currentClubId === input.hostClubId) {

@@ -87,7 +87,8 @@ import {
   type TransferLoanCommand,
 } from "@nepal-football-sim/shared-types";
 import { initializeClubEconomyForSave } from "./club-economy.js";
-import { homeCurrency } from "./home-context.js";
+import { findHomeFootballContext, homeCurrency } from "./home-context.js";
+import { countryPack } from "./country-pack.js";
 import { buildEntityReference } from "./entity-reference.js";
 import { structuredPressInboxItems } from "./manager-media-desktop.js";
 import { activeConcernCount, validActionsForConcern } from "./squad-dynamics.js";
@@ -366,6 +367,12 @@ const clubIdForTeam = (db: GameDatabase, teamId: EntityId): EntityId | undefined
   return row?.club_id;
 };
 
+/** The home country's code as the UI shows a nationality ("NEP" for the launch country). */
+const homeNationalityCode = (db: GameDatabase): string => {
+  const home = findHomeFootballContext(db);
+  return home ? (countryPack(home.packId).nationalTeamCodePrefix ?? home.countryIso) : "UNK";
+};
+
 const playerNationality = (db: GameDatabase, playerId: EntityId): string | undefined => {
   const row = db
     .prepare(
@@ -534,7 +541,7 @@ const squadRow = (
       (profile?.factual?.nationality as string) ??
       (profile?.simulation?.simulationNationality as string) ??
       playerNationality(db, player.personId) ??
-      "NEP",
+      homeNationalityCode(db),
     primaryPosition: player.primaryPosition,
     positions: [player.primaryPosition, ...player.secondaryPositions],
     squadStatus:
@@ -886,7 +893,7 @@ export const buildPlayerProfile = (
       : fact(
           (simulation.simulationNationality as string | undefined) ??
             playerNationality(db, playerId) ??
-            "NEP",
+            homeNationalityCode(db),
           "SIMULATION_ONLY",
         ),
     heightCm: factual.heightCm

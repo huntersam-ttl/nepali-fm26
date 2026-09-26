@@ -4,6 +4,7 @@ import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { openGameDatabase } from "@nepal-football-sim/database";
 import {
+  ISO_ALPHA3_BY_ALPHA2,
   countryToRecruitmentRegion,
   createNepalSave,
   createScoutingAssignment,
@@ -36,9 +37,9 @@ const playerFromMarket = (db: ReturnType<typeof openGameDatabase>, iso: string):
     JOIN teams t ON t.id = tpa.team_id
     JOIN clubs c ON c.id = t.club_id
     JOIN countries co ON co.id = c.country_id
-    WHERE tpa.role = 'PLAYER' AND tpa.ended_on IS NULL AND co.iso_code = ?
+    WHERE tpa.role = 'PLAYER' AND tpa.ended_on IS NULL AND co.iso_code IN (?, ?)
     ORDER BY tpa.person_id LIMIT 1
-  `).get(iso) as { player_id: EntityId }).player_id;
+  `).get(iso, ISO_ALPHA3_BY_ALPHA2[iso]!) as { player_id: EntityId }).player_id;
 
 afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });

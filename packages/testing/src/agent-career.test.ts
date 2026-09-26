@@ -62,7 +62,7 @@ describe("agent career and interactive timeline", () => {
       loyaltyPreference: 60,
       feeExpectation: 5,
       careerAmbition: 70,
-      networkScope: "NEPAL_DOMESTIC",
+      networkScope: "HOME_DOMESTIC",
       preferredMarkets: ["NEPAL"],
       status: "SIMULATION_ONLY",
     };

@@ -3,6 +3,7 @@ import type {
   Academy,
   AcademySimulationProfile,
   AgentApproachRecord,
+  AgentNetworkScope,
   AgentClient,
   AgentProfile,
   ClubAsset,
@@ -6055,7 +6056,7 @@ const mapAgentProfile = (row: any): AgentProfile => ({
   loyaltyPreference: row.loyalty_preference,
   feeExpectation: row.fee_expectation,
   careerAmbition: row.career_ambition,
-  networkScope: row.network_scope ?? "NEPAL_DOMESTIC",
+  networkScope: normalizeAgentNetworkScope(row.network_scope),
   preferredMarkets: json.parse(row.preferred_markets_json, ["NP"]),
   status: row.status,
 });
@@ -6075,7 +6076,7 @@ const mapAgentApproach = (row: any): AgentApproachRecord => ({
   approachedAt: row.approached_at,
   trigger: row.trigger,
   interestScore: row.interest_score,
-  networkScope: row.network_scope,
+  networkScope: normalizeAgentNetworkScope(row.network_scope),
   decision: row.decision,
   decidedAt: row.decided_at ?? undefined,
 });
@@ -9309,6 +9310,10 @@ export class InternationalFootballRepository {
     return rows.map(mapInternationalRetirement);
   }
 }
+
+/** Older saves stored the home country's own market as "NEPAL_DOMESTIC" (and the column defaults to it). */
+const normalizeAgentNetworkScope = (value: string | null | undefined): AgentNetworkScope =>
+  !value || value === "NEPAL_DOMESTIC" ? "HOME_DOMESTIC" : (value as AgentNetworkScope);
 
 const mapInternationalTeamProfile = (row: any): InternationalTeamProfile => ({
   id: row.id,

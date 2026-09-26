@@ -2,6 +2,8 @@ import {
   createStableEntityId,
   type EntityId,
   type FootballStaffRole,
+
+  type ExternalFootballRegion,
 } from "@nepal-football-sim/shared-types";
 import {
   WorkforceSupplyRepository,
@@ -781,11 +783,42 @@ export const updateForeignScoutingInterest = (db: GameDatabase, input: { date: s
   }
 };
 
-export const evaluateForeignRecruitmentCorridor = (input: { sourceRegion: string; destinationRegion: string; playerReputation: number; clubReputation: number; scoutingReach: number; partnershipStrength?: number }): { eligible: boolean; score: number; corridor: "AFRICA_TO_NEPAL" | "SOUTH_ASIA_REGIONAL" | "NEPAL_TO_ASIA" | "GENERAL" } => {
-  const regional = input.sourceRegion === "AFRICA" && input.destinationRegion === "NEPAL" ? 16 : input.sourceRegion === "SOUTH_ASIA" || input.destinationRegion === "SOUTH_ASIA" ? 12 : 0;
+/** Where a recruitment corridor ends: the save's home country, or a market region. */
+export type CorridorDestination = "HOME_COUNTRY" | ExternalFootballRegion;
+
+/** What an old corridor destination or key is called now; "NEPAL" was the launch country standing in for "the home country". */
+export const LEGACY_CORRIDOR_DESTINATIONS: Readonly<Record<string, CorridorDestination>> = { NEPAL: "HOME_COUNTRY" };
+export const LEGACY_CORRIDOR_KEYS: Readonly<Record<string, string>> = {
+  AFRICA_TO_NEPAL: "AFRICA_TO_HOME_COUNTRY",
+  SOUTH_ASIA_REGIONAL: "HOME_REGION",
+  NEPAL_TO_ASIA: "HOME_COUNTRY_TO_WIDER_ASIA",
+};
+
+export type RecruitmentCorridor = { sourceRegion: string; destination: string; key: string };
+
+/**
+ * Whether a foreign recruitment corridor is open for a player and club, and how strongly. A
+ * corridor runs from a source market region to a destination: the home country ("HOME_COUNTRY")
+ * or a region. `homeRegion` is the market region the home country belongs to; a corridor that
+ * starts or ends in it is the home region's own. Nothing here names a country.
+ */
+export const evaluateForeignRecruitmentCorridor = (input: {
+  sourceRegion: string;
+  /** A destination, or a legacy "NEPAL" (read as the home country). */
+  destinationRegion: string;
+  homeRegion?: ExternalFootballRegion;
+  playerReputation: number;
+  clubReputation: number;
+  scoutingReach: number;
+  partnershipStrength?: number;
+}): { eligible: boolean; score: number; corridor: RecruitmentCorridor } => {
+  const destination: string = LEGACY_CORRIDOR_DESTINATIONS[input.destinationRegion] ?? input.destinationRegion;
+  const inboundFromAfrica = input.sourceRegion === "AFRICA" && destination === "HOME_COUNTRY";
+  const homeRegional = input.homeRegion !== undefined && (input.sourceRegion === input.homeRegion || destination === input.homeRegion);
+  const regional = inboundFromAfrica ? 16 : homeRegional ? 12 : 0;
   const score = Math.max(0, Math.min(100, input.playerReputation * 0.35 + input.clubReputation * 0.25 + input.scoutingReach * 0.25 + (input.partnershipStrength ?? 0) * 0.15 + regional));
-  const corridor = input.sourceRegion === "AFRICA" && input.destinationRegion === "NEPAL" ? "AFRICA_TO_NEPAL" : input.sourceRegion === "SOUTH_ASIA" || input.destinationRegion === "SOUTH_ASIA" ? "SOUTH_ASIA_REGIONAL" : input.destinationRegion === "WIDER_ASIA" ? "NEPAL_TO_ASIA" : "GENERAL";
-  return { eligible: score >= 45, score, corridor };
+  const key = inboundFromAfrica ? "AFRICA_TO_HOME_COUNTRY" : homeRegional ? "HOME_REGION" : destination === "WIDER_ASIA" ? "HOME_COUNTRY_TO_WIDER_ASIA" : "GENERAL";
+  return { eligible: score >= 45, score, corridor: { sourceRegion: input.sourceRegion, destination, key } };
 };
 
 const seedForeignStaff = (

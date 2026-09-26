@@ -44,7 +44,8 @@ import {
   recordTransferEconomy,
 } from "./club-economy.js";
 import { applySupporterTransferOutcome } from "./supporter-culture.js";
-import { homeCurrency, homeIsoCodes, isHomeIso } from "./home-context.js";
+import { findHomeFootballContext, homeCurrency, homeIsoCodes, isHomeIso } from "./home-context.js";
+import { isoAlpha2Of } from "./country-identity.js";
 import {
   applyPlayerLifestyleEvent,
   applyPlayerRelationshipEvent,
@@ -277,7 +278,7 @@ export const simulateTransferWindow = (input: {
     .filter((club) => (squadSizes.get(club.id) ?? 0) >= 11)
     .sort(
       (a, b) =>
-        Number(isNepalClub(input.db, b.id)) - Number(isNepalClub(input.db, a.id)) ||
+        Number(isHomeCountryClub(input.db, b.id)) - Number(isHomeCountryClub(input.db, a.id)) ||
         a.name.localeCompare(b.name),
     );
   for (const contract of market
@@ -2112,7 +2113,7 @@ const emitTransferPublicEvent = (
   const clubs = [input.clubId, input.relatedClubId].filter((clubId): clubId is EntityId =>
     Boolean(clubId),
   );
-  if (!clubs.some((clubId) => isNepalClub(db, clubId))) return;
+  if (!clubs.some((clubId) => isHomeCountryClub(db, clubId))) return;
   const id = createStableEntityId("history", `TRANSFER_PUBLIC:${input.sourceId}`);
   if (!db.prepare("SELECT 1 FROM historical_events WHERE id=?").get(id)) {
     new EventRepository(db).insertHistoricalEvent({
@@ -2794,7 +2795,7 @@ export const signFreeAgent = (
     offer,
     worldDate,
     seed,
-    isNepalClub(db, clubId)
+    isHomeCountryClub(db, clubId)
       ? {
           preferredCountries: [...homeIsoCodes(db)],
           prefersOverseas: false,
@@ -3286,7 +3287,7 @@ const findFreeAgentForNeed = (
       (player) => need.positionGroup === "DEPTH" || player.positionGroup === need.positionGroup,
     )
     .sort((a, b) => {
-      const foreignPreference = isNepalClub(db, clubId)
+      const foreignPreference = isHomeCountryClub(db, clubId)
         ? Number(isForeignBased(db, b.currentClubId)) - Number(isForeignBased(db, a.currentClubId))
         : 0;
       return (
@@ -3297,7 +3298,7 @@ const findFreeAgentForNeed = (
     })[0];
 };
 
-const isNepalClub = (db: GameDatabase, clubId: EntityId): boolean =>
+const isHomeCountryClub = (db: GameDatabase, clubId: EntityId): boolean =>
   Boolean(
     db
       .prepare(
@@ -3488,7 +3489,7 @@ const startingContract = (
       ? addDays(worldDate, 20 + Math.floor(rng.next() * 70))
       : addMonths(worldDate, months);
   const salary = Math.round(
-    (isNepalClub(db, club.id)
+    (isHomeCountryClub(db, club.id)
       ? 12000 + player.currentAbility * 2800 + player.reputation * 1200
       : 28000 + player.currentAbility * 14500 + player.reputation * 4200) *
       clubSalaryMultiplier(club),
@@ -3635,7 +3636,7 @@ const seedAgents = (db: GameDatabase, seed: string, worldDate: string): void => 
         "CAREER_FIRST",
       ];
       const networkScopes: AgentNetworkScope[] = [
-        "NEPAL_DOMESTIC",
+        "HOME_DOMESTIC",
         "SOUTH_ASIA",
         "WIDER_ASIA",
         "EUROPE_GLOBAL",
@@ -3644,7 +3645,7 @@ const seedAgents = (db: GameDatabase, seed: string, worldDate: string): void => 
       market.upsertAgent({
         id: createStableEntityId("agent", personId),
         personId,
-        agencyName: agencyNameForNetwork(networkScope, index),
+        agencyName: agencyNameForNetwork(db, networkScope, index),
         reputation: 5 + Math.floor(rng.next() * 11),
         negotiationSkill: 6 + Math.floor(rng.next() * 12),
         negotiationStyle: styles[index % styles.length]!,
@@ -3653,7 +3654,7 @@ const seedAgents = (db: GameDatabase, seed: string, worldDate: string): void => 
         feeExpectation: 5 + Math.floor(rng.next() * 11),
         careerAmbition: 5 + Math.floor(rng.next() * 11),
         networkScope,
-        preferredMarkets: preferredMarketsForNetwork(networkScope),
+        preferredMarkets: preferredMarketsForNetwork(db, networkScope),
         status: "SIMULATION_ONLY",
       });
     }
@@ -4093,23 +4094,32 @@ const buildPlayerExchange = (
 
 const agentNetworkRank = (scope: AgentNetworkScope): number =>
   ({
-    NEPAL_DOMESTIC: 1,
+    HOME_DOMESTIC: 1,
     SOUTH_ASIA: 2,
     WIDER_ASIA: 3,
     EUROPE_GLOBAL: 4,
   })[scope];
 
-const preferredMarketsForNetwork = (scope: AgentNetworkScope): string[] =>
+/** The home country's own code (ISO alpha-2) first, then the markets the tier adds, without repeating the home country. */
+const preferredMarketsForNetwork = (db: GameDatabase, scope: AgentNetworkScope): string[] => {
+  const home = findHomeFootballContext(db);
+  const homeCode = home ? (isoAlpha2Of(home.countryIso) ?? home.countryIso) : undefined;
+  const tier = tierMarkets(scope).filter((code) => code !== homeCode);
+  return homeCode ? [homeCode, ...tier] : tier;
+};
+
+const tierMarkets = (scope: AgentNetworkScope): string[] =>
   ({
-    NEPAL_DOMESTIC: ["NP"],
-    SOUTH_ASIA: ["NP", "IN", "BD", "BT", "LK"],
-    WIDER_ASIA: ["NP", "IN", "BD", "TH", "MY", "JP", "KR"],
-    EUROPE_GLOBAL: ["NP", "IN", "JP", "KR", "GB", "DE", "ES", "PT"],
+    HOME_DOMESTIC: [],
+    SOUTH_ASIA: ["IN", "BD", "BT", "LK"],
+    WIDER_ASIA: ["IN", "BD", "TH", "MY", "JP", "KR"],
+    EUROPE_GLOBAL: ["IN", "JP", "KR", "GB", "DE", "ES", "PT"],
   })[scope];
 
-const agencyNameForNetwork = (scope: AgentNetworkScope, index: number): string => {
+const agencyNameForNetwork = (db: GameDatabase, scope: AgentNetworkScope, index: number): string => {
+  const homeName = findHomeFootballContext(db)?.countryName ?? "Home";
   const names: Record<AgentNetworkScope, string> = {
-    NEPAL_DOMESTIC: "Kathmandu Football Advisory",
+    HOME_DOMESTIC: `${homeName} Football Advisory`,
     SOUTH_ASIA: "South Asia Sports Counsel",
     WIDER_ASIA: "AFC Pathway Management",
     EUROPE_GLOBAL: "Global Football Partners",
@@ -4141,7 +4151,7 @@ const recommendedAgentNetwork = (input: {
   ) {
     return "SOUTH_ASIA";
   }
-  return "NEPAL_DOMESTIC";
+  return "HOME_DOMESTIC";
 };
 
 const selectAgentForPlayer = (
