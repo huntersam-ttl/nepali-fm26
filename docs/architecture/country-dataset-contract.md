@@ -34,10 +34,22 @@ appear in exactly two places: the Nepal pack and that legacy inference.
 ## Country pack
 
 A pack (`country-pack.ts`; Nepal's is `country-packs/nepal.ts`) is the configuration that
-goes with a country dataset: ISO codes, currency, locale, federation abbreviation, season
-rules, national-team structure, tier labels, a name pool, and optional territory
-initialisers. It is registered with `registerCountryPack`. A save stores a copy of the
-parts it needs (`config_json`), so it stays playable if the pack later changes.
+goes with a country dataset. It is registered with `registerCountryPack`. A save stores a copy
+of the parts it needs (`config_json`), so it stays playable if the pack later changes.
+
+| Pack field | Meaning |
+| --- | --- |
+| `isoCodes`, `currency`, `locale`, `federationAbbreviation`, `seasonRules`, `tierLabels`, `namePool` | Identity, money label, calendar, display labels, people names. |
+| `nationalTeams` | National-team structure (team type, level, gender, label, strength multiplier); `nationalTeamCodePrefix`, `internationalProfile` for the registry. |
+| `geography` (optional) | Administrative areas of any depth and kind that a new save must have, the territorial units, and club-address hubs (`country-packs/nepal-geography.ts`). The `locations` table stays the source of truth. |
+| `commercial` (optional) | Lenders, the club sponsor pool and the federation's sponsors (`country-packs/nepal-commercial.ts`). Identities only: reputations, tiers, rates and contracts are the economy's. |
+| `media` (optional) | Media outlets and the journalists dealt to them (`country-packs/nepal-media.ts`). |
+| `initialiseTerritory`, `ensureTerritorialStructure` (optional) | Hooks that build territorial units and seed the pack's places. |
+
+An absent optional field means the country has none of it: nothing is inherited from Nepal.
+A country with no media outlets publishes no stories and cannot hold a press interview.
+Country codes: `countries.iso_code` keeps the code a row was created with; every other code
+is an alias (`country_codes`), resolved through `CountryCodeRepository`.
 
 ## Country dataset contract
 
@@ -83,19 +95,20 @@ those are the ones to check first for country #2.
 ## What is still Nepal-specific (deliberately or deferred)
 
 - **Product and UI**: the name, imagery, copy and sponsor/place names are Nepal's by design.
-- **Data still in code, to move into the dataset/pack**: the 77-district territorial
-  structure (`NEPAL_PROVINCE_DISTRICTS`), Nepali banks (`club-finance-markets`), sponsor
-  pools, media outlets, the registry of international nations, SAFF/AFC competition keys and
-  cycles, the foreign-market region lists in `transfer-market`/`scouting`, the youth
-  `nepalDevelopmentProfile`.
+- **Data still in code**: the registry of international nations (`international-football.ts`)
+  and the AFC/SAFF competition definitions (`international-competition-config.ts`, data but
+  AFC-only), the foreign-market country lists (`foreign-football-world.ts`), agent network
+  tiers and neighbour markets (`transfer-market`), the youth `nepalDevelopmentProfile`,
+  Nepali supplier names (`clubmart.ts`), the Nepal club-id prefixes in the default
+  recruitment profile, and the test-only world in `world.ts`.
 - **Money scale**: wages, fees and budgets are calibrated in Nepali-rupee magnitudes. The
   currency *label* is configurable; a second currency also needs a price-level factor.
-- **Closed vocabularies**: `NationalTeamType` (`SENIOR_MEN` … `U17`) and the shared-type
-  label `"NEPAL"` (`OrganizationProfile.organizationContext`) are fixed unions.
-- **Latent bugs found and left alone** (changing them changes Nepal outcomes): the club
-  economy's helper matches only ISO `NPL` (real saves use `NP`), so attendance demand and
-  sponsor country never resolve; the regional-competition host id
-  (`country:"NP"`) does not exist in real saves.
+- **Closed vocabularies that are deliberate**: `FootballConfederation`,
+  `FootballRegion` and `ExternalFootballRegion` are finite football taxonomies.
+  `NationalTeamType`, `TeamLevel`, `CampDestination` and `InternationalCompetitionKey` accept
+  dataset-defined values; the simulation says which it plays.
+- **Still Nepal-worded**: user-facing messages in the founder flow, the stored club reach
+  value `SOUTH_ASIA` and agent tiers named for South Asia.
 - **Fixed on the way**: generated referees, assistants, AI managers and AI staff took the
   first country by id or name (all 513 generated officials were Australian nationals). They
   are now home-country nationals, which also lets the federation's referee-development

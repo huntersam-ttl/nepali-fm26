@@ -1,4 +1,4 @@
-import type { FootballConfederation, FootballRegion, NationalTeamType } from "@nepal-football-sim/shared-types";
+import type { ClubLender, FootballConfederation, FootballRegion, MediaJournalist, MediaOutlet, NationalTeamType } from "@nepal-football-sim/shared-types";
 import type { GameDatabase } from "@nepal-football-sim/database";
 
 /*
@@ -79,6 +79,33 @@ export type PackGeography = {
   clubLocalityHubs?: readonly string[];
 };
 
+/** A sponsor identity a save starts with. Its country is always the home country; its reputation and budget tier are drawn by the economy. */
+export type PackSponsor = {
+  name: string;
+  industry: string;
+  sourceUrl?: string;
+  identityProvenance: "VERIFIED" | "SIMULATION_ONLY";
+};
+
+/**
+ * The country's commercial identities. Only who they are: the economy decides rates, limits,
+ * contract values and which sponsor a club gets. An absent list means the country has none.
+ */
+export type PackCommercial = {
+  /** Banks and other lenders clubs may borrow from. */
+  lenders?: readonly Omit<ClubLender, "id" | "countryId">[];
+  /** The sponsor pool clubs draw on. */
+  sponsors?: readonly PackSponsor[];
+  /** Sponsors of the national federation. */
+  federationSponsors?: ReadonlyArray<{ name: string; industry: string }>;
+};
+
+/** The country's football media: outlets and the journalists who write for them (dealt to outlets in order). */
+export type PackMedia = {
+  outlets?: readonly Omit<MediaOutlet, "id">[];
+  journalists?: readonly Omit<MediaJournalist, "id" | "outletId">[];
+};
+
 export type CountryPack = {
   /** Stable identifier of the country dataset + configuration, e.g. "nepal-v1". Never a display name. */
   packId: string;
@@ -109,6 +136,10 @@ export type CountryPack = {
   namePool: NamePool;
   /** Optional: administrative places to guarantee and build territorial football from. Absent, the save's own locations are used. */
   geography?: PackGeography;
+  /** Optional: banks, sponsors. Absent, the country has none; nothing is inherited from another country. */
+  commercial?: PackCommercial;
+  /** Optional: media outlets and journalists. Absent, the country has none. */
+  media?: PackMedia;
   /** Country-specific structures that must exist once the dataset is imported (geography, founder locations). */
   initialiseTerritory?: (db: GameDatabase, date: string) => void;
   /** Idempotent check that the territorial structure exists, for saves that predate it. */

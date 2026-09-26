@@ -60,7 +60,7 @@ import { PLAYABLE_CLUB_PREDICATE } from "./playable-world.js";
 import { SeededRandom } from "./rng.js";
 import { buildEntityReference } from "./entity-reference.js";
 import { nationalTeamOutcomes } from "./national-team-workspace.js";
-import { homeCurrency, homeFederation, seasonEndDate } from "./home-context.js";
+import { homeCountryPack, homeCurrency, homeFederation, seasonEndDate } from "./home-context.js";
 import { ensureNationalTeamRows } from "./national-team-identity.js";
 import { recordFederationDevelopmentSnapshot } from "./federation-scorecard.js";
 
@@ -1858,15 +1858,13 @@ export const federationCommercialOverview = (
 
 const seedFederationSponsors = (db: GameDatabase, date: string, seed: string): void => {
   const economy = new ClubEconomyRepository(db);
-  if (economy.sponsors().some((sponsor) => sponsor.name === "Nepal Football Development Partner")) {
+  const wanted = homeCountryPack(db).commercial?.federationSponsors ?? [];
+  const present = new Set(economy.sponsors().map((sponsor) => sponsor.id));
+  if (wanted.every(({ name }) => present.has(createStableEntityId("sponsor-organisation", name)))) {
     return;
   }
   const rng = seeded(seed, `federation-sponsors:${date}`);
-  for (const [name, industry] of [
-    ["Nepal Football Development Partner", "Development services"],
-    ["Himal Broadcast Network", "Broadcasting"],
-    ["Regional Sports Education Trust", "Education"],
-  ]) {
+  for (const { name, industry } of wanted) {
     const sponsor: SponsorOrganisation = {
       id: createStableEntityId("sponsor-organisation", name),
       name,

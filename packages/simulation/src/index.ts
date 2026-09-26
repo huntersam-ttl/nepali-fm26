@@ -31,6 +31,8 @@ export * from "./world-progression.js";
 export * from "./country-pack.js";
 export * from "./country-packs/nepal.js";
 export * from "./country-packs/nepal-geography.js";
+export * from "./country-packs/nepal-commercial.js";
+export * from "./country-packs/nepal-media.js";
 export * from "./administrative-geography.js";
 export * from "./home-context.js";
 export * from "./country-identity.js";

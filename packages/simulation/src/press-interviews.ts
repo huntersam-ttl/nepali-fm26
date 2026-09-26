@@ -1077,9 +1077,11 @@ export const startPressConference = (
     new MediaRepository(db)
       .outlets()
       .sort((a, b) => b.reach - a.reach || a.id.localeCompare(b.id))
-      .find((candidate) => candidate.scope !== "REGIONAL_INTERNATIONAL") ?? new MediaRepository(db).outlets()[0]!;
-  const journalist =
-    new MediaPhaseBRepository(db).journalists(outlet.id)[0] ?? new MediaPhaseBRepository(db).journalists()[0]!;
+      .find((candidate) => candidate.scope !== "REGIONAL_INTERNATIONAL") ?? new MediaRepository(db).outlets()[0];
+  const journalist = outlet
+    ? (new MediaPhaseBRepository(db).journalists(outlet.id)[0] ?? new MediaPhaseBRepository(db).journalists()[0])
+    : undefined;
+  if (!outlet || !journalist) throw new Error("This country has no media outlets or journalists configured, so no press interview can be held");
   const interview: MediaInterview = {
     id: stableId,
     outletId: outlet.id,

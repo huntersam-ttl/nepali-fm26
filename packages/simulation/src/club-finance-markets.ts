@@ -14,7 +14,7 @@ import {
 } from "@nepal-football-sim/shared-types";
 import { calculateClubValuation, postClubTransaction, setClubBudget } from "./club-economy.js";
 import { executiveHasAuthority } from "./executive-roles.js";
-import { homeCountryId, homeCurrency } from "./home-context.js";
+import { homeCountryId, homeCountryPack, homeCurrency } from "./home-context.js";
 
 export class ClubFinanceAuthorityError extends Error {
   constructor(
@@ -70,18 +70,10 @@ const addMonths = (date: string, months: number): string => {
   return value.toISOString().slice(0, 10);
 };
 
-const lenders: Array<Omit<ClubLender, "id" | "countryId">> = [
-  { name: "Nabil Bank Limited", institutionType: "COMMERCIAL_BANK", sourceUrl: "https://www.nabilbank.com/aboutus", status: "VERIFIED" },
-  { name: "Nepal Bank Limited", institutionType: "COMMERCIAL_BANK", sourceUrl: "https://www.nrb.org.np/bfr/bfis-list-in-english-mid-january-2026/", status: "VERIFIED" },
-  { name: "Agriculture Development Bank Limited", institutionType: "COMMERCIAL_BANK", sourceUrl: "https://www.nrb.org.np/bfr/bfis-list-in-english-mid-january-2026/", status: "VERIFIED" },
-  { name: "Himalayan Bank Limited", institutionType: "COMMERCIAL_BANK", sourceUrl: "https://www.nrb.org.np/bfr/bfis-list-in-english-mid-january-2026/", status: "VERIFIED" },
-  { name: "Muktinath Bikas Bank Limited", institutionType: "DEVELOPMENT_BANK", sourceUrl: "https://www.nrb.org.np/bfr/bfis-list-in-english-mid-january-2026/", status: "VERIFIED" },
-];
-
 export const initializeClubFinanceMarkets = (db: GameDatabase): ClubLender[] => {
   const economy = new ClubEconomyRepository(db);
   const countryId = homeCountryId(db);
-  for (const lender of lenders) {
+  for (const lender of homeCountryPack(db).commercial?.lenders ?? []) {
     economy.upsertLender({ ...lender, id: createStableEntityId("club-lender", lender.name), countryId });
   }
   return economy.lenders();

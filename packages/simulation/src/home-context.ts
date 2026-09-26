@@ -198,6 +198,12 @@ const homeConfig = (db: GameDatabase): Pick<HomeFootballContext, "packId" | "cur
   return { packId: pack.packId, currency: pack.currency, locale: pack.locale, federationAbbreviation: pack.federationAbbreviation, seasonRules: pack.seasonRules, nationalTeams: pack.nationalTeams, tierLabels: pack.tierLabels };
 };
 
+/**
+ * The country pack of the save's home country. A hand-built world with no home country at all (a
+ * test fixture, never a real save) uses the launch pack, as the other home settings do.
+ */
+export const homeCountryPack = (db: GameDatabase): CountryPack => countryPack(homeConfig(db).packId);
+
 export const homeCurrency = (db: GameDatabase): string => homeConfig(db).currency;
 
 export const homeLocale = (db: GameDatabase): string => homeConfig(db).locale;

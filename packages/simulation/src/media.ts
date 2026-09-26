@@ -26,68 +26,12 @@ import {
 } from "./supporter-culture.js";
 import { resolveStoryEntityReference, storyImportanceBand } from "./story-entities.js";
 import { deriveFollowUpEvents } from "./follow-up-reactions.js";
+import { homeCountryPack } from "./home-context.js";
 
 const status = "SIMULATION_ONLY" as const;
-const outlets: Array<Omit<MediaOutlet, "id">> = [
-  {
-    name: "Kathmandu Football Desk",
-    scope: "LOCAL",
-    reputation: 5.8,
-    reach: 3.5,
-    bias: "CLUB_FOCUSED",
-    style: "ANALYSIS",
-    status,
-  },
-  {
-    name: "Nepal Football News",
-    scope: "NATIONAL",
-    reputation: 6.8,
-    reach: 6.5,
-    bias: "NATIONAL_FOCUS",
-    style: "WIRE",
-    status,
-  },
-  {
-    name: "South Asia Football Review",
-    scope: "REGIONAL_INTERNATIONAL",
-    reputation: 8.1,
-    reach: 7.4,
-    bias: "NEUTRAL",
-    style: "TRADE",
-    status,
-  },
-  {
-    name: "ANFA Federation Bulletin",
-    scope: "NATIONAL",
-    reputation: 7.2,
-    reach: 5.5,
-    bias: "DEVELOPMENT_FOCUS",
-    style: "WIRE",
-    status,
-  },
-  {
-    name: "Nepal Football Business Desk",
-    scope: "NATIONAL",
-    reputation: 6.2,
-    reach: 4.8,
-    bias: "NEUTRAL",
-    style: "TRADE",
-    status,
-  },
-  {
-    name: "Club Media Channel",
-    scope: "LOCAL",
-    reputation: 4.5,
-    reach: 2.8,
-    bias: "CLUB_FOCUSED",
-    style: "TABLOID",
-    status,
-  },
-];
-
 export const initializeMediaForSave = (db: GameDatabase): MediaOutlet[] => {
   const repo = new MediaRepository(db);
-  for (const outlet of outlets)
+  for (const outlet of homeCountryPack(db).media?.outlets ?? [])
     repo.upsertOutlet({ ...outlet, id: createStableEntityId("media-outlet", outlet.name) });
   return repo.outlets();
 };
@@ -464,6 +408,8 @@ export const publishMediaForDate = (
   const published: MediaStory[] = [];
   const events = eventRepo.historicalEventsUpTo(input.date);
   for (const event of events) routeHistoricalEvent(db, event);
+  // A country with no media outlets publishes no stories; events are still routed above.
+  if (repo.outlets().length === 0) return published;
   const newlyPublishable = events.filter(
     (item) => importance(item) >= threshold && !repo.hasStory(item.id),
   );
@@ -490,37 +436,14 @@ export const publishMediaForDate = (
 export const getMediaArchive = (db: GameDatabase, publishedOn?: string): MediaStory[] =>
   new MediaRepository(db).stories(publishedOn);
 
-const journalists: Array<Omit<MediaJournalist, "id" | "outletId">> = [
-  {
-    name: "Asha Shrestha",
-    beat: "Domestic football",
-    temperament: "NEUTRAL",
-    reputation: 6.5,
-    status,
-  },
-  {
-    name: "Rijan Gurung",
-    beat: "National teams",
-    temperament: "SCEPTICAL",
-    reputation: 7.2,
-    status,
-  },
-  {
-    name: "Mina Rai",
-    beat: "Player development",
-    temperament: "FRIENDLY",
-    reputation: 6.8,
-    status,
-  },
-];
-
 export const initializeMediaJournalists = (db: GameDatabase): MediaJournalist[] => {
   const outletsRepo = new MediaRepository(db);
   const repo = new MediaPhaseBRepository(db);
   initializeMediaForSave(db);
   const all = outletsRepo.outlets();
-  for (const [index, profile] of journalists.entries()) {
-    const outlet = all[index % all.length];
+  if (all.length === 0) return [];
+  for (const [index, profile] of (homeCountryPack(db).media?.journalists ?? []).entries()) {
+    const outlet = all[index % all.length]!;
     repo.upsertJournalist({
       ...profile,
       id: createStableEntityId("media-journalist", profile.name),
