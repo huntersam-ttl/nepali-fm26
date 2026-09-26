@@ -2,6 +2,7 @@ import { CountryCodeRepository, type GameDatabase } from "@nepal-football-sim/da
 import type { EntityId, Federation } from "@nepal-football-sim/shared-types";
 import {
   countryPack,
+  type CountryEconomicProfile,
   type CountryPack,
   type NamePool,
   type NationalTeamDefinition,
@@ -146,6 +147,14 @@ export const homeFootballContext = (db: GameDatabase): HomeFootballContext => {
   if (!context) throw new Error("The save has no home football country.");
   return context;
 };
+
+export const homeEconomicProfile = (db: GameDatabase): CountryEconomicProfile =>
+  countryPack(homeFootballContext(db).packId).economicProfile ?? {
+    wageScale: 1,
+    transferScale: 1,
+    consumerPriceScale: 1,
+    infrastructureScale: 1,
+  };
 
 /**
  * The home country id alone, for callers that run before a federation exists (a bare

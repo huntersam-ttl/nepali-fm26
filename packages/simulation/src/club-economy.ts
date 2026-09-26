@@ -38,7 +38,7 @@ import {
 } from "@nepal-football-sim/shared-types";
 import { executiveHasAuthority } from "./executive-roles.js";
 import { countryPack } from "./country-pack.js";
-import { homeCountryId, homeCurrency, homeFootballContext, seasonEndDate, seasonStartDate } from "./home-context.js";
+import { homeCountryId, homeCurrency, homeEconomicProfile, homeFootballContext, seasonEndDate, seasonStartDate } from "./home-context.js";
 import {
   ClubEconomyRepository,
   ClubNetworkRepository,
@@ -112,6 +112,7 @@ export const initializeClubEconomyForSave = (input: {
   seed: string;
 }): void => {
   const economy = new ClubEconomyRepository(input.db);
+  const economicProfile = homeEconomicProfile(input.db);
   for (const club of allClubs(input.db)) {
     if (economy.financialAccount(club.id)) continue;
     const profile = generatedClubEconomy(club, input.seed);
@@ -131,15 +132,21 @@ export const initializeClubEconomyForSave = (input: {
       lastUpdatedAt: input.worldDate,
       status: simulationStatus,
     });
-    for (const budget of generatedBudgets(club, profile, input.worldDate, homeCurrency(input.db))) {
+    for (const budget of generatedBudgets(
+      club,
+      profile,
+      input.worldDate,
+      homeCurrency(input.db),
+      economicProfile,
+    )) {
       economy.upsertBudget(budget);
     }
     economy.upsertOwnershipStake(generatedOwnershipStake(club, input.worldDate));
-    economy.upsertSupporterProfile(generatedSupporterProfile(club, profile, input.seed, homeCurrency(input.db)));
+    economy.upsertSupporterProfile(generatedSupporterProfile(club, profile, input.seed, homeCurrency(input.db), economicProfile.consumerPriceScale));
     economy.upsertCommercialProfile(
       generatedCommercialProfile(club, profile, input.seed, input.worldDate),
     );
-    economy.upsertFacilityProfile(generatedFacilityProfile(club, profile, input.seed, homeCurrency(input.db)));
+    economy.upsertFacilityProfile(generatedFacilityProfile(club, profile, input.seed, homeCurrency(input.db), economicProfile.infrastructureScale));
     economy.upsertBoardPolicy(generatedBoardPolicy(club, input.worldDate));
     economy.upsertValuation(calculateClubValuation(input.db, club.id, input.worldDate));
     if (profile.debt > 0) {
@@ -2533,11 +2540,12 @@ const generatedBudgets = (
   profile: ReturnType<typeof generatedClubEconomy>,
   worldDate: string,
   currency: string,
+  economicProfile: ReturnType<typeof homeEconomicProfile>,
 ): ClubBudget[] => {
   const season = seasonLabel(worldDate);
-  const wage = Math.round(profile.cash * 0.95 + profile.scale * 2600000);
+  const wage = Math.round((profile.cash * 0.95 + profile.scale * 2600000) * economicProfile.wageScale);
   const transfer = Math.round(
-    profile.cash * (profile.economicType === "COMMUNITY_CLUB" ? 0.12 : 0.22),
+    profile.cash * (profile.economicType === "COMMUNITY_CLUB" ? 0.12 : 0.22) * economicProfile.transferScale,
   );
   const values: Record<ClubBudgetCategory, number> = {
     WAGE_BUDGET: wage,
@@ -2601,6 +2609,7 @@ const generatedSupporterProfile = (
   profile: ReturnType<typeof generatedClubEconomy>,
   seed: string,
   currency: string,
+  consumerPriceScale: number,
 ): ClubSupporterProfile => {
   const rng = new SeededRandom(`${seed}:supporters:${club.id}`);
   const base = Math.round(700 + profile.scale * 850 + rng.next() * 1600);
@@ -2617,7 +2626,7 @@ const generatedSupporterProfile = (
     footballReputation: round(3 + profile.scale * 2 + rng.next() * 3),
     commercialReputation: round(2.5 + profile.scale * 1.6 + rng.next() * 2.5),
     sentiment: "NEUTRAL",
-    standardTicketPrice: Math.round((180 + rng.integer(0, 120)) * profile.scale),
+    standardTicketPrice: Math.round((180 + rng.integer(0, 120)) * profile.scale * consumerPriceScale),
     currency,
     status: simulationStatus,
   };
@@ -2648,6 +2657,7 @@ const generatedFacilityProfile = (
   profile: ReturnType<typeof generatedClubEconomy>,
   seed: string,
   currency: string,
+  infrastructureScale: number,
 ): ClubFacilityProfile => {
   const rng = new SeededRandom(`${seed}:facilities:${club.id}`);
   const quality = 2.5 + profile.scale * 1.4 + rng.next() * 2;
@@ -2658,7 +2668,7 @@ const generatedFacilityProfile = (
     medicalFacilityQuality: round(quality - 0.5 + rng.next()),
     analyticsFacilityQuality: round(1.5 + profile.scale + rng.next() * 1.5),
     academyCapacity: Math.round(18 + profile.scale * 12 + rng.integer(0, 16)),
-    monthlyOperatingCost: Math.round((32000 + quality * 11000) * profile.scale),
+    monthlyOperatingCost: Math.round((32000 + quality * 11000) * profile.scale * infrastructureScale),
     currency,
     status: simulationStatus,
   };

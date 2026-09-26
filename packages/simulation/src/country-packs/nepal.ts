@@ -142,6 +142,12 @@ export const nepalPack: CountryPack = registerCountryPack({
   nationalTeams: NEPAL_NATIONAL_TEAMS,
   tierLabels: ["A Division", "B Division", "C Division"],
   namePool: NEPAL_NAME_POOL,
+  economicProfile: {
+    wageScale: 1,
+    transferScale: 1,
+    consumerPriceScale: 1,
+    infrastructureScale: 1,
+  },
   founderLocations: () => founderLocationOptionsFromDistricts(NEPAL_PROVINCE_DISTRICTS),
   developmentProfile: nepalDevelopmentProfile,
   lenders: NEPAL_CLUB_LENDERS,

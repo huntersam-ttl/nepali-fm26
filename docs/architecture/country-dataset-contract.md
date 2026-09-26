@@ -22,6 +22,7 @@ Stored in `home_football_contexts` (one row per save) and read through
 | `lenders` | Optional country-owned club-finance lenders; existing save rows remain readable when absent. |
 | `mediaOutlets`, `mediaJournalists` | Optional country-owned media pool; existing save rows remain readable when absent. |
 | `sponsors`, `federationSponsors` | Optional country-owned commercial pools; existing save rows remain readable when absent. |
+| `economicProfile` | Optional nominal calibration for newly generated wages, transfer budgets, consumer prices and infrastructure costs; absent profiles use neutral values. |
 
 Resolvers: `homeFootballContext`, `homeCountryId`, `isHomeCountry`, `homeFederation`,
 `isHomeFederation`, `homeCurrency`, `homeLocale`, `homeSeasonRules` (+ `seasonStartDate`,
@@ -92,8 +93,9 @@ those are the ones to check first for country #2.
   initialization (`NEPAL_PROVINCE_DISTRICTS`; founder-location choices are now exposed by the
   country pack), the registry of international nations, SAFF/AFC competition keys and
   cycles, and the foreign-market region lists in `transfer-market`/`scouting`.
-- **Money scale**: wages, fees and budgets are calibrated in Nepali-rupee magnitudes. The
-  currency *label* is configurable; a second currency also needs a price-level factor.
+- **Money scale**: existing monetary values remain persisted in their save currency. Newly
+  generated wages, transfer budgets, consumer prices and infrastructure costs may use the
+  pack's `economicProfile`; currency display remains separate from nominal calibration.
 - **Closed vocabularies**: `NationalTeamType` (`SENIOR_MEN` … `U17`) and the shared-type
   label `"NEPAL"` (`OrganizationProfile.organizationContext`) are fixed unions.
 - **Latent bugs found and left alone** (changing them changes Nepal outcomes): the club

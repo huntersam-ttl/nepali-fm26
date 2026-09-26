@@ -65,6 +65,14 @@ export type NamePool = {
   };
 };
 
+/** Nominal calibration for newly generated domestic economic values. Values are neutral at 1. */
+export type CountryEconomicProfile = {
+  wageScale: number;
+  transferScale: number;
+  consumerPriceScale: number;
+  infrastructureScale: number;
+};
+
 export type CountryPack = {
   /** Stable identifier of the country dataset + configuration, e.g. "nepal-v1". Never a display name. */
   packId: string;
@@ -93,6 +101,8 @@ export type CountryPack = {
   /** Display labels for pyramid tiers, top tier first. */
   tierLabels: readonly string[];
   namePool: NamePool;
+  /** Optional nominal calibration for newly generated wages, transfers, prices and infrastructure. */
+  economicProfile?: CountryEconomicProfile;
   /** Founder-location choices exposed by the country pack, when the pack supports that career flow. */
   founderLocations?: readonly FounderLocationOption[] | (() => readonly FounderLocationOption[]);
   /** Youth-development calibration for this country, when the pack has one. */
