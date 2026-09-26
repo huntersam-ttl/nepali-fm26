@@ -1,6 +1,11 @@
 import type { NamePool, NationalTeamDefinition, CountryPack } from "../country-pack.js";
 import { registerCountryPack } from "../country-pack.js";
-import { ensureNepalFounderLocations, initializeNepalTerritorialStructure } from "../territorial-football.js";
+import {
+  ensureNepalFounderLocations,
+  founderLocationOptionsFromDistricts,
+  initializeNepalTerritorialStructure,
+  NEPAL_PROVINCE_DISTRICTS,
+} from "../territorial-football.js";
 
 export const NEPAL_PACK_ID = "nepal-v1";
 
@@ -78,6 +83,7 @@ export const nepalPack: CountryPack = registerCountryPack({
   nationalTeams: NEPAL_NATIONAL_TEAMS,
   tierLabels: ["A Division", "B Division", "C Division"],
   namePool: NEPAL_NAME_POOL,
+  founderLocations: () => founderLocationOptionsFromDistricts(NEPAL_PROVINCE_DISTRICTS),
   initialiseTerritory: (db, date) => {
     initializeNepalTerritorialStructure(db, date);
     ensureNepalFounderLocations(db);

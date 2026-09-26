@@ -1,4 +1,9 @@
-import type { FootballConfederation, FootballRegion, NationalTeamType } from "@nepal-football-sim/shared-types";
+import type {
+  FootballConfederation,
+  FootballRegion,
+  FounderLocationOption,
+  NationalTeamType,
+} from "@nepal-football-sim/shared-types";
 import type { GameDatabase } from "@nepal-football-sim/database";
 
 /*
@@ -82,6 +87,8 @@ export type CountryPack = {
   /** Display labels for pyramid tiers, top tier first. */
   tierLabels: readonly string[];
   namePool: NamePool;
+  /** Founder-location choices exposed by the country pack, when the pack supports that career flow. */
+  founderLocations?: readonly FounderLocationOption[] | (() => readonly FounderLocationOption[]);
   /** Country-specific structures that must exist once the dataset is imported (geography, founder locations). */
   initialiseTerritory?: (db: GameDatabase, date: string) => void;
   /** Idempotent check that the territorial structure exists, for saves that predate it. */

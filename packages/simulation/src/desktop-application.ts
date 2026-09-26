@@ -303,7 +303,6 @@ import {
   quickSimManagerMatch,
   userMatchRequiresAction,
 } from "./manager-flow.js";
-import { NEPAL_PROVINCE_DISTRICTS } from "./territorial-football.js";
 import { ensureLowerLeaguePlayableWorld, reconcileWorkforceSupply } from "./workforce-supply.js";
 import { initializePeopleFoundation } from "./people-foundation.js";
 import { reconcilePlayablePlayerProfilesOnce } from "./player-profile-reconciliation.js";
@@ -748,17 +747,10 @@ export class DesktopApplicationService {
   }
 
   listFounderLocations(): AppResult<FounderLocationOption[]> {
-    return ok(
-      NEPAL_PROVINCE_DISTRICTS.flatMap(([province, districts]) =>
-        districts.map((district) => ({
-          id: createStableEntityId("location", district.toLowerCase().replace(/[^a-z0-9]+/g, "-")),
-          province,
-          district,
-          locality: district,
-          provenanceStatus: "REPORTED" as const,
-        })),
-      ),
-    );
+    const founderLocations = countryPack(this.countryPackId).founderLocations;
+    return ok([
+      ...(typeof founderLocations === "function" ? founderLocations() : (founderLocations ?? [])),
+    ]);
   }
 
   listOwnerManagerCandidates(): AppResult<OwnerManagerCandidate[]> {

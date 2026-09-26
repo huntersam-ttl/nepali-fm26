@@ -84,7 +84,8 @@ those are the ones to check first for country #2.
 
 - **Product and UI**: the name, imagery, copy and sponsor/place names are Nepal's by design.
 - **Data still in code, to move into the dataset/pack**: the 77-district territorial
-  structure (`NEPAL_PROVINCE_DISTRICTS`), Nepali banks (`club-finance-markets`), sponsor
+  initialization (`NEPAL_PROVINCE_DISTRICTS`; founder-location choices are now exposed by the
+  country pack), Nepali banks (`club-finance-markets`), sponsor
   pools, media outlets, the registry of international nations, SAFF/AFC competition keys and
   cycles, the foreign-market region lists in `transfer-market`/`scouting`, the youth
   `nepalDevelopmentProfile`.

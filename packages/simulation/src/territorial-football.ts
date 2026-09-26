@@ -5,6 +5,7 @@ import {
   type DistrictFootballUnit,
   type EntityId,
   type FixtureRecord,
+  type FounderLocationOption,
   type MatchResult,
   type PlayerAttributeSet,
   type ProvinceFootballUnit,
@@ -145,6 +146,19 @@ export const NEPAL_PROVINCE_DISTRICTS: Array<[string, string[]]> = [
     ],
   ],
 ];
+
+export const founderLocationOptionsFromDistricts = (
+  districts: readonly (readonly [string, readonly string[]])[],
+): FounderLocationOption[] =>
+  districts.flatMap(([province, names]) =>
+    names.map((district) => ({
+      id: createStableEntityId("location", district.toLowerCase().replace(/[^a-z0-9]+/g, "-")),
+      province,
+      district,
+      locality: district,
+      provenanceStatus: "REPORTED" as const,
+    })),
+  );
 const clean = (value: string) => value.toLowerCase().replace(/ district| province|\s+/g, "");
 const clamp = (value: number) => Math.max(0, Math.min(100, Math.round(value)));
 const monthNumber = (date: string) => Number(date.slice(5, 7));
