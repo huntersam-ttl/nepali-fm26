@@ -37,7 +37,8 @@ import {
   type TransferOffer,
 } from "@nepal-football-sim/shared-types";
 import { executiveHasAuthority } from "./executive-roles.js";
-import { homeCountryId, homeCurrency, seasonEndDate, seasonStartDate } from "./home-context.js";
+import { countryPack } from "./country-pack.js";
+import { homeCountryId, homeCurrency, homeFootballContext, seasonEndDate, seasonStartDate } from "./home-context.js";
 import {
   ClubEconomyRepository,
   ClubNetworkRepository,
@@ -2681,54 +2682,20 @@ export const generatedBoardPolicy = (club: Club, worldDate: string): ClubBoardPo
 
 const seedSponsorPool = (db: GameDatabase, date: string, seed: string): void => {
   const economy = new ClubEconomyRepository(db);
-  const names: Array<[string, string, string | undefined, "VERIFIED" | "SIMULATION_ONLY"]> = [
-    ["Nabil Bank Limited", "Banking", "https://www.nabilbank.com/aboutus", "VERIFIED"],
-    [
-      "Nepal Telecom",
-      "Telecommunications",
-      "https://www.ntc.net.np/about-us/nepal-telecom-in-brief",
-      "VERIFIED",
-    ],
-    [
-      "Ncell Axiata Limited",
-      "Telecommunications",
-      "https://www.ncell.com.np/en/about/company-profile",
-      "VERIFIED",
-    ],
-    [
-      "Nepal Airlines Corporation",
-      "Airlines",
-      "https://www.nepalairlines.com.np/about",
-      "VERIFIED",
-    ],
-    [
-      "Chaudhary Group",
-      "FMCG and diversified industry",
-      "https://www.chaudharygroup.com/",
-      "VERIFIED",
-    ],
-    ["Himal Local Partner", "Local services", undefined, "SIMULATION_ONLY"],
-    ["Bagmati Community Foods", "Food and beverage", undefined, "SIMULATION_ONLY"],
-    ["Koshi Digital", "Technology", undefined, "SIMULATION_ONLY"],
-    ["Lumbini Travel Cooperative", "Travel", undefined, "SIMULATION_ONLY"],
-    ["Annapurna Training Supplies", "Sports equipment", undefined, "SIMULATION_ONLY"],
-    ["Kathmandu Youth Education", "Education", undefined, "SIMULATION_ONLY"],
-    ["Terai Agro Markets", "Agriculture", undefined, "SIMULATION_ONLY"],
-    ["Everest Health Clinics", "Healthcare", undefined, "SIMULATION_ONLY"],
-  ];
+  const sponsorDefinitions = countryPack(homeFootballContext(db).packId).sponsors ?? [];
   const rng = new SeededRandom(`${seed}:sponsor-pool:${date}`);
-  const nepalId = homeCountryId(db);
-  for (const [name, industry, sourceUrl, identityProvenance] of names) {
+  const homeId = homeCountryId(db);
+  for (const sponsorDefinition of sponsorDefinitions) {
     economy.upsertSponsor({
-      id: createStableEntityId("sponsor-organisation", name),
-      name,
-      industry,
-      countryId: nepalId,
+      id: createStableEntityId("sponsor-organisation", sponsorDefinition.name),
+      name: sponsorDefinition.name,
+      industry: sponsorDefinition.industry,
+      countryId: homeId,
       reputation: round(2.5 + rng.next() * 5.5),
       budgetTier: rng.next() > 0.78 ? "NATIONAL" : rng.next() > 0.45 ? "REGIONAL" : "LOCAL",
-      status: identityProvenance,
-      sourceUrl,
-      identityProvenance,
+      status: sponsorDefinition.status,
+      sourceUrl: sponsorDefinition.sourceUrl,
+      identityProvenance: sponsorDefinition.identityProvenance,
     });
   }
 };

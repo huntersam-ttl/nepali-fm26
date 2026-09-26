@@ -8,6 +8,7 @@ import type {
   MediaJournalist,
   MediaOutlet,
   NationalTeamType,
+  SponsorOrganisation,
 } from "@nepal-football-sim/shared-types";
 import type { GameDatabase } from "@nepal-football-sim/database";
 
@@ -101,6 +102,9 @@ export type CountryPack = {
   /** Country-owned media outlets and journalist roster for the media simulation. */
   mediaOutlets?: readonly Omit<MediaOutlet, "id">[];
   mediaJournalists?: readonly Omit<MediaJournalist, "id" | "outletId">[];
+  /** Country-owned sponsors used by club and federation commercial seeding. */
+  sponsors?: readonly Pick<SponsorOrganisation, "name" | "industry" | "sourceUrl" | "identityProvenance" | "status">[];
+  federationSponsors?: readonly Pick<SponsorOrganisation, "name" | "industry">[];
   /** Country-specific structures that must exist once the dataset is imported (geography, founder locations). */
   initialiseTerritory?: (db: GameDatabase, date: string) => void;
   /** Idempotent check that the territorial structure exists, for saves that predate it. */

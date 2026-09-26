@@ -1,4 +1,4 @@
-import { createStableEntityId, type ClubLender, type CountryDevelopmentProfile, type EntityId, type MediaJournalist, type MediaOutlet } from "@nepal-football-sim/shared-types";
+import { createStableEntityId, type ClubLender, type CountryDevelopmentProfile, type EntityId, type MediaJournalist, type MediaOutlet, type SponsorOrganisation } from "@nepal-football-sim/shared-types";
 import type { NamePool, NationalTeamDefinition, CountryPack } from "../country-pack.js";
 import { registerCountryPack } from "../country-pack.js";
 import {
@@ -44,6 +44,28 @@ export const NEPAL_MEDIA_JOURNALISTS: readonly Omit<MediaJournalist, "id" | "out
   { name: "Asha Shrestha", beat: "Domestic football", temperament: "NEUTRAL", reputation: 6.5, status: "SIMULATION_ONLY" },
   { name: "Rijan Gurung", beat: "National teams", temperament: "SCEPTICAL", reputation: 7.2, status: "SIMULATION_ONLY" },
   { name: "Mina Rai", beat: "Player development", temperament: "FRIENDLY", reputation: 6.8, status: "SIMULATION_ONLY" },
+];
+
+export const NEPAL_SPONSORS: readonly Pick<SponsorOrganisation, "name" | "industry" | "sourceUrl" | "identityProvenance" | "status">[] = [
+  { name: "Nabil Bank Limited", industry: "Banking", sourceUrl: "https://www.nabilbank.com/aboutus", identityProvenance: "VERIFIED", status: "VERIFIED" },
+  { name: "Nepal Telecom", industry: "Telecommunications", sourceUrl: "https://www.ntc.net.np/about-us/nepal-telecom-in-brief", identityProvenance: "VERIFIED", status: "VERIFIED" },
+  { name: "Ncell Axiata Limited", industry: "Telecommunications", sourceUrl: "https://www.ncell.com.np/en/about/company-profile", identityProvenance: "VERIFIED", status: "VERIFIED" },
+  { name: "Nepal Airlines Corporation", industry: "Airlines", sourceUrl: "https://www.nepalairlines.com.np/about", identityProvenance: "VERIFIED", status: "VERIFIED" },
+  { name: "Chaudhary Group", industry: "FMCG and diversified industry", sourceUrl: "https://www.chaudharygroup.com/", identityProvenance: "VERIFIED", status: "VERIFIED" },
+  { name: "Himal Local Partner", industry: "Local services", identityProvenance: "SIMULATION_ONLY", status: "SIMULATION_ONLY" },
+  { name: "Bagmati Community Foods", industry: "Food and beverage", identityProvenance: "SIMULATION_ONLY", status: "SIMULATION_ONLY" },
+  { name: "Koshi Digital", industry: "Technology", identityProvenance: "SIMULATION_ONLY", status: "SIMULATION_ONLY" },
+  { name: "Lumbini Travel Cooperative", industry: "Travel", identityProvenance: "SIMULATION_ONLY", status: "SIMULATION_ONLY" },
+  { name: "Annapurna Training Supplies", industry: "Sports equipment", identityProvenance: "SIMULATION_ONLY", status: "SIMULATION_ONLY" },
+  { name: "Kathmandu Youth Education", industry: "Education", identityProvenance: "SIMULATION_ONLY", status: "SIMULATION_ONLY" },
+  { name: "Terai Agro Markets", industry: "Agriculture", identityProvenance: "SIMULATION_ONLY", status: "SIMULATION_ONLY" },
+  { name: "Everest Health Clinics", industry: "Healthcare", identityProvenance: "SIMULATION_ONLY", status: "SIMULATION_ONLY" },
+];
+
+export const NEPAL_FEDERATION_SPONSORS: readonly Pick<SponsorOrganisation, "name" | "industry">[] = [
+  { name: "Nepal Football Development Partner", industry: "Development services" },
+  { name: "Himal Broadcast Network", industry: "Broadcasting" },
+  { name: "Regional Sports Education Trust", industry: "Education" },
 ];
 
 /** Nepal's name lists, exactly as the generators used them before names became a pack concern. */
@@ -125,6 +147,8 @@ export const nepalPack: CountryPack = registerCountryPack({
   lenders: NEPAL_CLUB_LENDERS,
   mediaOutlets: NEPAL_MEDIA_OUTLETS,
   mediaJournalists: NEPAL_MEDIA_JOURNALISTS,
+  sponsors: NEPAL_SPONSORS,
+  federationSponsors: NEPAL_FEDERATION_SPONSORS,
   initialiseTerritory: (db, date) => {
     initializeNepalTerritorialStructure(db, date);
     ensureNepalFounderLocations(db);

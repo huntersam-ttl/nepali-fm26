@@ -59,8 +59,9 @@ import { simulateMatch } from "./match-engine.js";
 import { PLAYABLE_CLUB_PREDICATE } from "./playable-world.js";
 import { SeededRandom } from "./rng.js";
 import { buildEntityReference } from "./entity-reference.js";
+import { countryPack } from "./country-pack.js";
 import { nationalTeamOutcomes } from "./national-team-workspace.js";
-import { homeCurrency, homeFederation, seasonEndDate } from "./home-context.js";
+import { homeCurrency, homeFederation, homeFootballContext, seasonEndDate } from "./home-context.js";
 import { ensureNationalTeamRows } from "./national-team-identity.js";
 import { recordFederationDevelopmentSnapshot } from "./federation-scorecard.js";
 
@@ -1858,19 +1859,18 @@ export const federationCommercialOverview = (
 
 const seedFederationSponsors = (db: GameDatabase, date: string, seed: string): void => {
   const economy = new ClubEconomyRepository(db);
-  if (economy.sponsors().some((sponsor) => sponsor.name === "Nepal Football Development Partner")) {
+  const sponsorDefinitions = countryPack(homeFootballContext(db).packId).federationSponsors ?? [];
+  if (sponsorDefinitions.length === 0) return;
+  const firstSponsorId = createStableEntityId("sponsor-organisation", sponsorDefinitions[0]!.name);
+  if (economy.sponsors().some((sponsor) => sponsor.id === firstSponsorId)) {
     return;
   }
   const rng = seeded(seed, `federation-sponsors:${date}`);
-  for (const [name, industry] of [
-    ["Nepal Football Development Partner", "Development services"],
-    ["Himal Broadcast Network", "Broadcasting"],
-    ["Regional Sports Education Trust", "Education"],
-  ]) {
+  for (const sponsorDefinition of sponsorDefinitions) {
     const sponsor: SponsorOrganisation = {
-      id: createStableEntityId("sponsor-organisation", name),
-      name,
-      industry,
+      id: createStableEntityId("sponsor-organisation", sponsorDefinition.name),
+      name: sponsorDefinition.name,
+      industry: sponsorDefinition.industry,
       countryId: homeFederation(db).countryId,
       reputation: round(4 + rng.next() * 3),
       budgetTier: "NATIONAL",
