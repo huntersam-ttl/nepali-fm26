@@ -7,6 +7,7 @@ import {
   WorldRepository,
   type GameDatabase,
 } from "@nepal-football-sim/database";
+import { countryEconomicProfile, scaleAmount, scalePrice, scaleWage } from "./economic-profile.js";
 import {
   createEntityId,
   createStableEntityId,
@@ -203,8 +204,9 @@ export const estimateSalaryExpectation = (
   role: FootballStaffRole,
   licences: StaffLicence[],
   reputation: string | undefined,
+  wageLevel = 1,
 ): number => {
-  const base = ROLE_SALARY_BASE_MINOR[role] ?? DEFAULT_ROLE_SALARY_MINOR;
+  const base = scaleAmount(wageLevel, ROLE_SALARY_BASE_MINOR[role] ?? DEFAULT_ROLE_SALARY_MINOR);
   const licenceMultiplier = 1 + licenceRankOf(licences) * 0.15;
   const reputationMultiplier = reputation === "HIGH" ? 1.4 : reputation === "LOW" ? 0.8 : 1;
   return Math.round(base * licenceMultiplier * reputationMultiplier);
@@ -696,7 +698,7 @@ export const ensureAiStaffAssigned = (
         continue;
       }
 
-      const salary = ROLE_SALARY_BASE_MINOR[role] ?? DEFAULT_ROLE_SALARY_MINOR;
+      const salary = scaleWage(db, ROLE_SALARY_BASE_MINOR[role] ?? DEFAULT_ROLE_SALARY_MINOR);
       if (!clubCanAffordSalary(db, clubId, salary)) continue;
 
       // Only reuse a free agent who actually specialises in this role (or has
@@ -718,8 +720,8 @@ export const ensureAiStaffAssigned = (
         salaryAmountMinor = estimateSalaryExpectation(
           role,
           market.staffLicencesForPerson(personId),
-          freeAgent.reputation,
-        );
+          freeAgent.reputation, countryEconomicProfile(db).wageLevel,
+      );
       } else {
         countryId ??= requireHomeCountryId(db);
         const generated = generateAiStaff(
@@ -738,8 +740,8 @@ export const ensureAiStaffAssigned = (
         salaryAmountMinor = estimateSalaryExpectation(
           role,
           generated.licences,
-          generated.profile.reputation,
-        );
+          generated.profile.reputation, countryEconomicProfile(db).wageLevel,
+      );
       }
 
       if (!clubCanAffordSalary(db, clubId, salaryAmountMinor)) continue;
@@ -1026,8 +1028,8 @@ export const processExternalStaffVacancies = (
       estimateSalaryExpectation(
         vacancy.role,
         market.staffLicencesForPerson(candidate.personId),
-        candidate.reputation,
-      ) * externalOfferMultiplier(db, vacancy.clubId),
+        candidate.reputation, countryEconomicProfile(db).wageLevel,
+    ) * externalOfferMultiplier(db, vacancy.clubId),
     );
     const { application } = applyForStaffVacancy(db, save, vacancy.id, candidate.personId, salary);
     if (application.status === "OFFERED" || application.status === "COUNTERED") {
@@ -1221,7 +1223,7 @@ export const staffInterestScore = (
     reasons.push("Exactly the role they specialise in.");
   }
 
-  const expectation = estimateSalaryExpectation(role, licences, profile?.reputation);
+  const expectation = estimateSalaryExpectation(role, licences, profile?.reputation, countryEconomicProfile(db).wageLevel);
   const salaryRatio = expectation > 0 ? offeredSalaryMinor / expectation : 1;
   score += clamp((salaryRatio - 1) * 60, -30, 30);
   if (salaryRatio >= 1.1) reasons.push("Salary comfortably beats their expectation.");
@@ -1385,7 +1387,7 @@ export const applyForStaffVacancy = (
     counterSalaryMinor = Math.round(
       Math.max(
         proposedSalaryMinor,
-        estimateSalaryExpectation(vacancy.role, licences, profile?.reputation),
+        estimateSalaryExpectation(vacancy.role, licences, profile?.reputation, countryEconomicProfile(db).wageLevel),
       ) * 1.12,
     );
     reason = "The candidate wants a higher salary.";
@@ -1512,8 +1514,8 @@ export const offerStaffRenewal = (
         estimateSalaryExpectation(
           appointment.role,
           licences,
-          market.staffProfile(appointment.personId)?.reputation,
-        ),
+          market.staffProfile(appointment.personId)?.reputation, countryEconomicProfile(db).wageLevel,
+      ),
       ) * 1.1,
     );
   } else {
@@ -1775,7 +1777,7 @@ export const enrolInLicenceCourse = (
   const target = nextLicenceType(currentRank);
   if (!target)
     throw new LicenceCourseError("MAX_LICENCE", "Already holds the highest coaching licence.");
-  if (fundedByClubId && !clubCanAffordSalary(db, fundedByClubId, LICENCE_COURSE_COST_MINOR)) {
+  if (fundedByClubId && !clubCanAffordSalary(db, fundedByClubId, scalePrice(db, LICENCE_COURSE_COST_MINOR))) {
     throw new LicenceCourseError("CANNOT_AFFORD", "The club cannot fund this course right now.");
   }
   const personality = new PeopleFoundationRepository(db).personality(personId);
@@ -1922,7 +1924,7 @@ export const evaluateStaffPoaching = (
         ? market.employmentContractById(target.contractId)
         : undefined;
       const offeredSalaryMinor = Math.round(
-        (contract?.salaryAmountMinor ?? estimateSalaryExpectation(role, [], undefined)) *
+        (contract?.salaryAmountMinor ?? estimateSalaryExpectation(role, [], undefined, countryEconomicProfile(db).wageLevel)) *
           POACH_SALARY_PREMIUM,
       );
       const interest = staffInterestScore(

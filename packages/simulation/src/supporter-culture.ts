@@ -1283,6 +1283,8 @@ export const supporterAttendanceForFixture = (input: {
   awayClubId: EntityId;
   capacity: number;
   ticketPrice: number;
+  /** The ticket price a fan considers ordinary in this country; the default is the launch calibration's. */
+  referenceTicketPrice?: number;
   seed?: string;
   countryId?: EntityId;
   recentFormPoints?: number;
@@ -1320,6 +1322,7 @@ export const supporterAttendanceForFixture = (input: {
     competitionImportance: input.competitionImportance,
     novelty: input.novelty,
     ticketPrice: input.ticketPrice,
+    referenceTicketPrice: input.referenceTicketPrice,
     affordabilityIndex: macro?.inflationIndex,
     travelDistanceKm: supporterTravelDistanceKm(
       input.db,

@@ -46,6 +46,7 @@ import {
 import { applySupporterTransferOutcome } from "./supporter-culture.js";
 import { findHomeFootballContext, homeCurrency, homeIsoCodes, isHomeIso } from "./home-context.js";
 import { isoAlpha2Of } from "./country-identity.js";
+import { countryEconomicProfile, scaleAmount, scalePrice, scaleWage } from "./economic-profile.js";
 import {
   applyPlayerLifestyleEvent,
   applyPlayerRelationshipEvent,
@@ -154,7 +155,7 @@ export const initializeTransferMarketForSave = (input: {
     const employment = employmentProfile(club);
     market.upsertClubEmploymentProfile(employment);
     market.upsertClubFinancialProfile({
-      ...financialProfile(club, input.seed, playerCounts.get(club.id) ?? 0, homeCurrency(input.db)),
+      ...financialProfile(club, input.seed, playerCounts.get(club.id) ?? 0, homeCurrency(input.db), countryEconomicProfile(input.db).priceLevel),
       currentWageSpend: 0,
     });
   }
@@ -829,9 +830,10 @@ export const calculateTransferValuation = (
   const potentialAbility = player?.potentialAbility ?? currentAbility + 1;
   const reputation = player?.reputation ?? 5;
   const base = Math.round(
-    currentAbility * 62000 +
-      Math.max(0, potentialAbility - currentAbility) * 36000 +
-      reputation * 18000,
+    scalePrice(
+      db,
+      currentAbility * 62000 + Math.max(0, potentialAbility - currentAbility) * 36000 + reputation * 18000,
+    ),
   );
   const contractExpiryLeverage = contractExpiryFactor(months);
   const agePotentialUncertainty =
@@ -1591,16 +1593,18 @@ const defaultPersonalTerms = (
   const salary = Math.max(
     current?.salary ?? 0,
     Math.round(
-      ((player?.currentAbility ?? 7) * 18000 + (agent?.feeExpectation ?? 8) * 2500) *
+      scaleWage(db, (player?.currentAbility ?? 7) * 18000 + (agent?.feeExpectation ?? 8) * 2500) *
         (agent ? 1.04 + agent.negotiationSkill / 220 + agent.aggressiveness / 260 : 0.94) *
         lifestyleSalaryFactor *
         (1 + rng.next() * 0.12),
     ),
   );
+  const wageLevel = countryEconomicProfile(db).wageLevel;
   return {
     salary,
     contractLengthMonths: 10 + Math.floor(rng.next() * 14),
-    squadRole: salary > 190000 ? "FIRST_TEAM" : salary > 130000 ? "ROTATION" : "BACKUP",
+    squadRole:
+      salary > scaleAmount(wageLevel, 190000) ? "FIRST_TEAM" : salary > scaleAmount(wageLevel, 130000) ? "ROTATION" : "BACKUP",
     signingFee: offer.signingFee,
     agentFee: agent ? offer.agentFee : 0,
   };
@@ -1633,6 +1637,7 @@ const playerChoiceScore = (
   offer: TransferOffer,
   terms: PlayerPersonalTerms,
   preferences: PlayerPersonalTermsPreferences = {},
+  wageLevel = 1,
 ): number => {
   const roleValue: Record<PlayerSquadRole, number> = {
     KEY_PLAYER: 7,
@@ -1648,9 +1653,10 @@ const playerChoiceScore = (
     ? (roleValue[terms.squadRole] - roleValue[preferredRole]) * 9
     : roleValue[terms.squadRole] * 2;
   const securityScore = (preferences.securityPreference ?? 6) * terms.contractLengthMonths * 0.12;
-  const packageScore = Math.min(24, calculateTransferPackageValue(offer) / 250_000);
-  const agentFeePenalty = terms.agentFee > 0 ? Math.min(8, terms.agentFee / 100_000) : 0;
-  return terms.salary / 10_000 + roleScore + securityScore + packageScore - agentFeePenalty;
+  // Money is compared against country-scaled yardsticks, so the same football deal scores the same at any price level.
+  const packageScore = Math.min(24, calculateTransferPackageValue(offer) / scaleAmount(wageLevel, 250_000));
+  const agentFeePenalty = terms.agentFee > 0 ? Math.min(8, terms.agentFee / scaleAmount(wageLevel, 100_000)) : 0;
+  return terms.salary / scaleAmount(wageLevel, 10_000) + roleScore + securityScore + packageScore - agentFeePenalty;
 };
 
 export const negotiatePlayerTerms = (
@@ -1742,7 +1748,7 @@ export const negotiatePlayerTerms = (
   const destinationLevel = clubSportingLevel(db, offer.buyingClubId);
   const salaryFloor = Math.max(
     current?.salary ? Math.round(current.salary * (agent ? 1.03 : 1.01)) : 0,
-    Math.round((player?.currentAbility ?? 7) * 12500),
+    Math.round(scaleWage(db, (player?.currentAbility ?? 7) * 12500)),
   );
   const roleDelta = roleRank(proposal.squadRole) - roleRank(expectedRole);
   const roleScore = roleDelta >= 0 ? 24 : roleDelta === -1 ? -8 : -30;
@@ -1911,12 +1917,14 @@ export const negotiatePlayerContract = (
   const salary = Math.max(
     currentSalaryFloor,
     Math.round(
-      ((player?.currentAbility ?? 7) * 18000 + (agent?.feeExpectation ?? 8) * 2500) *
+      scaleWage(db, (player?.currentAbility ?? 7) * 18000 + (agent?.feeExpectation ?? 8) * 2500) *
         representationMultiplier *
         (1 + rng.next() * 0.12),
     ),
   );
-  const role = salary > 190000 ? "FIRST_TEAM" : salary > 130000 ? "ROTATION" : "BACKUP";
+  const wageLevel = countryEconomicProfile(db).wageLevel;
+  const role =
+    salary > scaleAmount(wageLevel, 190000) ? "FIRST_TEAM" : salary > scaleAmount(wageLevel, 130000) ? "ROTATION" : "BACKUP";
   const length = Math.max(
     6,
     10 +
@@ -2416,6 +2424,7 @@ export const resolveCompetingPlayerOffers = (
 ): TransferOffer | undefined => {
   const market = new TransferMarketRepository(db);
   const effectivePreferences = effectiveAgentPlayerPreferences(db, playerId, preferences ?? {});
+  const wageLevel = countryEconomicProfile(db).wageLevel;
   if (market.activeContract(playerId, worldDate)) return undefined;
   const offers = market
     .transferOffers()
@@ -2437,8 +2446,8 @@ export const resolveCompetingPlayerOffers = (
       const aTerms = latestPersonalTerms(db, a, worldDate, seed);
       const bTerms = latestPersonalTerms(db, b, worldDate, seed);
       return (
-        playerChoiceScore(b, bTerms, effectivePreferences) -
-          playerChoiceScore(a, aTerms, effectivePreferences) ||
+        playerChoiceScore(b, bTerms, effectivePreferences, wageLevel) -
+          playerChoiceScore(a, aTerms, effectivePreferences, wageLevel) ||
         bTerms.salary - aTerms.salary ||
         bTerms.contractLengthMonths - aTerms.contractLengthMonths ||
         String(a.id).localeCompare(String(b.id))
@@ -2756,7 +2765,7 @@ export const assessFreeAgentSigning = (
         ["SUBMITTED", "NEGOTIATING", "ACCEPTED", "PLAYER_ACCEPTED"].includes(offer.status),
     ).length;
   const wageDemand = Math.round(
-    (28000 + player.currentAbility * 14500 + player.reputation * 4200) * (1 + competition * 0.08),
+    scaleWage(db, 28000 + player.currentAbility * 14500 + player.reputation * 4200) * (1 + competition * 0.08),
   );
   return {
     eligible: !recentSigning,
@@ -3490,7 +3499,7 @@ const startingContract = (
       : addMonths(worldDate, months);
   const salary = Math.round(
     (isHomeCountryClub(db, club.id)
-      ? 12000 + player.currentAbility * 2800 + player.reputation * 1200
+      ? scaleWage(db, 12000 + player.currentAbility * 2800 + player.reputation * 1200)
       : 28000 + player.currentAbility * 14500 + player.reputation * 4200) *
       clubSalaryMultiplier(club),
   );
@@ -3525,23 +3534,26 @@ const financialProfile = (
   seed: string,
   playerCount: number,
   currency: string,
+  homePriceLevel = 1,
 ): ClubFinancialProfile => {
   const rng = new SeededRandom(`${seed}:finance:${club.id}`);
   const multiplier = clubSalaryMultiplier(club);
   const contextOnly =
     club.canonicalExternalId?.startsWith("CLB-") ||
     club.canonicalExternalId?.startsWith("SIM-FOREIGN-");
+  // A context-only (foreign) club keeps the world's own scale; a club of the home country takes the home price level.
+  const level = contextOnly ? 1 : homePriceLevel;
   return {
     id: createStableEntityId("club-financial-profile", club.id),
     clubId: club.id,
-    wageBudget: Math.round(
+    wageBudget: scaleAmount(level, Math.round(
       (contextOnly ? 7200000 : 3600000) * multiplier +
         rng.next() * (contextOnly ? 1800000 : 900000),
-    ),
-    transferBudget: Math.round(
+    )),
+    transferBudget: scaleAmount(level, Math.round(
       (contextOnly ? 3600000 : 900000) * multiplier + rng.next() * (contextOnly ? 1400000 : 500000),
-    ),
-    currentWageSpend: playerCount * Math.round(55000 * multiplier),
+    )),
+    currentWageSpend: playerCount * scaleAmount(level, Math.round(55000 * multiplier)),
     financialHealth: multiplier > 1.25 ? "GOOD" : multiplier > 0.9 ? "STABLE" : "POOR",
     currency,
     status: "SIMULATION_ONLY",

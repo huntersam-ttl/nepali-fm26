@@ -106,6 +106,18 @@ export type PackMedia = {
   journalists?: readonly Omit<MediaJournalist, "id" | "outletId">[];
 };
 
+/**
+ * How large football money is in the country, relative to the launch calibration (1 = Nepal's
+ * magnitudes). Scale only; the pack's `currency` is a separate label and no exchange rate is implied.
+ */
+export type PackEconomy = {
+  priceLevel: number;
+  /** Player and staff wages; defaults to `priceLevel`. */
+  wageLevel?: number;
+  /** Match ticket prices; defaults to `priceLevel`. */
+  ticketPriceLevel?: number;
+};
+
 export type CountryPack = {
   /** Stable identifier of the country dataset + configuration, e.g. "nepal-v1". Never a display name. */
   packId: string;
@@ -136,6 +148,8 @@ export type CountryPack = {
   namePool: NamePool;
   /** Optional: administrative places to guarantee and build territorial football from. Absent, the save's own locations are used. */
   geography?: PackGeography;
+  /** Optional: money scale. Absent means neutral (1), never Nepal's. */
+  economy?: PackEconomy;
   /** Optional: banks, sponsors. Absent, the country has none; nothing is inherited from another country. */
   commercial?: PackCommercial;
   /** Optional: media outlets and journalists. Absent, the country has none. */

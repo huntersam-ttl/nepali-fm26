@@ -42,6 +42,7 @@ of the parts it needs (`config_json`), so it stays playable if the pack later ch
 | `isoCodes`, `currency`, `locale`, `federationAbbreviation`, `seasonRules`, `tierLabels`, `namePool` | Identity, money label, calendar, display labels, people names. |
 | `nationalTeams` | National-team structure (team type, level, gender, label, strength multiplier); `nationalTeamCodePrefix`, `internationalProfile` for the registry. |
 | `geography` (optional) | Administrative areas of any depth and kind that a new save must have, the territorial units, and club-address hubs (`country-packs/nepal-geography.ts`). The `locations` table stays the source of truth. |
+| `economy` (optional) | Money scale: `priceLevel` (costs, budgets, opening cash, commercial and infrastructure values, transfer values), `wageLevel`, `ticketPriceLevel` (both default to `priceLevel`). 1 is the launch calibration (Nepal). Scale, not currency or exchange rate; applies only to newly generated amounts. Absent means 1. |
 | `commercial` (optional) | Lenders, the club sponsor pool and the federation's sponsors (`country-packs/nepal-commercial.ts`). Identities only: reputations, tiers, rates and contracts are the economy's. |
 | `media` (optional) | Media outlets and the journalists dealt to them (`country-packs/nepal-media.ts`). |
 | `initialiseTerritory`, `ensureTerritorialStructure` (optional) | Hooks that build territorial units and seed the pack's places. |
@@ -101,8 +102,12 @@ those are the ones to check first for country #2.
   tiers and neighbour markets (`transfer-market`), the youth `nepalDevelopmentProfile`,
   Nepali supplier names (`clubmart.ts`), the Nepal club-id prefixes in the default
   recruitment profile, and the test-only world in `world.ts`.
-- **Money scale**: wages, fees and budgets are calibrated in Nepali-rupee magnitudes. The
-  currency *label* is configurable; a second currency also needs a price-level factor.
+- **Money scale**: the pack's `economy` scales opening club and federation cash, budgets,
+  ticket prices, operating and infrastructure costs, sponsor and media-rights values, loan
+  floors, player and staff wages and player valuations (`economic-profile.ts`). Still fixed at
+  launch magnitudes: prize money, federation project and grant amounts, federation reserve
+  floors, club reserve floors, manager salary expectations and board budget scales, youth and
+  academy costs, Clubmart prices, merchandising, and the foreign world's own scale.
 - **Closed vocabularies that are deliberate**: `FootballConfederation`,
   `FootballRegion` and `ExternalFootballRegion` are finite football taxonomies.
   `NationalTeamType`, `TeamLevel`, `CampDestination` and `InternationalCompetitionKey` accept

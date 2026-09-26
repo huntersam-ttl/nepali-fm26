@@ -15,6 +15,7 @@ import {
 import { calculateClubValuation, postClubTransaction, setClubBudget } from "./club-economy.js";
 import { executiveHasAuthority } from "./executive-roles.js";
 import { homeCountryId, homeCountryPack, homeCurrency } from "./home-context.js";
+import { countryEconomicProfile, scaleAmount } from "./economic-profile.js";
 
 export class ClubFinanceAuthorityError extends Error {
   constructor(
@@ -85,9 +86,9 @@ export const initializeClubFinanceMarkets = (db: GameDatabase): ClubLender[] => 
  * (the bank-meeting UI's affordability context) can never drift from the
  * real approval math instead of duplicating it.
  */
-export const clubLoanCeilings = (valuation: number, existingDebt: number): { maxNewPrincipal: number; maxTotalDebt: number; headroom: number } => {
-  const maxNewPrincipal = Math.max(500_000, valuation * 0.35);
-  const maxTotalDebt = Math.max(750_000, valuation * 0.55);
+export const clubLoanCeilings = (valuation: number, existingDebt: number, priceLevel = 1): { maxNewPrincipal: number; maxTotalDebt: number; headroom: number } => {
+  const maxNewPrincipal = Math.max(scaleAmount(priceLevel, 500_000), valuation * 0.35);
+  const maxTotalDebt = Math.max(scaleAmount(priceLevel, 750_000), valuation * 0.55);
   return { maxNewPrincipal, maxTotalDebt, headroom: Math.max(0, Math.min(maxNewPrincipal, maxTotalDebt - existingDebt)) };
 };
 
@@ -100,7 +101,7 @@ export const applyForClubLoan = (db: GameDatabase, input: { clubId: EntityId; le
   if (principal <= 0) throw new Error("Loan principal must be positive");
   const valuation = calculateClubValuation(db, input.clubId, input.date).valuation;
   const existingDebt = economy.debts(input.clubId).filter((debt) => debt.status === "ACTIVE").reduce((sum, debt) => sum + debt.outstandingPrincipal, 0);
-  const ceilings = clubLoanCeilings(valuation, existingDebt);
+  const ceilings = clubLoanCeilings(valuation, existingDebt, countryEconomicProfile(db).priceLevel);
   const approved = principal <= ceilings.maxNewPrincipal && existingDebt + principal <= ceilings.maxTotalDebt;
   const application: ClubLoanApplication = {
     id: createStableEntityId("club-loan-application", `${input.clubId}:${input.lenderId}:${input.date}:${principal}`),
@@ -205,7 +206,7 @@ export const clubFinanceMeetingOverview = (
   if (!account || !club?.name) throw new Error(`Club finance is unavailable for club ${clubId}`);
   const existingDebt = economy.debts(clubId).filter((debt) => debt.status === "ACTIVE").reduce((sum, debt) => sum + debt.outstandingPrincipal, 0);
   const valuation = calculateClubValuation(db, clubId, date).valuation;
-  const ceilings = clubLoanCeilings(valuation, existingDebt);
+  const ceilings = clubLoanCeilings(valuation, existingDebt, countryEconomicProfile(db).priceLevel);
   return {
     clubId,
     clubName: club.name,

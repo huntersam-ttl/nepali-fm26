@@ -61,6 +61,7 @@ import { SeededRandom } from "./rng.js";
 import { buildEntityReference } from "./entity-reference.js";
 import { nationalTeamOutcomes } from "./national-team-workspace.js";
 import { homeCountryPack, homeCurrency, homeFederation, seasonEndDate } from "./home-context.js";
+import { countryEconomicProfile, scaleAmount, scalePrice } from "./economic-profile.js";
 import { ensureNationalTeamRows } from "./national-team-identity.js";
 import { recordFederationDevelopmentSnapshot } from "./federation-scorecard.js";
 
@@ -124,7 +125,7 @@ export const initializeFederationGovernanceForSave = (input: {
     if (!repo.profile(federation.id)) {
       const profile = generatedFederationProfile(federation, input.worldDate, input.seed);
       repo.upsertProfile(profile);
-      const cash = Math.round(12500000 + seeded(input.seed, federation.id).next() * 5500000);
+      const cash = scalePrice(input.db, Math.round(12500000 + seeded(input.seed, federation.id).next() * 5500000));
       repo.upsertFinancialAccount({
         federationId: federation.id,
         currency: homeCurrency(input.db),
@@ -136,7 +137,7 @@ export const initializeFederationGovernanceForSave = (input: {
         seasonRevenue: 0,
         seasonExpenses: 0,
         seasonProfitLoss: 0,
-        financialHealth: federationFinancialHealth(cash, 0),
+        financialHealth: federationFinancialHealth(cash, 0, countryEconomicProfile(input.db).priceLevel),
         lastUpdatedAt: input.worldDate,
         status: simulationStatus,
       });
@@ -1528,7 +1529,7 @@ const generatedFederationProfile = (
 const ensureFederationBudgets = (db: GameDatabase, federationId: EntityId, date: string): void => {
   const repo = new FederationGovernanceRepository(db);
   const account = repo.financialAccount(federationId);
-  const base = Math.max(5000000, account?.cashBalance ?? 12000000);
+  const base = Math.max(scalePrice(db, 5000000), account?.cashBalance ?? scalePrice(db, 12000000));
   const existing = new Set(
     repo
       .budgets(federationId)
@@ -2762,13 +2763,13 @@ const sumValues = (values: Record<string, number>): number =>
 const reserveFloor = (account: FederationFinancialAccount): number =>
   account.financialHealth === "DISTRESSED" || account.financialHealth === "INSOLVENT" ? 0 : 1500000;
 
-const federationFinancialHealth = (cash: number, debt: number): FederationFinancialHealth => {
+const federationFinancialHealth = (cash: number, debt: number, priceLevel = 1): FederationFinancialHealth => {
   const net = cash - debt;
   if (net < 0) return "INSOLVENT";
-  if (net < 800000) return "DISTRESSED";
-  if (net < 2500000) return "TIGHT";
-  if (net < 9000000) return "STABLE";
-  if (net < 22000000) return "HEALTHY";
+  if (net < scaleAmount(priceLevel, 800000)) return "DISTRESSED";
+  if (net < scaleAmount(priceLevel, 2500000)) return "TIGHT";
+  if (net < scaleAmount(priceLevel, 9000000)) return "STABLE";
+  if (net < scaleAmount(priceLevel, 22000000)) return "HEALTHY";
   return "EXCELLENT";
 };
 

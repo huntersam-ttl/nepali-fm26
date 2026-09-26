@@ -83,6 +83,7 @@ export const nepalPack: CountryPack = registerCountryPack({
   tierLabels: ["A Division", "B Division", "C Division"],
   namePool: NEPAL_NAME_POOL,
   geography: NEPAL_GEOGRAPHY,
+  economy: { priceLevel: 1, wageLevel: 1, ticketPriceLevel: 1 },
   commercial: NEPAL_COMMERCIAL,
   media: NEPAL_MEDIA,
   initialiseTerritory: (db, date) => {

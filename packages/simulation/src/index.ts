@@ -37,6 +37,7 @@ export * from "./administrative-geography.js";
 export * from "./home-context.js";
 export * from "./country-identity.js";
 export * from "./market-regions.js";
+export * from "./economic-profile.js";
 export * from "./national-team-identity.js";
 export * from "./storage-policy.js";
 export * from "./national-team-competitions.js";

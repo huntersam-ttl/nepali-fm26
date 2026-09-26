@@ -38,6 +38,7 @@ import {
 } from "@nepal-football-sim/shared-types";
 import { executiveHasAuthority } from "./executive-roles.js";
 import { homeCountryId, homeCountryPack, homeCurrency, seasonEndDate, seasonStartDate } from "./home-context.js";
+import { countryEconomicProfile, scaleAmount, scalePrice, scaleTicketPrice } from "./economic-profile.js";
 import {
   ClubEconomyRepository,
   ClubNetworkRepository,
@@ -111,9 +112,10 @@ export const initializeClubEconomyForSave = (input: {
   seed: string;
 }): void => {
   const economy = new ClubEconomyRepository(input.db);
+  const levels = countryEconomicProfile(input.db);
   for (const club of allClubs(input.db)) {
     if (economy.financialAccount(club.id)) continue;
-    const profile = generatedClubEconomy(club, input.seed);
+    const profile = generatedClubEconomy(club, input.seed, levels.priceLevel);
     economy.upsertFinancialAccount({
       clubId: club.id,
       currency: homeCurrency(input.db),
@@ -126,7 +128,7 @@ export const initializeClubEconomyForSave = (input: {
       seasonRevenue: 0,
       seasonExpenses: 0,
       seasonProfitLoss: 0,
-      financialHealth: financialHealth(profile.cash, profile.debt),
+      financialHealth: financialHealth(profile.cash, profile.debt, levels.priceLevel),
       lastUpdatedAt: input.worldDate,
       status: simulationStatus,
     });
@@ -134,7 +136,7 @@ export const initializeClubEconomyForSave = (input: {
       economy.upsertBudget(budget);
     }
     economy.upsertOwnershipStake(generatedOwnershipStake(club, input.worldDate));
-    economy.upsertSupporterProfile(generatedSupporterProfile(club, profile, input.seed, homeCurrency(input.db)));
+    economy.upsertSupporterProfile(generatedSupporterProfile(club, profile, input.seed, homeCurrency(input.db), levels.ticketPriceLevel));
     economy.upsertCommercialProfile(
       generatedCommercialProfile(club, profile, input.seed, input.worldDate),
     );
@@ -372,9 +374,9 @@ export const commercialPartnershipIncome = (
   const baseCommercialValue = Math.max(
     1000,
     Math.round(
-      (commercial.digitalReach * 12000 +
-        commercial.merchandiseAppeal * 8000 +
-        commercial.brandStrength * 5000) *
+      (commercial.digitalReach * scalePrice(db, 12000) +
+        commercial.merchandiseAppeal * scalePrice(db, 8000) +
+        commercial.brandStrength * scalePrice(db, 5000)) *
         (1 + Math.min(0.25, (support?.diasporaSupport ?? 0) / 10000)),
     ),
   );
@@ -418,7 +420,7 @@ export const runPreseasonCommercialCamp = (
   const commercial = economy.commercialProfile(input.clubId);
   const support = economy.supporterProfile(input.clubId);
   const reach = Math.round((commercial?.digitalReach ?? 2) + (support?.diasporaSupport ?? 0) / 500);
-  const cost = Math.round(85000 + reach * 22000);
+  const cost = Math.round(scalePrice(db, 85000) + reach * scalePrice(db, 22000));
   const camp: PreseasonCommercialCamp = {
     id: campId,
     clubId: input.clubId,
@@ -441,7 +443,7 @@ export const runPreseasonCommercialCamp = (
     relatedEntityId: camp.id,
     idempotencyKey: `commercial-camp:${camp.id}`,
   });
-  const tourRevenue = Math.round(reach * 18000);
+  const tourRevenue = Math.round(reach * scalePrice(db, 18000));
   if (tourRevenue > 0)
     postClubTransaction(db, {
       clubId: input.clubId,
@@ -762,10 +764,13 @@ export const generateSponsorOffers = (
         sponsor.budgetTier
       ];
       const value = adjustForMacro(
-        (160000 + audience * 110 + reputationFactor * 70000 + sponsor.reputation * 50000) *
-          tierFactor *
-          resultsFactor +
-          rng.integer(0, 90000),
+        scalePrice(
+          db,
+          (160000 + audience * 110 + reputationFactor * 70000 + sponsor.reputation * 50000) *
+            tierFactor *
+            resultsFactor +
+            rng.integer(0, 90000),
+        ),
         macro,
         "sponsorMarketStrength",
       );
@@ -1075,7 +1080,7 @@ export const createInfrastructureProject = (
     ? macroEconomyForCountry(db, clubCountry.country_id, Number(input.date.slice(0, 4)))
     : undefined;
   const baseCost = adjustForMacro(
-    projectBaseCost(input.projectType),
+    scalePrice(db, projectBaseCost(input.projectType)),
     macro,
     "constructionCostIndex",
   );
@@ -1477,7 +1482,7 @@ export const planAIInfrastructureProject = (
       : (facility?.academyCapacity ?? 0) < 30
         ? "ACADEMY"
         : "TRAINING_GROUND";
-  const cost = projectBaseCost(type);
+  const cost = scalePrice(db, projectBaseCost(type));
   if (account.cashBalance < cost * 1.25) return undefined;
   return createInfrastructureProject(db, {
     clubId: input.clubId,
@@ -1500,13 +1505,13 @@ export const calculateClubValuation = (
   const annualRevenue = Math.max(0, account?.seasonRevenue ?? 0);
   const reputation = supporter ? supporter.footballReputation + supporter.commercialReputation : 10;
   const valuation = Math.max(
-    250000,
+    scalePrice(db, 250000),
     Math.round(
       (account?.cashBalance ?? 0) +
         assets -
         (account?.debtBalance ?? 0) +
         annualRevenue * 2 +
-        reputation * 300000,
+        reputation * scalePrice(db, 300000),
     ),
   );
   const result: ClubValuation = {
@@ -1627,7 +1632,8 @@ export const postMatchdayEconomy = (
     1 +
     ((homeSupport?.diasporaSupport ?? 0) / Math.max(1, homeSupport?.coreSupporters ?? 1)) * 0.08 +
     ((homeCommercial?.digitalReach ?? 0) + (awayCommercial?.digitalReach ?? 0)) / 100;
-  const ticketPrice = homeSupport?.standardTicketPrice ?? 250;
+  const referenceTicketPrice = scaleTicketPrice(db, 250);
+  const ticketPrice = homeSupport?.standardTicketPrice ?? referenceTicketPrice;
   const sentimentFactor = {
     VERY_POSITIVE: 1.12,
     POSITIVE: 1.06,
@@ -1639,7 +1645,7 @@ export const postMatchdayEconomy = (
     0.55,
     Math.min(
       1.25,
-      Math.pow(250 / Math.max(1, ticketPrice), homeCommercial?.ticketPriceElasticity ?? 1),
+      Math.pow(referenceTicketPrice / Math.max(1, ticketPrice), homeCommercial?.ticketPriceElasticity ?? 1),
     ),
   );
   const baseDemand =
@@ -1654,6 +1660,7 @@ export const postMatchdayEconomy = (
     awayClubId,
     capacity,
     ticketPrice,
+    referenceTicketPrice,
     seed: `${seed}:${fixture.id}`,
     countryId: homeCountryId(db),
     opponentReputation: awaySupport?.footballReputation,
@@ -1705,7 +1712,7 @@ export const postMatchdayEconomy = (
     date,
     category: "TRAVEL",
     direction: "DEBIT",
-    amount: Math.round(90000 + rng.next() * 60000),
+    amount: scalePrice(db, Math.round(90000 + rng.next() * 60000)),
     description: "Away match travel cost",
     relatedEntityId: fixture.id,
     idempotencyKey: `matchday-cost-away:${fixture.id}`,
@@ -2042,9 +2049,9 @@ export const generateCompetitionMediaRightsOffer = (
     ? macroEconomyForCountry(db, firstClubCountry, Number(input.date.slice(0, 4)))
     : undefined;
   const annualValue = Math.min(
-    4200000,
+    scalePrice(db, 4200000),
     adjustForMacro(
-      280000 + audience * 90 + rng.integer(0, 180000),
+      scalePrice(db, 280000 + audience * 90 + rng.integer(0, 180000)),
       macro,
       "broadcastMarketStrength",
     ),
@@ -2490,6 +2497,7 @@ export const chairmanPermissions = (): string[] => [
 const generatedClubEconomy = (
   club: Club,
   seed: string,
+  priceLevel = 1,
 ): {
   economicType: ClubEconomicType;
   cash: number;
@@ -2497,6 +2505,7 @@ const generatedClubEconomy = (
   equity: number;
   restrictedCashShare: number;
   scale: number;
+  priceLevel: number;
 } => {
   const rng = new SeededRandom(`${seed}:club-economy:${club.id}`);
   const economicType = economicTypeForClub(club);
@@ -2510,12 +2519,12 @@ const generatedClubEconomy = (
           : economicType === "MUNICIPALITY_BACKED"
             ? 0.95
             : 1;
-  const cash = Math.round((2600000 + rng.next() * 6200000) * scale);
+  const cash = scaleAmount(priceLevel, Math.round((2600000 + rng.next() * 6200000) * scale));
   const debt =
     economicType === "DEPARTMENTAL_CLUB"
       ? 0
       : rng.next() < 0.24
-        ? Math.round((300000 + rng.next() * 1600000) * scale)
+        ? scaleAmount(priceLevel, Math.round((300000 + rng.next() * 1600000) * scale))
         : 0;
   return {
     economicType,
@@ -2524,6 +2533,7 @@ const generatedClubEconomy = (
     equity: ownershipModelForClub(club) === "BUYABLE" ? Math.round(cash * (1.4 + rng.next())) : 0,
     restrictedCashShare: economicType === "DEPARTMENTAL_CLUB" ? 0.35 : 0.08 + rng.next() * 0.08,
     scale,
+    priceLevel,
   };
 };
 
@@ -2534,7 +2544,7 @@ const generatedBudgets = (
   currency: string,
 ): ClubBudget[] => {
   const season = seasonLabel(worldDate);
-  const wage = Math.round(profile.cash * 0.95 + profile.scale * 2600000);
+  const wage = Math.round(profile.cash * 0.95 + profile.scale * scaleAmount(profile.priceLevel, 2600000));
   const transfer = Math.round(
     profile.cash * (profile.economicType === "COMMUNITY_CLUB" ? 0.12 : 0.22),
   );
@@ -2600,6 +2610,7 @@ const generatedSupporterProfile = (
   profile: ReturnType<typeof generatedClubEconomy>,
   seed: string,
   currency: string,
+  ticketPriceLevel = 1,
 ): ClubSupporterProfile => {
   const rng = new SeededRandom(`${seed}:supporters:${club.id}`);
   const base = Math.round(700 + profile.scale * 850 + rng.next() * 1600);
@@ -2616,7 +2627,7 @@ const generatedSupporterProfile = (
     footballReputation: round(3 + profile.scale * 2 + rng.next() * 3),
     commercialReputation: round(2.5 + profile.scale * 1.6 + rng.next() * 2.5),
     sentiment: "NEUTRAL",
-    standardTicketPrice: Math.round((180 + rng.integer(0, 120)) * profile.scale),
+    standardTicketPrice: scaleAmount(ticketPriceLevel, Math.round((180 + rng.integer(0, 120)) * profile.scale)),
     currency,
     status: simulationStatus,
   };
@@ -2657,7 +2668,7 @@ const generatedFacilityProfile = (
     medicalFacilityQuality: round(quality - 0.5 + rng.next()),
     analyticsFacilityQuality: round(1.5 + profile.scale + rng.next() * 1.5),
     academyCapacity: Math.round(18 + profile.scale * 12 + rng.integer(0, 16)),
-    monthlyOperatingCost: Math.round((32000 + quality * 11000) * profile.scale),
+    monthlyOperatingCost: scaleAmount(profile.priceLevel, Math.round((32000 + quality * 11000) * profile.scale)),
     currency,
     status: simulationStatus,
   };
@@ -2857,13 +2868,13 @@ const ownershipModelForClub = (club: Club): ClubOwnershipModel => {
   return "UNKNOWN";
 };
 
-const financialHealth = (cash: number, debt: number): ClubFinancialHealth => {
+const financialHealth = (cash: number, debt: number, priceLevel = 1): ClubFinancialHealth => {
   const net = cash - debt;
   if (net < 0) return "INSOLVENT";
-  if (net < 500000) return "DISTRESSED";
-  if (net < 1500000) return "TIGHT";
-  if (net < 6000000) return "STABLE";
-  if (net < 15000000) return "HEALTHY";
+  if (net < scaleAmount(priceLevel, 500000)) return "DISTRESSED";
+  if (net < scaleAmount(priceLevel, 1500000)) return "TIGHT";
+  if (net < scaleAmount(priceLevel, 6000000)) return "STABLE";
+  if (net < scaleAmount(priceLevel, 15000000)) return "HEALTHY";
   return "EXCELLENT";
 };
 
