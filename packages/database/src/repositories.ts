@@ -2314,7 +2314,7 @@ export class StaffMarketRepository {
            AND COALESCE(sp.availability, 'AVAILABLE') != 'RETIRED'
          ORDER BY
            CASE
-             WHEN ? = 1 AND nationality.iso_code IN ('NP', 'NPL') AND sa.id IS NOT NULL THEN 0
+             WHEN ? = 1 AND nationality.id = (SELECT country_id FROM home_football_country LIMIT 1) AND sa.id IS NOT NULL THEN 0
              WHEN ? = 0 AND current_external.club_id IS NOT NULL THEN 0
              WHEN sa.id IS NULL THEN 1
              ELSE 2

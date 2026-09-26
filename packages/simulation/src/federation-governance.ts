@@ -59,7 +59,8 @@ import { PLAYABLE_CLUB_PREDICATE } from "./playable-world.js";
 import { SeededRandom } from "./rng.js";
 import { buildEntityReference } from "./entity-reference.js";
 import { nationalTeamOutcomes } from "./national-team-workspace.js";
-import { findHomeFootballContext, homeCurrency, homeFederation, seasonEndDate } from "./home-context.js";
+import { homeCurrency, homeFederation, seasonEndDate } from "./home-context.js";
+import { ensureNationalTeamRows } from "./national-team-identity.js";
 import { recordFederationDevelopmentSnapshot } from "./federation-scorecard.js";
 
 const simulationStatus = "SIMULATION_ONLY" as const;
@@ -139,7 +140,7 @@ export const initializeFederationGovernanceForSave = (input: {
         status: simulationStatus,
       });
     }
-    ensureNationalTeams(input.db, federation);
+    ensureNationalTeamRows(input.db, federation.id);
     ensureFederationBudgets(input.db, federation.id, input.worldDate);
     ensureCommittees(input.db, federation.id);
     ensureStrategy(input.db, federation.id, input.worldDate);
@@ -1521,65 +1522,6 @@ const generatedFederationProfile = (
     lastUpdatedAt: date,
     status: simulationStatus,
   };
-};
-
-const ensureNationalTeams = (db: GameDatabase, federation: Federation): void => {
-  const teams: Team[] = [
-    {
-      id: createStableEntityId("team", `${federation.id}:senior-men`),
-      federationId: federation.id,
-      name: "Nepal Senior Men",
-      canonicalExternalId: "NEP-NT-SENIOR-MEN",
-      level: "senior",
-      gender: "men",
-    },
-    {
-      id: createStableEntityId("team", `${federation.id}:senior-women`),
-      federationId: federation.id,
-      name: "Nepal Senior Women",
-      canonicalExternalId: "NEP-NT-SENIOR-WOMEN",
-      level: "senior",
-      gender: "women",
-    },
-    {
-      id: createStableEntityId("team", `${federation.id}:u23-men`),
-      federationId: federation.id,
-      name: "Nepal U23 Men",
-      canonicalExternalId: "NEP-NT-U23-MEN",
-      level: "u23",
-      gender: "men",
-    },
-    {
-      id: createStableEntityId("team", `${federation.id}:u20-men`),
-      federationId: federation.id,
-      name: "Nepal U20 Men",
-      canonicalExternalId: "NEP-NT-U20-MEN",
-      level: "u20",
-      gender: "men",
-    },
-    {
-      id: createStableEntityId("team", `${federation.id}:u17-men`),
-      federationId: federation.id,
-      name: "Nepal U17 Men",
-      canonicalExternalId: "NEP-NT-U17-MEN",
-      level: "u17",
-      gender: "men",
-    },
-  ];
-  for (const team of teams) {
-    db.prepare(
-      `INSERT INTO teams (id, club_id, federation_id, name, canonical_external_id, level, gender)
-      VALUES (?, NULL, ?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO NOTHING`,
-    ).run(
-      team.id,
-      federation.id,
-      team.name,
-      team.canonicalExternalId ?? null,
-      team.level,
-      team.gender,
-    );
-  }
 };
 
 const ensureFederationBudgets = (db: GameDatabase, federationId: EntityId, date: string): void => {

@@ -69,6 +69,7 @@ const NEPAL_NATIONAL_TEAMS: readonly NationalTeamDefinition[] = [
 export const nepalPack: CountryPack = registerCountryPack({
   packId: NEPAL_PACK_ID,
   countryName: "Nepal",
+  nationalTeamCodePrefix: "NEP",
   isoCodes: ["NPL", "NP"],
   currency: "NPR",
   locale: "en-IN",

@@ -226,7 +226,7 @@ describe("organization profiles", () => {
       expect(investor.involvedEntities).toEqual(
         expect.arrayContaining([expect.objectContaining({ entityType: "CLUB", id: club.id })]),
       );
-      expect(["NEPAL", "MULTINATIONAL", "UNKNOWN"]).toContain(investor.organizationContext);
+      expect(["HOME_COUNTRY", "MULTINATIONAL", "UNKNOWN"]).toContain(investor.organizationContext);
       expect(
         buildOrganizationProfile(db, "INVESTOR", investorId.id, "CHAIRMAN_OWNER").entityReference,
       ).toMatchObject({

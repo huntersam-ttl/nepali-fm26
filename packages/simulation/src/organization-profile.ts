@@ -77,7 +77,7 @@ const buildMediaEntityProfile = (
     // "Journalist"/"Media Outlet"; a duplicate sector badge saying the same
     // word twice was the whole prior bug.
     sector: undefined,
-    organizationContext: "NEPAL",
+    organizationContext: "HOME_COUNTRY",
     provenanceStatus: entityReference.provenanceStatus,
     relationshipClues: clues,
     activeDeals: [],
@@ -174,8 +174,7 @@ const organizationContext = (
       ? db.prepare("SELECT c.id AS country_id FROM sponsor_organisations s LEFT JOIN countries c ON c.id=s.country_id WHERE s.id=?").get(organizationId) as Row | undefined
       : db.prepare("SELECT c.id AS country_id FROM persons p LEFT JOIN countries c ON c.id=p.nationality_country_id WHERE p.id=?").get(organizationId) as Row | undefined;
   if (!row?.country_id) return "UNKNOWN";
-  // "NEPAL" is the stored label for the home country's own organisations.
-  return isHomeCountry(db, row.country_id as EntityId) ? "NEPAL" : "MULTINATIONAL";
+  return isHomeCountry(db, row.country_id as EntityId) ? "HOME_COUNTRY" : "MULTINATIONAL";
 };
 
 const rightsDeals = (db: GameDatabase, organizationId: EntityId): OrganizationCommercialDeal[] => {

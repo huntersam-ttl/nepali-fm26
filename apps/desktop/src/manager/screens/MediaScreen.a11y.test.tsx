@@ -141,7 +141,7 @@ const answerSportingDirectorStructuredPressQuestion = vi.fn(() => ok(answeredVie
 const getOrganizationProfile = vi.fn(() =>
   ok({
     entityReference: journalist,
-    organizationContext: "NEPAL" as const,
+    organizationContext: "HOME_COUNTRY" as const,
     provenanceStatus: "SIMULATION_ONLY" as const,
     relationshipClues: ["Beat: player development", "Style: friendly", "Relationship: Positive"],
     activeDeals: [],

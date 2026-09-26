@@ -31,6 +31,7 @@ export * from "./world-progression.js";
 export * from "./country-pack.js";
 export * from "./country-packs/nepal.js";
 export * from "./home-context.js";
+export * from "./national-team-identity.js";
 export * from "./storage-policy.js";
 export * from "./national-team-competitions.js";
 export * from "./federation-scorecard.js";

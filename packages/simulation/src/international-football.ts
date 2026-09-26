@@ -40,7 +40,7 @@ import { buildAiTacticalSetup, resolveTeamTacticalSetup } from "./ai-tactics.js"
 import { simulateMatch } from "./match-engine.js";
 import { ensureNationalTeamStaffStructure, recordNationalTeamEditionEntry } from "./national-team-management.js";
 import { SeededRandom } from "./rng.js";
-import { findHomeFootballContext, homeCountryId, homeCurrency, homeFederation, homeNationalTeams, seasonEndInYear } from "./home-context.js";
+import { findHomeFootballContext, homeFootballContext, homeCountryId, homeCurrency, homeFederation, homeNationalTeams, seasonEndInYear } from "./home-context.js";
 import { countryPack } from "./country-pack.js";
 
 const simulationStatus = "SIMULATION_ONLY" as const;
@@ -79,6 +79,13 @@ const teamTypeForCompetitionKey = (key: InternationalCompetitionKey): NationalTe
   if (key === "SAFF_U17") return "U17";
   return "SENIOR_MEN";
 };
+
+/** The national-team categories the international engine can schedule and simulate. The data model accepts others; they are left out of the simulation. */
+export const SIMULATED_NATIONAL_TEAM_TYPES: readonly NationalTeamType[] = ["SENIOR_MEN", "SENIOR_WOMEN", "U23", "U20", "U17"];
+
+export const isSimulatedNationalTeamType = (teamType: NationalTeamType): boolean => SIMULATED_NATIONAL_TEAM_TYPES.includes(teamType);
+
+const simulatedHomeNationalTeams = (db: GameDatabase) => homeNationalTeams(db).filter((definition) => isSimulatedNationalTeamType(definition.teamType));
 
 const isRegionalCompetition = (key: InternationalCompetitionKey): boolean =>
   key === "SAFF" || key.startsWith("SAFF_");
@@ -432,6 +439,15 @@ const registry: RegistryTeam[] = [
   },
 ];
 
+/** The registry as this save sees it: a home country the registry does not list is added from its pack's international profile. */
+const registryForSave = (db: GameDatabase): RegistryTeam[] => {
+  const home = homeFootballContext(db);
+  const pack = countryPack(home.packId);
+  if (registry.some((item) => pack.isoCodes.includes(item.isoCode))) return registry;
+  if (!pack.internationalProfile) throw new Error(`The home country pack "${pack.packId}" has no international registry entry or profile.`);
+  return [{ isoCode: pack.isoCodes[0]!, countryName: home.countryName, ...pack.internationalProfile }, ...registry];
+};
+
 export const initializeInternationalFootballForSave = (input: {
   db: GameDatabase;
   worldDate: string;
@@ -439,10 +455,11 @@ export const initializeInternationalFootballForSave = (input: {
 }): void => {
   initializeFederationGovernanceForSave(input);
   const repo = new InternationalFootballRepository(input.db);
-  ensureExternalCountries(input.db);
-  for (const item of registry) {
+  const nations = registryForSave(input.db);
+  ensureExternalCountries(input.db, nations);
+  for (const item of nations) {
     const countryId = countryIdByIso(input.db, item.isoCode);
-    for (const definition of homeNationalTeams(input.db)) {
+    for (const definition of simulatedHomeNationalTeams(input.db)) {
       const teamType = definition.teamType;
       const multiplier = definition.strengthMultiplier;
       const profile: InternationalTeamProfile = {
@@ -450,7 +467,7 @@ export const initializeInternationalFootballForSave = (input: {
         countryId,
         nationalTeamId:
           countryId === homeCountryId(input.db) ? nationalTeamIdForType(input.db, teamType) : undefined,
-        name: `${item.countryName} ${definition.label}`,
+        name: `${countryId === homeCountryId(input.db) ? homeFootballContext(input.db).countryName : item.countryName} ${definition.label}`,
         teamType,
         confederation: item.confederation,
         region: item.region,
@@ -871,7 +888,7 @@ export const calculateSimulationWorldRanking = (
 ): SimulationWorldRanking[] => {
   const repo = new InternationalFootballRepository(db);
   const rankings: SimulationWorldRanking[] = [];
-  for (const { teamType } of homeNationalTeams(db)) {
+  for (const { teamType } of simulatedHomeNationalTeams(db)) {
     const points = repo
       .teamProfiles()
       .filter((profile) => profile.teamType === teamType)
@@ -1694,8 +1711,8 @@ export const groupStandings = (
   }));
 };
 
-const ensureExternalCountries = (db: GameDatabase): void => {
-  for (const item of registry) {
+const ensureExternalCountries = (db: GameDatabase, nations: readonly RegistryTeam[]): void => {
+  for (const item of nations) {
     const home = findHomeFootballContext(db);
     if (home && countryPack(home.packId).isoCodes.includes(item.isoCode)) continue;
     db.prepare("INSERT OR IGNORE INTO countries (id, name, iso_code) VALUES (?, ?, ?)").run(

@@ -1,4 +1,4 @@
-import type { NationalTeamType } from "@nepal-football-sim/shared-types";
+import type { FootballConfederation, FootballRegion, NationalTeamType } from "@nepal-football-sim/shared-types";
 import type { GameDatabase } from "@nepal-football-sim/database";
 
 /*
@@ -58,6 +58,18 @@ export type CountryPack = {
   /** Stable identifier of the country dataset + configuration, e.g. "nepal-v1". Never a display name. */
   packId: string;
   countryName: string;
+  /** Prefix of the national teams' canonical ids ("NEP" gives "NEP-NT-SENIOR-MEN"); defaults to the first ISO code. */
+  nationalTeamCodePrefix?: string;
+  /** The country's standing in the international registry, for a home country the registry does not list. */
+  internationalProfile?: {
+    confederation: FootballConfederation;
+    region: FootballRegion;
+    strength: number;
+    reputation: number;
+    development: number;
+    homeAdvantage: number;
+    populationTalentBase: number;
+  };
   /** ISO codes the dataset may use for the country, canonical first (older saves used a second form). */
   isoCodes: readonly string[];
   currency: string;

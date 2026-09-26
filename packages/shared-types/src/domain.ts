@@ -3785,7 +3785,10 @@ export type PlayerInternationalEligibility = {
   provenanceStatus: DataProvenanceStatus;
 };
 
-export type NationalTeamType = "SENIOR_MEN" | "SENIOR_WOMEN" | "U23" | "U20" | "U17";
+export type KnownNationalTeamType = "SENIOR_MEN" | "SENIOR_WOMEN" | "U23" | "U20" | "U17";
+
+/** A national team's category. The known values autocomplete; a dataset may define others (the simulation declares which it can play). */
+export type NationalTeamType = KnownNationalTeamType | (string & {});
 
 export type FootballConfederation = "AFC" | "UEFA" | "CAF" | "CONCACAF" | "CONMEBOL" | "OFC";
 
