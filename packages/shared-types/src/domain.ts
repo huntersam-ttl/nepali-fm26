@@ -1,4 +1,5 @@
 import type { EntityId } from "./ids.js";
+import type { TeamLevel } from "./team-level.js";
 
 export type ISODate = string;
 export type ISODateTime = string;
@@ -221,7 +222,7 @@ export type Team = {
   federationId?: EntityId;
   name: string;
   canonicalExternalId?: string;
-  level: "senior" | "u23" | "u20" | "u17" | "reserve" | "academy";
+  level: TeamLevel;
   gender: "men" | "women" | "mixed" | "unknown";
 };
 

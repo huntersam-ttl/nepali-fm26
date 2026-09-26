@@ -11,6 +11,7 @@ import {
   type FederationStakeholderType,
   type EntityId,
 } from "@nepal-football-sim/shared-types";
+import { isSimulatedTeamLevel } from "@nepal-football-sim/shared-types";
 import {
   ContinentalCareerRepository,
   FederationGovernancePhaseBRepository,
@@ -57,7 +58,7 @@ const federationOutcomes = (db: GameDatabase, federationId: EntityId): Federatio
     )
     .all(federationId) as Array<{ id: EntityId; level: string; gender: string }>;
   const teamKinds = new Map<EntityId, "senior" | "youth" | "women">();
-  for (const team of teams) {
+  for (const team of teams.filter((item) => isSimulatedTeamLevel(item.level))) {
     teamKinds.set(
       team.id,
       team.gender === "women" ? "women" : team.level === "senior" ? "senior" : "youth",

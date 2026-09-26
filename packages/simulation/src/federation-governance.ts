@@ -37,6 +37,7 @@ import {
   type SponsorOrganisation,
   type Team,
 } from "@nepal-football-sim/shared-types";
+import { isSeniorTeamLevel, teamLevelAgeCap, teamLevelLabel } from "@nepal-football-sim/shared-types";
 import {
   ClubEconomyRepository,
   CompetitionRepository,
@@ -754,7 +755,7 @@ export const selectNationalTeamSquad = (
     repo.nationalTeamCallups(team.id).map((existing) => existing.playerId),
   );
   const programmeLabel =
-    team.gender === "women" ? "Women & Girls" : team.level === "senior" ? "Senior Men" : `U${team.level.replace(/\D/g, "")}`;
+    team.gender === "women" ? "Women & Girls" : isSeniorTeamLevel(team.level) ? "Senior Men" : teamLevelLabel(team.level);
   const callups = selected.map((player) => {
     const callup: NationalTeamCallup = {
       id: createStableEntityId(
@@ -2369,7 +2370,7 @@ export const eligibleForNationalTeamAge = (
   level: Team["level"],
   referenceDate: string,
 ): boolean => {
-  const maximumAge = level === "u23" ? 23 : level === "u20" ? 20 : level === "u17" ? 17 : undefined;
+  const maximumAge = teamLevelAgeCap(level);
   if (maximumAge === undefined) return true;
   if (!dateOfBirth) return false;
   const birth = new Date(`${dateOfBirth}T00:00:00Z`);

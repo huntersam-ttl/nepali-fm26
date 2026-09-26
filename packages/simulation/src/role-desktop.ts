@@ -12,6 +12,7 @@ import type {
   FederationPresidentDashboard,
   SaveMetadata,
 } from "@nepal-football-sim/shared-types";
+import { isSimulatedTeamLevel } from "@nepal-football-sim/shared-types";
 import { getClubFinancialSummary } from "./club-economy.js";
 import { getFederationFinances, getFederationOverview } from "./federation-governance.js";
 import { heldCareerRoles } from "./career-control.js";
@@ -98,7 +99,7 @@ export const buildFederationPresidentDashboard = (db: GameDatabase, save: SaveMe
   const phaseB = new FederationGovernancePhaseBRepository(db);
   const tenure = governance.leadershipTenures(federationId).find((item) => item.personId === careerPersonId(db, save) && ["ACTIVE", "INTERIM"].includes(item.status));
   const teams = db.prepare("SELECT id, name, level, gender FROM teams WHERE federation_id=? AND club_id IS NULL ORDER BY CASE WHEN level='senior' THEN 0 ELSE 1 END, gender, name").all(federationId) as Array<{ id: EntityId; name: string; level: string; gender: string }>;
-  const nationalTeams: FederationNationalTeamSummary[] = teams.map((team) => {
+  const nationalTeams: FederationNationalTeamSummary[] = teams.filter((team) => isSimulatedTeamLevel(team.level)).map((team) => {
     const coach = db.prepare("SELECT person_id FROM staff_appointments WHERE team_id=? AND role='NATIONAL_TEAM_HEAD_COACH' AND employment_status='ACTIVE' ORDER BY start_date DESC LIMIT 1").get(team.id) as { person_id?: EntityId } | undefined;
     const squadSize = new Set(
       governance

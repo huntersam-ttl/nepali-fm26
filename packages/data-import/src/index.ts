@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isValidTeamLevel } from "@nepal-football-sim/shared-types";
 export * from "./player-coverage-report.js";
 export * from "./personnel-coverage-report.js";
 export * from "./global-football-workbook.js";
@@ -429,7 +430,7 @@ const teamRecordSchema = z
     name: z.string().min(1),
     clubKey: nullableKeyFactSchema.optional(),
     federationKey: nullableKeyFactSchema.optional(),
-    level: z.enum(["senior", "u23", "u20", "u17", "reserve", "academy"]),
+    level: z.string().refine(isValidTeamLevel, "A team level is lower-case letters, digits and underscores, starting with a letter"),
     gender: z.enum(["men", "women", "mixed", "unknown"]),
     provenance: provenanceSchema,
   })

@@ -15,6 +15,7 @@ import type {
   NationalTeamStaffMember,
   NationalTeamStaffView,
 } from "@nepal-football-sim/shared-types";
+import { isSimulatedTeamLevel } from "@nepal-football-sim/shared-types";
 import { buildEntityReference } from "./entity-reference.js";
 import { buildNationalTeamSquad } from "./national-team-squad.js";
 
@@ -179,9 +180,9 @@ export const nationalTeamOutcomes = (
   federationId: EntityId,
 ): Array<{ teamId: EntityId; goalsFor: number; goalsAgainst: number; result: "WIN" | "DRAW" | "LOSS" }> => {
   const teams = db
-    .prepare("SELECT id FROM teams WHERE federation_id=? AND club_id IS NULL ORDER BY id")
-    .all(federationId) as Array<{ id: EntityId }>;
-  return teams.flatMap((team) =>
+    .prepare("SELECT id, level FROM teams WHERE federation_id=? AND club_id IS NULL ORDER BY id")
+    .all(federationId) as Array<{ id: EntityId; level: string }>;
+  return teams.filter((team) => isSimulatedTeamLevel(team.level)).flatMap((team) =>
     nationalTeamMatches(db, team.id).flatMap((match) =>
       match.status === "PLAYED" && match.goalsFor !== undefined && match.goalsAgainst !== undefined
         ? [
