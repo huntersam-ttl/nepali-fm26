@@ -5,6 +5,8 @@ import type {
   FootballConfederation,
   FootballRegion,
   FounderLocationOption,
+  MediaJournalist,
+  MediaOutlet,
   NationalTeamType,
 } from "@nepal-football-sim/shared-types";
 import type { GameDatabase } from "@nepal-football-sim/database";
@@ -96,6 +98,9 @@ export type CountryPack = {
   developmentProfile?: (countryId: EntityId, date: string) => CountryDevelopmentProfile;
   /** Country-owned lenders available to the club-finance market. */
   lenders?: readonly Omit<ClubLender, "id" | "countryId">[];
+  /** Country-owned media outlets and journalist roster for the media simulation. */
+  mediaOutlets?: readonly Omit<MediaOutlet, "id">[];
+  mediaJournalists?: readonly Omit<MediaJournalist, "id" | "outletId">[];
   /** Country-specific structures that must exist once the dataset is imported (geography, founder locations). */
   initialiseTerritory?: (db: GameDatabase, date: string) => void;
   /** Idempotent check that the territorial structure exists, for saves that predate it. */

@@ -1,4 +1,4 @@
-import { createStableEntityId, type ClubLender, type CountryDevelopmentProfile, type EntityId } from "@nepal-football-sim/shared-types";
+import { createStableEntityId, type ClubLender, type CountryDevelopmentProfile, type EntityId, type MediaJournalist, type MediaOutlet } from "@nepal-football-sim/shared-types";
 import type { NamePool, NationalTeamDefinition, CountryPack } from "../country-pack.js";
 import { registerCountryPack } from "../country-pack.js";
 import {
@@ -29,6 +29,21 @@ export const NEPAL_CLUB_LENDERS: readonly Omit<ClubLender, "id" | "countryId">[]
   { name: "Agriculture Development Bank Limited", institutionType: "COMMERCIAL_BANK", sourceUrl: "https://www.nrb.org.np/bfr/bfis-list-in-english-mid-january-2026/", status: "VERIFIED" },
   { name: "Himalayan Bank Limited", institutionType: "COMMERCIAL_BANK", sourceUrl: "https://www.nrb.org.np/bfr/bfis-list-in-english-mid-january-2026/", status: "VERIFIED" },
   { name: "Muktinath Bikas Bank Limited", institutionType: "DEVELOPMENT_BANK", sourceUrl: "https://www.nrb.org.np/bfr/bfis-list-in-english-mid-january-2026/", status: "VERIFIED" },
+];
+
+export const NEPAL_MEDIA_OUTLETS: readonly Omit<MediaOutlet, "id">[] = [
+  { name: "Kathmandu Football Desk", scope: "LOCAL", reputation: 5.8, reach: 3.5, bias: "CLUB_FOCUSED", style: "ANALYSIS", status: "SIMULATION_ONLY" },
+  { name: "Nepal Football News", scope: "NATIONAL", reputation: 6.8, reach: 6.5, bias: "NATIONAL_FOCUS", style: "WIRE", status: "SIMULATION_ONLY" },
+  { name: "South Asia Football Review", scope: "REGIONAL_INTERNATIONAL", reputation: 8.1, reach: 7.4, bias: "NEUTRAL", style: "TRADE", status: "SIMULATION_ONLY" },
+  { name: "ANFA Federation Bulletin", scope: "NATIONAL", reputation: 7.2, reach: 5.5, bias: "DEVELOPMENT_FOCUS", style: "WIRE", status: "SIMULATION_ONLY" },
+  { name: "Nepal Football Business Desk", scope: "NATIONAL", reputation: 6.2, reach: 4.8, bias: "NEUTRAL", style: "TRADE", status: "SIMULATION_ONLY" },
+  { name: "Club Media Channel", scope: "LOCAL", reputation: 4.5, reach: 2.8, bias: "CLUB_FOCUSED", style: "TABLOID", status: "SIMULATION_ONLY" },
+];
+
+export const NEPAL_MEDIA_JOURNALISTS: readonly Omit<MediaJournalist, "id" | "outletId">[] = [
+  { name: "Asha Shrestha", beat: "Domestic football", temperament: "NEUTRAL", reputation: 6.5, status: "SIMULATION_ONLY" },
+  { name: "Rijan Gurung", beat: "National teams", temperament: "SCEPTICAL", reputation: 7.2, status: "SIMULATION_ONLY" },
+  { name: "Mina Rai", beat: "Player development", temperament: "FRIENDLY", reputation: 6.8, status: "SIMULATION_ONLY" },
 ];
 
 /** Nepal's name lists, exactly as the generators used them before names became a pack concern. */
@@ -108,6 +123,8 @@ export const nepalPack: CountryPack = registerCountryPack({
   founderLocations: () => founderLocationOptionsFromDistricts(NEPAL_PROVINCE_DISTRICTS),
   developmentProfile: nepalDevelopmentProfile,
   lenders: NEPAL_CLUB_LENDERS,
+  mediaOutlets: NEPAL_MEDIA_OUTLETS,
+  mediaJournalists: NEPAL_MEDIA_JOURNALISTS,
   initialiseTerritory: (db, date) => {
     initializeNepalTerritorialStructure(db, date);
     ensureNepalFounderLocations(db);

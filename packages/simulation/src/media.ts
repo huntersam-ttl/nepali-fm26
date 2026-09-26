@@ -26,67 +26,14 @@ import {
 } from "./supporter-culture.js";
 import { resolveStoryEntityReference, storyImportanceBand } from "./story-entities.js";
 import { deriveFollowUpEvents } from "./follow-up-reactions.js";
+import { countryPack } from "./country-pack.js";
+import { homeFootballContext } from "./home-context.js";
 
 const status = "SIMULATION_ONLY" as const;
-const outlets: Array<Omit<MediaOutlet, "id">> = [
-  {
-    name: "Kathmandu Football Desk",
-    scope: "LOCAL",
-    reputation: 5.8,
-    reach: 3.5,
-    bias: "CLUB_FOCUSED",
-    style: "ANALYSIS",
-    status,
-  },
-  {
-    name: "Nepal Football News",
-    scope: "NATIONAL",
-    reputation: 6.8,
-    reach: 6.5,
-    bias: "NATIONAL_FOCUS",
-    style: "WIRE",
-    status,
-  },
-  {
-    name: "South Asia Football Review",
-    scope: "REGIONAL_INTERNATIONAL",
-    reputation: 8.1,
-    reach: 7.4,
-    bias: "NEUTRAL",
-    style: "TRADE",
-    status,
-  },
-  {
-    name: "ANFA Federation Bulletin",
-    scope: "NATIONAL",
-    reputation: 7.2,
-    reach: 5.5,
-    bias: "DEVELOPMENT_FOCUS",
-    style: "WIRE",
-    status,
-  },
-  {
-    name: "Nepal Football Business Desk",
-    scope: "NATIONAL",
-    reputation: 6.2,
-    reach: 4.8,
-    bias: "NEUTRAL",
-    style: "TRADE",
-    status,
-  },
-  {
-    name: "Club Media Channel",
-    scope: "LOCAL",
-    reputation: 4.5,
-    reach: 2.8,
-    bias: "CLUB_FOCUSED",
-    style: "TABLOID",
-    status,
-  },
-];
 
 export const initializeMediaForSave = (db: GameDatabase): MediaOutlet[] => {
   const repo = new MediaRepository(db);
+  const outlets = countryPack(homeFootballContext(db).packId).mediaOutlets ?? [];
   for (const outlet of outlets)
     repo.upsertOutlet({ ...outlet, id: createStableEntityId("media-outlet", outlet.name) });
   return repo.outlets();
@@ -460,6 +407,7 @@ export const publishMediaForDate = (
   const repo = new MediaRepository(db);
   const eventRepo = new EventRepository(db);
   initializeMediaForSave(db);
+  if (repo.outlets().length === 0) return [];
   const threshold = input.minimumImportance ?? 4;
   const published: MediaStory[] = [];
   const events = eventRepo.historicalEventsUpTo(input.date);
@@ -490,37 +438,15 @@ export const publishMediaForDate = (
 export const getMediaArchive = (db: GameDatabase, publishedOn?: string): MediaStory[] =>
   new MediaRepository(db).stories(publishedOn);
 
-const journalists: Array<Omit<MediaJournalist, "id" | "outletId">> = [
-  {
-    name: "Asha Shrestha",
-    beat: "Domestic football",
-    temperament: "NEUTRAL",
-    reputation: 6.5,
-    status,
-  },
-  {
-    name: "Rijan Gurung",
-    beat: "National teams",
-    temperament: "SCEPTICAL",
-    reputation: 7.2,
-    status,
-  },
-  {
-    name: "Mina Rai",
-    beat: "Player development",
-    temperament: "FRIENDLY",
-    reputation: 6.8,
-    status,
-  },
-];
-
 export const initializeMediaJournalists = (db: GameDatabase): MediaJournalist[] => {
   const outletsRepo = new MediaRepository(db);
   const repo = new MediaPhaseBRepository(db);
   initializeMediaForSave(db);
   const all = outletsRepo.outlets();
+  const journalists = countryPack(homeFootballContext(db).packId).mediaJournalists ?? [];
   for (const [index, profile] of journalists.entries()) {
     const outlet = all[index % all.length];
+    if (!outlet) break;
     repo.upsertJournalist({
       ...profile,
       id: createStableEntityId("media-journalist", profile.name),
