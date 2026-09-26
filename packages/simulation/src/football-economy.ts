@@ -20,7 +20,8 @@ import {
 } from "@nepal-football-sim/database";
 import { calculateMediaRightsOffer, offerMediaRights } from "./media-rights.js";
 import { postClubTransaction } from "./club-economy.js";
-import { createInternationalCompetitionEdition, advanceInternationalCompetition, type InternationalCompetitionKey } from "./international-football.js";
+import { createInternationalCompetitionEdition, advanceInternationalCompetition } from "./international-football.js";
+import { isHostableCompetitionKey, type InternationalCompetitionKey } from "./international-competition-config.js";
 import { EventRepository } from "@nepal-football-sim/database";
 
 const clamp = (value: number, min = 0, max = 100): number => Math.max(min, Math.min(max, value));
@@ -110,21 +111,9 @@ export const resolveHostingBid = (
   return resolved;
 };
 
-const supportedHostedKeys: ReadonlySet<string> = new Set([
-  "SAFF",
-  "SAFF_WOMEN",
-  "SAFF_U23",
-  "SAFF_U20",
-  "SAFF_U17",
-  "ASIAN_CUP_QUALIFICATION",
-  "AFC_WOMENS_ASIAN_CUP_QUALIFICATION",
-  "AFC_WORLD_CUP_QUALIFICATION",
-  "ASIAN_CUP",
-]);
-
 const hostingCompetitionKey = (eventName: string): InternationalCompetitionKey | undefined => {
   const key = eventName.trim().toUpperCase().replaceAll(" ", "_");
-  return supportedHostedKeys.has(key) ? (key as InternationalCompetitionKey) : undefined;
+  return isHostableCompetitionKey(key) ? (key as InternationalCompetitionKey) : undefined;
 };
 
 export const scheduleHostedCompetition = (

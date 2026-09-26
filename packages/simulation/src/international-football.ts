@@ -43,6 +43,13 @@ import { SeededRandom } from "./rng.js";
 import { findHomeFootballContext, homeFootballContext, homeCountryId, homeCurrency, homeFederation, homeNationalTeams, seasonEndInYear } from "./home-context.js";
 import { countryPack } from "./country-pack.js";
 import { ensureEngineCountry, findEngineCountry } from "./country-identity.js";
+import {
+  INTERNATIONAL_COMPETITION_CONFIGS,
+  internationalCompetitionConfig,
+  scheduledCompetitions,
+  type InternationalCompetitionConfig,
+  type InternationalCompetitionKey,
+} from "./international-competition-config.js";
 
 const simulationStatus = "SIMULATION_ONLY" as const;
 const factualIdentityStatus = "VERIFIED" as const;
@@ -59,38 +66,12 @@ type RegistryTeam = {
   populationTalentBase: number;
 };
 
-export type InternationalCompetitionKey =
-  | "SAFF"
-  | "ASIAN_CUP_QUALIFICATION"
-  | "ASIAN_CUP"
-  | "AFC_WORLD_CUP_QUALIFICATION"
-  | "WORLD_CUP"
-  | "SAFF_WOMEN"
-  | "AFC_WOMENS_ASIAN_CUP_QUALIFICATION"
-  | "SAFF_U23"
-  | "SAFF_U20"
-  | "SAFF_U17";
-
-const teamTypeForCompetitionKey = (key: InternationalCompetitionKey): NationalTeamType => {
-  if (key === "SAFF_WOMEN" || key === "AFC_WOMENS_ASIAN_CUP_QUALIFICATION") {
-    return "SENIOR_WOMEN";
-  }
-  if (key === "SAFF_U23") return "U23";
-  if (key === "SAFF_U20") return "U20";
-  if (key === "SAFF_U17") return "U17";
-  return "SENIOR_MEN";
-};
-
 /** The national-team categories the international engine can schedule and simulate. The data model accepts others; they are left out of the simulation. */
 export const SIMULATED_NATIONAL_TEAM_TYPES: readonly NationalTeamType[] = ["SENIOR_MEN", "SENIOR_WOMEN", "U23", "U20", "U17"];
 
 export const isSimulatedNationalTeamType = (teamType: NationalTeamType): boolean => SIMULATED_NATIONAL_TEAM_TYPES.includes(teamType);
 
 const simulatedHomeNationalTeams = (db: GameDatabase) => homeNationalTeams(db).filter((definition) => isSimulatedNationalTeamType(definition.teamType));
-
-const isRegionalCompetition = (key: InternationalCompetitionKey): boolean =>
-  key === "SAFF" || key.startsWith("SAFF_");
-
 
 export type FastExternalMatchResult = {
   homeGoals: number;
@@ -518,7 +499,8 @@ export const createInternationalCompetitionEdition = (
   initializeInternationalFootballForSave({ db, worldDate: input.startDate, seed: input.seed });
   const repo = new InternationalFootballRepository(db);
   const competition = competitionByKey(repo, input.competitionKey);
-  const endDate = addDays(input.startDate, isRegionalCompetition(input.competitionKey) ? 18 : 90);
+  const config = internationalCompetitionConfig(input.competitionKey);
+  const endDate = addDays(input.startDate, config.durationDays);
   const edition: InternationalCompetitionEdition = {
     id: createStableEntityId("international-edition", `${competition.id}:${input.cycle}`),
     competitionId: competition.id,
@@ -527,16 +509,16 @@ export const createInternationalCompetitionEdition = (
     startDate: input.startDate,
     endDate,
     status: "PLANNED",
-    hostCountryIds: hostCountries(db, input.competitionKey),
+    hostCountryIds: hostCountries(db, config),
     qualificationLinks: [],
     ruleProvenanceStatus: simulationStatus,
     ruleNotes:
       "Simplified edition-specific simulation rule set. Future researched formats can replace this data without code changes.",
   };
   repo.upsertEdition(edition);
-  const stages = stageRules(edition, input.competitionKey);
+  const stages = stageRules(edition, config);
   stages.forEach((stage) => repo.upsertStage(stage));
-  seedParticipants(db, edition, input.competitionKey);
+  seedParticipants(db, edition, config);
   return edition;
 };
 
@@ -1051,71 +1033,9 @@ export const processInternationalForSeasonPeriod = (
 ): void => {
   const endYear = Number(input.seasonEndDate.slice(0, 4));
   initializeInternationalFootballForSave({ db, worldDate: `${endYear}-01-01`, seed: input.seed });
-  const plans: Array<Parameters<typeof createInternationalCompetitionEdition>[1]> = [];
-  if (endYear % 2 === 0) {
-    plans.push({
-      competitionKey: "SAFF",
-      cycle: String(endYear),
-      startDate: `${endYear}-09-01`,
-      seed: input.seed,
-    });
-    plans.push({
-      competitionKey: "SAFF_WOMEN",
-      cycle: String(endYear),
-      startDate: `${endYear}-10-04`,
-      seed: input.seed,
-    });
-    plans.push({
-      competitionKey: "SAFF_U23",
-      cycle: String(endYear),
-      startDate: `${endYear}-07-07`,
-      seed: input.seed,
-    });
-  }
-  if (endYear % 2 === 1) {
-    plans.push({
-      competitionKey: "SAFF_U20",
-      cycle: String(endYear),
-      startDate: `${endYear}-07-07`,
-      seed: input.seed,
-    });
-    plans.push({
-      competitionKey: "SAFF_U17",
-      cycle: String(endYear),
-      startDate: `${endYear}-10-04`,
-      seed: input.seed,
-    });
-  }
-  if (endYear % 4 === 3) {
-    plans.push({
-      competitionKey: "ASIAN_CUP_QUALIFICATION",
-      cycle: String(endYear + 1),
-      startDate: `${endYear}-03-20`,
-      seed: input.seed,
-    });
-    plans.push({
-      competitionKey: "AFC_WOMENS_ASIAN_CUP_QUALIFICATION",
-      cycle: String(endYear + 1),
-      startDate: `${endYear}-05-20`,
-      seed: input.seed,
-    });
-  }
-  if (endYear % 4 === 0) {
-    plans.push({
-      competitionKey: "ASIAN_CUP",
-      cycle: String(endYear),
-      startDate: `${endYear}-06-10`,
-      seed: input.seed,
-    });
-  }
-  if (endYear % 4 === 1) {
-    plans.push({
-      competitionKey: "AFC_WORLD_CUP_QUALIFICATION",
-      cycle: String(endYear + 1),
-      startDate: `${endYear}-10-08`,
-      seed: input.seed,
-    });
-  }
+  const plans = scheduledCompetitions(endYear)
+    .filter(({ config }) => competitionAppliesToHome(db, config))
+    .map(({ config, cycle, startDate }) => ({ competitionKey: config.key, cycle, startDate, seed: input.seed }));
   for (const plan of plans) {
     const edition = createInternationalCompetitionEdition(db, plan);
     ensureNepalDutyForEdition(db, edition, `${input.seed}:squad:${edition.id}`);
@@ -1237,89 +1157,41 @@ export const runInternationalDiagnostic = (input: {
 };
 
 const seedCompetitionShells = (repo: InternationalFootballRepository): void => {
-  const rows: InternationalCompetition[] = [
-    {
-      id: createStableEntityId("international-competition", "SAFF"),
-      name: "SAFF Championship",
-      competitionType: "REGIONAL_CHAMPIONSHIP",
-      confederation: "AFC",
-      region: "SAFF",
-      cadenceYears: 2,
-      provenanceStatus: factualIdentityStatus,
-    },
-    {
-      id: createStableEntityId("international-competition", "ASIAN_CUP_QUALIFICATION"),
-      name: "AFC Asian Cup Qualification",
-      competitionType: "QUALIFIER",
-      confederation: "AFC",
-      region: "GLOBAL",
-      cadenceYears: 4,
-      provenanceStatus: simulationStatus,
-    },
-    {
-      id: createStableEntityId("international-competition", "ASIAN_CUP"),
-      name: "AFC Asian Cup",
-      competitionType: "CONTINENTAL_CHAMPIONSHIP",
-      confederation: "AFC",
-      region: "GLOBAL",
-      cadenceYears: 4,
-      provenanceStatus: factualIdentityStatus,
-    },
-    {
-      id: createStableEntityId("international-competition", "AFC_WORLD_CUP_QUALIFICATION"),
-      name: "AFC World Cup Qualification",
-      competitionType: "WORLD_QUALIFIER",
-      confederation: "AFC",
-      region: "GLOBAL",
-      cadenceYears: 4,
-      provenanceStatus: simulationStatus,
-    },
-    {
-      id: createStableEntityId("international-competition", "WORLD_CUP"),
-      name: "World Championship",
-      competitionType: "WORLD_CHAMPIONSHIP",
-      region: "GLOBAL",
-      cadenceYears: 4,
-      provenanceStatus: simulationStatus,
-    },
-    {
-      id: createStableEntityId("international-competition", "SAFF_WOMEN"),
-      name: "SAFF Women's Championship",
-      competitionType: "REGIONAL_CHAMPIONSHIP",
-      confederation: "AFC",
-      region: "SAFF",
-      cadenceYears: 2,
-      provenanceStatus: simulationStatus,
-    },
-    {
-      id: createStableEntityId("international-competition", "AFC_WOMENS_ASIAN_CUP_QUALIFICATION"),
-      name: "AFC Women's Asian Cup Qualification",
-      competitionType: "QUALIFIER",
-      confederation: "AFC",
-      region: "GLOBAL",
-      cadenceYears: 4,
-      provenanceStatus: simulationStatus,
-    },
-    ...(["U23", "U20", "U17"] as const).map((ageGroup) => ({
-      id: createStableEntityId("international-competition", `SAFF_${ageGroup}`),
-      name: `SAFF ${ageGroup} Championship`,
-      competitionType: "REGIONAL_CHAMPIONSHIP" as const,
-      confederation: "AFC" as const,
-      region: "SAFF" as const,
-      cadenceYears: 2,
-      provenanceStatus: simulationStatus,
-    })),
-  ];
-  rows.forEach((competition) => repo.upsertCompetition(competition));
+  for (const config of INTERNATIONAL_COMPETITION_CONFIGS) {
+    repo.upsertCompetition({
+      id: createStableEntityId("international-competition", config.key),
+      name: config.name,
+      competitionType: config.competitionType,
+      ...(config.confederation ? { confederation: config.confederation } : {}),
+      region: config.region,
+      cadenceYears: config.cadenceYears,
+      provenanceStatus: config.provenanceStatus === "VERIFIED" ? factualIdentityStatus : simulationStatus,
+    });
+  }
+};
+
+/**
+ * Whether the home country enters a competition: its national team of the competition's type is
+ * one the structure has and the simulation plays, and the home country's own international
+ * profile is in the competition's scope. Nothing here looks at a country's name.
+ */
+export const competitionAppliesToHome = (db: GameDatabase, config: InternationalCompetitionConfig): boolean => {
+  if (!simulatedHomeNationalTeams(db).some((definition) => definition.teamType === config.teamType)) return false;
+  if (config.entry === "WORLD") return true;
+  const profile = new InternationalFootballRepository(db)
+    .teamProfiles()
+    .find((item) => item.countryId === homeCountryId(db) && item.teamType === config.teamType);
+  if (!profile) return false;
+  return config.entry === "REGION" ? profile.region === config.region : profile.confederation === config.confederation;
 };
 
 const stageRules = (
   edition: InternationalCompetitionEdition,
-  key: InternationalCompetitionKey,
+  config: InternationalCompetitionConfig,
 ): InternationalCompetitionStage[] => {
-  const groupCount = isRegionalCompetition(key) ? 2 : key === "ASIAN_CUP" ? 4 : 3;
+  const groupCount = config.groupCount;
   const groupSize = 4;
-  const teamsToAdvance = isRegionalCompetition(key) ? 2 : key.includes("QUALIFICATION") ? 1 : 2;
+  const teamsToAdvance = config.teamsToAdvance;
   const tiebreakers: InternationalTiebreaker[] = [
     "POINTS",
     "GOAL_DIFFERENCE",
@@ -1345,7 +1217,7 @@ const stageRules = (
       stageOrder: 1,
       formatType: "GROUP_STAGE",
       groupCount,
-      legs: key.includes("QUALIFICATION") ? 2 : 1,
+      legs: config.groupLegs,
       teamsToAdvance,
       allowExtraTime: false,
       allowPenalties: false,
@@ -1354,7 +1226,7 @@ const stageRules = (
     {
       id: createStableEntityId("international-stage", `${edition.id}:knockout`),
       ...base,
-      name: isRegionalCompetition(key) ? "Semi-Final and Final" : "Knockout Stage",
+      name: config.knockoutName,
       stageOrder: 2,
       formatType: "SINGLE_ELIMINATION",
       groupCount: 1,
@@ -1370,21 +1242,21 @@ const stageRules = (
 const seedParticipants = (
   db: GameDatabase,
   edition: InternationalCompetitionEdition,
-  key: InternationalCompetitionKey,
+  config: InternationalCompetitionConfig,
 ): void => {
   const repo = new InternationalFootballRepository(db);
-  const teamType = teamTypeForCompetitionKey(key);
+  const teamType = config.teamType;
   const federation = homeFederation(db);
   const profiles = repo
     .teamProfiles()
     .filter((profile) => {
       if (profile.teamType !== teamType) return false;
-      if (isRegionalCompetition(key)) return profile.region === "SAFF";
-      if (key === "WORLD_CUP") return profile.confederation !== undefined;
-      return profile.confederation === "AFC";
+      if (config.entry === "REGION") return profile.region === config.region;
+      if (config.entry === "WORLD") return profile.confederation !== undefined;
+      return profile.confederation === config.confederation;
     })
     .sort((a, b) => b.simulationReputation - a.simulationReputation);
-  const limit = isRegionalCompetition(key) ? 7 : key === "ASIAN_CUP" ? 16 : key === "WORLD_CUP" ? 16 : 12;
+  const limit = config.participantLimit;
   const selected = profiles
     .filter((profile) => profile.nationalTeamId === undefined || nationalTeamParticipationAllowed(db, federation.id))
     .slice(0, limit);
@@ -2095,29 +1967,22 @@ const competitionByKey = (
  * country hosts the regional championships; the host of a continental or world edition is looked
  * up by ISO code and left out if the save has no such country (a host must exist to be referenced).
  */
-const hostCountries = (db: GameDatabase, key: InternationalCompetitionKey): EntityId[] => {
-  const byIso = (isoCode: string): EntityId[] => {
-    const id = findEngineCountry(db, isoCode);
-    return id ? [id] : [];
-  };
-  if (isRegionalCompetition(key)) {
+const hostCountries = (db: GameDatabase, config: InternationalCompetitionConfig): EntityId[] => {
+  if (config.host.kind === "NONE") return [];
+  if (config.host.kind === "HOME_COUNTRY") {
     const home = homeCountryId(db);
     return home ? [home] : [];
   }
-  if (key === "ASIAN_CUP") return byIso("QA");
-  if (key === "WORLD_CUP") return byIso("US");
-  return [];
+  const id = findEngineCountry(db, config.host.isoAlpha2);
+  return id ? [id] : [];
 };
 
 const importanceForEdition = (
   edition: InternationalCompetitionEdition,
-): InternationalMatchImportance => {
-  if (edition.name.includes("World")) return "WORLD";
-  if (edition.name.includes("Qualification")) return "QUALIFIER";
-  if (edition.name.includes("Asian Cup")) return "CONTINENTAL";
-  if (edition.name.includes("SAFF")) return "REGIONAL";
-  return "FRIENDLY";
-};
+): InternationalMatchImportance =>
+  INTERNATIONAL_COMPETITION_CONFIGS.find(
+    (config) => createStableEntityId("international-competition", config.key) === edition.competitionId,
+  )?.importance ?? "FRIENDLY";
 
 const goalsFromExpectation = (expected: number, rng: SeededRandom): number => {
   let goals = 0;

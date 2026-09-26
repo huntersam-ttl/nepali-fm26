@@ -83,6 +83,7 @@ export * from "./clubmart.js";
 export * from "./club-finance-markets.js";
 export * from "./ai-club-strategy.js";
 export * from "./international-football.js";
+export * from "./international-competition-config.js";
 export * from "./manager-career.js";
 export * from "./manager-career-world.js";
 export * from "./manager-interviews.js";
