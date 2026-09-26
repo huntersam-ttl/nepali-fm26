@@ -75,6 +75,10 @@ export type CountryEconomicProfile = {
   playerMarketValueScale?: number;
   /** Newly generated player wages and wage-demand values. */
   playerWageScale?: number;
+  /** Newly generated federation cash, budgets, programmes and match operations. */
+  federationBudgetScale?: number;
+  /** Newly generated federation capital projects and their operating costs. */
+  federationProjectCostScale?: number;
 };
 
 export type CountryPack = {

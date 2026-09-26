@@ -61,7 +61,13 @@ import { SeededRandom } from "./rng.js";
 import { buildEntityReference } from "./entity-reference.js";
 import { countryPack } from "./country-pack.js";
 import { nationalTeamOutcomes } from "./national-team-workspace.js";
-import { homeCurrency, homeFederation, homeFootballContext, seasonEndDate } from "./home-context.js";
+import {
+  homeCurrency,
+  homeEconomicProfile,
+  homeFederation,
+  homeFootballContext,
+  seasonEndDate,
+} from "./home-context.js";
 import { ensureNationalTeamRows } from "./national-team-identity.js";
 import { recordFederationDevelopmentSnapshot } from "./federation-scorecard.js";
 
@@ -125,7 +131,10 @@ export const initializeFederationGovernanceForSave = (input: {
     if (!repo.profile(federation.id)) {
       const profile = generatedFederationProfile(federation, input.worldDate, input.seed);
       repo.upsertProfile(profile);
-      const cash = Math.round(12500000 + seeded(input.seed, federation.id).next() * 5500000);
+      const cash = Math.round(
+        (12500000 + seeded(input.seed, federation.id).next() * 5500000) *
+          federationBudgetScale(input.db),
+      );
       repo.upsertFinancialAccount({
         federationId: federation.id,
         currency: homeCurrency(input.db),
@@ -406,7 +415,7 @@ export const createFederationProject = (
   },
 ): FederationProject => {
   const rng = seeded(input.seed, `${input.federationId}:${input.projectType}:${input.date}`);
-  const capitalCost = projectCost(input.projectType, rng);
+  const capitalCost = Math.round(projectCost(input.projectType, rng) * federationProjectCostScale(db));
   const fundingJson = input.funding ?? { federationCash: 0.7, restrictedGrant: 0.3 };
   const fundingTotal = Object.values(fundingJson).reduce((total, value) => total + Math.max(0, value), 0);
   const ownership = input.ownership ?? (input.projectType === "REGIONAL_CENTRE" ? "SHARED" : "FEDERATION");
@@ -841,8 +850,8 @@ export const scheduleFriendly = (
     fixtureDate: input.date,
     fixtureType: "FRIENDLY",
     status: participationAllowed ? "SCHEDULED" : "CANCELLED",
-    estimatedCost: Math.round(850000 + rng.next() * 350000),
-    estimatedRevenue: Math.round(550000 + rng.next() * 500000),
+    estimatedCost: Math.round((850000 + rng.next() * 350000) * federationBudgetScale(db)),
+    estimatedRevenue: Math.round((550000 + rng.next() * 500000) * federationBudgetScale(db)),
     currency: homeCurrency(db),
     provenanceStatus: simulationStatus,
   };
@@ -967,7 +976,8 @@ export const runCoachEducationProgramme = (
         ? 65000
         : input.licenceLevel === "AFC B"
           ? 42000
-          : 26000);
+        : 26000) *
+    federationBudgetScale(db);
   const programme: CoachEducationProgramme = {
     id: createStableEntityId(
       "coach-education-programme",
@@ -1010,7 +1020,7 @@ export const runRefereeProgramme = (
 ): RefereeDevelopmentProgramme => {
   const rng = seeded(input.seed, `${input.federationId}:referee:${input.startDate}`);
   const capacity = input.capacity ?? 24;
-  const cost = capacity * 22000;
+  const cost = Math.round(capacity * 22000 * federationBudgetScale(db));
   const programme: RefereeDevelopmentProgramme = {
     id: createStableEntityId(
       "referee-development-programme",
@@ -1070,7 +1080,7 @@ const runFederationRefereeDevelopment = (
   if (participants.length === 0) return;
 
   const account = governance.financialAccount(federation.id);
-  const cost = participants.length * 22000;
+  const cost = Math.round(participants.length * 22000 * federationBudgetScale(db));
   if (!account || account.cashBalance - cost < reserveFloor(account)) return;
 
   const programme = runRefereeProgramme(db, {
@@ -1202,7 +1212,7 @@ export const processFederationMonth = (
         federationId: federation.id,
         date: input.date,
         source: "FIFA_GRANT",
-        amount: 1150000,
+        amount: Math.round(1150000 * federationBudgetScale(db)),
         restrictionTag: "development",
       });
     }
@@ -1211,7 +1221,7 @@ export const processFederationMonth = (
         federationId: federation.id,
         date: input.date,
         source: "AFC_GRANT",
-        amount: 850000,
+        amount: Math.round(850000 * federationBudgetScale(db)),
         restrictionTag: "technical",
       });
     }
@@ -1529,7 +1539,9 @@ const generatedFederationProfile = (
 const ensureFederationBudgets = (db: GameDatabase, federationId: EntityId, date: string): void => {
   const repo = new FederationGovernanceRepository(db);
   const account = repo.financialAccount(federationId);
-  const base = Math.max(5000000, account?.cashBalance ?? 12000000);
+  const base = account
+    ? Math.max(5000000, account.cashBalance)
+    : 12000000 * federationBudgetScale(db);
   const existing = new Set(
     repo
       .budgets(federationId)
@@ -2011,7 +2023,7 @@ const runFederationAiMonth = (
     distributeEligibleClubGrants(db, {
       federationId,
       date,
-      amount: 250000,
+      amount: Math.round(250000 * federationBudgetScale(db)),
       grantType: "CLUB_DEVELOPMENT_GRANT",
     });
   }
@@ -2559,6 +2571,12 @@ const adjustReputationAfterResult = (
     lastUpdatedAt: date,
   });
 };
+
+const federationBudgetScale = (db: GameDatabase): number =>
+  homeEconomicProfile(db).federationBudgetScale ?? 1;
+
+const federationProjectCostScale = (db: GameDatabase): number =>
+  homeEconomicProfile(db).federationProjectCostScale ?? 1;
 
 const projectCost = (type: FederationProjectType, rng: SeededRandom): number => {
   const base =
