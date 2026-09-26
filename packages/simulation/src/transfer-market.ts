@@ -44,7 +44,7 @@ import {
   recordTransferEconomy,
 } from "./club-economy.js";
 import { applySupporterTransferOutcome } from "./supporter-culture.js";
-import { homeCurrency, homeIsoCodes, isHomeIso } from "./home-context.js";
+import { homeCurrency, homeEconomicProfile, homeIsoCodes, isHomeIso } from "./home-context.js";
 import {
   applyPlayerLifestyleEvent,
   applyPlayerRelationshipEvent,
@@ -153,7 +153,7 @@ export const initializeTransferMarketForSave = (input: {
     const employment = employmentProfile(club);
     market.upsertClubEmploymentProfile(employment);
     market.upsertClubFinancialProfile({
-      ...financialProfile(club, input.seed, playerCounts.get(club.id) ?? 0, homeCurrency(input.db)),
+      ...financialProfile(input.db, club, input.seed, playerCounts.get(club.id) ?? 0, homeCurrency(input.db)),
       currentWageSpend: 0,
     });
   }
@@ -277,7 +277,7 @@ export const simulateTransferWindow = (input: {
     .filter((club) => (squadSizes.get(club.id) ?? 0) >= 11)
     .sort(
       (a, b) =>
-        Number(isNepalClub(input.db, b.id)) - Number(isNepalClub(input.db, a.id)) ||
+        Number(isHomeClub(input.db, b.id)) - Number(isHomeClub(input.db, a.id)) ||
         a.name.localeCompare(b.name),
     );
   for (const contract of market
@@ -832,6 +832,10 @@ export const calculateTransferValuation = (
       Math.max(0, potentialAbility - currentAbility) * 36000 +
       reputation * 18000,
   );
+  const marketValueScale =
+    sellerId && isHomeClub(db, sellerId)
+      ? (homeEconomicProfile(db).playerMarketValueScale ?? 1)
+      : 1;
   const contractExpiryLeverage = contractExpiryFactor(months);
   const agePotentialUncertainty =
     (player?.age ?? 24) <= 23 && potentialAbility > currentAbility + 1.5
@@ -854,6 +858,7 @@ export const calculateTransferValuation = (
   const reluctance = status?.status === "NOT_FOR_SALE" ? 1.14 : 1;
   const internalMid = Math.round(
     base *
+      marketValueScale *
       contractExpiryLeverage *
       agePotentialUncertainty *
       sportingLevel *
@@ -1591,6 +1596,7 @@ const defaultPersonalTerms = (
     current?.salary ?? 0,
     Math.round(
       ((player?.currentAbility ?? 7) * 18000 + (agent?.feeExpectation ?? 8) * 2500) *
+        playerWageScaleForClub(db, offer.buyingClubId) *
         (agent ? 1.04 + agent.negotiationSkill / 220 + agent.aggressiveness / 260 : 0.94) *
         lifestyleSalaryFactor *
         (1 + rng.next() * 0.12),
@@ -1911,6 +1917,7 @@ export const negotiatePlayerContract = (
     currentSalaryFloor,
     Math.round(
       ((player?.currentAbility ?? 7) * 18000 + (agent?.feeExpectation ?? 8) * 2500) *
+        playerWageScaleForClub(db, offer.buyingClubId) *
         representationMultiplier *
         (1 + rng.next() * 0.12),
     ),
@@ -2112,7 +2119,7 @@ const emitTransferPublicEvent = (
   const clubs = [input.clubId, input.relatedClubId].filter((clubId): clubId is EntityId =>
     Boolean(clubId),
   );
-  if (!clubs.some((clubId) => isNepalClub(db, clubId))) return;
+  if (!clubs.some((clubId) => isHomeClub(db, clubId))) return;
   const id = createStableEntityId("history", `TRANSFER_PUBLIC:${input.sourceId}`);
   if (!db.prepare("SELECT 1 FROM historical_events WHERE id=?").get(id)) {
     new EventRepository(db).insertHistoricalEvent({
@@ -2755,7 +2762,9 @@ export const assessFreeAgentSigning = (
         ["SUBMITTED", "NEGOTIATING", "ACCEPTED", "PLAYER_ACCEPTED"].includes(offer.status),
     ).length;
   const wageDemand = Math.round(
-    (28000 + player.currentAbility * 14500 + player.reputation * 4200) * (1 + competition * 0.08),
+    (28000 + player.currentAbility * 14500 + player.reputation * 4200) *
+      playerWageScaleForClub(db, clubId) *
+      (1 + competition * 0.08),
   );
   return {
     eligible: !recentSigning,
@@ -2794,7 +2803,7 @@ export const signFreeAgent = (
     offer,
     worldDate,
     seed,
-    isNepalClub(db, clubId)
+    isHomeClub(db, clubId)
       ? {
           preferredCountries: [...homeIsoCodes(db)],
           prefersOverseas: false,
@@ -3286,7 +3295,7 @@ const findFreeAgentForNeed = (
       (player) => need.positionGroup === "DEPTH" || player.positionGroup === need.positionGroup,
     )
     .sort((a, b) => {
-      const foreignPreference = isNepalClub(db, clubId)
+      const foreignPreference = isHomeClub(db, clubId)
         ? Number(isForeignBased(db, b.currentClubId)) - Number(isForeignBased(db, a.currentClubId))
         : 0;
       return (
@@ -3297,7 +3306,7 @@ const findFreeAgentForNeed = (
     })[0];
 };
 
-const isNepalClub = (db: GameDatabase, clubId: EntityId): boolean =>
+const isHomeClub = (db: GameDatabase, clubId: EntityId): boolean =>
   Boolean(
     db
       .prepare(
@@ -3305,6 +3314,9 @@ const isNepalClub = (db: GameDatabase, clubId: EntityId): boolean =>
       )
       .get(clubId),
   );
+
+const playerWageScaleForClub = (db: GameDatabase, clubId: EntityId): number =>
+  isHomeClub(db, clubId) ? (homeEconomicProfile(db).playerWageScale ?? 1) : 1;
 
 export const findLoanCandidateForClub = (
   db: GameDatabase,
@@ -3488,9 +3500,10 @@ const startingContract = (
       ? addDays(worldDate, 20 + Math.floor(rng.next() * 70))
       : addMonths(worldDate, months);
   const salary = Math.round(
-    (isNepalClub(db, club.id)
+    (isHomeClub(db, club.id)
       ? 12000 + player.currentAbility * 2800 + player.reputation * 1200
       : 28000 + player.currentAbility * 14500 + player.reputation * 4200) *
+      playerWageScaleForClub(db, club.id) *
       clubSalaryMultiplier(club),
   );
   return {
@@ -3520,6 +3533,7 @@ const startingContract = (
 };
 
 const financialProfile = (
+  db: GameDatabase,
   club: MarketClub,
   seed: string,
   playerCount: number,
@@ -3527,6 +3541,7 @@ const financialProfile = (
 ): ClubFinancialProfile => {
   const rng = new SeededRandom(`${seed}:finance:${club.id}`);
   const multiplier = clubSalaryMultiplier(club);
+  const economicProfile = isHomeClub(db, club.id) ? homeEconomicProfile(db) : undefined;
   const contextOnly =
     club.canonicalExternalId?.startsWith("CLB-") ||
     club.canonicalExternalId?.startsWith("SIM-FOREIGN-");
@@ -3534,13 +3549,15 @@ const financialProfile = (
     id: createStableEntityId("club-financial-profile", club.id),
     clubId: club.id,
     wageBudget: Math.round(
-      (contextOnly ? 7200000 : 3600000) * multiplier +
+      (contextOnly ? 7200000 : 3600000) * multiplier * (economicProfile?.wageScale ?? 1) +
         rng.next() * (contextOnly ? 1800000 : 900000),
     ),
     transferBudget: Math.round(
-      (contextOnly ? 3600000 : 900000) * multiplier + rng.next() * (contextOnly ? 1400000 : 500000),
+      (contextOnly ? 3600000 : 900000) * multiplier * (economicProfile?.transferScale ?? 1) +
+        rng.next() * (contextOnly ? 1400000 : 500000),
     ),
-    currentWageSpend: playerCount * Math.round(55000 * multiplier),
+    currentWageSpend:
+      playerCount * Math.round(55000 * multiplier * (economicProfile?.playerWageScale ?? 1)),
     financialHealth: multiplier > 1.25 ? "GOOD" : multiplier > 0.9 ? "STABLE" : "POOR",
     currency,
     status: "SIMULATION_ONLY",

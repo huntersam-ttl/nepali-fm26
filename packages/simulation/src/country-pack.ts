@@ -71,6 +71,10 @@ export type CountryEconomicProfile = {
   transferScale: number;
   consumerPriceScale: number;
   infrastructureScale: number;
+  /** Newly generated player-market nominal values. */
+  playerMarketValueScale?: number;
+  /** Newly generated player wages and wage-demand values. */
+  playerWageScale?: number;
 };
 
 export type CountryPack = {
