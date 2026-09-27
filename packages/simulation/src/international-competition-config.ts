@@ -135,18 +135,48 @@ const qualifier = (
   schedule,
 });
 
-const evenYears = (startMonthDay: string): CompetitionSchedule => ({ everyYears: 2, remainder: 0, startMonthDay, cycleOffsetYears: 0 });
-const oddYears = (startMonthDay: string): CompetitionSchedule => ({ everyYears: 2, remainder: 1, startMonthDay, cycleOffsetYears: 0 });
+const evenYears = (startMonthDay: string): CompetitionSchedule => ({
+  everyYears: 2,
+  remainder: 0,
+  startMonthDay,
+  cycleOffsetYears: 0,
+});
+const oddYears = (startMonthDay: string): CompetitionSchedule => ({
+  everyYears: 2,
+  remainder: 1,
+  startMonthDay,
+  cycleOffsetYears: 0,
+});
 
 /** The built-in calendar, in the order editions are created within a season. */
 export const INTERNATIONAL_COMPETITION_CONFIGS: readonly InternationalCompetitionConfig[] = [
   regional("SAFF", "SAFF Championship", "SENIOR_MEN", "VERIFIED", evenYears("09-01")),
-  regional("SAFF_WOMEN", "SAFF Women's Championship", "SENIOR_WOMEN", "SIMULATION_ONLY", evenYears("10-04")),
+  regional(
+    "SAFF_WOMEN",
+    "SAFF Women's Championship",
+    "SENIOR_WOMEN",
+    "SIMULATION_ONLY",
+    evenYears("10-04"),
+  ),
   regional("SAFF_U23", "SAFF U23 Championship", "U23", "SIMULATION_ONLY", evenYears("07-07")),
   regional("SAFF_U20", "SAFF U20 Championship", "U20", "SIMULATION_ONLY", oddYears("07-07")),
   regional("SAFF_U17", "SAFF U17 Championship", "U17", "SIMULATION_ONLY", oddYears("10-04")),
-  qualifier("ASIAN_CUP_QUALIFICATION", "AFC Asian Cup Qualification", "QUALIFIER", "SENIOR_MEN", "QUALIFIER", { everyYears: 4, remainder: 3, startMonthDay: "03-20", cycleOffsetYears: 1 }),
-  qualifier("AFC_WOMENS_ASIAN_CUP_QUALIFICATION", "AFC Women's Asian Cup Qualification", "QUALIFIER", "SENIOR_WOMEN", "QUALIFIER", { everyYears: 4, remainder: 3, startMonthDay: "05-20", cycleOffsetYears: 1 }),
+  qualifier(
+    "ASIAN_CUP_QUALIFICATION",
+    "AFC Asian Cup Qualification",
+    "QUALIFIER",
+    "SENIOR_MEN",
+    "QUALIFIER",
+    { everyYears: 4, remainder: 3, startMonthDay: "03-20", cycleOffsetYears: 1 },
+  ),
+  qualifier(
+    "AFC_WOMENS_ASIAN_CUP_QUALIFICATION",
+    "AFC Women's Asian Cup Qualification",
+    "QUALIFIER",
+    "SENIOR_WOMEN",
+    "QUALIFIER",
+    { everyYears: 4, remainder: 3, startMonthDay: "05-20", cycleOffsetYears: 1 },
+  ),
   {
     key: "ASIAN_CUP",
     name: "AFC Asian Cup",
@@ -169,7 +199,14 @@ export const INTERNATIONAL_COMPETITION_CONFIGS: readonly InternationalCompetitio
     schedule: { everyYears: 4, remainder: 0, startMonthDay: "06-10", cycleOffsetYears: 0 },
   },
   // The stored name contains "World", which the match-importance rules have always read as a world event.
-  qualifier("AFC_WORLD_CUP_QUALIFICATION", "AFC World Cup Qualification", "WORLD_QUALIFIER", "SENIOR_MEN", "WORLD", { everyYears: 4, remainder: 1, startMonthDay: "10-08", cycleOffsetYears: 1 }),
+  qualifier(
+    "AFC_WORLD_CUP_QUALIFICATION",
+    "AFC World Cup Qualification",
+    "WORLD_QUALIFIER",
+    "SENIOR_MEN",
+    "WORLD",
+    { everyYears: 4, remainder: 1, startMonthDay: "10-08", cycleOffsetYears: 1 },
+  ),
   {
     key: "WORLD_CUP",
     name: "World Championship",
@@ -191,7 +228,9 @@ export const INTERNATIONAL_COMPETITION_CONFIGS: readonly InternationalCompetitio
   },
 ];
 
-export const internationalCompetitionConfig = (key: InternationalCompetitionKey): InternationalCompetitionConfig => {
+export const internationalCompetitionConfig = (
+  key: InternationalCompetitionKey,
+): InternationalCompetitionConfig => {
   const config = INTERNATIONAL_COMPETITION_CONFIGS.find((item) => item.key === key);
   if (!config) throw new Error(`No international competition is configured for "${key}".`);
   return config;
@@ -201,9 +240,17 @@ export const isHostableCompetitionKey = (key: string): boolean =>
   INTERNATIONAL_COMPETITION_CONFIGS.some((item) => item.key === key && item.hostable);
 
 /** The configured season-end years' editions: which competitions start in the season ending in `endYear`, in creation order. */
-export const scheduledCompetitions = (endYear: number): Array<{ config: InternationalCompetitionConfig; cycle: string; startDate: string }> =>
+export const scheduledCompetitions = (
+  endYear: number,
+): Array<{ config: InternationalCompetitionConfig; cycle: string; startDate: string }> =>
   INTERNATIONAL_COMPETITION_CONFIGS.flatMap((config) =>
     config.schedule && endYear % config.schedule.everyYears === config.schedule.remainder
-      ? [{ config, cycle: String(endYear + config.schedule.cycleOffsetYears), startDate: `${endYear}-${config.schedule.startMonthDay}` }]
+      ? [
+          {
+            config,
+            cycle: String(endYear + config.schedule.cycleOffsetYears),
+            startDate: `${endYear}-${config.schedule.startMonthDay}`,
+          },
+        ]
       : [],
   );

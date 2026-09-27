@@ -304,10 +304,11 @@ import {
   userMatchRequiresAction,
 } from "./manager-flow.js";
 import { founderLocationOptions } from "./administrative-geography.js";
+import { scaleWage } from "./economic-profile.js";
 import { ensureLowerLeaguePlayableWorld, reconcileWorkforceSupply } from "./workforce-supply.js";
 import { initializePeopleFoundation } from "./people-foundation.js";
 import { reconcilePlayablePlayerProfilesOnce } from "./player-profile-reconciliation.js";
-import { initializeTransferMarketForSave, rebalanceNewNepalSaveSquads } from "./transfer-market.js";
+import { initializeTransferMarketForSave, rebalanceNewSaveSquads } from "./transfer-market.js";
 import {
   BADGE_SHAPES,
   BADGE_SYMBOLS,
@@ -787,9 +788,10 @@ export class DesktopApplicationService {
         )
         .get(club.id) as { id?: EntityId; tier?: number | null } | undefined;
       if (!vacancy?.id) return [];
-      const division = vacancy.tier === 1 ? "A" : vacancy.tier === 2 ? "B" : "C";
-      const wageExpectation =
-        division === "A" ? 8_000_000 : division === "B" ? 5_000_000 : 2_500_000;
+      const wageExpectation = scaleWage(
+        db,
+        vacancy.tier === 1 ? 8_000_000 : vacancy.tier === 2 ? 5_000_000 : 2_500_000,
+      );
       return new ManagerRepository(db)
         .unemployedManagerProfiles()
         .slice(0, 8)
@@ -875,13 +877,18 @@ export class DesktopApplicationService {
           worldDate: `${dataset.meta.targetDatabaseDate}-01`,
           seed: `career:${command.saveName}:market`,
         });
-        rebalanceNewNepalSaveSquads(db, `${dataset.meta.targetDatabaseDate}-01`);
+        rebalanceNewSaveSquads(db, `${dataset.meta.targetDatabaseDate}-01`);
         const season = target
           ? seasonForTeam(db, target.teamId)
           : (() => {
               const row = db!
                 .prepare(
-                  `SELECT cs.* FROM competition_seasons cs JOIN competitions c ON c.id=cs.competition_id WHERE (SELECT tier FROM competition_tiers WHERE competition_id = c.id) = 3 ORDER BY cs.start_date LIMIT 1`,
+                  // The entry competition of a new club is the bottom tier of the home pyramid; a world with no
+                  // promotion/relegation data has one domestic league, which is the entry.
+                  `SELECT cs.* FROM competition_seasons cs JOIN competitions c ON c.id=cs.competition_id
+                   LEFT JOIN competition_tiers t ON t.competition_id = c.id
+                   WHERE t.tier IS NOT NULL OR c.category = 'PYRAMID_LEAGUE'
+                   ORDER BY (t.tier IS NULL), t.tier DESC, cs.start_date LIMIT 1`,
                 )
                 .get() as Record<string, string> | undefined;
               if (!row)
@@ -904,7 +911,7 @@ export class DesktopApplicationService {
         scheduleSeasonFixtures(db, season, ruleSet);
 
         const careerStartDate = command.character.careerStartDate ?? season.startDate;
-        const country = firstCountry(db);
+        const country = homeCountryRecord(db);
         const career = createCareerCharacter({
           ...command.character,
           footballBackground: command.character.footballBackground as never,
@@ -938,7 +945,7 @@ export class DesktopApplicationService {
           const founder = command.founder!;
           const location = db
             .prepare(
-              "SELECT id FROM locations WHERE country_id=(SELECT country_id FROM home_football_country LIMIT 1) AND kind='district' AND lower(name)=lower(?) LIMIT 1",
+              "SELECT id FROM locations WHERE country_id=(SELECT country_id FROM home_football_country LIMIT 1) AND kind IN ('district','municipality','city') AND lower(name)=lower(?) ORDER BY CASE kind WHEN 'district' THEN 0 ELSE 1 END, id LIMIT 1",
             )
             .get(founder.locationName ?? founder.clubName) as { id?: EntityId } | undefined;
           if (!location?.id)
@@ -975,7 +982,7 @@ export class DesktopApplicationService {
             worldDate: careerStartDate,
             seed: `career:${command.saveName}:founder-market`,
           });
-          rebalanceNewNepalSaveSquads(db, careerStartDate);
+          rebalanceNewSaveSquads(db, careerStartDate);
           db.prepare("DELETE FROM fixtures WHERE competition_season_id=?").run(season.id);
           scheduleSeasonFixtures(db, season, ruleSet);
           ensureOwnerPersonalFinancialProfile(db, career.person.id, founded.clubId, careerStartDate);
@@ -5998,6 +6005,28 @@ const estimatedClubLocality = (clubKey: string, hubs: readonly string[]): string
   return `${hubs[index]} (estimated)`;
 };
 
+/**
+ * The pyramid tier of each competition in a dataset (1 = top), from its relegation relationships:
+ * a competition nothing relegates into is tier 1, and each relegation step goes one tier down.
+ * Names are never read.
+ */
+const datasetCompetitionTiers = (dataset: CountryWorldDataset): Map<string, number> => {
+  const relegations = (dataset.competitionRelationships ?? []).filter((item) => item.movementType === "RELEGATION");
+  const below = new Set(relegations.map((item) => item.toCompetitionKey));
+  const tiers = new Map<string, number>();
+  const queue = relegations.filter((item) => !below.has(item.fromCompetitionKey)).map((item) => item.fromCompetitionKey);
+  for (const root of queue) tiers.set(root, 1);
+  for (let index = 0; index < queue.length; index += 1) {
+    const from = queue[index]!;
+    for (const step of relegations.filter((item) => item.fromCompetitionKey === from)) {
+      if (tiers.has(step.toCompetitionKey)) continue;
+      tiers.set(step.toCompetitionKey, tiers.get(from)! + 1);
+      queue.push(step.toCompetitionKey);
+    }
+  }
+  return tiers;
+};
+
 export const startingClubOptions = (dataset: CountryWorldDataset, pack: CountryPack): StartingClubOption[] => {
   // Places a club with no recorded location can plausibly be shown in: the pack's hubs, else the dataset's own districts or cities.
   const datasetPlaces = (kinds: string[]): string[] => dataset.locations.filter((place) => kinds.includes(place.kind)).map((place) => place.name).sort();
@@ -6011,6 +6040,7 @@ export const startingClubOptions = (dataset: CountryWorldDataset, pack: CountryP
     dataset.competitions.map((competition) => [competition.key, competition.name]),
   );
   const clubNames = new Map(dataset.clubs.map((club) => [club.key, club.name]));
+  const tiers = datasetCompetitionTiers(dataset);
   const membershipByTeam = new Map<string, { competitionKey: string; name: string }>();
   for (const membership of dataset.clubMemberships ?? []) {
     if (membership.status !== "ACTIVE" || !membership.teamKey?.value) continue;
@@ -6018,7 +6048,7 @@ export const startingClubOptions = (dataset: CountryWorldDataset, pack: CountryP
     const competition = dataset.competitions.find((item) => item.key === membership.competitionKey);
     if (!competition || competition.category !== "PYRAMID_LEAGUE") continue;
     const current = membershipByTeam.get(teamKey);
-    if (!current || /[ABC]-DIVISION/i.test(competition.name))
+    if (!current || tiers.has(competition.key))
       membershipByTeam.set(teamKey, {
         competitionKey: membership.competitionKey,
         name: competition.name,
@@ -6046,13 +6076,15 @@ export const startingClubOptions = (dataset: CountryWorldDataset, pack: CountryP
           membership.name ?? competitionNames.get(membership.competitionKey) ?? `${pack.countryName} football`,
         squadSize: squadSizes.get(team.key) ?? 0,
         division:
-          membership.name.match(/([ABC])-DIVISION/i)?.[1] ?? `Other playable ${pack.countryName} competition`,
+          tiers.has(membership.competitionKey)
+            ? String.fromCharCode(64 + tiers.get(membership.competitionKey)!)
+            : `Other playable ${pack.countryName} competition`,
         locationName,
         professionalStatus: club?.ownershipType.value === "DEPARTMENTAL" ? "Departmental" : "Club",
       };
     })
     .sort((a, b) => {
-      const rank = (division: string): number => ({ A: 0, B: 1, C: 2 })[division] ?? 3;
+      const rank = (division: string): number => (/^[A-Z]$/.test(division) ? division.charCodeAt(0) - 65 : 99);
       return rank(a.division) - rank(b.division) || a.clubName.localeCompare(b.clubName);
     });
 };
@@ -6087,7 +6119,7 @@ const seasonForTeam = (db: GameDatabase, teamId: EntityId): CompetitionSeason =>
       JOIN competitions c ON c.id = cs.competition_id
       WHERE cm.team_id = ? AND cm.status = 'ACTIVE'
         AND NOT EXISTS (SELECT 1 FROM competition_season_states s WHERE s.competition_season_id = cs.id AND s.status = 'ROLLED_OVER')
-      ORDER BY CASE WHEN (SELECT tier FROM competition_tiers WHERE competition_id = c.id) = 1 OR (SELECT tier FROM competition_tiers WHERE competition_id = c.id) = 2 OR (SELECT tier FROM competition_tiers WHERE competition_id = c.id) = 3 THEN 0 ELSE 1 END, cs.start_date LIMIT 1`,
+      ORDER BY CASE WHEN (SELECT tier FROM competition_tiers WHERE competition_id = c.id) IS NOT NULL THEN 0 ELSE 1 END, cs.start_date LIMIT 1`,
     )
     .get(teamId) as Record<string, string> | undefined;
   if (!row) {
@@ -6924,11 +6956,10 @@ const getPerson = (db: GameDatabase, id: EntityId): Person => {
   return person;
 };
 
-const firstCountry = (db: GameDatabase): { id: EntityId } => {
-  const row = db.prepare("SELECT id FROM countries ORDER BY name LIMIT 1").get() as
-    { id: EntityId } | undefined;
-  if (!row) throw appError("SAVE_CORRUPT", "The world has no country records.");
-  return row;
+const homeCountryRecord = (db: GameDatabase): { id: EntityId } => {
+  const id = homeCountryId(db);
+  if (!id) throw appError("SAVE_CORRUPT", "The world has no home country.");
+  return { id };
 };
 
 const matchForFixture = (db: GameDatabase, fixtureId: EntityId): SqlRow | undefined =>

@@ -123,7 +123,12 @@ export const createCountrySave = (input: CreateCountrySaveInput): NepalSaveResul
       gameVersion: input.gameVersion,
       randomSeed: input.randomSeed,
     });
-    importCountryWorld(db, dataset, pack, input.worldDate ?? `${dataset.meta.targetDatabaseDate}-01`);
+    importCountryWorld(
+      db,
+      dataset,
+      pack,
+      input.worldDate ?? `${dataset.meta.targetDatabaseDate}-01`,
+    );
     ensurePlayableClubVenues(db, save.worldDate);
     advanceMacroEconomyForWorldDate(db, { date: save.worldDate, seed: input.randomSeed });
     ensureLowerLeaguePlayableWorld({ db, date: save.worldDate, seed: input.randomSeed });
@@ -138,7 +143,10 @@ export const createCountrySave = (input: CreateCountrySaveInput): NepalSaveResul
      * this one. Existing careers are untouched: this runs only at save
      * creation, and the dataset version is recorded on the save's world.
      */
-    if (input.globalSeedPath !== null && (input.globalSeedPath !== undefined || pack.canonicalGlobalSeed)) {
+    if (
+      input.globalSeedPath !== null &&
+      (input.globalSeedPath !== undefined || pack.canonicalGlobalSeed)
+    ) {
       applyCanonicalGlobalDatasetSeed(db, { seedPath: input.globalSeedPath });
     }
     reconcilePlayablePlayerProfilesOnce(db, { worldDate: save.worldDate, seed: input.randomSeed });
@@ -182,7 +190,12 @@ export const inspectNepalSave = (databasePath: string): NepalSaveResult => {
  * and builds the pack's country-specific structures. The context is established right after
  * the import so everything that follows can ask for the home country and federation.
  */
-export const importCountryWorld = (db: GameDatabase, dataset: CountryWorldDataset, pack: CountryPack, date: string): void => {
+export const importCountryWorld = (
+  db: GameDatabase,
+  dataset: CountryWorldDataset,
+  pack: CountryPack,
+  date: string,
+): void => {
   importWorldRecords(db, dataset);
   establishHomeFootballContext(db, pack, date);
   pack.initialiseTerritory?.(db, date);

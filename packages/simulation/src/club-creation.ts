@@ -19,7 +19,7 @@ import {
   type VenueRelationship,
 } from "@nepal-football-sim/shared-types";
 import { repairPreseasonContinuity } from "./preseason-continuity.js";
-import { homeCurrency } from "./home-context.js";
+import { homeCountryPack, homeCurrency } from "./home-context.js";
 import { SeededRandom } from "./rng.js";
 import { initializeSupporterCultureForSave } from "./supporter-culture.js";
 
@@ -94,15 +94,15 @@ export type CreateSimulationClubInput = {
   groundName?: string;
 };
 
-/** Give every playable Nepal league club a canonical or simulation-only venue relationship. */
+/** Give every playable club of a tiered domestic league a canonical or simulation-only venue relationship. */
 export const ensurePlayableClubVenues = (db: GameDatabase, date: string): void => {
   const world = new WorldRepository(db);
-  const clubs = db.prepare(`SELECT DISTINCT c.id, c.name, c.country_id, c.location_id, lower(co.name) AS competition_name FROM clubs c JOIN countries country ON country.id=c.country_id AND country.id = (SELECT country_id FROM home_football_country LIMIT 1) JOIN club_memberships cm ON cm.club_id=c.id AND cm.status='ACTIVE' JOIN competition_seasons cs ON cs.id=cm.competition_season_id JOIN competitions co ON co.id=cs.competition_id WHERE (SELECT tier FROM competition_tiers WHERE competition_id = co.id) = 1 OR (SELECT tier FROM competition_tiers WHERE competition_id = co.id) = 2 OR (SELECT tier FROM competition_tiers WHERE competition_id = co.id) = 3`).all() as Array<{ id: EntityId; name: string; country_id: EntityId; location_id?: EntityId; competition_name: string }>;
+  const clubs = db.prepare(`SELECT DISTINCT c.id, c.name, c.country_id, c.location_id, lower(co.name) AS competition_name, (SELECT tier FROM competition_tiers WHERE competition_id = co.id) AS tier FROM clubs c JOIN countries country ON country.id=c.country_id AND country.id = (SELECT country_id FROM home_football_country LIMIT 1) JOIN club_memberships cm ON cm.club_id=c.id AND cm.status='ACTIVE' JOIN competition_seasons cs ON cs.id=cm.competition_season_id JOIN competitions co ON co.id=cs.competition_id WHERE (SELECT tier FROM competition_tiers WHERE competition_id = co.id) IS NOT NULL`).all() as Array<{ id: EntityId; name: string; country_id: EntityId; location_id?: EntityId; competition_name: string; tier: number }>;
   for (const club of clubs) {
     if (db.prepare("SELECT 1 FROM venue_relationships WHERE club_id=? AND status!='CLOSED' LIMIT 1").get(club.id)) continue;
     const existing = club.location_id ? db.prepare("SELECT id FROM venues WHERE location_id=? AND status!='CLOSED' ORDER BY capacity DESC LIMIT 1").get(club.location_id) as { id?: EntityId } | undefined : undefined;
     const venueId = existing?.id ?? createStableEntityId("simulation-club-ground", club.id);
-    if (!existing?.id) world.insertVenue({ id: venueId, countryId: club.country_id, locationId: club.location_id, name: `${club.name} Ground`, officialName: `${club.name} Ground`, shortName: `${club.name} Ground`, venueType: "FOOTBALL_GROUND", capacity: club.competition_name.includes("a-division") ? 5000 : club.competition_name.includes("b-division") ? 2500 : 600, surfaceType: "NATURAL_GRASS", pitchQuality: "POOR", status: "ACTIVE" });
+    if (!existing?.id) world.insertVenue({ id: venueId, countryId: club.country_id, locationId: club.location_id, name: `${club.name} Ground`, officialName: `${club.name} Ground`, shortName: `${club.name} Ground`, venueType: "FOOTBALL_GROUND", capacity: club.tier === 1 ? 5000 : club.tier === 2 ? 2500 : 600, surfaceType: "NATURAL_GRASS", pitchQuality: "POOR", status: "ACTIVE" });
     const team = db.prepare("SELECT id FROM teams WHERE club_id=? AND level='senior' ORDER BY id LIMIT 1").get(club.id) as { id?: EntityId } | undefined;
     world.insertVenueRelationship({ id: createStableEntityId("simulation-club-ground-relationship", club.id), venueId, clubId: club.id, teamId: team?.id, relationshipType: "PRIMARY_TENANT", startDate: date, status: "available" });
   }
@@ -120,7 +120,7 @@ export const createSimulationClub = (
   const nepal = db.prepare("SELECT country_id AS id FROM home_football_country LIMIT 1").get() as
     { id: EntityId } | undefined;
   if (!nepal || location.country_id !== nepal.id)
-    throw new Error("Simulation clubs must be founded in Nepal");
+    throw new Error(`Simulation clubs must be founded in ${homeCountryPack(db).countryName}`);
   if (!["district", "municipality", "city"].includes(location.kind))
     throw new Error("Club location must be a local district or municipality");
   const venue = venueForLocation(db, input.locationId, input.groundName, input.foundedOn);
@@ -246,7 +246,7 @@ export const createSimulationClub = (
     clubId,
     eventType: "FOUNDED",
     occurredOn: input.foundedOn,
-    reason: "Local simulation club founded from Nepal geography.",
+    reason: `Local simulation club founded from ${homeCountryPack(db).countryName} geography.`,
     provenanceStatus: status,
   });
   if (input.competitionSeasonId)
@@ -294,7 +294,7 @@ export const foundSimulationClub = (
        LIMIT 1`,
     )
     .get(input.name);
-  if (duplicate) throw new Error("A Nepal club with this name already exists");
+  if (duplicate) throw new Error(`A ${homeCountryPack(db).countryName} club with this name already exists`);
   const club = createSimulationClub(db, { ...input, ownershipType: "PRIVATE" });
   const ownership: ClubOwnershipStake = {
     id: createStableEntityId("club-ownership-stake", `${club.clubId}:${input.founderPersonId}:founder`),

@@ -22,7 +22,12 @@ import {
 } from "@nepal-football-sim/database";
 import { PLAYABLE_CLUB_PREDICATE } from "./playable-world.js";
 import { SeededRandom } from "./rng.js";
-import { homeCountryId, homeFederationAbbreviation, homeNamePool } from "./home-context.js";
+import {
+  homeCountryId,
+  homeCountryPack,
+  homeFederationAbbreviation,
+  homeNamePool,
+} from "./home-context.js";
 import { generateYouthCohort } from "./youth-intake.js";
 import { generateAiStaff } from "./staff-market.js";
 
@@ -68,8 +73,11 @@ const CORE_STAFF_ROLES: FootballStaffRole[] = [
   "YOUTH_COACH",
 ];
 
-/** Senior men's teams in the selectable Nepal A/B/C pyramid. */
-const playableNepalLeagueClubs = (
+/**
+ * Senior men's teams of the home country's tiered domestic pyramid, whatever its depth. The
+ * division letter is only a report label: A for tier 1, B for tier 2, C for tier 3 and below.
+ */
+const playableLeagueClubs = (
   db: GameDatabase,
 ): Array<{ clubId: EntityId; teamId: EntityId; division: "A" | "B" | "C" }> =>
   (
@@ -89,7 +97,7 @@ const playableNepalLeagueClubs = (
     WHERE cm.status='ACTIVE'
       AND t.level='senior' AND t.gender='men'
       AND ${PLAYABLE_CLUB}
-      AND ((SELECT tier FROM competition_tiers WHERE competition_id = comp.id) = 1 OR (SELECT tier FROM competition_tiers WHERE competition_id = comp.id) = 2 OR (SELECT tier FROM competition_tiers WHERE competition_id = comp.id) = 3)
+      AND (SELECT tier FROM competition_tiers WHERE competition_id = comp.id) IS NOT NULL
     ORDER BY c.id
   `,
       )
@@ -102,7 +110,11 @@ const playableNepalLeagueClubs = (
 
 /** The home country. A world with no home country at all (a hand-built fixture, never a real save) works in its first country. */
 const workforceCountryId = (db: GameDatabase): EntityId | undefined =>
-  homeCountryId(db) ?? (db.prepare("SELECT id FROM countries ORDER BY id LIMIT 1").get() as { id?: EntityId } | undefined)?.id;
+  homeCountryId(db) ??
+  (
+    db.prepare("SELECT id FROM countries ORDER BY id LIMIT 1").get() as
+      { id?: EntityId } | undefined
+  )?.id;
 
 const scalar = (db: GameDatabase, sql: string, ...params: unknown[]): number =>
   Number((db.prepare(sql).get(...(params as [])) as { n?: number } | undefined)?.n ?? 0);
@@ -391,7 +403,9 @@ export const generateOfficial = (input: {
   const rng = new SeededRandom(`official:${key}`);
   const personId = createStableEntityId("person-generated-official", key);
   const names = homeNamePool(input.db);
-  const first = rng.pick(gender === "female" ? names.officials.femaleFirst : names.officials.maleFirst);
+  const first = rng.pick(
+    gender === "female" ? names.officials.femaleFirst : names.officials.maleFirst,
+  );
   const fullName = `${first} ${rng.pick(names.officials.surnames)}`;
   const environment = clamp(input.developmentEnvironment ?? 35, 0, 100);
   const age = 22 + rng.integer(0, 8);
@@ -890,7 +904,7 @@ export const initializeWorkforceSupplyForSave = (input: {
 };
 
 /**
- * Completes only structurally under-covered selectable Nepal A/B/C clubs on a
+ * Completes only structurally under-covered selectable clubs of the tiered pyramid on a
  * new save (and on an explicitly requested coverage audit of a legacy save).
  * Factual imports are never replaced; generated depth uses the normal youth
  * generator and therefore receives normal origins, contracts, development,
@@ -911,7 +925,7 @@ export const ensureLowerLeaguePlayableWorld = (input: {
   const target = Math.max(11, Math.min(25, input.targetSquadSize ?? 20));
   const world = new WorldRepository(db);
   const results: LowerLeagueClubCoverage[] = [];
-  for (const club of playableNepalLeagueClubs(db)) {
+  for (const club of playableLeagueClubs(db)) {
     const alreadyRun = db
       .prepare("SELECT club_id FROM lower_league_bootstrap WHERE club_id=?")
       .get(club.clubId);
@@ -954,7 +968,9 @@ export const ensureLowerLeaguePlayableWorld = (input: {
           teamId: club.teamId,
           date: input.date,
           seasonLabel: input.date.slice(0, 4),
-          seed: `${input.seed}:playable-nepal:${club.clubId}:${attempt}`,
+          seed: `${input.seed}:playable-${homeCountryPack(db)
+            .countryName.toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")}:${club.clubId}:${attempt}`,
           count: Math.min(8, target - active),
           cohortKey: `lower-league-bootstrap:${club.clubId}:${attempt}`,
           source: "BOOTSTRAP_SQUAD_REPAIR",
@@ -1131,11 +1147,11 @@ export const lowerLeagueCoverageReport = (input: {
   );
   const cDivisionHeadCoaches = scalar(
     db,
-    "SELECT COUNT(DISTINCT sa.person_id) AS n FROM staff_appointments sa JOIN club_memberships cm ON cm.club_id=sa.club_id JOIN competitions c ON c.id=cm.competition_id WHERE sa.role='HEAD_COACH' AND sa.employment_status='ACTIVE' AND (SELECT tier FROM competition_tiers WHERE competition_id = c.id) = 3",
+    "SELECT COUNT(DISTINCT sa.person_id) AS n FROM staff_appointments sa JOIN club_memberships cm ON cm.club_id=sa.club_id JOIN competitions c ON c.id=cm.competition_id WHERE sa.role='HEAD_COACH' AND sa.employment_status='ACTIVE' AND (SELECT tier FROM competition_tiers WHERE competition_id = c.id) >= 3",
   );
   const generatedLowerLeagueManagers = scalar(
     db,
-    "SELECT COUNT(DISTINCT sa.person_id) AS n FROM staff_appointments sa JOIN staff_simulation_profiles ssp ON ssp.person_id=sa.person_id JOIN club_memberships cm ON cm.club_id=sa.club_id JOIN competitions c ON c.id=cm.competition_id WHERE sa.role='HEAD_COACH' AND sa.employment_status='ACTIVE' AND ((SELECT tier FROM competition_tiers WHERE competition_id = c.id) = 1 OR (SELECT tier FROM competition_tiers WHERE competition_id = c.id) = 2 OR (SELECT tier FROM competition_tiers WHERE competition_id = c.id) = 3)",
+    "SELECT COUNT(DISTINCT sa.person_id) AS n FROM staff_appointments sa JOIN staff_simulation_profiles ssp ON ssp.person_id=sa.person_id JOIN club_memberships cm ON cm.club_id=sa.club_id JOIN competitions c ON c.id=cm.competition_id WHERE sa.role='HEAD_COACH' AND sa.employment_status='ACTIVE' AND (SELECT tier FROM competition_tiers WHERE competition_id = c.id) IS NOT NULL",
   );
   return {
     generatedOn: input.date,

@@ -214,12 +214,12 @@ export const initializeTransferMarketForSave = (input: {
   seedCompetitionRegistrations(input.db, input.worldDate);
 };
 
-/** New-save-only roster trim; existing saves are never migrated implicitly. */
-export const rebalanceNewNepalSaveSquads = (db: GameDatabase, worldDate: string): number => {
+/** New-save-only roster trim (target squad size by tier: 25, 22, then 20); existing saves are never migrated implicitly. */
+export const rebalanceNewSaveSquads = (db: GameDatabase, worldDate: string): number => {
   let released = 0;
   const clubs = db
     .prepare(
-      `SELECT DISTINCT c.id AS club_id, CASE WHEN (SELECT tier FROM competition_tiers WHERE competition_id = comp.id) = 1 THEN 25 WHEN (SELECT tier FROM competition_tiers WHERE competition_id = comp.id) = 2 THEN 22 WHEN (SELECT tier FROM competition_tiers WHERE competition_id = comp.id) = 3 THEN 20 ELSE 0 END AS target FROM clubs c JOIN countries co ON co.id=c.country_id JOIN club_memberships cm ON cm.club_id=c.id JOIN competitions comp ON comp.id=cm.competition_id WHERE co.id = (SELECT country_id FROM home_football_country LIMIT 1) AND cm.status='ACTIVE' AND comp.id IN (SELECT competition_id FROM competition_tiers) ORDER BY c.id`,
+      `SELECT DISTINCT c.id AS club_id, CASE WHEN (SELECT tier FROM competition_tiers WHERE competition_id = comp.id) = 1 THEN 25 WHEN (SELECT tier FROM competition_tiers WHERE competition_id = comp.id) = 2 THEN 22 WHEN (SELECT tier FROM competition_tiers WHERE competition_id = comp.id) >= 3 THEN 20 ELSE 0 END AS target FROM clubs c JOIN countries co ON co.id=c.country_id JOIN club_memberships cm ON cm.club_id=c.id JOIN competitions comp ON comp.id=cm.competition_id WHERE co.id = (SELECT country_id FROM home_football_country LIMIT 1) AND cm.status='ACTIVE' AND comp.id IN (SELECT competition_id FROM competition_tiers) ORDER BY c.id`,
     )
     .all() as Array<{ club_id: EntityId; target: number }>;
   for (const club of clubs) {

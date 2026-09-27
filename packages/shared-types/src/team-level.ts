@@ -7,7 +7,8 @@ export type TeamLevel = KnownTeamLevel | (string & {});
 /** The levels the national-team simulation (call-ups, age rules, programmes, fixtures) plays. */
 export const SIMULATED_TEAM_LEVELS: readonly TeamLevel[] = ["senior", "u23", "u20", "u17"];
 
-export const isSimulatedTeamLevel = (level: TeamLevel): boolean => SIMULATED_TEAM_LEVELS.includes(level);
+export const isSimulatedTeamLevel = (level: TeamLevel): boolean =>
+  SIMULATED_TEAM_LEVELS.includes(level);
 
 export const isSeniorTeamLevel = (level: TeamLevel): boolean => level === "senior";
 

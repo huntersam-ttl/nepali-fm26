@@ -1,6 +1,7 @@
 import { createStableEntityId, type BroadcasterProfile, type EntityId, type FederationMediaRightsOffer, type FederationMediaRightsPackage } from "@nepal-football-sim/shared-types";
 import { ClubEconomyRepository, MediaRightsRepository, type GameDatabase } from "@nepal-football-sim/database";
 import { postFederationTransaction } from "./federation-governance.js";
+import { homeCountryPack } from "./home-context.js";
 
 export type MediaRightsEvidence = { competitionReputation: number; nationalTeamRelevance: number; audience: number; sponsorValue: number; internationalInterest: number };
 const clamp = (value: number): number => Math.max(0, Math.min(100, Math.round(value)));
@@ -40,9 +41,11 @@ export const settleFederationMediaRightsForCompetition = (db: GameDatabase, inpu
   const existingPackage = repo.packages(input.federationId).find((item) => item.competitionId === input.competitionSeasonId);
   const existingOffer = existingPackage ? repo.offers(existingPackage.id)[0] : undefined;
   if (existingOffer?.status === "ACTIVE") return existingOffer;
+  const pack = homeCountryPack(db);
+  const broadcasterName = pack.commercial?.domesticBroadcaster?.name ?? `${pack.countryName} Football Broadcast Network`;
   const broadcaster = repo.broadcasters()[0] ?? {
-    id: createStableEntityId("broadcaster", "Himal Broadcast Network"),
-    name: "Himal Broadcast Network",
+    id: createStableEntityId("broadcaster", broadcasterName),
+    name: broadcasterName,
     marketReach: 42,
     reliability: 78,
     financialStrength: 45,

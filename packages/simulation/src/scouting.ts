@@ -22,7 +22,14 @@ import {
   type GameDatabase,
 } from "@nepal-football-sim/database";
 import { SeededRandom } from "./rng.js";
-import { MARKET_REGIONS, homeMarketRegion, marketRegionForCode, marketRegionForCountry, marketRegionLabel, marketRegionsByCountry } from "./market-regions.js";
+import {
+  MARKET_REGIONS,
+  homeMarketRegion,
+  marketRegionForCode,
+  marketRegionForCountry,
+  marketRegionLabel,
+  marketRegionsByCountry,
+} from "./market-regions.js";
 import { findHomeFootballContext } from "./home-context.js";
 type ScoutingCoverage = {
   clubId: EntityId;
@@ -80,10 +87,13 @@ export type RecruitmentSearchResult = {
 };
 
 /** The market region of a country code in either ISO form; undefined for an unclassified country. */
-const homeCountryName = (db: GameDatabase): string => findHomeFootballContext(db)?.countryName ?? "Home country";
-const regionLabelOf = (region: ExternalFootballRegion | undefined): string[] => (region ? [marketRegionLabel(region)] : []);
+const homeCountryName = (db: GameDatabase): string =>
+  findHomeFootballContext(db)?.countryName ?? "Home country";
+const regionLabelOf = (region: ExternalFootballRegion | undefined): string[] =>
+  region ? [marketRegionLabel(region)] : [];
 
-export const countryToRecruitmentRegion = (value?: string): ExternalFootballRegion | undefined => marketRegionForCode(value);
+export const countryToRecruitmentRegion = (value?: string): ExternalFootballRegion | undefined =>
+  marketRegionForCode(value);
 
 export type ScoutingDiagnostic = {
   clubId: EntityId;
@@ -137,7 +147,9 @@ export const initializeRecruitmentForSave = (input: {
 }): void => {
   const recruitment = new RecruitmentRepository(input.db);
   for (const club of clubs(input.db)) {
-    recruitment.upsertClubRecruitmentProfile(defaultClubRecruitmentProfile(input.db, club, input.seed));
+    recruitment.upsertClubRecruitmentProfile(
+      defaultClubRecruitmentProfile(input.db, club, input.seed),
+    );
     // External clubs use the bounded global-context scouting layer. Seeding
     // full player knowledge for every imported club is both redundant and
     // quadratic; Nepal clubs retain the normal detailed knowledge bootstrap.
@@ -298,9 +310,11 @@ export const accessibleRecruitmentRegions = (
   const reach = (region: ExternalFootballRegion): void => {
     if (!regions.includes(region)) regions.push(region);
   };
-  if (profile.networkReach === "SOUTH_ASIA" || profile.internationalKnowledge >= 0.2) reach("WIDER_ASIA");
+  if (profile.networkReach === "SOUTH_ASIA" || profile.internationalKnowledge >= 0.2)
+    reach("WIDER_ASIA");
   if (profile.internationalKnowledge >= 0.2) reach("AFRICA");
-  if (profile.internationalKnowledge >= 0.28 && profile.networkReach !== "REGIONAL") reach("EUROPE");
+  if (profile.internationalKnowledge >= 0.28 && profile.networkReach !== "REGIONAL")
+    reach("EUROPE");
   for (const partnership of activeScoutingPartnerships(db, clubId, worldDate)) {
     const region = clubRegion(db, partnership.toClubId);
     if (region && !regions.includes(region)) regions.push(region);
@@ -459,7 +473,8 @@ const activeScoutingPartnerships = (db: GameDatabase, clubId: EntityId, worldDat
   new ClubNetworkRepository(db).activeScoutingPartnerships(clubId, worldDate);
 
 const clubRegion = (db: GameDatabase, clubId: EntityId): ExternalFootballRegion | undefined => {
-  const row = db.prepare("SELECT country_id FROM clubs WHERE id = ? LIMIT 1").get(clubId) as { country_id?: EntityId } | undefined;
+  const row = db.prepare("SELECT country_id FROM clubs WHERE id = ? LIMIT 1").get(clubId) as
+    { country_id?: EntityId } | undefined;
   return marketRegionForCountry(db, row?.country_id);
 };
 
@@ -903,7 +918,10 @@ const defaultClubRecruitmentProfile = (
     internationalKnowledge: round((nsl ? 0.24 : topClub ? 0.18 : 0.08) + rng.next() * 0.04),
     scoutingBudget: topClub ? 45 : nsl ? 40 : 18,
     networkReach: nsl ? "SOUTH_ASIA" : topClub ? "NATIONAL" : "REGIONAL",
-    preferredMarkets: topClub || nsl ? [homeCountryName(db), ...regionLabelOf(homeMarketRegion(db))] : [homeCountryName(db)],
+    preferredMarkets:
+      topClub || nsl
+        ? [homeCountryName(db), ...regionLabelOf(homeMarketRegion(db))]
+        : [homeCountryName(db)],
     status: "SIMULATION_ONLY",
   };
 };
@@ -1072,7 +1090,10 @@ const truePlayers = (db: GameDatabase, playerIds?: readonly EntityId[]): TruePla
 };
 
 /** A country-id -> market-region lookup: one pass over every country for a whole-world read, memoised single lookups otherwise. */
-const countryRegionResolver = (db: GameDatabase, wholeWorld: boolean): ((countryId: EntityId) => ExternalFootballRegion | undefined) => {
+const countryRegionResolver = (
+  db: GameDatabase,
+  wholeWorld: boolean,
+): ((countryId: EntityId) => ExternalFootballRegion | undefined) => {
   if (wholeWorld) {
     const all = marketRegionsByCountry(db);
     return (countryId) => all.get(countryId);
@@ -1158,7 +1179,10 @@ const playersSharingCompetitions = (db: GameDatabase, clubId: EntityId): TruePla
     .map((row) => mapTruePlayer(row));
 };
 
-const mapTruePlayer = (row: any, regionOf?: (countryId: EntityId) => ExternalFootballRegion | undefined): TruePlayer => {
+const mapTruePlayer = (
+  row: any,
+  regionOf?: (countryId: EntityId) => ExternalFootballRegion | undefined,
+): TruePlayer => {
   const factual = JSON.parse(row.factual_json ?? "{}");
   const simulation = JSON.parse(row.simulation_json ?? "{}");
   const technical = JSON.parse(row.technical_json ?? "{}");

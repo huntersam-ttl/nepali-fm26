@@ -220,7 +220,8 @@ export const ensureAiManagersAssigned = (
       playerManagerProfileId &&
       applications.some(
         (application) =>
-          application.managerProfileId === playerManagerProfileId && application.status === "OFFERED",
+          application.managerProfileId === playerManagerProfileId &&
+          application.status === "OFFERED",
       )
     ) {
       continue;
@@ -230,7 +231,9 @@ export const ensureAiManagersAssigned = (
     // whose offer is still being negotiated carries on where they left off.
     const closedForVacancy = new Set(
       applications
-        .filter((application) => application.status !== "OFFERED" && application.status !== "PENDING")
+        .filter(
+          (application) => application.status !== "OFFERED" && application.status !== "PENDING",
+        )
         .map((application) => application.managerProfileId),
     );
     const available = managers
@@ -243,7 +246,8 @@ export const ensureAiManagersAssigned = (
         // A manager who has only just taken a job is not approached for another one,
         // otherwise the same ambitious manager is hired at one vacancy and poached for
         // the next on the same day, and every job they leave is open again.
-        if (daysBetween(current.contractStart, save.worldDate) < MIN_TENURE_DAYS_BEFORE_APPROACH) return false;
+        if (daysBetween(current.contractStart, save.worldDate) < MIN_TENURE_DAYS_BEFORE_APPROACH)
+          return false;
         // Only approach employed managers who have a deterministic reason to
         // consider moving; there is no silent universal poaching.
         const personality = profile.attributes.personality;
@@ -275,7 +279,8 @@ export const ensureAiManagersAssigned = (
     for (const profile of available) {
       if (careerWorld.vacancy(vacancy.id)?.status !== "OPEN") break;
       const pending = applications.find(
-        (application) => application.managerProfileId === profile.id && application.status === "OFFERED",
+        (application) =>
+          application.managerProfileId === profile.id && application.status === "OFFERED",
       );
       let application: JobApplication;
       if (pending) {
@@ -416,7 +421,9 @@ export const evaluateBoardConfidence = (
     const expectation = expectationForClub(db, contract.clubId);
     const existing = careerWorld.boardConfidence(contract.clubId);
     const sameContract = Boolean(existing && existing.contractId === contract.id);
-    const due = sameContract && daysBetween(existing!.lastEvaluatedOn, save.worldDate) >= BOARD_EVALUATION_INTERVAL_DAYS;
+    const due =
+      sameContract &&
+      daysBetween(existing!.lastEvaluatedOn, save.worldDate) >= BOARD_EVALUATION_INTERVAL_DAYS;
     let next = sameContract ? existing!.confidence : DEFAULT_BOARD_CONFIDENCE;
     if (!sameContract) {
       careerWorld.upsertBoardConfidence({
@@ -430,12 +437,18 @@ export const evaluateBoardConfidence = (
       const table = tableForTeam(contract.teamId);
       const position = table.findIndex((row) => row.teamId === contract.teamId) + 1;
       const played = position > 0 ? table[position - 1]!.played : 0;
-      const tertile = position > 0 && played >= MIN_MATCHES_BEFORE_TABLE_COUNTS ? positionTertile(position, table.length) : "MIDDLE";
+      const tertile =
+        position > 0 && played >= MIN_MATCHES_BEFORE_TABLE_COUNTS
+          ? positionTertile(position, table.length)
+          : "MIDDLE";
       /* Supporter sentiment is one contextual factor only: finances and club
        * objectives stay authoritative, and supporters never sack anyone alone. */
       const supporters = new SupporterCultureRepository(db).profile(contract.clubId, "men");
       const supporterPressure = supporters ? supporterBoardPressureModifier(supporters) : 0;
-      next = Math.max(0, Math.min(100, next + confidenceDelta(expectation, tertile) + supporterPressure));
+      next = Math.max(
+        0,
+        Math.min(100, next + confidenceDelta(expectation, tertile) + supporterPressure),
+      );
       careerWorld.upsertBoardConfidence({
         clubId: contract.clubId,
         contractId: contract.id,
@@ -1066,7 +1079,9 @@ const finalizeJobAcceptance = (
         item.initiator.entityId === managerProfile.personId,
     );
   const answers = interview?.offers.answers
-    ? (JSON.parse(String(interview.offers.answers)) as { youthCommitment?: "PRIORITIZE" | "BALANCED" | "EXPERIENCE" })
+    ? (JSON.parse(String(interview.offers.answers)) as {
+        youthCommitment?: "PRIORITIZE" | "BALANCED" | "EXPERIENCE";
+      })
     : undefined;
   commitmentsFromManagerInterview({
     db,

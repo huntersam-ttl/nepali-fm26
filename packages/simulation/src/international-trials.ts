@@ -51,7 +51,10 @@ const daysBetween = (from: string, to: string): number =>
   Math.floor((isoDate(to) - isoDate(from)) / 86_400_000);
 
 const clubCountry = (db: GameDatabase, clubId: EntityId): EntityId | undefined =>
-  (db.prepare("SELECT country_id FROM clubs WHERE id = ?").get(clubId) as { country_id?: EntityId } | undefined)?.country_id;
+  (
+    db.prepare("SELECT country_id FROM clubs WHERE id = ?").get(clubId) as
+      { country_id?: EntityId } | undefined
+  )?.country_id;
 
 const playerContext = (
   db: GameDatabase,
@@ -127,7 +130,11 @@ const validateInvitation = (
     throw new Error("Parent-club permission is required for a contracted player trial");
   }
   const hostCountry = clubCountry(db, input.hostClubId);
-  if (!hostCountry || !context.countryId || sameCountryIdentity(db, hostCountry, context.countryId)) {
+  if (
+    !hostCountry ||
+    !context.countryId ||
+    sameCountryIdentity(db, hostCountry, context.countryId)
+  ) {
     throw new Error("International trial requires a cross-border host club");
   }
   if (context.currentClubId === input.hostClubId) {

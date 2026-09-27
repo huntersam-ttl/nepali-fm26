@@ -1,4 +1,12 @@
-import type { ProcurementSupplier, ClubLender, FootballConfederation, FootballRegion, MediaJournalist, MediaOutlet, NationalTeamType } from "@nepal-football-sim/shared-types";
+import type {
+  ProcurementSupplier,
+  ClubLender,
+  FootballConfederation,
+  FootballRegion,
+  MediaJournalist,
+  MediaOutlet,
+  NationalTeamType,
+} from "@nepal-football-sim/shared-types";
 import type { GameDatabase } from "@nepal-football-sim/database";
 
 /*
@@ -100,6 +108,8 @@ export type PackCommercial = {
   sponsors?: readonly PackSponsor[];
   /** Sponsors of the national federation. */
   federationSponsors?: ReadonlyArray<{ name: string; industry: string }>;
+  /** The national broadcaster the federation's media rights are first sold to; absent, "<country> Football Broadcast Network". */
+  domesticBroadcaster?: { name: string };
   /** Suppliers clubs buy equipment and services from (Clubmart). */
   suppliers?: readonly Omit<ProcurementSupplier, "id">[];
 };

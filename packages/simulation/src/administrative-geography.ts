@@ -1,5 +1,9 @@
 import type { GameDatabase } from "@nepal-football-sim/database";
-import { createStableEntityId, type EntityId, type FounderLocationOption } from "@nepal-football-sim/shared-types";
+import {
+  createStableEntityId,
+  type EntityId,
+  type FounderLocationOption,
+} from "@nepal-football-sim/shared-types";
 import { countryPack, type PackAdministrativeArea, type PackGeography } from "./country-pack.js";
 import { findHomeFootballContext, homeCountryId } from "./home-context.js";
 import { NEPAL_PACK_ID } from "./country-packs/nepal.js";
@@ -11,20 +15,43 @@ import { NEPAL_PACK_ID } from "./country-packs/nepal.js";
  * is built from); nothing here assumes a hierarchy of any particular depth or naming.
  */
 
-export type LocationNode = { id: EntityId; name: string; kind: string; parentId?: EntityId; countryId: EntityId };
+export type LocationNode = {
+  id: EntityId;
+  name: string;
+  kind: string;
+  parentId?: EntityId;
+  countryId: EntityId;
+};
 
-type LocationRow = { id: EntityId; name: string; kind: string; parent_location_id: EntityId | null; country_id: EntityId };
+type LocationRow = {
+  id: EntityId;
+  name: string;
+  kind: string;
+  parent_location_id: EntityId | null;
+  country_id: EntityId;
+};
 
-const toNode = (row: LocationRow): LocationNode => ({ id: row.id, name: row.name, kind: row.kind, parentId: row.parent_location_id ?? undefined, countryId: row.country_id });
+const toNode = (row: LocationRow): LocationNode => ({
+  id: row.id,
+  name: row.name,
+  kind: row.kind,
+  parentId: row.parent_location_id ?? undefined,
+  countryId: row.country_id,
+});
 
 /** A location and its ancestors, nearest first. Stops at a missing parent or a repeated place, so a broken or cyclic hierarchy is safe. */
-export const locationAncestry = (db: GameDatabase, locationId: EntityId | undefined): LocationNode[] => {
+export const locationAncestry = (
+  db: GameDatabase,
+  locationId: EntityId | undefined,
+): LocationNode[] => {
   const chain: LocationNode[] = [];
   const seen = new Set<EntityId>();
   let cursor = locationId;
   while (cursor && !seen.has(cursor)) {
     seen.add(cursor);
-    const row = db.prepare("SELECT id, name, kind, parent_location_id, country_id FROM locations WHERE id = ?").get(cursor) as LocationRow | undefined;
+    const row = db
+      .prepare("SELECT id, name, kind, parent_location_id, country_id FROM locations WHERE id = ?")
+      .get(cursor) as LocationRow | undefined;
     if (!row) break;
     chain.push(toNode(row));
     cursor = row.parent_location_id ?? undefined;
@@ -33,18 +60,28 @@ export const locationAncestry = (db: GameDatabase, locationId: EntityId | undefi
 };
 
 /** The nearest place of one of `kinds` in an ancestry (the location itself counts). */
-export const nearestOfKind = (chain: readonly LocationNode[], ...kinds: string[]): LocationNode | undefined => chain.find((node) => kinds.includes(node.kind));
+export const nearestOfKind = (
+  chain: readonly LocationNode[],
+  ...kinds: string[]
+): LocationNode | undefined => chain.find((node) => kinds.includes(node.kind));
 
 /** The country a location belongs to. */
-export const owningCountryOf = (db: GameDatabase, locationId: EntityId | undefined): EntityId | undefined => locationAncestry(db, locationId)[0]?.countryId;
+export const owningCountryOf = (
+  db: GameDatabase,
+  locationId: EntityId | undefined,
+): EntityId | undefined => locationAncestry(db, locationId)[0]?.countryId;
 
 /** Every home-country place of the given kinds, in a stable order. */
 export const homeLocationsOfKind = (db: GameDatabase, ...kinds: string[]): LocationNode[] => {
   const country = homeCountryId(db);
   if (!country || kinds.length === 0) return [];
-  return (db
-    .prepare(`SELECT id, name, kind, parent_location_id, country_id FROM locations WHERE country_id = ? AND kind IN (${kinds.map(() => "?").join(", ")}) ORDER BY name, id`)
-    .all(country, ...kinds) as LocationRow[]).map(toNode);
+  return (
+    db
+      .prepare(
+        `SELECT id, name, kind, parent_location_id, country_id FROM locations WHERE country_id = ? AND kind IN (${kinds.map(() => "?").join(", ")}) ORDER BY name, id`,
+      )
+      .all(country, ...kinds) as LocationRow[]
+  ).map(toNode);
 };
 
 /** The geography of the save's home country's pack, or the launch pack's for a hand-built world with no home country. */
@@ -53,34 +90,59 @@ export const homeGeography = (db: GameDatabase): PackGeography | undefined => {
   return countryPack(packId).geography;
 };
 
-export const cleanPlaceName = (value: string): string => value.toLowerCase().replace(/ district| province|\s+/g, "");
+export const cleanPlaceName = (value: string): string =>
+  value.toLowerCase().replace(/ district| province|\s+/g, "");
 
-const walk = (areas: readonly PackAdministrativeArea[], visit: (area: PackAdministrativeArea, parent: PackAdministrativeArea | undefined) => void, parent?: PackAdministrativeArea): void => {
+const walk = (
+  areas: readonly PackAdministrativeArea[],
+  visit: (area: PackAdministrativeArea, parent: PackAdministrativeArea | undefined) => void,
+  parent?: PackAdministrativeArea,
+): void => {
   for (const area of areas) {
     visit(area, parent);
     walk(area.children ?? [], visit, area);
   }
 };
 
-const kindCode = (kind: string): string => (kind === "province" ? "PROV" : kind === "district" ? "DIST" : kind.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 4));
+const kindCode = (kind: string): string =>
+  kind === "province"
+    ? "PROV"
+    : kind === "district"
+      ? "DIST"
+      : kind
+          .toUpperCase()
+          .replace(/[^A-Z]/g, "")
+          .slice(0, 4);
 
 /**
  * Adds the places of the home pack's geography that the save does not have, under the places they
  * belong to. A place already present (same country, kind and name) is left as it is, so this is
  * safe to run again.
  */
-export const seedGeographyLocations = (db: GameDatabase, geography: PackGeography | undefined = homeGeography(db)): void => {
+export const seedGeographyLocations = (
+  db: GameDatabase,
+  geography: PackGeography | undefined = homeGeography(db),
+): void => {
   const country = homeCountryId(db);
   if (!country || !geography) return;
   const insert = db.prepare(
     "INSERT INTO locations (id, canonical_external_id, country_id, name, kind, parent_location_id) VALUES (?, ?, ?, ?, ?, ?)",
   );
-  const find = db.prepare("SELECT id FROM locations WHERE country_id = ? AND kind = ? AND lower(name) = lower(?) LIMIT 1");
+  const find = db.prepare(
+    "SELECT id FROM locations WHERE country_id = ? AND kind = ? AND lower(name) = lower(?) LIMIT 1",
+  );
   const place = (area: PackAdministrativeArea, parentId: EntityId | undefined): EntityId => {
     const existing = find.get(country, area.kind, area.name) as { id?: EntityId } | undefined;
     if (existing?.id) return existing.id;
     const id = createStableEntityId(`${geography.idNamespace}-founder-${area.kind}`, area.name);
-    insert.run(id, `${geography.codePrefix}-${kindCode(area.kind)}-${cleanPlaceName(area.name).toUpperCase()}`, country, area.name, area.kind, parentId ?? null);
+    insert.run(
+      id,
+      `${geography.codePrefix}-${kindCode(area.kind)}-${cleanPlaceName(area.name).toUpperCase()}`,
+      country,
+      area.name,
+      area.kind,
+      parentId ?? null,
+    );
     return id;
   };
   const seed = (areas: readonly PackAdministrativeArea[], parentId: EntityId | undefined): void => {
@@ -118,12 +180,18 @@ export const founderLocationOptions = (input: {
   const locations = input.datasetLocations ?? [];
   const byKey = new Map(locations.map((location) => [location.key, location] as const));
   const districts = locations.filter((location) => location.kind === "district");
-  const places = districts.length > 0 ? districts : locations.filter((location) => location.kind === "municipality" || location.kind === "city");
+  const places =
+    districts.length > 0
+      ? districts
+      : locations.filter(
+          (location) => location.kind === "municipality" || location.kind === "city",
+        );
   return [...places]
     .sort((a, b) => a.name.localeCompare(b.name) || a.key.localeCompare(b.key))
     .map((place) => ({
       id: createStableEntityId("location", place.key),
-      province: (place.parentKey ? byKey.get(place.parentKey)?.name : undefined) ?? input.countryName,
+      province:
+        (place.parentKey ? byKey.get(place.parentKey)?.name : undefined) ?? input.countryName,
       district: place.name,
       locality: place.name,
       provenanceStatus: "REPORTED" as const,
@@ -135,5 +203,7 @@ export const clubLocalityHubs = (db: GameDatabase): string[] => {
   const hubs = homeGeography(db)?.clubLocalityHubs;
   if (hubs && hubs.length > 0) return [...hubs];
   const places = homeLocationsOfKind(db, "district");
-  return (places.length > 0 ? places : homeLocationsOfKind(db, "municipality", "city")).map((place) => place.name);
+  return (places.length > 0 ? places : homeLocationsOfKind(db, "municipality", "city")).map(
+    (place) => place.name,
+  );
 };

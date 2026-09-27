@@ -34,7 +34,13 @@ import { createInitialDevelopmentState } from "./player-development.js";
 import { PLAYABLE_CLUB_PREDICATE } from "./playable-world.js";
 import { SeededRandom } from "./rng.js";
 import type { NamePool } from "./country-pack.js";
-import { homeCountryId, homeCountryPack, homeCurrency, homeNamePool, homeSeasonRules } from "./home-context.js";
+import {
+  homeCountryId,
+  homeCountryPack,
+  homeCurrency,
+  homeNamePool,
+  homeSeasonRules,
+} from "./home-context.js";
 import { initializeTransferMarketForSave } from "./transfer-market.js";
 
 type YouthClub = {
@@ -439,7 +445,9 @@ const generateIntakeForSource = (input: {
     status: "SIMULATION_ONLY",
     seedKey: input.seed,
     data: {
-      model: `${homeCountryPack(input.db).countryName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-simulation-youth-v1`,
+      model: `${homeCountryPack(input.db)
+        .countryName.toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")}-simulation-youth-v1`,
       profile: input.profile,
       note: "Generated youth are simulation-only people, not real researched players.",
     },
@@ -585,7 +593,15 @@ const createGeneratedYouth = (input: {
     assignYouthToClub(input.db, personId, input.club, youthStatus, input.date);
   }
   if (input.club) {
-    const contract = youthContract(personId, input.club.id, input.date, age, youthStatus, homeCurrency(input.db), homeCountryPack(input.db).countryName);
+    const contract = youthContract(
+      personId,
+      input.club.id,
+      input.date,
+      age,
+      youthStatus,
+      homeCurrency(input.db),
+      homeCountryPack(input.db).countryName,
+    );
     new TransferMarketRepository(input.db).upsertPlayerContract(contract);
     seedOwnClubKnowledge(
       input.db,
@@ -1236,7 +1252,8 @@ const academyForClub = (academyRows: YouthAcademy[], clubId: EntityId): YouthAca
 const homeCountry = (db: GameDatabase): { id: EntityId; name: string } | undefined => {
   const id = homeCountryId(db);
   if (!id) return undefined;
-  const row = db.prepare("SELECT name FROM countries WHERE id = ?").get(id) as { name: string } | undefined;
+  const row = db.prepare("SELECT name FROM countries WHERE id = ?").get(id) as
+    { name: string } | undefined;
   return row ? { id, name: row.name } : undefined;
 };
 
@@ -1556,7 +1573,8 @@ const birthDateForAge = (date: string, age: number, rng: SeededRandom): string =
   return parsed.toISOString().slice(0, 10);
 };
 
-const intakeDateFor = (db: GameDatabase, date: string): string => `${date.slice(0, 4)}-${homeSeasonRules(db).youthIntake}`;
+const intakeDateFor = (db: GameDatabase, date: string): string =>
+  `${date.slice(0, 4)}-${homeSeasonRules(db).youthIntake}`;
 
 const addYears = (date: string, years: number): string => {
   const parsed = new Date(`${date}T00:00:00.000Z`);

@@ -1426,7 +1426,7 @@ export const runFederationPresidentDemo = (input: {
     date: input.worldDate,
     seed: input.seed,
   });
-  const aDivision = competitionByName(input.db, "Martyr's Memorial A-Division League");
+  const aDivision = topTierCompetition(input.db, federation.id);
   const reform = proposeCompetitionReform(input.db, {
     federationId: federation.id,
     competitionId: aDivision.id,
@@ -2692,11 +2692,15 @@ const seniorMenNationalTeam = (db: GameDatabase, federationId: EntityId): Team =
   return teamById(db, row.id);
 };
 
-const competitionByName = (db: GameDatabase, name: string): { id: EntityId; name: string } => {
+/** The federation's top domestic league, found from the pyramid's tier data, never by name. */
+const topTierCompetition = (db: GameDatabase, federationId: EntityId): { id: EntityId; name: string } => {
   const row = db
-    .prepare("SELECT id, name FROM competitions WHERE name = ? LIMIT 1")
-    .get(name) as any;
-  if (!row) throw new Error(`Competition ${name} not found`);
+    .prepare(
+      `SELECT c.id AS id, c.name AS name FROM competitions c JOIN competition_tiers t ON t.competition_id = c.id
+       WHERE c.federation_id = ? ORDER BY t.tier, c.id LIMIT 1`,
+    )
+    .get(federationId) as { id: EntityId; name: string } | undefined;
+  if (!row) throw new Error("The federation has no tiered domestic league");
   return row;
 };
 

@@ -41,7 +41,13 @@ import {
 } from "@nepal-football-sim/shared-types";
 import { SeededRandom } from "./rng.js";
 import type { NamePool } from "./country-pack.js";
-import { homeCountryId, homeFederationAbbreviation, homeNamePool, homeCurrency, requireHomeCountryId } from "./home-context.js";
+import {
+  homeCountryId,
+  homeFederationAbbreviation,
+  homeNamePool,
+  homeCurrency,
+  requireHomeCountryId,
+} from "./home-context.js";
 import {
   assessStaffCooperation,
   assessStaffDeparture,
@@ -123,7 +129,9 @@ const ROLE_LICENCE_REQUIREMENT: Partial<Record<FootballStaffRole, number>> = {
 };
 
 /** The highest-ranked recognised licence a person holds, if any. */
-export const highestLicence = (licences: StaffLicence[]): { type: string; rank: number } | undefined =>
+export const highestLicence = (
+  licences: StaffLicence[],
+): { type: string; rank: number } | undefined =>
   licences
     .map((licence) => ({ type: licence.licenceType, rank: LICENCE_RANK[licence.licenceType] ?? 0 }))
     .filter((licence) => licence.rank > 0)
@@ -282,7 +290,12 @@ export const generateAiStaff = (
         ]
       : [];
   return {
-    person: { id: personId, fullName, nationalityCountryId: countryId, languages: [...namePool.languageCodes] },
+    person: {
+      id: personId,
+      fullName,
+      nationalityCountryId: countryId,
+      languages: [...namePool.languageCodes],
+    },
     profile: {
       id: profileId,
       personId,
@@ -720,8 +733,9 @@ export const ensureAiStaffAssigned = (
         salaryAmountMinor = estimateSalaryExpectation(
           role,
           market.staffLicencesForPerson(personId),
-          freeAgent.reputation, countryEconomicProfile(db).wageLevel,
-      );
+          freeAgent.reputation,
+          countryEconomicProfile(db).wageLevel,
+        );
       } else {
         countryId ??= requireHomeCountryId(db);
         const generated = generateAiStaff(
@@ -740,8 +754,9 @@ export const ensureAiStaffAssigned = (
         salaryAmountMinor = estimateSalaryExpectation(
           role,
           generated.licences,
-          generated.profile.reputation, countryEconomicProfile(db).wageLevel,
-      );
+          generated.profile.reputation,
+          countryEconomicProfile(db).wageLevel,
+        );
       }
 
       if (!clubCanAffordSalary(db, clubId, salaryAmountMinor)) continue;
@@ -954,7 +969,7 @@ const generateExternalStaffCandidate = (
     club.country_id,
     vacancy.role,
     homeNamePool(db),
-          homeFederationAbbreviation(db),
+    homeFederationAbbreviation(db),
   );
   const world = new WorldRepository(db);
   if (!world.getPerson(generated.person.id)) {
@@ -1028,8 +1043,9 @@ export const processExternalStaffVacancies = (
       estimateSalaryExpectation(
         vacancy.role,
         market.staffLicencesForPerson(candidate.personId),
-        candidate.reputation, countryEconomicProfile(db).wageLevel,
-    ) * externalOfferMultiplier(db, vacancy.clubId),
+        candidate.reputation,
+        countryEconomicProfile(db).wageLevel,
+      ) * externalOfferMultiplier(db, vacancy.clubId),
     );
     const { application } = applyForStaffVacancy(db, save, vacancy.id, candidate.personId, salary);
     if (application.status === "OFFERED" || application.status === "COUNTERED") {
@@ -1223,7 +1239,12 @@ export const staffInterestScore = (
     reasons.push("Exactly the role they specialise in.");
   }
 
-  const expectation = estimateSalaryExpectation(role, licences, profile?.reputation, countryEconomicProfile(db).wageLevel);
+  const expectation = estimateSalaryExpectation(
+    role,
+    licences,
+    profile?.reputation,
+    countryEconomicProfile(db).wageLevel,
+  );
   const salaryRatio = expectation > 0 ? offeredSalaryMinor / expectation : 1;
   score += clamp((salaryRatio - 1) * 60, -30, 30);
   if (salaryRatio >= 1.1) reasons.push("Salary comfortably beats their expectation.");
@@ -1387,7 +1408,12 @@ export const applyForStaffVacancy = (
     counterSalaryMinor = Math.round(
       Math.max(
         proposedSalaryMinor,
-        estimateSalaryExpectation(vacancy.role, licences, profile?.reputation, countryEconomicProfile(db).wageLevel),
+        estimateSalaryExpectation(
+          vacancy.role,
+          licences,
+          profile?.reputation,
+          countryEconomicProfile(db).wageLevel,
+        ),
       ) * 1.12,
     );
     reason = "The candidate wants a higher salary.";
@@ -1514,8 +1540,9 @@ export const offerStaffRenewal = (
         estimateSalaryExpectation(
           appointment.role,
           licences,
-          market.staffProfile(appointment.personId)?.reputation, countryEconomicProfile(db).wageLevel,
-      ),
+          market.staffProfile(appointment.personId)?.reputation,
+          countryEconomicProfile(db).wageLevel,
+        ),
       ) * 1.1,
     );
   } else {
@@ -1777,7 +1804,10 @@ export const enrolInLicenceCourse = (
   const target = nextLicenceType(currentRank);
   if (!target)
     throw new LicenceCourseError("MAX_LICENCE", "Already holds the highest coaching licence.");
-  if (fundedByClubId && !clubCanAffordSalary(db, fundedByClubId, scalePrice(db, LICENCE_COURSE_COST_MINOR))) {
+  if (
+    fundedByClubId &&
+    !clubCanAffordSalary(db, fundedByClubId, scalePrice(db, LICENCE_COURSE_COST_MINOR))
+  ) {
     throw new LicenceCourseError("CANNOT_AFFORD", "The club cannot fund this course right now.");
   }
   const personality = new PeopleFoundationRepository(db).personality(personId);
@@ -1924,7 +1954,8 @@ export const evaluateStaffPoaching = (
         ? market.employmentContractById(target.contractId)
         : undefined;
       const offeredSalaryMinor = Math.round(
-        (contract?.salaryAmountMinor ?? estimateSalaryExpectation(role, [], undefined, countryEconomicProfile(db).wageLevel)) *
+        (contract?.salaryAmountMinor ??
+          estimateSalaryExpectation(role, [], undefined, countryEconomicProfile(db).wageLevel)) *
           POACH_SALARY_PREMIUM,
       );
       const interest = staffInterestScore(

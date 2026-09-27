@@ -98,10 +98,17 @@ export const establishHomeFootballContext = (
        WHERE c.iso_code IN (${marks})
        ORDER BY CASE c.iso_code ${order} ELSE ${pack.isoCodes.length} END, f.name LIMIT 1`,
     )
-    .get(...pack.isoCodes, ...pack.isoCodes) as { country_id: EntityId; federation_id: EntityId | null } | undefined;
+    .get(...pack.isoCodes, ...pack.isoCodes) as
+    { country_id: EntityId; federation_id: EntityId | null } | undefined;
   if (!row) throw new Error(`The dataset has no country and federation for pack "${pack.packId}".`);
   const codes = new CountryCodeRepository(db);
-  for (const code of pack.isoCodes) codes.addAliasIfFree({ countryId: row.country_id, code, system: "LEGACY", source: pack.packId });
+  for (const code of pack.isoCodes)
+    codes.addAliasIfFree({
+      countryId: row.country_id,
+      code,
+      system: "LEGACY",
+      source: pack.packId,
+    });
   const config: StoredHomeConfig = {
     federationAbbreviation: pack.federationAbbreviation,
     seasonRules: pack.seasonRules,
@@ -114,7 +121,15 @@ export const establishHomeFootballContext = (
      ON CONFLICT(id) DO UPDATE SET pack_id = excluded.pack_id, country_id = excluded.country_id,
        federation_id = excluded.federation_id, currency = excluded.currency, locale = excluded.locale,
        config_json = excluded.config_json`,
-  ).run(pack.packId, row.country_id, row.federation_id, pack.currency, pack.locale, JSON.stringify(config), date);
+  ).run(
+    pack.packId,
+    row.country_id,
+    row.federation_id,
+    pack.currency,
+    pack.locale,
+    JSON.stringify(config),
+    date,
+  );
   cache.delete(db);
   return homeFootballContext(db);
 };
@@ -129,10 +144,18 @@ export const findHomeFootballContext = (db: GameDatabase): HomeFootballContext |
     // migration does, and record it so it is not inferred again.
     const legacy = countryPack(NEPAL_PACK_ID);
     const inferred = db
-      .prepare(`SELECT 1 AS present FROM countries WHERE iso_code IN (${legacy.isoCodes.map(() => "?").join(", ")}) LIMIT 1`)
+      .prepare(
+        `SELECT 1 AS present FROM countries WHERE iso_code IN (${legacy.isoCodes.map(() => "?").join(", ")}) LIMIT 1`,
+      )
       .get(...legacy.isoCodes);
     if (!inferred) return undefined;
-    establishHomeFootballContext(db, legacy, (db.prepare("SELECT world_date AS d FROM saves LIMIT 1").get() as { d: string } | undefined)?.d ?? "2026-08-01", { federationOptional: true });
+    establishHomeFootballContext(
+      db,
+      legacy,
+      (db.prepare("SELECT world_date AS d FROM saves LIMIT 1").get() as { d: string } | undefined)
+        ?.d ?? "2026-08-01",
+      { federationOptional: true },
+    );
     row = db.prepare(SELECT_CONTEXT).get() as ContextRow | undefined;
     if (!row) return undefined;
   }
@@ -152,7 +175,10 @@ export const homeFootballContext = (db: GameDatabase): HomeFootballContext => {
  * world, or a dataset being imported). Resolves through the same view raw SQL uses.
  */
 export const homeCountryId = (db: GameDatabase): EntityId | undefined =>
-  (db.prepare("SELECT country_id AS id FROM home_football_country LIMIT 1").get() as { id: EntityId } | undefined)?.id;
+  (
+    db.prepare("SELECT country_id AS id FROM home_football_country LIMIT 1").get() as
+      { id: EntityId } | undefined
+  )?.id;
 
 /** The home country id, or an error for a world with no countries at all. */
 export const requireHomeCountryId = (db: GameDatabase): EntityId => {
@@ -173,17 +199,23 @@ export const homeFederationId = (db: GameDatabase): EntityId => {
 /** The home federation, found by the id the context stores, never by name. */
 export const homeFederation = (db: GameDatabase): Federation => {
   const row = db.prepare("SELECT * FROM federations WHERE id = ?").get(homeFederationId(db)) as
-    | { id: EntityId; country_id: EntityId; name: string; founded_year: number | null }
-    | undefined;
+    { id: EntityId; country_id: EntityId; name: string; founded_year: number | null } | undefined;
   if (!row) throw new Error("The home federation is missing from the save.");
-  return { id: row.id, countryId: row.country_id, name: row.name, foundedYear: row.founded_year ?? undefined };
+  return {
+    id: row.id,
+    countryId: row.country_id,
+    name: row.name,
+    foundedYear: row.founded_year ?? undefined,
+  };
 };
 
 /** Whether a federation belongs to the home country. */
 export const isHomeFederation = (db: GameDatabase, federationId: EntityId): boolean =>
   Boolean(
     db
-      .prepare(`SELECT 1 AS present FROM federations WHERE id = ? AND country_id = ${HOME_COUNTRY_SQL}`)
+      .prepare(
+        `SELECT 1 AS present FROM federations WHERE id = ? AND country_id = ${HOME_COUNTRY_SQL}`,
+      )
       .get(federationId),
   );
 
@@ -191,29 +223,51 @@ export const isHomeFederation = (db: GameDatabase, federationId: EntityId): bool
  * The country-level configuration (money, calendar, national teams, names). A world that has no
  * home country at all (a hand-built fixture; never a real save) uses the launch pack's defaults.
  */
-const homeConfig = (db: GameDatabase): Pick<HomeFootballContext, "packId" | "currency" | "locale" | "federationAbbreviation" | "seasonRules" | "nationalTeams" | "tierLabels"> => {
+const homeConfig = (
+  db: GameDatabase,
+): Pick<
+  HomeFootballContext,
+  | "packId"
+  | "currency"
+  | "locale"
+  | "federationAbbreviation"
+  | "seasonRules"
+  | "nationalTeams"
+  | "tierLabels"
+> => {
   const context = findHomeFootballContext(db);
   if (context) return context;
   const pack = countryPack(NEPAL_PACK_ID);
-  return { packId: pack.packId, currency: pack.currency, locale: pack.locale, federationAbbreviation: pack.federationAbbreviation, seasonRules: pack.seasonRules, nationalTeams: pack.nationalTeams, tierLabels: pack.tierLabels };
+  return {
+    packId: pack.packId,
+    currency: pack.currency,
+    locale: pack.locale,
+    federationAbbreviation: pack.federationAbbreviation,
+    seasonRules: pack.seasonRules,
+    nationalTeams: pack.nationalTeams,
+    tierLabels: pack.tierLabels,
+  };
 };
 
 /**
  * The country pack of the save's home country. A hand-built world with no home country at all (a
  * test fixture, never a real save) uses the launch pack, as the other home settings do.
  */
-export const homeCountryPack = (db: GameDatabase): CountryPack => countryPack(homeConfig(db).packId);
+export const homeCountryPack = (db: GameDatabase): CountryPack =>
+  countryPack(homeConfig(db).packId);
 
 export const homeCurrency = (db: GameDatabase): string => homeConfig(db).currency;
 
 export const homeLocale = (db: GameDatabase): string => homeConfig(db).locale;
 
-export const homeFederationAbbreviation = (db: GameDatabase): string => homeConfig(db).federationAbbreviation;
+export const homeFederationAbbreviation = (db: GameDatabase): string =>
+  homeConfig(db).federationAbbreviation;
 
 export const homeSeasonRules = (db: GameDatabase): SeasonRules => homeConfig(db).seasonRules;
 
 /** First day of the season that starts in `year`, e.g. 2026 -> "2026-08-01". */
-export const seasonStartDate = (db: GameDatabase, year: number): string => `${year}-${homeSeasonRules(db).seasonStart}`;
+export const seasonStartDate = (db: GameDatabase, year: number): string =>
+  `${year}-${homeSeasonRules(db).seasonStart}`;
 
 /** Last day of the season that starts in `startYear`, e.g. 2026 -> "2027-07-31". */
 export const seasonEndDate = (db: GameDatabase, startYear: number): string => {
@@ -222,16 +276,20 @@ export const seasonEndDate = (db: GameDatabase, startYear: number): string => {
 };
 
 /** The month ("MM") a season closes in. */
-export const seasonEndMonth = (db: GameDatabase): string => homeSeasonRules(db).seasonEnd.slice(0, 2);
+export const seasonEndMonth = (db: GameDatabase): string =>
+  homeSeasonRules(db).seasonEnd.slice(0, 2);
 
 /** The calendar month (1-12) a season starts in. */
-export const seasonStartMonthNumber = (db: GameDatabase): number => Number(homeSeasonRules(db).seasonStart.slice(0, 2));
+export const seasonStartMonthNumber = (db: GameDatabase): number =>
+  Number(homeSeasonRules(db).seasonStart.slice(0, 2));
 
 /** The calendar month (1-12) halfway through the season, where the second half begins. */
-export const midSeasonMonthNumber = (db: GameDatabase): number => ((seasonStartMonthNumber(db) + 4) % 12) + 1;
+export const midSeasonMonthNumber = (db: GameDatabase): number =>
+  ((seasonStartMonthNumber(db) + 4) % 12) + 1;
 
 /** The date the season ends on in calendar year `year`, e.g. 2027 -> "2027-07-31". */
-export const seasonEndInYear = (db: GameDatabase, year: number): string => `${year}-${homeSeasonRules(db).seasonEnd}`;
+export const seasonEndInYear = (db: GameDatabase, year: number): string =>
+  `${year}-${homeSeasonRules(db).seasonEnd}`;
 
 /** The months ("YYYY-MM") of the season that ends in `endYear`, in processing order. */
 export const seasonPeriodMonthsFor = (db: GameDatabase, endYear: number): string[] => {
@@ -246,16 +304,23 @@ export const seasonPeriodMonthsFor = (db: GameDatabase, endYear: number): string
     months.push(`${year}-${String(month).padStart(2, "0")}`);
     if (month === end) break;
     month += 1;
-    if (month > 12) { month = 1; year += 1; }
+    if (month > 12) {
+      month = 1;
+      year += 1;
+    }
   }
   return months;
 };
 
 /** Every ISO code the home country's data may carry (older saves used a second form). */
-export const homeIsoCodes = (db: GameDatabase): readonly string[] => countryPack(homeConfig(db).packId).isoCodes;
+export const homeIsoCodes = (db: GameDatabase): readonly string[] =>
+  countryPack(homeConfig(db).packId).isoCodes;
 
-export const isHomeIso = (db: GameDatabase, isoCode: string | undefined): boolean => isoCode !== undefined && homeIsoCodes(db).includes(isoCode);
+export const isHomeIso = (db: GameDatabase, isoCode: string | undefined): boolean =>
+  isoCode !== undefined && homeIsoCodes(db).includes(isoCode);
 
-export const homeNationalTeams = (db: GameDatabase): readonly NationalTeamDefinition[] => homeConfig(db).nationalTeams;
+export const homeNationalTeams = (db: GameDatabase): readonly NationalTeamDefinition[] =>
+  homeConfig(db).nationalTeams;
 
-export const homeNamePool = (db: GameDatabase): NamePool => countryPack(homeConfig(db).packId).namePool;
+export const homeNamePool = (db: GameDatabase): NamePool =>
+  countryPack(homeConfig(db).packId).namePool;

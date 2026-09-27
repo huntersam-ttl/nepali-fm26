@@ -113,7 +113,19 @@ const PROVINCE_DISTRICTS: Array<[string, string[]]> = [
 ];
 
 /** Districts the territorial model treats as remote (a harder place to develop football). */
-const REMOTE_DISTRICTS = ["Manang", "Mustang", "Dolpa", "Humla", "Mugu", "Jumla", "Kalikot", "Bajura", "Bajhang", "Darchula", "Solukhumbu"];
+const REMOTE_DISTRICTS = [
+  "Manang",
+  "Mustang",
+  "Dolpa",
+  "Humla",
+  "Mugu",
+  "Jumla",
+  "Kalikot",
+  "Bajura",
+  "Bajhang",
+  "Darchula",
+  "Solukhumbu",
+];
 
 export const NEPAL_GEOGRAPHY: PackGeography = {
   idNamespace: "nepal",
@@ -121,7 +133,11 @@ export const NEPAL_GEOGRAPHY: PackGeography = {
   areas: PROVINCE_DISTRICTS.map(([province, districts]) => ({
     name: province,
     kind: "province",
-    children: districts.map((district) => ({ name: district, kind: "district", remote: REMOTE_DISTRICTS.includes(district) })),
+    children: districts.map((district) => ({
+      name: district,
+      kind: "district",
+      remote: REMOTE_DISTRICTS.includes(district),
+    })),
   })),
   clubLocalityHubs: ["Kathmandu", "Lalitpur", "Bhaktapur", "Kaski", "Morang"],
 };

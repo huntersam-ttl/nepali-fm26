@@ -18,7 +18,11 @@ export type EconomicProfile = {
   ticketPriceLevel: number;
 };
 
-export const NEUTRAL_ECONOMIC_PROFILE: EconomicProfile = { priceLevel: 1, wageLevel: 1, ticketPriceLevel: 1 };
+export const NEUTRAL_ECONOMIC_PROFILE: EconomicProfile = {
+  priceLevel: 1,
+  wageLevel: 1,
+  ticketPriceLevel: 1,
+};
 
 const validLevel = (value: number | undefined, fallback: number): number =>
   value === undefined ? fallback : Number.isFinite(value) && value > 0 ? value : fallback;
@@ -27,7 +31,11 @@ const validLevel = (value: number | undefined, fallback: number): number =>
 export const resolveEconomicProfile = (economy: PackEconomy | undefined): EconomicProfile => {
   if (!economy) return NEUTRAL_ECONOMIC_PROFILE;
   const priceLevel = validLevel(economy.priceLevel, 1);
-  return { priceLevel, wageLevel: validLevel(economy.wageLevel, priceLevel), ticketPriceLevel: validLevel(economy.ticketPriceLevel, priceLevel) };
+  return {
+    priceLevel,
+    wageLevel: validLevel(economy.wageLevel, priceLevel),
+    ticketPriceLevel: validLevel(economy.ticketPriceLevel, priceLevel),
+  };
 };
 
 /**
@@ -35,12 +43,17 @@ export const resolveEconomicProfile = (economy: PackEconomy | undefined): Econom
  * calibration is untouched; at any other level the result is a whole number of minor units
  * (Math.round, half away from zero for positives), so the same input always gives the same output.
  */
-export const scaleAmount = (level: number, amount: number): number => (level === 1 ? amount : Math.round(amount * level));
+export const scaleAmount = (level: number, amount: number): number =>
+  level === 1 ? amount : Math.round(amount * level);
 
-export const countryEconomicProfile = (db: GameDatabase): EconomicProfile => resolveEconomicProfile(homeCountryPack(db).economy);
+export const countryEconomicProfile = (db: GameDatabase): EconomicProfile =>
+  resolveEconomicProfile(homeCountryPack(db).economy);
 
-export const scalePrice = (db: GameDatabase, amount: number): number => scaleAmount(countryEconomicProfile(db).priceLevel, amount);
+export const scalePrice = (db: GameDatabase, amount: number): number =>
+  scaleAmount(countryEconomicProfile(db).priceLevel, amount);
 
-export const scaleWage = (db: GameDatabase, amount: number): number => scaleAmount(countryEconomicProfile(db).wageLevel, amount);
+export const scaleWage = (db: GameDatabase, amount: number): number =>
+  scaleAmount(countryEconomicProfile(db).wageLevel, amount);
 
-export const scaleTicketPrice = (db: GameDatabase, amount: number): number => scaleAmount(countryEconomicProfile(db).ticketPriceLevel, amount);
+export const scaleTicketPrice = (db: GameDatabase, amount: number): number =>
+  scaleAmount(countryEconomicProfile(db).ticketPriceLevel, amount);

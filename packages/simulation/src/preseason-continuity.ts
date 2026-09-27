@@ -275,7 +275,12 @@ const signFreeAgent = (
   return true;
 };
 
-const youthCandidates = (db: GameDatabase, clubId: EntityId, position?: string, gender: "men" | "women" = "men"): Candidate[] =>
+const youthCandidates = (
+  db: GameDatabase,
+  clubId: EntityId,
+  position?: string,
+  gender: "men" | "women" = "men",
+): Candidate[] =>
   db
     .prepare(
       `SELECT yps.player_id, pa.primary_position, pa.technical_json, pa.mental_json, pa.physical_json, pa.goalkeeping_json
@@ -293,7 +298,11 @@ const youthCandidates = (db: GameDatabase, clubId: EntityId, position?: string, 
     .all(clubId, gender === "women" ? "female" : "male", position ?? null, position ?? null)
     .map(mapCandidate);
 
-const freeAgentCandidates = (db: GameDatabase, position?: string, gender: "men" | "women" = "men"): Candidate[] =>
+const freeAgentCandidates = (
+  db: GameDatabase,
+  position?: string,
+  gender: "men" | "women" = "men",
+): Candidate[] =>
   db
     .prepare(
       `SELECT pa.person_id AS player_id, pa.primary_position, pa.technical_json, pa.mental_json,
@@ -456,7 +465,9 @@ const createEmergencyPlayer = (
 const competitionSeasonMeta = (
   db: GameDatabase,
   seasonId: EntityId,
-): { competitionName: string; startDate: string; category: string | null; homeMembers: number } | undefined => {
+):
+  | { competitionName: string; startDate: string; category: string | null; homeMembers: number }
+  | undefined => {
   const row = db
     .prepare(
       `SELECT c.name AS competition_name, cs.start_date, c.category AS category,
@@ -467,7 +478,14 @@ const competitionSeasonMeta = (
       WHERE cs.id = ?`,
     )
     .get(seasonId) as any;
-  return row ? { competitionName: row.competition_name, startDate: row.start_date, category: row.category ?? null, homeMembers: Number(row.home_members ?? 0) } : undefined;
+  return row
+    ? {
+        competitionName: row.competition_name,
+        startDate: row.start_date,
+        category: row.category ?? null,
+        homeMembers: Number(row.home_members ?? 0),
+      }
+    : undefined;
 };
 
 const memberClubs = (db: GameDatabase, seasonId: EntityId): RepairClub[] =>
@@ -537,9 +555,16 @@ const shallowestPosition = (db: GameDatabase, club: RepairClub): string | undefi
  * where promoted and relegated clubs meet, so it must keep fielding squads. Membership, not
  * the competition's federation link, decides "home": some datasets leave the link empty.
  */
-const DOMESTIC_LEAGUE_CATEGORIES = ["PYRAMID_LEAGUE", "SPECIAL_NATIONAL_LEAGUE", "FRANCHISE_LEAGUE", "WOMENS_LEAGUE"];
-const isCoreContinuityCompetition = (meta: { category: string | null; homeMembers: number }): boolean =>
-  meta.homeMembers > 0 && DOMESTIC_LEAGUE_CATEGORIES.includes(meta.category ?? "");
+const DOMESTIC_LEAGUE_CATEGORIES = [
+  "PYRAMID_LEAGUE",
+  "SPECIAL_NATIONAL_LEAGUE",
+  "FRANCHISE_LEAGUE",
+  "WOMENS_LEAGUE",
+];
+const isCoreContinuityCompetition = (meta: {
+  category: string | null;
+  homeMembers: number;
+}): boolean => meta.homeMembers > 0 && DOMESTIC_LEAGUE_CATEGORIES.includes(meta.category ?? "");
 
 const emergencyAttributes = (
   personId: EntityId,
