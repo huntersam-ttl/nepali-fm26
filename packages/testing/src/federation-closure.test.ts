@@ -148,7 +148,7 @@ describe("term end returns the same person to the base career", () => {
 
       const state = roles(service);
       expect(state.activeRole).toBe(base);
-      expect(state.heldRoles.map((entry) => entry.role)).not.toContain("FEDERATION_PRESIDENT");
+      expect(state.heldRoles).not.toContain("FEDERATION_PRESIDENT");
       expectAllRejected(presidentReads(service));
       service.closeCareer();
 

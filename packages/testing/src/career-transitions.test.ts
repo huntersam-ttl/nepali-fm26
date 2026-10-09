@@ -111,6 +111,7 @@ const seedOfferedVacancy = (savePath: string): { applicationId: EntityId; vacanc
       status: "OPEN",
     } as never);
     const vacancy = careerWorld.vacancy("transition-vacancy" as EntityId)!;
+    if (!vacancy.clubId) throw new Error("Transition vacancy has no club");
     const applicationId = "transition-offer" as EntityId;
     careerWorld.insertApplication({
       id: applicationId,

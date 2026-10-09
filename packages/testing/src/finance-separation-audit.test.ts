@@ -189,7 +189,7 @@ describe("financial separation: personal / club / federation", () => {
     postClubTransaction(db, {
       clubId,
       date,
-      category: "GOVERNMENT_SUPPORT",
+      category: "GRANT",
       direction: "CREDIT",
       amount,
       description: "Government infrastructure support",
@@ -208,7 +208,7 @@ describe("financial separation: personal / club / federation", () => {
     postFederationTransaction(db, {
       federationId,
       date,
-      category: "COMMERCIAL_RIGHTS",
+      category: "SPONSORSHIP",
       direction: "CREDIT",
       amount,
       description: "Commercial rights instalment",
@@ -226,7 +226,7 @@ describe("financial separation: personal / club / federation", () => {
     postFederationTransaction(db, {
       federationId,
       date,
-      category: "DEVELOPMENT_PROGRAMME",
+      category: "YOUTH_DEVELOPMENT",
       direction: "DEBIT",
       amount,
       description: "National development programme spend",

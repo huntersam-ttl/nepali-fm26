@@ -79,7 +79,7 @@ const playerOnTeam = (db: ReturnType<typeof openGameDatabase>, teamId: EntityId)
     currency: "NPR",
     squadRole: "ROTATION",
     status: "ACTIVE",
-    provenance: { sourceName: "SIMULATION_ONLY", confidence: 1 },
+    provenance: { sourceName: "SIMULATION_ONLY", confidence: 1, status: "SIMULATION_ONLY" },
   });
   return person.id;
 };

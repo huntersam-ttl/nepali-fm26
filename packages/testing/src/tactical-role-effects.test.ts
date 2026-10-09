@@ -72,6 +72,7 @@ const player = (
       handling: position === "GK" ? 13 : 3, reflexes: position === "GK" ? 13 : 3,
       oneOnOnes: position === "GK" ? 13 : 3, aerialReach: position === "GK" ? 13 : 3,
       commandOfArea: position === "GK" ? 13 : 3, communication: position === "GK" ? 13 : 3,
+      distribution: position === "GK" ? 13 : 3,
       kicking: position === "GK" ? 12 : 6,
     },
   } as PlayerAttributeSet;
@@ -283,7 +284,11 @@ describe("old-save / missing-duty compatibility", () => {
     // Simulate a pre-duty save: strip duty entirely.
     const preDuty = {
       ...setup,
-      assignments: setup.assignments.map(({ duty: _duty, ...rest }) => rest),
+      assignments: setup.assignments.map((assignment) => {
+        const { duty, ...rest } = assignment;
+        void duty;
+        return rest;
+      }),
     };
     const normalized = normalizeTacticalSetup(preDuty as never);
     for (const assignment of normalized.assignments) {

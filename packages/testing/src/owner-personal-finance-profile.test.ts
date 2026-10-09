@@ -52,7 +52,7 @@ describe("a real owner career always gets a usable personal financial profile", 
     const listed = service.listStartingClubs();
     if (!listed.ok) throw new Error(listed.error.message);
     const club = listed.data.find((item) => item.division === "A");
-    if (!club?.teamId) throw new Error("No A-Division club in the starting-club list");
+    if (!club?.clubId || !club.teamId) throw new Error("No A-Division club in the starting-club list");
     const created = service.createCareer({
       careerMode: "OWNER",
       saveName: "Owner Finance Join",
@@ -85,11 +85,13 @@ describe("a real owner career always gets a usable personal financial profile", 
       savesDirectory: dir,
       worldDatasetPath: registryPath,
     });
+    const locations = service.listFounderLocations();
+    if (!locations.ok || locations.data.length === 0) throw new Error("No founder locations available");
     const created = service.createCareer({
       careerMode: "OWNER",
       saveName: "Owner Finance Founder",
       character,
-      founder: { clubName: "Founder Finance FC", locationName: "Kathmandu" },
+      founder: { clubName: "Founder Finance FC", locationId: locations.data[0]!.id },
     });
     expect(created.ok).toBe(true);
     if (!created.ok) return;
@@ -120,7 +122,7 @@ describe("a real owner career always gets a usable personal financial profile", 
     const listed = service.listStartingClubs();
     if (!listed.ok) throw new Error(listed.error.message);
     const club = listed.data.find((item) => item.division === "A");
-    if (!club?.teamId) throw new Error("No A-Division club in the starting-club list");
+    if (!club?.clubId || !club.teamId) throw new Error("No A-Division club in the starting-club list");
     const created = service.createCareer({
       careerMode: "OWNER",
       saveName: "Owner Finance Invest",
@@ -179,7 +181,7 @@ describe("a real owner career always gets a usable personal financial profile", 
     const listed = service.listStartingClubs();
     if (!listed.ok) throw new Error(listed.error.message);
     const club = listed.data.find((item) => item.division === "A");
-    if (!club?.teamId) throw new Error("No A-Division club in the starting-club list");
+    if (!club?.clubId || !club.teamId) throw new Error("No A-Division club in the starting-club list");
     const created = service.createCareer({
       careerMode: "OWNER",
       saveName: "Owner Finance Dedupe",
