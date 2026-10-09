@@ -89,6 +89,7 @@ describe("the home football context", () => {
       expect(["NP", "NPL"]).toContain(context.countryIso);
       expect(context).toMatchObject({ federationName: "All Nepal Football Association", currency: "NPR", locale: "en-IN" });
       expect(findHomeFootballContext(db)).toEqual(context);
+      if (!context.federationId || !context.countryId) throw new Error("The save has incomplete home context");
       expect((db.prepare("SELECT country_id AS id FROM federations WHERE id = ?").get(context.federationId) as { id: EntityId }).id).toBe(context.countryId);
     });
   }, 180_000);
@@ -101,6 +102,7 @@ describe("crossing a season as each role", () => {
     if (!created.ok) throw new Error(created.error.message);
     const savePath = created.data.catalogEntry.filePath;
     const stakeBefore = withDb(savePath, (db) => db.prepare("SELECT club_id, percentage FROM club_ownership_stakes WHERE status = 'ACTIVE' AND holder_type = 'PERSON' ORDER BY percentage DESC LIMIT 1").get() as { club_id: EntityId; percentage: number });
+    if (!stakeBefore.club_id) throw new Error("Owner save has no active ownership stake");
     expect(service.getCareerRoles()).toMatchObject({ ok: true, data: { activeRole: "CHAIRMAN_OWNER" } });
 
     continueUntil(service, () => seasonComplete(service));
@@ -167,6 +169,7 @@ describe("crossing a season as each role", () => {
     withDb(savePath, (db) => {
       const personId = (db.prepare("SELECT person_id FROM career_characters WHERE id=?").get(created.data.save.playerCharacterId!) as { person_id: EntityId }).person_id;
       const federationId = homeFootballContext(db).federationId;
+      if (!federationId) throw new Error("The save has no home federation");
       db.prepare(
         `INSERT INTO federation_leadership_tenures (id, person_id, federation_id, role, term_start, term_end, status, provenance_status)
          VALUES ('rollover-president-term', ?, ?, 'FEDERATION_PRESIDENT', ?, '2027-02-15', 'ACTIVE', 'SIMULATION_ONLY')`,

@@ -138,6 +138,7 @@ describe("the Nepal save's home football context", () => {
     const path = copyOfSave();
     withDb(path, (db) => {
       const home = homeFootballContext(db);
+      if (!home.federationId || !home.countryId) throw new Error("The save has incomplete home context");
       db.prepare("UPDATE federations SET name = 'Renamed Association' WHERE id = ?").run(home.federationId);
       db.prepare("UPDATE countries SET name = 'Renamed Country' WHERE id = ?").run(home.countryId);
     });

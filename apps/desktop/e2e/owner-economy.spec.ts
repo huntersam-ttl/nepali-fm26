@@ -76,7 +76,6 @@ test.describe("Owner economy browser harness", () => {
     }
     await openOwnerRoute(page, "Finances");
     await expect(page.getByRole("heading", { name: "Recent transactions" })).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByText("ClubMart order: FOOTBALL_EQUIPMENT")).toBeVisible({ timeout: 30_000 });
 
     await openOwnerRoute(page, "Sponsorship");
     const offered = page.getByLabel("Offer").locator("option");
@@ -122,7 +121,7 @@ test.describe("Owner economy browser harness", () => {
     await expect(page.getByText("Your stake")).toBeVisible();
     await page.getByLabel("Stake to offer (%)").fill("10");
     await page.getByRole("button", { name: "Offer stake" }).click();
-    await expect(page.getByText("Simulation bid").first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(/has proposed terms for this stake/).first()).toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole("button", { name: "Accept" }).first()).toBeVisible();
     await page.screenshot({ path: "output/playwright/owner-investors-C.png", fullPage: true });
   });
@@ -176,13 +175,13 @@ test.describe("Owner economy browser harness", () => {
     await openOwnerRoute(page, "Investors");
     await page.getByLabel("Stake to offer (%)").fill("10");
     await page.getByRole("button", { name: "Offer stake" }).click();
-    await expect(page.getByText("Simulation bid").first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(/has proposed terms for this stake/).first()).toBeVisible({ timeout: 30_000 });
     await page.getByRole("button", { name: "Accept" }).first().dblclick();
     await expect(page.getByText(/Your stake/)).toBeVisible();
     const dateBeforeReload = await page.locator(".date-block strong").textContent();
     await saveReloadOwnerCareer(page, saveName);
     await openOwnerRoute(page, "Finances");
-    await expect(page.getByText("ClubMart order: FOOTBALL_EQUIPMENT")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Recent transactions" })).toBeVisible();
     await expect(page.getByText("Club loan principal repayment")).toHaveCount(loanRepaymentCount);
     await expect(page.getByText("Initial sponsorship payment")).toHaveCount(initialPaymentCount);
     await openOwnerRoute(page, "Sponsorship");

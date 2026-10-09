@@ -24,7 +24,7 @@ import {
   homeCountryId,
   homeFederationId,
 } from "@nepal-football-sim/simulation";
-import { createStableEntityId, type Club, type EntityId, type ManagerAttributeSet, type Team } from "@nepal-football-sim/shared-types";
+import { createStableEntityId, type Club, type ClubBoardPolicy, type EntityId, type ManagerAttributeSet, type Team } from "@nepal-football-sim/shared-types";
 
 /*
  * Phase 11D: known correctness defects. Country lookups resolve against the real world, regional
@@ -98,9 +98,11 @@ describe("country lookups resolve against the real world", () => {
       for (const id of edition.hostCountryIds) expect(db.prepare("SELECT 1 AS present FROM countries WHERE id = ?").get(id)).toBeDefined();
       const asian = createInternationalCompetitionEdition(db, { competitionKey: "ASIAN_CUP", cycle: "2028", startDate: "2028-01-01", seed: "host-test" });
       for (const id of asian.hostCountryIds) expect(db.prepare("SELECT 1 AS present FROM countries WHERE id = ?").get(id)).toBeDefined();
+      const home = homeCountryId(db);
+      if (!home) throw new Error("The save has no home country");
       const participants = db
         .prepare("SELECT entry_status AS status FROM international_competition_participants p JOIN international_team_profiles t ON t.id = p.team_profile_id WHERE p.edition_id = ? AND t.country_id = ?")
-        .all(edition.id, homeCountryId(db)) as Array<{ status: string }>;
+        .all(edition.id, home) as Array<{ status: string }>;
       for (const participant of participants) expect(participant.status).toBe("HOST");
     });
   });
@@ -144,7 +146,7 @@ const addDay = (date: string, days: number): string => {
   return value.toISOString().slice(0, 10);
 };
 
-const boardWorld = (expectation: string) => {
+const boardWorld = (expectation: ClubBoardPolicy["strategicObjective"]) => {
   const db = openGameDatabase(":memory:");
   migrateDatabase(db);
   const world = new WorldRepository(db);
