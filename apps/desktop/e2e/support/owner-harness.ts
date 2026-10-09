@@ -57,7 +57,7 @@ export const createFounderOwner = async (page: Page): Promise<string> => {
 
 export const openOwnerRoute = async (page: Page, label: "Finances" | "Sponsorship" | "Investors"): Promise<void> => {
   await page.getByRole("button", { name: label, exact: true }).click();
-  await expect(page.getByRole("heading", { name: label === "Finances" ? "Club finance" : label === "Sponsorship" ? "Sponsorship" : "Ownership and investors" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: label === "Finances" ? "Club finance" : label })).toBeVisible();
 };
 
 export const saveReloadOwnerCareer = async (page: Page, saveName: string): Promise<void> => {

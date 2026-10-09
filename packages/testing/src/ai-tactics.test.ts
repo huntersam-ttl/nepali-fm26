@@ -63,7 +63,7 @@ const player = (team: string, index: number, over: Partial<Record<string, number
     technical: { firstTouch: a.firstTouch, passing: a.passing, crossing: a.crossing, dribbling: a.dribbling, finishing: a.finishing, heading: a.heading, tackling: a.tackling, technique: a.technique, longShots: a.longShots, setPieces: a.setPieces },
     mental: { decisions: a.decisions, vision: a.vision, composure: a.composure, positioning: a.positioning, anticipation: a.anticipation, workRate: a.workRate, teamwork: a.teamwork, leadership: a.leadership, aggression: a.aggression, determination: a.determination, professionalism: a.professionalism },
     physical: { pace: a.pace, acceleration: a.acceleration, strength: a.strength, stamina: a.stamina, agility: a.agility, balance: a.balance, jumping: a.jumping, naturalFitness: a.naturalFitness },
-    goalkeeping: { handling: position === "GK" ? 14 : 3, reflexes: position === "GK" ? 14 : 3, oneOnOnes: 3, aerialReach: 3, commandOfArea: 3, communication: 3, kicking: 6 },
+    goalkeeping: { handling: position === "GK" ? 14 : 3, reflexes: position === "GK" ? 14 : 3, oneOnOnes: 3, aerialReach: 3, commandOfArea: 3, communication: 3, kicking: 6, distribution: 6 },
   } as PlayerAttributeSet;
 };
 
@@ -503,7 +503,7 @@ describe("AI in-match adaptation stays legal and bounded", () => {
       foundRedCard = true;
       const dismissedId = dismissal.primaryPersonId;
       const laterEvents = result.events.filter(
-        (e) => e.minute > dismissal.minute && (e.primaryPersonId === dismissedId || e.secondaryPersonId === dismissedId),
+        (e) => (e.minute ?? Number.POSITIVE_INFINITY) > (dismissal.minute ?? Number.NEGATIVE_INFINITY) && (e.primaryPersonId === dismissedId || e.secondaryPersonId === dismissedId),
       );
       expect(laterEvents).toHaveLength(0);
     }
@@ -582,7 +582,6 @@ describe("bounded background tactical soak", () => {
     }
     const famMedian = [...famValues].sort((a, b) => a - b)[Math.floor(famValues.length / 2)] ?? 0;
 
-    // eslint-disable-next-line no-console
     console.log(
       JSON.stringify({
         scope: "1 season, maxFixturesPerSeason=40, non-match systems disabled",

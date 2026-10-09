@@ -19,8 +19,8 @@ test.describe("Owner economy browser harness", () => {
       await openOwnerRoute(page, "Sponsorship");
       await expect(page.getByRole("heading", { name: "Sponsorship" })).toBeVisible();
       await openOwnerRoute(page, "Investors");
-      await expect(page.getByText("Simulated valuation")).toBeVisible();
-      await expect(page.getByText("No investor bids.")).toBeVisible();
+      await expect(page.getByText("Estimated club value")).toBeVisible();
+      await expect(page.getByText("No open investor bids.")).toBeVisible();
     });
   }
 
@@ -79,19 +79,17 @@ test.describe("Owner economy browser harness", () => {
     await expect(page.getByText("ClubMart order: FOOTBALL_EQUIPMENT")).toBeVisible({ timeout: 30_000 });
 
     await openOwnerRoute(page, "Sponsorship");
-    const offered = page.getByRole("row").filter({ hasText: "OFFERED" });
-    await expect(offered).toHaveCount(3);
+    const offered = page.getByLabel("Offer").locator("option");
+    await expect(offered).toHaveCount(4);
     const originalOfferCount = await offered.count();
-    await page.getByLabel(/Counter value for/).first().fill("1");
-    await offered.first().getByRole("button", { name: "Counter", exact: true }).click();
-    await expect(page.getByRole("row").filter({ hasText: "OFFERED" })).toHaveCount(originalOfferCount - 1, { timeout: 30_000 });
+    await page.getByLabel("Counter amount").fill("1");
+    await page.getByRole("button", { name: "Counter", exact: false }).click();
+    await expect(page.getByLabel("Offer").locator("option")).toHaveCount(originalOfferCount - 1, { timeout: 30_000 });
     const activeAfterCounter = await page.getByRole("row").filter({ hasText: "ACTIVE" }).count();
-    const remainingOffer = page.getByRole("row").filter({ hasText: "OFFERED" });
-    await remainingOffer.first().getByRole("button", { name: "Accept", exact: true }).dblclick();
+    await page.getByRole("button", { name: "Accept", exact: false }).dblclick();
     await expect(page.getByRole("row").filter({ hasText: "ACTIVE" })).toHaveCount(activeAfterCounter + 1, { timeout: 30_000 });
-    const finalOffer = page.getByRole("row").filter({ hasText: "OFFERED" }).first();
-    await finalOffer.getByRole("button", { name: "Reject", exact: true }).click();
-    await expect(page.getByRole("row").filter({ hasText: "OFFERED" })).toHaveCount(0, { timeout: 30_000 });
+    await page.getByRole("button", { name: "Reject", exact: true }).click();
+    await expect(page.getByLabel("Offer").locator("option")).toHaveCount(0, { timeout: 30_000 });
     await expect(page.getByRole("row").filter({ hasText: "REJECTED" })).not.toHaveCount(0);
   });
 
@@ -121,8 +119,8 @@ test.describe("Owner economy browser harness", () => {
     await page.getByRole("button", { name: "Continue", exact: true }).click();
     await expect(page.locator(".date-block strong")).not.toHaveText(initialDate ?? "", { timeout: 30_000 });
     await openOwnerRoute(page, "Investors");
-    await expect(page.getByText("Current stake")).toBeVisible();
-    await page.getByLabel("Offer stake (%)").fill("10");
+    await expect(page.getByText("Your stake")).toBeVisible();
+    await page.getByLabel("Stake to offer (%)").fill("10");
     await page.getByRole("button", { name: "Offer stake" }).click();
     await expect(page.getByText("Simulation bid").first()).toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole("button", { name: "Accept" }).first()).toBeVisible();
@@ -157,11 +155,11 @@ test.describe("Owner economy browser harness", () => {
     await expect(page.getByText("ClubMart order: FOOTBALL_EQUIPMENT")).toBeVisible({ timeout: 30_000 });
 
     await openOwnerRoute(page, "Sponsorship");
-    const offered = page.getByRole("row").filter({ hasText: "OFFERED" });
+    const offered = page.getByLabel("Offer").locator("option");
     await expect(offered).toHaveCount(4);
     const activeBeforeSponsor = await page.getByRole("row").filter({ hasText: "ACTIVE" }).count();
-    await offered.first().getByRole("button", { name: "Accept", exact: true }).dblclick();
-    await expect(page.getByRole("row").filter({ hasText: "OFFERED" })).toHaveCount(3, { timeout: 30_000 });
+    await page.getByRole("button", { name: "Accept", exact: false }).dblclick();
+    await expect(page.getByLabel("Offer").locator("option")).toHaveCount(3, { timeout: 30_000 });
     const activeSponsorCount = await page.getByRole("row").filter({ hasText: "ACTIVE" }).count();
     expect(activeSponsorCount).toBeGreaterThanOrEqual(activeBeforeSponsor);
 
@@ -176,11 +174,11 @@ test.describe("Owner economy browser harness", () => {
     const loanRepaymentCount = await page.getByText("Club loan principal repayment").count();
 
     await openOwnerRoute(page, "Investors");
-    await page.getByLabel("Offer stake (%)").fill("10");
+    await page.getByLabel("Stake to offer (%)").fill("10");
     await page.getByRole("button", { name: "Offer stake" }).click();
     await expect(page.getByText("Simulation bid").first()).toBeVisible({ timeout: 30_000 });
     await page.getByRole("button", { name: "Accept" }).first().dblclick();
-    await expect(page.getByText(/Current stake/)).toBeVisible();
+    await expect(page.getByText(/Your stake/)).toBeVisible();
     const dateBeforeReload = await page.locator(".date-block strong").textContent();
     await saveReloadOwnerCareer(page, saveName);
     await openOwnerRoute(page, "Finances");
@@ -190,7 +188,7 @@ test.describe("Owner economy browser harness", () => {
     await openOwnerRoute(page, "Sponsorship");
     await expect(page.getByRole("row").filter({ hasText: "ACTIVE" })).toHaveCount(activeSponsorCount);
     await openOwnerRoute(page, "Investors");
-    await expect(page.getByText(/Current stake/)).toBeVisible();
+    await expect(page.getByText(/Your stake/)).toBeVisible();
     await page.getByRole("button", { name: "Continue", exact: true }).click();
     await expect(page.locator(".date-block strong")).not.toHaveText(dateBeforeReload ?? "", { timeout: 30_000 });
     await page.screenshot({ path: "output/playwright/owner-founder-integrated-reload.png", fullPage: true });
@@ -205,6 +203,6 @@ test.describe("Owner economy semantic route matrix", () => {
     await openOwnerRoute(page, "Finances");
     await openOwnerRoute(page, "Sponsorship");
     await openOwnerRoute(page, "Investors");
-    await expect(page.getByRole("heading", { name: "Ownership and investors" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Investors" })).toBeVisible();
   });
 });

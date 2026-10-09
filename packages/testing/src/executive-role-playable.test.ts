@@ -1,6 +1,6 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { openGameDatabase } from "@nepal-football-sim/database";
 import {
@@ -21,6 +21,7 @@ import type { EntityId } from "@nepal-football-sim/shared-types";
 
 const registryPath = resolve("data/nepal/2026-08/club-registry.json");
 const dirs: string[] = [];
+const services: DesktopApplicationService[] = [];
 const character = {
   fullName: "Executive Role Test",
   dateOfBirth: "1985-01-01",
@@ -36,13 +37,14 @@ const character = {
 
 const prepareDivision = (
   division: "A" | "B" | "C",
-): { service: DesktopApplicationService; clubId: EntityId; teamId: EntityId; filePath: string } => {
+): { service: DesktopApplicationService; clubId: EntityId; teamId: EntityId; filePath: string; saveId: EntityId } => {
   const dir = mkdtempSync(join(tmpdir(), `exec-role-playable-${division.toLowerCase()}-`));
   dirs.push(dir);
   const service = new DesktopApplicationService({
     savesDirectory: dir,
     worldDatasetPath: registryPath,
   });
+  services.push(service);
   const listed = service.listStartingClubs();
   if (!listed.ok) throw new Error(listed.error.message);
   const club = listed.data.find((item) => item.division === division);
@@ -60,6 +62,7 @@ const prepareDivision = (
     clubId: club.clubId,
     teamId: club.teamId,
     filePath: created.data.catalogEntry.filePath,
+    saveId: created.data.catalogEntry.saveId,
   };
 };
 
@@ -133,6 +136,7 @@ const makeManagerAlsoCeo = (filePath: string, clubId: EntityId, worldDate: strin
 };
 
 afterEach(() => {
+  for (const service of services.splice(0)) service.closeCareer();
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
@@ -174,18 +178,16 @@ describe("executive role: CEO is an NPC job, reachable via delegation but never 
   );
 
   it("preserves the active MANAGER role (never CEO) across a full reload, with CEO authority still working", () => {
-    const { service, clubId, filePath } = prepareDivision("B");
+    const { service, clubId, filePath, saveId } = prepareDivision("B");
     const header = service.getCareerHeader();
     if (!header.ok) throw new Error(header.error.message);
     makeManagerAlsoCeo(filePath, clubId, header.data.worldDate);
 
     const reopened = new DesktopApplicationService({
-      savesDirectory: filePath.slice(0, filePath.lastIndexOf("/")),
+      savesDirectory: dirname(filePath),
       worldDatasetPath: registryPath,
     });
-    const listed = reopened.listSaves();
-    if (!listed.ok) throw new Error(listed.error.message);
-    const saveId = listed.data[0]!.saveId;
+    services.push(reopened);
     const loaded = reopened.loadCareer(saveId);
     expect(loaded.ok).toBe(true);
     if (!loaded.ok) return;
@@ -237,6 +239,7 @@ describe("executive role: CEO is an NPC job, reachable via delegation but never 
       savesDirectory: dir,
       worldDatasetPath: registryPath,
     });
+    services.push(service);
     const locations = service.listFounderLocations();
     if (!locations.ok || locations.data.length === 0) return;
     const created = service.createCareer({

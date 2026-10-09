@@ -78,6 +78,7 @@ const player = (
       handling: position === "GK" ? 13 : 3, reflexes: position === "GK" ? 13 : 3,
       oneOnOnes: position === "GK" ? 13 : 3, aerialReach: position === "GK" ? 13 : 3,
       commandOfArea: position === "GK" ? 13 : 3, communication: position === "GK" ? 13 : 3,
+      distribution: position === "GK" ? 13 : 3,
       kicking: position === "GK" ? 12 : 6,
     },
   } as PlayerAttributeSet;
@@ -166,8 +167,6 @@ const aggregate = (
 
 describe("player instruction validation", () => {
   const players = squad("home");
-  const slotId = formation433.slots[8]!.id; // AML/wide forward slot
-
   const withInstructions = (instructions: PlayerInstruction[]) => {
     const setup = setupWithInstructions("home", players, 8, instructions);
     return validateSelection({ setup, players });

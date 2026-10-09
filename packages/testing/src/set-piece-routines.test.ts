@@ -68,6 +68,7 @@ const player = (
       handling: position === "GK" ? 13 : 3, reflexes: position === "GK" ? 13 : 3,
       oneOnOnes: position === "GK" ? 13 : 3, aerialReach: position === "GK" ? 13 : 3,
       commandOfArea: position === "GK" ? 13 : 3, communication: position === "GK" ? 13 : 3,
+      distribution: position === "GK" ? 13 : 3,
       kicking: position === "GK" ? 12 : 6,
     },
   } as PlayerAttributeSet;
